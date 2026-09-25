@@ -1,0 +1,9 @@
+# Apple architecture and runtime
+
+Use shared Swift source/packages for URLSession-backed wire models, publication consistency, session cache, screen state and branded SwiftUI controls; keep separate iOS/iPadOS and macOS navigation shells. Use SwiftUI's system `TabView`/`NavigationStack` on compact iOS and `NavigationSplitView` where appropriate on regular widths and macOS. iOS 26+ can use Liquid Glass and navigation accessories with availability checks; older supported iOS retains its system classic tab bar. Never force a hand-built Duo tab lane or copy PWA safe-area pixels.
+
+Apple's [Duo guidance](https://developer.apple.com/videos/play/tech-talks/111466/) says use compact outer and regular inner layouts, margins and safe areas rather than device-name breakpoints. Respect camera and fold reserved regions for custom overlays; keep system navigation outside split arrangements. A Duo pose/control matrix is still **unverified**; `simctl io ... screenConfig` exposes display power/geometry but does not by itself prove a real fold posture.
+
+This Mac has Xcode 27.1 (build 27A9269), iOS 26.5/27.0/27.1 simulator runtimes, and **no iOS 18 runtime** as observed 2026-09-24. Set `DEVELOPER_DIR` on Xcode commands. Existing Home Assistant simulators are booted and must not be touched. Serial testing should cover FST Duo outer orientation/cutout positions, inner layouts, iPhone on 26.x and 27.x, iPad windows, then macOS. Run accessibility audits and screenshots in hosted XCUITests; confirm VoiceOver order manually. Third-party injection/hot reload is a measured optional optimization, not a prerequisite.
+
+Use DocC for function contracts, `// MARK: -` sections, accessibility identifiers from the shared registry, and a dedicated logic/UI coverage split. The app can expose additive Reduce Motion/Contrast/Transparency/Background overrides, **not** an OS VoiceOver switch.

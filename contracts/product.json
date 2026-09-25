@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "repository": "SFenton/FortniteFestivalLeaderboardScraper",
+    "revision": "47090ef1ab7c2e189b04a1e29cfcf469a4098464",
+    "observation": "Working tree was dirty; these route observations are not a reproducible source snapshot."
+  },
+  "platforms": ["ios", "macos", "android", "windows"],
+  "pages": [
+    {"id": "home-redirect", "path": "/", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:55"},
+    {"id": "songs", "path": "/songs", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:56"},
+    {"id": "song-detail", "path": "/songs/:songId", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:57"},
+    {"id": "song-band-leaderboard", "path": "/songs/:songId/bands/:bandType", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:58"},
+    {"id": "song-leaderboard", "path": "/songs/:songId/:instrument", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:59"},
+    {"id": "player-history", "path": "/songs/:songId/:instrument/history", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:60"},
+    {"id": "player-profile", "path": "/player/:accountId", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:61"},
+    {"id": "rivals", "path": "/rivals", "guard": "player", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:63"},
+    {"id": "all-rivals", "path": "/rivals/all", "guard": "player", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:72"},
+    {"id": "rival-detail", "path": "/rivals/:rivalId", "guard": "player", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:81"},
+    {"id": "rivalry", "path": "/rivals/:rivalId/rivalry", "guard": "player", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:90"},
+    {"id": "statistics", "path": "/statistics", "guard": "selection", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:99"},
+    {"id": "suggestions", "path": "/suggestions", "guard": "selection", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:110"},
+    {"id": "shop", "path": "/shop", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:119"},
+    {"id": "manual", "path": "/manual", "guard": "feature", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:120"},
+    {"id": "leaderboards", "path": "/leaderboards", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:121"},
+    {"id": "full-rankings", "path": "/leaderboards/all", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:122"},
+    {"id": "band-rankings", "path": "/leaderboards/bands/:bandType", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:123"},
+    {"id": "player-bands", "path": "/bands/player/:accountId", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:124"},
+    {"id": "bands", "path": "/bands", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:125"},
+    {"id": "band-detail", "path": "/bands/:bandId", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:126"},
+    {"id": "compete", "path": "/compete", "guard": "player", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:128"},
+    {"id": "settings", "path": "/settings", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:137"},
+    {"id": "licenses", "path": "/settings/licenses", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:138"}
+  ],
+  "controls": [
+    {
+      "id": "difficulty-meter",
+      "status": "pending",
+      "source": "FortniteFestivalWeb/src/components/songs/metadata/DifficultyBars.tsx:15",
+      "states": ["one", "two", "three", "four", "five", "six", "seven"],
+      "testId": "fst.songs.difficulty-meter"
+    },
+    {
+      "id": "artwork-background",
+      "status": "pending",
+      "source": "FortniteFestivalWeb/src/components/shell/AnimatedBackground.tsx:69",
+      "states": ["no-art", "animated", "reduced-motion", "save-data", "not-visible"],
+      "testId": "fst.shell.artwork-background"
+    }
+  ],
+  "testIds": {
+    "fst.songs.difficulty-meter": "difficulty-meter",
+    "fst.shell.artwork-background": "artwork-background"
+  }
+}

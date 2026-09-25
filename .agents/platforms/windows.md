@@ -1,0 +1,7 @@
+# Windows architecture and performance
+
+Start with C#/.NET and WinUI 3 (Windows App SDK), `NavigationView`, virtualized lists, testable view models and composition-thread animations. [Microsoft recommends WinUI 3](https://learn.microsoft.com/en-us/windows/apps/get-started/) for new native desktop apps; the choice of **C# versus C++/WinRT is provisional** until the same Release screen is profiled with artwork motion, a large list and a modal beside a representative game. Measure app and game CPU/GPU, memory, startup, GC/frame delivery and responsiveness. Don't adopt invented startup/memory limits or assume a notification-state API recognizes every game.
+
+Use Fluent/WinUI focus, system high-contrast and text scaling; expose `AutomationProperties.AutomationId` from the shared test ID registry. Separate logic tests and XAML/UI automation, collect **95% / 90% line coverage** and finite state/visual/accessibility evidence. UIA-pattern queries can sometimes work over SSH; injected pointer gestures/screenshots may require an interactive desktop. Prove both before deciding test-runner setup; do not configure autologon without separate authorization.
+
+Windows SDKs, WinUI workload, .NET and Android tooling on `sfenton-primary` are being inspected, not assumed. Avoid disabling background visuals purely because window focus moves to a game: the app may stay visible beside it. Use data-saving/reduced-motion and measured occlusion policies instead.

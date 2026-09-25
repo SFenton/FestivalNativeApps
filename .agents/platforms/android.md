@@ -1,0 +1,7 @@
+# Android architecture and devices
+
+Use Kotlin and Jetpack Compose with a single activity, domain/data/UI boundaries and lifecycle-aware state. Prefer window-size-class adaptive navigation (bar → rail → drawer) and list/detail scaffolds; observe fold/display features with Jetpack WindowManager, not product-name or pixel checks. Phone, passport fold, book fold, tablet and tri-fold must each have recorded window-size and continuity tests. The [Android tri-fold guide](https://developer.android.com/develop/adaptive-apps/guides/foldables/trifolds-and-landscape-foldables) notes natural landscape orientation and no half-open tabletop posture for tri-folds.
+
+Use Fluent Android Compose controls when they preserve focus, touch targets and semantics. Respect system animation scale, dynamic text, contrast, TalkBack traversal, system back/predictive back and Android 16 edge-to-edge behavior. In Settings, accessibility overrides follow the OS by default and can only make the app more accessible.
+
+Unit/host and instrumented tests together must demonstrate **95% logic / 90% UI line coverage**, independently from control-state snapshots and navigation coverage; Android Gradle's [coverage reports](https://developer.android.com/studio/test/coverage-report) can include instrumented results even when a JVM-only plugin cannot. Use a fixture mock server, not production POSTs. Run one emulator at a time on the Windows host, verify real hinge features before claiming tri-fold emulation, and capture API level/window/pose with each result.

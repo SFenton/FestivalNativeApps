@@ -1,0 +1,6 @@
+# Port a page without losing states
+
+1. Inspect the rendered React route, guards, backing API, controls, transitions, modals and page-level preferences. Note the exact source revision/file/line and distinguish read-only requests from server-side actions.
+2. Add the page/control specs and registry IDs in `contracts/product.json`; provide fixture responses for empty/loading/loaded/stale/offline/error and every reachable control state. Run `python3 tools/verify_product.py` to catch duplicates and broken references.
+3. Implement native navigation and semantics on each platform, keeping bespoke geometry/palette precise. Add unit, control, integration, snapshot and accessibility tests; measure coverage from **actual** platform reports.
+4. Mark `implemented` only when all four platforms have test evidence for each state and transition. Run `--strict` before certifying full-site parity. Record device measurements and remaining gaps in the spec, not in a speculative success claim.
