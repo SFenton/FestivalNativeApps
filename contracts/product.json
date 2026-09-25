@@ -8,10 +8,10 @@
   "platforms": ["ios", "macos", "android", "windows"],
   "pages": [
     {"id": "home-redirect", "path": "/", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:55"},
-    {"id": "songs", "path": "/songs", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:56"},
-    {"id": "song-detail", "path": "/songs/:songId", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:57"},
+    {"id": "songs", "path": "/songs", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:56", "spec": ".agents/pages/songs.md"},
+    {"id": "song-detail", "path": "/songs/:songId", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:57", "spec": ".agents/pages/song-detail.md"},
     {"id": "song-band-leaderboard", "path": "/songs/:songId/bands/:bandType", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:58"},
-    {"id": "song-leaderboard", "path": "/songs/:songId/:instrument", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:59"},
+    {"id": "song-leaderboard", "path": "/songs/:songId/:instrument", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:59", "spec": ".agents/pages/song-leaderboard.md"},
     {"id": "player-history", "path": "/songs/:songId/:instrument/history", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:60"},
     {"id": "player-profile", "path": "/player/:accountId", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:61"},
     {"id": "rivals", "path": "/rivals", "guard": "player", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:63"},
@@ -29,7 +29,7 @@
     {"id": "bands", "path": "/bands", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:125"},
     {"id": "band-detail", "path": "/bands/:bandId", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:126"},
     {"id": "compete", "path": "/compete", "guard": "player", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:128"},
-    {"id": "settings", "path": "/settings", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:137"},
+    {"id": "settings", "path": "/settings", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:137", "spec": ".agents/pages/settings.md"},
     {"id": "licenses", "path": "/settings/licenses", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:138"}
   ],
   "controls": [
@@ -37,7 +37,7 @@
       "id": "difficulty-meter",
       "status": "pending",
       "source": "FortniteFestivalWeb/src/components/songs/metadata/DifficultyBars.tsx:15",
-      "states": ["one", "two", "three", "four", "five", "six", "seven"],
+      "states": ["one", "two", "three", "four", "five", "six", "seven", "invalid"],
       "testId": "fst.songs.difficulty-meter"
     },
     {
@@ -46,10 +46,43 @@
       "source": "FortniteFestivalWeb/src/components/shell/AnimatedBackground.tsx:69",
       "states": ["no-art", "animated", "reduced-motion", "save-data", "not-visible"],
       "testId": "fst.shell.artwork-background"
+    },
+    {
+      "id": "app-navigation",
+      "status": "pending",
+      "source": "FortniteFestivalWeb/src/components/shell/mobile/BottomNav.tsx:45",
+      "states": ["songs", "leaderboards", "settings", "player", "band", "reselect"],
+      "testId": "fst.nav.*",
+      "spec": ".agents/controls/app-navigation.md"
     }
   ],
   "testIds": {
     "fst.songs.difficulty-meter": "difficulty-meter",
-    "fst.shell.artwork-background": "artwork-background"
+    "fst.songs.difficulty-unavailable": "difficulty-meter",
+    "fst.shell.artwork-background": "artwork-background",
+    "fst.nav.*": "app-navigation",
+    "fst.songs.instrument-filter": "songs",
+    "fst.songs.search": "songs",
+    "fst.songs.navigation-notice": "songs",
+    "fst.songs.offline": "songs",
+    "fst.songs.refresh-error": "songs",
+    "fst.songs.row.*": "songs",
+    "fst.song-detail.intensity": "song-detail",
+    "fst.song-detail.leaderboard.*": "song-detail",
+    "fst.song-leaderboard.row.*": "song-leaderboard",
+    "fst.song-leaderboard.page-first": "song-leaderboard",
+    "fst.song-leaderboard.page-previous": "song-leaderboard",
+    "fst.song-leaderboard.page-info": "song-leaderboard",
+    "fst.song-leaderboard.page-next": "song-leaderboard",
+    "fst.song-leaderboard.page-last": "song-leaderboard",
+    "fst.settings.leeway": "settings",
+    "fst.settings.reduce-motion": "settings",
+    "fst.settings.disable-artwork-animation": "settings",
+    "fst.settings.more-contrast": "settings",
+    "fst.settings.less-transparency": "settings",
+    "fst.settings.instrument.*": "settings",
+    "fst.settings.metadata.*": "settings",
+    "fst.settings.publication-status": "settings",
+    "fst.settings.reset": "settings"
   }
 }

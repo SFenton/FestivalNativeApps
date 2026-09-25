@@ -6,6 +6,7 @@ Read this file first. Then follow [.agents/README.md](.agents/README.md) to the 
 
 - Implement **native** SwiftUI for iOS/iPadOS and macOS, Kotlin/Compose for Android, and provisionally C#/WinUI 3 for Windows. Fluent semantic design tokens guide content; system navigation, safe areas and accessibility are native. Do not copy device-pixel heuristics or ship a WebView/React Native UI.
 - Never embed or request the service's privileged `X-API-Key`. Document each public endpoint's wire format and side effects; use mock fixtures for automated UI tests. Do not run profile tracking, name refresh, scrape, maintenance or load tests against production.
+- Keep the validated **observed** publication separate from a response's optional `X-FST-Publication-Id` provenance. Headerless bytes are live but not generation-verified; warm-offline reuse of those bytes is not implemented and must never be presented as a verified snapshot.
 - The source website is an independently owned, currently dirty worktree. Read it for behavior; never reset, commit, or amend its changes as part of this repo. Pin a clean source revision before certifying full parity.
 - Build on all platforms as needed, but run **one product simulator/emulator at a time per host**. Never stop, reset or repurpose another project's devices. On this Mac, pin `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` per command rather than changing the global developer directory.
 - Use `master` as the integration branch. Push accepted small cohesive commits; other hosts pull after each integration. Avoid conflicting parallel edits. PR auto-merge is permitted only when the PR author is exactly `SFenton`; all others, including bots, require manual merge.
@@ -15,7 +16,7 @@ Read this file first. Then follow [.agents/README.md](.agents/README.md) to the 
 
 ## Change loop
 
-1. Read the page/control spec and original source references; identify every input, state, dependent control, guard and navigation edge. Research uncertain behavior and record evidence.
+1. Read the page/control spec and original source references; identify every input, state, dependent control, guard and navigation edge. Load the PWA at each target portrait **and** landscape viewport with deterministic fixtures; compare actual layout and control states with the native app, documenting deliberate Fluent/system-chrome differences. Research uncertain behavior and record evidence.
 2. Update contracts, fixtures and platform-specific tests before or with implementation. Use system accessibility preferences as defaults; in-app Settings may **add** accommodations but cannot toggle the OS screen reader.
 3. Run targeted logic, UI, accessibility and snapshot tests; check actual coverage thresholds and serial device layouts. Keep performance measurements representative and record device/OS/build configuration.
 4. Cross-review implementation with GPT-6 Sol and read-only Opus 5.5 when explicitly using tandem. Fix findings, commit and push; other hosts pull `master`. Do not describe a pending route or test as done.

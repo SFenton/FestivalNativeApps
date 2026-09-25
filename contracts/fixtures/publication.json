@@ -1,0 +1,10 @@
+{
+  "contractVersion": 1,
+  "publicationId": 7,
+  "previousPublicationId": null,
+  "publishedScrapeId": 42,
+  "publishedAt": "2026-01-01T00:00:00Z",
+  "readyForPinning": true,
+  "pinningEnabled": true,
+  "unreadySurfaces": []
+}

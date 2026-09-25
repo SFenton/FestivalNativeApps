@@ -2,6 +2,8 @@
 .build/
 .swiftpm/
 DerivedData/
+apple/*.xcodeproj/
+apple/Apps/*/Info.plist
 *.xcresult
 *.xcuserstate
 xcuserdata/
@@ -25,3 +27,5 @@ TestResults/
 local.properties
 __pycache__/
 *.pyc
+.visual-output/
+tools/visual/test-results/

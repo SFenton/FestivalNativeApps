@@ -15,8 +15,52 @@ MANIFEST = ROOT / "contracts" / "product.json"
 PLATFORMS = ("ios", "macos", "android", "windows")
 GUARDS = frozenset({"none", "player", "selection", "feature"})
 SLUG = re.compile(r"^[a-z][a-z0-9-]*$")
-TEST_ID = re.compile(r"^fst\.[a-z][a-z0-9.-]*$")
+TEST_ID = re.compile(r"^fst\.[a-z][a-z0-9.-]*(?:\.\*)?$")
+SOURCE_TEST_ID = re.compile(
+    r'(?:\.accessibilityIdentifier\s*\(|\btestTag\s*\('
+    r'|\bAutomationProperties\.SetAutomationId\s*\([^,]+,'
+    r'|\bAutomationProperties\.AutomationId\s*=)\s*"(?P<id>fst\.[^"]+)"'
+)
 SOURCE_REF = re.compile(r"^[^:\n]+:\d+$")
+NATIVE_SOURCE = (
+    "apple/Sources/**/*.swift", "apple/Apps/**/*.swift",
+    "android/**/*.kt", "windows/**/*.cs", "windows/**/*.xaml",
+)
+
+
+def unregistered_native_ids(root: Path, registry: dict[str, str]) -> list[str]:
+    """Compare literal native accessibility/test IDs with the central registry.
+
+    Args:
+        root: Native product repository containing platform source code.
+        registry: Declared static IDs or dynamic-family IDs ending in `.*`.
+
+    Returns:
+        File/line diagnostics for any ID that is not registered.
+    """
+    errors: list[str] = []
+    for pattern in NATIVE_SOURCE:
+        for path in root.glob(pattern):
+            if not path.is_file():
+                continue
+            source = path.read_text(encoding="utf-8")
+            for match in SOURCE_TEST_ID.finditer(source):
+                token = match.group("id")
+                for interpolation in ("\\(", "${", "{"):
+                    if interpolation in token:
+                        token = token.split(interpolation, 1)[0] + "*"
+                        break
+                if token not in registry and not any(
+                    family.endswith(".*")
+                    and token.startswith(family[:-1])
+                    and len(token) > len(family) - 1
+                    for family in registry
+                ):
+                    line = source.count("\n", 0, match.start("id")) + 1
+                    errors.append(
+                        f"{path.relative_to(root)}:{line}: unregistered native test ID {token}"
+                    )
+    return errors
 
 
 def _is_nonempty_text(value: Any) -> bool:
@@ -181,8 +225,9 @@ def validate_product(manifest: Any, *, root: Path, strict: bool = False) -> list
     for test_id, owner in ids.items():
         if not isinstance(test_id, str) or not TEST_ID.fullmatch(test_id):
             errors.append(f"testIds: invalid ID {test_id}")
-        if owner not in seen_ids:
+        if not isinstance(owner, str) or owner not in seen_ids:
             errors.append(f"testIds: unknown owner {owner}")
+    errors.extend(unregistered_native_ids(root, ids))
     return errors
 
 

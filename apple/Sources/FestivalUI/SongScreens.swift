@@ -1,0 +1,700 @@
+import Foundation
+import SwiftUI
+import FestivalCore
+import FestivalDesign
+
+/// Typed native navigation within the Songs tab, separate from other tab stacks.
+enum SongRoute: Hashable {
+    case detail(Song)
+    case leaderboard(Song, Instrument, Int)
+}
+
+/// Songs, Detail and solo scores share one scene-owned navigation path.
+struct SongNavigationRoot: View {
+    let session: FestivalSession
+    @Binding var path: [SongRoute]
+    @Binding var searchText: String
+    @Binding var settledSearch: String
+    @Binding var selectedInstrument: Instrument?
+    @Binding var navigationNotice: String?
+    let visibleInstruments: Set<Instrument>
+    let highContrast: Bool
+
+    /// Retain a shared route and visibility policy across platform navigation.
+    ///
+    /// - Parameters:
+    ///   - session: Shared process-lifetime service and artwork cache.
+    ///   - path: Current Songs navigation stack.
+    ///   - searchText: Live search entry.
+    ///   - settledSearch: Debounced search query.
+    ///   - selectedInstrument: Scene-owned chart filter surviving section switches.
+    ///   - navigationNotice: Explanation for safe route or filter invalidation.
+    ///   - visibleInstruments: Persisted chart visibility.
+    ///   - highContrast: Effective system or in-app contrast override.
+    init(
+        session: FestivalSession, path: Binding<[SongRoute]>,
+        searchText: Binding<String>, settledSearch: Binding<String>,
+        selectedInstrument: Binding<Instrument?> = .constant(nil),
+        navigationNotice: Binding<String?> = .constant(nil),
+        visibleInstruments: Set<Instrument> = Set(Instrument.allCases),
+        highContrast: Bool = false
+    ) {
+        self.session = session
+        _path = path
+        _searchText = searchText
+        _settledSearch = settledSearch
+        _selectedInstrument = selectedInstrument
+        _navigationNotice = navigationNotice
+        self.visibleInstruments = visibleInstruments
+        self.highContrast = highContrast
+    }
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            SongsScreen(
+                session: session, searchText: $searchText, settledSearch: $settledSearch,
+                selectedInstrument: $selectedInstrument, navigationNotice: $navigationNotice,
+                visibleInstruments: visibleInstruments, highContrast: highContrast
+            )
+                .navigationDestination(for: SongRoute.self) { route in
+                    switch route {
+                    case let .detail(song):
+                        SongDetailScreen(
+                            song: song, session: session, visibleInstruments: visibleInstruments
+                        )
+                    case let .leaderboard(song, instrument, page):
+                        SoloLeaderboardScreen(
+                            song: song, instrument: instrument,
+                            session: session, initialPage: page, path: $path
+                        )
+                    }
+                }
+        }
+    }
+}
+
+// MARK: - Song catalogue
+
+/// Native virtualized catalogue with explicit loading, error and offline states.
+struct SongsScreen: View {
+    let session: FestivalSession
+    let visibleInstruments: Set<Instrument>
+    let highContrast: Bool
+    @State private var state: LoadState
+    @Binding private var searchText: String
+    @Binding private var settledSearch: String
+    @Binding private var instrument: Instrument?
+    @Binding private var navigationNotice: String?
+    @State private var refreshFailure: String?
+    @FocusState private var searchFocused: Bool
+
+    enum LoadState {
+        case loading
+        case loaded(CatalogPayload)
+        case failed(String)
+    }
+
+    /// Create a catalogue screen with a fixture state for hosted visual tests.
+    ///
+    /// - Parameters:
+    ///   - session: Process-scoped data and artwork cache.
+    ///   - initialState: Loading in production, or a fixture for state snapshots.
+    ///   - initialRefreshError: An actionable last-update failure for snapshot tests.
+    ///   - searchText: Tab-owned text retained across native section switching.
+    ///   - settledSearch: Tab-owned 250 ms debounced query.
+    ///   - selectedInstrument: Scene-owned filter retained when a split view switches sections.
+    ///   - navigationNotice: Explicit route/filter invalidation announcement.
+    init(
+        session: FestivalSession, initialState: LoadState = .loading,
+        initialRefreshError: String? = nil,
+        searchText: Binding<String> = .constant(""),
+        settledSearch: Binding<String> = .constant(""),
+        selectedInstrument: Binding<Instrument?> = .constant(nil),
+        navigationNotice: Binding<String?> = .constant(nil),
+        visibleInstruments: Set<Instrument> = Set(Instrument.allCases),
+        highContrast: Bool = false
+    ) {
+        self.session = session
+        self.visibleInstruments = visibleInstruments
+        self.highContrast = highContrast
+        _state = State(initialValue: initialState)
+        _refreshFailure = State(initialValue: initialRefreshError)
+        _searchText = searchText
+        _settledSearch = settledSearch
+        _instrument = selectedInstrument
+        _navigationNotice = navigationNotice
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Image(systemName: "magnifyingglass")
+                    .accessibilityHidden(true)
+                TextField(
+                    "", text: $searchText,
+                    prompt: Text("Search").foregroundStyle(BrandTokens.textSecondary)
+                )
+                .font(.body)
+                .foregroundStyle(BrandTokens.textPrimary)
+                .textFieldStyle(.plain)
+                .focused($searchFocused)
+                .submitLabel(.search)
+                .onSubmit { searchFocused = false }
+                .accessibilityLabel("Search songs")
+                .accessibilityIdentifier("fst.songs.search")
+            }
+            .padding(12)
+            .frame(minHeight: 50)
+            .background(BrandTokens.cardBackground, in: Capsule())
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+
+            if let navigationNotice {
+                HStack(spacing: 8) {
+                    Text(navigationNotice)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button("Dismiss") { self.navigationNotice = nil }
+                }
+                .font(.footnote)
+                .foregroundStyle(BrandTokens.gold)
+                .padding(12)
+                .background(
+                    BrandTokens.cardBackground, in: RoundedRectangle(cornerRadius: 12)
+                )
+                .padding(.horizontal, 16)
+                .accessibilityIdentifier("fst.songs.navigation-notice")
+            }
+
+            Group {
+            switch state {
+            case .loading:
+                ProgressView("Loading songs")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case let .failed(message):
+                ContentUnavailableView {
+                    Label("Songs unavailable", systemImage: "wifi.slash")
+                } description: {
+                    Text(message)
+                } actions: {
+                    Button("Retry") { Task { await reload() } }
+                }
+            case let .loaded(payload):
+                let visible = payload.catalog.songs.filter { song in
+                    SongSearch.matches(song, query: settledSearch)
+                        && (instrument.map(song.supports) ?? true)
+                }.sorted { left, right in
+                    let titleOrder = left.title.localizedCompare(right.title)
+                    return titleOrder == .orderedSame
+                        ? left.songId < right.songId
+                        : titleOrder == .orderedAscending
+                }
+                if visible.isEmpty {
+                    VStack(spacing: 8) {
+                        if hasDisclosure(for: payload) {
+                            disclosures(for: payload)
+                        }
+                        ContentUnavailableView.search(text: settledSearch)
+                    }
+                } else {
+                    List {
+                        if hasDisclosure(for: payload) {
+                            disclosures(for: payload)
+                        }
+                        ForEach(visible) { song in
+                            NavigationLink(value: SongRoute.detail(song)) {
+                                SongRowView(
+                                    song: song, instrument: instrument,
+                                    session: session, highContrast: highContrast
+                                )
+                            }
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .accessibilityIdentifier("fst.songs.row.\(song.songId)")
+                        }
+                    }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                }
+            }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .background(BrandTokens.appBackground.ignoresSafeArea())
+        .navigationTitle("Songs")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Button("All instruments") { instrument = nil }
+                    ForEach(Instrument.allCases.filter(visibleInstruments.contains)) { choice in
+                        Button(choice.label) { instrument = choice }
+                    }
+                } label: {
+                    Label(
+                        instrument?.label ?? "All instruments",
+                        systemImage: "slider.horizontal.3"
+                    )
+                }
+                .accessibilityIdentifier("fst.songs.instrument-filter")
+            }
+        }
+        .task(id: session.publicationRevision) {
+            if case .loading = state {
+                await reload()
+            } else if case let .loaded(payload) = state,
+                      let current = session.publicationId,
+                      payload.observedPublicationId != current {
+                await reload()
+            }
+        }
+        .onChange(of: visibleInstruments) { _, updated in
+            if let instrument, !updated.contains(instrument) {
+                self.instrument = nil
+            }
+        }
+        .task(id: searchText) {
+            do {
+                try await Task.sleep(for: .milliseconds(250))
+                settledSearch = searchText
+            } catch is CancellationError {
+                return
+            } catch {
+                state = .failed("Search could not finish: \(error.localizedDescription)")
+            }
+        }
+        .refreshable { await reload() }
+    }
+
+    /// Avoid installing an empty accessibility node for an absent warning group.
+    ///
+    /// - Parameter payload: Catalogue state to check for visible disclosure.
+    /// - Returns: True when at least one warning must appear above the rows.
+    private func hasDisclosure(for payload: CatalogPayload) -> Bool {
+        refreshFailure != nil || payload.isStale || payload.publicationId == nil
+            || session.publicationId.map { $0 != payload.observedPublicationId } == true
+    }
+
+    /// Show freshness and update errors even when search finds no matching rows.
+    ///
+    /// - Parameter payload: Current catalogue with response and observation provenance.
+    /// - Returns: Any visible, accessible warning that applies to these songs.
+    @ViewBuilder
+    private func disclosures(for payload: CatalogPayload) -> some View {
+        if let refreshFailure {
+            RefreshErrorBanner(message: refreshFailure)
+        }
+        if payload.isStale {
+            Label(
+                payload.publicationId == nil
+                    ? "Offline - last seen songs (publication unverified)"
+                    : "Offline - showing cached songs",
+                systemImage: "wifi.slash"
+            )
+            .foregroundStyle(BrandTokens.gold)
+            .accessibilityIdentifier("fst.songs.offline")
+        } else if payload.publicationId == nil {
+            Label(
+                "Showing live songs without publication verification",
+                systemImage: "info.circle"
+            )
+            .foregroundStyle(BrandTokens.gold)
+        }
+        if let current = session.publicationId,
+           payload.observedPublicationId != current {
+            Label(
+                "Publication changed - updating songs",
+                systemImage: "arrow.clockwise"
+            )
+            .foregroundStyle(BrandTokens.gold)
+        }
+    }
+
+    /// Refresh the public catalogue, preserving the last-viewed process cache.
+    private func reload() async {
+        let prior: CatalogPayload?
+        if case let .loaded(payload) = state {
+            prior = payload
+        } else {
+            prior = nil
+            state = .loading
+        }
+        do {
+            let updated = try await session.catalog()
+            try Task.checkCancellation()
+            state = .loaded(updated)
+            refreshFailure = nil
+        } catch is CancellationError {
+            return
+        } catch let error as URLError where error.code == .cancelled {
+            return
+        } catch {
+            if let prior {
+                state = .loaded(prior)
+                refreshFailure = error.localizedDescription
+            } else {
+                state = .failed(error.localizedDescription)
+            }
+        }
+    }
+}
+
+/// Compact, announced refresh error that does not remove the current song list.
+struct RefreshErrorBanner: View {
+    let message: String
+
+    var body: some View {
+        Label("Update failed: \(message)", systemImage: "exclamationmark.triangle")
+            .foregroundStyle(BrandTokens.gold)
+            .accessibilityIdentifier("fst.songs.refresh-error")
+    }
+}
+
+/// A row's text, artwork and charted meter remain one accessible navigation action.
+struct SongRowView: View {
+    let song: Song
+    let instrument: Instrument?
+    let session: FestivalSession
+    let highContrast: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ArtworkTile(raw: song.albumArt, session: session, size: 44)
+                .id(song.albumArt)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(song.title)
+                    .font(.headline)
+                    .foregroundStyle(BrandTokens.textPrimary)
+                Text(song.year.map { "\(song.artist) · \($0)" } ?? song.artist)
+                    .font(.subheadline)
+                    .foregroundStyle(BrandTokens.textSecondary)
+            }
+            Spacer(minLength: 4)
+            if let instrument, let difficulty = song.difficulty?.chartedValue(for: instrument) {
+                DifficultyMeter(level: difficulty, raw: true)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(BrandTokens.cardBackground, in: RoundedRectangle(cornerRadius: 12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(
+                    highContrast ? BrandTokens.textPrimary : BrandTokens.glassBorder,
+                    lineWidth: highContrast ? 2 : 1
+                )
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - Song detail
+
+/// Catalog detail retains source section order for currently available data.
+struct SongDetailScreen: View {
+    let song: Song
+    let session: FestivalSession
+    let visibleInstruments: Set<Instrument>
+
+    private var charted: [Instrument] {
+        Instrument.allCases.filter(song.supports)
+    }
+
+    /// Supply enabled chart links without hiding the PWA's full Intensity grid.
+    ///
+    /// - Parameters:
+    ///   - song: Catalog record opened from the Songs route.
+    ///   - session: Process-lifetime client and artwork state.
+    ///   - visibleInstruments: Solo charts enabled in Settings.
+    init(
+        song: Song, session: FestivalSession,
+        visibleInstruments: Set<Instrument> = Set(Instrument.allCases)
+    ) {
+        self.song = song
+        self.session = session
+        self.visibleInstruments = visibleInstruments
+    }
+
+    var body: some View {
+        #if os(iOS)
+        detailContent.navigationBarTitleDisplayMode(.inline)
+        #else
+        detailContent
+        #endif
+    }
+
+    /// Branded detail beneath platform-owned compact back navigation.
+    private var detailContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                HStack(alignment: .top, spacing: 16) {
+                    ArtworkTile(raw: song.albumArt, session: session, size: 96)
+                        .id(song.albumArt)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(song.title)
+                            .font(.title.bold())
+                        Text(song.artist)
+                            .foregroundStyle(BrandTokens.textSecondary)
+                        if let year = song.year {
+                            Text(year.formatted(.number.grouping(.never)))
+                                .foregroundStyle(BrandTokens.textMuted)
+                        }
+                    }
+                }
+                .accessibilityElement(children: .combine)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Intensity").font(.title2.bold())
+                    LazyVGrid(
+                        columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10
+                    ) {
+                        ForEach(charted) { instrument in
+                            if let level = song.difficulty?.chartedValue(for: instrument) {
+                                HStack(spacing: 6) {
+                                    Text(instrument.label)
+                                        .font(.subheadline)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    DifficultyMeter(level: level, raw: true)
+                                }
+                            }
+                        }
+                    }
+                    .padding(14)
+                    .background(
+                        BrandTokens.cardBackground, in: RoundedRectangle(cornerRadius: 12)
+                    )
+                }
+                .accessibilityIdentifier("fst.song-detail.intensity")
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Leaderboards").font(.title2.bold())
+                    ForEach(charted.filter(visibleInstruments.contains)) { instrument in
+                        NavigationLink(value: SongRoute.leaderboard(song, instrument, 1)) {
+                            Label(instrument.label, systemImage: "list.number")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(14)
+                                .background(
+                                    BrandTokens.cardBackground, in: RoundedRectangle(cornerRadius: 12)
+                                )
+                        }
+                        .accessibilityIdentifier(
+                            "fst.song-detail.leaderboard.\(instrument.rawValue)"
+                        )
+                    }
+                }
+            }
+            .padding(16)
+        }
+        .background(BrandTokens.appBackground.ignoresSafeArea())
+        .navigationTitle("")
+    }
+}
+
+// MARK: - Solo leaderboard
+
+/// Loads one 25-row page and owns the native, one-based pagination controls.
+struct SoloLeaderboardScreen: View {
+    let song: Song
+    let instrument: Instrument
+    let session: FestivalSession
+    @AppStorage("fst.settings.filterInvalidScores") private var filterInvalidScores = false
+    @AppStorage("fst.settings.leeway") private var leeway = 1.0
+    @AppStorage("fst.accessibility.lessTransparency") private var lessTransparency = false
+    @Binding var path: [SongRoute]
+    @State private var page: Int
+    @State private var state: LoadState
+    @State private var lastRequest: RequestKey?
+
+    enum LoadState {
+        case loading
+        case loaded(LeaderboardPayload)
+        case failed(String)
+    }
+
+    private struct RequestKey: Hashable {
+        let page: Int
+        let publicationRevision: Int
+        let leeway: Double?
+    }
+
+    private var requestKey: RequestKey {
+        RequestKey(
+            page: page, publicationRevision: session.publicationRevision,
+            leeway: filterInvalidScores ? (leeway * 10).rounded() / 10 : nil
+        )
+    }
+
+    /// Carry an explicit deep-link page into this screen before cached history.
+    ///
+    /// - Parameters:
+    ///   - song: Current catalog song.
+    ///   - instrument: Requested solo chart.
+    ///   - session: Shared process-lifetime API and artwork session.
+    ///   - initialPage: One-based page from navigation/deep link.
+    ///   - path: Native tab's route descriptor to update on paging.
+    ///   - initialState: Loading in production, fixture state in hosted UI tests.
+    init(
+        song: Song, instrument: Instrument, session: FestivalSession,
+        initialPage: Int, path: Binding<[SongRoute]>, initialState: LoadState = .loading
+    ) {
+        self.song = song
+        self.instrument = instrument
+        self.session = session
+        _page = State(initialValue: max(1, initialPage))
+        _path = path
+        _state = State(initialValue: initialState)
+    }
+
+    var body: some View {
+        Group {
+            switch state {
+            case .loading:
+                ProgressView("Loading leaderboard")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case let .failed(message):
+                ContentUnavailableView {
+                    Label("Leaderboard unavailable", systemImage: "wifi.slash")
+                } description: {
+                    Text(message)
+                } actions: {
+                    Button("Retry") { Task { await loadPage() } }
+                }
+            case let .loaded(payload):
+                VStack(spacing: 0) {
+                    if payload.isStale {
+                        Label("Offline - showing cached scores", systemImage: "wifi.slash")
+                            .foregroundStyle(BrandTokens.gold)
+                    } else if payload.publicationId == nil {
+                        Label(
+                            "Showing live scores without publication verification",
+                            systemImage: "info.circle"
+                        )
+                        .foregroundStyle(BrandTokens.gold)
+                    }
+                    HStack(spacing: 12) {
+                        ArtworkTile(raw: song.albumArt, session: session, size: 80)
+                            .id(song.albumArt)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(song.title).font(.title3.bold())
+                            Text(song.artist).foregroundStyle(BrandTokens.textSecondary)
+                            if payload.leaderboard.showLeaderboardEntryTotals == true {
+                                Text("\(payload.leaderboard.totalEntries) \(instrument.label) entries")
+                                    .foregroundStyle(BrandTokens.textMuted)
+                            }
+                        }
+                        Spacer()
+                    }
+                    .padding(16)
+                    List(payload.leaderboard.entries) { entry in
+                        HStack {
+                            Text("#\(entry.rank.formatted())")
+                                .monospacedDigit()
+                                .foregroundStyle(BrandTokens.textSecondary)
+                            Text(entry.displayName.flatMap { $0.isEmpty ? nil : $0 } ?? "Unknown User")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Text(entry.score.formatted())
+                                .monospacedDigit()
+                            if let accuracy = entry.accuracy {
+                                Text("\(ScoreFormatting.accuracy(accuracy))%")
+                                    .foregroundStyle(BrandTokens.gold)
+                                    .accessibilityLabel(
+                                        "Accuracy \(ScoreFormatting.accuracy(accuracy)) percent"
+                                    )
+                            }
+                        }
+                        .listRowBackground(BrandTokens.cardBackground)
+                        .accessibilityIdentifier("fst.song-leaderboard.row.\(entry.accountId)")
+                    }
+                    .scrollContentBackground(.hidden)
+                    pagination(totalPages: payload.leaderboard.pageCount)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(BrandTokens.appBackground.ignoresSafeArea())
+        .navigationTitle("\(song.title) - \(instrument.label)")
+        .task(id: requestKey) {
+            if case .loading = state {
+                await loadPage()
+            } else if let lastRequest, lastRequest != requestKey {
+                await loadPage()
+            }
+        }
+    }
+
+    /// Load a specific page and reject late responses from a previous selection.
+    private func loadPage() async {
+        let requested = requestKey
+        lastRequest = requested
+        state = .loading
+        do {
+            let payload = try await session.leaderboard(
+                songId: song.songId, instrument: instrument,
+                page: requested.page, leeway: requested.leeway
+            )
+            try Task.checkCancellation()
+            guard requested == requestKey else { return }
+            let corrected = LeaderboardPaging.corrected(
+                requested: requested.page, totalPages: payload.leaderboard.pageCount
+            )
+            if corrected != requested.page {
+                move(to: corrected)
+                return
+            }
+            state = .loaded(payload)
+        } catch is CancellationError {
+            if requested == requestKey { state = .loading }
+        } catch let error as URLError where error.code == .cancelled {
+            if requested == requestKey { state = .loading }
+        } catch {
+            if requested == requestKey {
+                state = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    /// Change both the visible page and its native navigation descriptor.
+    ///
+    /// - Parameter destination: One-based page inside the loaded chart's bounds.
+    private func move(to destination: Int) {
+        state = .loading
+        page = destination
+        if !path.isEmpty {
+            path[path.count - 1] = .leaderboard(song, instrument, destination)
+        }
+    }
+
+    /// Render discoverable first/previous/next/last actions with an announced page.
+    ///
+    /// - Parameter totalPages: Number of pages computed from local entries.
+    /// - Returns: Accessible native pagination control row.
+    private func pagination(totalPages: Int) -> some View {
+        HStack {
+            Button("First") { move(to: 1) }
+                .disabled(page <= 1)
+                .accessibilityIdentifier("fst.song-leaderboard.page-first")
+            Button("Previous") { move(to: page - 1) }
+                .disabled(page <= 1)
+                .accessibilityIdentifier("fst.song-leaderboard.page-previous")
+            Spacer()
+            Text("\(page) / \(totalPages)")
+                .monospacedDigit()
+                .accessibilityIdentifier("fst.song-leaderboard.page-info")
+            Spacer()
+            Button("Next") { move(to: page + 1) }
+                .disabled(page >= totalPages)
+                .accessibilityIdentifier("fst.song-leaderboard.page-next")
+            Button("Last") { move(to: totalPages) }
+                .disabled(page >= totalPages)
+                .accessibilityIdentifier("fst.song-leaderboard.page-last")
+        }
+        .buttonStyle(.bordered)
+        .padding(12)
+        .background(
+            lessTransparency
+                ? AnyShapeStyle(BrandTokens.cardBackground)
+                : AnyShapeStyle(.regularMaterial)
+        )
+    }
+}

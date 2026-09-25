@@ -1,0 +1,32 @@
+{
+  "count": 2,
+  "currentSeason": 9,
+  "songs": [
+    {
+      "songId": "fixture-pulse",
+      "title": "Fixture Pulse",
+      "artist": "Synthetic Quartet",
+      "year": 2026,
+      "albumArt": "/__fixture__/art/pulse.png",
+      "difficulty": {
+        "guitar": 2,
+        "bass": 3,
+        "drums": 4,
+        "vocals": 1
+      }
+    },
+    {
+      "songId": "fixture-orbit",
+      "title": "Fixture Orbit",
+      "artist": "Synthetic Quartet",
+      "year": 2026,
+      "albumArt": "/__fixture__/art/orbit.png",
+      "difficulty": {
+        "guitar": 5,
+        "bass": 99,
+        "proGuitar": 3,
+        "proDrums": 0
+      }
+    }
+  ]
+}

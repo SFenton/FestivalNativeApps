@@ -15,3 +15,4 @@ jobs:
           python-version: '3.12'
       - run: python3 -m unittest discover -s tools/tests
       - run: python3 tools/verify_product.py
+      - run: python3 tools/generate_tokens.py --check

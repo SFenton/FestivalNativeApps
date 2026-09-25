@@ -59,6 +59,29 @@ class ProductValidationTests(unittest.TestCase):
         self.assertTrue(any("evidence platforms" in error for error in errors))
         self.assertTrue(any("ios: states must cover" in error for error in errors))
 
+    def test_native_source_ids_must_match_static_or_dynamic_registry(self):
+        """Handwritten IDs may not silently bypass the semantic test registry."""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "apple/Sources/Feature/Example.swift"
+            source.parent.mkdir(parents=True)
+            source.write_text(
+                'view.accessibilityIdentifier("fst.songs.row.\\(song.id)")',
+                encoding="utf-8",
+            )
+            self.assertEqual(validate_product(self.manifest, root=root), [])
+            source.write_text(
+                'view.accessibilityIdentifier("fst.song-detail.leaderboard.Solo_Guitar")',
+                encoding="utf-8",
+            )
+            self.assertEqual(validate_product(self.manifest, root=root), [])
+            source.write_text(
+                'view.accessibilityIdentifier("fst.songs.unknown-control")',
+                encoding="utf-8",
+            )
+            errors = validate_product(self.manifest, root=root)
+        self.assertTrue(any("unregistered native test ID" in error for error in errors))
+
 
 if __name__ == "__main__":
     unittest.main()

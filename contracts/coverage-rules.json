@@ -1,0 +1,20 @@
+{
+  "thresholds": {
+    "logic": 95,
+    "ux": 90
+  },
+  "swift": {
+    "sourceRoots": ["apple/Sources/**/*.swift"],
+    "logic": ["apple/Sources/FestivalCore/*.swift"],
+    "ux": ["apple/Sources/FestivalDesign/*.swift", "apple/Sources/FestivalUI/*.swift"],
+    "exclude": ["apple/Sources/FestivalDesign/BrandTokens.swift"]
+  },
+  "kotlin": {
+    "logic": ["android/**/src/main/**/data/*.kt", "android/**/src/main/**/domain/*.kt"],
+    "ux": ["android/**/src/main/**/ui/*.kt"]
+  },
+  "csharp": {
+    "logic": ["windows/**/Data/*.cs", "windows/**/Domain/*.cs"],
+    "ux": ["windows/**/Views/*.cs", "windows/**/ViewModels/*.cs"]
+  }
+}

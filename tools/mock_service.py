@@ -1,0 +1,323 @@
+#!/usr/bin/env python3
+"""Local, read-only Festival API fixture server for native device automation."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import re
+import struct
+import threading
+import zlib
+from functools import lru_cache
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
+
+ROOT = Path(__file__).resolve().parents[1]
+PUBLICATION = json.loads(
+    (ROOT / "contracts/fixtures/publication.json").read_text(encoding="utf-8")
+)
+EMPTY_SONGS = json.loads(
+    (ROOT / "contracts/fixtures/songs-empty.json").read_text(encoding="utf-8")
+)
+DEMO_SONGS = json.loads(
+    (ROOT / "contracts/fixtures/songs-demo.json").read_text(encoding="utf-8")
+)
+SONGS_ETAG = '"fst-fixture-songs-v1"'
+EMPTY_ETAG = '"fst-fixture-empty-v1"'
+LEADERBOARD = re.compile(r"^/api/leaderboard/(fixture-[a-z]+)/([A-Za-z_]+)$")
+INSTRUMENTS = frozenset({
+    "Solo_Guitar", "Solo_Bass", "Solo_Drums", "Solo_Vocals",
+    "Solo_PeripheralGuitar", "Solo_PeripheralBass", "Solo_PeripheralVocals",
+    "Solo_PeripheralCymbals", "Solo_PeripheralDrums",
+})
+
+
+class FixtureServer(ThreadingHTTPServer):
+    """Isolate mock publication and query evidence within one loopback listener."""
+
+    def __init__(
+        self, address: tuple[str, int], handler: type[BaseHTTPRequestHandler],
+        *, unpinned: bool = False, rollover_on_read: int | None = None
+    ) -> None:
+        """Create a deterministic, request-count-driven service fixture.
+
+        Args:
+            address: Loopback host and port.
+            handler: Allowlisted HTTP request handler.
+            unpinned: Omit response publication headers like an unfrozen service.
+            rollover_on_read: First publication GET that advances generation 7 to 8.
+        """
+        self.unpinned = unpinned
+        self.rollover_on_read = rollover_on_read
+        self._publication_reads = 0
+        self._publication_id = 7
+        self._last_score_query: dict | None = None
+        self._lock = threading.Lock()
+        super().__init__(address, handler)
+
+    @property
+    def publication_id(self) -> int:
+        """Return the fixture generation without advancing the read counter."""
+        with self._lock:
+            return self._publication_id
+
+    def publication(self) -> dict:
+        """Advance on the configured publication GET and return its wire object."""
+        with self._lock:
+            self._publication_reads += 1
+            if self.rollover_on_read and self._publication_reads >= self.rollover_on_read:
+                self._publication_id = 8
+            identifier = self._publication_id
+        return {
+            **PUBLICATION,
+            "publicationId": identifier,
+            "publishedScrapeId": 42 if identifier == 7 else 43,
+            "readyForPinning": not self.unpinned,
+            "pinningEnabled": not self.unpinned,
+        }
+
+    def record_score_query(self, top: int, offset: int, leeway: float | None) -> None:
+        """Retain only validated synthetic query numbers, never account identifiers.
+
+        Args:
+            top: Bounded page size.
+            offset: Nonnegative score-row offset.
+            leeway: Optional score tolerance sent by the native Settings control.
+        """
+        with self._lock:
+            self._last_score_query = {"top": top, "offset": offset, "leeway": leeway}
+
+    def last_score_query(self) -> dict | None:
+        """Return the last validated mock score request, if any."""
+        with self._lock:
+            return self._last_score_query
+
+
+@lru_cache(maxsize=2)
+def fixture_artwork(name: str) -> bytes:
+    """Generate original, deterministic PNG artwork without bundled album art.
+
+    Args:
+        name: One of the two synthetic fixture artwork identifiers.
+
+    Returns:
+        128-by-128 RGBA PNG bytes for a branded gradient and geometric motif.
+
+    Raises:
+        ValueError: For names not in the fixture allowlist.
+    """
+    if name not in ("pulse", "orbit"):
+        raise ValueError(f"Unknown fixture artwork: {name}")
+    rows = []
+    for y in range(128):
+        row = bytearray(b"\x00")
+        for x in range(128):
+            accent = ((x + y) // 16) % 2 if name == "pulse" else ((x - y) // 18) % 2
+            row.extend((26 + 20 * accent, 8 + (x * 55 // 127), 48 + (y * 70 // 127), 255))
+        rows.append(bytes(row))
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        """Build one PNG chunk with its declared length and CRC.
+
+        Args:
+            kind: Four-byte PNG chunk type.
+            data: Uncompressed chunk payload.
+
+        Returns:
+            Serialized length, type, payload and CRC.
+        """
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(
+            ">I", zlib.crc32(kind + data) & 0xFFFFFFFF
+        )
+
+    header = struct.pack(">IIBBBBB", 128, 128, 8, 6, 0, 0, 0)
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(
+        b"IDAT", zlib.compress(b"".join(rows), 9)
+    ) + chunk(b"IEND", b"")
+
+
+class FixtureHandler(BaseHTTPRequestHandler):
+    """Serve a tiny allowlist, never proxy requests or perform side effects."""
+
+    @property
+    def fixture(self) -> FixtureServer:
+        """Require the configured loopback server, not a fallback global fixture."""
+        if not isinstance(self.server, FixtureServer):
+            raise RuntimeError("FixtureHandler requires a FixtureServer")
+        return self.server
+
+    def _json(self, status: int, payload: dict | None, *, etag: str | None = None) -> None:
+        """Write a bounded JSON response and explicit publication metadata.
+
+        Args:
+            status: HTTP response status.
+            payload: JSON object to encode, or None for a bodyless 304.
+            etag: Entity tag on the synthetic catalogue endpoint.
+
+        Returns:
+            None; bytes are written to the local response stream.
+        """
+        data = json.dumps(payload, separators=(",", ":")).encode() if payload is not None else b""
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        if not self.fixture.unpinned:
+            self.send_header("X-FST-Publication-Id", str(self.fixture.publication_id))
+        if etag:
+            self.send_header("ETag", etag)
+        self.end_headers()
+        if data:
+            self.wfile.write(data)
+
+    def _art(self, name: str) -> None:
+        """Serve artwork generated in memory without saving a cold-launch cache.
+
+        Args:
+            name: Valid fixture artwork identifier.
+
+        Returns:
+            None; the PNG response is written to the local socket.
+        """
+        data = fixture_artwork(name)
+        self.send_response(200)
+        self.send_header("Content-Type", "image/png")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
+
+    # region Public-only endpoint fixtures
+    def do_GET(self) -> None:
+        """Answer only known read-only fixture endpoints with valid page bounds.
+
+        Returns:
+            None; every known outcome produces a complete HTTP response.
+        """
+        parsed = urlsplit(self.path)
+        path = parsed.path
+        query = parse_qs(parsed.query, keep_blank_values=True)
+        if path == "/__fixture__/health":
+            self._json(200, {"ready": True})
+        elif path == "/__fixture__/last-score-query":
+            self._json(200, {"last": self.fixture.last_score_query()})
+        elif path == "/api/publication":
+            self._json(200, self.fixture.publication())
+        elif path == "/api/features":
+            self._json(200, {"appManual": False})
+        elif path in ("/__fixture__/art/pulse.png", "/__fixture__/art/orbit.png"):
+            self._art(path.split("/")[-1].removesuffix(".png"))
+        elif path == "/api/songs":
+            scenarios = query.get("scenario", ["demo"])
+            if len(scenarios) != 1 or scenarios[0] not in ("demo", "empty", "error"):
+                self._json(400, {"status": "unknown_fixture_scenario"})
+                return
+            if scenarios[0] == "error":
+                self._json(503, {"status": "fixture_unavailable"})
+                return
+            songs = EMPTY_SONGS if scenarios[0] == "empty" else DEMO_SONGS
+            etag = EMPTY_ETAG if scenarios[0] == "empty" else SONGS_ETAG
+            pin = self.headers.get("X-FST-Publication-Id")
+            if pin is not None and pin != str(self.fixture.publication_id):
+                self._json(409, {"status": "publication_changed"})
+            elif self.headers.get("If-None-Match") == etag:
+                self._json(304, None, etag=etag)
+            else:
+                self._json(200, songs, etag=etag)
+        elif match := LEADERBOARD.fullmatch(path):
+            song_id, instrument = match.groups()
+            pin = self.headers.get("X-FST-Publication-Id")
+            if pin is not None and pin != str(self.fixture.publication_id):
+                self._json(409, {"status": "publication_changed"})
+                return
+            if song_id not in ("fixture-pulse", "fixture-orbit") or instrument not in INSTRUMENTS:
+                self._json(404, {"status": "unknown_chart"})
+                return
+            if any(len(query.get(key, [""])) != 1 for key in ("top", "offset", "leeway")):
+                self._json(400, {"status": "invalid_query"})
+                return
+            try:
+                top = int(query.get("top", ["25"])[0])
+                offset = int(query.get("offset", ["0"])[0])
+                leeway = float(query["leeway"][0]) if "leeway" in query else None
+            except (ValueError, IndexError):
+                self._json(400, {"status": "invalid_pagination"})
+                return
+            if (top < 1 or top > 100 or offset < 0
+                    or (leeway is not None and (not math.isfinite(leeway) or not -5 <= leeway <= 5))):
+                self._json(400, {"status": "invalid_pagination"})
+                return
+            self.fixture.record_score_query(top, offset, leeway)
+            ranks = range(offset + 1, min(offset + top, 26) + 1) if instrument == "Solo_Guitar" else ()
+            entries = [
+                {
+                    "accountId": f"fixture-player-{rank}",
+                    "displayName": f"Fixture Player {rank}",
+                    "score": 100000 - rank * 100,
+                    "rank": rank,
+                    "accuracy": 980000 - rank,
+                    "isFullCombo": rank % 2 == 0,
+                    "stars": 5,
+                    "season": 9,
+                }
+                for rank in ranks
+            ]
+            total = 26 if instrument == "Solo_Guitar" else 0
+            self._json(200, {
+                "songId": song_id, "instrument": instrument, "count": len(entries),
+                "localEntries": total, "totalEntries": total,
+                "showLeaderboardEntryTotals": True, "entries": entries,
+            })
+        else:
+            self._json(404, {"status": "not_found"})
+
+    def do_POST(self) -> None:
+        """Reject all profile-tracking, refresh and admin mutation attempts.
+
+        Returns:
+            None; a 405 JSON error is written to the local response.
+        """
+        self._json(405, {"status": "mock_is_read_only"})
+
+    def log_message(self, format: str, *args: object) -> None:
+        """Avoid logging player identifiers or request URLs in automation output.
+
+        Args:
+            format: Server-provided log format (intentionally not printed).
+            args: Request data (intentionally not printed).
+
+        Returns:
+            None; test responses and exceptions remain observable to callers.
+        """
+
+    # endregion
+
+
+def main() -> None:
+    """Bind the fixture server to loopback and serve until explicitly stopped.
+
+    Returns:
+        None; the command remains attached to the current development session.
+    """
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--unpinned", action="store_true")
+    parser.add_argument("--rollover-on-read", type=int)
+    args = parser.parse_args()
+    if not 1 <= args.port <= 65535:
+        parser.error("port must be between 1 and 65535")
+    if args.rollover_on_read is not None and args.rollover_on_read < 2:
+        parser.error("rollover-on-read must be at least 2")
+    with FixtureServer(
+        ("127.0.0.1", args.port), FixtureHandler,
+        unpinned=args.unpinned, rollover_on_read=args.rollover_on_read
+    ) as server:
+        print(f"Read-only fixture service on 127.0.0.1:{server.server_port}", flush=True)
+        server.serve_forever()
+
+
+if __name__ == "__main__":
+    main()

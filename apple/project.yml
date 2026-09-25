@@ -1,0 +1,109 @@
+name: FestivalNativeApple
+options:
+  createIntermediateGroups: true
+packages:
+  FestivalApple:
+    path: .
+targets:
+  FestivalMobile:
+    type: application
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: Apps/iOS
+    dependencies:
+      - package: FestivalApple
+        product: FestivalUI
+    info:
+      path: Apps/iOS/Info.plist
+      properties:
+        CFBundleDisplayName: Festival Score Tracker
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sfenton.festivalscoretracker.native
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGNING_ALLOWED: NO
+  FestivalDesktop:
+    type: application
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: Apps/macOS
+    dependencies:
+      - package: FestivalApple
+        product: FestivalUI
+    info:
+      path: Apps/macOS/Info.plist
+      properties:
+        CFBundleDisplayName: Festival Score Tracker
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sfenton.festivalscoretracker.mac
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        CODE_SIGNING_ALLOWED: YES
+        CODE_SIGN_IDENTITY: "-"
+  FestivalMobileUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - path: Apps/iOSUITests
+    dependencies:
+      - target: FestivalMobile
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sfenton.festivalscoretracker.nativeuitests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        TEST_TARGET_NAME: FestivalMobile
+        CODE_SIGNING_ALLOWED: NO
+  FestivalDesktopUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: Apps/macOSUITests
+    dependencies:
+      - target: FestivalDesktop
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sfenton.festivalscoretracker.macuitests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        TEST_TARGET_NAME: FestivalDesktop
+        CODE_SIGNING_ALLOWED: YES
+        CODE_SIGN_IDENTITY: "-"
+schemes:
+  FestivalMobile:
+    build:
+      targets:
+        FestivalMobile: all
+    test:
+      gatherCoverageData: true
+      targets:
+        - name: FestivalMobileUITests
+  FestivalDesktop:
+    build:
+      targets:
+        FestivalDesktop: all
+    test:
+      gatherCoverageData: true
+      targets:
+        - name: FestivalDesktopUITests
