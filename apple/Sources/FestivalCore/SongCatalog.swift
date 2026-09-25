@@ -123,6 +123,7 @@ extension FestivalAPI {
         let payload = try await read(.songs)
         let catalog = try JSONDecoder().decode(SongsResponse.self, from: payload.data)
         try catalog.validate()
+        try await rememberUnverified(payload, for: .songs)
         return CatalogPayload(
             catalog: catalog,
             publicationId: payload.publicationId,

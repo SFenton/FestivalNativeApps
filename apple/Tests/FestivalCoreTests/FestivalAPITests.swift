@@ -88,6 +88,61 @@ private actor ReorderedPublicationTransport: HTTPTransport {
     }
 }
 
+/// Ignore task cancellation until an explicitly released connectivity failure arrives.
+private actor HeldOfflineFailureTransport: HTTPTransport {
+    let pinned: Bool
+    private var songReads = 0
+    private var suspended: CheckedContinuation<HTTPResult, Error>?
+    private var waiting: CheckedContinuation<Void, Never>?
+
+    /// Choose verified or headerless bytes for both cached-reader paths.
+    ///
+    /// - Parameter pinned: True for a response-proven publication header.
+    init(pinned: Bool) { self.pinned = pinned }
+
+    /// Hold the second public read so the caller can cancel it before the error.
+    ///
+    /// - Parameter request: Publication or catalogue fixture request.
+    /// - Returns: Valid first bytes or a later controlled transport error.
+    /// - Throws: Unknown endpoint or the deliberately late network error.
+    func send(_ request: URLRequest) async throws -> HTTPResult {
+        switch request.url?.path {
+        case "/api/publication":
+            return HTTPResult(
+                status: 200,
+                data: pinned ? publicationJSON : unpinnedPublicationJSON
+            )
+        case "/api/songs":
+            songReads += 1
+            if songReads == 1 {
+                return HTTPResult(
+                    status: 200, data: unpinnedSongsJSON,
+                    headers: pinned ? ["X-FST-Publication-Id": "7"] : [:]
+                )
+            }
+            return try await withCheckedThrowingContinuation { continuation in
+                suspended = continuation
+                waiting?.resume()
+                waiting = nil
+            }
+        default:
+            throw FestivalAPIError.invalidResource
+        }
+    }
+
+    /// Wait for the ignored-cancellation transport to reach its second request.
+    func waitForPending() async {
+        if suspended != nil { return }
+        await withCheckedContinuation { continuation in waiting = continuation }
+    }
+
+    /// Complete the held request with an otherwise offline-cache-eligible error.
+    func releaseAsConnectivityLoss() {
+        suspended?.resume(throwing: URLError(.notConnectedToInternet))
+        suspended = nil
+    }
+}
+
 private final class FixtureURLProtocol: URLProtocol {
     /// Intercept requests only for this test-only domain.
     ///
@@ -133,6 +188,15 @@ private final class FixtureURLProtocol: URLProtocol {
 private let publicationJSON = Data("""
 {"contractVersion":1,"publicationId":7,"publishedScrapeId":42,
 "readyForPinning":true,"pinningEnabled":true,"unreadySurfaces":[]}
+""".utf8)
+
+private let unpinnedPublicationJSON = Data("""
+{"contractVersion":1,"publicationId":7,"publishedScrapeId":42,
+"readyForPinning":false,"pinningEnabled":false,"unreadySurfaces":[]}
+""".utf8)
+
+private let unpinnedSongsJSON = Data("""
+{"count":1,"songs":[{"songId":"fixture-one","title":"One","artist":"Fixture"}]}
 """.utf8)
 
 private func reply(_ status: Int, _ text: String = "", headers: [String: String] = [:]) -> HTTPResult {
@@ -504,6 +568,156 @@ private func reply(_ status: Int, _ text: String = "", headers: [String: String]
     }
     let requests = await transport.recorded()
     #expect(requests[2].value(forHTTPHeaderField: "If-None-Match") == nil)
+}
+
+/// Only decoded, validated headerless songs may survive a warm connectivity outage.
+@Test func validatedHeaderlessCatalogIsWarmOfflineButNeverGenerationVerified() async throws {
+    let transport = FixtureTransport(results: [
+        .success(HTTPResult(status: 200, data: unpinnedPublicationJSON)),
+        .success(HTTPResult(
+            status: 200, data: unpinnedSongsJSON, headers: ["ETag": "unsafe"]
+        )),
+        .failure(URLError(.notConnectedToInternet)),
+    ])
+    let client = try FestivalAPI(transport: transport)
+    let live = try await client.catalog()
+    let offline = try await client.catalog()
+    #expect(!live.isStale && live.publicationId == nil)
+    #expect(offline.isStale && offline.publicationId == nil)
+    #expect(offline.observedPublicationId == 7)
+    #expect(offline.catalog == live.catalog)
+    #expect((await transport.recorded())[2].value(forHTTPHeaderField: "If-None-Match") == nil)
+
+    let cold = try FestivalAPI(transport: FixtureTransport(results: [
+        .failure(URLError(.notConnectedToInternet)),
+    ]))
+    await #expect(throws: URLError.self) {
+        try await cold.catalog()
+    }
+}
+
+/// Enabling pinning within generation seven must revoke unverified offline reuse.
+@Test func samePublicationPinningTransitionRejectsUnverifiedOfflineSnapshot() async throws {
+    let transport = FixtureTransport(results: [
+        .success(HTTPResult(status: 200, data: unpinnedPublicationJSON)),
+        .success(HTTPResult(status: 200, data: unpinnedSongsJSON)),
+        .success(HTTPResult(status: 200, data: publicationJSON)),
+        .failure(URLError(.notConnectedToInternet)),
+    ])
+    let client = try FestivalAPI(transport: transport)
+    #expect((try await client.catalog()).publicationId == nil)
+    let promoted = try await client.publication(force: true)
+    #expect(promoted.publicationId == 7 && promoted.readyForPinning && promoted.pinningEnabled)
+    await #expect(throws: URLError.self) {
+        try await client.catalog()
+    }
+    let requests = await transport.recorded()
+    #expect(requests.count == 4)
+    #expect(requests[3].value(forHTTPHeaderField: "X-FST-Publication-Id") == "7")
+}
+
+/// A bad first catalogue cannot seed an offline snapshot.
+@Test func malformedHeaderlessSongsCannotCreateWarmSnapshot() async throws {
+    let transport = FixtureTransport(results: [
+        .success(HTTPResult(status: 200, data: unpinnedPublicationJSON)),
+        .success(reply(200, #"{"count":2,"songs":[]}"#)),
+        .failure(URLError(.notConnectedToInternet)),
+    ])
+    let client = try FestivalAPI(transport: transport)
+    await #expect(throws: FestivalAPIError.invalidCatalogue) {
+        try await client.catalog()
+    }
+    await #expect(throws: URLError.self) {
+        try await client.catalog()
+    }
+}
+
+/// An invalid refresh must not overwrite the last successfully validated JSON.
+@Test func malformedHeaderlessSongsDoNotReplaceTheLastValidSnapshot() async throws {
+    let transport = FixtureTransport(results: [
+        .success(HTTPResult(status: 200, data: unpinnedPublicationJSON)),
+        .success(HTTPResult(status: 200, data: unpinnedSongsJSON)),
+        .success(reply(200, #"{"count":2,"songs":[]}"#)),
+        .failure(URLError(.notConnectedToInternet)),
+    ])
+    let client = try FestivalAPI(transport: transport)
+    let valid = try await client.catalog()
+    await #expect(throws: FestivalAPIError.invalidCatalogue) {
+        try await client.catalog()
+    }
+    let offline = try await client.catalog()
+    #expect(offline.isStale && offline.publicationId == nil)
+    #expect(offline.catalog == valid.catalog)
+}
+
+/// Different page keys, known publication changes and cancellation never reuse old scores.
+@Test func headerlessLeaderboardSnapshotIsScopedToPageAndObservedGeneration() async throws {
+    let leaderboard = """
+    {"songId":"fixture-one","instrument":"Solo_Guitar","count":1,
+     "totalEntries":1,"entries":[{"accountId":"fixture-player","rank":1,"score":1000}]}
+    """
+    let newPublication = """
+    {"contractVersion":1,"publicationId":8,"publishedScrapeId":43,
+     "readyForPinning":false,"pinningEnabled":false,"unreadySurfaces":[]}
+    """
+    let transport = FixtureTransport(results: [
+        .success(HTTPResult(status: 200, data: unpinnedPublicationJSON)),
+        .success(reply(200, leaderboard)),
+        .failure(URLError(.notConnectedToInternet)),
+        .failure(URLError(.notConnectedToInternet)),
+        .success(reply(200, newPublication)),
+        .failure(URLError(.notConnectedToInternet)),
+    ])
+    let client = try FestivalAPI(transport: transport)
+    let live = try await client.leaderboard(
+        songId: "fixture-one", instrument: .lead, page: 1
+    )
+    let offline = try await client.leaderboard(
+        songId: "fixture-one", instrument: .lead, page: 1
+    )
+    #expect(!live.isStale && live.publicationId == nil)
+    #expect(offline.isStale && offline.publicationId == nil)
+    #expect(offline.leaderboard == live.leaderboard)
+    await #expect(throws: URLError.self) {
+        try await client.leaderboard(songId: "fixture-one", instrument: .lead, page: 2)
+    }
+    #expect((try await client.publication(force: true)).publicationId == 8)
+    await #expect(throws: URLError.self) {
+        try await client.leaderboard(songId: "fixture-one", instrument: .lead, page: 1)
+    }
+    let requests = await transport.recorded()
+    #expect(requests[3].url?.query == "top=25&offset=25")
+    #expect(requests[5].value(forHTTPHeaderField: "If-None-Match") == nil)
+}
+
+/// Canceling a request must still fail even if a validated unverified snapshot exists.
+@Test func cancelledHeaderlessReadNeverUsesWarmSnapshot() async throws {
+    let client = try FestivalAPI(transport: FixtureTransport(results: [
+        .success(HTTPResult(status: 200, data: unpinnedPublicationJSON)),
+        .success(HTTPResult(status: 200, data: unpinnedSongsJSON)),
+        .failure(URLError(.cancelled)),
+    ]))
+    _ = try await client.catalog()
+    await #expect(throws: URLError.self) {
+        try await client.catalog()
+    }
+}
+
+/// A late eligible network error cannot transform a canceled read into cached success.
+@Test(arguments: [true, false])
+func cancelledLateNetworkErrorNeverReturnsVerifiedOrUnverifiedCache(
+    pinned: Bool
+) async throws {
+    let transport = HeldOfflineFailureTransport(pinned: pinned)
+    let client = try FestivalAPI(transport: transport)
+    _ = try await client.catalog()
+    let pending = Task { try await client.catalog() }
+    await transport.waitForPending()
+    pending.cancel()
+    await transport.releaseAsConnectivityLoss()
+    await #expect(throws: CancellationError.self) {
+        try await pending.value
+    }
 }
 
 @Test func delayedOldReadCannotReplaceFreshPublication() async throws {

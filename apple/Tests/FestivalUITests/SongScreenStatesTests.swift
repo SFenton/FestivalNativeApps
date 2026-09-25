@@ -37,6 +37,18 @@ enum ScoreScenario: CaseIterable, Sendable {
     case loading, populated, offline, empty, failure
 }
 
+/// Both offline banners must expose the response's actual provenance, not just recency.
+@Test func offlineLabelsDistinguishUnverifiedFromPublicationBoundData() {
+    #expect(OfflineDisclosure.label(.songs, publicationId: nil)
+            == "Offline - last seen songs (publication unverified)")
+    #expect(OfflineDisclosure.label(.scores, publicationId: nil)
+            == "Offline - last seen scores (publication unverified)")
+    #expect(OfflineDisclosure.label(.songs, publicationId: 7)
+            == "Offline - showing cached songs")
+    #expect(OfflineDisclosure.label(.scores, publicationId: 7)
+            == "Offline - showing cached scores")
+}
+
 /// Decode fixtures using the same strict wire models as the native app.
 ///
 /// - Parameter index: Song fixture to render.
@@ -135,6 +147,10 @@ func catalogueVisualStates(_ scenario: CatalogScenario) throws {
         catalog: catalog.catalog, publicationId: nil,
         observedPublicationId: 7, isStale: false
     )
+    let unverifiedOffline = CatalogPayload(
+        catalog: catalog.catalog, publicationId: nil,
+        observedPublicationId: 7, isStale: true
+    )
     func snapshot(
         _ payload: CatalogPayload, refresh: String? = nil, notice: String? = nil
     ) throws -> Data {
@@ -154,15 +170,24 @@ func catalogueVisualStates(_ scenario: CatalogScenario) throws {
     #expect(try snapshot(catalog, refresh: "Update unavailable") != baseline)
     #expect(try snapshot(catalog, notice: "Scores changed; returned to Songs") != baseline)
     #expect(try snapshot(unpinned) != baseline)
+    #expect(try snapshot(unverifiedOffline) != snapshot(unpinned))
 }
 
-/// An unpinned score response announces its missing provenance above the rows.
+/// Offline scores have a different visible warning when bytes were never pinned.
 @MainActor
 @Test func unpinnedScoresHaveAVisibleProvenanceWarning() throws {
     let pinned = try fixtureLeaderboard(visible: 1)
     let unpinned = LeaderboardPayload(
         page: pinned.page, leaderboard: pinned.leaderboard,
         publicationId: nil, observedPublicationId: 7, isStale: false
+    )
+    let unverifiedOffline = LeaderboardPayload(
+        page: pinned.page, leaderboard: pinned.leaderboard,
+        publicationId: nil, observedPublicationId: 7, isStale: true
+    )
+    let verifiedOffline = LeaderboardPayload(
+        page: pinned.page, leaderboard: pinned.leaderboard,
+        publicationId: 7, observedPublicationId: 7, isStale: true
     )
     let song = try fixtureSong()
     func snapshot(_ payload: LeaderboardPayload) throws -> Data {
@@ -177,6 +202,8 @@ func catalogueVisualStates(_ scenario: CatalogScenario) throws {
         )
     }
     #expect(try snapshot(pinned) != snapshot(unpinned))
+    #expect(try snapshot(unverifiedOffline) != snapshot(unpinned))
+    #expect(try snapshot(unverifiedOffline) != snapshot(verifiedOffline))
 }
 
 /// Draw the real row body: high contrast and an instrument must change pixels.

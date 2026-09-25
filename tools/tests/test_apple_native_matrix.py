@@ -24,7 +24,9 @@ from tools.apple_native_matrix import (
     acquire_matrix_lock,
     booted_targets,
     boot_device,
+    device_order,
     exit_on_signal,
+    fixture_options,
     file_hashes,
     input_hashes,
     main,
@@ -158,6 +160,15 @@ class AppleNativeMatrixTests(unittest.TestCase):
             boot_device(IPAD, {}, {IPHONE, IPAD})
             commands.assert_not_called()
 
+    def test_matrix_starts_with_the_already_booted_product_device(self):
+        """A currently live tablet must not be shut down and booted again."""
+        self.assertEqual(device_order("both", {IPAD}, IPHONE, IPAD), ("ipad", "iphone"))
+        self.assertEqual(device_order("both", {IPHONE}, IPHONE, IPAD), ("iphone", "ipad"))
+        self.assertEqual(device_order("both", set(), IPHONE, IPAD), ("iphone", "ipad"))
+        self.assertEqual(device_order("ipad", {IPHONE}, IPHONE, IPAD), ("ipad",))
+        with self.assertRaisesRegex(MatrixError, "unrecognized"):
+            device_order("both", {"not-ours"}, IPHONE, IPAD)
+
     def test_result_must_contain_every_selected_case_on_right_device(self):
         """A green process exit is not a pass for zero, skipped or wrong tests."""
         summary = {
@@ -254,6 +265,14 @@ class AppleNativeMatrixTests(unittest.TestCase):
                 server.shutdown()
                 thread.join(timeout=2)
 
+    def test_offline_mode_is_only_a_known_unpinned_one_shot_fixture(self):
+        """A stopped listener cannot claim a verified or indefinitely live snapshot."""
+        options = fixture_options(["--unpinned", "--stop-after-first-songs"])
+        self.assertTrue(options["unpinned"])
+        self.assertTrue(options["stopAfterFirstSongs"])
+        with self.assertRaisesRegex(MatrixError, "Unknown"):
+            fixture_options(["--stop-after-first-songs"])
+
     def test_runner_stops_only_its_own_fixture_child(self):
         """An ephemeral fixture is responsive, then terminates by its exact PID."""
         with FixtureServer(("127.0.0.1", 0), FixtureHandler) as probe:
@@ -293,8 +312,8 @@ class AppleNativeMatrixTests(unittest.TestCase):
             exit_on_signal(signal.SIGTERM, None)
         self.assertEqual(interrupted.exception.code, 128 + signal.SIGTERM)
 
-    def test_full_suite_uses_real_source_count_and_excludes_duo(self):
-        """Only the full run can produce a complete native result for coverage."""
+    def test_full_suite_explicitly_selects_every_source_test_except_duo(self):
+        """A broad Xcode skip can silently omit new cases; use exact selectors."""
         names = selected_tests(TEST_SOURCE.read_text(encoding="utf-8"), [])
         total = len(names)
         summary = {
@@ -315,7 +334,7 @@ class AppleNativeMatrixTests(unittest.TestCase):
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
             with patch("tools.apple_native_matrix.start_fixture", side_effect=[
-                Mock(), Mock(),
+                Mock(), Mock(), Mock(),
             ]) as started, patch(
                 "tools.apple_native_matrix.stop_fixture"
             ) as stopped, patch(
@@ -328,15 +347,22 @@ class AppleNativeMatrixTests(unittest.TestCase):
             ):
                 with redirect_stdout(StringIO()):
                     result = run_device(
-                        "iphone", IPHONE, [], root, expected_tests=names,
+                        "iphone", IPHONE, root, expected_tests=names,
                         baseline=file_hashes(ROOT, FIXTURE_INPUTS), env={},
                     )
                 self.assertEqual(result, root / "iphone.xcresult")
-                self.assertEqual(started.call_count, 2)
-                self.assertEqual(stopped.call_count, 2)
+                self.assertEqual(started.call_count, 3)
+                self.assertEqual(stopped.call_count, 3)
                 command = executed.call_args.args[0]
-                self.assertIn(f"-skip-testing:FestivalMobileUITests/FestivalMobileUITests/{DUO_TEST}", command)
-                self.assertNotIn("-only-testing", " ".join(command))
+                selectors = {
+                    argument.removeprefix(
+                        "-only-testing:FestivalMobileUITests/FestivalMobileUITests/"
+                    )
+                    for argument in command if argument.startswith("-only-testing:")
+                }
+                self.assertEqual(selectors, set(names))
+                self.assertNotIn(DUO_TEST, selectors)
+                self.assertFalse(any(flag.startswith("-skip-testing:") for flag in command))
                 self.assertIn("-enableCodeCoverage", command)
 
     def test_partial_green_result_still_cleans_stateful_fixtures(self):
@@ -353,7 +379,7 @@ class AppleNativeMatrixTests(unittest.TestCase):
         }
         with TemporaryDirectory() as temporary:
             with patch("tools.apple_native_matrix.start_fixture", side_effect=[
-                Mock(), Mock(),
+                Mock(), Mock(), Mock(),
             ]), patch(
                 "tools.apple_native_matrix.stop_fixture"
             ) as stopped, patch(
@@ -365,17 +391,16 @@ class AppleNativeMatrixTests(unittest.TestCase):
                 "tools.apple_native_matrix.require_unchanged"
             ):
                 with self.assertRaisesRegex(MatrixError, "expected 1 passing tests"):
-                    run_device("ipad", IPAD, ["testWhiteArtworkExposedTextAccessibility"],
-                               Path(temporary),
+                    run_device("ipad", IPAD, Path(temporary),
                                expected_tests=["testWhiteArtworkExposedTextAccessibility"],
                                baseline=file_hashes(ROOT, FIXTURE_INPUTS), env={})
-                self.assertEqual(stopped.call_count, 2)
+                self.assertEqual(stopped.call_count, 3)
 
     def test_signal_while_xcode_runs_still_stops_both_fixtures(self):
         """SIGTERM unwinds the device suite instead of leaving fixture children alive."""
         with TemporaryDirectory() as temporary:
             with patch("tools.apple_native_matrix.start_fixture", side_effect=[
-                Mock(), Mock(),
+                Mock(), Mock(), Mock(),
             ]), patch(
                 "tools.apple_native_matrix.stop_fixture"
             ) as stopped, patch(
@@ -386,12 +411,11 @@ class AppleNativeMatrixTests(unittest.TestCase):
             ):
                 with self.assertRaises(SystemExit):
                     run_device(
-                        "iphone", IPHONE, ["testWhiteArtworkExposedTextAccessibility"],
-                        Path(temporary),
+                        "iphone", IPHONE, Path(temporary),
                         expected_tests=["testWhiteArtworkExposedTextAccessibility"],
                         baseline=file_hashes(ROOT, FIXTURE_INPUTS), env={},
                     )
-                self.assertEqual(stopped.call_count, 2)
+                self.assertEqual(stopped.call_count, 3)
 
     def test_full_matrix_pairs_two_results_with_the_exact_coverage_gate(self):
         """The default run cannot claim success without invoking the existing gate."""

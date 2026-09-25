@@ -63,7 +63,8 @@ class FixtureServer(ThreadingHTTPServer):
     def __init__(
         self, address: tuple[str, int], handler: type[BaseHTTPRequestHandler],
         *, unpinned: bool = False, rollover_on_read: int | None = None,
-        fail_first_white_catalogue: bool = False
+        fail_first_white_catalogue: bool = False,
+        stop_after_first_songs: bool = False
     ) -> None:
         """Create a deterministic, request-count-driven service fixture.
 
@@ -73,6 +74,7 @@ class FixtureServer(ThreadingHTTPServer):
             unpinned: Omit response publication headers like an unfrozen service.
             rollover_on_read: First publication GET that advances generation 7 to 8.
             fail_first_white_catalogue: Fail one white-art catalogue read, then recover.
+            stop_after_first_songs: Stop this mock listener after its first successful Songs read.
         """
         self.unpinned = unpinned
         self.rollover_on_read = rollover_on_read
@@ -81,11 +83,13 @@ class FixtureServer(ThreadingHTTPServer):
             "unpinned": unpinned,
             "rolloverOnRead": rollover_on_read,
             "failFirstWhiteCatalogue": fail_first_white_catalogue,
+            "stopAfterFirstSongs": stop_after_first_songs,
         }
         self._publication_reads = 0
         self._publication_id = 7
         self._last_score_query: dict | None = None
         self._fail_first_white_catalogue = fail_first_white_catalogue
+        self._stop_after_first_songs = stop_after_first_songs
         self._lock = threading.Lock()
         super().__init__(address, handler)
 
@@ -136,6 +140,17 @@ class FixtureServer(ThreadingHTTPServer):
             should_fail = self._fail_first_white_catalogue
             self._fail_first_white_catalogue = False
             return should_fail
+
+    def should_stop_after_songs(self) -> bool:
+        """Consume the configured one-shot simulated connectivity loss.
+
+        Returns:
+            True only after the first successful catalogue read on this listener.
+        """
+        with self._lock:
+            should_stop = self._stop_after_first_songs
+            self._stop_after_first_songs = False
+            return should_stop
 
 
 @lru_cache(maxsize=3)
@@ -321,6 +336,8 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 self._json(304, None, etag=etag)
             else:
                 self._json(200, songs, etag=etag)
+                if self.fixture.should_stop_after_songs():
+                    self.fixture.shutdown()
         elif match := LEADERBOARD.fullmatch(path):
             song_id, instrument = match.groups()
             pin = self.headers.get("X-FST-Publication-Id")
@@ -404,15 +421,19 @@ def main() -> None:
     parser.add_argument("--unpinned", action="store_true")
     parser.add_argument("--rollover-on-read", type=int)
     parser.add_argument("--fail-first-white-catalogue", action="store_true")
+    parser.add_argument("--stop-after-first-songs", action="store_true")
     args = parser.parse_args()
     if not 1 <= args.port <= 65535:
         parser.error("port must be between 1 and 65535")
     if args.rollover_on_read is not None and args.rollover_on_read < 2:
         parser.error("rollover-on-read must be at least 2")
+    if args.stop_after_first_songs and not args.unpinned:
+        parser.error("stop-after-first-songs requires an unpinned fixture")
     with FixtureServer(
         ("127.0.0.1", args.port), FixtureHandler,
         unpinned=args.unpinned, rollover_on_read=args.rollover_on_read,
-        fail_first_white_catalogue=args.fail_first_white_catalogue
+        fail_first_white_catalogue=args.fail_first_white_catalogue,
+        stop_after_first_songs=args.stop_after_first_songs
     ) as server:
         print(f"Read-only fixture service on 127.0.0.1:{server.server_port}", flush=True)
         server.serve_forever()

@@ -2,6 +2,25 @@ import SwiftUI
 import FestivalCore
 import FestivalDesign
 
+/// Publication checks must disclose whether the associated Songs read was stale or unpinned.
+enum SettingsServiceSummary {
+    /// Present a validated bootstrap without inventing response provenance.
+    ///
+    /// - Parameter payload: Typed Songs result from the same publication check.
+    /// - Returns: Visible success, stale-memory, or unverified-live explanation.
+    static func message(for payload: CatalogPayload) -> String {
+        let prefix = "Publication \(payload.observedPublicationId)"
+        if payload.isStale {
+            return payload.publicationId == nil
+                ? "\(prefix); songs offline - last seen (publication unverified)"
+                : "\(prefix); songs offline - showing verified cached data"
+        }
+        return payload.publicationId == nil
+            ? "\(prefix); songs live (publication unverified)"
+            : prefix
+    }
+}
+
 /// Native, persistent first-slice preferences and additive accessibility aids.
 struct SettingsScreen: View {
     @AppStorage("fst.settings.showInstrumentIcons") private var showInstrumentIcons = true
@@ -245,7 +264,9 @@ struct SettingsScreen: View {
         do {
             let publication = try await session.refreshPublication()
             do {
-                _ = try await session.catalog()
+                let catalog = try await session.catalog()
+                try Task.checkCancellation()
+                serviceStatus = SettingsServiceSummary.message(for: catalog)
             } catch is CancellationError {
                 return
             } catch let error as URLError where error.code == .cancelled {
@@ -255,7 +276,10 @@ struct SettingsScreen: View {
                     + error.localizedDescription
                 return
             }
-            serviceStatus = "Publication \(publication.publicationId)"
+        } catch is CancellationError {
+            return
+        } catch let error as URLError where error.code == .cancelled {
+            return
         } catch {
             serviceStatus = "Publication unavailable: \(error.localizedDescription)"
         }

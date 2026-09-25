@@ -108,6 +108,7 @@ extension FestivalAPI {
         let payload = try await read(resource)
         let response = try JSONDecoder().decode(LeaderboardResponse.self, from: payload.data)
         try response.validate(songId: songId, instrument: instrument)
+        try await rememberUnverified(payload, for: resource)
         return LeaderboardPayload(
             page: page, leaderboard: response,
             publicationId: payload.publicationId,

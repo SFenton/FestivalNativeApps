@@ -220,6 +220,25 @@ func sessionTracksHeaderlessPublicationWithoutInventingProvenance(advances: Bool
     #expect(await transport.pinnedCatalogues() == [7, 8])
 }
 
+/// A successful publication check cannot claim fresh or verified offline Songs.
+@Test func settingsPublicationSummaryKeepsSongFreshnessAndProvenanceSeparate() throws {
+    let catalog = SongsResponse(count: 0, currentSeason: nil, songs: [])
+    func payload(publicationId: Int?, stale: Bool) -> CatalogPayload {
+        CatalogPayload(
+            catalog: catalog, publicationId: publicationId,
+            observedPublicationId: 7, isStale: stale
+        )
+    }
+    #expect(SettingsServiceSummary.message(for: payload(publicationId: 7, stale: false))
+            == "Publication 7")
+    #expect(SettingsServiceSummary.message(for: payload(publicationId: nil, stale: false))
+            == "Publication 7; songs live (publication unverified)")
+    #expect(SettingsServiceSummary.message(for: payload(publicationId: 7, stale: true))
+            == "Publication 7; songs offline - showing verified cached data")
+    #expect(SettingsServiceSummary.message(for: payload(publicationId: nil, stale: true))
+            == "Publication 7; songs offline - last seen (publication unverified)")
+}
+
 /// A catalogue update only reshuffles when its art paths actually change.
 @MainActor
 @Test func carouselPoolCapsAtHundredAndPreservesUnchangedOrder() async throws {

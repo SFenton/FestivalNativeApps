@@ -277,14 +277,7 @@ public actor FestivalAPI {
     /// - Returns: Wire payload tagged with publication and offline freshness.
     /// - Throws: Network, HTTP and generation-consistency errors.
     public func read(_ endpoint: PublicEndpoint) async throws -> PublicPayload {
-        let resourceURL = try endpoint.url(relativeTo: baseURL)
-        var components = URLComponents(url: resourceURL, resolvingAgainstBaseURL: false)
-        if case .songs = endpoint, let fixtureScenario {
-            components?.queryItems = [URLQueryItem(name: "scenario", value: fixtureScenario.rawValue)]
-        }
-        guard let url = components?.url else {
-            throw FestivalAPIError.invalidResource
-        }
+        let url = try resourceURL(for: endpoint)
         for attempt in 0..<2 {
             let generation = try await publication()
             do {
@@ -296,6 +289,56 @@ public actor FestivalAPI {
             }
         }
         throw FestivalAPIError.invalidPublication
+    }
+
+    /// Resolve one canonical URL for both the live request and its validated snapshot.
+    ///
+    /// - Parameter endpoint: Allowlisted public resource with paging and fixture query.
+    /// - Returns: Exact cache key and URL requested from the public service.
+    /// - Throws: Invalid resource components or URL encoding.
+    func resourceURL(for endpoint: PublicEndpoint) throws -> URL {
+        let resourceURL = try endpoint.url(relativeTo: baseURL)
+        var components = URLComponents(url: resourceURL, resolvingAgainstBaseURL: false)
+        if case .songs = endpoint, let fixtureScenario {
+            components?.queryItems = [URLQueryItem(name: "scenario", value: fixtureScenario.rawValue)]
+        }
+        guard let url = components?.url else {
+            throw FestivalAPIError.invalidResource
+        }
+        return url
+    }
+
+    /// Retain only a typed, validated headerless payload as explicitly unverified.
+    ///
+    /// - Parameters:
+    ///   - payload: Public bytes after the endpoint-specific wire model passed validation.
+    ///   - endpoint: Exact allowlisted resource including all cache-key query arguments.
+    /// - Throws: Cancellation or a publication changed while validation was completing.
+    func rememberUnverified(
+        _ payload: PublicPayload, for endpoint: PublicEndpoint
+    ) async throws {
+        guard payload.publicationId == nil, !payload.isStale else { return }
+        try Task.checkCancellation()
+        guard let active = current,
+              active.publicationId == payload.observedPublicationId,
+              !(active.readyForPinning && active.pinningEnabled) else {
+            throw FestivalAPIError.invalidPublication
+        }
+        let resource = try resourceURL(for: endpoint).absoluteString
+        await cache.storeUnverified(
+            .init(data: payload.data, observedPublicationId: payload.observedPublicationId),
+            for: resource
+        )
+        guard let latest = current,
+              latest.publicationId == payload.observedPublicationId,
+              !(latest.readyForPinning && latest.pinningEnabled) else {
+            await cache.removeUnverified(
+                for: resource, observedPublicationId: payload.observedPublicationId
+            )
+            try Task.checkCancellation()
+            throw FestivalAPIError.invalidPublication
+        }
+        try Task.checkCancellation()
     }
 
     /// Execute one bounded generation attempt without returning obsolete data.
@@ -315,13 +358,30 @@ public actor FestivalAPI {
                 request(for: url, publication: publication, etag: cached?.etag)
             )
         } catch let error as URLError {
+            try Task.checkCancellation()
             if error.canUseOfflineCache,
-               let cached,
                current?.publicationId == publication.publicationId {
-                return PublicPayload(
-                    data: cached.data, publicationId: publication.publicationId,
-                    observedPublicationId: publication.publicationId, isStale: true
-                )
+                if let cached {
+                    return PublicPayload(
+                        data: cached.data, publicationId: publication.publicationId,
+                        observedPublicationId: publication.publicationId, isStale: true
+                    )
+                }
+                if let current, !(current.readyForPinning && current.pinningEnabled),
+                   let snapshot = await cache.unverifiedSnapshot(
+                    for: identifier, observedPublicationId: publication.publicationId
+                ) {
+                    try Task.checkCancellation()
+                    guard let active = self.current,
+                          active.publicationId == publication.publicationId,
+                          !(active.readyForPinning && active.pinningEnabled) else {
+                        throw FestivalAPIError.invalidPublication
+                    }
+                    return PublicPayload(
+                        data: snapshot.data, publicationId: nil,
+                        observedPublicationId: publication.publicationId, isStale: true
+                    )
+                }
             }
             throw error
         }

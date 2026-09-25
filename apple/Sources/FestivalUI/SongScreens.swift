@@ -3,6 +3,57 @@ import SwiftUI
 import FestivalCore
 import FestivalDesign
 
+/// Keep verified offline copy distinct from headerless, last-seen public bytes.
+enum OfflineDisclosure {
+    enum Content: Sendable {
+        case songs
+        case scores
+    }
+
+    /// Name the source of an offline page without promoting observed IDs to proof.
+    ///
+    /// - Parameters:
+    ///   - content: Catalogue or solo chart being shown from process memory.
+    ///   - publicationId: Response-proven generation, nil for headerless bytes.
+    /// - Returns: A distinct, accessible freshness and provenance statement.
+    static func label(_ content: Content, publicationId: Int?) -> String {
+        switch (content, publicationId) {
+        case (.songs, nil):
+            "Offline - last seen songs (publication unverified)"
+        case (.scores, nil):
+            "Offline - last seen scores (publication unverified)"
+        case (.songs, .some):
+            "Offline - showing cached songs"
+        case (.scores, .some):
+            "Offline - showing cached scores"
+        }
+    }
+}
+
+/// Wrapping native text with a stable icon and explicit screen-reader label.
+private struct FreshnessDisclosure: View {
+    let message: String
+    let symbol: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .font(.body)
+                .frame(width: 24)
+                .accessibilityHidden(true)
+            Text(message)
+                .font(.body)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .foregroundStyle(BrandTokens.gold)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(message)
+    }
+}
+
 /// Scalable error content: the iOS 26 system unavailable view fails the Dynamic Type audit.
 private struct ServiceUnavailableView: View {
     let title: String
@@ -247,6 +298,7 @@ struct SongsScreen: View {
                     VStack(spacing: 8) {
                         if hasDisclosure(for: payload) {
                             disclosures(for: payload)
+                                .padding(.horizontal, 16)
                         }
                         ContentUnavailableView {
                             VStack(spacing: 12) {
@@ -370,28 +422,25 @@ struct SongsScreen: View {
             RefreshErrorBanner(message: refreshFailure)
         }
         if payload.isStale {
-            Label(
-                payload.publicationId == nil
-                    ? "Offline - last seen songs (publication unverified)"
-                    : "Offline - showing cached songs",
-                systemImage: "wifi.slash"
+            FreshnessDisclosure(
+                message: OfflineDisclosure.label(
+                    .songs, publicationId: payload.publicationId
+                ),
+                symbol: "wifi.slash"
             )
-            .foregroundStyle(BrandTokens.gold)
             .accessibilityIdentifier("fst.songs.offline")
         } else if payload.publicationId == nil {
-            Label(
-                "Showing live songs without publication verification",
-                systemImage: "info.circle"
+            FreshnessDisclosure(
+                message: "Showing live songs without publication verification",
+                symbol: "info.circle"
             )
-            .foregroundStyle(BrandTokens.gold)
         }
         if let current = session.publicationId,
            payload.observedPublicationId != current {
-            Label(
-                "Publication changed - updating songs",
-                systemImage: "arrow.clockwise"
+            FreshnessDisclosure(
+                message: "Publication changed - updating songs",
+                symbol: "arrow.clockwise"
             )
-            .foregroundStyle(BrandTokens.gold)
         }
     }
 
@@ -646,14 +695,19 @@ struct SoloLeaderboardScreen: View {
             case let .loaded(payload):
                 VStack(spacing: 0) {
                     if payload.isStale {
-                        Label("Offline - showing cached scores", systemImage: "wifi.slash")
-                            .foregroundStyle(BrandTokens.gold)
-                    } else if payload.publicationId == nil {
-                        Label(
-                            "Showing live scores without publication verification",
-                            systemImage: "info.circle"
+                        FreshnessDisclosure(
+                            message: OfflineDisclosure.label(
+                                .scores, publicationId: payload.publicationId
+                            ),
+                            symbol: "wifi.slash"
                         )
-                        .foregroundStyle(BrandTokens.gold)
+                        .padding(.horizontal, 16)
+                    } else if payload.publicationId == nil {
+                        FreshnessDisclosure(
+                            message: "Showing live scores without publication verification",
+                            symbol: "info.circle"
+                        )
+                        .padding(.horizontal, 16)
                     }
                     HStack(spacing: 12) {
                         ArtworkTile(raw: song.albumArt, session: session, size: 80)

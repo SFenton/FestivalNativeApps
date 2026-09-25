@@ -255,6 +255,81 @@ final class FestivalMobileUITests: XCTestCase {
         try app.performAccessibilityAudit(for: .all)
     }
 
+    /// Retain validated unpinned Songs across a warm resume, never a cold relaunch.
+    ///
+    /// - Throws: A fixture still online, missing offline disclosure or persisted cold bytes.
+    @MainActor
+    func testHeaderlessWarmOfflineSurvivesBackgroundButNotColdLaunch() async throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8771"
+        app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launch()
+        let row = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(row.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "label == %@",
+                "Showing live songs without publication verification"
+            )
+        ).firstMatch.exists)
+
+        let health = try XCTUnwrap(URL(string: "http://127.0.0.1:8771/__fixture__/health"))
+        var disconnected = false
+        for _ in 0..<40 {
+            do {
+                _ = try await URLSession.shared.data(
+                    for: URLRequest(url: health, timeoutInterval: 1)
+                )
+            } catch let error as URLError where error.code == .cannotConnectToHost {
+                disconnected = true
+                break
+            } catch let error as URLError where
+                error.code == .networkConnectionLost || error.code == .timedOut {
+                try await Task.sleep(for: .milliseconds(100))
+                continue
+            } catch {
+                XCTFail("Unexpected local fixture failure: \(error.localizedDescription)")
+                break
+            }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        XCTAssertTrue(disconnected, "One-shot headerless fixture did not close its listener")
+
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        let table = app.tables.firstMatch
+        let list = table.exists ? table : app.collectionViews.firstMatch
+        XCTAssertTrue(list.exists)
+        list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.14))
+            .press(
+                forDuration: 0.1,
+                thenDragTo: list.coordinate(
+                    withNormalizedOffset: CGVector(dx: 0.5, dy: 0.87)
+                )
+            )
+        record(app, name: "songs-after-warm-refresh-gesture")
+        let offline = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.offline").firstMatch
+        XCTAssertTrue(
+            offline.waitForExistence(timeout: 10),
+            "Refreshing \(list.frame) left labels: "
+                + "\(app.staticTexts.allElementsBoundByIndex.prefix(18).map(\.label))"
+        )
+        XCTAssertEqual(offline.label, "Offline - last seen songs (publication unverified)")
+        XCTAssertTrue(row.exists)
+        record(app, name: "songs-headerless-warm-offline")
+        try app.performAccessibilityAudit(for: .all)
+
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Songs unavailable"].waitForExistence(timeout: 15))
+        XCTAssertFalse(offline.exists)
+        record(app, name: "songs-headerless-cold-no-cache")
+    }
+
     /// Search and tab state must remain accessible across native section changes.
     ///
     /// - Throws: A missing search, Settings or Leaderboards destination.
@@ -679,10 +754,15 @@ final class FestivalMobileUITests: XCTestCase {
         app.launch()
         let song = app.buttons["fst.songs.row.fixture-pulse"]
         XCTAssertTrue(song.waitForExistence(timeout: 15))
-        XCTAssertTrue(
-            app.staticTexts["Showing live songs without publication verification"].exists
-        )
-        XCTAssertFalse(app.staticTexts["Publication changed - updating songs"].exists)
+        XCTAssertTrue(app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "label == %@",
+                "Showing live songs without publication verification"
+            )
+        ).firstMatch.exists)
+        XCTAssertFalse(app.descendants(matching: .any).matching(
+            NSPredicate(format: "label == %@", "Publication changed - updating songs")
+        ).firstMatch.exists)
         song.tap()
         XCTAssertTrue(app.staticTexts["Intensity"].waitForExistence(timeout: 10))
 
@@ -692,7 +772,7 @@ final class FestivalMobileUITests: XCTestCase {
         publication.tap()
         let status = app.staticTexts["fst.settings.publication-status"]
         reveal(status, in: app, scrollingUp: true)
-        XCTAssertEqual(status.label, "Publication 8")
+        XCTAssertEqual(status.label, "Publication 8; songs live (publication unverified)")
 
         rootControl("Songs", app: app).tap()
         let notice = app.staticTexts.matching(

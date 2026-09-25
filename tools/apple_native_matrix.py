@@ -29,6 +29,7 @@ TEST_NAME = re.compile(r"^\s+func (test[A-Za-z0-9_]+)\(", re.MULTILINE)
 DUO_TEST = "testDuoOuterFourRotations"
 SERVICE_PORT = 8765
 RECOVERY_PORT = 8769
+OFFLINE_PORT = 8771
 ROLLOVER_PORTS = {"iphone": 8767, "ipad": 8768}
 DEVICE_FAMILIES = {"iphone": "iPhone", "ipad": "iPad"}
 LOCK_FILE = Path("/tmp/festival-native-matrix.lock")
@@ -369,7 +370,7 @@ def fixture_json(port: int, endpoint: str) -> dict:
 
 
 def fixture_options(flags: list[str]) -> dict[str, bool | int | None]:
-    """Allow only the three known mock modes and their immutable launch flags.
+    """Allow only known mock modes and their immutable launch flags.
 
     Args:
         flags: CLI switches passed to the local fixture process.
@@ -383,6 +384,7 @@ def fixture_options(flags: list[str]) -> dict[str, bool | int | None]:
     options: dict[str, bool | int | None] = {
         "unpinned": False, "rolloverOnRead": None,
         "failFirstWhiteCatalogue": False,
+        "stopAfterFirstSongs": False,
     }
     if flags == []:
         return options
@@ -390,6 +392,8 @@ def fixture_options(flags: list[str]) -> dict[str, bool | int | None]:
         return dict(options, unpinned=True, rolloverOnRead=2)
     if flags == ["--fail-first-white-catalogue"]:
         return dict(options, failFirstWhiteCatalogue=True)
+    if flags == ["--unpinned", "--stop-after-first-songs"]:
+        return dict(options, unpinned=True, stopAfterFirstSongs=True)
     raise MatrixError("Unknown or non-deterministic local fixture flags")
 
 
@@ -579,16 +583,38 @@ def boot_device(
         raise MatrixError(f"Only {identifier} may be booted during its test suite")
 
 
+def device_order(
+    selection: str, booted: set[str], iphone: str, ipad: str
+) -> tuple[str, ...]:
+    """Start with the already-running product device to avoid a needless reboot.
+
+    Args:
+        selection: Requested `iphone`, `ipad` or `both` matrix.
+        booted: At most one previously validated product simulator ID.
+        iphone: Selected FST iPhone UDID.
+        ipad: Selected FST iPad UDID.
+
+    Returns:
+        One requested family or both families in a reuse-first serial order.
+    """
+    if selection != "both":
+        return (selection,)
+    if booted == {ipad}:
+        return ("ipad", "iphone")
+    if not booted or booted == {iphone}:
+        return ("iphone", "ipad")
+    raise MatrixError("Cannot order an unrecognized booted simulator")
+
+
 def run_device(
-    device: str, identifier: str, tests: list[str], evidence: Path,
+    device: str, identifier: str, evidence: Path,
     *, expected_tests: list[str], baseline: dict[str, str], env: dict[str, str]
 ) -> Path:
-    """Run one full or explicit-targeted native suite against two fresh fixtures.
+    """Run one full or explicit-targeted native suite with three fresh fixtures.
 
     Args:
         device: iPhone or iPad role.
         identifier: Product simulator UDID for this role.
-        tests: Empty for full suite, else selected test method names.
         evidence: Unique result directory containing complete logs and .xcresult.
         expected_tests: Frozen selected methods from before the first device.
         baseline: Hashed fixture, app, test and project inputs from matrix start.
@@ -610,6 +636,7 @@ def run_device(
         for port, flags in (
             (rollover, ["--unpinned", "--rollover-on-read", "2"]),
             (RECOVERY_PORT, ["--fail-first-white-catalogue"]),
+            (OFFLINE_PORT, ["--unpinned", "--stop-after-first-songs"]),
         ):
             process = start_fixture(
                 port, flags, evidence, label=device, expected_hashes=fixture_hashes
@@ -627,15 +654,10 @@ def run_device(
             "-resultBundlePath", str(result), "-parallel-testing-enabled", "NO",
             "-enableCodeCoverage", "YES",
         ]
-        if tests:
-            command.extend(
-                f"-only-testing:FestivalMobileUITests/FestivalMobileUITests/{name}"
-                for name in tests
-            )
-        else:
-            command.append(
-                f"-skip-testing:FestivalMobileUITests/FestivalMobileUITests/{DUO_TEST}"
-            )
+        command.extend(
+            f"-only-testing:FestivalMobileUITests/FestivalMobileUITests/{name}"
+            for name in expected_tests
+        )
         command.extend(["test", "CODE_SIGNING_ALLOWED=NO"])
         log = evidence / f"{device}-xcodebuild.log"
         with log.open("x", encoding="utf-8") as output:
@@ -715,7 +737,7 @@ def main(argv: list[str] | None = None) -> int:
             })
         except json.JSONDecodeError as error:
             raise MatrixError(f"simctl inventory is not valid JSON: {error}") from error
-        active_devices(env, allowed)
+        current = active_devices(env, allowed)
         require_unchanged(baseline)
         evidence.mkdir(parents=True)
         ordinary = start_fixture(
@@ -724,11 +746,13 @@ def main(argv: list[str] | None = None) -> int:
         )
         try:
             results: list[Path] = []
-            for device in ("iphone", "ipad") if args.device == "both" else (args.device,):
+            for device in device_order(
+                args.device, current, args.iphone_udid, args.ipad_udid
+            ):
                 identifier = args.iphone_udid if device == "iphone" else args.ipad_udid
                 boot_device(identifier, env, allowed)
                 results.append(run_device(
-                    device, identifier, args.only_test, evidence,
+                    device, identifier, evidence,
                     expected_tests=planned, baseline=baseline, env=env,
                 ))
                 require_unchanged(baseline)
