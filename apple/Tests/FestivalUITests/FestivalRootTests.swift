@@ -86,6 +86,20 @@ private struct PublicationFixture: HTTPTransport {
     }
 }
 
+/// Ordinary launches read public service data, while tests opt into local fixtures.
+@Test func rootDefaultsToPublicServiceWithoutAKey() async throws {
+    let live = try FestivalRootView.makeClient(environment: [:])
+    let liveOrigin = await live.baseURL.absoluteString
+    #expect(liveOrigin == "https://festivalscoretracker.com")
+    #if DEBUG
+    let fixture = try FestivalRootView.makeClient(environment: [
+        "FST_API_BASE_URL": "http://127.0.0.1:8765",
+    ])
+    let fixtureHost = await fixture.baseURL.host
+    #expect(fixtureHost == "127.0.0.1")
+    #endif
+}
+
 #if os(macOS)
 /// Render the entire macOS navigation shell at each reachable root selection.
 @MainActor

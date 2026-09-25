@@ -38,14 +38,14 @@ public struct FestivalRootView: View {
         _session = State(initialValue: FestivalSession(factory: factory))
     }
 
-    /// Build only approved loopback debug scenarios; Release always targets HTTPS.
+    /// Use the public HTTPS service unless Debug explicitly selects a fixture.
     ///
     /// - Parameter environment: Launch environment containing optional debug fixture choices.
     /// - Returns: One keyless publication-aware client for the selected origin.
     /// - Throws: Invalid service URLs, unsupported fixture scenarios or insecure origins.
     nonisolated static func makeClient(environment: [String: String]) throws -> FestivalAPI {
         #if DEBUG
-        let address = environment["FST_API_BASE_URL"] ?? "http://127.0.0.1:8765"
+        let address = environment["FST_API_BASE_URL"] ?? "https://festivalscoretracker.com"
         #else
         let address = "https://festivalscoretracker.com"
         #endif

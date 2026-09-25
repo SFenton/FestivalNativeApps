@@ -29,9 +29,22 @@ final class FestivalMobileUITests: XCTestCase {
 
         let next = app.buttons["fst.song-leaderboard.page-next"]
         XCTAssertTrue(next.waitForExistence(timeout: 10), "Pagination is not reachable")
+        collapseSidebarOnPad(app)
         XCTAssertTrue(app.staticTexts["1 / 2"].exists)
+        let first = app.buttons["fst.song-leaderboard.page-first"]
+        XCTAssertFalse(first.isEnabled)
+        XCTAssertTrue(next.isEnabled)
+        try app.performAccessibilityAudit(for: .all)
         next.tap()
         XCTAssertTrue(app.staticTexts["2 / 2"].waitForExistence(timeout: 10))
+        XCTAssertTrue(first.isEnabled)
+        XCTAssertFalse(next.isEnabled)
+        XCTAssertTrue(
+            app.descendants(matching: .any)
+                .matching(identifier: "fst.song-leaderboard.row.fixture-player-26")
+                .firstMatch.waitForExistence(timeout: 10)
+        )
+        try app.performAccessibilityAudit(for: .all)
         record(app, name: "song-leaderboard-page2-portrait")
 
         XCUIDevice.shared.orientation = .landscapeLeft
@@ -50,6 +63,45 @@ final class FestivalMobileUITests: XCTestCase {
         )
         record(app, name: "song-leaderboard-page2-landscape")
         XCUIDevice.shared.orientation = .portrait
+    }
+
+    /// Keep solo rows and pagination reachable at the largest native text size.
+    ///
+    /// - Throws: Missing score text or a page action outside the visible viewport.
+    @MainActor
+    func testSoloScoresAtLargestTextSize() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName",
+            UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+        ]
+        app.launch()
+        let song = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(song.waitForExistence(timeout: 15))
+        song.tap()
+        let lead = app.buttons["fst.song-detail.leaderboard.Solo_Guitar"]
+        XCTAssertTrue(lead.waitForExistence(timeout: 10))
+        lead.tap()
+        collapseSidebarOnPad(app)
+        let next = app.buttons["fst.song-leaderboard.page-next"]
+        XCTAssertTrue(next.waitForExistence(timeout: 10))
+        let accuracy = revealSoloAccuracy("fixture-player-1", app: app)
+        assertWholeSoloScore("fixture-player-1", rank: 1, score: 99_900, app: app)
+        record(app, name: "solo-largest-text-page1")
+        XCTAssertTrue(accuracy.isHittable)
+        XCTAssertTrue(next.isHittable)
+        XCTAssertFalse(app.buttons["fst.song-leaderboard.page-first"].isEnabled)
+        next.tap()
+        XCTAssertTrue(app.staticTexts["2 / 2"].waitForExistence(timeout: 10))
+        let lastAccuracy = revealSoloAccuracy("fixture-player-26", app: app)
+        assertWholeSoloScore("fixture-player-26", rank: 26, score: 97_400, app: app)
+        XCTAssertTrue(lastAccuracy.isHittable)
+        XCTAssertTrue(app.buttons["fst.song-leaderboard.page-first"].isEnabled)
+        XCTAssertFalse(next.isEnabled)
+        record(app, name: "solo-largest-text-page2")
     }
 
     /// Run the system audit against a visible fixture-backed native screen.
@@ -275,27 +327,7 @@ final class FestivalMobileUITests: XCTestCase {
             )
         ).firstMatch.exists)
 
-        let health = try XCTUnwrap(URL(string: "http://127.0.0.1:8771/__fixture__/health"))
-        var disconnected = false
-        for _ in 0..<40 {
-            do {
-                _ = try await URLSession.shared.data(
-                    for: URLRequest(url: health, timeoutInterval: 1)
-                )
-            } catch let error as URLError where error.code == .cannotConnectToHost {
-                disconnected = true
-                break
-            } catch let error as URLError where
-                error.code == .networkConnectionLost || error.code == .timedOut {
-                try await Task.sleep(for: .milliseconds(100))
-                continue
-            } catch {
-                XCTFail("Unexpected local fixture failure: \(error.localizedDescription)")
-                break
-            }
-            try await Task.sleep(for: .milliseconds(100))
-        }
-        XCTAssertTrue(disconnected, "One-shot headerless fixture did not close its listener")
+        try await awaitClosedFixture(port: 8771)
 
         XCUIDevice.shared.press(.home)
         app.activate()
@@ -328,6 +360,63 @@ final class FestivalMobileUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Songs unavailable"].waitForExistence(timeout: 15))
         XCTAssertFalse(offline.exists)
         record(app, name: "songs-headerless-cold-no-cache")
+    }
+
+    /// Cache one score page across a warm resume but not after process termination.
+    ///
+    /// - Throws: Missing solo row, false publication provenance, or cold-cache persistence.
+    @MainActor
+    func testHeaderlessSoloScoresRemainReadableAfterConnectionLoss() async throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8772"
+        app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launch()
+        let song = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(song.waitForExistence(timeout: 15))
+        song.tap()
+        let lead = app.buttons["fst.song-detail.leaderboard.Solo_Guitar"]
+        XCTAssertTrue(lead.waitForExistence(timeout: 10))
+        lead.tap()
+        collapseSidebarOnPad(app)
+        let score = app.descendants(matching: .any)
+            .matching(identifier: "fst.song-leaderboard.row.fixture-player-1").firstMatch
+        XCTAssertTrue(score.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "label == %@",
+                "Showing live scores without publication verification"
+            )
+        ).firstMatch.exists)
+        try app.performAccessibilityAudit(for: .all)
+        try await awaitClosedFixture(port: 8772)
+
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        XCTAssertTrue(score.waitForExistence(timeout: 10))
+        let back = app.navigationBars.buttons.firstMatch
+        XCTAssertTrue(back.exists)
+        back.tap()
+        XCTAssertTrue(lead.waitForExistence(timeout: 10))
+        lead.tap()
+        let offline = app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "label == %@",
+                "Offline - last seen scores (publication unverified)"
+            )
+        ).firstMatch
+        XCTAssertTrue(offline.waitForExistence(timeout: 10))
+        XCTAssertTrue(score.waitForExistence(timeout: 10))
+        XCTAssertTrue(score.isHittable, "Warm-offline score rows must remain reachable")
+        record(app, name: "solo-headerless-warm-offline")
+        try app.performAccessibilityAudit(for: .all)
+
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Songs unavailable"].waitForExistence(timeout: 15))
+        XCTAssertFalse(offline.exists)
+        record(app, name: "solo-headerless-cold-no-cache")
     }
 
     /// Search and tab state must remain accessible across native section changes.
@@ -835,6 +924,71 @@ final class FestivalMobileUITests: XCTestCase {
 
     // MARK: - Evidence
 
+    /// Expose the full detail pane before auditing iPad's split-view destination.
+    ///
+    /// - Parameter app: Foreground native Songs detail or leaderboard screen.
+    @MainActor
+    private func collapseSidebarOnPad(_ app: XCUIApplication) {
+        guard UIDevice.current.userInterfaceIdiom == .pad else { return }
+        let toggle = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS[c] %@", "sidebar")
+        ).firstMatch
+        XCTAssertTrue(toggle.exists, "Native sidebar control is missing")
+        toggle.tap()
+    }
+
+    /// Scroll the native chart, not its fixed pager, until a large score is visible.
+    ///
+    /// - Parameters:
+    ///   - accountID: Synthetic player on the currently loaded chart page.
+    ///   - app: Foreground chart at AccessibilityXXXL.
+    /// - Returns: The visible, explicitly labeled accuracy element.
+    @MainActor
+    private func revealSoloAccuracy(
+        _ accountID: String, app: XCUIApplication
+    ) -> XCUIElement {
+        let accuracy = app.staticTexts
+            .matching(identifier: "fst.song-leaderboard.row.\(accountID)")
+            .matching(NSPredicate(format: "label == %@", "Accuracy 98%"))
+            .firstMatch
+        let table = app.tables.firstMatch
+        let list = table.exists ? table : app.collectionViews.firstMatch
+        XCTAssertTrue(list.exists, "Native score list is missing")
+        for _ in 0..<8 {
+            if accuracy.isHittable { break }
+            list.swipeUp()
+        }
+        XCTAssertTrue(
+            accuracy.isHittable,
+            "Score \(accountID) is not visible after scrolling its native list"
+        )
+        return accuracy
+    }
+
+    /// Detect a score whose final digit wraps onto its own accessibility line.
+    ///
+    /// - Parameters:
+    ///   - accountID: Synthetic player on the current chart page.
+    ///   - rank: Visible fixture rank on this score row.
+    ///   - score: Expected, formatted fixture score for the same player.
+    ///   - app: Foreground chart at AccessibilityXXXL.
+    @MainActor
+    private func assertWholeSoloScore(
+        _ accountID: String, rank: Int, score: Int, app: XCUIApplication
+    ) {
+        let identifier = "fst.song-leaderboard.row.\(accountID)"
+        let rankText = app.staticTexts.matching(identifier: identifier)
+            .matching(NSPredicate(format: "label == %@", "#\(rank)")).firstMatch
+        let scoreText = app.staticTexts.matching(identifier: identifier)
+            .matching(NSPredicate(format: "label == %@", score.formatted())).firstMatch
+        XCTAssertTrue(rankText.exists)
+        XCTAssertTrue(scoreText.exists)
+        XCTAssertLessThanOrEqual(
+            scoreText.frame.height, rankText.frame.height * 1.25,
+            "A numeric score must remain on one line at the largest native text size"
+        )
+    }
+
     /// Select native sidebar buttons on iPad, system tab buttons on iPhone.
     ///
     /// - Parameters:
@@ -1040,6 +1194,37 @@ final class FestivalMobileUITests: XCTestCase {
         zip(first, second).reduce(0) { total, channels in
             total + abs(Int(channels.0) - Int(channels.1))
         }
+    }
+
+    /// Wait for an approved one-shot fixture to stop listening before offline actions.
+    ///
+    /// - Parameter port: Loopback Songs or solo one-shot fixture (8771 or 8772).
+    /// - Throws: Unexpected transport failure or listener that never closes.
+    @MainActor
+    private func awaitClosedFixture(port: Int) async throws {
+        let health = try XCTUnwrap(
+            URL(string: "http://127.0.0.1:\(port)/__fixture__/health")
+        )
+        var disconnected = false
+        for _ in 0..<40 {
+            do {
+                _ = try await URLSession.shared.data(
+                    for: URLRequest(url: health, timeoutInterval: 1)
+                )
+            } catch let error as URLError where error.code == .cannotConnectToHost {
+                disconnected = true
+                break
+            } catch let error as URLError where
+                error.code == .networkConnectionLost || error.code == .timedOut {
+                try await Task.sleep(for: .milliseconds(100))
+                continue
+            } catch {
+                XCTFail("Unexpected local fixture failure: \(error.localizedDescription)")
+                break
+            }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        XCTAssertTrue(disconnected, "One-shot headerless fixture did not close its listener")
     }
 
     private struct FixtureScoreQuery: Decodable {

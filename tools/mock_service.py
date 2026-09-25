@@ -64,7 +64,8 @@ class FixtureServer(ThreadingHTTPServer):
         self, address: tuple[str, int], handler: type[BaseHTTPRequestHandler],
         *, unpinned: bool = False, rollover_on_read: int | None = None,
         fail_first_white_catalogue: bool = False,
-        stop_after_first_songs: bool = False
+        stop_after_first_songs: bool = False,
+        stop_after_first_score: bool = False
     ) -> None:
         """Create a deterministic, request-count-driven service fixture.
 
@@ -75,6 +76,7 @@ class FixtureServer(ThreadingHTTPServer):
             rollover_on_read: First publication GET that advances generation 7 to 8.
             fail_first_white_catalogue: Fail one white-art catalogue read, then recover.
             stop_after_first_songs: Stop this mock listener after its first successful Songs read.
+            stop_after_first_score: Stop after its first successful solo chart read.
         """
         self.unpinned = unpinned
         self.rollover_on_read = rollover_on_read
@@ -84,12 +86,14 @@ class FixtureServer(ThreadingHTTPServer):
             "rolloverOnRead": rollover_on_read,
             "failFirstWhiteCatalogue": fail_first_white_catalogue,
             "stopAfterFirstSongs": stop_after_first_songs,
+            "stopAfterFirstScore": stop_after_first_score,
         }
         self._publication_reads = 0
         self._publication_id = 7
         self._last_score_query: dict | None = None
         self._fail_first_white_catalogue = fail_first_white_catalogue
         self._stop_after_first_songs = stop_after_first_songs
+        self._stop_after_first_score = stop_after_first_score
         self._lock = threading.Lock()
         super().__init__(address, handler)
 
@@ -150,6 +154,17 @@ class FixtureServer(ThreadingHTTPServer):
         with self._lock:
             should_stop = self._stop_after_first_songs
             self._stop_after_first_songs = False
+            return should_stop
+
+    def should_stop_after_score(self) -> bool:
+        """Consume one chart response before simulating a real connection loss.
+
+        Returns:
+            True only after the first successful leaderboard read on this listener.
+        """
+        with self._lock:
+            should_stop = self._stop_after_first_score
+            self._stop_after_first_score = False
             return should_stop
 
 
@@ -385,6 +400,8 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 "localEntries": total, "totalEntries": total,
                 "showLeaderboardEntryTotals": True, "entries": entries,
             })
+            if self.fixture.should_stop_after_score():
+                self.fixture.shutdown()
         else:
             self._json(404, {"status": "not_found"})
 
@@ -422,18 +439,23 @@ def main() -> None:
     parser.add_argument("--rollover-on-read", type=int)
     parser.add_argument("--fail-first-white-catalogue", action="store_true")
     parser.add_argument("--stop-after-first-songs", action="store_true")
+    parser.add_argument("--stop-after-first-score", action="store_true")
     args = parser.parse_args()
     if not 1 <= args.port <= 65535:
         parser.error("port must be between 1 and 65535")
     if args.rollover_on_read is not None and args.rollover_on_read < 2:
         parser.error("rollover-on-read must be at least 2")
-    if args.stop_after_first_songs and not args.unpinned:
-        parser.error("stop-after-first-songs requires an unpinned fixture")
+    if args.stop_after_first_songs or args.stop_after_first_score:
+        if not args.unpinned:
+            parser.error("one-shot offline fixtures require --unpinned")
+        if args.stop_after_first_songs and args.stop_after_first_score:
+            parser.error("choose one endpoint for the one-shot connection loss")
     with FixtureServer(
         ("127.0.0.1", args.port), FixtureHandler,
         unpinned=args.unpinned, rollover_on_read=args.rollover_on_read,
         fail_first_white_catalogue=args.fail_first_white_catalogue,
-        stop_after_first_songs=args.stop_after_first_songs
+        stop_after_first_songs=args.stop_after_first_songs,
+        stop_after_first_score=args.stop_after_first_score
     ) as server:
         print(f"Read-only fixture service on 127.0.0.1:{server.server_port}", flush=True)
         server.serve_forever()

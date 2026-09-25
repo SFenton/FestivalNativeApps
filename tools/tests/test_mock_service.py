@@ -35,6 +35,7 @@ class MockServiceTests(unittest.TestCase):
             "unpinned": False, "rolloverOnRead": None,
             "failFirstWhiteCatalogue": False,
             "stopAfterFirstSongs": False,
+            "stopAfterFirstScore": False,
         })
         self.assertEqual(set(identity["sourceHashes"]), {
             "tools/mock_service.py",
@@ -220,6 +221,31 @@ class MockServiceTests(unittest.TestCase):
             self.assertFalse(thread.is_alive(), "The fixture did not close its listener")
         with self.assertRaises(URLError):
             urlopen(base + "/api/songs", timeout=2)
+
+    def test_unpinned_one_shot_chart_stops_only_after_valid_scores(self):
+        """Songs can load before a real chart-connection loss on a fresh listener."""
+        with FixtureServer(
+            ("127.0.0.1", 0), FixtureHandler,
+            unpinned=True, stop_after_first_score=True,
+        ) as server:
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_port}"
+            with urlopen(base + "/api/publication") as response:
+                self.assertFalse(json.load(response)["pinningEnabled"])
+            with urlopen(base + "/api/songs") as response:
+                self.assertEqual(json.load(response)["count"], 2)
+            with urlopen(base + "/__fixture__/health") as response:
+                self.assertTrue(json.load(response)["ready"])
+            with urlopen(
+                base + "/api/leaderboard/fixture-pulse/Solo_Guitar?top=25&offset=0"
+            ) as response:
+                self.assertEqual(json.load(response)["count"], 25)
+                self.assertIsNone(response.headers.get("X-FST-Publication-Id"))
+            thread.join(timeout=3)
+            self.assertFalse(thread.is_alive(), "Chart fixture did not stop after its response")
+        with self.assertRaises(URLError):
+            urlopen(base + "/api/leaderboard/fixture-pulse/Solo_Guitar", timeout=2)
 
 
 if __name__ == "__main__":

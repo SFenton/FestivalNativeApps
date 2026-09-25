@@ -49,8 +49,12 @@ private struct FreshnessDisclosure: View {
         .foregroundStyle(BrandTokens.gold)
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(
+            BrandTokens.cardBackground,
+            in: RoundedRectangle(cornerRadius: 12)
+        )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(message)
     }
 }
 
@@ -636,7 +640,7 @@ struct SoloLeaderboardScreen: View {
     let session: FestivalSession
     @AppStorage("fst.settings.filterInvalidScores") private var filterInvalidScores = false
     @AppStorage("fst.settings.leeway") private var leeway = 1.0
-    @AppStorage("fst.accessibility.lessTransparency") private var lessTransparency = false
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Binding var path: [SongRoute]
     @State private var page: Int
     @State private var state: LoadState
@@ -694,55 +698,26 @@ struct SoloLeaderboardScreen: View {
                 }
             case let .loaded(payload):
                 VStack(spacing: 0) {
-                    if payload.isStale {
-                        FreshnessDisclosure(
-                            message: OfflineDisclosure.label(
-                                .scores, publicationId: payload.publicationId
-                            ),
-                            symbol: "wifi.slash"
-                        )
-                        .padding(.horizontal, 16)
-                    } else if payload.publicationId == nil {
-                        FreshnessDisclosure(
-                            message: "Showing live scores without publication verification",
-                            symbol: "info.circle"
-                        )
-                        .padding(.horizontal, 16)
+                    if !dynamicTypeSize.isAccessibilitySize {
+                        scoreBanner(payload)
+                        scoreHeader(payload)
                     }
-                    HStack(spacing: 12) {
-                        ArtworkTile(raw: song.albumArt, session: session, size: 80)
-                            .id(song.albumArt)
-                            .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(song.title).font(.title3.bold())
-                            Text(song.artist).foregroundStyle(BrandTokens.textSecondary)
-                            if payload.leaderboard.showLeaderboardEntryTotals == true {
-                                Text("\(payload.leaderboard.totalEntries) \(instrument.label) entries")
-                                    .foregroundStyle(BrandTokens.textSecondary)
-                            }
+                    List {
+                        if dynamicTypeSize.isAccessibilitySize {
+                            scoreBanner(payload)
+                                .listRowInsets(EdgeInsets())
+                                .listRowBackground(Color.clear)
+                            scoreHeader(payload)
+                                .listRowInsets(EdgeInsets())
+                                .listRowBackground(Color.clear)
                         }
-                        Spacer()
-                    }
-                    .padding(16)
-                    List(payload.leaderboard.entries) { entry in
-                        HStack {
-                            Text("#\(entry.rank.formatted())")
-                                .monospacedDigit()
-                                .foregroundStyle(BrandTokens.textSecondary)
-                            Text(entry.displayName.flatMap { $0.isEmpty ? nil : $0 } ?? "Unknown User")
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            Text(entry.score.formatted())
-                                .monospacedDigit()
-                            if let accuracy = entry.accuracy {
-                                Text("\(ScoreFormatting.accuracy(accuracy))%")
-                                    .foregroundStyle(BrandTokens.gold)
-                                    .accessibilityLabel(
-                                        "Accuracy \(ScoreFormatting.accuracy(accuracy)) percent"
-                                    )
-                            }
+                        ForEach(payload.leaderboard.entries) { entry in
+                            scoreRow(entry)
+                            .listRowBackground(BrandTokens.cardBackground)
+                            .accessibilityIdentifier(
+                                "fst.song-leaderboard.row.\(entry.accountId)"
+                            )
                         }
-                        .listRowBackground(BrandTokens.cardBackground)
-                        .accessibilityIdentifier("fst.song-leaderboard.row.\(entry.accountId)")
                     }
                     .scrollContentBackground(.hidden)
                     pagination(totalPages: payload.leaderboard.pageCount)
@@ -758,6 +733,114 @@ struct SoloLeaderboardScreen: View {
             } else if let lastRequest, lastRequest != requestKey {
                 await loadPage()
             }
+        }
+    }
+
+    /// Keep score provenance in both the fixed and accessibility-scrolling layouts.
+    ///
+    /// - Parameter payload: Current chart response with freshness provenance.
+    /// - Returns: A native disclosure when the chart is stale or unverified.
+    @ViewBuilder
+    private func scoreBanner(_ payload: LeaderboardPayload) -> some View {
+        if payload.isStale {
+            FreshnessDisclosure(
+                message: OfflineDisclosure.label(
+                    .scores, publicationId: payload.publicationId
+                ),
+                symbol: "wifi.slash"
+            )
+            .padding(.horizontal, 16)
+        } else if payload.publicationId == nil {
+            FreshnessDisclosure(
+                message: "Showing live scores without publication verification",
+                symbol: "info.circle"
+            )
+            .padding(.horizontal, 16)
+        }
+    }
+
+    /// Let the source-chart title and totals scroll above rows at large text sizes.
+    ///
+    /// - Parameter payload: Current chart, including its optional totals disclosure.
+    /// - Returns: A wrapping, opaque native song summary.
+    private func scoreHeader(_ payload: LeaderboardPayload) -> some View {
+        HStack(spacing: 12) {
+            ArtworkTile(raw: song.albumArt, session: session, size: 80)
+                .id(song.albumArt)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(song.title)
+                    .font(.title3.bold())
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(song.artist)
+                    .foregroundStyle(BrandTokens.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if payload.leaderboard.showLeaderboardEntryTotals == true {
+                    Text("\(payload.leaderboard.totalEntries) \(instrument.label) entries")
+                        .foregroundStyle(BrandTokens.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer()
+        }
+        .padding(16)
+        .background(
+            BrandTokens.cardBackground,
+            in: RoundedRectangle(cornerRadius: 12)
+        )
+    }
+
+    /// Keep score and accuracy whole when accessibility text is enlarged.
+    ///
+    /// - Parameter entry: Validated chart result in the current 25-row page.
+    /// - Returns: Compact score columns or a wrapping stacked native row.
+    private func scoreRow(_ entry: LeaderboardEntry) -> some View {
+        let rank = Text("#\(entry.rank.formatted())")
+            .font(.body)
+            .monospacedDigit()
+            .foregroundStyle(BrandTokens.textSecondary)
+        let name = Text(
+            entry.displayName.flatMap { $0.isEmpty ? nil : $0 } ?? "Unknown User"
+        )
+        .font(.body)
+        .fixedSize(horizontal: false, vertical: true)
+        let score = Text(entry.score.formatted())
+            .font(.body)
+            .monospacedDigit()
+            .fixedSize(horizontal: true, vertical: false)
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 8))
+        let valuesLayout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 8))
+        return layout {
+            HStack(spacing: 8) {
+                rank
+                name.frame(maxWidth: .infinity, alignment: .leading)
+            }
+            valuesLayout {
+                score
+                accuracy(for: entry)
+            }
+        }
+        .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 8 : 0)
+    }
+
+    /// Announce accuracy as a percent independently of the raw chart value.
+    ///
+    /// - Parameter entry: Score row that may have no accuracy measurement.
+    /// - Returns: Accessible, branded accuracy when present.
+    @ViewBuilder
+    private func accuracy(for entry: LeaderboardEntry) -> some View {
+        if let value = entry.accuracy {
+            Text(
+                dynamicTypeSize.isAccessibilitySize
+                    ? "Accuracy \(ScoreFormatting.accuracy(value))%"
+                    : "\(ScoreFormatting.accuracy(value))%"
+            )
+                .font(.body)
+                .foregroundStyle(BrandTokens.gold)
         }
     }
 
@@ -808,31 +891,76 @@ struct SoloLeaderboardScreen: View {
     /// - Parameter totalPages: Number of pages computed from local entries.
     /// - Returns: Accessible native pagination control row.
     private func pagination(totalPages: Int) -> some View {
-        HStack {
-            Button("First") { move(to: 1) }
-                .disabled(page <= 1)
-                .accessibilityIdentifier("fst.song-leaderboard.page-first")
-            Button("Previous") { move(to: page - 1) }
-                .disabled(page <= 1)
-                .accessibilityIdentifier("fst.song-leaderboard.page-previous")
-            Spacer()
-            Text("\(page) / \(totalPages)")
-                .monospacedDigit()
-                .accessibilityIdentifier("fst.song-leaderboard.page-info")
-            Spacer()
-            Button("Next") { move(to: page + 1) }
-                .disabled(page >= totalPages)
-                .accessibilityIdentifier("fst.song-leaderboard.page-next")
-            Button("Last") { move(to: totalPages) }
-                .disabled(page >= totalPages)
-                .accessibilityIdentifier("fst.song-leaderboard.page-last")
+        let first = pagerButton("First", enabled: page > 1) { move(to: 1) }
+            .accessibilityIdentifier("fst.song-leaderboard.page-first")
+        let previous = pagerButton("Previous", enabled: page > 1) {
+            move(to: page - 1)
         }
-        .buttonStyle(.bordered)
+            .accessibilityIdentifier("fst.song-leaderboard.page-previous")
+        let indicator = Text("\(page) / \(totalPages)")
+            .monospacedDigit()
+            .accessibilityIdentifier("fst.song-leaderboard.page-info")
+        let next = pagerButton("Next", enabled: page < totalPages) {
+            move(to: page + 1)
+        }
+            .accessibilityIdentifier("fst.song-leaderboard.page-next")
+        let last = pagerButton("Last", enabled: page < totalPages) {
+            move(to: totalPages)
+        }
+            .accessibilityIdentifier("fst.song-leaderboard.page-last")
+        return VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                first
+                previous
+                Spacer(minLength: 0)
+            }
+            indicator
+            HStack(spacing: 8) {
+                Spacer(minLength: 0)
+                next
+                last
+            }
+        }
         .padding(12)
-        .background(
-            lessTransparency
-                ? AnyShapeStyle(BrandTokens.cardBackground)
-                : AnyShapeStyle(.regularMaterial)
-        )
+        .background(BrandTokens.cardBackground)
+    }
+
+    /// Keep native pager actions scalable and large enough to touch on every row.
+    ///
+    /// - Parameters:
+    ///   - title: Visible First, Previous, Next or Last action name.
+    ///   - enabled: Whether the current page can move in that direction.
+    ///   - action: Page transition to run when activated.
+    /// - Returns: A native Button with a Fluent opaque plate and Dynamic Type text.
+    private func pagerButton(
+        _ title: String, enabled: Bool, action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.body)
+                .foregroundStyle(
+                    enabled ? BrandTokens.textPrimary : BrandTokens.textSecondary
+                )
+                .padding(.horizontal, 8)
+                .frame(minHeight: 44)
+                .background(
+                    BrandTokens.cardBackground,
+                    in: RoundedRectangle(cornerRadius: 12)
+                )
+        }
+        .buttonStyle(HighContrastPagerStyle())
+        .disabled(!enabled)
+    }
+}
+
+/// Preserve readable pager labels even when their native action is disabled.
+private struct HighContrastPagerStyle: ButtonStyle {
+    /// Render the label without the plain style's automatic disabled dimming.
+    ///
+    /// - Parameter configuration: Native press state and the button's label.
+    /// - Returns: A readable label with pressed-state feedback.
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.78 : 1)
     }
 }

@@ -43,6 +43,8 @@ from tools.mock_service import FixtureHandler, FixtureServer
 
 IPHONE = "fixture-iphone"
 IPAD = "fixture-ipad"
+RUNTIME = "com.apple.CoreSimulator.SimRuntime.iOS-26-5"
+EXPECTED_OS = {"iphone": "26.5", "ipad": "26.5"}
 
 
 def inventory(*, iphone_name="FST Test iPhone", ipad_name="FST Test iPad"):
@@ -55,7 +57,7 @@ def inventory(*, iphone_name="FST Test iPhone", ipad_name="FST Test iPad"):
     Returns:
         Current full `simctl`-shaped device inventory.
     """
-    return {"devices": {"iOS fixture runtime": [
+    return {"devices": {RUNTIME: [
         {
             "udid": IPHONE, "name": iphone_name, "state": "Booted",
             "deviceTypeIdentifier": "com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro",
@@ -120,13 +122,29 @@ class AppleNativeMatrixTests(unittest.TestCase):
     def test_device_inventory_requires_two_approved_fst_families(self):
         """Even an explicitly passed UDID cannot authorize another project's device."""
         requested = {"iphone": IPHONE, "ipad": IPAD}
-        validate_product_devices(inventory(), requested)
+        self.assertEqual(
+            validate_product_devices(inventory(), requested, EXPECTED_OS), EXPECTED_OS
+        )
         with self.assertRaisesRegex(MatrixError, "non-FST"):
-            validate_product_devices(inventory(iphone_name="Home Assistant iPhone"), requested)
+            validate_product_devices(
+                inventory(iphone_name="Home Assistant iPhone"), requested, EXPECTED_OS
+            )
         with self.assertRaisesRegex(MatrixError, "non-FST"):
-            validate_product_devices(inventory(ipad_name="FST iPhone mislabeled"), requested)
+            validate_product_devices(
+                inventory(ipad_name="FST iPhone mislabeled"), requested, EXPECTED_OS
+            )
         with self.assertRaisesRegex(MatrixError, "not found"):
-            validate_product_devices(inventory(), dict(requested, ipad="unknown"))
+            validate_product_devices(
+                inventory(), dict(requested, ipad="unknown"), EXPECTED_OS
+            )
+        with self.assertRaisesRegex(MatrixError, "runs iOS 26.5, expected iOS 27.0"):
+            validate_product_devices(
+                inventory(), requested, dict(EXPECTED_OS, iphone="27.0")
+            )
+        unknown = inventory()
+        unknown["devices"]["unknown runtime"] = unknown["devices"].pop(RUNTIME)
+        with self.assertRaisesRegex(MatrixError, "unrecognized iOS runtime"):
+            validate_product_devices(unknown, requested, EXPECTED_OS)
 
     def test_booted_simulators_must_be_exactly_one_allowed_product(self):
         """Never shut down or coexist with a simulator owned by another project."""
@@ -135,7 +153,7 @@ class AppleNativeMatrixTests(unittest.TestCase):
         with self.assertRaisesRegex(MatrixError, "Another simulator"):
             booted_targets(original, {IPAD})
         other = inventory()
-        other["devices"]["iOS fixture runtime"][1]["state"] = "Booted"
+        other["devices"][RUNTIME][1]["state"] = "Booted"
         with self.assertRaisesRegex(MatrixError, "Another simulator"):
             booted_targets(other, {IPHONE, IPAD})
         with self.assertRaisesRegex(MatrixError, "device inventory"):
@@ -270,6 +288,9 @@ class AppleNativeMatrixTests(unittest.TestCase):
         options = fixture_options(["--unpinned", "--stop-after-first-songs"])
         self.assertTrue(options["unpinned"])
         self.assertTrue(options["stopAfterFirstSongs"])
+        score_options = fixture_options(["--unpinned", "--stop-after-first-score"])
+        self.assertTrue(score_options["unpinned"])
+        self.assertTrue(score_options["stopAfterFirstScore"])
         with self.assertRaisesRegex(MatrixError, "Unknown"):
             fixture_options(["--stop-after-first-songs"])
 
@@ -334,7 +355,7 @@ class AppleNativeMatrixTests(unittest.TestCase):
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
             with patch("tools.apple_native_matrix.start_fixture", side_effect=[
-                Mock(), Mock(), Mock(),
+                Mock(), Mock(), Mock(), Mock(),
             ]) as started, patch(
                 "tools.apple_native_matrix.stop_fixture"
             ) as stopped, patch(
@@ -351,8 +372,8 @@ class AppleNativeMatrixTests(unittest.TestCase):
                         baseline=file_hashes(ROOT, FIXTURE_INPUTS), env={},
                     )
                 self.assertEqual(result, root / "iphone.xcresult")
-                self.assertEqual(started.call_count, 3)
-                self.assertEqual(stopped.call_count, 3)
+                self.assertEqual(started.call_count, 4)
+                self.assertEqual(stopped.call_count, 4)
                 command = executed.call_args.args[0]
                 selectors = {
                     argument.removeprefix(
@@ -379,7 +400,7 @@ class AppleNativeMatrixTests(unittest.TestCase):
         }
         with TemporaryDirectory() as temporary:
             with patch("tools.apple_native_matrix.start_fixture", side_effect=[
-                Mock(), Mock(), Mock(),
+                Mock(), Mock(), Mock(), Mock(),
             ]), patch(
                 "tools.apple_native_matrix.stop_fixture"
             ) as stopped, patch(
@@ -394,13 +415,13 @@ class AppleNativeMatrixTests(unittest.TestCase):
                     run_device("ipad", IPAD, Path(temporary),
                                expected_tests=["testWhiteArtworkExposedTextAccessibility"],
                                baseline=file_hashes(ROOT, FIXTURE_INPUTS), env={})
-                self.assertEqual(stopped.call_count, 3)
+                self.assertEqual(stopped.call_count, 4)
 
     def test_signal_while_xcode_runs_still_stops_both_fixtures(self):
         """SIGTERM unwinds the device suite instead of leaving fixture children alive."""
         with TemporaryDirectory() as temporary:
             with patch("tools.apple_native_matrix.start_fixture", side_effect=[
-                Mock(), Mock(), Mock(),
+                Mock(), Mock(), Mock(), Mock(),
             ]), patch(
                 "tools.apple_native_matrix.stop_fixture"
             ) as stopped, patch(
@@ -415,7 +436,7 @@ class AppleNativeMatrixTests(unittest.TestCase):
                         expected_tests=["testWhiteArtworkExposedTextAccessibility"],
                         baseline=file_hashes(ROOT, FIXTURE_INPUTS), env={},
                     )
-                self.assertEqual(stopped.call_count, 3)
+                self.assertEqual(stopped.call_count, 4)
 
     def test_full_matrix_pairs_two_results_with_the_exact_coverage_gate(self):
         """The default run cannot claim success without invoking the existing gate."""
@@ -445,7 +466,8 @@ class AppleNativeMatrixTests(unittest.TestCase):
                 side_effect=lambda: os.open(os.devnull, os.O_RDONLY),
             ), patch.dict("os.environ", {}, clear=False), redirect_stdout(StringIO()):
                 result = main([
-                    "--iphone-udid", IPHONE, "--ipad-udid", IPAD,
+                    "--iphone-udid", IPHONE, "--iphone-os", "26.5",
+                    "--ipad-udid", IPAD, "--ipad-os", "26.5",
                     "--evidence-dir", str(evidence),
                 ])
                 self.assertEqual(result, 0)
@@ -459,7 +481,7 @@ class AppleNativeMatrixTests(unittest.TestCase):
     def test_foreign_booted_device_blocks_all_fixture_or_simulator_mutation(self):
         """A shared Mac's unrelated simulator must remain entirely untouched."""
         foreign = inventory()
-        foreign["devices"]["iOS fixture runtime"][0]["udid"] = "not-ours"
+        foreign["devices"][RUNTIME][0]["udid"] = "not-ours"
         with TemporaryDirectory() as temporary:
             evidence = Path(temporary) / "should-not-exist"
             with patch("tools.apple_native_matrix.run_checked", side_effect=[
@@ -478,7 +500,36 @@ class AppleNativeMatrixTests(unittest.TestCase):
                 side_effect=lambda: os.open(os.devnull, os.O_RDONLY),
             ), redirect_stdout(StringIO()), redirect_stderr(StringIO()):
                 result = main([
-                    "--iphone-udid", IPHONE, "--ipad-udid", IPAD,
+                    "--iphone-udid", IPHONE, "--iphone-os", "26.5",
+                    "--ipad-udid", IPAD, "--ipad-os", "26.5",
+                    "--evidence-dir", str(evidence),
+                ])
+                self.assertEqual(result, 1)
+                self.assertFalse(evidence.exists())
+                started.assert_not_called()
+                boot.assert_not_called()
+
+    def test_mismatched_runtime_blocks_fixture_and_simulator_mutation(self):
+        """A valid FST UDID on iOS 27 cannot be reported as iOS 26.5 coverage."""
+        with TemporaryDirectory() as temporary:
+            evidence = Path(temporary) / "should-not-exist"
+            with patch(
+                "tools.apple_native_matrix.run_checked",
+                return_value=json.dumps(inventory()),
+            ), patch(
+                "tools.apple_native_matrix.start_fixture"
+            ) as started, patch(
+                "tools.apple_native_matrix.boot_device"
+            ) as boot, patch(
+                "tools.apple_native_matrix.input_hashes",
+                return_value=file_hashes(ROOT, FIXTURE_INPUTS),
+            ), patch(
+                "tools.apple_native_matrix.acquire_matrix_lock",
+                side_effect=lambda: os.open(os.devnull, os.O_RDONLY),
+            ), redirect_stdout(StringIO()), redirect_stderr(StringIO()):
+                result = main([
+                    "--iphone-udid", IPHONE, "--iphone-os", "27.0",
+                    "--ipad-udid", IPAD, "--ipad-os", "26.5",
                     "--evidence-dir", str(evidence),
                 ])
                 self.assertEqual(result, 1)

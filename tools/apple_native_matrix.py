@@ -26,10 +26,14 @@ else:
 ROOT = Path(__file__).resolve().parents[1]
 TEST_SOURCE = ROOT / "apple/Apps/iOSUITests/FestivalMobileUITests.swift"
 TEST_NAME = re.compile(r"^\s+func (test[A-Za-z0-9_]+)\(", re.MULTILINE)
+IOS_RUNTIME = re.compile(
+    r"^com\.apple\.CoreSimulator\.SimRuntime\.iOS-(\d+)-(\d+)(?:-(\d+))?$"
+)
 DUO_TEST = "testDuoOuterFourRotations"
 SERVICE_PORT = 8765
 RECOVERY_PORT = 8769
 OFFLINE_PORT = 8771
+SCORE_OFFLINE_PORT = 8772
 ROLLOVER_PORTS = {"iphone": 8767, "ipad": 8768}
 DEVICE_FAMILIES = {"iphone": "iPhone", "ipad": "iPad"}
 LOCK_FILE = Path("/tmp/festival-native-matrix.lock")
@@ -222,28 +226,39 @@ def booted_targets(report: dict, allowed: set[str]) -> set[str]:
     return booted
 
 
-def validate_product_devices(report: dict, requested: dict[str, str]) -> None:
-    """Reject wrong or foreign UDIDs before a simulator may be shut down or booted.
+def validate_product_devices(
+    report: dict, requested: dict[str, str], expected_os: dict[str, str]
+) -> dict[str, str]:
+    """Reject wrong runtimes or foreign UDIDs before any simulator is modified.
 
     Args:
         report: Full `simctl list devices --json` inventory.
         requested: iPhone and iPad FST product simulator identifiers.
+        expected_os: Exact iOS/iPadOS versions requested for this evidence run.
+
+    Returns:
+        Actual OS version of the approved iPhone and iPad simulator.
 
     Raises:
-        MatrixError: If a requested simulator is absent, duplicated or not an FST device.
+        MatrixError: If a requested simulator is absent, foreign or on the wrong OS.
     """
     runtimes = report.get("devices")
     if not isinstance(runtimes, dict):
         raise MatrixError("simctl did not return a complete device inventory")
     devices = [
-        device for entries in runtimes.values() if isinstance(entries, list)
+        (runtime, device) for runtime, entries in runtimes.items()
+        if isinstance(runtime, str) and isinstance(entries, list)
         for device in entries if isinstance(device, dict)
     ]
+    versions: dict[str, str] = {}
     for family, identifier in requested.items():
-        matches = [device for device in devices if device.get("udid") == identifier]
+        matches = [
+            (runtime, device) for runtime, device in devices
+            if device.get("udid") == identifier
+        ]
         if len(matches) != 1:
             raise MatrixError(f"{family}: FST simulator {identifier} was not found exactly once")
-        device = matches[0]
+        runtime, device = matches[0]
         kind = device.get("deviceTypeIdentifier")
         if (
             not isinstance(device.get("name"), str)
@@ -253,6 +268,17 @@ def validate_product_devices(report: dict, requested: dict[str, str]) -> None:
             or f"SimDeviceType.{DEVICE_FAMILIES[family]}" not in kind
         ):
             raise MatrixError(f"{identifier}: refusing to use a non-FST {family} simulator")
+        version = IOS_RUNTIME.fullmatch(runtime)
+        if version is None:
+            raise MatrixError(f"{identifier}: unrecognized iOS runtime {runtime}")
+        actual_os = ".".join(part for part in version.groups() if part is not None)
+        if actual_os != expected_os[family]:
+            raise MatrixError(
+                f"{family} simulator {identifier} runs iOS {actual_os}, "
+                f"expected iOS {expected_os[family]}"
+            )
+        versions[family] = actual_os
+    return versions
 
 
 def verify_result(summary: dict, *, device: str, identifier: str, expected: int) -> None:
@@ -385,6 +411,7 @@ def fixture_options(flags: list[str]) -> dict[str, bool | int | None]:
         "unpinned": False, "rolloverOnRead": None,
         "failFirstWhiteCatalogue": False,
         "stopAfterFirstSongs": False,
+        "stopAfterFirstScore": False,
     }
     if flags == []:
         return options
@@ -394,6 +421,8 @@ def fixture_options(flags: list[str]) -> dict[str, bool | int | None]:
         return dict(options, failFirstWhiteCatalogue=True)
     if flags == ["--unpinned", "--stop-after-first-songs"]:
         return dict(options, unpinned=True, stopAfterFirstSongs=True)
+    if flags == ["--unpinned", "--stop-after-first-score"]:
+        return dict(options, unpinned=True, stopAfterFirstScore=True)
     raise MatrixError("Unknown or non-deterministic local fixture flags")
 
 
@@ -610,7 +639,7 @@ def run_device(
     device: str, identifier: str, evidence: Path,
     *, expected_tests: list[str], baseline: dict[str, str], env: dict[str, str]
 ) -> Path:
-    """Run one full or explicit-targeted native suite with three fresh fixtures.
+    """Run one full or explicit-targeted native suite with four fresh fixtures.
 
     Args:
         device: iPhone or iPad role.
@@ -637,6 +666,7 @@ def run_device(
             (rollover, ["--unpinned", "--rollover-on-read", "2"]),
             (RECOVERY_PORT, ["--fail-first-white-catalogue"]),
             (OFFLINE_PORT, ["--unpinned", "--stop-after-first-songs"]),
+            (SCORE_OFFLINE_PORT, ["--unpinned", "--stop-after-first-score"]),
         ):
             process = start_fixture(
                 port, flags, evidence, label=device, expected_hashes=fixture_hashes
@@ -704,6 +734,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--iphone-udid", required=True)
     parser.add_argument("--ipad-udid", required=True)
+    parser.add_argument("--iphone-os", required=True, help="Required iOS version, e.g. 26.5")
+    parser.add_argument("--ipad-os", required=True, help="Required iPadOS version, e.g. 26.5")
     parser.add_argument("--device", choices=("iphone", "ipad", "both"), default="both")
     parser.add_argument("--evidence-dir", type=Path, required=True)
     parser.add_argument("--only-test", action="append", default=[])
@@ -711,6 +743,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.iphone_udid == args.ipad_udid:
         parser.error("iPhone and iPad need distinct simulator IDs")
+    if not all(re.fullmatch(r"\d+\.\d+(?:\.\d+)?", version)
+               for version in (args.iphone_os, args.ipad_os)):
+        parser.error("Explicit iPhone and iPad OS versions must be dotted numerals")
     if (args.device != "both" or args.only_test) and not args.no_coverage_gate:
         parser.error("A targeted or single-device run cannot certify the paired UI coverage gate")
     evidence = args.evidence_dir.resolve()
@@ -732,11 +767,17 @@ def main(argv: list[str] | None = None) -> int:
             label="simctl inventory", env=env,
         )
         try:
-            validate_product_devices(json.loads(inventory), {
-                "iphone": args.iphone_udid, "ipad": args.ipad_udid,
-            })
+            versions = validate_product_devices(
+                json.loads(inventory),
+                {"iphone": args.iphone_udid, "ipad": args.ipad_udid},
+                {"iphone": args.iphone_os, "ipad": args.ipad_os},
+            )
         except json.JSONDecodeError as error:
             raise MatrixError(f"simctl inventory is not valid JSON: {error}") from error
+        print(
+            f"Verified simulator runtimes: iPhone iOS {versions['iphone']}, "
+            f"iPad iPadOS {versions['ipad']}"
+        )
         current = active_devices(env, allowed)
         require_unchanged(baseline)
         evidence.mkdir(parents=True)
