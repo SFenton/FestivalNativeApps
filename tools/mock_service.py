@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import re
@@ -16,15 +17,36 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
-PUBLICATION = json.loads(
-    (ROOT / "contracts/fixtures/publication.json").read_text(encoding="utf-8")
-)
-EMPTY_SONGS = json.loads(
-    (ROOT / "contracts/fixtures/songs-empty.json").read_text(encoding="utf-8")
-)
-DEMO_SONGS = json.loads(
-    (ROOT / "contracts/fixtures/songs-demo.json").read_text(encoding="utf-8")
-)
+
+
+def load_fixture(name: str) -> tuple[dict, str]:
+    """Decode exactly the fixture bytes whose startup hash is advertised.
+
+    Args:
+        name: Allowlisted JSON fixture basename without its extension.
+
+    Returns:
+        Parsed object and SHA-256 of the same bytes loaded into this process.
+
+    Raises:
+        ValueError: If a fixture is not a JSON object.
+    """
+    data = (ROOT / "contracts/fixtures" / f"{name}.json").read_bytes()
+    value = json.loads(data)
+    if not isinstance(value, dict):
+        raise ValueError(f"Invalid {name} fixture object")
+    return value, hashlib.sha256(data).hexdigest()
+
+
+PUBLICATION, PUBLICATION_HASH = load_fixture("publication")
+EMPTY_SONGS, EMPTY_SONGS_HASH = load_fixture("songs-empty")
+DEMO_SONGS, DEMO_SONGS_HASH = load_fixture("songs-demo")
+SOURCE_HASHES = {
+    "tools/mock_service.py": hashlib.sha256(Path(__file__).resolve().read_bytes()).hexdigest(),
+    "contracts/fixtures/publication.json": PUBLICATION_HASH,
+    "contracts/fixtures/songs-empty.json": EMPTY_SONGS_HASH,
+    "contracts/fixtures/songs-demo.json": DEMO_SONGS_HASH,
+}
 SONGS_ETAG = '"fst-fixture-songs-v1"'
 EMPTY_ETAG = '"fst-fixture-empty-v1"'
 LEADERBOARD = re.compile(r"^/api/leaderboard/(fixture-[a-z]+)/([A-Za-z_]+)$")
@@ -54,6 +76,12 @@ class FixtureServer(ThreadingHTTPServer):
         """
         self.unpinned = unpinned
         self.rollover_on_read = rollover_on_read
+        self.source_hashes = SOURCE_HASHES.copy()
+        self.options = {
+            "unpinned": unpinned,
+            "rolloverOnRead": rollover_on_read,
+            "failFirstWhiteCatalogue": fail_first_white_catalogue,
+        }
         self._publication_reads = 0
         self._publication_id = 7
         self._last_score_query: dict | None = None
@@ -218,7 +246,10 @@ class FixtureHandler(BaseHTTPRequestHandler):
         path = parsed.path
         query = parse_qs(parsed.query, keep_blank_values=True)
         if path == "/__fixture__/health":
-            self._json(200, {"ready": True})
+            self._json(200, {
+                "ready": True, "sourceHashes": self.fixture.source_hashes,
+                "options": self.fixture.options,
+            })
         elif path == "/__fixture__/last-score-query":
             self._json(200, {"last": self.fixture.last_score_query()})
         elif path == "/api/publication":

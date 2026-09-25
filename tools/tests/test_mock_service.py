@@ -1,5 +1,6 @@
 """Exercise fixture pinning and prevent accidental live-style mutation."""
 
+import hashlib
 import json
 import threading
 import unittest
@@ -27,6 +28,23 @@ class MockServiceTests(unittest.TestCase):
 
     def test_publication_and_catalogue_etag(self):
         """Catalogue ETags and generation pins reproduce offline-client semantics."""
+        with urlopen(self.base + "/__fixture__/health") as response:
+            identity = json.load(response)
+        self.assertTrue(identity["ready"])
+        self.assertEqual(identity["options"], {
+            "unpinned": False, "rolloverOnRead": None,
+            "failFirstWhiteCatalogue": False,
+        })
+        self.assertEqual(set(identity["sourceHashes"]), {
+            "tools/mock_service.py",
+            "contracts/fixtures/publication.json",
+            "contracts/fixtures/songs-empty.json",
+            "contracts/fixtures/songs-demo.json",
+        })
+        for name, digest in identity["sourceHashes"].items():
+            self.assertEqual(
+                digest, hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
+            )
         with urlopen(self.base + "/api/publication") as response:
             self.assertEqual(json.load(response)["publicationId"], 7)
         with urlopen(self.base + "/api/songs") as response:
