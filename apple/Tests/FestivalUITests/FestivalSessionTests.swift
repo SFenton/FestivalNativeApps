@@ -45,7 +45,8 @@ private actor PublicationTransitionTransport: HTTPTransport {
             return HTTPResult(
                 status: 200, data: Data("""
                 {"count":1,"songs":[{"songId":"fixture-\(id)",
-                 "title":"Generation \(id)","artist":"Fixture"}]}
+                 "title":"Generation \(id)","artist":"Fixture",
+                 "albumArt":"/__fixture__/art/pulse.png"}]}
                 """.utf8),
                 headers: pinned ? ["X-FST-Publication-Id": String(id)] : [:]
             )
@@ -74,6 +75,44 @@ private actor PublicationTransitionTransport: HTTPTransport {
     func recordedScoreQueries() -> [String] { scoreQueries }
 }
 
+/// Generate 105 unique catalog covers without downloading any image bytes.
+actor ArtworkPoolTransport: HTTPTransport {
+    private let catalogue: Data
+
+    /// Build deterministic paths to prove the 100-cover process cap.
+    init() {
+        let songs = (0..<105).map { index in
+            """
+            {"songId":"fixture-\(index)","title":"Cover \(index)",
+             "artist":"Fixture","albumArt":"covers/cover-\(index).png"}
+            """
+        }.joined(separator: ",")
+        catalogue = Data("{\"count\":105,\"songs\":[\(songs)]}".utf8)
+    }
+
+    /// Serve a pinned generation and original synthetic catalogue.
+    ///
+    /// - Parameter request: Publication or Songs endpoint request.
+    /// - Returns: Valid public fixture bytes and generation metadata.
+    /// - Throws: Unknown paths outside the read-only fixture.
+    func send(_ request: URLRequest) async throws -> HTTPResult {
+        switch request.url?.path {
+        case "/api/publication":
+            HTTPResult(status: 200, data: Data("""
+            {"contractVersion":1,"publicationId":7,"publishedScrapeId":42,
+             "readyForPinning":true,"pinningEnabled":true,"unreadySurfaces":[]}
+            """.utf8))
+        case "/api/songs":
+            HTTPResult(
+                status: 200, data: catalogue,
+                headers: ["X-FST-Publication-Id": "7"]
+            )
+        default:
+            throw FestivalAPIError.invalidResource
+        }
+    }
+}
+
 /// An explicit Settings refresh invalidates the old page and updates observation.
 @MainActor
 @Test func sessionPublishesRolloverAndNeverReturnsOldSongs() async throws {
@@ -82,14 +121,17 @@ private actor PublicationTransitionTransport: HTTPTransport {
     let session = FestivalSession(factory: { client })
     let first = try await session.catalog()
     #expect(first.catalog.songs.first?.title == "Generation 7")
+    #expect(session.artworkPaths == ["/__fixture__/art/pulse.png"])
     #expect(session.publicationId == 7)
     #expect(session.publicationRevision == 0)
 
     _ = try await session.refreshPublication()
     #expect(session.publicationId == 8)
     #expect(session.publicationRevision == 1)
+    #expect(session.artworkPaths.isEmpty)
     let current = try await session.catalog()
     #expect(current.catalog.songs.first?.title == "Generation 8")
+    #expect(session.artworkPaths == ["/__fixture__/art/pulse.png"])
     #expect(session.publicationRevision == 1)
     #expect(await transport.pinnedCatalogues() == [7, 8])
 
@@ -123,4 +165,70 @@ func sessionTracksHeaderlessPublicationWithoutInventingProvenance(advances: Bool
     #expect(next.observedPublicationId == expected)
     #expect(next.catalog.songs.first?.title == "Generation \(expected)")
     #expect(await transport.pinnedCatalogues() == [7, expected])
+}
+
+/// Decoded and raw art are process-scoped and reset on a verified rollover.
+@MainActor
+@Test func sessionReusesDecodedArtAndClearsItOnPublicationChange() async throws {
+    let png = try #require(Bundle.module.url(forResource: "pulse", withExtension: "png"))
+    let transport = ArtworkFixtureTransport(data: try Data(contentsOf: png))
+    let client = try FestivalAPI(
+        baseURL: URL(string: "http://127.0.0.1:8765")!,
+        transport: PublicationTransitionTransport()
+    )
+    let session = FestivalSession(
+        factory: { client }, artwork: ArtworkCache(transport: transport)
+    )
+    _ = try await session.catalog()
+    #expect(session.artworkPaths == ["/__fixture__/art/pulse.png"])
+    let first = try await session.preparedArtwork(
+        raw: "/__fixture__/art/pulse.png", maxPixels: 56
+    )
+    let cached = try await session.preparedArtwork(
+        raw: "/__fixture__/art/pulse.png", maxPixels: 56
+    )
+    #expect(first.image.width == 56)
+    #expect(!first.fromMemory && cached.fromMemory)
+    #expect(await transport.requestCount() == 1)
+
+    _ = try await session.refreshPublication()
+    #expect(session.artworkPaths.isEmpty)
+    let current = try await session.preparedArtwork(
+        raw: "/__fixture__/art/pulse.png", maxPixels: 56
+    )
+    #expect(!current.fromMemory)
+    #expect(await transport.requestCount() == 2)
+    await #expect(throws: FestivalAPIError.invalidArtwork) {
+        try await session.preparedArtwork(
+            raw: "/__fixture__/art/pulse.png", maxPixels: 2049
+        )
+    }
+}
+
+/// The actual Settings refresh must refill art before reporting publication eight.
+@MainActor
+@Test func settingsPublicationCheckRestoresCurrentArtworkPaths() async throws {
+    let transport = PublicationTransitionTransport()
+    let client = try FestivalAPI(transport: transport)
+    let session = FestivalSession(factory: { client })
+    _ = try await session.catalog()
+    #expect(session.artworkPaths == ["/__fixture__/art/pulse.png"])
+    let settings = SettingsScreen(session: session)
+    await settings.refreshService()
+    #expect(session.publicationId == 8)
+    #expect(session.artworkPaths == ["/__fixture__/art/pulse.png"])
+    #expect(await transport.pinnedCatalogues() == [7, 8])
+}
+
+/// A catalogue update only reshuffles when its art paths actually change.
+@MainActor
+@Test func carouselPoolCapsAtHundredAndPreservesUnchangedOrder() async throws {
+    let client = try FestivalAPI(transport: ArtworkPoolTransport())
+    let session = FestivalSession(factory: { client })
+    _ = try await session.catalog()
+    let first = session.artworkPaths
+    #expect(first.count == 100)
+    #expect(Set(first).count == 100)
+    _ = try await session.catalog()
+    #expect(session.artworkPaths == first)
 }

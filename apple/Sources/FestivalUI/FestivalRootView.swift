@@ -157,14 +157,20 @@ public struct FestivalRootView: View {
                 Button {
                     selected = section
                 } label: {
-                    Label(section.title, systemImage: section.symbol)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .foregroundStyle(BrandTokens.textPrimary)
+                    HStack(spacing: 10) {
+                        RoundedRectangle(cornerRadius: 1.5)
+                            .fill(selected == section ? BrandTokens.accentBlue : .clear)
+                            .frame(width: 3, height: 24)
+                            .accessibilityHidden(true)
+                        Label(section.title, systemImage: section.symbol)
+                            .fontWeight(selected == section ? .semibold : .regular)
+                            .foregroundStyle(BrandTokens.textPrimary)
+                        Spacer(minLength: 0)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .buttonStyle(.plain)
-                .listRowBackground(
-                    selected == section ? BrandTokens.cardBackground : Color.clear
-                )
+                .listRowBackground(BrandTokens.cardBackground)
                 .accessibilityAddTraits(selected == section ? .isSelected : [])
                 .accessibilityIdentifier("fst.nav.\(section.rawValue)")
             }
@@ -185,7 +191,8 @@ public struct FestivalRootView: View {
                 searchText: $songsSearchText, settledSearch: $songsSettledSearch,
                 selectedInstrument: $songsInstrument, navigationNotice: $songsNotice,
                 visibleInstruments: visibleInstruments,
-                highContrast: moreContrast || systemContrast == .increased
+                highContrast: moreContrast || systemContrast == .increased,
+                isVisible: selected == .songs
             )
         case .leaderboards:
             NavigationStack {
@@ -194,11 +201,13 @@ public struct FestivalRootView: View {
                 )
                 .navigationTitle("Leaderboards")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(BrandTokens.appBackground.ignoresSafeArea())
+                .background(ArtworkBackground(
+                    mode: .carousel, session: session, visible: selected == .leaderboards
+                ))
             }
         case .settings:
             NavigationStack {
-                SettingsScreen(session: session)
+                SettingsScreen(session: session, isVisible: selected == .settings)
             }
         }
     }

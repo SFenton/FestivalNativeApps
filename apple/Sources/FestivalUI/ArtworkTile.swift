@@ -16,6 +16,39 @@ struct PreparedArtwork: @unchecked Sendable {
     let image: CGImage
 }
 
+/// Share bounded ImageIO decoding between foreground tiles and page backgrounds.
+enum ArtworkDecoding {
+    /// Downsample and decode image bytes off the UI actor.
+    ///
+    /// - Parameters:
+    ///   - data: Validated artwork bytes from the ephemeral process cache.
+    ///   - maxPixels: Largest edge after display-scale allowance.
+    /// - Returns: Immutable, decoded thumbnail.
+    /// - Throws: `FestivalAPIError.invalidArtwork` for invalid data or dimensions.
+    static func prepare(_ data: Data, maxPixels: Int) async throws -> PreparedArtwork {
+        guard (1...2048).contains(maxPixels) else {
+            throw FestivalAPIError.invalidArtwork
+        }
+        return try await Task.detached(priority: .utility) {
+            guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
+                throw FestivalAPIError.invalidArtwork
+            }
+            let options: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: maxPixels,
+                kCGImageSourceShouldCacheImmediately: true,
+            ]
+            guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(
+                source, 0, options as CFDictionary
+            ) else {
+                throw FestivalAPIError.invalidArtwork
+            }
+            return PreparedArtwork(image: thumbnail)
+        }.value
+    }
+}
+
 /// One thumbnail backed by ephemeral HTTP and a process-lifetime artwork cache.
 struct ArtworkTile: View {
     let raw: String?
@@ -98,41 +131,22 @@ struct ArtworkTile: View {
     /// - Returns: Immutable thumbnail ready for UIKit or AppKit presentation.
     /// - Throws: `FestivalAPIError.invalidArtwork` for unsupported image data.
     func prepare(_ data: Data, maxPixels: Int) async throws -> PreparedArtwork {
-        try await Task.detached(priority: .utility) {
-            guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
-                throw FestivalAPIError.invalidArtwork
-            }
-            let options: [CFString: Any] = [
-                kCGImageSourceCreateThumbnailFromImageAlways: true,
-                kCGImageSourceCreateThumbnailWithTransform: true,
-                kCGImageSourceThumbnailMaxPixelSize: maxPixels,
-                kCGImageSourceShouldCacheImmediately: true,
-            ]
-            guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(
-                source, 0, options as CFDictionary
-            ) else {
-                throw FestivalAPIError.invalidArtwork
-            }
-            return PreparedArtwork(image: thumbnail)
-        }.value
+        try await ArtworkDecoding.prepare(data, maxPixels: maxPixels)
     }
 
     /// Fetch only visible art; failures keep an explicitly labeled placeholder.
     func load() async {
         guard let raw, !raw.isEmpty else { return }
         do {
-            let client = try session.client()
-            guard let url = try await client.artworkURL(raw) else {
-                return
-            }
-            let result = try await session.artwork.load(url)
-            let prepared = try await prepare(result.data, maxPixels: Int(size * 3))
+            let result = try await session.preparedArtwork(
+                raw: raw, maxPixels: Int(size * 3)
+            )
             try Task.checkCancellation()
             #if os(iOS)
-            let decoded = UIImage(cgImage: prepared.image)
+            let decoded = UIImage(cgImage: result.image)
             #else
             let decoded = NSImage(
-                cgImage: prepared.image, size: NSSize(width: size, height: size)
+                cgImage: result.image, size: NSSize(width: size, height: size)
             )
             #endif
             image = decoded

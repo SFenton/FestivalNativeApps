@@ -70,6 +70,9 @@ public enum FixtureScenario: String, Sendable {
     case demo
     case empty
     case error
+    case artError = "art-error"
+    case artSkip = "art-skip"
+    case artWhite = "art-white"
 }
 
 /// Platform-neutral response shape that can be substituted by fixture transports.

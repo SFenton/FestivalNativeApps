@@ -1,0 +1,41 @@
+"""Exercise the exact WCAG 4.5:1 gate for text drawn over song art."""
+
+import json
+import unittest
+
+from tools.contrast_gate import ROOT, check_on_art, ratio
+
+
+class ArtworkContrastTests(unittest.TestCase):
+    """Keep directly-on-art tokens legible on a worst-case white cover."""
+
+    def setUp(self):
+        """Read the same semantic palette used by every native platform."""
+        contract = json.loads(
+            (ROOT / "contracts/fluent-tokens.json").read_text(encoding="utf-8")
+        )
+        self.colors = contract["colors"]
+
+    def test_exposed_text_meets_white_cover_bar(self):
+        """Primary, secondary and gold content pass 4.5:1 at 0.7 dim."""
+        self.assertEqual(check_on_art(self.colors), [])
+
+    def test_muted_and_blue_must_not_replace_text_on_art(self):
+        """The source's muted and blue tokens fail without an opaque card."""
+        for replacement in ("textMuted", "accentBlue"):
+            with self.subTest(replacement=replacement):
+                colors = dict(self.colors, textSecondary=self.colors[replacement])
+                self.assertTrue(any(
+                    error.startswith("textSecondary: contrast")
+                    for error in check_on_art(colors)
+                ))
+
+    def test_invalid_dim_and_exact_ratio(self):
+        """Do not silently treat an invalid dim as a passing white surface."""
+        with self.assertRaisesRegex(ValueError, "dim opacity"):
+            check_on_art(self.colors, dim_opacity=float("nan"))
+        self.assertEqual(ratio((255, 255, 255), (0, 0, 0)), 21.0)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -6,7 +6,7 @@ import unittest
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from tools.mock_service import FixtureHandler, FixtureServer, ROOT, fixture_artwork
+from tools.mock_service import DEMO_SONGS, FixtureHandler, FixtureServer, ROOT, fixture_artwork
 
 
 class MockServiceTests(unittest.TestCase):
@@ -121,6 +121,64 @@ class MockServiceTests(unittest.TestCase):
                 with urlopen(base + "/api/songs") as response:
                     self.assertEqual(json.load(response)["count"], 2)
                     self.assertIsNone(response.headers.get("X-FST-Publication-Id"))
+            finally:
+                server.shutdown()
+                thread.join(timeout=2)
+
+    def test_artwork_failure_fixtures_are_isolated_and_bounded(self):
+        """Unavailable art is synthetic; ordinary song fixture remains unchanged."""
+        for scenario, expected_count in (("art-error", 2), ("art-skip", 3)):
+            with self.subTest(scenario=scenario):
+                with urlopen(self.base + "/api/songs?scenario=" + scenario) as response:
+                    catalogue = json.load(response)
+                self.assertEqual(catalogue["count"], expected_count)
+                self.assertTrue(any(
+                    "/unavailable-" in song.get("albumArt", "")
+                    for song in catalogue["songs"]
+                ))
+        with self.assertRaises(HTTPError) as missing:
+            urlopen(self.base + "/__fixture__/art/unavailable-middle.png")
+        self.assertEqual(missing.exception.code, 404)
+        self.assertEqual(DEMO_SONGS["count"], 2)
+
+    def test_white_cover_fixture_exposes_score_failure_only_for_white_song(self):
+        """A worst-case white cover and failed chart are isolated to one scenario."""
+        with urlopen(self.base + "/api/songs?scenario=art-white") as response:
+            catalogue = json.load(response)
+        self.assertEqual(catalogue["count"], 1)
+        self.assertEqual(catalogue["songs"][0]["songId"], "fixture-white")
+        self.assertEqual(
+            catalogue["songs"][0]["albumArt"], "/__fixture__/art/white.png"
+        )
+        with urlopen(self.base + "/__fixture__/art/white.png") as response:
+            self.assertEqual(response.read(), fixture_artwork("white"))
+        self.assertNotEqual(fixture_artwork("white"), fixture_artwork("pulse"))
+        with self.assertRaises(HTTPError) as failed:
+            urlopen(self.base + "/api/leaderboard/fixture-white/Solo_Guitar?top=25&offset=0")
+        self.assertEqual(failed.exception.code, 503)
+        with urlopen(self.base + "/api/songs") as response:
+            self.assertEqual(json.load(response)["count"], 2)
+
+    def test_initial_white_failure_recovers_without_changing_publication(self):
+        """First-run catalogue 503 must not hide the next same-generation white art."""
+        with FixtureServer(
+            ("127.0.0.1", 0), FixtureHandler, fail_first_white_catalogue=True
+        ) as server:
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_port}"
+            try:
+                with urlopen(base + "/api/publication") as response:
+                    self.assertEqual(json.load(response)["publicationId"], 7)
+                with self.assertRaises(HTTPError) as failed:
+                    urlopen(base + "/api/songs?scenario=art-white")
+                self.assertEqual(failed.exception.code, 503)
+                with urlopen(base + "/api/songs?scenario=art-white") as response:
+                    catalogue = json.load(response)
+                self.assertEqual(catalogue["songs"][0]["songId"], "fixture-white")
+                self.assertEqual(server.publication_id, 7)
+                with urlopen(base + "/api/songs?scenario=art-white") as response:
+                    self.assertEqual(json.load(response)["count"], 1)
             finally:
                 server.shutdown()
                 thread.join(timeout=2)

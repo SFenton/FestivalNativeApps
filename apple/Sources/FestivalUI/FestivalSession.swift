@@ -1,6 +1,19 @@
 import Foundation
 import FestivalCore
 import Observation
+import CoreGraphics
+
+/// NSCache evicts decoded pixels automatically when the process is under pressure.
+private final class DecodedArtwork: NSObject {
+    let image: CGImage
+
+    /// Hold one immutable ImageIO result within the UI actor.
+    ///
+    /// - Parameter image: Decoded image shared between tile and backdrop renderers.
+    init(image: CGImage) {
+        self.image = image
+    }
+}
 
 /// One native app session owns its publication and artwork caches across tabs.
 @MainActor
@@ -12,8 +25,13 @@ final class FestivalSession {
     private var sharedClient: FestivalAPI?
     @ObservationIgnored
     let artwork: ArtworkCache
+    @ObservationIgnored
+    private let thumbnails = NSCache<NSString, DecodedArtwork>()
+    @ObservationIgnored
+    private var sourceArtworkPaths: [String] = []
     private(set) var publicationId: Int?
     private(set) var publicationRevision = 0
+    private(set) var artworkPaths: [String] = []
 
     /// Create a session without starting network work during view construction.
     ///
@@ -26,6 +44,7 @@ final class FestivalSession {
     ) {
         self.factory = factory
         self.artwork = artwork
+        thumbnails.totalCostLimit = 24_000_000
     }
 
     /// Reuse the same client while the process remains alive.
@@ -45,8 +64,48 @@ final class FestivalSession {
     /// - Throws: Client configuration, transport, decoding or validation failures.
     func catalog() async throws -> CatalogPayload {
         let payload = try await client().catalog()
-        try observe(publicationId: payload.observedPublicationId)
+        try await observe(publicationId: payload.observedPublicationId)
+        let candidates = payload.catalog.songs.compactMap(\.albumArt).filter { !$0.isEmpty }
+        if candidates != sourceArtworkPaths {
+            sourceArtworkPaths = candidates
+            artworkPaths = Array(candidates.shuffled().prefix(100))
+        }
         return payload
+    }
+
+    /// Reuse bounded, decoded art instead of decoding the same cover while scrolling.
+    ///
+    /// - Parameters:
+    ///   - raw: Public artwork path from a validated song.
+    ///   - maxPixels: Bounded displayed edge, at most 2,048 pixels.
+    /// - Returns: ImageIO result and whether this process already held its image bytes.
+    /// - Throws: Invalid artwork, configuration, transport or cancellation errors.
+    func preparedArtwork(
+        raw: String, maxPixels: Int
+    ) async throws -> (image: CGImage, fromMemory: Bool) {
+        guard (1...2048).contains(maxPixels) else {
+            throw FestivalAPIError.invalidArtwork
+        }
+        let startedAt = publicationRevision
+        let key = NSString(string: "\(raw)|\(maxPixels)")
+        if let cached = thumbnails.object(forKey: key) {
+            return (cached.image, true)
+        }
+        let client = try client()
+        guard let url = try await client.artworkURL(raw) else {
+            throw FestivalAPIError.invalidArtwork
+        }
+        let payload = try await artwork.load(url)
+        let prepared = try await ArtworkDecoding.prepare(
+            payload.data, maxPixels: maxPixels
+        )
+        try Task.checkCancellation()
+        guard publicationRevision == startedAt else { throw CancellationError() }
+        thumbnails.setObject(
+            DecodedArtwork(image: prepared.image), forKey: key,
+            cost: prepared.image.width * prepared.image.height * 4
+        )
+        return (prepared.image, payload.fromMemory)
     }
 
     /// Load a chart under the same observable publication as the catalogue.
@@ -64,7 +123,7 @@ final class FestivalSession {
         let payload = try await client().leaderboard(
             songId: songId, instrument: instrument, page: page, leeway: leeway
         )
-        try observe(publicationId: payload.observedPublicationId)
+        try await observe(publicationId: payload.observedPublicationId)
         return payload
     }
 
@@ -74,7 +133,7 @@ final class FestivalSession {
     /// - Throws: Service, transport or publication-consistency failures.
     func refreshPublication() async throws -> Publication {
         let result = try await client().publication(force: true)
-        try observe(publicationId: result.publicationId)
+        try await observe(publicationId: result.publicationId)
         return result
     }
 
@@ -82,13 +141,19 @@ final class FestivalSession {
     ///
     /// - Parameter publicationId: Validated service generation, even for unpinned bytes.
     /// - Throws: `FestivalAPIError.invalidPublication` if an older async result arrives late.
-    private func observe(publicationId: Int) throws {
+    private func observe(publicationId: Int) async throws {
         if let previous = self.publicationId {
             guard publicationId >= previous else {
                 throw FestivalAPIError.invalidPublication
             }
             if previous != publicationId {
+                self.publicationId = publicationId
                 publicationRevision += 1
+                sourceArtworkPaths.removeAll()
+                artworkPaths.removeAll()
+                thumbnails.removeAllObjects()
+                await artwork.clearForPublicationChange()
+                return
             }
         }
         self.publicationId = publicationId

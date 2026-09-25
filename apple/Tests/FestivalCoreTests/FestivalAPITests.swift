@@ -560,4 +560,23 @@ private func reply(_ status: Int, _ text: String = "", headers: [String: String]
             fixtureScenario: .error
         )
     }
+    for scenario in [FixtureScenario.artError, .artSkip, .artWhite] {
+        let scenarioTransport = FixtureTransport([
+            HTTPResult(status: 200, data: publicationJSON),
+            reply(200, #"{"count":0,"songs":[]}"#, headers: ["X-FST-Publication-Id": "7"]),
+        ])
+        let local = try FestivalAPI(
+            baseURL: URL(string: "http://127.0.0.1:8765")!,
+            fixtureScenario: scenario, transport: scenarioTransport
+        )
+        _ = try await local.catalog()
+        #expect((await scenarioTransport.recorded())[1].url?.query
+                == "scenario=\(scenario.rawValue)")
+        #expect(throws: FestivalAPIError.invalidResource) {
+            try FestivalAPI(
+                baseURL: URL(string: "https://festivalscoretracker.com")!,
+                fixtureScenario: scenario
+            )
+        }
+    }
 }

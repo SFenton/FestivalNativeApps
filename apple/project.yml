@@ -18,6 +18,8 @@ targets:
       path: Apps/iOS/Info.plist
       properties:
         CFBundleDisplayName: Festival Score Tracker
+        UILaunchScreen:
+          UIColorName: FestivalLaunchBackground
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         UISupportedInterfaceOrientations:
@@ -36,6 +38,7 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_VERSION: "6.0"
         TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
         CODE_SIGNING_ALLOWED: NO
   FestivalDesktop:
     type: application

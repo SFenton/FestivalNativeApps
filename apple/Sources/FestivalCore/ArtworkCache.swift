@@ -8,9 +8,15 @@ public struct ArtworkPayload: Sendable {
 
 /// Process-lifetime image cache that never persists album art across cold starts.
 public actor ArtworkCache {
+    private struct Download {
+        let token: UUID
+        let task: Task<Data, Error>
+    }
+
     private let transport: any HTTPTransport
     private let images = NSCache<NSURL, NSData>()
-    private var inFlight: [URL: Task<Data, Error>] = [:]
+    private var inFlight: [URL: Download] = [:]
+    private var generation = 0
 
     /// Use the same ephemeral transport contract as the JSON client.
     ///
@@ -25,6 +31,16 @@ public actor ArtworkCache {
         images.totalCostLimit = max(1, memoryLimit)
     }
 
+    /// Discard old art when the observed service publication advances.
+    public func clearForPublicationChange() {
+        generation += 1
+        images.removeAllObjects()
+        for download in inFlight.values {
+            download.task.cancel()
+        }
+        inFlight.removeAll()
+    }
+
     /// Reuse memory first, coalescing concurrent image requests to one download.
     ///
     /// - Parameter url: HTTPS CDN or loopback fixture image URL.
@@ -35,12 +51,13 @@ public actor ArtworkCache {
         if let cached = images.object(forKey: url as NSURL) {
             return ArtworkPayload(data: cached as Data, fromMemory: true)
         }
-        let download: Task<Data, Error>
+        let observedGeneration = generation
+        let download: Download
         if let existing = inFlight[url] {
             download = existing
         } else {
             let transport = self.transport
-            download = Task {
+            let task = Task {
                 var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
                 request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
                 let response = try await transport.send(request)
@@ -54,16 +71,22 @@ public actor ArtworkCache {
                 }
                 return response.data
             }
+            download = Download(token: UUID(), task: task)
             inFlight[url] = download
         }
         do {
-            let data = try await download.value
-            images.setObject(data as NSData, forKey: url as NSURL, cost: data.count)
-            inFlight[url] = nil
+            let data = try await download.task.value
+            guard generation == observedGeneration else { throw CancellationError() }
             try Task.checkCancellation()
+            images.setObject(data as NSData, forKey: url as NSURL, cost: data.count)
+            if inFlight[url]?.token == download.token {
+                inFlight[url] = nil
+            }
             return ArtworkPayload(data: data, fromMemory: false)
         } catch {
-            inFlight[url] = nil
+            if inFlight[url]?.token == download.token {
+                inFlight[url] = nil
+            }
             throw error
         }
     }

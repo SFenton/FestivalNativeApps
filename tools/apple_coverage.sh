@@ -17,3 +17,4 @@ xcrun llvm-cov export \
 
 python3 "$ROOT/tools/coverage_gate.py" --language swift \
     --report "$PRODUCTS/codecov/FestivalApple-merged.json"
+(cd "$ROOT" && python3 -m tools.contrast_gate)

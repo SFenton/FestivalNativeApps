@@ -29,9 +29,17 @@ test.beforeEach(async ({ appState, page }) => {
   await page.route('**/*', async route => {
     const url = new URL(route.request().url());
     if (url.pathname.startsWith('/api/')) {
-      await route.fallback();
-    } else if (url.hostname === 'cdn2.unrealengine.com') {
-      const name = url.pathname.includes('orbit') ? 'orbit' : 'pulse';
+      if (url.hostname === '127.0.0.1' || url.hostname === 'localhost') {
+        await route.fallback();
+      } else {
+        await route.abort('blockedbyclient');
+      }
+    } else if (url.pathname.startsWith('/__fixture__/art/')
+               || url.hostname === 'cdn2.unrealengine.com') {
+      const name = url.pathname.endsWith('/orbit.png') ? 'orbit'
+        : url.pathname.endsWith('/pulse.png') ? 'pulse'
+        : null;
+      if (!name) throw new Error(`Unexpected fixture artwork path: ${url.pathname}`);
       const art = await fetch(`http://127.0.0.1:8765/__fixture__/art/${name}.png`);
       if (!art.ok) throw new Error(`Fixture art ${art.status}`);
       await route.fulfill({
@@ -69,3 +77,36 @@ for (const viewport of viewports) {
     }
   });
 }
+
+test('fixture-backed PWA artwork actually rotates after the five-second dwell', async ({ page }, testInfo) => {
+  mkdirSync(output, { recursive: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await gotoAppRoute(page, '/songs');
+  await expect(page.locator('#main-content')).toContainText('Fixture Pulse', { timeout: 15_000 });
+
+  const activeCover = () => page.evaluate(() => {
+    const layers = Array.from(document.querySelectorAll<HTMLDivElement>('div'));
+    const active = layers.find(element => {
+      const style = getComputedStyle(element);
+      return style.position === 'absolute'
+        && style.backgroundImage.includes('/__fixture__/art/')
+        && Number(style.opacity) > 0.95;
+    });
+    return active ? getComputedStyle(active).backgroundImage : null;
+  });
+  await expect.poll(activeCover, { timeout: 15_000 }).not.toBeNull();
+  const first = await activeCover();
+  await page.screenshot({
+    path: join(output, `${testInfo.project.name}-phone-portrait-artwork-first.png`),
+    animations: 'allow',
+  });
+  await expect.poll(async () => {
+    const cover = await activeCover();
+    return cover && cover !== first ? cover : null;
+  }, { timeout: 9_000 }).not.toBeNull();
+  await page.screenshot({
+    path: join(output, `${testInfo.project.name}-phone-portrait-artwork-next.png`),
+    animations: 'allow',
+  });
+});

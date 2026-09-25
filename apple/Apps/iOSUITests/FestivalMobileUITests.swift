@@ -56,40 +56,89 @@ final class FestivalMobileUITests: XCTestCase {
     ///
     /// - Throws: An accessibility audit issue for actionable labels/contrast/order.
     @MainActor
-    func testSongsAccessibilityAudit() throws {
+    func testSongsAccessibilityAudit() async throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
         app.launch()
+        app.activate()
         XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
-        try app.performAccessibilityAudit(for: .all) { issue in
-            let element = issue.element
-            let independentlyMeasurableText = UIDevice.current.userInterfaceIdiom == .pad
-                && issue.auditType == .contrast
-                && element?.elementType == .staticText
-                && element?.identifier.isEmpty == true
-                && element?.label.isEmpty == false
-            let measuredRatio = independentlyMeasurableText
-                ? self.textPixelContrast(app: app, element: element)
-                : nil
-            XCTContext.runActivity(named: "Audit element") { activity in
-                let detail = """
-                Audit: \(issue.compactDescription)
-                Explanation: \(issue.detailedDescription)
-                Element: \(element.map { String(describing: $0.elementType) } ?? "none")
-                Label: \(element?.label ?? "none")
-                Identifier: \(element?.identifier ?? "none")
-                Frame: \(element.map { String(describing: $0.frame) } ?? "none")
-                Measured contrast: \(measuredRatio.map { String(format: "%.2f", $0) } ?? "not measured")
-                """
-                let attachment = XCTAttachment(string: detail)
-                attachment.name = "Audit element details"
-                attachment.lifetime = .keepAlways
-                activity.add(attachment)
-            }
-            return measuredRatio.map { $0 >= 4.5 } ?? false
+        let screenshot = try XCTUnwrap(app.screenshot().image.cgImage)
+        let simulator = ProcessInfo.processInfo.environment
+        let width = try XCTUnwrap(Int(simulator["SIMULATOR_MAINSCREEN_WIDTH"] ?? ""))
+        let height = try XCTUnwrap(Int(simulator["SIMULATOR_MAINSCREEN_HEIGHT"] ?? ""))
+        XCTAssertEqual(
+            screenshot.width, width,
+            "App capture does not match the native device display"
+        )
+        XCTAssertEqual(screenshot.height, height)
+        let brand: [UInt8] = [26, 8, 48]
+        let base = Array(repeating: brand, count: 256).flatMap { $0 }
+        var painted = base
+        for _ in 0..<20 {
+            painted = try backgroundSignature(app)
+            if pixelDistance(painted, base) > 1_500 { break }
+            try await Task.sleep(for: .milliseconds(200))
         }
+        XCTAssertGreaterThan(
+            pixelDistance(painted, base), 1_500,
+            "Cannot audit artwork contrast before original fixture art is visible"
+        )
+        record(app, name: "songs-before-accessibility-audit")
+        try app.performAccessibilityAudit(for: .all)
+    }
+
+    /// Audit exposed Songs and solo text, and record Settings over pure-white art.
+    ///
+    /// - Throws: Missing art, text or contrast on Songs, Settings or a failed score.
+    @MainActor
+    func testWhiteArtworkExposedTextAccessibility() async throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "art-white"
+        app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launch()
+        let row = app.buttons["fst.songs.row.fixture-white"]
+        XCTAssertTrue(row.waitForExistence(timeout: 15))
+        try await assertWhiteArtVisible(in: app)
+        let search = app.textFields["fst.songs.search"]
+        search.tap()
+        search.typeText("zzzz\n")
+        XCTAssertTrue(app.staticTexts.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "No Results for")
+        ).firstMatch.waitForExistence(timeout: 10))
+        record(app, name: "songs-empty-white-cover")
+        try app.performAccessibilityAudit(for: .all)
+
+        rootControl("Settings", app: app).tap()
+        XCTAssertTrue(app.staticTexts["App Settings"].waitForExistence(timeout: 10))
+        try await assertWhiteArtVisible(in: app)
+        try assertHeaderContrast(app.staticTexts["App Settings"], in: app)
+        try assertHeaderContrast(app.staticTexts["Accessibility"], in: app)
+        record(app, name: "settings-headers-white-cover-top")
+        app.swipeUp()
+        let itemShop = app.staticTexts["Item Shop"]
+        XCTAssertTrue(itemShop.isHittable)
+        try assertHeaderContrast(itemShop, in: app)
+        record(app, name: "settings-headers-white-cover-scrolled")
+
+        app.terminate()
+        app.launch()
+        let whiteRow = app.buttons["fst.songs.row.fixture-white"]
+        XCTAssertTrue(whiteRow.waitForExistence(timeout: 15))
+        whiteRow.tap()
+        let lead = app.buttons["fst.song-detail.leaderboard.Solo_Guitar"]
+        XCTAssertTrue(lead.waitForExistence(timeout: 10))
+        lead.tap()
+        XCTAssertTrue(app.staticTexts["Leaderboard unavailable"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Retry"].exists)
+        try await assertWhiteArtVisible(in: app)
+        record(app, name: "solo-failure-white-cover")
+        try app.performAccessibilityAudit(for: .all)
     }
 
     /// Exercise real native no-results and service-error presentation.
@@ -111,6 +160,99 @@ final class FestivalMobileUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Songs unavailable"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.buttons["Retry"].exists)
         record(app, name: "songs-service-error")
+        try app.performAccessibilityAudit(for: .all)
+        rootControl("Settings", app: app).tap()
+        let publication = app.buttons["Check Publication"]
+        reveal(publication, in: app, scrollingUp: true)
+        publication.tap()
+        let status = app.staticTexts["fst.settings.publication-status"]
+        reveal(status, in: app, scrollingUp: true)
+        XCTAssertTrue(
+            status.label.hasPrefix("Publication 7; songs update failed:"),
+            "A successful publication check must not hide a failed song refresh"
+        )
+    }
+
+    /// Keep Retry reachable when large accessibility fonts exceed the visible page.
+    ///
+    /// - Throws: An ignored text-size override or an action hidden behind native chrome.
+    @MainActor
+    func testFailureActionRemainsReachableAtLargestTypeAndLandscape() throws {
+        continueAfterFailure = false
+        addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "error"
+        app.launch()
+        let title = app.staticTexts["Songs unavailable"]
+        XCTAssertTrue(title.waitForExistence(timeout: 15))
+        let normalHeight = title.frame.height
+        app.terminate()
+
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName",
+            UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+        ]
+        app.launch()
+        XCTAssertTrue(title.waitForExistence(timeout: 15))
+        XCTAssertGreaterThan(title.frame.height, normalHeight * 1.2)
+        try revealFailureAction(app)
+        record(app, name: "songs-error-largest-text-portrait")
+        let errorScroll = app.scrollViews.containing(.button, identifier: "Retry").firstMatch
+        XCTAssertTrue(errorScroll.exists)
+        errorScroll.swipeDown()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.4))
+        XCTAssertTrue(title.exists)
+        XCTAssertFalse(app.staticTexts["Loading songs"].exists)
+
+        XCUIDevice.shared.orientation = .landscapeLeft
+        for _ in 0..<30 {
+            let frame = app.windows.firstMatch.frame
+            if frame.width > frame.height { break }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        XCTAssertGreaterThan(app.windows.firstMatch.frame.width, app.windows.firstMatch.frame.height)
+        record(app, name: "songs-error-largest-text-landscape-before-scroll")
+        try revealFailureAction(app)
+        record(app, name: "songs-error-largest-text-landscape")
+        XCUIDevice.shared.orientation = .portrait
+    }
+
+    /// An initial 503 can recover on the same publication without a stuck Songs error.
+    ///
+    /// - Throws: Failed fixture-only retry, missing white art or inaccessible error state.
+    @MainActor
+    func testSongsRecoversAfterSamePublicationSettingsCheck() async throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8769"
+        app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "art-white"
+        app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Songs unavailable"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["Retry"].exists)
+        record(app, name: "songs-first-catalogue-503")
+        try app.performAccessibilityAudit(for: .all)
+
+        rootControl("Settings", app: app).tap()
+        let publication = app.buttons["Check Publication"]
+        reveal(publication, in: app, scrollingUp: true)
+        publication.tap()
+        let status = app.staticTexts["fst.settings.publication-status"]
+        reveal(status, in: app, scrollingUp: true)
+        XCTAssertEqual(status.label, "Publication 7")
+        reveal(app.staticTexts["App Settings"], in: app, scrollingUp: false)
+        try await assertWhiteArtVisible(in: app)
+        record(app, name: "settings-recovered-white-art")
+
+        rootControl("Songs", app: app).tap()
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-white"].waitForExistence(timeout: 15))
+        XCTAssertFalse(app.staticTexts["Songs unavailable"].exists)
+        try await assertWhiteArtVisible(in: app)
+        record(app, name: "songs-recovered-same-publication")
+        try app.performAccessibilityAudit(for: .all)
     }
 
     /// Search and tab state must remain accessible across native section changes.
@@ -139,6 +281,10 @@ final class FestivalMobileUITests: XCTestCase {
         search.typeText("\n")
 
         let settingsTab = rootControl("Settings", app: app)
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            XCTAssertGreaterThan(try sidebarAccentPixels(rootControl("Songs", app: app)), 12)
+            XCTAssertEqual(try sidebarAccentPixels(settingsTab), 0)
+        }
         settingsTab.tap()
         XCTAssertTrue(
             settingsTab.isSelected,
@@ -148,9 +294,19 @@ final class FestivalMobileUITests: XCTestCase {
             app.staticTexts["App Settings"].waitForExistence(timeout: 10),
             "Settings labels: \(app.staticTexts.allElementsBoundByIndex.prefix(24).map(\.label))"
         )
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            XCTAssertEqual(try sidebarAccentPixels(rootControl("Songs", app: app)), 0)
+            XCTAssertGreaterThan(try sidebarAccentPixels(settingsTab), 12)
+        }
         record(app, name: "settings-portrait")
         rootControl("Leaderboards", app: app).tap()
         XCTAssertTrue(app.staticTexts["Leaderboards overview migration in progress"].exists)
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            XCTAssertGreaterThan(
+                try sidebarAccentPixels(rootControl("Leaderboards", app: app)), 12
+            )
+            XCTAssertEqual(try sidebarAccentPixels(settingsTab), 0)
+        }
         record(app, name: "leaderboards-portrait")
         rootControl("Songs", app: app).tap()
         XCTAssertTrue(noMatches.waitForExistence(timeout: 10))
@@ -190,6 +346,152 @@ final class FestivalMobileUITests: XCTestCase {
         XCTAssertEqual(restored.value as? String, changed)
         restored.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         XCTAssertEqual(restored.value as? String, original)
+    }
+
+    /// Validate actual background motion, static-art override and opaque UI pixels.
+    ///
+    /// - Throws: Missing original art, failed five-second transition or inert Settings.
+    @MainActor
+    func testArtworkAnimationAndAccessibilityOverrides() async throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launch()
+        app.activate()
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
+        rootControl("Settings", app: app).tap()
+        let motion = app.switches["fst.settings.reduce-motion"]
+        let disableArt = app.switches["fst.settings.disable-artwork-animation"]
+        let opaque = app.switches["fst.settings.less-transparency"]
+        reveal(motion, in: app, scrollingUp: true)
+        let originalMotion = try XCTUnwrap(motion.value as? String)
+        setSwitch(motion, to: "0")
+        reveal(disableArt, in: app, scrollingUp: true)
+        let originalArt = try XCTUnwrap(disableArt.value as? String)
+        setSwitch(disableArt, to: "0")
+        reveal(opaque, in: app, scrollingUp: true)
+        let originalOpaque = try XCTUnwrap(opaque.value as? String)
+        setSwitch(opaque, to: "0")
+        rootControl("Songs", app: app).tap()
+
+        let brand: [UInt8] = [26, 8, 48]
+        let base: [UInt8] = Array(repeating: brand, count: 256).flatMap { $0 }
+        var painted = base
+        for _ in 0..<20 {
+            painted = try backgroundSignature(app)
+            if pixelDistance(painted, base) > 1_500 { break }
+            try await Task.sleep(for: .milliseconds(200))
+        }
+        XCTAssertGreaterThan(pixelDistance(painted, base), 1_500)
+        let moving = try backgroundSignature(app)
+        record(app, name: "songs-artwork-motion-start")
+        try await Task.sleep(for: .seconds(7))
+        let transitioned = try backgroundSignature(app)
+        record(app, name: "songs-artwork-motion-next")
+        XCTAssertGreaterThan(
+            pixelDistance(moving, transitioned), 200,
+            "The five-second cover rotation did not change the empty page region"
+        )
+
+        rootControl("Settings", app: app).tap()
+        reveal(disableArt, in: app, scrollingUp: true)
+        setSwitch(disableArt, to: "1")
+        rootControl("Songs", app: app).tap()
+        try await Task.sleep(for: .seconds(1))
+        let staticFirst = try backgroundSignature(app)
+        XCTAssertGreaterThan(pixelDistance(staticFirst, base), 1_500)
+        record(app, name: "songs-artwork-animation-disabled")
+        try await Task.sleep(for: .seconds(6))
+        XCTAssertLessThanOrEqual(
+            pixelDistance(staticFirst, try backgroundSignature(app)), 80,
+            "Disabling artwork animation did not hold the same cover"
+        )
+
+        rootControl("Settings", app: app).tap()
+        reveal(motion, in: app, scrollingUp: true)
+        setSwitch(motion, to: "1")
+        reveal(disableArt, in: app, scrollingUp: true)
+        setSwitch(disableArt, to: "0")
+        rootControl("Songs", app: app).tap()
+        try await Task.sleep(for: .seconds(1))
+        let reducedFirst = try backgroundSignature(app)
+        XCTAssertGreaterThan(pixelDistance(reducedFirst, base), 1_500)
+        try await Task.sleep(for: .seconds(6))
+        XCTAssertLessThanOrEqual(
+            pixelDistance(reducedFirst, try backgroundSignature(app)), 80,
+            "Reduce Motion failed to stop the artwork carousel"
+        )
+        record(app, name: "songs-artwork-reduced-motion")
+
+        rootControl("Settings", app: app).tap()
+        reveal(opaque, in: app, scrollingUp: true)
+        setSwitch(opaque, to: "1")
+        rootControl("Songs", app: app).tap()
+        XCTAssertLessThanOrEqual(
+            pixelDistance(try backgroundSignature(app), base), 100,
+            "Reduce Transparency failed to remove the image and dark overlay"
+        )
+        record(app, name: "songs-artwork-opaque-override")
+
+        rootControl("Settings", app: app).tap()
+        reveal(opaque, in: app, scrollingUp: true)
+        setSwitch(opaque, to: originalOpaque)
+        reveal(disableArt, in: app, scrollingUp: false)
+        setSwitch(disableArt, to: originalArt)
+        reveal(motion, in: app, scrollingUp: false)
+        setSwitch(motion, to: originalMotion)
+    }
+
+    /// Unavailable covers leave catalogue controls usable and never synthesize art.
+    ///
+    /// - Throws: An unexpected image, missing song action or rapid retry state.
+    @MainActor
+    func testUnavailableArtworkKeepsOpaqueCatalogueUsable() async throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "art-error"
+        app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launch()
+        let song = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(song.waitForExistence(timeout: 15))
+        let brand: [UInt8] = [26, 8, 48]
+        let base: [UInt8] = Array(repeating: brand, count: 256).flatMap { $0 }
+        XCTAssertLessThanOrEqual(pixelDistance(try backgroundSignature(app), base), 100)
+        try await Task.sleep(for: .seconds(6))
+        XCTAssertLessThanOrEqual(pixelDistance(try backgroundSignature(app), base), 100)
+        XCTAssertTrue(song.isHittable)
+        record(app, name: "songs-all-artwork-unavailable")
+    }
+
+    /// A bad middle cover cannot strand an otherwise animated native catalogue.
+    ///
+    /// - Throws: Lost rows or a carousel with no second visible art state.
+    @MainActor
+    func testBadCoverStillAllowsTheNextCarouselImage() async throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "art-skip"
+        app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launch()
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-missing"].waitForExistence(timeout: 15))
+        let brand: [UInt8] = [26, 8, 48]
+        let base: [UInt8] = Array(repeating: brand, count: 256).flatMap { $0 }
+        var first = base
+        for _ in 0..<20 {
+            first = try backgroundSignature(app)
+            if pixelDistance(first, base) > 1_500 { break }
+            try await Task.sleep(for: .milliseconds(200))
+        }
+        XCTAssertGreaterThan(pixelDistance(first, base), 1_500)
+        try await Task.sleep(for: .seconds(7))
+        XCTAssertGreaterThan(
+            pixelDistance(first, try backgroundSignature(app)), 200,
+            "A missing cover stopped all future artwork transitions"
+        )
+        record(app, name: "songs-artwork-404-skipped")
     }
 
     /// A hidden chart disappears from navigation, but remains in song Intensity.
@@ -303,6 +605,16 @@ final class FestivalMobileUITests: XCTestCase {
         rootControl("Settings", app: app).tap()
         reveal(lead, in: app, scrollingUp: true)
         setSwitch(lead, to: original)
+
+        rootControl("Songs", app: app).tap()
+        menu.tap()
+        let absent = app.collectionViews.buttons["Pro Drums + Cymbals"].firstMatch
+        if absent.exists {
+            absent.tap()
+        } else {
+            app.buttons["Pro Drums + Cymbals"].firstMatch.tap()
+        }
+        XCTAssertTrue(app.staticTexts["No songs match your filters."].waitForExistence(timeout: 10))
     }
 
     /// A confirmed app-settings reset must not erase the current Songs query.
@@ -452,9 +764,202 @@ final class FestivalMobileUITests: XCTestCase {
     @MainActor
     private func rootControl(_ name: String, app: XCUIApplication) -> XCUIElement {
         if UIDevice.current.userInterfaceIdiom == .pad {
-            return app.buttons["fst.nav.\(name.lowercased())"]
+            return app.descendants(matching: .any)
+                .matching(identifier: "fst.nav.\(name.lowercased())").firstMatch
         }
         return app.tabBars.buttons[name]
+    }
+
+    /// Scroll a large-type error until Retry is both tappable and above native navigation.
+    ///
+    /// - Parameter app: Foreground error scenario on a phone or tablet simulator.
+    /// - Throws: Retry remains outside the usable viewport after eight deliberate swipes.
+    @MainActor
+    private func revealFailureAction(_ app: XCUIApplication) throws {
+        let retry = app.buttons["Retry"]
+        XCTAssertTrue(retry.waitForExistence(timeout: 10))
+        let tabs = app.tabBars.firstMatch
+        let errorScroll = app.scrollViews.containing(.button, identifier: "Retry").firstMatch
+        for _ in 0..<8 {
+            let limit = tabs.exists
+                ? tabs.frame.minY : app.windows.firstMatch.frame.maxY - 16
+            if retry.isHittable && retry.frame.maxY <= limit { break }
+            if errorScroll.exists && errorScroll.isHittable {
+                errorScroll.swipeUp()
+            } else {
+                app.swipeUp()
+            }
+        }
+        let limit = tabs.exists
+            ? tabs.frame.minY : app.windows.firstMatch.frame.maxY - 16
+        XCTAssertTrue(
+            retry.isHittable,
+            "Retry \(retry.frame) is not reachable; window \(app.windows.firstMatch.frame), "
+                + "scroll \(errorScroll.exists ? errorScroll.frame : .zero), "
+                + "tabs \(tabs.exists ? tabs.frame : .zero)"
+        )
+        XCTAssertLessThanOrEqual(
+            retry.frame.maxY, limit,
+            "Retry falls under native navigation at accessibility text size"
+        )
+    }
+
+    /// Count accent-blue pixels in a sidebar button's leading, vertically centered band.
+    ///
+    /// - Parameter control: One visible, opaque iPad navigation row.
+    /// - Returns: Visible selected-marker pixels, independent of accessibility traits.
+    /// - Throws: Missing or unreadable screenshot pixels.
+    @MainActor
+    private func sidebarAccentPixels(_ control: XCUIElement) throws -> Int {
+        let image = try XCTUnwrap(control.screenshot().image.cgImage)
+        let strip = try XCTUnwrap(image.cropping(to: CGRect(
+            x: 0, y: image.height / 3,
+            width: min(60, image.width / 5), height: image.height / 3
+        )))
+        let bytes = try bitmapPixels(strip)
+        var count = 0
+        for pixel in stride(from: 0, to: bytes.count, by: 4) {
+            let red = Int(bytes[pixel])
+            let green = Int(bytes[pixel + 1])
+            let blue = Int(bytes[pixel + 2])
+            if green > 65 && blue > 140 && green > red + 30
+                && blue > green + 40 {
+                count += 1
+            }
+        }
+        return count
+    }
+
+    /// Check the actual rendered foreground against its median art-colored surface.
+    ///
+    /// - Parameters:
+    ///   - element: A completely visible Settings section header.
+    ///   - app: Its foreground white-cover app, used for a composited screenshot.
+    /// - Throws: A missing screenshot or insufficient 4.5:1 rendered contrast.
+    @MainActor
+    private func assertHeaderContrast(_ element: XCUIElement, in app: XCUIApplication) throws {
+        XCTAssertTrue(element.isHittable)
+        let image = try XCTUnwrap(app.screenshot().image.cgImage)
+        let window = app.windows.firstMatch.frame
+        let frame = element.frame
+        let scaleX = Double(image.width) / window.width
+        let scaleY = Double(image.height) / window.height
+        let crop = try XCTUnwrap(image.cropping(to: CGRect(
+            x: (frame.minX - window.minX) * scaleX,
+            y: (frame.minY - window.minY) * scaleY,
+            width: frame.width * scaleX, height: frame.height * scaleY
+        ).integral))
+        let bytes = try bitmapPixels(crop)
+        let luminances = stride(from: 0, to: bytes.count, by: 4).map { offset in
+            (0..<3).map { channel -> Double in
+                let value = Double(bytes[offset + channel]) / 255
+                return value <= 0.04045
+                    ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+            }
+        }.map { channels in
+            0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+        }.sorted()
+        XCTAssertFalse(luminances.isEmpty)
+        let background = luminances[luminances.count / 2]
+        let text = luminances[luminances.count * 99 / 100]
+        XCTAssertGreaterThan(
+            luminances.filter { $0 > background * 3 }.count, 100,
+            "\(element.label) has no readable text pixels in its rendered section"
+        )
+        XCTAssertGreaterThanOrEqual(
+            (text + 0.05) / (background + 0.05), 4.5,
+            "\(element.label) lacks readable contrast over pure-white fixture art "
+                + "(background \(background), text \(text), "
+                + "crop \(crop.width)x\(crop.height))"
+        )
+    }
+
+    /// Decode one native screenshot into opaque RGBA bytes for visual assertions.
+    ///
+    /// - Parameter image: Screenshot or cropped screenshot on the current simulator.
+    /// - Returns: Row-major red, green, blue and alpha bytes.
+    /// - Throws: Unavailable bitmap context.
+    @MainActor
+    private func bitmapPixels(_ image: CGImage) throws -> [UInt8] {
+        var bytes = [UInt8](repeating: 0, count: image.width * image.height * 4)
+        try bytes.withUnsafeMutableBytes { buffer in
+            let context = try XCTUnwrap(CGContext(
+                data: buffer.baseAddress, width: image.width, height: image.height,
+                bitsPerComponent: 8, bytesPerRow: image.width * 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGBitmapInfo.byteOrder32Big.rawValue
+                    | CGImageAlphaInfo.premultipliedLast.rawValue
+            ))
+            context.draw(image, in: CGRect(
+                x: 0, y: 0, width: image.width, height: image.height
+            ))
+        }
+        return bytes
+    }
+
+    /// Sample an interior 16-by-16 grid from one screenshot, avoiding native chrome.
+    ///
+    /// - Parameter app: Visible native Songs destination.
+    /// - Returns: 768 sRGB bytes from visible background behind the song list.
+    /// - Throws: Missing screenshot backing pixels.
+    @MainActor
+    private func backgroundSignature(_ app: XCUIApplication) throws -> [UInt8] {
+        let image = try XCTUnwrap(app.screenshot().image.cgImage)
+        let left = image.width * 56 / 100
+        let top = image.height * 52 / 100
+        let width = image.width * 95 / 100 - left
+        let height = image.height * 83 / 100 - top
+        let crop = try XCTUnwrap(image.cropping(to: CGRect(
+            x: left, y: top, width: width, height: height
+        )))
+        let bytes = try bitmapPixels(crop)
+        var signature: [UInt8] = []
+        for row in 0..<16 {
+            for column in 0..<16 {
+                let x = (column * crop.width + crop.width / 2) / 16
+                let y = (row * crop.height + crop.height / 2) / 16
+                let index = (y * crop.width + x) * 4
+                signature.append(contentsOf: bytes[index..<(index + 3)])
+            }
+        }
+        return signature
+    }
+
+    /// Require visible neutral-white fixture pixels after native 0.7 dimming.
+    ///
+    /// - Parameter app: Foreground page with one fixture-white artwork path.
+    /// - Throws: A screenshot without at least 32 uncovered white-art grid cells.
+    @MainActor
+    private func assertWhiteArtVisible(in app: XCUIApplication) async throws {
+        var uncoveredCells = 0
+        for _ in 0..<25 {
+            let colors = try backgroundSignature(app)
+            uncoveredCells = stride(from: 0, to: colors.count, by: 3).filter { offset in
+                let red = Int(colors[offset])
+                let green = Int(colors[offset + 1])
+                let blue = Int(colors[offset + 2])
+                return (55...95).contains(red) && abs(red - green) <= 10
+                    && abs(red - blue) <= 10
+            }.count
+            if uncoveredCells > 32 { break }
+            try await Task.sleep(for: .milliseconds(200))
+        }
+        XCTAssertGreaterThan(
+            uncoveredCells, 32,
+            "Accessibility audit did not display a dimmed pure-white original cover"
+        )
+    }
+
+    /// Compare equally sized sRGB signatures without including the device clock.
+    ///
+    /// - Parameters:
+    ///   - first: Initial pixel.
+    ///   - second: Later pixel.
+    /// - Returns: Total channel distance between the two colors.
+    private func pixelDistance(_ first: [UInt8], _ second: [UInt8]) -> Int {
+        zip(first, second).reduce(0) { total, channels in
+            total + abs(Int(channels.0) - Int(channels.1))
+        }
     }
 
     private struct FixtureScoreQuery: Decodable {
@@ -512,77 +1017,11 @@ final class FestivalMobileUITests: XCTestCase {
         if element.value as? String != value {
             element.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         }
-        XCTAssertEqual(element.value as? String, value)
-    }
-
-    /// Verify actual sRGB pixels before handling Xcode 27's iPad contrast
-    /// false positives for small SwiftUI static-text nodes.
-    ///
-    /// - Parameters:
-    ///   - app: Fixture app with visible foreground and background.
-    ///   - element: Manufacturer-reported static-text node.
-    /// - Returns: WCAG foreground/background contrast, or nil when sampling is unsafe.
-    @MainActor
-    private func textPixelContrast(
-        app: XCUIApplication, element: XCUIElement?
-    ) -> Double? {
-        guard let element,
-              let image = app.screenshot().image.cgImage,
-              element.frame.width > 0, element.frame.height > 0,
-              element.frame.width < 260, element.frame.height < 50 else {
-            return nil
-        }
-        let scale = CGFloat(image.width) / app.windows.firstMatch.frame.width
-        let rect = CGRect(
-            x: element.frame.minX * scale, y: element.frame.minY * scale,
-            width: element.frame.width * scale, height: element.frame.height * scale
-        ).integral
-        guard let cropped = image.cropping(to: rect) else { return nil }
-        var bytes = [UInt8](repeating: 0, count: cropped.width * cropped.height * 4)
-        let drawn = bytes.withUnsafeMutableBytes { buffer in
-            guard let context = CGContext(
-                data: buffer.baseAddress,
-                width: cropped.width, height: cropped.height,
-                bitsPerComponent: 8, bytesPerRow: cropped.width * 4,
-                space: CGColorSpaceCreateDeviceRGB(),
-                bitmapInfo: CGBitmapInfo.byteOrder32Big.rawValue
-                    | CGImageAlphaInfo.premultipliedLast.rawValue
-            ) else { return false }
-            context.draw(cropped, in: CGRect(
-                x: 0, y: 0, width: cropped.width, height: cropped.height
-            ))
-            return true
-        }
-        guard drawn else { return nil }
-        var counts: [UInt32: Int] = [:]
-        for index in stride(from: 0, to: bytes.count, by: 4) where bytes[index + 3] > 240 {
-            let color = UInt32(bytes[index]) << 16
-                | UInt32(bytes[index + 1]) << 8
-                | UInt32(bytes[index + 2])
-            counts[color, default: 0] += 1
-        }
-        guard let background = counts.max(by: { $0.value < $1.value })?.key,
-              let foreground = counts.filter({ luminance($0.key) > 0.4 })
-                  .max(by: { $0.value < $1.value })?.key else {
-            return nil
-        }
-        let light = luminance(foreground)
-        let dark = luminance(background)
-        return (max(light, dark) + 0.05) / (min(light, dark) + 0.05)
-    }
-
-    /// Convert three sRGB channels to WCAG 2.x relative luminance.
-    ///
-    /// - Parameter color: RGB value encoded as 0xRRGGBB.
-    /// - Returns: Linear-light relative luminance between zero and one.
-    private func luminance(_ color: UInt32) -> Double {
-        let channels = [16, 8, 0].map { shift -> Double in
-            let value = Double((color >> shift) & 0xFF) / 255
-            return value <= 0.04045
-                ? value / 12.92
-                : pow((value + 0.055) / 1.055, 2.4)
-        }
-        return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+        XCTAssertEqual(
+            element.value as? String, value,
+            "Settings control \(element.identifier), frame \(element.frame), "
+                + "hittable \(element.isHittable)"
+        )
     }
 
     /// Attach only the app's current display to the Xcode result bundle.

@@ -3,6 +3,53 @@ import SwiftUI
 import FestivalCore
 import FestivalDesign
 
+/// Scalable error content: the iOS 26 system unavailable view fails the Dynamic Type audit.
+private struct ServiceUnavailableView: View {
+    let title: String
+    let message: String
+    let retry: () -> Void
+
+    var body: some View {
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(spacing: 16) {
+                    Image(systemName: "wifi.slash")
+                        .font(.largeTitle)
+                        .foregroundStyle(BrandTokens.textSecondary)
+                        .accessibilityHidden(true)
+                    Text(title)
+                        .font(.title2.bold())
+                        .foregroundStyle(BrandTokens.textPrimary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityAddTraits(.isHeader)
+                    Text(message)
+                        .font(.body)
+                        .foregroundStyle(BrandTokens.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button(action: retry) {
+                        Text("Retry")
+                            .font(.body)
+                            .foregroundStyle(BrandTokens.textPrimary)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .padding(.horizontal, 12)
+                            .background(
+                                BrandTokens.cardBackground,
+                                in: RoundedRectangle(cornerRadius: 10)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(24)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: geometry.size.height)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+        }
+    }
+}
+
 /// Typed native navigation within the Songs tab, separate from other tab stacks.
 enum SongRoute: Hashable {
     case detail(Song)
@@ -19,6 +66,7 @@ struct SongNavigationRoot: View {
     @Binding var navigationNotice: String?
     let visibleInstruments: Set<Instrument>
     let highContrast: Bool
+    let isVisible: Bool
 
     /// Retain a shared route and visibility policy across platform navigation.
     ///
@@ -31,13 +79,14 @@ struct SongNavigationRoot: View {
     ///   - navigationNotice: Explanation for safe route or filter invalidation.
     ///   - visibleInstruments: Persisted chart visibility.
     ///   - highContrast: Effective system or in-app contrast override.
+    ///   - isVisible: False when another tab or a nested route covers Songs.
     init(
         session: FestivalSession, path: Binding<[SongRoute]>,
         searchText: Binding<String>, settledSearch: Binding<String>,
         selectedInstrument: Binding<Instrument?> = .constant(nil),
         navigationNotice: Binding<String?> = .constant(nil),
         visibleInstruments: Set<Instrument> = Set(Instrument.allCases),
-        highContrast: Bool = false
+        highContrast: Bool = false, isVisible: Bool = true
     ) {
         self.session = session
         _path = path
@@ -47,6 +96,7 @@ struct SongNavigationRoot: View {
         _navigationNotice = navigationNotice
         self.visibleInstruments = visibleInstruments
         self.highContrast = highContrast
+        self.isVisible = isVisible
     }
 
     var body: some View {
@@ -54,7 +104,8 @@ struct SongNavigationRoot: View {
             SongsScreen(
                 session: session, searchText: $searchText, settledSearch: $settledSearch,
                 selectedInstrument: $selectedInstrument, navigationNotice: $navigationNotice,
-                visibleInstruments: visibleInstruments, highContrast: highContrast
+                visibleInstruments: visibleInstruments, highContrast: highContrast,
+                isVisible: isVisible && path.isEmpty
             )
                 .navigationDestination(for: SongRoute.self) { route in
                     switch route {
@@ -80,6 +131,7 @@ struct SongsScreen: View {
     let session: FestivalSession
     let visibleInstruments: Set<Instrument>
     let highContrast: Bool
+    let isVisible: Bool
     @State private var state: LoadState
     @Binding private var searchText: String
     @Binding private var settledSearch: String
@@ -92,6 +144,12 @@ struct SongsScreen: View {
         case loading
         case loaded(CatalogPayload)
         case failed(String)
+    }
+
+    /// Restart a single catalogue task on publication or tab/route visibility changes.
+    private struct CatalogueTaskKey: Equatable {
+        let publicationRevision: Int
+        let visible: Bool
     }
 
     /// Create a catalogue screen with a fixture state for hosted visual tests.
@@ -112,11 +170,12 @@ struct SongsScreen: View {
         selectedInstrument: Binding<Instrument?> = .constant(nil),
         navigationNotice: Binding<String?> = .constant(nil),
         visibleInstruments: Set<Instrument> = Set(Instrument.allCases),
-        highContrast: Bool = false
+        highContrast: Bool = false, isVisible: Bool = true
     ) {
         self.session = session
         self.visibleInstruments = visibleInstruments
         self.highContrast = highContrast
+        self.isVisible = isVisible
         _state = State(initialValue: initialState)
         _refreshFailure = State(initialValue: initialRefreshError)
         _searchText = searchText
@@ -171,12 +230,8 @@ struct SongsScreen: View {
                 ProgressView("Loading songs")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case let .failed(message):
-                ContentUnavailableView {
-                    Label("Songs unavailable", systemImage: "wifi.slash")
-                } description: {
-                    Text(message)
-                } actions: {
-                    Button("Retry") { Task { await reload() } }
+                ServiceUnavailableView(title: "Songs unavailable", message: message) {
+                    Task { await reload() }
                 }
             case let .loaded(payload):
                 let visible = payload.catalog.songs.filter { song in
@@ -193,7 +248,32 @@ struct SongsScreen: View {
                         if hasDisclosure(for: payload) {
                             disclosures(for: payload)
                         }
-                        ContentUnavailableView.search(text: settledSearch)
+                        ContentUnavailableView {
+                            VStack(spacing: 12) {
+                                Image(systemName: "magnifyingglass")
+                                    .font(.largeTitle)
+                                    .accessibilityHidden(true)
+                                Text(
+                                    settledSearch.isEmpty
+                                        ? "No Results" : "No Results for \"\(settledSearch)\""
+                                )
+                                .font(.title2.bold())
+                                .multilineTextAlignment(.center)
+                                .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .foregroundStyle(BrandTokens.textPrimary)
+                        } description: {
+                            Text(
+                                settledSearch.isEmpty
+                                    ? (instrument == nil
+                                        ? "No songs are available yet."
+                                        : "No songs match your filters.")
+                                    : "Try a different search."
+                            )
+                            .foregroundStyle(BrandTokens.textSecondary)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 } else {
                     List {
@@ -214,12 +294,15 @@ struct SongsScreen: View {
                     }
                     .listStyle(.plain)
                     .scrollContentBackground(.hidden)
+                    .refreshable { await reload() }
                 }
             }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .background(BrandTokens.appBackground.ignoresSafeArea())
+        .background(ArtworkBackground(
+            mode: .carousel, session: session, visible: isVisible
+        ))
         .navigationTitle("Songs")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -237,13 +320,18 @@ struct SongsScreen: View {
                 .accessibilityIdentifier("fst.songs.instrument-filter")
             }
         }
-        .task(id: session.publicationRevision) {
-            if case .loading = state {
+        .task(id: CatalogueTaskKey(
+            publicationRevision: session.publicationRevision, visible: isVisible
+        )) {
+            guard isVisible else { return }
+            switch state {
+            case .loading, .failed:
                 await reload()
-            } else if case let .loaded(payload) = state,
-                      let current = session.publicationId,
-                      payload.observedPublicationId != current {
-                await reload()
+            case let .loaded(payload):
+                if let current = session.publicationId,
+                   payload.observedPublicationId != current {
+                    await reload()
+                }
             }
         }
         .onChange(of: visibleInstruments) { _, updated in
@@ -261,7 +349,6 @@ struct SongsScreen: View {
                 state = .failed("Search could not finish: \(error.localizedDescription)")
             }
         }
-        .refreshable { await reload() }
     }
 
     /// Avoid installing an empty accessibility node for an absent warning group.
@@ -327,6 +414,7 @@ struct SongsScreen: View {
         } catch let error as URLError where error.code == .cancelled {
             return
         } catch {
+            guard !Task.isCancelled else { return }
             if let prior {
                 state = .loaded(prior)
                 refreshFailure = error.localizedDescription
@@ -437,7 +525,7 @@ struct SongDetailScreen: View {
                             .foregroundStyle(BrandTokens.textSecondary)
                         if let year = song.year {
                             Text(year.formatted(.number.grouping(.never)))
-                                .foregroundStyle(BrandTokens.textMuted)
+                                .foregroundStyle(BrandTokens.textSecondary)
                         }
                     }
                 }
@@ -485,7 +573,7 @@ struct SongDetailScreen: View {
             }
             .padding(16)
         }
-        .background(BrandTokens.appBackground.ignoresSafeArea())
+        .background(ArtworkBackground(mode: .song(song.albumArt), session: session))
         .navigationTitle("")
     }
 }
@@ -552,12 +640,8 @@ struct SoloLeaderboardScreen: View {
                 ProgressView("Loading leaderboard")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case let .failed(message):
-                ContentUnavailableView {
-                    Label("Leaderboard unavailable", systemImage: "wifi.slash")
-                } description: {
-                    Text(message)
-                } actions: {
-                    Button("Retry") { Task { await loadPage() } }
+                ServiceUnavailableView(title: "Leaderboard unavailable", message: message) {
+                    Task { await loadPage() }
                 }
             case let .loaded(payload):
                 VStack(spacing: 0) {
@@ -580,7 +664,7 @@ struct SoloLeaderboardScreen: View {
                             Text(song.artist).foregroundStyle(BrandTokens.textSecondary)
                             if payload.leaderboard.showLeaderboardEntryTotals == true {
                                 Text("\(payload.leaderboard.totalEntries) \(instrument.label) entries")
-                                    .foregroundStyle(BrandTokens.textMuted)
+                                    .foregroundStyle(BrandTokens.textSecondary)
                             }
                         }
                         Spacer()
@@ -612,7 +696,7 @@ struct SoloLeaderboardScreen: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(BrandTokens.appBackground.ignoresSafeArea())
+        .background(ArtworkBackground(mode: .song(song.albumArt), session: session))
         .navigationTitle("\(song.title) - \(instrument.label)")
         .task(id: requestKey) {
             if case .loading = state {

@@ -5,7 +5,7 @@ import Testing
 @testable import FestivalCore
 @testable import FestivalUI
 
-private actor ArtworkFixtureTransport: HTTPTransport {
+actor ArtworkFixtureTransport: HTTPTransport {
     let data: Data
     private var calls = 0
 
@@ -319,22 +319,24 @@ func soloLeaderboardVisualStates(_ scenario: ScoreScenario) throws {
 
 /// Distinct typed route paths render different content, not the Songs root.
 @MainActor
-@Test func nestedSongRoutesRenderDifferentDestinations() throws {
+@Test func nestedSongRoutesRenderDifferentDestinations() async throws {
     let song = try fixtureSong()
-    let detail = try render(SongNavigationRoot(
-        session: offlineSession(), path: .constant([.detail(song)]),
-        searchText: .constant(""), settledSearch: .constant("")
-    ))
-    let leaderboard = try render(SongNavigationRoot(
-        session: offlineSession(),
-        path: .constant([.detail(song), .leaderboard(song, .lead, 1)]),
-        searchText: .constant(""), settledSearch: .constant("")
-    ))
-    let detailPNG = try #require(NSBitmapImageRep(cgImage: detail).representation(
-        using: .png, properties: [:]
-    ))
-    let scoresPNG = try #require(NSBitmapImageRep(cgImage: leaderboard).representation(
-        using: .png, properties: [:]
-    ))
+    func snapshot(_ path: [SongRoute]) async throws -> Data {
+        let host = NSHostingView(rootView: SongNavigationRoot(
+            session: offlineSession(), path: .constant(path),
+            searchText: .constant(""), settledSearch: .constant("")
+        ))
+        host.frame = NSRect(x: 0, y: 0, width: 800, height: 600)
+        host.layoutSubtreeIfNeeded()
+        for _ in 0..<10 {
+            try await Task.sleep(for: .milliseconds(50))
+            host.layoutSubtreeIfNeeded()
+        }
+        let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+        host.cacheDisplay(in: host.bounds, to: bitmap)
+        return try #require(bitmap.representation(using: .png, properties: [:]))
+    }
+    let detailPNG = try await snapshot([.detail(song)])
+    let scoresPNG = try await snapshot([.detail(song), .leaderboard(song, .lead, 1)])
     #expect(detailPNG != scoresPNG)
 }

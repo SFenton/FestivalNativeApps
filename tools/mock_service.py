@@ -40,7 +40,8 @@ class FixtureServer(ThreadingHTTPServer):
 
     def __init__(
         self, address: tuple[str, int], handler: type[BaseHTTPRequestHandler],
-        *, unpinned: bool = False, rollover_on_read: int | None = None
+        *, unpinned: bool = False, rollover_on_read: int | None = None,
+        fail_first_white_catalogue: bool = False
     ) -> None:
         """Create a deterministic, request-count-driven service fixture.
 
@@ -49,12 +50,14 @@ class FixtureServer(ThreadingHTTPServer):
             handler: Allowlisted HTTP request handler.
             unpinned: Omit response publication headers like an unfrozen service.
             rollover_on_read: First publication GET that advances generation 7 to 8.
+            fail_first_white_catalogue: Fail one white-art catalogue read, then recover.
         """
         self.unpinned = unpinned
         self.rollover_on_read = rollover_on_read
         self._publication_reads = 0
         self._publication_id = 7
         self._last_score_query: dict | None = None
+        self._fail_first_white_catalogue = fail_first_white_catalogue
         self._lock = threading.Lock()
         super().__init__(address, handler)
 
@@ -95,28 +98,42 @@ class FixtureServer(ThreadingHTTPServer):
         with self._lock:
             return self._last_score_query
 
+    def should_fail_white_catalogue(self) -> bool:
+        """Consume one configured white-art 503 without advancing publication.
 
-@lru_cache(maxsize=2)
+        Returns:
+            True exactly once per listener when that synthetic failure is enabled.
+        """
+        with self._lock:
+            should_fail = self._fail_first_white_catalogue
+            self._fail_first_white_catalogue = False
+            return should_fail
+
+
+@lru_cache(maxsize=3)
 def fixture_artwork(name: str) -> bytes:
     """Generate original, deterministic PNG artwork without bundled album art.
 
     Args:
-        name: One of the two synthetic fixture artwork identifiers.
+        name: One of the three synthetic fixture artwork identifiers.
 
     Returns:
-        128-by-128 RGBA PNG bytes for a branded gradient and geometric motif.
+        128-by-128 RGBA PNG bytes for a branded motif or a pure-white cover.
 
     Raises:
         ValueError: For names not in the fixture allowlist.
     """
-    if name not in ("pulse", "orbit"):
+    if name not in ("pulse", "orbit", "white"):
         raise ValueError(f"Unknown fixture artwork: {name}")
     rows = []
     for y in range(128):
         row = bytearray(b"\x00")
         for x in range(128):
-            accent = ((x + y) // 16) % 2 if name == "pulse" else ((x - y) // 18) % 2
-            row.extend((26 + 20 * accent, 8 + (x * 55 // 127), 48 + (y * 70 // 127), 255))
+            if name == "white":
+                row.extend((255, 255, 255, 255))
+            else:
+                accent = ((x + y) // 16) % 2 if name == "pulse" else ((x - y) // 18) % 2
+                row.extend((26 + 20 * accent, 8 + (x * 55 // 127), 48 + (y * 70 // 127), 255))
         rows.append(bytes(row))
 
     def chunk(kind: bytes, data: bytes) -> bytes:
@@ -208,18 +225,64 @@ class FixtureHandler(BaseHTTPRequestHandler):
             self._json(200, self.fixture.publication())
         elif path == "/api/features":
             self._json(200, {"appManual": False})
-        elif path in ("/__fixture__/art/pulse.png", "/__fixture__/art/orbit.png"):
+        elif path in (
+            "/__fixture__/art/pulse.png", "/__fixture__/art/orbit.png",
+            "/__fixture__/art/white.png",
+        ):
             self._art(path.split("/")[-1].removesuffix(".png"))
         elif path == "/api/songs":
             scenarios = query.get("scenario", ["demo"])
-            if len(scenarios) != 1 or scenarios[0] not in ("demo", "empty", "error"):
+            if len(scenarios) != 1 or scenarios[0] not in (
+                "demo", "empty", "error", "art-error", "art-skip", "art-white"
+            ):
                 self._json(400, {"status": "unknown_fixture_scenario"})
                 return
             if scenarios[0] == "error":
                 self._json(503, {"status": "fixture_unavailable"})
                 return
-            songs = EMPTY_SONGS if scenarios[0] == "empty" else DEMO_SONGS
-            etag = EMPTY_ETAG if scenarios[0] == "empty" else SONGS_ETAG
+            if scenarios[0] == "art-white" and self.fixture.should_fail_white_catalogue():
+                self._json(503, {"status": "fixture_initial_white_failure"})
+                return
+            if scenarios[0] == "empty":
+                songs, etag = EMPTY_SONGS, EMPTY_ETAG
+            elif scenarios[0] == "art-error":
+                songs = {
+                    **DEMO_SONGS,
+                    "songs": [
+                        {**song, "albumArt": f"/__fixture__/art/unavailable-{index}.png"}
+                        for index, song in enumerate(DEMO_SONGS["songs"])
+                    ],
+                }
+                etag = '"fst-fixture-art-error-v1"'
+            elif scenarios[0] == "art-skip":
+                missing = {
+                    **DEMO_SONGS["songs"][0],
+                    "songId": "fixture-missing",
+                    "title": "Fixture Missing",
+                    "albumArt": "/__fixture__/art/unavailable-middle.png",
+                }
+                songs = {
+                    **DEMO_SONGS,
+                    "count": 3,
+                    "songs": [
+                        DEMO_SONGS["songs"][0], missing, DEMO_SONGS["songs"][1],
+                    ],
+                }
+                etag = '"fst-fixture-art-skip-v1"'
+            elif scenarios[0] == "art-white":
+                songs = {
+                    **DEMO_SONGS,
+                    "count": 1,
+                    "songs": [{
+                        **DEMO_SONGS["songs"][0],
+                        "songId": "fixture-white",
+                        "title": "Fixture White",
+                        "albumArt": "/__fixture__/art/white.png",
+                    }],
+                }
+                etag = '"fst-fixture-art-white-v1"'
+            else:
+                songs, etag = DEMO_SONGS, SONGS_ETAG
             pin = self.headers.get("X-FST-Publication-Id")
             if pin is not None and pin != str(self.fixture.publication_id):
                 self._json(409, {"status": "publication_changed"})
@@ -232,6 +295,9 @@ class FixtureHandler(BaseHTTPRequestHandler):
             pin = self.headers.get("X-FST-Publication-Id")
             if pin is not None and pin != str(self.fixture.publication_id):
                 self._json(409, {"status": "publication_changed"})
+                return
+            if song_id == "fixture-white" and instrument in INSTRUMENTS:
+                self._json(503, {"status": "fixture_score_unavailable"})
                 return
             if song_id not in ("fixture-pulse", "fixture-orbit") or instrument not in INSTRUMENTS:
                 self._json(404, {"status": "unknown_chart"})
@@ -306,6 +372,7 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--unpinned", action="store_true")
     parser.add_argument("--rollover-on-read", type=int)
+    parser.add_argument("--fail-first-white-catalogue", action="store_true")
     args = parser.parse_args()
     if not 1 <= args.port <= 65535:
         parser.error("port must be between 1 and 65535")
@@ -313,7 +380,8 @@ def main() -> None:
         parser.error("rollover-on-read must be at least 2")
     with FixtureServer(
         ("127.0.0.1", args.port), FixtureHandler,
-        unpinned=args.unpinned, rollover_on_read=args.rollover_on_read
+        unpinned=args.unpinned, rollover_on_read=args.rollover_on_read,
+        fail_first_white_catalogue=args.fail_first_white_catalogue
     ) as server:
         print(f"Read-only fixture service on 127.0.0.1:{server.server_port}", flush=True)
         server.serve_forever()

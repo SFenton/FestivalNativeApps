@@ -40,17 +40,21 @@ struct SettingsScreen: View {
     @State private var serviceStatus: String?
 
     let session: FestivalSession
+    let isVisible: Bool
 
     /// Keep settings on the same process-scoped API session as the Songs tab.
     ///
-    /// - Parameter session: Shared service and artwork connection.
-    init(session: FestivalSession) {
+    /// - Parameters:
+    ///   - session: Shared service and artwork connection.
+    ///   - isVisible: True only while the Settings destination is selected.
+    init(session: FestivalSession, isVisible: Bool = true) {
         self.session = session
+        self.isVisible = isVisible
     }
 
     var body: some View {
         Form {
-            Section("App Settings") {
+            Section {
                 Text("Additional options become available as their native pages are built.")
                     .font(.footnote)
                     .foregroundStyle(BrandTokens.textSecondary)
@@ -81,13 +85,13 @@ struct SettingsScreen: View {
                 Toggle("Experimental Ranks", isOn: $experimentalRanks)
                     .disabled(true)
                     .accessibilityHint("Experimental ranks are not yet available")
+            } header: {
+                Text("App Settings").foregroundStyle(BrandTokens.textSecondary)
             }
-            Section("Accessibility") {
+            Section {
                 Toggle("Reduce Motion", isOn: $reduceMotion)
                     .accessibilityIdentifier("fst.settings.reduce-motion")
                 Toggle("Disable Animated Artwork", isOn: $disableAnimatedArtwork)
-                    .disabled(true)
-                    .accessibilityHint("Animated artwork backgrounds are not yet available")
                     .accessibilityIdentifier("fst.settings.disable-artwork-animation")
                 Toggle("Increase Contrast", isOn: $moreContrast)
                     .accessibilityIdentifier("fst.settings.more-contrast")
@@ -99,8 +103,10 @@ struct SettingsScreen: View {
                 )
                     .font(.footnote)
                     .foregroundStyle(BrandTokens.textSecondary)
+            } header: {
+                Text("Accessibility").foregroundStyle(BrandTokens.textSecondary)
             }
-            Section("Item Shop") {
+            Section {
                 Text("Item Shop is not yet available in the native app.")
                     .font(.footnote)
                     .foregroundStyle(BrandTokens.textSecondary)
@@ -116,8 +122,10 @@ struct SettingsScreen: View {
                 )
                 .disabled(true)
                 .accessibilityHint("Item Shop is not yet available")
+            } header: {
+                Text("Item Shop").foregroundStyle(BrandTokens.textSecondary)
             }
-            Section("Show Instruments") {
+            Section {
                 ForEach(Instrument.allCases) { instrument in
                     let shown = instrumentBinding(for: instrument)
                     Toggle(instrument.label, isOn: shown)
@@ -126,8 +134,10 @@ struct SettingsScreen: View {
                             "fst.settings.instrument.\(instrument.rawValue)"
                         )
                 }
+            } header: {
+                Text("Show Instruments").foregroundStyle(BrandTokens.textSecondary)
             }
-            Section("Show Metadata") {
+            Section {
                 Text("Score metadata needs a selected profile, which is not yet available.")
                     .font(.footnote)
                     .foregroundStyle(BrandTokens.textSecondary)
@@ -137,23 +147,31 @@ struct SettingsScreen: View {
                         .accessibilityHint("Profile selection is not yet available")
                         .accessibilityIdentifier("fst.settings.metadata.\(field.rawValue)")
                 }
+            } header: {
+                Text("Show Metadata").foregroundStyle(BrandTokens.textSecondary)
             }
-            Section("Service") {
+            Section {
                 Button("Check Publication") { Task { await refreshService() } }
                 if let serviceStatus {
                     Text(serviceStatus)
                         .accessibilityIdentifier("fst.settings.publication-status")
                 }
+            } header: {
+                Text("Service").foregroundStyle(BrandTokens.textSecondary)
             }
-            Section("Reset") {
+            Section {
                 Button("Reset App Settings", role: .destructive) {
                     resetPending = true
                 }
                 .accessibilityIdentifier("fst.settings.reset")
+            } header: {
+                Text("Reset").foregroundStyle(BrandTokens.textSecondary)
             }
         }
         .scrollContentBackground(.hidden)
-        .background(BrandTokens.appBackground.ignoresSafeArea())
+        .background(ArtworkBackground(
+            mode: .carousel, session: session, visible: isVisible
+        ))
         .navigationTitle("Settings")
         .confirmationDialog(
             "Reset app settings only?",
@@ -223,9 +241,20 @@ struct SettingsScreen: View {
     // MARK: - Service and reset
 
     /// Show publication state, or an explicit failure, without a privileged key.
-    private func refreshService() async {
+    func refreshService() async {
         do {
             let publication = try await session.refreshPublication()
+            do {
+                _ = try await session.catalog()
+            } catch is CancellationError {
+                return
+            } catch let error as URLError where error.code == .cancelled {
+                return
+            } catch {
+                serviceStatus = "Publication \(publication.publicationId); songs update failed: "
+                    + error.localizedDescription
+                return
+            }
             serviceStatus = "Publication \(publication.publicationId)"
         } catch {
             serviceStatus = "Publication unavailable: \(error.localizedDescription)"
