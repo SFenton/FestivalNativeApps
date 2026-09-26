@@ -86,6 +86,16 @@ class MockServiceTests(unittest.TestCase):
             pass
         with urlopen(self.base + "/__fixture__/last-score-query") as response:
             self.assertEqual(json.load(response)["last"]["leeway"], 1.5)
+        with urlopen(
+            self.base + "/api/leaderboard/fixture-pulse/Solo_Guitar?top=10&offset=0"
+        ):
+            pass
+        with urlopen(self.base + "/__fixture__/last-score-query") as response:
+            self.assertEqual(json.load(response)["last"]["top"], 10)
+        with urlopen(self.base + "/__fixture__/last-full-score-query") as response:
+            self.assertEqual(json.load(response)["last"], {
+                "top": 25, "offset": 0, "leeway": 1.5,
+            })
         with urlopen(self.base + "/__fixture__/art/pulse.png") as response:
             self.assertEqual(response.headers["Content-Type"], "image/png")
             self.assertEqual(response.read()[:8], b"\x89PNG\r\n\x1a\n")

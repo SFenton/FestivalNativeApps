@@ -1046,6 +1046,22 @@ final class FestivalMobileUITests: XCTestCase {
         XCTAssertFalse(app.buttons["fst.song-detail.leaderboard.Solo_Bass"].exists)
         let leadChart = app.buttons["fst.song-detail.leaderboard.Solo_Guitar"]
         XCTAssertTrue(leadChart.exists)
+        let paths = app.buttons["fst.song-detail.paths"]
+        XCTAssertTrue(paths.waitForExistence(timeout: 10))
+        paths.tap()
+        let warning = app.alerts["Some Instruments Unavailable"]
+        if warning.waitForExistence(timeout: 2) {
+            warning.buttons["OK"].tap()
+        }
+        let pathInstrument = app.descendants(matching: .any).matching(
+            identifier: "fst.paths.instrument"
+        ).firstMatch
+        XCTAssertTrue(pathInstrument.waitForExistence(timeout: 10))
+        pathInstrument.tap()
+        XCTAssertFalse(app.buttons["Bass"].exists, "Settings-hidden Bass is still a path choice")
+        XCTAssertTrue(app.buttons["Lead"].exists)
+        app.buttons["Lead"].tap()
+        app.buttons["fst.paths.close"].tap()
         XCTAssertTrue(app.descendants(matching: .any).matching(
             identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-1"
         ).firstMatch.waitForExistence(timeout: 10))
@@ -1068,7 +1084,14 @@ final class FestivalMobileUITests: XCTestCase {
         XCTAssertTrue(next.waitForExistence(timeout: 10))
         next.tap()
         XCTAssertTrue(app.staticTexts["2 / 2"].waitForExistence(timeout: 10))
-        let disabled = try await latestFixtureScoreQuery()
+        XCTAssertTrue(
+            app.descendants(matching: .any).matching(
+                identifier: "fst.song-leaderboard.row.fixture-player-26"
+            ).firstMatch.waitForExistence(timeout: 10),
+            "Page two never displayed its offset-25 fixture score"
+        )
+        let disabled = try await latestFixtureScoreQuery(fullOnly: true)
+        XCTAssertEqual(disabled.top, 25)
         XCTAssertEqual(disabled.offset, 25)
         XCTAssertNil(disabled.leeway, "Disabled filtering still sent leeway")
         rootControl("Settings", app: app).tap()
@@ -1611,11 +1634,15 @@ final class FestivalMobileUITests: XCTestCase {
 
     /// Inspect only loopback fixture query numbers, never a service account.
     ///
-    /// - Returns: The most recent validated synthetic score request.
+    /// - Parameter fullOnly: Exclude ten-row Detail previews when auditing the full chart.
+    /// - Returns: The most recent validated synthetic query in the selected channel.
     /// - Throws: A missing fixture listener or invalid diagnostic response.
     @MainActor
-    private func latestFixtureScoreQuery() async throws -> FixtureScoreQuery.Request {
-        let url = URL(string: "http://127.0.0.1:8765/__fixture__/last-score-query")!
+    private func latestFixtureScoreQuery(
+        fullOnly: Bool = false
+    ) async throws -> FixtureScoreQuery.Request {
+        let name = fullOnly ? "last-full-score-query" : "last-score-query"
+        let url = URL(string: "http://127.0.0.1:8765/__fixture__/\(name)")!
         let (data, response) = try await URLSession.shared.data(from: url)
         XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
         return try XCTUnwrap(JSONDecoder().decode(FixtureScoreQuery.self, from: data).last)

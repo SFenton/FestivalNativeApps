@@ -96,6 +96,7 @@ class FixtureServer(ThreadingHTTPServer):
         self._publication_reads = 0
         self._publication_id = 7
         self._last_score_query: dict | None = None
+        self._last_full_score_query: dict | None = None
         self._fail_first_white_catalogue = fail_first_white_catalogue
         self._stop_after_first_songs = stop_after_first_songs
         self._stop_after_first_score = stop_after_first_score
@@ -133,11 +134,18 @@ class FixtureServer(ThreadingHTTPServer):
         """
         with self._lock:
             self._last_score_query = {"top": top, "offset": offset, "leeway": leeway}
+            if top == 25:
+                self._last_full_score_query = self._last_score_query
 
     def last_score_query(self) -> dict | None:
         """Return the last validated mock score request, if any."""
         with self._lock:
             return self._last_score_query
+
+    def last_full_score_query(self) -> dict | None:
+        """Return only the most recent full chart query, ignoring ten-row previews."""
+        with self._lock:
+            return self._last_full_score_query
 
     def should_fail_white_catalogue(self) -> bool:
         """Consume one configured white-art 503 without advancing publication.
@@ -358,6 +366,8 @@ class FixtureHandler(BaseHTTPRequestHandler):
             })
         elif path == "/__fixture__/last-score-query":
             self._json(200, {"last": self.fixture.last_score_query()})
+        elif path == "/__fixture__/last-full-score-query":
+            self._json(200, {"last": self.fixture.last_full_score_query()})
         elif path == "/api/publication":
             self._json(200, self.fixture.publication())
         elif path == "/api/features":

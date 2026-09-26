@@ -35,6 +35,13 @@ logged. This does **not** resolve Cloudflare 1010 on search or rankings.
 | Error/offline | Unavailable content with independent text/image failures | Explicit Retry and readable errors, publication-verified/unverified warm-memory disclosure; device cold-expiry and rapid-response race need further proof |
 | Dismiss/focus | Close/overlay/Escape; source dialog has no full focus trap | Native sheet, scalable Close and no gesture dismissal; keyboard/VoiceOver focus restoration and macOS GUI remain unverified |
 
+**Settings-to-control proof:** `testInstrumentVisibilityAndScoreFilterPropagation`
+turns off Bass, confirms Songs and Detail hide its selectable chart while
+Intensity retains the charted value, then opens Paths and confirms Bass
+is absent from its menu on both iPhone and iPad. It restores the original
+visibility preference. The boundary where only Karaoke is enabled (so
+Paths must disappear entirely) still needs device automation.
+
 **Observed layout:** `tools/visual/pages.spec.ts` captures fixture-only React
 image and text modals at 390x844 phone and 820x1180 tablet portraits.
 `testSongPathsImageTextSwitchAndMissingDifficulty` captures the same

@@ -26,6 +26,21 @@ The focused Apple anonymous Sort slice adds two `SongCatalogSortTests` for four 
 
 The new **CHOpt Paths WIP** uses nine focused `songPath` Core tests for URL/generation/pin/304 keys, live-shaped JSON activation rows, bounded ImageIO decoding, separate 32 MB/16-entry verified PNG LRU, pre-cache 8 MB limit and rejecting invalid headerless PNG/JSON before warm-offline caching. An opt-in read through the actual Swift client decoded a real public schema-2 Lead/Expert path and a 1024x3736 PNG without printing content; two read-only path GETs were HTTP 200. The strict loopback fixture generates an original synthetic path PNG/JSON and keeps its source hash, generation, ETag, 404/409 and read-only contract in the serial runner; relevant Python fixture/runner tests passed. Two selected WebKit image/text modal tests captured the matching source phone/tablet views. The selected `testSongPathsImageTextSwitchAndMissingDifficulty` and `testSongPathsDefaultViewFollowsSettings` exercise each native iPhone/iPad modal, zoom, instrument/difficulty/error/recovery and Settings propagation. After accessible Close and disabled-zoom fixes, iPhone 26.5's loaded image **and** text sheets passed unwaived `.all` audits. A separate iPadOS 26.5 full `.all` probe reports unnamed **"Potentially inaccessible text"**; selected title/Close/summary on-screen pixels meet the contrast assertion, but **iPad full-audit certification remains pending**. No blanket waiver, all-state UX gate, current-source line-coverage figure, or full Detail page audit is claimed.
 
+The changed `testInstrumentVisibilityAndScoreFilterPropagation` passed
+**1/1 on each device** after proving that a Settings-hidden Bass is not
+offered in the Paths instrument menu, yet stays visible in Intensity.
+On return from Settings, a lazy Detail score preview can overwrite the
+mock's *global* last-score-query diagnostic after a full chart request.
+The fixture now keeps a separate numeric-only
+`/__fixture__/last-full-score-query`, updated only for `top=25`, and a
+focused Python test proves a later `top=10` cannot overwrite it.
+Page-two correctness is asserted by **both** the visible synthetic
+rank-26 row (only served for `offset=25`) and the full-query diagnostic's
+`top=25`, `offset=25`, absent leeway. Xcode once ran stale UI-test
+source and a separate run emitted a zero-test result; the runner failed
+closed, and **only the affected product DerivedData** was cleaned
+before fresh iPhone/iPad exact test-name passes. No simulator was reset.
+
 The generated Swift `BrandTokens.swift` contains stored constants and has no executable LLVM lines; it is the sole explicit coverage exclusion. The gate fails if a future report shows executable lines in an excluded file, and `tools/generate_tokens.py --check` separately verifies every generated token byte. Do not exclude handwritten logic or views to make a percentage pass.
 
 For a repeatable **serial full device matrix** when the operator resumes full passes, run `python3 -m tools.apple_native_matrix --iphone-udid <FST-iPhone-ID> --iphone-os 26.5 --ipad-udid <FST-iPad-ID> --ipad-os 26.5 --evidence-dir <new-session-evidence-path>`. OS version arguments are required: an actual iOS 27 device once entered a purported 26.5 run; the runner now rejects a mismatch **before** starting fixtures, changing simulators or writing evidence. It acquires an exclusive host-wide matrix lock, discovers every current test method (excluding only the separately failing Duo pose), verifies FST device names/families, refuses any other booted simulator, starts with an already-booted product device and switches between product devices one at a time. It starts **fresh** 8767/8768, 8769, 8771 and 8772 fixtures for each suite; 8771 exits after one valid unpinned Songs response, but **8772 must allow Detail's top-ten preview and close only after the first successful top-25 chart**. The runner stops only fixture processes it launched. A pre-existing ordinary 8765 listener is reused **only** when its startup mock-source/JSON hashes, default launch flags and original white-song response match the frozen test inputs; a stale or unpinned service is rejected, not killed.
