@@ -14,6 +14,19 @@ This Mac has Xcode 27.1 (build 27A9269), iOS 26.5/27.0/27.1 simulator runtimes, 
 
 The Apple `SessionResponseCache` retains publication-bound ETag responses independently from **typed and validated** headerless JSON snapshots. The latter are bounded to 16 MB/128 pages in process memory, never sent as conditional ETags or promoted to a proven generation, and cleared when a different publication is observed; process death discards both. Songs and solo score banners must distinguish **unverified last-seen offline** bytes from publication-verified offline scores; a native iPhone/iPad fixture test now proves actual Songs warm-resume and cold-expiry behavior without changing OS networking. Oversized unverified responses remain usable live but are explicitly logged as uncached; never silently present an older unverified copy as the latest offline payload. Operational endpoints remain uncached. Android/Windows offline implementations and actual iOS Core/Design device-line coverage remain separate gaps.
 
+The Shop fixture exposed a separate **artwork** memory invariant:
+an evictable `NSCache` can lose album covers when a user backgrounds
+and reopens a route after connectivity disappears. `ArtworkCache` now
+also strongly retains up to 16 MB/64 recent raw URLs in process; it
+preserves them across backgrounding, allows off-main thumbnail decode
+after NSCache eviction and clears on a known publication change or
+cold launch. Do not persist art to disk or replace a missing image
+with success-shaped data. A dedicated local Shop fixture waits for
+actual screenshot motif-pixel proof before a test-only GET shuts
+the listener, then a serial iPhone/iPad UI test reenters Shop offline
+and proves the **same original pixels** are visible from memory.
+This does not certify all older/evicted art or Windows/Android caches.
+
 Debug and Release native shells default to the keyless public `https://festivalscoretracker.com` origin. `FST_API_BASE_URL=http://127.0.0.1:8765` is an **explicit Debug-only** test/development override; Release ignores it, and fixture scenarios cannot target public HTTPS. On 2026-09-25 a bounded live read decoded the public publication, 728 Songs and a ten-row Lead preview through the *actual Swift client*; a running iOS 26.5 Debug app displayed real song rows and remote artwork, not a bundled fixture. `bash tools/apple_live_service_smoke.sh --read-public-live` repeats only those three public GETs and prints aggregate counts/provenance, not titles, account IDs or raw responses. No `X-API-Key`, profile POST, scraper or maintenance request belongs in this client. The live service's publication/pinning state and counts can change; recheck them rather than freezing observed values into fixtures.
 
 At accessibility text sizes the Solo header and freshness disclosure scroll *inside the native score List* so a narrow iPhone retains a usable score viewport above its fixed pager. Rank/name, whole unwrapped numeric score and explicitly labeled accuracy each have their own scalable line; ordinary sizes retain compact Fluent score columns. Native iOS 26.5/iPadOS 26.5 targeted tests prove both page actions and first/last score text remain reachable, and normal-size Solo pinned/offline screens pass unwaived `.all` audits. An extra `.all` probe **launched already at AccessibilityXXXL** on iPadOS 26.5 reported three `Text clipped` issues with no identified element despite readable captured rows; it is an open audit gap, not a waived pass. A full post-change device/coverage matrix remains pending under the current targeted-test workflow.
@@ -23,6 +36,20 @@ Song Detail now uses per-chart lazy, keyless **top-ten** score previews; full So
 CHOpt Paths have a **separate keyless public image and schema-2 JSON route** that the native Swift client decoded from one bounded live Lead/Expert probe on 2026-09-25; that fact does not unblock the Cloudflare-denied player/ranking APIs. `SongPathsSheet` pins the catalog artifact generation and publication, decodes single-frame PNG off the UI actor to a maximum 4,096px edge/24MP, and caches validated headerless bytes only in bounded process memory. Response-proven images have a separate 32 MB/16-entry LRU, and each path response is limited to 8 MB before entering either cache. Text activation rows are derived once on the client actor, not on every SwiftUI body pass. Present a native sheet with instrument/difficulty/display controls, readable Close and disabled Zoom, explicit error/Retry and provenance. Source PWA phone puts controls at the bottom; native top controls and an opaque backdrop deliberately trade pixel identity for safe-area/legibility behavior. iPhone 26.5's loaded image/text sheets passed unwaived `.all` audits after adapting zoom controls for Dynamic Type. iPadOS 26.5's full `.all` probe still reports unnamed "Potentially inaccessible text" and must remain pending despite measured visible header/Close/summary contrast. The [Paths control spec](../controls/chopt-paths.md) tracks unported drag-column order, complete responsive/focus states, macOS GUI and image performance on longer real charts.
 
 Songs now has a catalogue-only native Sort draft: four public-field modes and segmented direction feed a stable, cached-row-independent comparator; `@AppStorage` persists only the applied preference. Put Sort in the native top toolbar on iOS 26 because the tested bottom-toolbar button overlapped the Liquid Glass tab and activated Leaderboards instead. Keep Apply/Cancel pinned at the sheet bottom while the Form scrolls Reset fully into view on an iPad. The focused iPhone 26.5 default/changed sheet passed `.all` accessibility audits; the iPad's full audit reported unnamed "Potentially inaccessible text" and remains pending even though Reset is demonstrably hittable after scrolling. The matched PWA phone/tablet Sort captures and the pending profile/shop modes are recorded in [the control spec](../controls/songs-sort.md); do not conflate this with full Songs parity.
+
+The public Item Shop GET is independently accessible: a bounded
+keyless native Swift read decoded 133 actual items (one New, one
+Leaving Tomorrow) with response provenance and validated official
+HTTPS URLs. `ShopScreen` pushes from Songs without adding a fourth
+compact tab. Use compact original-art rows on iPhone, full-art adaptive
+grid/list on iPad/macOS, but reflow to a list at accessibility text
+sizes; a clipped iPad grid artist prompted this rule. Keep official
+purchase and local Song Detail **separate actions**. Native selected
+iPhone/iPad loaded, empty, HTTP 503, Settings hide/highlight and actual
+warm-offline/cold-expiry cases pass; selected visible Shop `.all` audits
+pass after the strong-art fix. The PWA's wide sidebar Shop entry,
+WebSocket rotation, Shop badges in Songs/Detail, performance under
+many real images and macOS GUI remain pending. See [Shop](../pages/shop.md).
 
 For hosted macOS nested-route snapshots, a synchronous `ImageRenderer` of `NavigationStack` with a prefilled constant path can paint **only the brand surface** after hidden-page network tasks are correctly suppressed. Mount it in a real offscreen `NSHostingView`, allow navigation layout, and capture its bitmap instead; compare actual Detail and solo content, not two equally blank screenshots. These in-process view tests do not replace macOS GUI accessibility automation.
 

@@ -3,6 +3,7 @@ import Foundation
 /// A typed subset of service reads available without the privileged API key.
 public enum PublicEndpoint: Sendable {
     case songs
+    case shop
     case leaderboard(
         songId: String, instrument: String, top: Int = 25, offset: Int = 0, leeway: Double? = nil
     )
@@ -22,6 +23,8 @@ public enum PublicEndpoint: Sendable {
         switch self {
         case .songs:
             segments = ["api", "songs"]
+        case .shop:
+            segments = ["api", "shop"]
         case let .leaderboard(songId, instrument, top, offset, leeway):
             guard !songId.isEmpty, !instrument.isEmpty,
                   !songId.contains("/"), !instrument.contains("/"),
@@ -317,8 +320,15 @@ public actor FestivalAPI {
     func resourceURL(for endpoint: PublicEndpoint) throws -> URL {
         let resourceURL = try endpoint.url(relativeTo: baseURL)
         var components = URLComponents(url: resourceURL, resolvingAgainstBaseURL: false)
-        if case .songs = endpoint, let fixtureScenario {
-            components?.queryItems = [URLQueryItem(name: "scenario", value: fixtureScenario.rawValue)]
+        switch endpoint {
+        case .songs, .shop:
+            if let fixtureScenario {
+                components?.queryItems = [
+                    URLQueryItem(name: "scenario", value: fixtureScenario.rawValue)
+                ]
+            }
+        default:
+            break
         }
         guard let url = components?.url else {
             throw FestivalAPIError.invalidResource
@@ -448,10 +458,14 @@ public actor FestivalAPI {
             }
             throw FestivalAPIError.httpStatus(response.status)
         }
-        if case let .path(_, _, _, display, _) = endpoint,
-           response.data.count > 8_000_000 {
+        switch endpoint {
+        case .shop where response.data.count > 4_000_000:
+            throw FestivalAPIError.invalidShop
+        case let .path(_, _, _, display, _) where response.data.count > 8_000_000:
             throw display == .image
                 ? FestivalAPIError.invalidPathImage : FestivalAPIError.invalidPathData
+        default:
+            break
         }
         let responseId = Int(response.header("X-FST-Publication-Id") ?? "")
         if let responseId, responseId != publication.publicationId {

@@ -291,6 +291,9 @@ class AppleNativeMatrixTests(unittest.TestCase):
         score_options = fixture_options(["--unpinned", "--stop-after-first-score"])
         self.assertTrue(score_options["unpinned"])
         self.assertTrue(score_options["stopAfterFirstScore"])
+        shop_options = fixture_options(["--unpinned", "--stop-after-first-shop"])
+        self.assertTrue(shop_options["unpinned"])
+        self.assertTrue(shop_options["stopAfterFirstShop"])
         with self.assertRaisesRegex(MatrixError, "Unknown"):
             fixture_options(["--stop-after-first-songs"])
 
@@ -355,7 +358,7 @@ class AppleNativeMatrixTests(unittest.TestCase):
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
             with patch("tools.apple_native_matrix.start_fixture", side_effect=[
-                Mock(), Mock(), Mock(), Mock(),
+                Mock(), Mock(), Mock(), Mock(), Mock(),
             ]) as started, patch(
                 "tools.apple_native_matrix.stop_fixture"
             ) as stopped, patch(
@@ -372,8 +375,8 @@ class AppleNativeMatrixTests(unittest.TestCase):
                         baseline=file_hashes(ROOT, FIXTURE_INPUTS), env={},
                     )
                 self.assertEqual(result, root / "iphone.xcresult")
-                self.assertEqual(started.call_count, 4)
-                self.assertEqual(stopped.call_count, 4)
+                self.assertEqual(started.call_count, 5)
+                self.assertEqual(stopped.call_count, 5)
                 command = executed.call_args.args[0]
                 selectors = {
                     argument.removeprefix(
@@ -387,7 +390,7 @@ class AppleNativeMatrixTests(unittest.TestCase):
                 self.assertIn("-enableCodeCoverage", command)
 
     def test_partial_green_result_still_cleans_stateful_fixtures(self):
-        """Zero-test success must fail closed and terminate both owned listeners."""
+        """Zero-test success must fail closed and terminate all owned listeners."""
         summary = {
             "result": "Passed", "totalTestCount": 0, "passedTests": 0,
             "failedTests": 0, "skippedTests": 0,
@@ -400,7 +403,7 @@ class AppleNativeMatrixTests(unittest.TestCase):
         }
         with TemporaryDirectory() as temporary:
             with patch("tools.apple_native_matrix.start_fixture", side_effect=[
-                Mock(), Mock(), Mock(), Mock(),
+                Mock(), Mock(), Mock(), Mock(), Mock(),
             ]), patch(
                 "tools.apple_native_matrix.stop_fixture"
             ) as stopped, patch(
@@ -415,13 +418,13 @@ class AppleNativeMatrixTests(unittest.TestCase):
                     run_device("ipad", IPAD, Path(temporary),
                                expected_tests=["testWhiteArtworkExposedTextAccessibility"],
                                baseline=file_hashes(ROOT, FIXTURE_INPUTS), env={})
-                self.assertEqual(stopped.call_count, 4)
+                self.assertEqual(stopped.call_count, 5)
 
     def test_signal_while_xcode_runs_still_stops_both_fixtures(self):
-        """SIGTERM unwinds the device suite instead of leaving fixture children alive."""
+        """SIGTERM unwinds the device suite instead of leaving owned fixtures alive."""
         with TemporaryDirectory() as temporary:
             with patch("tools.apple_native_matrix.start_fixture", side_effect=[
-                Mock(), Mock(), Mock(), Mock(),
+                Mock(), Mock(), Mock(), Mock(), Mock(),
             ]), patch(
                 "tools.apple_native_matrix.stop_fixture"
             ) as stopped, patch(
@@ -436,7 +439,7 @@ class AppleNativeMatrixTests(unittest.TestCase):
                         expected_tests=["testWhiteArtworkExposedTextAccessibility"],
                         baseline=file_hashes(ROOT, FIXTURE_INPUTS), env={},
                     )
-                self.assertEqual(stopped.call_count, 4)
+                self.assertEqual(stopped.call_count, 5)
 
     def test_full_matrix_pairs_two_results_with_the_exact_coverage_gate(self):
         """The default run cannot claim success without invoking the existing gate."""

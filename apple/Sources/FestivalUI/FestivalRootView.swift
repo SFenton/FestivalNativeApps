@@ -24,6 +24,7 @@ public struct FestivalRootView: View {
     @AppStorage("fst.settings.showKaraoke") private var showKaraoke = true
     @AppStorage("fst.settings.showProCymbals") private var showProCymbals = true
     @AppStorage("fst.settings.showProDrums") private var showProDrums = true
+    @AppStorage("fst.settings.hideShop") private var hideShop = false
     @AppStorage("fst.accessibility.reduceMotion") private var reduceMotion = false
     @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
@@ -126,6 +127,15 @@ public struct FestivalRootView: View {
             if let songsInstrument, !shown.contains(songsInstrument) {
                 songsNotice = "\(songsInstrument.label) was hidden. Showing all instruments."
                 self.songsInstrument = nil
+            }
+        }
+        .onChange(of: hideShop) { _, hidden in
+            if hidden && songsPath.contains(where: {
+                if case .shop = $0 { return true }
+                return false
+            }) {
+                songsPath.removeAll()
+                songsNotice = "Item Shop was hidden. Returned to Songs."
             }
         }
     }

@@ -34,6 +34,7 @@ public enum FestivalAPIError: LocalizedError, Equatable, Sendable {
     case invalidCatalogue
     case invalidLeaderboard
     case invalidArtwork
+    case invalidShop
     case invalidPathData
     case invalidPathImage
     case httpStatus(Int)
@@ -55,6 +56,8 @@ public enum FestivalAPIError: LocalizedError, Equatable, Sendable {
             "That song or chart is unavailable."
         case .invalidArtwork:
             "Album artwork could not be displayed."
+        case .invalidShop:
+            "The Item Shop data could not be read. Try again."
         case .invalidPathData:
             "The path data could not be read. Try another chart or difficulty."
         case .invalidPathImage:

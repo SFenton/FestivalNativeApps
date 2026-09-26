@@ -73,6 +73,16 @@ final class FestivalSession {
         return payload
     }
 
+    /// Read the independent, publication-aware public Item Shop feed.
+    ///
+    /// - Returns: Validated current or explicitly stale Shop rows.
+    /// - Throws: Configuration, network, publication or invalid-shop errors.
+    func shop() async throws -> ShopPayload {
+        let result = try await client().shop()
+        try await observe(publicationId: result.observedPublicationId)
+        return result
+    }
+
     /// Reuse bounded, decoded art instead of decoding the same cover while scrolling.
     ///
     /// - Parameters:

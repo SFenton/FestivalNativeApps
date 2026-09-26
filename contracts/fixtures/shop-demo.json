@@ -1,0 +1,27 @@
+{
+  "count": 2,
+  "lastUpdated": "2026-09-25T00:00:00Z",
+  "newSongs": ["fixture-pulse"],
+  "songs": [
+    {
+      "songId": "fixture-pulse",
+      "title": "Fixture Pulse",
+      "artist": "Synthetic Quartet",
+      "year": 2026,
+      "albumArt": "/__fixture__/art/pulse.png",
+      "shopUrl": "https://www.fortnite.com/item-shop/jam-tracks/fixture-pulse",
+      "leavingTomorrow": false,
+      "isNew": true
+    },
+    {
+      "songId": "fixture-orbit",
+      "title": "Fixture Orbit",
+      "artist": "Synthetic Quartet",
+      "year": 2026,
+      "albumArt": "/__fixture__/art/orbit.png",
+      "shopUrl": "https://www.fortnite.com/item-shop/jam-tracks/fixture-orbit",
+      "leavingTomorrow": true,
+      "isNew": false
+    }
+  ]
+}

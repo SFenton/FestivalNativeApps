@@ -5,6 +5,190 @@ import UIKit
 final class FestivalMobileUITests: XCTestCase {
     // MARK: - Navigation and orientation
 
+    /// A public Shop feed opens without adding a fourth compact tab.
+    ///
+    /// - Throws: Missing real fixture offers, unsafe outbound action or broken Song Detail.
+    @MainActor
+    func testPublicShopOffersAndSongDetailNavigation() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launch()
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
+        openItemShop(in: app)
+        let leaving = app.descendants(matching: .any).matching(
+            identifier: "fst.shop.badge.leaving.fixture-orbit"
+        ).firstMatch
+        let fresh = app.descendants(matching: .any).matching(
+            identifier: "fst.shop.badge.new.fixture-pulse"
+        ).firstMatch
+        XCTAssertTrue(leaving.waitForExistence(timeout: 15))
+        XCTAssertTrue(fresh.exists)
+        let official = app.descendants(matching: .any).matching(
+            identifier: "fst.shop.external.fixture-pulse"
+        ).firstMatch
+        XCTAssertTrue(official.exists)
+        XCTAssertTrue(official.label.contains("Official Item Shop"))
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            let toggle = app.buttons["fst.shop.view-toggle"]
+            XCTAssertTrue(toggle.waitForExistence(timeout: 10))
+            let current = toggle.label
+            toggle.tap()
+            XCTAssertNotEqual(toggle.label, current)
+            toggle.tap()
+            XCTAssertEqual(toggle.label, current)
+        } else {
+            XCTAssertEqual(app.tabBars.buttons.count, 3)
+        }
+        record(app, name: "shop-populated-offers")
+        try app.performAccessibilityAudit(for: .all)
+        let detail = app.buttons["fst.shop.song.fixture-pulse"]
+        XCTAssertTrue(detail.waitForExistence(timeout: 10))
+        detail.tap()
+        XCTAssertTrue(app.staticTexts["Intensity"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["fst.song-detail.paths"].exists)
+    }
+
+    /// Empty Shop and a real service failure must never look like the same state.
+    ///
+    /// - Throws: Hidden empty text, silent HTTP error or unreadable Retry action.
+    @MainActor
+    func testPublicShopEmptyAndErrorStayDistinct() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "empty"
+        app.launch()
+        openItemShop(in: app)
+        XCTAssertTrue(app.staticTexts["No songs in the Item Shop"]
+            .waitForExistence(timeout: 15))
+        XCTAssertFalse(app.staticTexts["Item Shop unavailable"].exists)
+        record(app, name: "shop-genuinely-empty")
+        try app.performAccessibilityAudit(for: .all)
+
+        app.terminate()
+        app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "error"
+        app.launch()
+        openItemShop(in: app)
+        XCTAssertTrue(app.staticTexts["Item Shop unavailable"]
+            .waitForExistence(timeout: 15))
+        let retry = app.buttons["Retry"]
+        XCTAssertTrue(retry.isHittable)
+        record(app, name: "shop-service-error")
+        try app.performAccessibilityAudit(for: .all)
+    }
+
+    /// Show validated Shop offers after an actual listener loss, never after cold launch.
+    ///
+    /// - Throws: False freshness, hidden warm rows or disk-like cold-cache persistence.
+    @MainActor
+    func testHeaderlessShopOffersRemainReadableAfterConnectionLoss() async throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8773"
+        app.launch()
+        let row = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(row.waitForExistence(timeout: 15))
+        openItemShop(in: app)
+        collapseSidebarOnPad(app)
+        let offer = app.descendants(matching: .any).matching(
+            identifier: "fst.shop.external.fixture-pulse"
+        ).firstMatch
+        XCTAssertTrue(offer.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "label == %@",
+                "Showing live shop without publication verification"
+            )
+        ).firstMatch.exists)
+        record(app, name: "shop-art-before-disconnect")
+        try await assertShopArtworkVisible(in: app)
+        try await disconnectVisibleShopFixture()
+        try await awaitClosedFixture(port: 8773)
+
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        XCTAssertTrue(offer.waitForExistence(timeout: 10))
+        let back = app.navigationBars.buttons.firstMatch
+        XCTAssertTrue(back.exists)
+        back.tap()
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        openItemShop(in: app)
+        let offline = app.descendants(matching: .any)
+            .matching(identifier: "fst.shop.offline").firstMatch
+        XCTAssertTrue(offline.waitForExistence(timeout: 10))
+        XCTAssertEqual(offline.label, "Offline - last seen shop (publication unverified)")
+        XCTAssertTrue(offer.waitForExistence(timeout: 10))
+        try await assertShopArtworkVisible(in: app)
+        record(app, name: "shop-headerless-warm-offline")
+        try app.performAccessibilityAudit(for: .all)
+
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Songs unavailable"].waitForExistence(timeout: 15))
+        openItemShop(in: app)
+        XCTAssertTrue(app.staticTexts["Item Shop unavailable"].waitForExistence(timeout: 10))
+        XCTAssertFalse(offline.exists)
+        XCTAssertFalse(offer.exists)
+        record(app, name: "shop-headerless-cold-no-cache")
+    }
+
+    /// Settings hide/highlight switches change Shop controls without losing saved values.
+    ///
+    /// - Throws: Badges ignoring the setting, a hidden Shop action or lost preference.
+    @MainActor
+    func testPublicShopSettingsHideAndHighlightPropagation() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launch()
+        rootControl("Settings", app: app).tap()
+        let hidden = app.switches["fst.settings.hide-shop"]
+        reveal(hidden, in: app, scrollingUp: true)
+        let originalHidden = try XCTUnwrap(hidden.value as? String)
+        setSwitch(hidden, to: "0")
+        let highlights = app.switches["fst.settings.shop-highlights"]
+        reveal(highlights, in: app, scrollingUp: true)
+        let originalHighlights = try XCTUnwrap(highlights.value as? String)
+        setSwitch(highlights, to: "1")
+
+        rootControl("Songs", app: app).tap()
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
+        openItemShop(in: app)
+        let fresh = app.descendants(matching: .any).matching(
+            identifier: "fst.shop.badge.new.fixture-pulse"
+        ).firstMatch
+        XCTAssertTrue(fresh.waitForExistence(timeout: 15))
+        rootControl("Settings", app: app).tap()
+        reveal(highlights, in: app, scrollingUp: true)
+        setSwitch(highlights, to: "0")
+        rootControl("Songs", app: app).tap()
+        XCTAssertTrue(app.descendants(matching: .any).matching(
+            identifier: "fst.shop.external.fixture-pulse"
+        ).firstMatch.waitForExistence(timeout: 15))
+        XCTAssertFalse(fresh.exists, "Disabled highlighting left a New badge visible")
+
+        rootControl("Settings", app: app).tap()
+        reveal(hidden, in: app, scrollingUp: true)
+        setSwitch(hidden, to: "1")
+        XCTAssertFalse(highlights.isEnabled)
+        rootControl("Songs", app: app).tap()
+        XCTAssertTrue(app.staticTexts[
+            "Item Shop was hidden. Returned to Songs."
+        ].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["fst.songs.shop"].exists)
+        rootControl("Settings", app: app).tap()
+        reveal(hidden, in: app, scrollingUp: true)
+        setSwitch(hidden, to: "0")
+        reveal(highlights, in: app, scrollingUp: true)
+        setSwitch(highlights, to: originalHighlights)
+        setSwitch(hidden, to: originalHidden)
+    }
+
     /// Native Sort stages changes, persists rows and audits reachable modal text.
     ///
     /// - Throws: Wrong row order, silent discard, lost preference or visible contrast.
@@ -1294,6 +1478,27 @@ final class FestivalMobileUITests: XCTestCase {
 
     // MARK: - Evidence
 
+    /// Open Shop from the native Songs overflow while keeping three phone tabs.
+    ///
+    /// - Parameter app: Fixture app on the root Songs destination.
+    @MainActor
+    private func openItemShop(in app: XCUIApplication) {
+        let shop = app.buttons["fst.songs.shop"]
+        if !shop.isHittable {
+            let more = app.buttons.matching(
+                NSPredicate(format: "label CONTAINS[c] %@", "more")
+            ).firstMatch
+            XCTAssertTrue(more.waitForExistence(timeout: 10))
+            more.tap()
+        }
+        XCTAssertTrue(
+            shop.waitForExistence(timeout: 10),
+            "Shop action missing; toolbar controls: "
+                + "\(app.buttons.allElementsBoundByIndex.prefix(16).map(\.label))"
+        )
+        shop.tap()
+    }
+
     /// Scroll the modal Form until Reset is above the always-visible action footer.
     ///
     /// - Parameter app: Foreground Songs Sort sheet on phone or tablet.
@@ -1554,6 +1759,81 @@ final class FestivalMobileUITests: XCTestCase {
         return signature
     }
 
+    /// Prove original synthetic Shop stripes were actually painted before loss.
+    ///
+    /// - Parameter app: Loaded Shop page on a compact phone or regular tablet.
+    /// - Throws: Artwork still absent after visible rows or an invalid screenshot crop.
+    @MainActor
+    private func assertShopArtworkVisible(in app: XCUIApplication) async throws {
+        let tablet = UIDevice.current.userInterfaceIdiom == .pad
+        let item = app.descendants(matching: .any).matching(
+            identifier: tablet
+                ? "fst.shop.external.fixture-pulse"
+                : "fst.shop.song.fixture-pulse"
+        ).firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 10))
+        let frame = item.frame
+        let window = app.windows.firstMatch.frame
+        var spread = 0
+        var sample = [Int]()
+        var cropSize = CGSize.zero
+        for _ in 0..<30 {
+            let image = try XCTUnwrap(app.screenshot().image.cgImage)
+            let scaleX = Double(image.width) / window.width
+            let scaleY = Double(image.height) / window.height
+            let originX = frame.minX + (tablet ? 12 : 4)
+            let originY = tablet ? frame.minY + 12 : frame.midY - 8
+            let sampleWidth = tablet ? frame.width * 0.6 : min(44, frame.width / 4)
+            let crop = try XCTUnwrap(image.cropping(to: CGRect(
+                x: (originX - window.minX) * scaleX,
+                y: (originY - window.minY) * scaleY,
+                width: sampleWidth * scaleX, height: 16 * scaleY
+            ).integral))
+            let pixels = try bitmapPixels(crop)
+            cropSize = CGSize(width: crop.width, height: crop.height)
+            let greens = (0..<16).map { column -> Int in
+                let x = (column * crop.width + crop.width / 2) / 16
+                let offset = ((crop.height / 2) * crop.width + x) * 4
+                return Int(pixels[offset + 1])
+            }
+            sample = greens
+            spread = (greens.max() ?? 0) - (greens.min() ?? 0)
+            if spread > 15 { return }
+            try await Task.sleep(for: .milliseconds(200))
+        }
+        record(app, name: "shop-art-after-sampling")
+        let healthURL = URL(string: "http://127.0.0.1:8773/__fixture__/health")!
+        let listener: String
+        do {
+            let (_, response) = try await URLSession.shared.data(from: healthURL)
+            listener = "HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)"
+        } catch {
+            listener = error.localizedDescription
+        }
+        XCTFail(
+            "Original Shop artwork never painted; green spread \(spread), "
+                + "samples \(sample), crop \(cropSize), item \(frame), "
+                + "window \(window), listener \(listener)"
+        )
+    }
+
+    private struct ShopStopConfirmation: Decodable {
+        let stopping: Bool
+    }
+
+    /// Trigger only the fixture's one-shot loss after visible Shop artwork proof.
+    ///
+    /// - Throws: An unarmed listener, unexpected HTTP response or invalid acknowledgement.
+    @MainActor
+    private func disconnectVisibleShopFixture() async throws {
+        let url = try XCTUnwrap(
+            URL(string: "http://127.0.0.1:8773/__fixture__/shop-visible")
+        )
+        let (data, response) = try await URLSession.shared.data(from: url)
+        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+        XCTAssertTrue(try JSONDecoder().decode(ShopStopConfirmation.self, from: data).stopping)
+    }
+
     /// Require visible neutral-white fixture pixels after native 0.7 dimming.
     ///
     /// - Parameter app: Foreground page with one fixture-white artwork path.
@@ -1593,7 +1873,7 @@ final class FestivalMobileUITests: XCTestCase {
 
     /// Wait for an approved one-shot fixture to stop listening before offline actions.
     ///
-    /// - Parameter port: Loopback Songs or solo one-shot fixture (8771 or 8772).
+    /// - Parameter port: Loopback Songs, solo or Shop one-shot fixture (8771-8773).
     /// - Throws: Unexpected transport failure or listener that never closes.
     @MainActor
     private func awaitClosedFixture(port: Int) async throws {

@@ -41,9 +41,33 @@ source and a separate run emitted a zero-test result; the runner failed
 closed, and **only the affected product DerivedData** was cleaned
 before fresh iPhone/iPad exact test-name passes. No simulator was reset.
 
+The **Shop WIP** adds five focused `shopCatalog` Core tests (validated
+official outbound host/path, order/count/flags, ETag pinning,
+malformed/oversized byte rejection, unverified warm-only and cold
+expiry) plus the existing artwork generation-race regression.
+`tools/mock_service.py` serves two original offers with New/Leaving
+badges, explicit empty/503/white-art and a separate one-shot Shop
+listener. Targeted Python fixture/runner cases and two selected
+fixture-backed PWA WebKit phone/tablet Shop captures pass.
+`testPublicShopOffersAndSongDetailNavigation`,
+`testPublicShopEmptyAndErrorStayDistinct`,
+`testPublicShopSettingsHideAndHighlightPropagation` and
+`testHeaderlessShopOffersRemainReadableAfterConnectionLoss` cover
+Shop navigation, grid/list, real badge toggles, true empty/error,
+official-vs-native actions and cache provenance on serial iPhone/iPad.
+A screenshot-motif probe **first** confirms actual original artwork,
+then a *test-only loopback* acknowledgement closes port 8773; the same
+pixels and typed offers are asserted after warm reentry, but cannot
+survive cold process launch. This caught a real NSCache-only art loss:
+`ArtworkCache` now retains a strongly held 16 MB/64-URL process-only
+recent tier. Loaded/empty/error and warm-offline Shop screens pass
+selected unwaived iPhone/iPad `.all` audits after list reflow at
+accessibility text sizes. None of these selected cases is an all-state
+Shop, four-platform, full-source coverage or performance certification.
+
 The generated Swift `BrandTokens.swift` contains stored constants and has no executable LLVM lines; it is the sole explicit coverage exclusion. The gate fails if a future report shows executable lines in an excluded file, and `tools/generate_tokens.py --check` separately verifies every generated token byte. Do not exclude handwritten logic or views to make a percentage pass.
 
-For a repeatable **serial full device matrix** when the operator resumes full passes, run `python3 -m tools.apple_native_matrix --iphone-udid <FST-iPhone-ID> --iphone-os 26.5 --ipad-udid <FST-iPad-ID> --ipad-os 26.5 --evidence-dir <new-session-evidence-path>`. OS version arguments are required: an actual iOS 27 device once entered a purported 26.5 run; the runner now rejects a mismatch **before** starting fixtures, changing simulators or writing evidence. It acquires an exclusive host-wide matrix lock, discovers every current test method (excluding only the separately failing Duo pose), verifies FST device names/families, refuses any other booted simulator, starts with an already-booted product device and switches between product devices one at a time. It starts **fresh** 8767/8768, 8769, 8771 and 8772 fixtures for each suite; 8771 exits after one valid unpinned Songs response, but **8772 must allow Detail's top-ten preview and close only after the first successful top-25 chart**. The runner stops only fixture processes it launched. A pre-existing ordinary 8765 listener is reused **only** when its startup mock-source/JSON hashes, default launch flags and original white-song response match the frozen test inputs; a stale or unpinned service is rejected, not killed.
+For a repeatable **serial full device matrix** when the operator resumes full passes, run `python3 -m tools.apple_native_matrix --iphone-udid <FST-iPhone-ID> --iphone-os 26.5 --ipad-udid <FST-iPad-ID> --ipad-os 26.5 --evidence-dir <new-session-evidence-path>`. OS version arguments are required: an actual iOS 27 device once entered a purported 26.5 run; the runner now rejects a mismatch **before** starting fixtures, changing simulators or writing evidence. It acquires an exclusive host-wide matrix lock, discovers every current test method (excluding only the separately failing Duo pose), verifies FST device names/families, refuses any other booted simulator, starts with an already-booted product device and switches between product devices one at a time. It starts **fresh** 8767/8768, 8769, 8771, 8772 and **8773** fixtures for each suite; 8771 exits after one valid unpinned Songs response, **8772 allows Detail's top-ten preview then closes after the first top-25 chart**, and **8773 only closes after a validated Shop read and a test-only proof of painted Shop art**. The runner stops only fixture processes it launched. A pre-existing ordinary 8765 listener is reused **only** when its startup mock-source/JSON hashes, default launch flags and original white-song response match the frozen test inputs; a stale or unpinned service is rejected, not killed.
 
 The runner snapshots compiled Swift, UI-test source, Xcode project/**scheme**, fixture (including `contracts/fixtures/path-demo.json`) and coverage-gate inputs before the first suite and checks those hashes during and after the run. A full matrix supplies an explicit `-only-testing` selector for **every** discovered case except Duo: Xcode previously reported a green broad-suite run while silently omitting a newly added warm-offline test. It writes non-overwriting result bundles and separate iPhone/iPad fixture logs, verifies the **exact executed test-name set** as well as counts/device identity, then runs the paired executable-line gate above. Fixture logs suppress request URLs; Xcode build logs are **raw, local evidence**, not sanitized or suitable to share. If Xcode omits `FestivalUI` or any input drifts, the matrix **fails closed**; a passing Xcode process alone is not coverage evidence. An iPad Paths setting rerun produced **zero** device/test entries despite a green Xcode process; the runner rejected it, and an Xcode build-only clean of the dedicated product iPad derived-data path restored the exact case without restarting the simulator. For focused work, add `--device iphone --only-test testSoloScoresAtLargestTextSize --no-coverage-gate` with the same explicit UDID/OS arguments; the output says coverage was not certified. Do not point the runner at Home Assistant devices or production.
 

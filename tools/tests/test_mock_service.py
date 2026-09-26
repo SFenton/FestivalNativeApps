@@ -39,6 +39,7 @@ class MockServiceTests(unittest.TestCase):
             "failFirstWhiteCatalogue": False,
             "stopAfterFirstSongs": False,
             "stopAfterFirstScore": False,
+            "stopAfterFirstShop": False,
         })
         self.assertEqual(set(identity["sourceHashes"]), {
             "tools/mock_service.py",
@@ -46,6 +47,7 @@ class MockServiceTests(unittest.TestCase):
             "contracts/fixtures/songs-empty.json",
             "contracts/fixtures/songs-demo.json",
             "contracts/fixtures/path-demo.json",
+            "contracts/fixtures/shop-demo.json",
         })
         for name, digest in identity["sourceHashes"].items():
             self.assertEqual(
@@ -137,6 +139,44 @@ class MockServiceTests(unittest.TestCase):
             ("/api/paths/fixture-pulse/Solo_Guitar/medium/data", 404),
             ("/api/paths/fixture-pulse/Solo_PeripheralVocals/expert", 400),
             (base + "/data?generationId=fixture-path-generation&generationId=other", 400),
+        ):
+            with self.subTest(route=route), self.assertRaises(HTTPError) as failure:
+                urlopen(self.base + route)
+            self.assertEqual(failure.exception.code, expected)
+
+    def test_public_shop_feed_is_synthetic_pinned_and_explicit_on_errors(self):
+        """Shop badge states and every failure are distinct from an empty feed."""
+        with urlopen(self.base + "/api/shop") as response:
+            shop = json.load(response)
+            etag = response.headers["ETag"]
+            self.assertEqual(response.headers["X-FST-Publication-Id"], "7")
+        self.assertEqual(shop["count"], 2)
+        self.assertEqual(sum(song["isNew"] for song in shop["songs"]), 1)
+        self.assertEqual(sum(song["leavingTomorrow"] for song in shop["songs"]), 1)
+        self.assertTrue(all(
+            song["shopUrl"].startswith("https://www.fortnite.com/item-shop/jam-tracks/")
+            for song in shop["songs"]
+        ))
+        request = Request(self.base + "/api/shop", headers={"If-None-Match": etag})
+        with self.assertRaises(HTTPError) as cached:
+            urlopen(request)
+        self.assertEqual(cached.exception.code, 304)
+        self.assertEqual(cached.exception.headers["X-FST-Publication-Id"], "7")
+        request = Request(self.base + "/api/shop", headers={"X-FST-Publication-Id": "6"})
+        with self.assertRaises(HTTPError) as stale:
+            urlopen(request)
+        self.assertEqual(stale.exception.code, 409)
+        with urlopen(self.base + "/api/shop?scenario=empty") as response:
+            self.assertEqual(json.load(response)["count"], 0)
+        with urlopen(self.base + "/api/shop?scenario=art-white") as response:
+            self.assertEqual(
+                json.load(response)["songs"][0]["albumArt"],
+                "/__fixture__/art/white.png"
+            )
+        for route, expected in (
+            ("/api/shop?scenario=error", 503),
+            ("/api/shop?scenario=unknown", 400),
+            ("/api/shop?scenario=empty&scenario=demo", 400),
         ):
             with self.subTest(route=route), self.assertRaises(HTTPError) as failure:
                 urlopen(self.base + route)
@@ -305,6 +345,45 @@ class MockServiceTests(unittest.TestCase):
             self.assertFalse(thread.is_alive(), "Chart fixture did not stop after its response")
         with self.assertRaises(URLError):
             urlopen(base + "/api/leaderboard/fixture-pulse/Solo_Guitar", timeout=2)
+
+    def test_unpinned_one_shot_shop_stops_after_valid_feed_only(self):
+        """A Shop-only listener must leave Songs and invalid queries usable first."""
+        with FixtureServer(
+            ("127.0.0.1", 0), FixtureHandler,
+            unpinned=True, stop_after_first_shop=True,
+        ) as server:
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = f"http://127.0.0.1:{server.server_port}"
+            with urlopen(base + "/api/publication") as response:
+                self.assertFalse(json.load(response)["pinningEnabled"])
+            with urlopen(base + "/api/songs") as response:
+                self.assertEqual(json.load(response)["count"], 2)
+            with self.assertRaises(HTTPError) as invalid:
+                urlopen(base + "/api/shop?scenario=unknown")
+            self.assertEqual(invalid.exception.code, 400)
+            with self.assertRaises(HTTPError) as unarmed:
+                urlopen(base + "/__fixture__/shop-visible")
+            self.assertEqual(unarmed.exception.code, 409)
+            with urlopen(base + "/__fixture__/health") as response:
+                self.assertTrue(json.load(response)["ready"])
+            with urlopen(base + "/api/shop") as response:
+                self.assertEqual(json.load(response)["count"], 2)
+                self.assertIsNone(response.headers.get("X-FST-Publication-Id"))
+            with urlopen(base + "/__fixture__/health") as response:
+                self.assertTrue(json.load(response)["ready"])
+            with urlopen(base + "/__fixture__/art/pulse.png") as response:
+                self.assertEqual(response.read()[:8], b"\x89PNG\r\n\x1a\n")
+            with urlopen(base + "/__fixture__/health") as response:
+                self.assertTrue(json.load(response)["ready"])
+            with urlopen(base + "/__fixture__/art/orbit.png") as response:
+                self.assertEqual(response.read()[:8], b"\x89PNG\r\n\x1a\n")
+            with urlopen(base + "/__fixture__/shop-visible") as response:
+                self.assertTrue(json.load(response)["stopping"])
+            thread.join(timeout=3)
+            self.assertFalse(thread.is_alive(), "The Shop listener stayed online")
+        with self.assertRaises(URLError):
+            urlopen(base + "/api/shop", timeout=2)
 
 
 if __name__ == "__main__":

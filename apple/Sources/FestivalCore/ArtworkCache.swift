@@ -15,6 +15,11 @@ public actor ArtworkCache {
 
     private let transport: any HTTPTransport
     private let images = NSCache<NSURL, NSData>()
+    private var retained: [URL: Data] = [:]
+    private var retainedRecency: [URL] = []
+    private var retainedBytes = 0
+    private let retainedByteLimit: Int
+    private let retainedEntryLimit = 64
     private var inFlight: [URL: Download] = [:]
     private var generation = 0
 
@@ -29,12 +34,16 @@ public actor ArtworkCache {
     ) {
         self.transport = transport
         images.totalCostLimit = max(1, memoryLimit)
+        retainedByteLimit = max(1, min(memoryLimit, 16_000_000))
     }
 
     /// Discard old art when the observed service publication advances.
     public func clearForPublicationChange() {
         generation += 1
         images.removeAllObjects()
+        retained.removeAll()
+        retainedRecency.removeAll()
+        retainedBytes = 0
         for download in inFlight.values {
             download.task.cancel()
         }
@@ -48,8 +57,15 @@ public actor ArtworkCache {
     /// - Throws: Network, HTTP or artwork validation failures.
     public func load(_ url: URL) async throws -> ArtworkPayload {
         try Task.checkCancellation()
+        if let bytes = retained[url] {
+            retainedRecency.removeAll { $0 == url }
+            retainedRecency.append(url)
+            return ArtworkPayload(data: bytes, fromMemory: true)
+        }
         if let cached = images.object(forKey: url as NSURL) {
-            return ArtworkPayload(data: cached as Data, fromMemory: true)
+            let bytes = cached as Data
+            remember(bytes, for: url)
+            return ArtworkPayload(data: bytes, fromMemory: true)
         }
         let observedGeneration = generation
         let download: Download
@@ -79,6 +95,7 @@ public actor ArtworkCache {
             guard generation == observedGeneration else { throw CancellationError() }
             try Task.checkCancellation()
             images.setObject(data as NSData, forKey: url as NSURL, cost: data.count)
+            remember(data, for: url)
             if inFlight[url]?.token == download.token {
                 inFlight[url] = nil
             }
@@ -88,6 +105,28 @@ public actor ArtworkCache {
                 inFlight[url] = nil
             }
             throw error
+        }
+    }
+
+    /// Keep recent validated art strongly across backgrounding; NSCache alone may evict it.
+    ///
+    /// - Parameters:
+    ///   - data: Already-validated bytes no larger than one allowed image response.
+    ///   - url: Exact CDN or loopback artwork URL.
+    private func remember(_ data: Data, for url: URL) {
+        if let old = retained.removeValue(forKey: url) {
+            retainedBytes -= old.count
+            retainedRecency.removeAll { $0 == url }
+        }
+        guard data.count <= retainedByteLimit else { return }
+        retained[url] = data
+        retainedBytes += data.count
+        retainedRecency.append(url)
+        while retained.count > retainedEntryLimit || retainedBytes > retainedByteLimit {
+            let oldest = retainedRecency.removeFirst()
+            if let evicted = retained.removeValue(forKey: oldest) {
+                retainedBytes -= evicted.count
+            }
         }
     }
 }

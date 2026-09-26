@@ -128,12 +128,11 @@ struct SettingsScreen: View {
                 Text("Accessibility").foregroundStyle(BrandTokens.textSecondary)
             }
             Section {
-                Text("Item Shop is not yet available in the native app.")
+                Text("Hiding the shop also hides its entry. Your highlight preference is retained.")
                     .font(.footnote)
                     .foregroundStyle(BrandTokens.textSecondary)
                 Toggle("Hide Item Shop", isOn: $hideShop)
-                    .disabled(true)
-                    .accessibilityHint("Item Shop is not yet available")
+                    .accessibilityIdentifier("fst.settings.hide-shop")
                 Toggle(
                     "Highlight Shop Items",
                     isOn: Binding(
@@ -141,8 +140,8 @@ struct SettingsScreen: View {
                         set: { disableShopHighlighting = !$0 }
                     )
                 )
-                .disabled(true)
-                .accessibilityHint("Item Shop is not yet available")
+                .disabled(hideShop)
+                .accessibilityIdentifier("fst.settings.shop-highlights")
             } header: {
                 Text("Item Shop").foregroundStyle(BrandTokens.textSecondary)
             }

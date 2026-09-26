@@ -9,6 +9,7 @@ enum OfflineDisclosure {
         case songs
         case scores
         case paths
+        case shop
     }
 
     /// Name the source of an offline page without promoting observed IDs to proof.
@@ -25,12 +26,16 @@ enum OfflineDisclosure {
             "Offline - last seen scores (publication unverified)"
         case (.paths, nil):
             "Offline - last seen paths (publication unverified)"
+        case (.shop, nil):
+            "Offline - last seen shop (publication unverified)"
         case (.songs, .some):
             "Offline - showing cached songs"
         case (.scores, .some):
             "Offline - showing cached scores"
         case (.paths, .some):
             "Offline - showing cached paths"
+        case (.shop, .some):
+            "Offline - showing cached shop"
         }
     }
 }
@@ -114,6 +119,7 @@ struct ServiceUnavailableView: View {
 enum SongRoute: Hashable {
     case detail(Song)
     case leaderboard(Song, Instrument, Int)
+    case shop
 }
 
 /// Songs, Detail and solo scores share one scene-owned navigation path.
@@ -165,7 +171,8 @@ struct SongNavigationRoot: View {
                 session: session, searchText: $searchText, settledSearch: $settledSearch,
                 selectedInstrument: $selectedInstrument, navigationNotice: $navigationNotice,
                 visibleInstruments: visibleInstruments, highContrast: highContrast,
-                isVisible: isVisible && path.isEmpty
+                isVisible: isVisible && path.isEmpty,
+                openShop: { path.append(.shop) }
             )
                 .navigationDestination(for: SongRoute.self) { route in
                     switch route {
@@ -177,6 +184,10 @@ struct SongNavigationRoot: View {
                         SoloLeaderboardScreen(
                             song: song, instrument: instrument,
                             session: session, initialPage: page, path: $path
+                        )
+                    case .shop:
+                        ShopScreen(
+                            session: session, isVisible: isVisible && path.last == .shop
                         )
                     }
                 }
@@ -192,6 +203,7 @@ struct SongsScreen: View {
     let visibleInstruments: Set<Instrument>
     let highContrast: Bool
     let isVisible: Bool
+    let openShop: (() -> Void)?
     @State private var state: LoadState
     @Binding private var searchText: String
     @Binding private var settledSearch: String
@@ -201,6 +213,7 @@ struct SongsScreen: View {
     @State private var sortPresented = false
     @AppStorage("fst.songs.sortMode") private var sortMode = SongSortMode.title
     @AppStorage("fst.songs.sortAscending") private var sortAscending = true
+    @AppStorage("fst.settings.hideShop") private var hideShop = false
     @FocusState private var searchFocused: Bool
 
     enum LoadState {
@@ -233,12 +246,14 @@ struct SongsScreen: View {
         selectedInstrument: Binding<Instrument?> = .constant(nil),
         navigationNotice: Binding<String?> = .constant(nil),
         visibleInstruments: Set<Instrument> = Set(Instrument.allCases),
-        highContrast: Bool = false, isVisible: Bool = true
+        highContrast: Bool = false, isVisible: Bool = true,
+        openShop: (() -> Void)? = nil
     ) {
         self.session = session
         self.visibleInstruments = visibleInstruments
         self.highContrast = highContrast
         self.isVisible = isVisible
+        self.openShop = openShop
         _state = State(initialValue: initialState)
         _refreshFailure = State(initialValue: initialRefreshError)
         _searchText = searchText
@@ -382,6 +397,16 @@ struct SongsScreen: View {
                 .accessibilityIdentifier("fst.songs.instrument-filter")
             }
             ToolbarItem(placement: .primaryAction) { sortAction }
+            if !hideShop, let openShop {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        openShop()
+                    } label: {
+                        Label("Item Shop", systemImage: "bag")
+                    }
+                    .accessibilityIdentifier("fst.songs.shop")
+                }
+            }
         }
         .sheet(isPresented: $sortPresented) {
             SongsSortSheet(mode: sortMode, ascending: sortAscending) { mode, order in

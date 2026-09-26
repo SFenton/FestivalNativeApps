@@ -45,12 +45,16 @@ enum ScoreScenario: CaseIterable, Sendable {
             == "Offline - last seen scores (publication unverified)")
     #expect(OfflineDisclosure.label(.paths, publicationId: nil)
             == "Offline - last seen paths (publication unverified)")
+    #expect(OfflineDisclosure.label(.shop, publicationId: nil)
+            == "Offline - last seen shop (publication unverified)")
     #expect(OfflineDisclosure.label(.songs, publicationId: 7)
             == "Offline - showing cached songs")
     #expect(OfflineDisclosure.label(.scores, publicationId: 7)
             == "Offline - showing cached scores")
     #expect(OfflineDisclosure.label(.paths, publicationId: 7)
             == "Offline - showing cached paths")
+    #expect(OfflineDisclosure.label(.shop, publicationId: 7)
+            == "Offline - showing cached shop")
 }
 
 /// Decode fixtures using the same strict wire models as the native app.

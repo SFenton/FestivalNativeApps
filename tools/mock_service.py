@@ -42,15 +42,18 @@ PUBLICATION, PUBLICATION_HASH = load_fixture("publication")
 EMPTY_SONGS, EMPTY_SONGS_HASH = load_fixture("songs-empty")
 DEMO_SONGS, DEMO_SONGS_HASH = load_fixture("songs-demo")
 PATH_DEMO, PATH_DEMO_HASH = load_fixture("path-demo")
+SHOP_DEMO, SHOP_DEMO_HASH = load_fixture("shop-demo")
 SOURCE_HASHES = {
     "tools/mock_service.py": hashlib.sha256(Path(__file__).resolve().read_bytes()).hexdigest(),
     "contracts/fixtures/publication.json": PUBLICATION_HASH,
     "contracts/fixtures/songs-empty.json": EMPTY_SONGS_HASH,
     "contracts/fixtures/songs-demo.json": DEMO_SONGS_HASH,
     "contracts/fixtures/path-demo.json": PATH_DEMO_HASH,
+    "contracts/fixtures/shop-demo.json": SHOP_DEMO_HASH,
 }
 SONGS_ETAG = '"fst-fixture-songs-v1"'
 EMPTY_ETAG = '"fst-fixture-empty-v1"'
+SHOP_ETAG = '"fst-fixture-shop-v1"'
 LEADERBOARD = re.compile(r"^/api/leaderboard/(fixture-[a-z]+)/([A-Za-z_]+)$")
 PATH_ARTIFACT = re.compile(
     r"^/api/paths/(fixture-[a-z]+)/([A-Za-z_]+)/([a-z]+)(/data)?$"
@@ -70,7 +73,8 @@ class FixtureServer(ThreadingHTTPServer):
         *, unpinned: bool = False, rollover_on_read: int | None = None,
         fail_first_white_catalogue: bool = False,
         stop_after_first_songs: bool = False,
-        stop_after_first_score: bool = False
+        stop_after_first_score: bool = False,
+        stop_after_first_shop: bool = False
     ) -> None:
         """Create a deterministic, request-count-driven service fixture.
 
@@ -82,6 +86,7 @@ class FixtureServer(ThreadingHTTPServer):
             fail_first_white_catalogue: Fail one white-art catalogue read, then recover.
             stop_after_first_songs: Stop this mock listener after its first successful Songs read.
             stop_after_first_score: Stop after the first successful full 25-row chart read.
+            stop_after_first_shop: Stop after one Shop feed and explicit visual acknowledgement.
         """
         self.unpinned = unpinned
         self.rollover_on_read = rollover_on_read
@@ -92,6 +97,7 @@ class FixtureServer(ThreadingHTTPServer):
             "failFirstWhiteCatalogue": fail_first_white_catalogue,
             "stopAfterFirstSongs": stop_after_first_songs,
             "stopAfterFirstScore": stop_after_first_score,
+            "stopAfterFirstShop": stop_after_first_shop,
         }
         self._publication_reads = 0
         self._publication_id = 7
@@ -100,6 +106,8 @@ class FixtureServer(ThreadingHTTPServer):
         self._fail_first_white_catalogue = fail_first_white_catalogue
         self._stop_after_first_songs = stop_after_first_songs
         self._stop_after_first_score = stop_after_first_score
+        self._stop_after_first_shop = stop_after_first_shop
+        self._shop_read_succeeded = False
         self._lock = threading.Lock()
         super().__init__(address, handler)
 
@@ -184,6 +192,23 @@ class FixtureServer(ThreadingHTTPServer):
             should_stop = self._stop_after_first_score
             self._stop_after_first_score = False
             return should_stop
+
+    def record_shop_read(self) -> None:
+        """Arm a visual-confirmed connection loss after one valid Shop feed."""
+        with self._lock:
+            self._shop_read_succeeded = True
+
+    def acknowledge_visible_shop(self) -> bool:
+        """Stop only after the test has seen the loaded offer and artwork.
+
+        Returns:
+            True once for the first validated Shop feed, never before it.
+        """
+        with self._lock:
+            if self._stop_after_first_shop and self._shop_read_succeeded:
+                self._stop_after_first_shop = False
+                return True
+            return False
 
 
 def fixture_png(width: int, height: int, rows: list[bytes]) -> bytes:
@@ -368,10 +393,49 @@ class FixtureHandler(BaseHTTPRequestHandler):
             self._json(200, {"last": self.fixture.last_score_query()})
         elif path == "/__fixture__/last-full-score-query":
             self._json(200, {"last": self.fixture.last_full_score_query()})
+        elif path == "/__fixture__/shop-visible":
+            if self.fixture.acknowledge_visible_shop():
+                self._json(200, {"stopping": True})
+                print("Shop fixture stopped after visual acknowledgement", flush=True)
+                self.fixture.shutdown()
+            else:
+                self._json(409, {"status": "shop_not_ready"})
         elif path == "/api/publication":
             self._json(200, self.fixture.publication())
         elif path == "/api/features":
             self._json(200, {"appManual": False})
+        elif path == "/api/shop":
+            scenarios = query.get("scenario", ["demo"])
+            if len(scenarios) != 1 or scenarios[0] not in (
+                "demo", "empty", "error", "art-error", "art-skip", "art-white"
+            ):
+                self._json(400, {"status": "unknown_fixture_scenario"})
+                return
+            if scenarios[0] == "error":
+                self._json(503, {"status": "fixture_shop_unavailable"})
+                return
+            if scenarios[0] == "empty":
+                shop, etag = {
+                    "count": 0, "songs": [], "newSongs": [], "lastUpdated": None,
+                }, '"fst-fixture-shop-empty-v1"'
+            elif scenarios[0] == "art-white":
+                shop, etag = {
+                    **SHOP_DEMO,
+                    "songs": [
+                        {**SHOP_DEMO["songs"][0], "albumArt": "/__fixture__/art/white.png"},
+                        SHOP_DEMO["songs"][1],
+                    ],
+                }, '"fst-fixture-shop-white-v1"'
+            else:
+                shop, etag = SHOP_DEMO, SHOP_ETAG
+            pin = self.headers.get("X-FST-Publication-Id")
+            if pin is not None and pin != str(self.fixture.publication_id):
+                self._json(409, {"status": "publication_changed"})
+            elif self.headers.get("If-None-Match") == etag:
+                self._json(304, None, etag=etag)
+            else:
+                self._json(200, shop, etag=etag)
+                self.fixture.record_shop_read()
         elif path in (
             "/__fixture__/art/pulse.png", "/__fixture__/art/orbit.png",
             "/__fixture__/art/white.png",
@@ -438,6 +502,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
             else:
                 self._json(200, songs, etag=etag)
                 if self.fixture.should_stop_after_songs():
+                    print("Songs fixture stopped after validated catalogue", flush=True)
                     self.fixture.shutdown()
         elif match := PATH_ARTIFACT.fullmatch(path):
             song_id, instrument, difficulty, data_route = match.groups()
@@ -525,6 +590,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 "showLeaderboardEntryTotals": True, "entries": entries,
             })
             if self.fixture.should_stop_after_score(top):
+                print("Scores fixture stopped after full chart", flush=True)
                 self.fixture.shutdown()
         else:
             self._json(404, {"status": "not_found"})
@@ -564,22 +630,28 @@ def main() -> None:
     parser.add_argument("--fail-first-white-catalogue", action="store_true")
     parser.add_argument("--stop-after-first-songs", action="store_true")
     parser.add_argument("--stop-after-first-score", action="store_true")
+    parser.add_argument("--stop-after-first-shop", action="store_true")
     args = parser.parse_args()
     if not 1 <= args.port <= 65535:
         parser.error("port must be between 1 and 65535")
     if args.rollover_on_read is not None and args.rollover_on_read < 2:
         parser.error("rollover-on-read must be at least 2")
-    if args.stop_after_first_songs or args.stop_after_first_score:
+    one_shot_count = sum((
+        args.stop_after_first_songs, args.stop_after_first_score,
+        args.stop_after_first_shop,
+    ))
+    if one_shot_count:
         if not args.unpinned:
             parser.error("one-shot offline fixtures require --unpinned")
-        if args.stop_after_first_songs and args.stop_after_first_score:
+        if one_shot_count > 1:
             parser.error("choose one endpoint for the one-shot connection loss")
     with FixtureServer(
         ("127.0.0.1", args.port), FixtureHandler,
         unpinned=args.unpinned, rollover_on_read=args.rollover_on_read,
         fail_first_white_catalogue=args.fail_first_white_catalogue,
         stop_after_first_songs=args.stop_after_first_songs,
-        stop_after_first_score=args.stop_after_first_score
+        stop_after_first_score=args.stop_after_first_score,
+        stop_after_first_shop=args.stop_after_first_shop
     ) as server:
         print(f"Read-only fixture service on 127.0.0.1:{server.server_port}", flush=True)
         server.serve_forever()

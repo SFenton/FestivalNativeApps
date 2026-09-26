@@ -34,6 +34,7 @@ SERVICE_PORT = 8765
 RECOVERY_PORT = 8769
 OFFLINE_PORT = 8771
 SCORE_OFFLINE_PORT = 8772
+SHOP_OFFLINE_PORT = 8773
 ROLLOVER_PORTS = {"iphone": 8767, "ipad": 8768}
 DEVICE_FAMILIES = {"iphone": "iPhone", "ipad": "iPad"}
 LOCK_FILE = Path("/tmp/festival-native-matrix.lock")
@@ -43,6 +44,7 @@ FIXTURE_INPUTS = (
     "contracts/fixtures/songs-empty.json",
     "contracts/fixtures/songs-demo.json",
     "contracts/fixtures/path-demo.json",
+    "contracts/fixtures/shop-demo.json",
 )
 REQUIRED_INPUTS = (
     *FIXTURE_INPUTS,
@@ -413,6 +415,7 @@ def fixture_options(flags: list[str]) -> dict[str, bool | int | None]:
         "failFirstWhiteCatalogue": False,
         "stopAfterFirstSongs": False,
         "stopAfterFirstScore": False,
+        "stopAfterFirstShop": False,
     }
     if flags == []:
         return options
@@ -424,6 +427,8 @@ def fixture_options(flags: list[str]) -> dict[str, bool | int | None]:
         return dict(options, unpinned=True, stopAfterFirstSongs=True)
     if flags == ["--unpinned", "--stop-after-first-score"]:
         return dict(options, unpinned=True, stopAfterFirstScore=True)
+    if flags == ["--unpinned", "--stop-after-first-shop"]:
+        return dict(options, unpinned=True, stopAfterFirstShop=True)
     raise MatrixError("Unknown or non-deterministic local fixture flags")
 
 
@@ -668,6 +673,7 @@ def run_device(
             (RECOVERY_PORT, ["--fail-first-white-catalogue"]),
             (OFFLINE_PORT, ["--unpinned", "--stop-after-first-songs"]),
             (SCORE_OFFLINE_PORT, ["--unpinned", "--stop-after-first-score"]),
+            (SHOP_OFFLINE_PORT, ["--unpinned", "--stop-after-first-shop"]),
         ):
             process = start_fixture(
                 port, flags, evidence, label=device, expected_hashes=fixture_hashes

@@ -13,12 +13,20 @@
       "sha256": "87accac790a244f2b64412951ff5cebddf0ae255afa86592f7ae52d9a432cc16",
       "status": "committed"
     },
+    "FSTService/Api/ShopCacheService.cs": {
+      "sha256": "e201a47963ae0c1d75437357b3b7a0e03ce47780f6908e987975a7dff6757d97",
+      "status": "committed"
+    },
     "FSTService/Api/SongEndpoints.cs": {
       "sha256": "0bc0cc79899651334a846ea9698fc3ac01f7d19f582db8367d9d219127ad61e1",
       "status": "committed"
     },
     "FSTService/Api/SongsCacheService.cs": {
       "sha256": "a262c806bba550e8275bf1901a18cee2bb2723709fdd5e6f872842186f5314a2",
+      "status": "committed"
+    },
+    "FSTService/Scraping/ShopUrlHelper.cs": {
+      "sha256": "a2942893787024f4287f5b43f5d26821d027090992843cebe9f27e0a2d5ba348",
       "status": "committed"
     },
     "FortniteFestivalWeb/src/App.tsx": {
