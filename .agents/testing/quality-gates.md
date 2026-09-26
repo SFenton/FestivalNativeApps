@@ -185,3 +185,67 @@ For the **initial Songs 503 → same-publication Settings success → recovered 
 The separate **explicitly opt-in live contract probe** is `bash tools/apple_live_service_smoke.sh --read-public-live`. It builds and uses `FestivalCore` to request exactly one public publication, the Songs catalogue and **ten rows** of one playable Lead chart, printing only aggregate counts and response provenance. It makes no profile POSTs, admin calls, artwork requests or privileged-key requests; never run it in automated fixture/coverage suites. On 2026-09-25 it decoded 728 live Songs and a ten-row preview (the previous WIP version of this probe had requested 25), and a native Debug iPhone26.5 app independently rendered real Songs and artwork. Bounded reads of deployed other nominally-public account/band search, rankings and batched song leaderboard returned HTTP 403; a ranking response named **Cloudflare Error 1010: Access denied**. Resolve authorized edge access for native public clients before describing profile or Leaderboards as live; do not spoof headers or ship the privileged service key. These are bounded production read observations, **not** permission for scraping or an assertion that service data and pinning states stay fixed.
 
 The unpinned server omits publication response headers. **Only typed and validated** Songs/chart bytes may enter the separate 16 MB/128-entry process-only `unverifiedSnapshot`; warm-offline display must say publication **unverified**. Raw invalid bytes and operational data do not enter the new snapshot channel, and a canceled network failure cannot return offline success. An unpinned bootstrap that becomes pinning-enabled at the same ID must no longer use an unverified offline snapshot. The empty catalogue is **synthetic**, not yet a verified copy of the service wire format; replace it with fixture-verified raw data before marking Songs implemented. Never point automations at production.
+
+The **profile-selector WIP** uses original synthetic `player-demo.json`
+and mock account-search/player-profile GETs that distinguish
+200-empty, 202-syncing and 403 under a publication-pinned player
+read; any selected-profile header
+or privileged key is rejected by the local fixture, and every POST
+returns 405. `FST_UI_TEST_CLEAR_PROFILE=1` is a Debug-only launch
+override for **this app's selected identity key**, not a simulator
+reset or a production preference mutation. The two exact paired
+iPhone/iPadOS 26.5 profile matrices passed 3/3 per device:
+search/view/select/switch/deselect plus Settings/cold restore/error
+states, then all-root profile actions plus the Paths sidebar
+transition. The scripts freeze compiled Swift, XCTest methods and
+the profile JSON hash and reject missing test names. A targeted run
+uses `--no-coverage-gate`, so neither its Swift non-UX 95% nor UX
+90% line bar was established. A later fixture-only source
+WebKit comparison passed 2/2 at phone/tablet widths, and
+two native Retry cases passed 2/2 on both devices: populated
+results hide Retry; empty/error states show it. One unwaived
+iPhone selected preview/Songs `.all` audit passed. Named
+visible iPad text measures at least 4.5:1, but iPad `.all`
+still reports unnamed "Potentially inaccessible text"
+and focus bounds remain unverified. Largest-text Select
+glyphs grow >1.35x on both devices with reachable sheet
+actions. None of these targeted checks certifies pixel
+parity, all-state accessibility, band access, a live
+profile or the complete Songs/coverage gates.
+
+A matching XCTest method name does **not** prove its
+new source body executed: Xcode once ran an older screenshot
+body under the correct name without producing the new
+capture. The serial matrix now records a SHA-256 of
+`FestivalMobileUITests.swift` in each dedicated product's
+DerivedData only after exact executed case names, result
+counts and simulator identity pass. On absent/drifted
+source hash it **invalidates the old marker before**
+running `xcodebuild clean` against **that product's
+build output only**, not simulator data. A failed
+H2 attempt followed by a return to H1 must clean
+again rather than trusting H1's stale stamp. It
+promotes no marker on failed execution; a matching
+hash skips the extra clean. Focused Python
+runner tests pass 23/23; an earlier paired 2/2
+run confirmed iPhone reused its matching hash without
+a clean while iPad performed its first scoped clean,
+then both markers matched actual UITest bytes. Keep
+raw build logs and PWA/native screenshots in private
+session evidence, not in committed docs. Every new
+`XCUIApplication` for the fixture suites now comes from
+one helper that sets the Debug identity-clear flag; only
+the explicit in-test cold relaunch removes it to verify
+identity-only persistence. Do not clear full simulator
+storage or mistake failed-test preference leaks for a
+valid anonymous screenshot.
+A later, separately frozen 7/7-per-device iPad→iPhone
+run passed two new journeys that prove actual fresh
+fixture launch isolation and anonymous Intensity
+meter hide/restore, alongside selected score,
+cold-restore, error/syncing and existing Detail
+regressions. The UITest marker matched current
+source on **both** devices only after their scoped
+Xcode test-product cleans. This targeted run also
+used `--no-coverage-gate`; do not infer 95%/90%
+line coverage or full iPad VoiceOver focus bounds.

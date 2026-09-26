@@ -97,6 +97,10 @@
       "sha256": "80e1b24f62498a713a7892ea20adbeeaccab7b4932cbc8a5ad672ddbcacd8522",
       "status": "committed"
     },
+    "FortniteFestivalWeb/src/components/display/InstrumentIcons.tsx": {
+      "sha256": "51dcd9706c98a9f95b9546a7fb68d7dde7da84868dde70a66a935584bc9664e7",
+      "status": "committed"
+    },
     "FortniteFestivalWeb/src/components/firstRun/FirstRunCarousel.tsx": {
       "sha256": "dad49ed34d9e2c5fd21a8346a5c606d40b5624b49383566207be6157e0de42e9",
       "status": "modified"
@@ -117,6 +121,14 @@
       "sha256": "70201a9235b293a63b4d7aaec11a93c5bef99aab27beee1bb07b03aecc101584",
       "status": "modified"
     },
+    "FortniteFestivalWeb/src/components/shell/HeaderActions.tsx": {
+      "sha256": "15b2487bcc3feb1af0831572384403d248cd796f181878596cfe5e1af65cfaef",
+      "status": "modified"
+    },
+    "FortniteFestivalWeb/src/components/shell/desktop/PinnedSidebar.tsx": {
+      "sha256": "ac418cdd6b7bb77c38bdc368640dae473ac54125c7a6af45234005d6eec891fe",
+      "status": "committed"
+    },
     "FortniteFestivalWeb/src/components/shell/mobile/BottomNav.tsx": {
       "sha256": "0948890156cbafcf6dd7ee4deef2472d53604725a38b94dc05b07bec347bb79b",
       "status": "modified"
@@ -127,6 +139,10 @@
     },
     "FortniteFestivalWeb/src/components/songs/metadata/DifficultyBars.tsx": {
       "sha256": "e32497df7631ae1741df2956b9e0e0f2505bf12171b767006b85794c54664eb0",
+      "status": "committed"
+    },
+    "FortniteFestivalWeb/src/components/songs/metadata/ScorePill.tsx": {
+      "sha256": "b0da36a33ce56c1c4321c38456faeb0c4fd005470968d15b36835ad9c2fccaf9",
       "status": "committed"
     },
     "FortniteFestivalWeb/src/contexts/SettingsContext.tsx": {

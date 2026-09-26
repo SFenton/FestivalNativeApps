@@ -15,6 +15,7 @@ public struct FestivalRootView: View {
     @State private var songsInstrument: Instrument?
     @State private var songsNotice: String?
     @State private var session: FestivalSession
+    @State private var rootProfilePresented = false
     @AppStorage("fst.settings.showLead") private var showLead = true
     @AppStorage("fst.settings.showBass") private var showBass = true
     @AppStorage("fst.settings.showDrums") private var showDrums = true
@@ -33,10 +34,17 @@ public struct FestivalRootView: View {
     /// Create an adaptive root using native, platform-owned navigation controls.
     public init() {
         _selected = State(initialValue: .songs)
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["FST_UI_TEST_CLEAR_PROFILE"] == "1" {
+            UserDefaults.standard.removeObject(forKey: SelectedPlayerIdentity.storageKey)
+        }
+        #endif
         let factory: @Sendable () throws -> FestivalAPI = {
             try Self.makeClient(environment: ProcessInfo.processInfo.environment)
         }
-        _session = State(initialValue: FestivalSession(factory: factory))
+        _session = State(initialValue: FestivalSession(
+            factory: factory, selectionStorage: .standard
+        ))
     }
 
     /// Use the public HTTPS service unless Debug explicitly selects a fixture.
@@ -117,9 +125,18 @@ public struct FestivalRootView: View {
                 transaction.animation = nil
             }
         }
+        .sheet(isPresented: $rootProfilePresented) {
+            ProfileSelectionSheet(session: session)
+        }
         .onChange(of: session.publicationRevision) { _, _ in
             if !songsPath.isEmpty {
                 songsNotice = "Published scores changed. Returned to Songs to avoid outdated details."
+                songsPath.removeAll()
+            }
+        }
+        .onChange(of: session.selectionRevision) { _, _ in
+            if !songsPath.isEmpty {
+                songsNotice = "Selected profile changed. Returned to Songs to avoid mixed scores."
                 songsPath.removeAll()
             }
         }
@@ -187,6 +204,54 @@ public struct FestivalRootView: View {
             #endif
         }
         .navigationTitle("Festival")
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            sidebarProfileAction
+        }
+    }
+
+    /// Retain the visible selected identity in native wide-layout navigation.
+    private var sidebarProfileAction: some View {
+        Button {
+            rootProfilePresented = true
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: session.selectedPlayer == nil
+                    ? "person.crop.circle.badge.plus" : "person.crop.circle.fill")
+                    .foregroundStyle(BrandTokens.accentBlue)
+                    .accessibilityHidden(true)
+                Text(session.selectedPlayer?.displayName ?? "Choose Profile")
+                    .foregroundStyle(BrandTokens.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(2)
+                Spacer(minLength: 0)
+            }
+            .font(.subheadline)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .padding(.horizontal, 12)
+            .background(
+                BrandTokens.cardBackground, in: RoundedRectangle(cornerRadius: 10)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(session.selectedPlayer.map {
+            "Profile: \($0.displayName). Change profile"
+        } ?? "Choose Profile")
+        .accessibilityIdentifier("fst.profile.sidebar")
+        .padding(.horizontal, 12)
+        .padding(.bottom, 8)
+    }
+
+    @ToolbarContentBuilder
+    private var rootProfileToolbar: some ToolbarContent {
+        #if os(iOS)
+        ToolbarItem(placement: .topBarLeading) {
+            ProfileActionButton(session: session) { rootProfilePresented = true }
+        }
+        #else
+        ToolbarItem(placement: .primaryAction) {
+            ProfileActionButton(session: session) { rootProfilePresented = true }
+        }
+        #endif
     }
 
     /// Display a distinct native destination for each root tab.
@@ -214,10 +279,12 @@ public struct FestivalRootView: View {
                 .background(ArtworkBackground(
                     mode: .carousel, session: session, visible: selected == .leaderboards
                 ))
+                .toolbar { rootProfileToolbar }
             }
         case .settings:
             NavigationStack {
                 SettingsScreen(session: session, isVisible: selected == .settings)
+                    .toolbar { rootProfileToolbar }
             }
         }
     }

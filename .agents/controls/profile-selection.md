@@ -105,18 +105,100 @@ the fallback is currently active in production.
 
 | Control state | Native acceptance still required |
 |---|---|
-| No profile | Explicit profile action in phone/tab and tablet/desktop sidebar, accessible in every relevant destination |
-| Search | Distinct player/band scopes, 250 ms debounce, loading, empty envelope (possibly server-timeout masked), 403/429/503, retry, cancellation and stale-result rejection |
-| Viewed result | Identity preview/detail with a separate, confirmed Select action; no automatic selection or tracking write |
-| Player selected | Validated identity persisted across relaunch; dependent Songs scores, metadata, Settings, tabs and routes refresh without cross-profile leakage |
+| No profile | Profile action in every root section and wide sidebar works on Apple 26.5; nested routes, deep links and other platforms remain open |
+| Search | Player 250 ms debounce, loading, empty envelope, 403 and retry have selected Apple proof; band scope is explicitly blocked, with no band GET |
+| Viewed result | Native in-sheet public-score preview and a separate confirmed Select action work; the PWA instead navigates to a full player page |
+| Player selected | Public ID/name persist across relaunch, but scores stay process-only and are re-fetched; one visible instrument and Settings metadata affect Songs rows, not every page/tab |
 | Band selected | Validated type/key/member identity, band song rows and configurations after a guaranteed mutation-free read policy |
-| Switch/deselect | Distinct confirmation, Settings song-filter reset rules, protected routes cleared or redirected, correct focus restoration |
+| Switch/deselect | Player switch/deselect confirmation clears earlier scores and nested Songs routes; source song-filter resets, guarded tabs and complete focus restoration remain open |
 
-The current Apple implementation contains typed player autocomplete
-and compact-score **read contracts** with unit/loopback fixture tests,
-but no native profile button, selection, profile-based Songs card,
-band search, viewed profile page or parity certification. Build
-fixture-backed selection and dependent-card proof without shipping
-synthetic identities or calling write-capable endpoints in Release;
-service-owner authorization and a mutation-free band projection are
-separate prerequisites for live parity.
+**Current Apple WIP:** `FestivalSession` persists only a validated
+player ID and display name in this app's preferences. No score/FC
+bytes survive a cold process launch; their next read must succeed
+under the current publication before a card is painted. A generation
+change, HTTP failure, explicit player switch or deselect clears the
+old process-only score index, and request epochs reject late
+cross-identity results. Corrupt stored identity is removed with a
+visible error. `ProfileSelectionSheet` keeps search, viewed player
+and selected player distinct, exposes real loading/empty/403/202
+states, confirms switches/deselect, and disables selection if a
+profile's publication cannot be verified. Its Band tab shows a
+read-policy blocker and makes **no** band-search GET; it does not
+invent a band profile. `FST_UI_TEST_CLEAR_PROFILE=1` resets only the
+native app's selected identity in Debug fixture tests, never
+simulator data or production user settings. The shared native
+XCTest launcher now sets it by default for every fresh test app;
+the one deliberate cold-restore journey removes it before its
+second launch. A failed profile case must not leak a persisted
+identity into unrelated anonymous UI tests. The runner removes
+a stale compiled-test marker **before** cleaning when the test
+source changes, so an H1 → failed H2 → H1 rollback cannot
+silently skip H1's clean.
+
+A headerless player response may be previewed but cannot be
+selected or persisted: a trusted publication pin is required
+for score cards and live selection remains blocked until the
+service/edge grants one. A preview observes publication
+revision and reloads after a generation change; an unverified
+response and a changed previously pinned response have distinct
+messages. The selected Songs disclosure offers manual Retry for
+202 syncing as well as an error, clearing old score bytes before
+every retry. `ScoreFormatting.percentileBucket` follows the
+source's Songs buckets instead of an exact subpercent label.
+
+The compact iPhone profile icon follows the web mobile header's
+accessible-name pattern, while iPad/macOS use a visible selected
+name in a native sidebar footer. Songs, Settings and the placeholder
+Leaderboards root have reachable profile actions
+(`FortniteFestivalWeb/src/components/shell/HeaderActions.tsx:59-105`,
+`FortniteFestivalWeb/src/components/shell/desktop/PinnedSidebar.tsx:85-113`).
+Unlike the web, a search hit opens an in-sheet preview instead of
+the `/player/:accountId` route. The source mobile search has its
+Players/Bands actions **below** the results and a custom bottom
+transition; native uses a top segmented scope and full-height
+system sheet on iPhone and a centered iPad sheet
+(`FortniteFestivalWeb/src/components/search/SearchModal.tsx:29-41,529-592`).
+These are documented WIP geometry/navigation differences, not
+certified Fluent or pixel parity.
+
+Selected fixture-backed iPhone/iPadOS 26.5 tests pass two
+**3/3-per-device** matrices for search → view → explicit
+selection/switch/deselect, actual changing score/FC/Settings,
+cold identity-only restore, error/syncing/empty/band-blocked
+states and root/sidebar/Paths navigation. A subsequent
+**2/2 per-device** rerun confirms Retry appears only for error
+or empty results, never on a populated result. Matched PWA
+WebKit tests pass **2/2 at phone/tablet widths** with the
+synthetic player; results, the first-run Filter Songs overlay
+and unobstructed selected Songs are captured. A later
+source-frozen **7/7 per-device** run rechecked selection,
+cold restore, syncing/403 preview, the selected page audit,
+and an existing Detail regression. It also proves a
+fresh fixture app discards a previously selected identity
+without erasing the simulator and that an anonymous user
+can hide and re-enable the filtered Songs Intensity meter.
+Both UI-test source stamps match current bytes after
+separate iPad/iPhone product-only cleans.
+
+Source mobile search places its target row below results, uses different
+result geometry and opens a player route. The native sheet
+opens an in-sheet preview with a top scope; the source selected
+Songs card and conditional tabs also visibly differ. These
+captures demonstrate gaps, **not** source-profile pixel parity.
+
+The selected preview and Songs have one unwaived iPhone `.all`
+audit pass. Named visible iPad screenshot text measures at
+least 4.5:1 contrast, but its full `.all` audit reports unnamed
+"Potentially inaccessible text"; focus bounds remain unproved.
+Select grows by >1.35x at largest text and all visible sheet
+actions stay reachable on both devices. Full screen-reader
+order, all-state contrast, macOS GUI and 95%/90% coverage gates
+are still pending. The source all-instrument status-chip row
+is reduced to native's **first visible chart**, there is no
+band/member card, and Filter Invalid Scores explicitly pauses
+profile-score detail rather than applying unsupported fallback
+logic. Settings `Show Instrument Icons`, dependent Detail and
+Statistics/Suggestions/Rivals tabs, player route and legitimate
+live edge access remain pending. No real profile endpoint was
+probed or privileged key/selected header used. The control
+stays `pending`.

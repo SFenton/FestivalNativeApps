@@ -12,6 +12,22 @@ import Testing
     #expect(ScoreFormatting.leeway(-0.5) == "-0.5%")
 }
 
+/// Song rows use source buckets rather than displaying impossible "Top 0.0%".
+@Test func scorePercentileUsesSourceSongBuckets() {
+    #expect(ScoreFormatting.percentileBucket(rank: 1, totalEntries: 1_000_000)
+            == "Top 1%")
+    #expect(ScoreFormatting.percentileBucket(rank: 1, totalEntries: 26)
+            == "Top 4%")
+    #expect(ScoreFormatting.percentileBucket(rank: 2, totalEntries: 26)
+            == "Top 10%")
+    #expect(ScoreFormatting.percentileBucket(rank: 26, totalEntries: 26)
+            == "Top 100%")
+    #expect(ScoreFormatting.percentileBucket(rank: 27, totalEntries: 26)
+            == "Top 100%")
+    #expect(ScoreFormatting.percentileBucket(rank: 0, totalEntries: 26) == nil)
+    #expect(ScoreFormatting.percentileBucket(rank: 1, totalEntries: 0) == nil)
+}
+
 /// Non-FC accuracy follows the source's bounded, translucent red-to-green ramp.
 @Test func scoreAccuracyTintMatchesSourceGradientWithoutInferringFullCombo() throws {
     #expect(try ScoreFormatting.accuracyTint(0)

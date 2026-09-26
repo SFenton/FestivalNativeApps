@@ -107,4 +107,36 @@ For hosted macOS nested-route snapshots, a synchronous `ImageRenderer` of `Navig
 
 macOS's native UI-test scheme uses local ad-hoc signing for development only; distribution signing requires separate approval. On this host `xcrun automationmodetool status` reports Automation Mode **disabled** and requiring user authentication. The ad-hoc-signed runner timed out enabling automation before executing a test; do not enable or bypass this host setting through an agent, and do not claim a passing macOS GUI/a11y suite until a signed `.xcresult` actually contains test results.
 
+**Profile-selection WIP:** SwiftUI keeps an icon-only named
+profile action in the compact system toolbar; iPad/macOS
+`NavigationSplitView` shows the actual selected player in a
+Fluent opaque sidebar footer. Settings and the placeholder
+Leaderboards root expose the same sheet without leaving
+their current section. Only public ID/name persist across
+cold launch; typed scores are process-only and refetched
+with publication checks. Two serial iPhone 26.5/iPadOS
+26.5 focused matrices passed 3/3 methods per device,
+including cross-root/sidebar/Paths navigation and
+selected Songs score/Settings states. A later 2/2
+per-device rerun verified error/empty-only Retry and
+real compiled UITest-source fingerprint promotion.
+A source-frozen post-review **7/7 on each serial iPhone/
+iPadOS 26.5 device** also proved fresh-launch identity
+isolation, anonymous Intensity recovery, the selected
+preview/Songs audit paths and Detail navigation. Both
+products cleaned only build output after UITest source
+drift, then recorded matching source hashes.
+The sheet distinguishes 403/syncing/empty and blocks
+any band GET that might write membership data.
+Fixture-only source WebKit captures passed 2/2 at
+phone/tablet widths and expose native/PWA card, first-run
+and conditional-tab gaps; the layouts are **not** pixel
+equivalent. A selected iPhone `.all` audit passes without
+waivers, while iPad's unnamed `.all` text finding and
+focus bounds are still open despite named 4.5:1 contrast.
+Largest-text Select glyphs grow >1.35x on both devices.
+Mac GUI automation, older iOS/Duo poses, all-instrument
+chips, complete accessibility/visual/coverage gates and
+real edge authorization remain pending.
+
 Use DocC for function contracts, `// MARK: -` sections, accessibility identifiers from the shared registry, and a dedicated logic/UI coverage split. The app can expose additive Reduce Motion/Contrast/Transparency/Background overrides, **not** an OS VoiceOver switch.

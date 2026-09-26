@@ -2,7 +2,7 @@ import { readFileSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { test, expect } from '../../../FortniteFestivalLeaderboardScraper/FortniteFestivalWeb/e2e/fixtures/test';
 import { createPopulatedScenario } from '../../../FortniteFestivalLeaderboardScraper/FortniteFestivalWeb/e2e/fixtures/scenarios';
-import { gotoAppRoute } from '../../../FortniteFestivalLeaderboardScraper/FortniteFestivalWeb/e2e/support/drivers/app';
+import { dismissObstructions, gotoAppRoute } from '../../../FortniteFestivalLeaderboardScraper/FortniteFestivalWeb/e2e/support/drivers/app';
 import { isSongsResponse } from '../../../FortniteFestivalLeaderboardScraper/FortniteFestivalWeb/src/api/songsCache';
 
 const root = resolve(import.meta.dirname, '../..');
@@ -102,6 +102,82 @@ for (const viewport of viewports.filter(entry => entry.id.endsWith('portrait')))
     await expect(apply).toBeEnabled();
     await page.screenshot({
       path: join(output, `${testInfo.project.name}-${viewport.id}-songs-sort-draft.png`),
+      animations: 'disabled',
+    });
+  });
+}
+
+for (const viewport of viewports.filter(entry => entry.id.endsWith('portrait'))) {
+  test(`fixture-backed PWA profile discovery and selected Songs: ${viewport.id}`, async ({ page, api, appState }, testInfo) => {
+    mkdirSync(output, { recursive: true });
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    const players = [
+      { accountId: 'fixture-player-1', displayName: 'Fixture Player 1' },
+      { accountId: 'fixture-player-2', displayName: 'Fixture Player 2' },
+    ];
+    api.override({
+      method: 'GET', path: '/api/account/search', status: 200, body: { results: players },
+    });
+    api.override({ method: 'GET', path: '/api/songs', status: 200, body: songs });
+    await gotoAppRoute(page, '/songs');
+    const launcher = viewport.width <= 768
+      ? page.getByTestId('mobile-header-profile')
+      : page.getByRole('button', { name: 'Select Profile', exact: true });
+    await expect(launcher).toBeVisible({ timeout: 15_000 });
+    await launcher.click();
+    const dialog = page.getByRole('dialog', { name: 'Search', exact: true });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('textbox').fill('Fixture Player');
+    await dialog.getByTestId('search-target-filter-players').click();
+    await expect(dialog.getByTestId('search-player-result')).toHaveCount(2, { timeout: 15_000 });
+    const targetBox = await dialog.getByTestId('search-target-filter-players').boundingBox();
+    const resultBox = await dialog.getByTestId('search-player-result').first().boundingBox();
+    if (!targetBox || !resultBox) throw new Error('Source search target/results are not painted');
+    expect(targetBox.y > resultBox.y).toBe(viewport.width <= 768);
+    await page.screenshot({
+      path: join(output, `${testInfo.project.name}-${viewport.id}-profile-search-results.png`),
+      animations: 'disabled',
+    });
+    await dialog.getByRole('button', { name: 'Close' }).click();
+
+    const response = await fetch('http://127.0.0.1:8765/api/player/fixture-player-2');
+    if (!response.ok) throw new Error(`Synthetic player fixture returned HTTP ${response.status}`);
+    const profile: unknown = await response.json();
+    if (!profile || typeof profile !== 'object'
+      || !('accountId' in profile) || profile.accountId !== 'fixture-player-2'
+      || !('totalScores' in profile) || profile.totalScores !== 2
+      || !('scores' in profile) || !Array.isArray(profile.scores)) {
+      throw new Error('Invalid original synthetic player-profile wire fixture');
+    }
+    api.override({
+      method: 'GET', path: '/api/player/fixture-player-2', status: 200, body: profile,
+    });
+    await appState.selectPlayer('fixture-player-2', 'Fixture Player 2');
+    await appState.setSettings({ songsHideInstrumentIcons: true, filterInvalidScores: false });
+    await page.reload({ waitUntil: 'load' });
+    const content = page.locator('#main-content');
+    await expect(content).toContainText('Fixture Pulse', { timeout: 15_000 });
+    await expect(content).toContainText('99,800', { timeout: 15_000 });
+    const firstRun = page.getByTestId('fre-card');
+    await expect(firstRun).toBeVisible({ timeout: 5_000 });
+    await page.screenshot({
+      path: join(output, `${testInfo.project.name}-${viewport.id}-profile-first-run.png`),
+      animations: 'disabled',
+    });
+    await dismissObstructions(page);
+    await expect(firstRun).toHaveCount(0);
+    const selectedRow = content.getByRole('link', { name: /Fixture Pulse/ }).first();
+    const title = selectedRow.getByText('Fixture Pulse', { exact: true });
+    const score = selectedRow.getByText('99,800', { exact: true });
+    await expect(title).toBeVisible();
+    await expect(score).toBeVisible();
+    await expect(selectedRow.getByText('Top 10%', { exact: true })).toBeVisible();
+    const titleBox = await title.boundingBox();
+    const scoreBox = await score.boundingBox();
+    if (!titleBox || !scoreBox) throw new Error('Source selected-card text is not painted');
+    expect(scoreBox.x).toBeGreaterThan(titleBox.x + titleBox.width);
+    await page.screenshot({
+      path: join(output, `${testInfo.project.name}-${viewport.id}-songs-selected-player-two.png`),
       animations: 'disabled',
     });
   });

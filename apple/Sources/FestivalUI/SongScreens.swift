@@ -213,11 +213,21 @@ struct SongsScreen: View {
     @State private var shopRefreshFailure: String?
     @State private var shopRetryRevision = 0
     @State private var sortPresented = false
+    @State private var profilePresented = false
     @AppStorage("fst.songs.sortMode") private var sortMode = SongSortMode.title
     @AppStorage("fst.songs.sortAscending") private var sortAscending = true
     @AppStorage("fst.settings.hideShop") private var hideShop = false
     @AppStorage("fst.settings.disableShopHighlighting")
     private var disableShopHighlighting = false
+    @AppStorage("fst.settings.filterInvalidScores") private var filterInvalidScores = false
+    @AppStorage("fst.settings.metadataScore") private var metadataScore = true
+    @AppStorage("fst.settings.metadataPercentage") private var metadataPercentage = true
+    @AppStorage("fst.settings.metadataPercentile") private var metadataPercentile = true
+    @AppStorage("fst.settings.metadataSeason") private var metadataSeason = true
+    @AppStorage("fst.settings.metadataIntensity") private var metadataIntensity = true
+    @AppStorage("fst.settings.metadataDifficulty") private var metadataDifficulty = true
+    @AppStorage("fst.settings.metadataStars") private var metadataStars = true
+    @AppStorage("fst.settings.metadataLastPlayed") private var metadataLastPlayed = true
     @FocusState private var searchFocused: Bool
 
     enum LoadState {
@@ -237,6 +247,22 @@ struct SongsScreen: View {
         let visible: Bool
         let hidden: Bool
         let retryRevision: Int
+    }
+
+    private struct ProfileTaskKey: Equatable {
+        let selectionRevision: Int
+        let publicationRevision: Int
+        let visible: Bool
+    }
+
+    /// Share one set of Settings switches across lazy row renderers.
+    private var metadataVisibility: SongMetadataVisibility {
+        SongMetadataVisibility(
+            score: metadataScore, percentage: metadataPercentage,
+            percentile: metadataPercentile, season: metadataSeason,
+            intensity: metadataIntensity, difficulty: metadataDifficulty,
+            stars: metadataStars, lastPlayed: metadataLastPlayed
+        )
     }
 
     /// Create a catalogue screen with a fixture state for hosted visual tests.
@@ -437,6 +463,11 @@ struct SongsScreen: View {
         ))
         .navigationTitle("Songs")
         .toolbar {
+            #if os(iOS)
+            ToolbarItem(placement: .topBarLeading) { profileAction }
+            #else
+            ToolbarItem(placement: .primaryAction) { profileAction }
+            #endif
             ToolbarItem(placement: .primaryAction) {
                 Menu {
                     Button("All instruments") { instrument = nil }
@@ -472,6 +503,9 @@ struct SongsScreen: View {
                 sortAscending = order
             }
         }
+        .sheet(isPresented: $profilePresented) {
+            ProfileSelectionSheet(session: session)
+        }
         .task(id: CatalogueTaskKey(
             publicationRevision: session.publicationRevision, visible: isVisible
         )) {
@@ -493,6 +527,19 @@ struct SongsScreen: View {
             guard isVisible && !hideShop else { return }
             await reloadShop()
         }
+        .task(id: ProfileTaskKey(
+            selectionRevision: session.selectionRevision,
+            publicationRevision: session.publicationRevision,
+            visible: isVisible
+        )) {
+            guard isVisible, session.selectedPlayer != nil else { return }
+            switch session.playerLoadState {
+            case .loading, .failed:
+                await session.refreshSelectedPlayer()
+            case .none, .available, .syncing:
+                break
+            }
+        }
         .onChange(of: visibleInstruments) { _, updated in
             if let instrument, !updated.contains(instrument) {
                 self.instrument = nil
@@ -507,6 +554,13 @@ struct SongsScreen: View {
             } catch {
                 state = .failed("Search could not finish: \(error.localizedDescription)")
             }
+        }
+    }
+
+    /// Keep the profile search reachable ahead of Song sorting and Shop actions.
+    private var profileAction: some View {
+        ProfileActionButton(session: session) {
+            profilePresented = true
         }
     }
 
@@ -547,6 +601,8 @@ struct SongsScreen: View {
     private func hasDisclosure(for payload: CatalogPayload) -> Bool {
         refreshFailure != nil || payload.isStale || payload.publicationId == nil
             || session.publicationId.map { $0 != payload.observedPublicationId } == true
+            || session.playerError != nil
+            || (session.selectedPlayer != nil && session.playerLoadState != .available)
             || (!hideShop && (
                 session.shopError != nil
                     || (session.currentShop == nil && shopRefreshFailure != nil)
@@ -589,6 +645,39 @@ struct SongsScreen: View {
             FreshnessDisclosure(message: sortPausedMessage, symbol: "arrow.up.arrow.down")
                 .accessibilityIdentifier("fst.songs.sort-paused")
         }
+        if let selected = session.selectedPlayer {
+            switch session.playerLoadState {
+            case .loading:
+                FreshnessDisclosure(
+                    message: "Loading public scores for \(selected.displayName)",
+                    symbol: "hourglass"
+                )
+                .accessibilityIdentifier("fst.songs.profile-status")
+            case .syncing:
+                FreshnessDisclosure(
+                    message: "Player scores are syncing. No published score cards yet.",
+                    symbol: "arrow.triangle.2.circlepath"
+                )
+                .accessibilityIdentifier("fst.songs.profile-status")
+                profileRetryButton
+            case .failed, .none:
+                FreshnessDisclosure(
+                    message: "Player scores unavailable: \(session.playerError ?? "Not loaded")",
+                    symbol: "exclamationmark.triangle"
+                )
+                .accessibilityIdentifier("fst.songs.profile-status")
+                profileRetryButton
+            case .available:
+                EmptyView()
+            }
+        } else if let playerError = session.playerError {
+            FreshnessDisclosure(
+                message: playerError, symbol: "exclamationmark.triangle"
+            )
+            .accessibilityIdentifier("fst.songs.profile-status")
+            Button("Choose Profile") { profilePresented = true }
+                .accessibilityIdentifier("fst.songs.profile-retry")
+        }
         if !hideShop, let shopFailure = session.shopError
             ?? (session.currentShop == nil ? shopRefreshFailure : nil) {
             FreshnessDisclosure(
@@ -618,6 +707,14 @@ struct SongsScreen: View {
         }
     }
 
+    /// Offer a manual retry for a selected player after 202 syncing or a failed read.
+    private var profileRetryButton: some View {
+        Button("Retry Player Scores") {
+            Task { await session.refreshSelectedPlayer() }
+        }
+        .accessibilityIdentifier("fst.songs.profile-retry")
+    }
+
     /// Keep every grouped and ungrouped Song row on the same navigation path.
     ///
     /// - Parameter song: Validated catalogue song to display.
@@ -628,11 +725,14 @@ struct SongsScreen: View {
             hidden: hideShop,
             highlightingDisabled: disableShopHighlighting
         )
+        let chart = instrument ?? Instrument.allCases.first(where: visibleInstruments.contains)
         return NavigationLink(value: SongRoute.detail(song)) {
             SongRowView(
                 song: song, instrument: instrument,
                 session: session, highContrast: highContrast,
-                shopHighlight: highlight
+                shopHighlight: highlight, profileChart: chart,
+                metadata: metadataVisibility,
+                filterInvalidScores: filterInvalidScores
             )
         }
         .listRowSeparator(.hidden)
@@ -855,6 +955,9 @@ struct SongRowView: View {
     let session: FestivalSession
     let highContrast: Bool
     let shopHighlight: ShopHighlight?
+    let profileChart: Instrument?
+    let metadata: SongMetadataVisibility
+    let filterInvalidScores: Bool
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// Decorate one real Shop offer without turning it into a new navigation action.
@@ -865,15 +968,24 @@ struct SongRowView: View {
     ///   - session: Process-scoped artwork loader.
     ///   - highContrast: Explicit content contrast override.
     ///   - shopHighlight: Validated, effectively enabled Shop badge.
+    ///   - profileChart: First visible chart or explicit Songs chart filter.
+    ///   - metadata: Persisted score-field visibility switches.
+    ///   - filterInvalidScores: Hide unsupported filtered-score details explicitly.
     init(
         song: Song, instrument: Instrument?, session: FestivalSession,
-        highContrast: Bool, shopHighlight: ShopHighlight? = nil
+        highContrast: Bool, shopHighlight: ShopHighlight? = nil,
+        profileChart: Instrument? = nil,
+        metadata: SongMetadataVisibility = SongMetadataVisibility(),
+        filterInvalidScores: Bool = false
     ) {
         self.song = song
         self.instrument = instrument
         self.session = session
         self.highContrast = highContrast
         self.shopHighlight = shopHighlight
+        self.profileChart = profileChart
+        self.metadata = metadata
+        self.filterInvalidScores = filterInvalidScores
     }
 
     private var trailingLayout: AnyLayout {
@@ -896,10 +1008,21 @@ struct SongRowView: View {
                     .font(.subheadline)
                     .foregroundStyle(BrandTokens.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
+                if let selected = session.selectedPlayer {
+                    SongProfileSummary(
+                        player: selected, chart: profileChart,
+                        chartAvailable: profileChart.map(song.supports) ?? false,
+                        score: profileChart.flatMap {
+                            session.selectedPlayerScores[song.songId]?[$0]
+                        },
+                        state: session.playerLoadState, visibility: metadata,
+                        filterInvalidScores: filterInvalidScores, songId: song.songId
+                    )
+                }
             }
             Spacer(minLength: 4)
             trailingLayout {
-                if let instrument,
+                if metadata.intensity, let instrument,
                    let difficulty = song.difficulty?.chartedValue(for: instrument) {
                     DifficultyMeter(level: difficulty, raw: true)
                 }

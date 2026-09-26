@@ -2,6 +2,7 @@ import Foundation
 import FestivalCore
 import Observation
 import CoreGraphics
+import OSLog
 
 /// NSCache evicts decoded pixels automatically when the process is under pressure.
 private final class DecodedArtwork: NSObject {
@@ -15,12 +16,27 @@ private final class DecodedArtwork: NSObject {
     }
 }
 
+/// No selected result can silently fall back to an anonymous score card.
+enum SelectedPlayerLoadState: Equatable {
+    case none
+    case loading
+    case available
+    case syncing
+    case failed(String)
+}
+
 /// One native app session owns its publication and artwork caches across tabs.
 @MainActor
 @Observable
 final class FestivalSession {
     @ObservationIgnored
+    private static let log = Logger(
+        subsystem: "com.sfenton.festivalscoretracker", category: "profile-selection"
+    )
+    @ObservationIgnored
     private let factory: @Sendable () throws -> FestivalAPI
+    @ObservationIgnored
+    private let selectionStorage: UserDefaults?
     @ObservationIgnored
     private var sharedClient: FestivalAPI?
     @ObservationIgnored
@@ -29,25 +45,49 @@ final class FestivalSession {
     private let thumbnails = NSCache<NSString, DecodedArtwork>()
     @ObservationIgnored
     private var sourceArtworkPaths: [String] = []
+    @ObservationIgnored
+    private var profileRequestRevision = 0
     private(set) var publicationId: Int?
     private(set) var publicationRevision = 0
     private(set) var artworkPaths: [String] = []
     private(set) var currentShop: ShopPayload?
     private(set) var shopOffersById: [String: ShopSong] = [:]
     private(set) var shopError: String?
+    private(set) var selectedPlayer: SelectedPlayerIdentity?
+    private(set) var selectedPlayerScores: [String: [Instrument: PlayerScore]] = [:]
+    private(set) var playerLoadState: SelectedPlayerLoadState = .none
+    private(set) var playerError: String?
+    private(set) var selectionRevision = 0
 
     /// Create a session without starting network work during view construction.
     ///
     /// - Parameters:
     ///   - factory: Provider for a production or fixture-backed client.
     ///   - artwork: In-process artwork store, injectable for hosted tests.
+    ///   - selectionStorage: App-only identity store; nil in hosted tests.
     init(
         factory: @escaping @Sendable () throws -> FestivalAPI,
-        artwork: ArtworkCache = ArtworkCache()
+        artwork: ArtworkCache = ArtworkCache(),
+        selectionStorage: UserDefaults? = nil
     ) {
         self.factory = factory
         self.artwork = artwork
+        self.selectionStorage = selectionStorage
         thumbnails.totalCostLimit = 24_000_000
+        if let stored = selectionStorage?.data(forKey: SelectedPlayerIdentity.storageKey) {
+            do {
+                let identity = try JSONDecoder().decode(
+                    SelectedPlayerIdentity.self, from: stored
+                )
+                try identity.validate()
+                selectedPlayer = identity
+                playerLoadState = .loading
+            } catch {
+                selectionStorage?.removeObject(forKey: SelectedPlayerIdentity.storageKey)
+                playerError = FestivalAPIError.invalidSelectedProfile.localizedDescription
+                Self.log.error("Invalid stored profile identity was discarded")
+            }
+        }
     }
 
     /// Reuse the same client while the process remains alive.
@@ -102,6 +142,105 @@ final class FestivalSession {
             shopError = error.localizedDescription
             throw error
         }
+    }
+
+    /// View a search result without selecting or persisting its identity.
+    ///
+    /// - Parameter result: Validated keyless player-search result.
+    /// - Returns: Available or syncing scores with response provenance.
+    /// - Throws: Service, publication, cancellation or invalid-search errors.
+    func viewPlayer(_ result: PlayerSearchResult) async throws -> PlayerProfilePayload {
+        try result.validate()
+        return try await profile(accountId: result.accountId)
+    }
+
+    /// Promote an explicitly viewed, response-proven player and its score index.
+    ///
+    /// - Parameters:
+    ///   - result: Player selected by a separate user action.
+    ///   - payload: Current matching, validated public profile read.
+    /// - Throws: Invalid identity or a missing/changed response publication.
+    func selectPlayer(
+        _ result: PlayerSearchResult, from payload: PlayerProfilePayload
+    ) throws {
+        let identity = try SelectedPlayerIdentity(searchResult: result)
+        guard payload.state == .available, let active = publicationId,
+              payload.publicationId == active,
+              payload.observedPublicationId == active else {
+            throw FestivalAPIError.invalidPublication
+        }
+        let scores = try payload.profile.scoreIndex(requestedAccountId: identity.accountId)
+        let stored = try JSONEncoder().encode(identity)
+        selectionStorage?.set(stored, forKey: SelectedPlayerIdentity.storageKey)
+        profileRequestRevision += 1
+        selectedPlayer = identity
+        selectedPlayerScores = scores
+        playerLoadState = .available
+        playerError = nil
+        selectionRevision += 1
+    }
+
+    /// Remove identity and process-only scores while keeping app Settings intact.
+    func deselectPlayer() {
+        selectionStorage?.removeObject(forKey: SelectedPlayerIdentity.storageKey)
+        profileRequestRevision += 1
+        selectedPlayer = nil
+        selectedPlayerScores.removeAll()
+        playerLoadState = .none
+        playerError = nil
+        selectionRevision += 1
+    }
+
+    /// Reload only the selected account, refusing stale completion after a switch.
+    func refreshSelectedPlayer() async {
+        guard let identity = selectedPlayer else { return }
+        profileRequestRevision += 1
+        let requestRevision = profileRequestRevision
+        playerLoadState = .loading
+        selectedPlayerScores.removeAll()
+        playerError = nil
+        do {
+            let payload = try await profile(accountId: identity.accountId)
+            try Task.checkCancellation()
+            guard profileRequestRevision == requestRevision,
+                  selectedPlayer == identity else {
+                throw CancellationError()
+            }
+            if payload.state == .syncing {
+                playerLoadState = .syncing
+            } else {
+                guard payload.publicationId == publicationId else {
+                    throw FestivalAPIError.invalidPublication
+                }
+                selectedPlayerScores = try payload.profile.scoreIndex(
+                    requestedAccountId: identity.accountId
+                )
+                playerLoadState = .available
+            }
+        } catch is CancellationError {
+            return
+        } catch let error as URLError where error.code == .cancelled {
+            return
+        } catch {
+            guard !Task.isCancelled, profileRequestRevision == requestRevision,
+                  selectedPlayer == identity else { return }
+            selectedPlayerScores.removeAll()
+            playerLoadState = .failed(error.localizedDescription)
+            playerError = error.localizedDescription
+        }
+    }
+
+    /// Read one profile under the same observed publication as other visible pages.
+    ///
+    /// - Parameter accountId: Validated public player key.
+    /// - Returns: Typed score data with response provenance.
+    /// - Throws: Network, status, cancellation or generation errors.
+    private func profile(accountId: String) async throws -> PlayerProfilePayload {
+        let result = try await client().playerProfile(accountId: accountId)
+        try Task.checkCancellation()
+        try await observe(publicationId: result.observedPublicationId)
+        try Task.checkCancellation()
+        return result
     }
 
     /// Reuse bounded, decoded art instead of decoding the same cover while scrolling.
@@ -221,6 +360,10 @@ final class FestivalSession {
             if previous != publicationId {
                 self.publicationId = publicationId
                 publicationRevision += 1
+                profileRequestRevision += 1
+                selectedPlayerScores.removeAll()
+                playerLoadState = selectedPlayer == nil ? .none : .loading
+                playerError = nil
                 currentShop = nil
                 shopOffersById.removeAll()
                 shopError = nil

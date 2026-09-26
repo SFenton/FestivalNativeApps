@@ -12,4 +12,35 @@ Source: `FortniteFestivalWeb/src/contexts/SettingsContext.tsx:18-75,280-305`, `s
 
 **Current Apple propagation:** Instrument visibility updates Songs filtering, Detail leaderboard cards and Paths choices but leaves charted Intensity visible; a selected iPhone/iPad journey hides Bass, verifies those distinct effects and restores the switch. Invalid-score leeway reaches the solo request. CHOpt Path Default View announces its Image/Text selection and initializes the real path modal; Reset also restores the Karaoke warning preference. Hide Item Shop removes its route/action with a notice, while saved highlights change **Shop cards, Songs red/gold offer rows and the Detail badge** without hiding the valid outbound action. A selected device journey proves those controls on iPhone and iPad; a separate `shop-error` fixture keeps Songs populated and surfaces the actual Shop failure on Songs/Detail, unlike `shop-empty`. Artwork accessibility overrides and app-only Reset retain their previous selected proofs.
 
-Checking a changed publication refetches catalogue/art paths before reporting success; a failed Songs read is shown separately rather than claiming the publication read failed. A successful check still announces stale/offline or live-headerless Songs provenance. Native UI automation checks that background pixels animate, become static under motion overrides and return to the opaque brand surface when transparency is reduced. Profile metadata and experimental ranks stay visibly disabled with reasons. **Still pending:** Shop filters and profile/FC conditional Songs sorts, draggable path column order, only-Karaoke-visible Paths guard, Service Progress, exports, profiles, first-run replay and most PWA settings. Settings itself remains `pending` until its complete page audit and all states have evidence.
+Checking a changed publication refetches catalogue/art paths before
+reporting success; a failed Songs read is shown separately rather
+than claiming the publication read failed. A successful check still
+announces stale/offline or live-headerless Songs provenance. Native
+UI automation checks that background pixels animate, become static
+under motion overrides and return to the opaque brand surface when
+transparency is reduced. **Still pending:** Shop filters and
+profile/FC conditional Songs sorts, draggable path column order,
+only-Karaoke-visible Paths guard, Service Progress, exports,
+band profiles, first-run replay and most PWA settings. Settings
+itself remains `pending` until its complete page audit and all
+states have evidence.
+With a selected player, all eight metadata toggles are now enabled:
+seven independently change backed text on the native Songs row,
+and Intensity gates its already-charted meter in a filtered row.
+**Intensity also remains enabled without a selected player**:
+an anonymous user who turns off the filtered Songs meter can
+turn it back on without selecting another profile or resetting
+the app. The other seven, player-specific metadata toggles
+stay disabled anonymously with an explicit reason. A serial
+**7/7 iPhone and 7/7 iPad** selected matrix includes a real
+anonymous Intensity off/on meter test, selected
+Score/Percentage and Hide Lead reattribution with original
+switches restored. Hosted tests exercise all seven
+label flags. Filter Invalid Scores **does not yet** evaluate the
+source's precomputed `ml`/`vs`/`rt` fallback variants for Songs:
+the selected card shows a visible pending message rather than a
+raw score disguised as valid. Experimental ranks and Show
+Instrument Icons stay disabled. Metadata ordering, complete
+Detail propagation, source filter controls, accessibility/focus
+audits and live selected-player access remain pending; Settings
+is not route-certified.

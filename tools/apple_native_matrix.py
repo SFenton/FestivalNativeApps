@@ -25,6 +25,7 @@ else:
 
 ROOT = Path(__file__).resolve().parents[1]
 TEST_SOURCE = ROOT / "apple/Apps/iOSUITests/FestivalMobileUITests.swift"
+UI_TEST_SOURCE_INPUT = "apple/Apps/iOSUITests/FestivalMobileUITests.swift"
 TEST_NAME = re.compile(r"^\s+func (test[A-Za-z0-9_]+)\(", re.MULTILINE)
 IOS_RUNTIME = re.compile(
     r"^com\.apple\.CoreSimulator\.SimRuntime\.iOS-(\d+)-(\d+)(?:-(\d+))?$"
@@ -51,7 +52,7 @@ FIXTURE_INPUTS = (
 )
 REQUIRED_INPUTS = (
     *FIXTURE_INPUTS,
-    "apple/Apps/iOSUITests/FestivalMobileUITests.swift",
+    UI_TEST_SOURCE_INPUT,
     "apple/project.yml",
     "apple/Package.swift",
     "apple/FestivalNativeApple.xcodeproj/project.pbxproj",
@@ -171,6 +172,65 @@ def require_unchanged(expected: dict[str, str], *, root: Path = ROOT) -> None:
             "Native test or fixture inputs changed during the matrix: "
             + ", ".join(changed[:12])
         )
+
+
+def prepare_ui_test_product(
+    device: str, identifier: str, derived_data: Path, evidence: Path,
+    expected_hash: str, env: dict[str, str], *, root: Path = ROOT,
+) -> Path:
+    """Clean only this product's Xcode build when the UI-test body changed.
+
+    Args:
+        device: Pinned iPhone or iPad role.
+        identifier: Validated product simulator UDID.
+        derived_data: Runner-owned per-device Xcode build directory.
+        evidence: Unique directory for the scoped clean log.
+        expected_hash: Frozen SHA-256 of the actual UI-test Swift source.
+        env: Pinned developer environment.
+        root: Native repository root, injectable only for isolated tests.
+
+    Returns:
+        Marker to write only after the exact compiled method set passes.
+
+    Raises:
+        MatrixError: For unsafe marker paths, an invalid hash or failed Xcode clean.
+    """
+    if device not in DEVICE_FAMILIES or not re.fullmatch(r"[0-9a-f]{64}", expected_hash):
+        raise MatrixError("Invalid product role or UI-test source hash")
+    if (derived_data.is_symlink()
+            or not derived_data.resolve().is_relative_to(root.resolve())
+            or (derived_data.exists() and not derived_data.is_dir())):
+        raise MatrixError("Native test build directory is unavailable or outside the repository")
+    marker = derived_data / ".fst-ui-test-source-sha256"
+    if marker.is_symlink() or (marker.exists() and not marker.is_file()):
+        raise MatrixError("Native UI-test source marker is unavailable or a symlink")
+    if marker.is_file():
+        try:
+            if marker.read_text(encoding="ascii").strip() == expected_hash:
+                return marker
+            marker.unlink()
+        except (OSError, UnicodeError) as error:
+            raise MatrixError("Cannot read or invalidate UI-test source marker") from error
+
+    command = [
+        "xcodebuild", "-quiet", "-project", str(root / "apple/FestivalNativeApple.xcodeproj"),
+        "-scheme", "FestivalMobile", "-configuration", "Debug",
+        "-destination", f"platform=iOS Simulator,id={identifier}",
+        "-derivedDataPath", str(derived_data), "clean", "CODE_SIGNING_ALLOWED=NO",
+    ]
+    log = evidence / f"{device}-xcodebuild-clean.log"
+    with log.open("x", encoding="utf-8") as output:
+        try:
+            process = subprocess.run(
+                command, cwd=root, env=env, text=True,
+                stdout=output, stderr=subprocess.STDOUT,
+                check=False, timeout=180,
+            )
+        except subprocess.TimeoutExpired as error:
+            raise MatrixError(f"{device} UI-test build clean timed out; see {log}") from error
+    if process.returncode:
+        raise MatrixError(f"{device} UI-test build clean exited {process.returncode}; see {log}")
+    return marker
 
 
 def selected_tests(source: str, requested: list[str]) -> list[str]:
@@ -675,7 +735,8 @@ def device_order(
 
 def run_device(
     device: str, identifier: str, evidence: Path,
-    *, expected_tests: list[str], baseline: dict[str, str], env: dict[str, str]
+    *, expected_tests: list[str], baseline: dict[str, str], env: dict[str, str],
+    derived_data: Path | None = None, build_root: Path = ROOT,
 ) -> Path:
     """Run one full or explicit-targeted native suite with fresh stateful fixtures.
 
@@ -686,6 +747,8 @@ def run_device(
         expected_tests: Frozen selected methods from before the first device.
         baseline: Hashed fixture, app, test and project inputs from matrix start.
         env: Pinned Xcode environment.
+        derived_data: Test-only build directory; defaults to this product's DerivedData.
+        build_root: Native repository root, injectable only for isolated tests.
 
     Returns:
         Path to a complete, passing simulator test result.
@@ -696,8 +759,9 @@ def run_device(
     managed: list[subprocess.Popen] = []
     try:
         fixture_hashes = {name: baseline[name] for name in FIXTURE_INPUTS}
+        source_hash = baseline[UI_TEST_SOURCE_INPUT]
     except KeyError as error:
-        raise MatrixError(f"Missing fixture input snapshot: {error}") from error
+        raise MatrixError(f"Missing fixture or UI-test input snapshot: {error}") from error
     try:
         for port, flags in device_fixture_plan(device):
             process = start_fixture(
@@ -708,11 +772,18 @@ def run_device(
             managed.append(process)
         require_unchanged(baseline)
         result = evidence / f"{device}.xcresult"
+        product_derived = derived_data or ROOT / f"apple/DerivedData/native-matrix-{device}"
+        marker = prepare_ui_test_product(
+            device, identifier, product_derived, evidence, source_hash, env,
+            root=build_root,
+        )
+        require_unchanged(baseline)
         command = [
-            "xcodebuild", "-quiet", "-project", str(ROOT / "apple/FestivalNativeApple.xcodeproj"),
+            "xcodebuild", "-quiet", "-project",
+            str(build_root / "apple/FestivalNativeApple.xcodeproj"),
             "-scheme", "FestivalMobile", "-configuration", "Debug",
             "-destination", f"platform=iOS Simulator,id={identifier}",
-            "-derivedDataPath", str(ROOT / f"apple/DerivedData/native-matrix-{device}"),
+            "-derivedDataPath", str(product_derived),
             "-resultBundlePath", str(result), "-parallel-testing-enabled", "NO",
             "-enableCodeCoverage", "YES",
         ]
@@ -725,7 +796,7 @@ def run_device(
         with log.open("x", encoding="utf-8") as output:
             try:
                 process = subprocess.run(
-                    command, cwd=ROOT, env=env, text=True,
+                    command, cwd=build_root, env=env, text=True,
                     stdout=output, stderr=subprocess.STDOUT,
                     check=False, timeout=1200,
                 )
@@ -747,6 +818,10 @@ def run_device(
         )
         verify_test_names(cases, expected_tests)
         require_unchanged(baseline)
+        if marker.is_symlink():
+            raise MatrixError("Native UI-test source marker became a symlink")
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text(source_hash + "\n", encoding="ascii")
         print(f"{device}: {len(expected_tests)}/{len(expected_tests)} passed; {result}")
         return result
     finally:

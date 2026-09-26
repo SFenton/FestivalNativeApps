@@ -45,22 +45,82 @@ shows a visible Retry/status error instead of silently claiming no
 song is in Shop. Two additional source WebKit phone/tablet captures
 show the PWA's matching red/gold *border-only* rows; native adds small
 status icons as a legible, spoken distinction. Shop filtering,
-selected profile/band score rows and invalid-score action are **still
-not ported**. See [Shop](shop.md) and
+band score rows, selected-profile score sorting and invalid-score
+actions are **still not ported**. See [Shop](shop.md) and
 [Shop offers](../controls/shop-offers.md).
 
-Apple Core now decodes the source's compact player scores and
-distinguishes an available HTTP 200 empty-score envelope from
-registration-syncing (HTTP 202), using
-only injected and synthetic loopback responses. No profile read
-is initiated by the app UI yet, nor is the result wired to a
-profile selector or Songs card. An HTTP 200 score list does not
-prove the account is registered; a selected player's Songs
-percentile must derive from rank/total, not raw `pct`.
-A band-search GET can write in
-the service's missing-projection fallback, so native clients
-must not call it. The viewed-versus-selected state, dependent
-metadata and nine rendered score-card states remain pending;
-see [profile selection](../controls/profile-selection.md).
+**Selected-player card WIP:** A real profile action is now available
+on Songs, Settings and the Leaderboards placeholder; wide Apple
+sidebars visibly retain the selected player's name. The new
+native search sheet separates viewing a result from selecting it.
+Only a validated, response-proven player profile can decorate
+Songs. In the selected iPhone/iPadOS 26.5 fixtures, a switched
+player changes the **actual** score from 99,900/non-FC to
+99,800/explicit gold-and-spoken FC for the same Lead song.
+Seven backed metadata labels respond independently to saved
+Settings switches; the eighth, Intensity, controls the visible
+difficulty meter when a chart is filtered. Hiding Lead changes
+the unfiltered card to an explicit Bass no-score or uncharted
+state rather than leaking a hidden Lead score. An identity
+survives cold relaunch but its score bytes do not: the app
+re-fetches under the observed publication and displays
+loading/403/syncing failures instead of anonymous-looking
+success. A selected player's percentile derives from
+`rank/totalEntries`, not raw `pct`, and uses the source
+Songs buckets: rank two of 26 reads **Top 10%**, and
+rank one of a million never rounds to "Top 0.0%"
+(`packages/core/src/app/formatters.ts:74-83`).
+Zero is presented as **no score**, not a misleading
+Score 0 label. Last Played prefers the service's `vlp`
+over `lp` when available; a real seven-digit
+`DateTime.ToString("O")` fixture parses correctly.
+HTTP 200 does **not** prove the account is registered.
+
+This native card uses the **first visible instrument** when
+unfiltered. It does not render the PWA's all-nine
+instrument-status chip row, editable metadata ordering,
+precomputed invalid-score variants, a score warning action,
+selected-profile sorting, band assignments, or profile-aware
+Detail controls. When Filter Invalid Scores is enabled,
+the raw player-card score is deliberately withheld with a
+visible pending message until the `ml`/`vs`/`rt` selection
+policy is ported; Solo requests still use their separately
+verified leeway query. A band-search GET can write in the
+service's missing-projection fallback, so native clients
+must not call it. The paired **3/3 + 3/3 per-device** selected
+matrices, **2/2 per-device** search Retry checks, and final
+**7/7 per-device** selected/anonymous fixture regression prove only named
+fixtures, not responsive/PWA visual parity, full audits,
+95%/90% coverage or live access.
+See [profile selection](../controls/profile-selection.md).
+
+The same synthetic selected account was captured by fixture-only
+source WebKit tests at phone and tablet widths (**2/2**) and native
+iPhone/iPad tests. Source search results lead to the player route.
+The comparison explicitly turns **source instrument icons off**:
+the selected Songs card then puts 99,800 at the right, a skewed
+gold 97.9% accuracy badge and Top 10% bucket beside separate
+stars/season/intensity/difficulty information
+(`FortniteFestivalWeb/src/pages/songs/components/SongRow.tsx:49-90,173-269`,
+`FortniteFestivalWeb/src/components/songs/metadata/ScorePill.tsx:17-35`).
+When a selected player's unfiltered row has instrument icons
+enabled, the source instead suppresses per-chart metadata and
+shows the enabled instrument status chips: FC gold, scored green,
+no score red, unavailable muted
+(`FortniteFestivalWeb/src/pages/songs/components/SongRow.tsx:191-200,264-271`,
+`FortniteFestivalWeb/src/components/display/InstrumentIcons.tsx:110-122`).
+Native uses an inline first-visible-chart score, separate visible
+and spoken FC, and now the matching Top 10% bucket for that
+fixture; neither layout nor chip
+hierarchy matches yet. The matched WebKit screenshots **do not**
+prove default chip styling, which needs a separate source/native
+capture. Source first displays a page-specific
+Filter Songs carousel over selected Songs; native does not.
+Source selection adds conditional destinations while native
+keeps three tabs. The PWA captures intentionally dismiss that
+overlay before the unobstructed Songs comparison. See the
+fixture-backed comparison in `tools/visual/pages.spec.ts`; the
+captures are private evidence, not redistributable artwork.
+The card, first-run and navigation controls stay `pending`.
 
 The default Apple Debug/Release app now reads this **real public Songs endpoint** over HTTPS; native UI automation explicitly overrides it with loopback fixtures. A read-only Swift-client probe decoded 728 live Songs on 2026-09-25 and an already-running iOS 26.5 app rendered actual catalogue rows and album art. The screenshot is private session evidence, not a committed third-party artwork asset or a PWA/native layout parity comparison. Run `bash tools/apple_live_service_smoke.sh --read-public-live` for a bounded, aggregate-only wire check; never add production payloads or account identifiers to fixtures by copying this response. Catalogue counts and provenance can change on the service.

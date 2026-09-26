@@ -3,7 +3,492 @@ import UIKit
 
 /// Fixture-backed native flows, never production or privileged endpoints.
 final class FestivalMobileUITests: XCTestCase {
+    /// Start each fixture journey without a previously selected app profile.
+    ///
+    /// - Returns: Native app launcher that clears only the Debug selected-identity key.
+    @MainActor
+    private func fixtureApp() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchEnvironment["FST_UI_TEST_CLEAR_PROFILE"] = "1"
+        return app
+    }
+
     // MARK: - Navigation and orientation
+
+    /// A searched player is only viewed until explicitly selected, then changes Song rows.
+    ///
+    /// - Throws: Missing native search, contradictory score cards or an unconfirmed switch.
+    @MainActor
+    func testPlayerSearchViewSelectSwitchAndDeselectChangeSongsCards() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launch()
+        let song = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(song.waitForExistence(timeout: 15))
+        let action = app.buttons["fst.profile.open"]
+        XCTAssertTrue(action.waitForExistence(timeout: 10))
+        XCTAssertTrue(action.isHittable)
+        action.tap()
+        let search = app.textFields["fst.profile.search"]
+        XCTAssertTrue(search.waitForExistence(timeout: 10))
+        search.tap()
+        search.typeText("Fixture Player\n")
+        let first = app.buttons["fst.profile.result.fixture-player-1"]
+        XCTAssertTrue(first.waitForExistence(timeout: 15))
+        XCTAssertFalse(app.buttons["fst.profile.search-retry"].exists)
+        record(app, name: "profile-player-search-results")
+        first.tap()
+        XCTAssertTrue(app.staticTexts["fst.profile.viewed"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["fst.profile.score-count"]
+            .waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["Already selected"].exists)
+        app.buttons["fst.profile.select"].tap()
+        XCTAssertTrue(song.waitForExistence(timeout: 10))
+        XCTAssertTrue(action.label.contains("Fixture Player 1"))
+        XCTAssertTrue(song.label.contains("99,900"), "The first selected score did not paint")
+        XCTAssertFalse(song.label.contains("Full combo"))
+        record(app, name: "songs-player-one-available-score")
+
+        action.tap()
+        let secondSearch = app.textFields["fst.profile.search"]
+        XCTAssertTrue(secondSearch.waitForExistence(timeout: 10))
+        secondSearch.tap()
+        secondSearch.typeText("Fixture Player\n")
+        let second = app.buttons["fst.profile.result.fixture-player-2"]
+        XCTAssertTrue(second.waitForExistence(timeout: 15))
+        second.tap()
+        XCTAssertTrue(app.buttons["fst.profile.select"].waitForExistence(timeout: 10))
+        app.buttons["fst.profile.select"].tap()
+        let switchPlayer = app.buttons["Switch Profile"]
+        XCTAssertTrue(switchPlayer.waitForExistence(timeout: 10))
+        switchPlayer.tap()
+        XCTAssertTrue(song.waitForExistence(timeout: 10))
+        XCTAssertTrue(action.label.contains("Fixture Player 2"))
+        XCTAssertTrue(song.label.contains("99,800"), "The switched score stayed on player one")
+        XCTAssertTrue(song.label.contains("Full combo"), "Explicit FC was not announced")
+        record(app, name: "songs-player-two-full-combo")
+
+        try deselectFixturePlayer(in: app)
+        XCTAssertTrue(song.waitForExistence(timeout: 10))
+        XCTAssertEqual(action.label, "Choose Profile")
+        XCTAssertFalse(song.label.contains("99,800"))
+        record(app, name: "songs-anonymous-after-deselect")
+    }
+
+    /// A subsequent XCTest launch cannot inherit identity from an interrupted selection.
+    ///
+    /// - Throws: Missing fixture accounts or a profile persisting into a fresh journey.
+    @MainActor
+    func testFreshFixtureLaunchDiscardsPreviouslySelectedProfile() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let original = fixtureApp()
+        original.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        original.launch()
+        XCTAssertTrue(original.buttons["fst.songs.row.fixture-pulse"]
+            .waitForExistence(timeout: 15))
+        viewFixturePlayer("fixture-player-1", query: "Fixture Player", in: original)
+        XCTAssertTrue(original.buttons["fst.profile.select"].waitForExistence(timeout: 10))
+        original.buttons["fst.profile.select"].tap()
+        XCTAssertTrue(original.buttons["fst.profile.open"].label.contains("Fixture Player 1"))
+        original.terminate()
+
+        let next = fixtureApp()
+        next.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        next.launch()
+        XCTAssertTrue(next.buttons["fst.songs.row.fixture-pulse"]
+            .waitForExistence(timeout: 15))
+        XCTAssertEqual(next.buttons["fst.profile.open"].label, "Choose Profile")
+        XCTAssertFalse(next.buttons["fst.songs.row.fixture-pulse"].label.contains("99,900"))
+        XCTAssertFalse(next.descendants(matching: .any)
+            .matching(identifier: "fst.songs.profile-status").firstMatch.exists)
+    }
+
+    /// Anonymous users can restore the filtered Songs meter without selecting a profile.
+    ///
+    /// - Throws: A disabled Intensity switch or a meter that ignores its stored state.
+    @MainActor
+    func testAnonymousIntensityCanBeHiddenAndRestored() throws {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launch()
+        rootControl("Settings", app: app).tap()
+        let intensity = app.switches["fst.settings.metadata.intensity"]
+        reveal(intensity, in: app, scrollingUp: true)
+        XCTAssertTrue(intensity.isEnabled)
+        let original = try XCTUnwrap(intensity.value as? String)
+        setSwitch(intensity, to: "1")
+
+        rootControl("Songs", app: app).tap()
+        let filter = app.buttons["fst.songs.instrument-filter"]
+        XCTAssertTrue(filter.waitForExistence(timeout: 10))
+        filter.tap()
+        XCTAssertTrue(app.buttons["Lead"].waitForExistence(timeout: 10))
+        app.buttons["Lead"].tap()
+        let meter = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.difficulty-meter").firstMatch
+        XCTAssertTrue(meter.waitForExistence(timeout: 10))
+
+        rootControl("Settings", app: app).tap()
+        reveal(intensity, in: app, scrollingUp: true)
+        setSwitch(intensity, to: "0")
+        rootControl("Songs", app: app).tap()
+        XCTAssertFalse(meter.exists)
+        rootControl("Settings", app: app).tap()
+        reveal(intensity, in: app, scrollingUp: true)
+        XCTAssertTrue(intensity.isEnabled)
+        setSwitch(intensity, to: "1")
+        rootControl("Songs", app: app).tap()
+        XCTAssertTrue(meter.waitForExistence(timeout: 10))
+        rootControl("Settings", app: app).tap()
+        reveal(intensity, in: app, scrollingUp: true)
+        setSwitch(intensity, to: original)
+    }
+
+    /// Applied Settings and cold launch must affect one chosen player's real score card.
+    ///
+    /// - Throws: Stale anonymous rows, ignored switches, or disk-cached scores.
+    @MainActor
+    func testSelectedPlayerMetadataAndColdRelaunchRespectSettings() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launch()
+        let row = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(row.waitForExistence(timeout: 15))
+        viewFixturePlayer("fixture-player-1", query: "Fixture Player", in: app)
+        let select = app.buttons["fst.profile.select"]
+        XCTAssertTrue(select.waitForExistence(timeout: 10))
+        select.tap()
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+
+        rootControl("Settings", app: app).tap()
+        let score = app.switches["fst.settings.metadata.score"]
+        reveal(score, in: app, scrollingUp: true)
+        XCTAssertTrue(score.isEnabled)
+        let originalScore = try XCTUnwrap(score.value as? String)
+        setSwitch(score, to: "1")
+        let percentage = app.switches["fst.settings.metadata.percentage"]
+        reveal(percentage, in: app, scrollingUp: true)
+        let originalPercentage = try XCTUnwrap(percentage.value as? String)
+        setSwitch(percentage, to: "1")
+        let lead = app.switches["fst.settings.instrument.Solo_Guitar"]
+        reveal(lead, in: app, scrollingUp: false)
+        let originalLead = try XCTUnwrap(lead.value as? String)
+        setSwitch(lead, to: "1")
+        let filtering = app.switches["Filter Invalid Scores"]
+        reveal(filtering, in: app, scrollingUp: false)
+        let originalFilter = try XCTUnwrap(filtering.value as? String)
+        setSwitch(filtering, to: "0")
+
+        rootControl("Songs", app: app).tap()
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertTrue(row.label.contains("Score 99,900"))
+        XCTAssertTrue(row.label.contains("Accuracy 97.9%"))
+        record(app, name: "songs-player-score-and-percentage-enabled")
+
+        rootControl("Settings", app: app).tap()
+        reveal(score, in: app, scrollingUp: true)
+        setSwitch(score, to: "0")
+        rootControl("Songs", app: app).tap()
+        XCTAssertFalse(row.label.contains("Score 99,900"))
+        XCTAssertTrue(row.label.contains("Accuracy 97.9%"))
+        record(app, name: "songs-profile-score-hidden-percentage-retained")
+
+        rootControl("Settings", app: app).tap()
+        reveal(score, in: app, scrollingUp: true)
+        setSwitch(score, to: "1")
+        reveal(percentage, in: app, scrollingUp: true)
+        setSwitch(percentage, to: "0")
+        rootControl("Songs", app: app).tap()
+        XCTAssertTrue(row.label.contains("Score 99,900"))
+        XCTAssertFalse(row.label.contains("Accuracy 97.9%"))
+
+        rootControl("Settings", app: app).tap()
+        reveal(percentage, in: app, scrollingUp: true)
+        setSwitch(percentage, to: "1")
+        reveal(lead, in: app, scrollingUp: false)
+        setSwitch(lead, to: "0")
+        rootControl("Songs", app: app).tap()
+        XCTAssertTrue(row.label.contains("No Bass score"))
+        XCTAssertTrue(
+            app.buttons["fst.songs.row.fixture-orbit"].label
+                .contains("Bass is not charted"),
+            "A hidden Lead score reappeared on an uncharted Bass song"
+        )
+        record(app, name: "songs-hidden-lead-reveals-bass-status")
+
+        rootControl("Settings", app: app).tap()
+        reveal(lead, in: app, scrollingUp: false)
+        setSwitch(lead, to: "1")
+        rootControl("Songs", app: app).tap()
+        XCTAssertTrue(row.label.contains("Score 99,900"))
+
+        app.terminate()
+        app.launchEnvironment.removeValue(forKey: "FST_UI_TEST_CLEAR_PROFILE")
+        app.launch()
+        let restored = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(restored.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["fst.profile.open"].label.contains("Fixture Player 1"))
+        let restoredScore = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label CONTAINS %@", "Score 99,900"),
+            object: restored
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [restoredScore], timeout: 15), .completed)
+        record(app, name: "songs-player-identity-restored-scores-refetched")
+
+        rootControl("Settings", app: app).tap()
+        reveal(score, in: app, scrollingUp: true)
+        setSwitch(score, to: originalScore)
+        reveal(percentage, in: app, scrollingUp: true)
+        setSwitch(percentage, to: originalPercentage)
+        reveal(lead, in: app, scrollingUp: false)
+        setSwitch(lead, to: originalLead)
+        reveal(filtering, in: app, scrollingUp: false)
+        setSwitch(filtering, to: originalFilter)
+        rootControl("Songs", app: app).tap()
+        try deselectFixturePlayer(in: app)
+    }
+
+    /// Access-denied search, syncing/empty previews and blocked band reads stay distinct.
+    ///
+    /// - Throws: A fabricated empty success or unsafe band/selected-profile request.
+    @MainActor
+    func testProfileSearchErrorsSyncingAndBandsStayExplicit() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launch()
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"]
+            .waitForExistence(timeout: 15))
+        app.buttons["fst.profile.open"].tap()
+        let bands = app.buttons["Bands"]
+        XCTAssertTrue(bands.waitForExistence(timeout: 10))
+        bands.tap()
+        let bandStatus = app.staticTexts["fst.profile.bands-unavailable"]
+        XCTAssertTrue(bandStatus.waitForExistence(timeout: 10))
+        XCTAssertTrue(bandStatus.label.contains("Band search is paused"))
+        XCTAssertFalse(app.buttons["fst.profile.select"].exists)
+        app.buttons["Players"].tap()
+        let search = app.textFields["fst.profile.search"]
+        XCTAssertTrue(search.waitForExistence(timeout: 10))
+        search.tap()
+        search.typeText("blocked")
+        let denied = app.descendants(matching: .any)
+            .matching(identifier: "fst.profile.search-error").firstMatch
+        XCTAssertTrue(denied.waitForExistence(timeout: 15))
+        XCTAssertTrue(
+            denied.label.contains("HTTP 403"),
+            "Search failure lost access-denied status: \(denied.label)"
+        )
+        XCTAssertFalse(app.staticTexts["fst.profile.search-empty"].exists)
+        XCTAssertTrue(app.buttons["fst.profile.search-retry"].exists)
+        record(app, name: "profile-player-search-access-denied")
+        app.buttons["fst.profile.close"].tap()
+
+        app.buttons["fst.profile.open"].tap()
+        let emptySearch = app.textFields["fst.profile.search"]
+        XCTAssertTrue(emptySearch.waitForExistence(timeout: 10))
+        emptySearch.tap()
+        emptySearch.typeText("missing\n")
+        XCTAssertTrue(app.staticTexts["fst.profile.search-empty"]
+            .waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["fst.profile.search-retry"].exists)
+        record(app, name: "profile-player-search-empty-envelope")
+        app.buttons["fst.profile.close"].tap()
+
+        viewFixturePlayer("fixture-syncing", query: "Syncing", in: app)
+        XCTAssertTrue(app.staticTexts["fst.profile.syncing"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["fst.profile.select"].exists)
+        XCTAssertTrue(app.buttons["fst.profile.preview-retry"].exists)
+        record(app, name: "profile-player-syncing-not-empty")
+        app.buttons["fst.profile.close"].tap()
+
+        viewFixturePlayer("fixture-empty", query: "Empty", in: app)
+        XCTAssertTrue(app.staticTexts["fst.profile.empty-status"]
+            .waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["fst.profile.select"].exists)
+        record(app, name: "profile-player-available-empty")
+        app.buttons["fst.profile.close"].tap()
+
+        viewFixturePlayer("fixture-denied", query: "Denied", in: app)
+        let scoreError = app.descendants(matching: .any)
+            .matching(identifier: "fst.profile.preview-error").firstMatch
+        XCTAssertTrue(scoreError.waitForExistence(timeout: 10))
+        XCTAssertTrue(scoreError.label.contains("HTTP 403"))
+        XCTAssertFalse(app.buttons["fst.profile.select"].exists)
+        record(app, name: "profile-player-scores-access-denied")
+        app.buttons["fst.profile.close"].tap()
+        XCTAssertEqual(app.buttons["fst.profile.open"].label, "Choose Profile")
+    }
+
+    /// Root sections keep a profile action, while wide sidebars show the actual name.
+    ///
+    /// - Throws: Hidden header/sidebar controls or selection changing the active section.
+    @MainActor
+    func testProfileActionsRemainReachableAcrossRootSections() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launch()
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"]
+            .waitForExistence(timeout: 15))
+        rootControl("Settings", app: app).tap()
+        try rootProfileAction(in: app).tap()
+        XCTAssertTrue(app.textFields["fst.profile.search"].waitForExistence(timeout: 10))
+        app.buttons["fst.profile.close"].tap()
+        XCTAssertTrue(app.switches["Filter Invalid Scores"].waitForExistence(timeout: 10))
+
+        rootControl("Leaderboards", app: app).tap()
+        try rootProfileAction(in: app).tap()
+        XCTAssertTrue(app.textFields["fst.profile.search"].waitForExistence(timeout: 10))
+        app.buttons["fst.profile.close"].tap()
+        XCTAssertTrue(app.staticTexts["Leaderboards overview migration in progress"].exists)
+
+        let sidebar = app.buttons["fst.profile.sidebar"]
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            XCTAssertTrue(sidebar.waitForExistence(timeout: 10))
+            XCTAssertEqual(sidebar.label, "Choose Profile")
+            sidebar.tap()
+        } else {
+            try rootProfileAction(in: app).tap()
+        }
+        let search = app.textFields["fst.profile.search"]
+        XCTAssertTrue(search.waitForExistence(timeout: 10))
+        search.tap()
+        search.typeText("Fixture Player")
+        let result = app.buttons["fst.profile.result.fixture-player-1"]
+        XCTAssertTrue(result.waitForExistence(timeout: 15))
+        result.tap()
+        XCTAssertTrue(app.buttons["fst.profile.select"].waitForExistence(timeout: 10))
+        app.buttons["fst.profile.select"].tap()
+        XCTAssertTrue(
+            app.staticTexts["Leaderboards overview migration in progress"]
+                .waitForExistence(timeout: 10),
+            "Opening a profile silently left the current native root section"
+        )
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            XCTAssertTrue(sidebar.label.contains("Fixture Player 1"))
+            record(app, name: "ipad-visible-selected-sidebar-profile")
+        }
+
+        rootControl("Settings", app: app).tap()
+        let action = try rootProfileAction(in: app)
+        XCTAssertTrue(action.label.contains("Fixture Player 1"))
+        action.tap()
+        let selectedName = app.staticTexts["fst.profile.selected"]
+        XCTAssertTrue(selectedName.waitForExistence(timeout: 10))
+        XCTAssertEqual(selectedName.label, "Fixture Player 1")
+        app.buttons["fst.profile.close"].tap()
+        rootControl("Songs", app: app).tap()
+        try deselectFixturePlayer(in: app)
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            XCTAssertEqual(sidebar.label, "Choose Profile")
+        }
+    }
+
+    /// Audit the loaded iPhone page; retain iPad's unnamed full-audit failure as an open gate.
+    ///
+    /// - Throws: A phone manufacturer audit or named tablet visible-text contrast failure.
+    @MainActor
+    func testSelectedPlayerPreviewAndSongsAccessibilityEvidence() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launch()
+        let song = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(song.waitForExistence(timeout: 15))
+        viewFixturePlayer("fixture-player-2", query: "Fixture Player", in: app)
+        XCTAssertTrue(app.staticTexts["fst.profile.score-count"]
+            .waitForExistence(timeout: 10))
+        record(app, name: "profile-player-two-preview-audit")
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            try assertHeaderContrast(app.staticTexts["fst.profile.viewed"], in: app)
+            try assertHeaderContrast(app.staticTexts["fst.profile.score-count"], in: app)
+            try assertHeaderContrast(app.buttons["fst.profile.select"], in: app)
+            try assertHeaderContrast(app.buttons["fst.profile.back"], in: app)
+            try assertHeaderContrast(app.buttons["fst.profile.close"], in: app)
+        } else {
+            try app.performAccessibilityAudit(for: .all)
+        }
+        app.buttons["fst.profile.select"].tap()
+        XCTAssertTrue(song.waitForExistence(timeout: 10))
+        XCTAssertTrue(song.label.contains("Score 99,800"))
+        XCTAssertTrue(song.label.contains("Full combo"))
+        record(app, name: "songs-player-two-selected-audit")
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            // Split-view rows and the search field can both report a full-window AX frame.
+            let detailOrigin = app.windows.firstMatch.frame.midX
+            try assertHeaderContrast(
+                song, in: app, leadingTextWidth: 320,
+                horizontalOrigin: detailOrigin
+            )
+        } else {
+            try app.performAccessibilityAudit(for: .all)
+        }
+        try deselectFixturePlayer(in: app)
+    }
+
+    /// Measure actual profile-action glyph growth when Dynamic Type becomes largest.
+    ///
+    /// - Throws: An unchanged rendered font size, clipped preview or unreachable action.
+    @MainActor
+    func testProfilePreviewTextScalesAtLargestDynamicType() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launch()
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
+        viewFixturePlayer("fixture-player-2", query: "Fixture Player", in: app)
+        let scoreCount = app.staticTexts["fst.profile.score-count"]
+        XCTAssertTrue(scoreCount.waitForExistence(timeout: 10))
+        let select = app.buttons["fst.profile.select"]
+        XCTAssertTrue(select.waitForExistence(timeout: 10))
+        let normalCountHeight = scoreCount.frame.height
+        let normalGlyphHeight = try brightGlyphHeight(in: select)
+        record(app, name: "profile-preview-normal-type")
+
+        app.terminate()
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName",
+            UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+        ]
+        app.launch()
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
+        viewFixturePlayer("fixture-player-2", query: "Fixture Player", in: app)
+        XCTAssertTrue(scoreCount.waitForExistence(timeout: 10))
+        XCTAssertTrue(select.waitForExistence(timeout: 10))
+        XCTAssertGreaterThan(scoreCount.frame.height, normalCountHeight * 1.2)
+        let largeGlyphHeight = try brightGlyphHeight(in: select)
+        XCTAssertGreaterThan(
+            Double(largeGlyphHeight), Double(normalGlyphHeight) * 1.35,
+            "Select Profile rendered glyphs did not scale with Dynamic Type"
+        )
+        XCTAssertTrue(select.isHittable)
+        let back = app.buttons["fst.profile.back"]
+        let window = app.windows.firstMatch.frame
+        for _ in 0..<6 {
+            if back.isHittable && back.frame.maxY <= window.maxY - 16 { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(back.isHittable)
+        XCTAssertLessThanOrEqual(back.frame.maxY, window.maxY - 16)
+        let close = app.buttons["fst.profile.close"]
+        XCTAssertTrue(close.isHittable)
+        XCTAssertEqual(close.label, "Close")
+        record(app, name: "profile-preview-largest-type")
+    }
 
     /// A public Shop feed opens without adding a fourth compact tab.
     ///
@@ -12,7 +497,7 @@ final class FestivalMobileUITests: XCTestCase {
     func testPublicShopOffersAndSongDetailNavigation() throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launch()
         XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
@@ -57,7 +542,7 @@ final class FestivalMobileUITests: XCTestCase {
     func testPublicShopEmptyAndErrorStayDistinct() throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "empty"
         app.launch()
@@ -87,7 +572,7 @@ final class FestivalMobileUITests: XCTestCase {
     func testHeaderlessShopOffersRemainReadableAfterConnectionLoss() async throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8773"
         app.launch()
         let row = app.buttons["fst.songs.row.fixture-pulse"]
@@ -143,7 +628,7 @@ final class FestivalMobileUITests: XCTestCase {
     func testPublicShopSettingsHideAndHighlightPropagation() throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launch()
         rootControl("Settings", app: app).tap()
@@ -196,7 +681,7 @@ final class FestivalMobileUITests: XCTestCase {
     func testPublicShopMembershipDecoratesSongsAndDetail() throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launch()
         rootControl("Settings", app: app).tap()
@@ -259,7 +744,7 @@ final class FestivalMobileUITests: XCTestCase {
     func testShopFeedFailureAndEmptyStaySeparateFromSongs() throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "shop-error"
         app.launch()
@@ -303,7 +788,7 @@ final class FestivalMobileUITests: XCTestCase {
     func testAnonymousSongsSortDraftApplyDiscardAndRelaunch() throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launch()
         let sort = app.buttons["fst.songs.sort"]
@@ -426,7 +911,7 @@ final class FestivalMobileUITests: XCTestCase {
     func testAnonymousItemShopSortRestoresAfterHideAndFeedFailure() throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "shop-single"
         app.launch()
@@ -639,7 +1124,7 @@ final class FestivalMobileUITests: XCTestCase {
     func testSongPathsImageTextSwitchAndMissingDifficulty() throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launch()
         let song = app.buttons["fst.songs.row.fixture-pulse"]
@@ -738,7 +1223,7 @@ final class FestivalMobileUITests: XCTestCase {
     func testSongPathsDefaultViewFollowsSettings() throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launch()
         rootControl("Settings", app: app).tap()
@@ -803,7 +1288,7 @@ final class FestivalMobileUITests: XCTestCase {
     func testSongDetailShowsTopScorePreviewAndFullChart() async throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launch()
         let song = app.buttons["fst.songs.row.fixture-pulse"]
@@ -922,7 +1407,7 @@ final class FestivalMobileUITests: XCTestCase {
     func testOffscreenDetailScoreRemainsReachable() throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8774"
         app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
         app.launch()
@@ -952,7 +1437,7 @@ final class FestivalMobileUITests: XCTestCase {
     func testOffscreenEmptyChartActionRemainsReachable() async throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8775"
         app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
         app.launch()
@@ -985,7 +1470,7 @@ final class FestivalMobileUITests: XCTestCase {
     func testSongsDetailScoresInPortraitAndLandscape() throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launch()
 
@@ -1053,7 +1538,7 @@ final class FestivalMobileUITests: XCTestCase {
     func testSoloScoresAtLargestTextSize() throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launchArguments += [
             "-UIPreferredContentSizeCategoryName",
@@ -1094,7 +1579,7 @@ final class FestivalMobileUITests: XCTestCase {
     func testSongsAccessibilityAudit() async throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
         app.launch()
@@ -1132,7 +1617,7 @@ final class FestivalMobileUITests: XCTestCase {
     func testWhiteArtworkExposedTextAccessibility() async throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "art-white"
         app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
@@ -1185,7 +1670,7 @@ final class FestivalMobileUITests: XCTestCase {
     @MainActor
     func testEmptyAndErrorCatalogueStates() throws {
         continueAfterFailure = false
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "empty"
         app.launch()
@@ -1219,7 +1704,7 @@ final class FestivalMobileUITests: XCTestCase {
         continueAfterFailure = false
         addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "error"
         app.launch()
@@ -1264,7 +1749,7 @@ final class FestivalMobileUITests: XCTestCase {
     func testSongsRecoversAfterSamePublicationSettingsCheck() async throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8769"
         app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "art-white"
         app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
@@ -1300,7 +1785,7 @@ final class FestivalMobileUITests: XCTestCase {
     func testHeaderlessWarmOfflineSurvivesBackgroundButNotColdLaunch() async throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8771"
         app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
         app.launch()
@@ -1355,7 +1840,7 @@ final class FestivalMobileUITests: XCTestCase {
     func testHeaderlessSoloScoresRemainReadableAfterConnectionLoss() async throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8772"
         app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
         app.launch()
@@ -1430,7 +1915,7 @@ final class FestivalMobileUITests: XCTestCase {
     @MainActor
     func testSearchAndRootTabDestinations() throws {
         continueAfterFailure = false
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launch()
         XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
@@ -1487,7 +1972,7 @@ final class FestivalMobileUITests: XCTestCase {
     @MainActor
     func testAccessibilitySettingPersistsAcrossRelaunch() throws {
         continueAfterFailure = false
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launch()
         rootControl("Settings", app: app).tap()
@@ -1523,7 +2008,7 @@ final class FestivalMobileUITests: XCTestCase {
     @MainActor
     func testArtworkAnimationAndAccessibilityOverrides() async throws {
         continueAfterFailure = false
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
         app.launch()
@@ -1618,7 +2103,7 @@ final class FestivalMobileUITests: XCTestCase {
     @MainActor
     func testUnavailableArtworkKeepsOpaqueCatalogueUsable() async throws {
         continueAfterFailure = false
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "art-error"
         app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
@@ -1640,7 +2125,7 @@ final class FestivalMobileUITests: XCTestCase {
     @MainActor
     func testBadCoverStillAllowsTheNextCarouselImage() async throws {
         continueAfterFailure = false
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "art-skip"
         app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
@@ -1669,7 +2154,7 @@ final class FestivalMobileUITests: XCTestCase {
     @MainActor
     func testInstrumentVisibilityAndScoreFilterPropagation() async throws {
         continueAfterFailure = false
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launch()
         rootControl("Settings", app: app).tap()
@@ -1769,7 +2254,7 @@ final class FestivalMobileUITests: XCTestCase {
     @MainActor
     func testSectionSwitchKeepsAndSanitizesInstrument() throws {
         continueAfterFailure = false
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launch()
         XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
@@ -1821,7 +2306,7 @@ final class FestivalMobileUITests: XCTestCase {
     @MainActor
     func testAppOnlyResetPreservesSongsSearch() throws {
         continueAfterFailure = false
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launch()
         XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
@@ -1871,7 +2356,7 @@ final class FestivalMobileUITests: XCTestCase {
     @MainActor
     func testHeaderlessRolloverExplainsRouteReset() throws {
         continueAfterFailure = false
-        let app = XCUIApplication()
+        let app = fixtureApp()
         let port = UIDevice.current.userInterfaceIdiom == .pad ? 8768 : 8767
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:\(port)"
         app.launch()
@@ -1914,7 +2399,7 @@ final class FestivalMobileUITests: XCTestCase {
     func testDuoOuterFourRotations() throws {
         continueAfterFailure = false
         addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
-        let app = XCUIApplication()
+        let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launch()
         let row = app.buttons["fst.songs.row.fixture-pulse"]
@@ -1957,6 +2442,70 @@ final class FestivalMobileUITests: XCTestCase {
     }
 
     // MARK: - Evidence
+
+    /// Select a visible header action even when an inactive tab retains its toolbar.
+    ///
+    /// - Parameter app: Fixture app on any root navigation section.
+    /// - Returns: The current root's hittable profile action.
+    /// - Throws: An obscured or absent action.
+    @MainActor
+    private func rootProfileAction(in app: XCUIApplication) throws -> XCUIElement {
+        try XCTUnwrap(
+            app.buttons.matching(identifier: "fst.profile.open")
+                .allElementsBoundByIndex.first(where: \.isHittable),
+            "No root profile action is hittable in the current section"
+        )
+    }
+
+    /// Reach one synthetic player from a fresh profile sheet without selecting it.
+    ///
+    /// - Parameters:
+    ///   - accountId: Fixture search result key.
+    ///   - query: Source-like player name or state to type.
+    ///   - app: Already launched native fixture app on Songs.
+    @MainActor
+    private func viewFixturePlayer(
+        _ accountId: String, query: String, in app: XCUIApplication
+    ) {
+        let action = app.buttons["fst.profile.open"]
+        XCTAssertTrue(action.waitForExistence(timeout: 10))
+        action.tap()
+        let search = app.textFields["fst.profile.search"]
+        XCTAssertTrue(search.waitForExistence(timeout: 10))
+        search.tap()
+        search.typeText(query + "\n")
+        let result = app.buttons["fst.profile.result.\(accountId)"]
+        XCTAssertTrue(result.waitForExistence(timeout: 15))
+        for _ in 0..<5 {
+            if result.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(result.isHittable, "Player result stayed outside the visible sheet")
+        result.tap()
+        let viewed = app.staticTexts["fst.profile.viewed"]
+        XCTAssertTrue(
+            viewed.waitForExistence(timeout: 10),
+            "Viewed player never replaced search results: "
+                + "\(app.staticTexts.allElementsBoundByIndex.prefix(14).map(\.label))"
+        )
+    }
+
+    /// Remove only the app's selected identity through its own confirmation action.
+    ///
+    /// - Parameter app: Foreground Songs screen with a selected player.
+    /// - Throws: Missing accessible confirmation or stale selection.
+    @MainActor
+    private func deselectFixturePlayer(in app: XCUIApplication) throws {
+        app.buttons["fst.profile.open"].tap()
+        let deselect = app.buttons["fst.profile.deselect"]
+        XCTAssertTrue(deselect.waitForExistence(timeout: 10))
+        deselect.tap()
+        let confirmed = try XCTUnwrap(
+            app.buttons.matching(identifier: "Deselect Profile")
+                .allElementsBoundByIndex.first(where: \.isHittable)
+        )
+        confirmed.tap()
+    }
 
     /// Open Shop from the native Songs overflow while keeping three phone tabs.
     ///
@@ -2357,6 +2906,33 @@ final class FestivalMobileUITests: XCTestCase {
         return bytes
     }
 
+    /// Measure real rendered text height instead of assuming a SwiftUI font modifier scales.
+    ///
+    /// - Parameter element: A visible opaque Form button with bright text.
+    /// - Returns: Vertical extent of its near-white glyph pixels.
+    /// - Throws: A missing element screenshot or inaccessible text pixels.
+    @MainActor
+    private func brightGlyphHeight(in element: XCUIElement) throws -> Int {
+        let image = try XCTUnwrap(element.screenshot().image.cgImage)
+        let pixels = try bitmapPixels(image)
+        var first: Int?
+        var last: Int?
+        for y in 0..<image.height {
+            for x in 0..<image.width {
+                let offset = (y * image.width + x) * 4
+                if pixels[offset] > 200 && pixels[offset + 1] > 200
+                    && pixels[offset + 2] > 200 {
+                    if first == nil { first = y }
+                    last = y
+                    break
+                }
+            }
+        }
+        let initial = try XCTUnwrap(first)
+        let final = try XCTUnwrap(last)
+        return final - initial + 1
+    }
+
     /// Sample an interior 16-by-16 grid from one screenshot, avoiding native chrome.
     ///
     /// - Parameter app: Visible native Songs destination.
@@ -2586,6 +3162,14 @@ final class FestivalMobileUITests: XCTestCase {
     private func setSwitch(_ element: XCUIElement, to value: String) {
         if element.value as? String != value {
             element.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+            let changed = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "value == %@", value), object: element
+            )
+            XCTAssertEqual(
+                XCTWaiter.wait(for: [changed], timeout: 3), .completed,
+                "Settings switch \(element.identifier) did not settle after one tap; "
+                    + "current value \(element.value as? String ?? "unavailable")"
+            )
         }
         XCTAssertEqual(
             element.value as? String, value,

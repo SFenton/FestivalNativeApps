@@ -2,6 +2,10 @@ import Foundation
 
 /// Shared service-score display policy for native solo leaderboard rows.
 public enum ScoreFormatting {
+    private static let percentileBuckets = [
+        1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100
+    ]
+
     /// Display expanded accuracy as a percent with one digit only when needed.
     ///
     /// - Parameter expandedAccuracy: Service accuracy measured in ten-thousandths of a percent.
@@ -37,6 +41,19 @@ public enum ScoreFormatting {
         let rounded = (value * 10).rounded() / 10
         let text = rounded.formatted(.number.precision(.fractionLength(1)))
         return "\(rounded > 0 ? "+" : "")\(text)%"
+    }
+
+    /// Bucket a selected song score's rank as the source Songs row does.
+    ///
+    /// - Parameters:
+    ///   - rank: One-based position in the published song chart.
+    ///   - totalEntries: Positive published chart population.
+    /// - Returns: The first source bucket at or above the clamped percentile, or nil for no rank.
+    public static func percentileBucket(rank: Int, totalEntries: Int) -> String? {
+        guard rank > 0, totalEntries > 0 else { return nil }
+        let percentile = min(max(Double(rank) / Double(totalEntries) * 100, 1), 100)
+        let bucket = percentileBuckets.first { percentile <= Double($0) } ?? 100
+        return "Top \(bucket)%"
     }
 }
 

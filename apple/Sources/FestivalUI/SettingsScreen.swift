@@ -158,13 +158,15 @@ struct SettingsScreen: View {
                 Text("Show Instruments").foregroundStyle(BrandTokens.textSecondary)
             }
             Section {
-                Text("Score metadata needs a selected profile, which is not yet available.")
+                Text(session.selectedPlayer == nil
+                    ? "Select a player to customize score metadata."
+                    : "Visible score fields update Songs cards. More metadata is coming.")
                     .font(.footnote)
                     .foregroundStyle(BrandTokens.textSecondary)
                 ForEach(MetadataField.allCases) { field in
                     Toggle(field.label, isOn: metadataBinding(for: field))
-                        .disabled(true)
-                        .accessibilityHint("Profile selection is not yet available")
+                        .disabled(session.selectedPlayer == nil && field != .intensity)
+                        .accessibilityHint(metadataHint(for: field))
                         .accessibilityIdentifier("fst.settings.metadata.\(field.rawValue)")
                 }
             } header: {
@@ -256,6 +258,19 @@ struct SettingsScreen: View {
         case .stars: $metadataStars
         case .lastPlayed: $metadataLastPlayed
         }
+    }
+
+    /// Keep the anonymous difficulty meter adjustable when score fields require a player.
+    ///
+    /// - Parameter field: Metadata setting that supplies a Song-row label or meter.
+    /// - Returns: Explanation of the actual currently supported row effect.
+    private func metadataHint(for field: MetadataField) -> String {
+        if field == .intensity {
+            return "Controls difficulty meters on filtered Songs cards"
+        }
+        return session.selectedPlayer == nil
+            ? "Select a player to use score metadata"
+            : "Updates the selected player's Songs cards"
     }
 
     // MARK: - Service and reset

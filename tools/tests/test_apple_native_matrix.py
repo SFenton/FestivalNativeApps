@@ -24,6 +24,7 @@ from tools.apple_native_matrix import (
     SCORE_OFFLINE_PORT,
     SERVICE_PORT,
     TEST_SOURCE,
+    UI_TEST_SOURCE_INPUT,
     MatrixError,
     acquire_matrix_lock,
     booted_targets,
@@ -35,6 +36,7 @@ from tools.apple_native_matrix import (
     file_hashes,
     input_hashes,
     main,
+    prepare_ui_test_product,
     require_unchanged,
     selected_tests,
     run_device,
@@ -93,6 +95,17 @@ class AppleNativeMatrixTests(unittest.TestCase):
                 selected_tests(source, requested)
         with self.assertRaises(MatrixError):
             selected_tests("    func testSame() {}\n    func testSame() {}\n", [])
+
+    def test_every_ui_test_app_constructor_uses_profile_isolating_fixture_launcher(self):
+        """A failed selected-profile test must not poison the next anonymous launch."""
+        source = TEST_SOURCE.read_text(encoding="utf-8")
+        self.assertEqual(source.count("XCUIApplication()"), 1)
+        self.assertIn('private func fixtureApp() -> XCUIApplication', source)
+        self.assertIn('app.launchEnvironment["FST_UI_TEST_CLEAR_PROFILE"] = "1"', source)
+        self.assertIn(
+            'app.launchEnvironment.removeValue(forKey: "FST_UI_TEST_CLEAR_PROFILE")',
+            source,
+        )
 
     def test_exclusive_lock_survives_until_release_across_processes(self):
         """Two matrix processes cannot concurrently own a simulator, even by mistake."""
@@ -266,6 +279,61 @@ class AppleNativeMatrixTests(unittest.TestCase):
             with self.assertRaisesRegex(MatrixError, "FestivalMobileUITests.swift"):
                 require_unchanged(baseline, root=root)
 
+    def test_ui_test_body_hash_cleans_only_the_owned_build_before_recording_success(self):
+        """A green method name cannot certify an old compiled test body."""
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            derived = root / "apple/DerivedData/native-matrix-iphone"
+            first = root / "first"
+            first.mkdir()
+            with patch(
+                "tools.apple_native_matrix.subprocess.run",
+                return_value=Mock(returncode=0),
+            ) as executed:
+                marker = prepare_ui_test_product(
+                    "iphone", IPHONE, derived, first, "a" * 64, {}, root=root
+                )
+                self.assertFalse(marker.exists())
+                self.assertEqual(executed.call_count, 1)
+                clean = executed.call_args.args[0]
+                self.assertIn("clean", clean)
+                self.assertIn(str(derived), clean)
+                self.assertNotIn("simctl", clean)
+
+                marker.parent.mkdir(parents=True)
+                marker.write_text("a" * 64 + "\n", encoding="ascii")
+                executed.reset_mock()
+                self.assertEqual(
+                    prepare_ui_test_product(
+                        "iphone", IPHONE, derived, root / "same", "a" * 64, {},
+                        root=root,
+                    ), marker
+                )
+                executed.assert_not_called()
+
+                changed = root / "changed"
+                changed.mkdir()
+                prepare_ui_test_product(
+                    "iphone", IPHONE, derived, changed, "b" * 64, {}, root=root
+                )
+                self.assertEqual(executed.call_count, 1)
+                self.assertFalse(marker.exists(), "An interrupted H2 run must not trust H1")
+                returned = root / "returned"
+                returned.mkdir()
+                prepare_ui_test_product(
+                    "iphone", IPHONE, derived, returned, "a" * 64, {}, root=root
+                )
+                self.assertEqual(executed.call_count, 2)
+                self.assertFalse(marker.exists())
+                marker.symlink_to(root / "other-owner")
+                executed.reset_mock()
+                with self.assertRaisesRegex(MatrixError, "symlink"):
+                    prepare_ui_test_product(
+                        "iphone", IPHONE, derived, root / "blocked",
+                        "b" * 64, {}, root=root,
+                    )
+                executed.assert_not_called()
+
     def test_stateful_port_is_never_reused_or_terminated(self):
         """A listener owned by another task survives an unsuccessful runner start."""
         with FixtureServer(("127.0.0.1", 0), FixtureHandler) as server:
@@ -412,11 +480,21 @@ class AppleNativeMatrixTests(unittest.TestCase):
                 with redirect_stdout(StringIO()):
                     result = run_device(
                         "iphone", IPHONE, root, expected_tests=names,
-                        baseline=file_hashes(ROOT, FIXTURE_INPUTS), env={},
+                        baseline=file_hashes(
+                            ROOT, FIXTURE_INPUTS + (UI_TEST_SOURCE_INPUT,)
+                        ), env={},
+                        derived_data=root / "apple/DerivedData/native-matrix-iphone",
+                        build_root=root,
                     )
                 self.assertEqual(result, root / "iphone.xcresult")
                 self.assertEqual(started.call_count, 7)
                 self.assertEqual(stopped.call_count, 7)
+                self.assertEqual(executed.call_count, 2)
+                self.assertIn("clean", executed.call_args_list[0].args[0])
+                self.assertTrue(
+                    (root / "apple/DerivedData/native-matrix-iphone"
+                     / ".fst-ui-test-source-sha256").is_file()
+                )
                 command = executed.call_args.args[0]
                 selectors = {
                     argument.removeprefix(
@@ -455,10 +533,20 @@ class AppleNativeMatrixTests(unittest.TestCase):
                 "tools.apple_native_matrix.require_unchanged"
             ):
                 with self.assertRaisesRegex(MatrixError, "expected 1 passing tests"):
-                    run_device("ipad", IPAD, Path(temporary),
-                               expected_tests=["testWhiteArtworkExposedTextAccessibility"],
-                               baseline=file_hashes(ROOT, FIXTURE_INPUTS), env={})
+                    run_device(
+                        "ipad", IPAD, Path(temporary),
+                        expected_tests=["testWhiteArtworkExposedTextAccessibility"],
+                        baseline=file_hashes(
+                            ROOT, FIXTURE_INPUTS + (UI_TEST_SOURCE_INPUT,)
+                        ), env={},
+                        derived_data=Path(temporary) / "apple/DerivedData/native-matrix-ipad",
+                        build_root=Path(temporary),
+                    )
                 self.assertEqual(stopped.call_count, 7)
+                self.assertFalse(
+                    (Path(temporary) / "apple/DerivedData/native-matrix-ipad"
+                     / ".fst-ui-test-source-sha256").exists()
+                )
 
     def test_signal_while_xcode_runs_still_stops_both_fixtures(self):
         """SIGTERM unwinds the device suite instead of leaving owned fixtures alive."""
@@ -469,7 +557,7 @@ class AppleNativeMatrixTests(unittest.TestCase):
                 "tools.apple_native_matrix.stop_fixture"
             ) as stopped, patch(
                 "tools.apple_native_matrix.subprocess.run",
-                side_effect=SystemExit(128 + signal.SIGTERM),
+                side_effect=[Mock(returncode=0), SystemExit(128 + signal.SIGTERM)],
             ), patch(
                 "tools.apple_native_matrix.require_unchanged"
             ):
@@ -477,7 +565,11 @@ class AppleNativeMatrixTests(unittest.TestCase):
                     run_device(
                         "iphone", IPHONE, Path(temporary),
                         expected_tests=["testWhiteArtworkExposedTextAccessibility"],
-                        baseline=file_hashes(ROOT, FIXTURE_INPUTS), env={},
+                        baseline=file_hashes(
+                            ROOT, FIXTURE_INPUTS + (UI_TEST_SOURCE_INPUT,)
+                        ), env={},
+                        derived_data=Path(temporary) / "apple/DerivedData/native-matrix-iphone",
+                        build_root=Path(temporary),
                     )
                 self.assertEqual(stopped.call_count, 7)
 

@@ -86,6 +86,14 @@
       "states": ["songs", "leaderboards", "settings", "player", "band", "reselect"],
       "testId": "fst.nav.*",
       "spec": ".agents/controls/app-navigation.md"
+    },
+    {
+      "id": "profile-selection",
+      "status": "pending",
+      "source": "FortniteFestivalWeb/src/components/search/SearchModal.tsx:495",
+      "states": ["anonymous", "debouncing", "loading", "results", "empty-envelope", "http-error", "viewed", "syncing", "selected-syncing-retry", "unpinned-profile", "selected-player", "switch-confirm", "deselect-confirm", "band-blocked", "profile-reload", "publication-changed", "large-text"],
+      "testId": "fst.profile.*",
+      "spec": ".agents/controls/profile-selection.md"
     }
   ],
   "testIds": {
@@ -93,6 +101,7 @@
     "fst.songs.difficulty-unavailable": "difficulty-meter",
     "fst.shell.artwork-background": "artwork-background",
     "fst.nav.*": "app-navigation",
+    "fst.profile.*": "profile-selection",
     "fst.songs.instrument-filter": "songs",
     "fst.songs.search": "songs",
     "fst.songs.sort": "songs-sort",
@@ -112,6 +121,9 @@
     "fst.songs.offline": "songs",
     "fst.songs.refresh-error": "songs",
     "fst.songs.row.*": "songs",
+    "fst.songs.profile-summary.*": "profile-selection",
+    "fst.songs.profile-status": "profile-selection",
+    "fst.songs.profile-retry": "profile-selection",
     "fst.song-detail.intensity": "song-detail",
     "fst.song-detail.paths": "chopt-paths",
     "fst.paths.instrument": "chopt-paths",

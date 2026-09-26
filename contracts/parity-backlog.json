@@ -24,7 +24,7 @@
     {
       "id": "native-profile-selector",
       "priority": 0,
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": ["service-public-data"],
       "sourceRefs": [
         "FortniteFestivalWeb/src/App.tsx:760",
@@ -60,17 +60,20 @@
     {
       "id": "apple-songs-cards",
       "priority": 0,
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": ["native-profile-selector"],
       "sourceRefs": [
         "FortniteFestivalWeb/src/pages/songs/SongsPage.tsx:622",
         "FortniteFestivalWeb/src/pages/songs/components/SongRow.tsx:173",
+        "FortniteFestivalWeb/src/components/display/InstrumentIcons.tsx:117",
+        "FortniteFestivalWeb/src/components/songs/metadata/ScorePill.tsx:27",
         "FortniteFestivalWeb/src/contexts/SettingsContext.tsx:42"
       ],
       "acceptance": [
         "Decode compact per-player score and FC wire data under a matching publication, distinguish a syncing 202 from an available HTTP 200 empty-score envelope without claiming registration, and never send selected-profile headers or cache raw cross-profile responses.",
         "Measure legitimate maximum/p99 precomputed profile bytes and decoding latency; do not certify selected rows while valid large responses or percentile -1 sentinels can fail or mislead.",
         "Prove anonymous, selected-player and selected-band rows with real score, FC, status chips, shop indicators, score-invalid warning and metadata.",
+        "When source instrument icons are hidden or a chart is filtered, bring the native first-visible-chart summary toward the source's right-aligned score, skewed gold accuracy, Top 10% bucket and stars/season/intensity/difficulty layout; native now buckets Top 10% correctly, but still shows inline score and a separate spoken FC. In the unfiltered source default with selected-player data and icons enabled, suppress those per-chart pills and show all enabled instrument status chips instead. Review Fluent/native adjustments against matched fixture-only PWA captures at phone/tablet widths before certification.",
         "Toggling any of nine instruments or eight metadata fields updates row and Detail content immediately, preserving at least one visible chart.",
         "Matched PWA/native captures cover responsive row wraps, selection changes, bright artwork, Dynamic Type and accessibility."
       ]
@@ -276,6 +279,7 @@
       ],
       "acceptance": [
         "Page-specific first-run carousels, replay, manual screenshots and changelog have accessible focus/exit states.",
+        "Reproduce the source's first-run Filter Songs interception of selected Songs, with dismiss/replay and unobstructed follow-up state on phone/tablet; matched source WebKit fixtures already demonstrate this native gap.",
         "Profile-scoped notifications show real freshness, unread badges, filtered destinations and connection failures.",
         "No background activity or cross-profile notification data survives an identity change."
       ]
@@ -316,12 +320,12 @@
   ],
   "routes": [
     {"id": "home-redirect", "apple": "partial", "epics": ["apple-shell-modals"], "gap": "Default Songs tab exists; URL/deep-link redirect, unknown route and native guarded recovery are untested."},
-    {"id": "songs", "apple": "partial", "epics": ["apple-anonymous-songs-sort", "apple-songs-cards", "apple-songs-actions"], "gap": "Four catalogue Sort modes, conditional public Item Shop sort with first-seen Shop-status headings, validated Shop New/Leaving card indicators and chart filter exist; selected profile/band scores, Has FC and other conditional sorts, Shop filtering, other sort-mode sections, quick-link rail and invalid-score warning remain missing; grouped iPhone full audit and iPad full Sort audit/Shop-header focus bounds pending."},
+    {"id": "songs", "apple": "partial", "epics": ["apple-anonymous-songs-sort", "apple-songs-cards", "apple-songs-actions", "apple-first-run-notifications"], "gap": "Four anonymous catalogue Sort modes, conditional Item Shop sort/status headings and offer badges, chart filter, and fixture-backed first-visible-chart selected-player score/FC/Settings metadata now exist, including source-bucketed Top 10%, no fabricated Score 0 and valid Last Played priority. Matched source WebKit phone/tablet captures (2/2) with source instrument icons hidden expose the missing native first-run Filter Songs overlay, different right-aligned score/gold accuracy layout and conditional tabs. Separately, the source's default unfiltered selected-player chips (all enabled instruments, FC/score/no-score/unavailable colors), band/member rows, FC/profile/band sorts, invalid-score fallback/warning, Shop filtering, quick-link rail, full iPhone grouped audit and iPad Sort/header focus audits remain pending."},
     {"id": "song-detail", "apple": "partial", "epics": ["apple-song-detail", "apple-chopt-paths"], "gap": "Ten-row solo previews with explicit FC versus graded accuracy, a top native View Full action, Shop availability/action and first CHOpt image/text modal exist; selected score/history, band cards, path column order, PWA-bottom action geometry, other offscreen auto-scroll and full Detail/Paths accessibility audits remain missing."},
     {"id": "song-band-leaderboard", "apple": "absent", "epics": ["apple-band-flows"], "gap": "No per-song Duet/Trio/Quad entries, combo filters, pagination or selected footer."},
     {"id": "song-leaderboard", "apple": "partial", "epics": ["apple-song-detail", "apple-statistics-history"], "gap": "Native solo pages, pager and explicit FC-versus-graded accuracy exist; selected player/member navigation, history, stars/season/difficulty, off-page spotlight and all PWA row states do not."},
     {"id": "player-history", "apple": "absent", "epics": ["apple-statistics-history"], "gap": "No song/instrument history page, sort modal or fallback-validity views."},
-    {"id": "player-profile", "apple": "absent", "epics": ["native-profile-selector", "apple-statistics-history"], "gap": "No player search/view/select journey, stats, ranks, score cards or bands."},
+    {"id": "player-profile", "apple": "absent", "epics": ["native-profile-selector", "apple-statistics-history"], "gap": "Apple has an in-sheet search/view/select journey and first selected-player Songs cards, but no /player/:accountId route, complete stats/ranks/history/bands, viewed-vs-selected page links, or legitimate live edge access."},
     {"id": "rivals", "apple": "absent", "epics": ["apple-rivals"], "gap": "No player-only song/leaderboard tabs, instrument/common/combo rival lists or find-rival modal."},
     {"id": "all-rivals", "apple": "absent", "epics": ["apple-rivals"], "gap": "No category/mode-specific all-rivals results or pagination."},
     {"id": "rival-detail", "apple": "absent", "epics": ["apple-rivals"], "gap": "No rival account, comparable-song sections or selected-player context."},
@@ -337,7 +341,7 @@
     {"id": "bands", "apple": "absent", "epics": ["apple-band-flows"], "gap": "No band lookup/search-context route, selected band or band list."},
     {"id": "band-detail", "apple": "absent", "epics": ["apple-band-flows"], "gap": "No band member/stat/ranking/song page or select-as-band action."},
     {"id": "compete", "apple": "absent", "epics": ["apple-suggestions-compete", "apple-rivals", "apple-rankings"], "gap": "No guarded player-only ranking/rival scope cards or drill-down actions."},
-    {"id": "settings", "apple": "partial", "epics": ["apple-settings-manual", "apple-songs-cards"], "gap": "Instrument visibility, Paths default, Shop hide/highlights and saved Shop sort pause/resume across Songs/Detail/Shop and accessibility aids work; profile metadata, Shop filtering, visual/column order and many PWA sections remain incomplete."},
+    {"id": "settings", "apple": "partial", "epics": ["apple-settings-manual", "apple-songs-cards"], "gap": "Instrument visibility, Paths default, Shop hide/highlights, saved Shop sort pause/resume, accessibility aids and selected-player Songs metadata switches partly propagate; source invalid-score variant selection, metadata order/complete Detail effects, Shop filtering and many PWA sections remain incomplete."},
     {"id": "licenses", "apple": "absent", "epics": ["apple-settings-manual"], "gap": "No license list, detail modal or return-focus behavior."}
   ]
 }
