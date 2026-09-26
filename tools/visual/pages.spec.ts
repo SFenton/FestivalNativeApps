@@ -145,7 +145,7 @@ for (const viewport of viewports.filter(entry => entry.id.endsWith('portrait')))
     const profile: unknown = await response.json();
     if (!profile || typeof profile !== 'object'
       || !('accountId' in profile) || profile.accountId !== 'fixture-player-2'
-      || !('totalScores' in profile) || profile.totalScores !== 2
+      || !('totalScores' in profile) || profile.totalScores !== 3
       || !('scores' in profile) || !Array.isArray(profile.scores)) {
       throw new Error('Invalid original synthetic player-profile wire fixture');
     }
@@ -178,6 +178,60 @@ for (const viewport of viewports.filter(entry => entry.id.endsWith('portrait')))
     expect(scoreBox.x).toBeGreaterThan(titleBox.x + titleBox.width);
     await page.screenshot({
       path: join(output, `${testInfo.project.name}-${viewport.id}-songs-selected-player-two.png`),
+      animations: 'disabled',
+    });
+  });
+}
+
+for (const viewport of viewports.filter(entry => entry.id.endsWith('portrait'))) {
+  test(`fixture-backed PWA default player instrument chips: ${viewport.id}`, async ({ page, api, appState }, testInfo) => {
+    mkdirSync(output, { recursive: true });
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    const response = await fetch('http://127.0.0.1:8765/api/player/fixture-player-2');
+    if (!response.ok) throw new Error(`Synthetic profile fixture returned HTTP ${response.status}`);
+    const profile: unknown = await response.json();
+    if (!profile || typeof profile !== 'object'
+      || !('accountId' in profile) || profile.accountId !== 'fixture-player-2'
+      || !('totalScores' in profile) || profile.totalScores !== 3
+      || !('scores' in profile) || !Array.isArray(profile.scores)
+      || !profile.scores.some((score: unknown) => score != null
+        && typeof score === 'object' && 'ins' in score && score.ins === '04')) {
+      throw new Error('Invalid coherent synthetic Lead and Drums profile fixture');
+    }
+    api.override({ method: 'GET', path: '/api/player/fixture-player-2', status: 200, body: profile });
+    api.override({ method: 'GET', path: '/api/songs', status: 200, body: songs });
+    await gotoAppRoute(page, '/songs');
+    await appState.selectPlayer('fixture-player-2', 'Fixture Player 2');
+    await appState.setSettings({ songsHideInstrumentIcons: false, filterInvalidScores: false });
+    await page.reload({ waitUntil: 'load' });
+    const content = page.locator('#main-content');
+    await expect(content).toContainText('Fixture Pulse', { timeout: 15_000 });
+    await dismissObstructions(page);
+    const row = content.getByRole('link', { name: /Fixture Pulse/ }).first();
+    const instruments = row.locator('img[data-instrument]');
+    await expect(instruments).toHaveCount(9, { timeout: 15_000 });
+    expect(await instruments.evaluateAll(nodes =>
+      nodes.map(node => node.getAttribute('data-instrument')))).toEqual([
+      'Solo_Guitar', 'Solo_Bass', 'Solo_Drums', 'Solo_Vocals',
+      'Solo_PeripheralGuitar', 'Solo_PeripheralBass', 'Solo_PeripheralVocals',
+      'Solo_PeripheralCymbals', 'Solo_PeripheralDrums',
+    ]);
+    expect(await instruments.evaluateAll(nodes => nodes.map(node => {
+      const parent = node.parentElement;
+      if (!parent) throw new Error('Instrument chip has no painted wrapper');
+      return getComputedStyle(parent).backgroundColor;
+    }))).toEqual([
+      'rgb(255, 215, 0)', 'rgb(198, 40, 40)', 'rgb(46, 204, 113)',
+      'rgb(198, 40, 40)', ...Array(5).fill('rgb(34, 48, 71)'),
+    ]);
+    const topEdges = await instruments.evaluateAll(nodes =>
+      nodes.map(node => Math.round(node.getBoundingClientRect().top)));
+    const rows = [...new Set(topEdges)].map(top =>
+      topEdges.filter(value => value === top).length);
+    expect(rows).toEqual(viewport.width <= 768 ? [5, 4] : [9]);
+    await expect(row).not.toContainText('99,800');
+    await page.screenshot({
+      path: join(output, `${testInfo.project.name}-${viewport.id}-songs-player-two-default-chips.png`),
       animations: 'disabled',
     });
   });

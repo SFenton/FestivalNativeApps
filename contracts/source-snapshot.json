@@ -273,6 +273,10 @@
       "sha256": "9b433ed87b8d144909e2f3bbadd750da263f7c81b0ee509a191db7d36500e920",
       "status": "committed"
     },
+    "FortniteFestivalWeb/src/pages/songs/layoutMode.ts": {
+      "sha256": "111b35d3a820cd9ff6589357a99d0dd716ae9d609e29f549816b99148d353579",
+      "status": "committed"
+    },
     "FortniteFestivalWeb/src/pages/songs/modals/FilterModal.tsx": {
       "sha256": "e2f5182f8e75cf8616d4e598989257c5eafccc5099e99177f2837eeb7a51e6de",
       "status": "committed"

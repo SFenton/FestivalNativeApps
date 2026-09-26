@@ -76,11 +76,22 @@ over `lp` when available; a real seven-digit
 `DateTime.ToString("O")` fixture parses correctly.
 HTTP 200 does **not** prove the account is registered.
 
-This native card uses the **first visible instrument** when
-unfiltered. It does not render the PWA's all-nine
-instrument-status chip row, editable metadata ordering,
+When a selected player's published scores are available,
+the native All instruments row now uses every **enabled**
+chart's status from the existing per-song score index if
+Show Instrument Icons is on. The four source fill states
+(FC gold, scored green, no score red, uncharted muted)
+have a second native-drawn shape and spoken chart/status;
+zero-score FC is explicitly inconsistent instead of gold.
+Player 2 has a coherent extra **Pulse Drums** score and
+matching mock Drums chart; deliberately empty Bass
+leaderboards remain untouched. Icons off or one selected
+chart keeps the native **first visible/filtered instrument**
+summary and independently saved metadata. This first-visible
+fallback differs from the PWA's default Lead when Lead is
+hidden. The native card still lacks editable metadata order,
 precomputed invalid-score variants, a score warning action,
-selected-profile sorting, band assignments, or profile-aware
+selected-profile sorting, band assignments and profile-aware
 Detail controls. When Filter Invalid Scores is enabled,
 the raw player-card score is deliberately withheld with a
 visible pending message until the `ml`/`vs`/`rt` selection
@@ -109,12 +120,30 @@ shows the enabled instrument status chips: FC gold, scored green,
 no score red, unavailable muted
 (`FortniteFestivalWeb/src/pages/songs/components/SongRow.tsx:191-200,264-271`,
 `FortniteFestivalWeb/src/components/display/InstrumentIcons.tsx:110-122`).
-Native uses an inline first-visible-chart score, separate visible
-and spoken FC, and now the matching Top 10% bucket for that
-fixture; neither layout nor chip
-hierarchy matches yet. The matched WebKit screenshots **do not**
-prove default chip styling, which needs a separate source/native
-capture. Source first displays a page-specific
+Native's icons-off summary uses an inline first-visible-chart
+score, separate visible/spoken FC and the same Top 10% bucket;
+its score/pill geometry remains different. A second
+fixture-only **icons-on WebKit pair** now asserts all nine
+source chip keys and computed colors at phone/tablet widths:
+**4/4** selected WebKit cases pass across both modes.
+Native Swift hosted tests paint the four colors and reflow
+at 208/390/700 widths. A serial **10/10 on each** native
+iPhone/iPadOS 26.5 matrix now proves default player
+chips, green Drums after a switch, instrument hiding,
+icons-off/filtered numeric scores, invalid-filter pause,
+available-empty, empty Bass, and AX group reachability.
+The native iPhone wraps nine chips 5+4 like the source
+phone fixture, but native iPad's system split detail wraps
+5+4 where the source full-width WebKit tablet shows one
+row. The source WebKit case now asserts the **5+4/9**
+row groups by chip positions, not merely by screenshots.
+AX-only full-width title and chip stacking is scoped to
+the available chip mode; other Song states retain the
+previous native row geometry. A **separate 4/4 iPhone
+and 4/4 iPad post-review** run proves those edited chip,
+anonymous-AX, status and deselect paths. This
+comparison is not a full glyph, artwork, first-run,
+focus or pixel-parity certification. Source first displays a page-specific
 Filter Songs carousel over selected Songs; native does not.
 Source selection adds conditional destinations while native
 keeps three tabs. The PWA captures intentionally dismiss that
@@ -122,5 +151,13 @@ overlay before the unobstructed Songs comparison. See the
 fixture-backed comparison in `tools/visual/pages.spec.ts`; the
 captures are private evidence, not redistributable artwork.
 The card, first-run and navigation controls stay `pending`.
+For native AX-size list traversal use `fst.songs.list` instead of
+selecting a CollectionView by a child that will disappear on
+virtualization. Stack full-width title/artist before artwork and
+the status row at largest text; the focused iPhone test performs
+a real swipe and proves the **entire** chip group clears the system
+tab, whereas a mere `isHittable` check permitted an obstructed
+bottom row. That narrow device result is not a full iPad focus audit
+or a completed responsive geometry comparison.
 
 The default Apple Debug/Release app now reads this **real public Songs endpoint** over HTTPS; native UI automation explicitly overrides it with loopback fixtures. A read-only Swift-client probe decoded 728 live Songs on 2026-09-25 and an already-running iOS 26.5 app rendered actual catalogue rows and album art. The screenshot is private session evidence, not a committed third-party artwork asset or a PWA/native layout parity comparison. Run `bash tools/apple_live_service_smoke.sh --read-public-live` for a bounded, aggregate-only wire check; never add production payloads or account identifiers to fixtures by copying this response. Catalogue counts and provenance can change on the service.

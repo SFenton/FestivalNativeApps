@@ -135,8 +135,19 @@ equivalent. A selected iPhone `.all` audit passes without
 waivers, while iPad's unnamed `.all` text finding and
 focus bounds are still open despite named 4.5:1 contrast.
 Largest-text Select glyphs grow >1.35x on both devices.
-Mac GUI automation, older iOS/Duo poses, all-instrument
-chips, complete accessibility/visual/coverage gates and
+Source-default selected-player instrument chips now have
+an initial Swift Core/hosted render and matched source
+WebKit fixture pass plus an exact serial **10/10 each**
+iPhone/iPadOS 26.5 matrix for named chip/Settings/
+AX-bound states. A separate **4/4 per-device** run
+after chip-only AX scoping and exact status-label
+checks preserves changed and anonymous states.
+The source tablet's one chip row
+becomes two in native iPad's platform split pane;
+full iPad `.all`, Keyboard variants, first-run
+navigation, responsive pixel parity and coverage
+remain open. Mac GUI automation,
+older iOS/Duo poses, complete accessibility/visual/coverage gates and
 real edge authorization remain pending.
 
 Use DocC for function contracts, `// MARK: -` sections, accessibility identifiers from the shared registry, and a dedicated logic/UI coverage split. The app can expose additive Reduce Motion/Contrast/Transparency/Background overrides, **not** an OS VoiceOver switch.

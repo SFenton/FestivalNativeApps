@@ -44,6 +44,15 @@ DEMO_SONGS, DEMO_SONGS_HASH = load_fixture("songs-demo")
 PATH_DEMO, PATH_DEMO_HASH = load_fixture("path-demo")
 SHOP_DEMO, SHOP_DEMO_HASH = load_fixture("shop-demo")
 PLAYER_DEMO, PLAYER_DEMO_HASH = load_fixture("player-demo")
+DRUMS_SCORE = next(
+    (
+        row for row in PLAYER_DEMO["profiles"]["fixture-player-2"]["scores"]
+        if row["si"] == "fixture-pulse" and row["ins"] == "04"
+    ),
+    None,
+)
+if DRUMS_SCORE is None:
+    raise ValueError("Selected-player Drums score fixture is missing")
 SOURCE_HASHES = {
     "tools/mock_service.py": hashlib.sha256(Path(__file__).resolve().read_bytes()).hexdigest(),
     "contracts/fixtures/publication.json": PUBLICATION_HASH,
@@ -669,6 +678,19 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 for rank in ranks
             ]
             total = 26 if instrument == "Solo_Guitar" else 0
+            if song_id == "fixture-pulse" and instrument == "Solo_Drums":
+                total = 1
+                if offset == 0:
+                    entries = [{
+                        "accountId": "fixture-player-2",
+                        "displayName": PLAYER_DEMO["profiles"]["fixture-player-2"]["displayName"],
+                        "score": DRUMS_SCORE["sc"],
+                        "rank": DRUMS_SCORE["rk"],
+                        "accuracy": DRUMS_SCORE["acc"] * 1_000,
+                        "isFullCombo": DRUMS_SCORE["fc"],
+                        "stars": DRUMS_SCORE["st"],
+                        "season": DRUMS_SCORE["sn"],
+                    }]
             self._json(200, {
                 "songId": song_id, "instrument": instrument, "count": len(entries),
                 "localEntries": total, "totalEntries": total,

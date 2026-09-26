@@ -26,6 +26,19 @@ class TokenGenerationTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 parse_color(value)
 
+    def test_chip_status_strokes_generate_identically_for_three_platforms(self):
+        """A missing muted/stroke token must not make native platforms diverge."""
+        colors = {
+            "goldStroke": parse_color("#CFA500"),
+            "statusGreenStroke": parse_color("#1E7F46"),
+            "statusRedStroke": parse_color("#8B0000"),
+            "surfaceMuted": parse_color("#223047"),
+            "textDisabled": parse_color("#607089"),
+        }
+        self.assertIn("Color(0xFF1E7F46)", render_kotlin(colors))
+        self.assertIn("red: 207.0 / 255", render_swift(colors))
+        self.assertIn('FSTTextDisabledColor">#FF607089', render_xaml(colors))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -174,9 +174,11 @@ class MockServiceTests(unittest.TestCase):
         self.assertTrue(all(row["ins"] == "01" for row in first["scores"]))
         with urlopen(self.base + "/api/player/fixture-player-2") as response:
             second = json.load(response)
-        self.assertEqual(second["totalScores"], 2)
+        self.assertEqual(second["totalScores"], 3)
         self.assertTrue(second["scores"][0]["fc"])
         self.assertNotEqual(second["scores"][0]["sc"], first["scores"][0]["sc"])
+        self.assertEqual(second["scores"][-1]["ins"], "04")
+        self.assertGreater(second["scores"][-1]["sc"], 0)
         with urlopen(self.base + "/api/player/fixture-empty") as response:
             empty = json.load(response)
         self.assertEqual(empty["totalScores"], 0)
@@ -247,6 +249,37 @@ class MockServiceTests(unittest.TestCase):
                     self.assertEqual(score["sn"], entry["season"])
                     self.assertEqual(score["acc"], entry["accuracy"] // 1000)
                     self.assertAlmostEqual(score["pct"], entry["rank"] / chart["totalEntries"])
+
+        with urlopen(
+            self.base + "/api/leaderboard/fixture-pulse/Solo_Drums?top=25&offset=0"
+        ) as response:
+            drums = json.load(response)
+        self.assertEqual(drums["count"], 1)
+        self.assertEqual(drums["totalEntries"], 1)
+        with urlopen(self.base + "/api/player/fixture-player-2") as response:
+            second = json.load(response)
+        drum = next(
+            row for row in second["scores"]
+            if row["si"] == "fixture-pulse" and row["ins"] == "04"
+        )
+        published = drums["entries"][0]
+        self.assertEqual(published["accountId"], second["accountId"])
+        self.assertEqual(published["displayName"], second["displayName"])
+        for profile_field, chart_field in (
+            ("sc", "score"), ("rk", "rank"), ("fc", "isFullCombo"),
+            ("st", "stars"), ("sn", "season"),
+        ):
+            self.assertEqual(drum[profile_field], published[chart_field])
+        self.assertEqual(drum["acc"], published["accuracy"] // 1_000)
+        self.assertEqual(drum["te"], drums["totalEntries"])
+        self.assertAlmostEqual(drum["pct"], drum["rk"] / drums["totalEntries"])
+        for song in ("fixture-pulse", "fixture-orbit"):
+            with urlopen(
+                self.base + f"/api/leaderboard/{song}/Solo_Bass?top=25&offset=0"
+            ) as response:
+                bass = json.load(response)
+            self.assertEqual(bass["count"], 0)
+            self.assertEqual(bass["totalEntries"], 0)
 
     def test_public_path_artifacts_have_generation_etags_and_no_mutations(self):
         """Original JSON/PNG fixtures expose valid paths without a live service."""

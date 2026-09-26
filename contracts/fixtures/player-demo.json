@@ -36,7 +36,7 @@
     "fixture-player-2": {
       "accountId": "fixture-player-2",
       "displayName": "Fixture Player 2",
-      "totalScores": 2,
+      "totalScores": 3,
       "scores": [
         {
           "si": "fixture-pulse",
@@ -63,6 +63,19 @@
           "pct": 0.07692307692307693,
           "rk": 2,
           "te": 26
+        },
+        {
+          "si": "fixture-pulse",
+          "ins": "04",
+          "sc": 88800,
+          "acc": 905,
+          "fc": false,
+          "st": 4,
+          "dif": 3,
+          "sn": 9,
+          "pct": 1,
+          "rk": 1,
+          "te": 1
         }
       ]
     }

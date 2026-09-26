@@ -220,6 +220,7 @@ struct SongsScreen: View {
     @AppStorage("fst.settings.disableShopHighlighting")
     private var disableShopHighlighting = false
     @AppStorage("fst.settings.filterInvalidScores") private var filterInvalidScores = false
+    @AppStorage("fst.settings.showInstrumentIcons") private var showInstrumentIcons = true
     @AppStorage("fst.settings.metadataScore") private var metadataScore = true
     @AppStorage("fst.settings.metadataPercentage") private var metadataPercentage = true
     @AppStorage("fst.settings.metadataPercentile") private var metadataPercentile = true
@@ -450,6 +451,7 @@ struct SongsScreen: View {
                         }
                     }
                     .listStyle(.plain)
+                    .accessibilityIdentifier("fst.songs.list")
                     .scrollContentBackground(.hidden)
                     .refreshable { await reload() }
                 }
@@ -732,7 +734,9 @@ struct SongsScreen: View {
                 session: session, highContrast: highContrast,
                 shopHighlight: highlight, profileChart: chart,
                 metadata: metadataVisibility,
-                filterInvalidScores: filterInvalidScores
+                filterInvalidScores: filterInvalidScores,
+                showInstrumentIcons: showInstrumentIcons,
+                visibleInstruments: visibleInstruments
             )
         }
         .listRowSeparator(.hidden)
@@ -958,6 +962,8 @@ struct SongRowView: View {
     let profileChart: Instrument?
     let metadata: SongMetadataVisibility
     let filterInvalidScores: Bool
+    let showInstrumentIcons: Bool
+    let visibleInstruments: Set<Instrument>
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// Decorate one real Shop offer without turning it into a new navigation action.
@@ -971,12 +977,16 @@ struct SongRowView: View {
     ///   - profileChart: First visible chart or explicit Songs chart filter.
     ///   - metadata: Persisted score-field visibility switches.
     ///   - filterInvalidScores: Hide unsupported filtered-score details explicitly.
+    ///   - showInstrumentIcons: Saved status-chip setting.
+    ///   - visibleInstruments: Enabled charts independent of chart availability.
     init(
         song: Song, instrument: Instrument?, session: FestivalSession,
         highContrast: Bool, shopHighlight: ShopHighlight? = nil,
         profileChart: Instrument? = nil,
         metadata: SongMetadataVisibility = SongMetadataVisibility(),
-        filterInvalidScores: Bool = false
+        filterInvalidScores: Bool = false,
+        showInstrumentIcons: Bool = true,
+        visibleInstruments: Set<Instrument> = Set(Instrument.allCases)
     ) {
         self.song = song
         self.instrument = instrument
@@ -986,6 +996,8 @@ struct SongRowView: View {
         self.profileChart = profileChart
         self.metadata = metadata
         self.filterInvalidScores = filterInvalidScores
+        self.showInstrumentIcons = showInstrumentIcons
+        self.visibleInstruments = visibleInstruments
     }
 
     private var trailingLayout: AnyLayout {
@@ -994,56 +1006,107 @@ struct SongRowView: View {
             : AnyLayout(HStackLayout(spacing: 8))
     }
 
-    var body: some View {
-        HStack(spacing: 12) {
-            ArtworkTile(raw: song.albumArt, session: session, size: 44)
-                .id(song.albumArt)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(song.title)
-                    .font(.headline)
-                    .foregroundStyle(BrandTokens.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(song.year.map { "\(song.artist) · \($0)" } ?? song.artist)
-                    .font(.subheadline)
-                    .foregroundStyle(BrandTokens.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                if let selected = session.selectedPlayer {
-                    SongProfileSummary(
-                        player: selected, chart: profileChart,
-                        chartAvailable: profileChart.map(song.supports) ?? false,
-                        score: profileChart.flatMap {
-                            session.selectedPlayerScores[song.songId]?[$0]
-                        },
-                        state: session.playerLoadState, visibility: metadata,
-                        filterInvalidScores: filterInvalidScores, songId: song.songId
+    private var usesInstrumentChips: Bool {
+        SongInstrumentStatusPolicy.showsChips(
+            hasSelectedPlayer: session.selectedPlayer != nil,
+            scoresAvailable: session.playerLoadState == .available,
+            iconsEnabled: showInstrumentIcons,
+            instrumentFilter: instrument,
+            filterInvalidScores: filterInvalidScores,
+            visibleInstruments: visibleInstruments
+        )
+    }
+
+    private var artworkTile: some View {
+        ArtworkTile(raw: song.albumArt, session: session, size: 44)
+            .id(song.albumArt)
+            .accessibilityHidden(true)
+    }
+
+    private var songInfo: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(song.title)
+                .font(.headline)
+                .foregroundStyle(BrandTokens.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(song.year.map { "\(song.artist) · \($0)" } ?? song.artist)
+                .font(.subheadline)
+                .foregroundStyle(BrandTokens.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder private var profileContent: some View {
+        if let selected = session.selectedPlayer {
+            if usesInstrumentChips {
+                SongInstrumentStatusChips(
+                    songId: song.songId,
+                    badges: SongInstrumentStatusPolicy.badges(
+                        for: song, visibleInstruments: visibleInstruments,
+                        scores: session.selectedPlayerScores[song.songId] ?? [:]
                     )
-                }
+                )
+            } else {
+                SongProfileSummary(
+                    player: selected, chart: profileChart,
+                    chartAvailable: profileChart.map(song.supports) ?? false,
+                    score: profileChart.flatMap {
+                        session.selectedPlayerScores[song.songId]?[$0]
+                    },
+                    state: session.playerLoadState, visibility: metadata,
+                    filterInvalidScores: filterInvalidScores, songId: song.songId
+                )
             }
-            Spacer(minLength: 4)
-            trailingLayout {
-                if metadata.intensity, let instrument,
-                   let difficulty = song.difficulty?.chartedValue(for: instrument) {
-                    DifficultyMeter(level: difficulty, raw: true)
+        }
+    }
+
+    private var trailingContent: some View {
+        trailingLayout {
+            if metadata.intensity, let instrument,
+               let difficulty = song.difficulty?.chartedValue(for: instrument) {
+                DifficultyMeter(level: difficulty, raw: true)
+            }
+            if let shopHighlight {
+                Image(systemName: shopHighlight == .leavingTomorrow
+                    ? "clock" : "sparkles")
+                    .font(.subheadline)
+                    .foregroundStyle(
+                        shopHighlight == .leavingTomorrow
+                            ? BrandTokens.textPrimary : BrandTokens.gold
+                    )
+                    .frame(minWidth: 30, minHeight: 30)
+                    .background(
+                        shopHighlight == .leavingTomorrow
+                            ? BrandTokens.statusRed : BrandTokens.appBackground,
+                        in: Circle()
+                    )
+                    .accessibilityLabel("Item Shop: \(shopHighlight.label)")
+                    .accessibilityIdentifier("fst.songs.shop-badge.\(song.songId)")
+            }
+        }
+    }
+
+    var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize && usesInstrumentChips {
+                VStack(alignment: .leading, spacing: 12) {
+                    songInfo
+                    HStack(alignment: .top, spacing: 12) {
+                        artworkTile
+                        Spacer(minLength: 0)
+                        trailingContent
+                    }
+                    profileContent
                 }
-                if let shopHighlight {
-                    Image(systemName: shopHighlight == .leavingTomorrow
-                        ? "clock" : "sparkles")
-                        .font(.subheadline)
-                        .foregroundStyle(
-                            shopHighlight == .leavingTomorrow
-                                ? BrandTokens.textPrimary : BrandTokens.gold
-                        )
-                        .frame(minWidth: 30, minHeight: 30)
-                        .background(
-                            shopHighlight == .leavingTomorrow
-                                ? BrandTokens.statusRed : BrandTokens.appBackground,
-                            in: Circle()
-                        )
-                        .accessibilityLabel("Item Shop: \(shopHighlight.label)")
-                        .accessibilityIdentifier(
-                            "fst.songs.shop-badge.\(song.songId)"
-                        )
+            } else {
+                HStack(spacing: 12) {
+                    artworkTile
+                    VStack(alignment: .leading, spacing: 4) {
+                        songInfo
+                        profileContent
+                    }
+                    Spacer(minLength: 4)
+                    trailingContent
                 }
             }
         }

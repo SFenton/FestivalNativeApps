@@ -74,7 +74,10 @@ The original synthetic fixture's two accounts now agree with both
 Lead song leaderboards on identity, score, rank, FC and wire-quantized
 accuracy; the 202, available-empty and denied cases stay distinct
 and the serial device runner pins their bytes. The fixture does
-**not** establish any Bass or Pro Drums player chart. Missing-FC
+**not** establish any Bass or Pro Drums player chart. A new player-2
+Pulse Drums score agrees with its published mock Drums chart, while
+both Bass leaderboards stay empty for the dedicated offscreen
+zero-entry journey. Missing-FC
 unit rows are synthetic robustness data; real precomputed rows
 carry nonnullable booleans and numeric accuracy, where false/zero
 may still represent unknown service history. **No** production

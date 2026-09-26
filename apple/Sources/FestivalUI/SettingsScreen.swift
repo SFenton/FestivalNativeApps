@@ -80,8 +80,15 @@ struct SettingsScreen: View {
                     .font(.footnote)
                     .foregroundStyle(BrandTokens.textSecondary)
                 Toggle("Show Instrument Icons", isOn: $showInstrumentIcons)
-                    .disabled(true)
-                    .accessibilityHint("Instrument icons are not yet available")
+                    .accessibilityHint(
+                        "Shows score and full combo status for each enabled chart on "
+                            + "unfiltered Songs cards when a player is selected"
+                    )
+                    .accessibilityIdentifier("fst.settings.show-instrument-icons")
+                Text("Star: full combo · Check: scored · Minus: no score · "
+                     + "Slash: not charted · Exclamation: inconsistent score")
+                    .font(.footnote)
+                    .foregroundStyle(BrandTokens.textSecondary)
                 Toggle("Filter Invalid Scores", isOn: $filterInvalidScores)
                 if filterInvalidScores {
                     VStack(alignment: .leading) {
@@ -160,7 +167,10 @@ struct SettingsScreen: View {
             Section {
                 Text(session.selectedPlayer == nil
                     ? "Select a player to customize score metadata."
-                    : "Visible score fields update Songs cards. More metadata is coming.")
+                    : showInstrumentIcons
+                        ? "With icons and All instruments, status chips replace score "
+                            + "metadata. Turn icons off or filter one chart to show these fields."
+                        : "Visible score fields update Songs cards. More metadata is coming.")
                     .font(.footnote)
                     .foregroundStyle(BrandTokens.textSecondary)
                 ForEach(MetadataField.allCases) { field in
@@ -270,7 +280,7 @@ struct SettingsScreen: View {
         }
         return session.selectedPlayer == nil
             ? "Select a player to use score metadata"
-            : "Updates the selected player's Songs cards"
+            : "Updates Songs score fields when icons are off or one chart is filtered"
     }
 
     // MARK: - Service and reset

@@ -249,3 +249,59 @@ source on **both** devices only after their scoped
 Xcode test-product cleans. This targeted run also
 used `--no-coverage-gate`; do not infer 95%/90%
 line coverage or full iPad VoiceOver focus bounds.
+
+The **instrument-chip WIP** extends synthetic player 2
+with one positive Pulse Drums score and a coherent public
+mock Drums leaderboard; Bass charts remain empty for the
+original offscreen zero-entry test. `SongInstrumentStatusPolicy`
+performs at most nine indexed lookups, not a network call
+or per-row full-profile scan. Four focused Core and two
+SwiftUI hosted cases verify gating, status/score conflicts,
+enabled order, actual painted gold/green/red/muted fills,
+208/390/700-point reflow and AX5 host layout. The
+deterministic `tools.contrast_gate` rejects glyphs below
+4.5:1 and unavailable outline below 3:1 against
+the **opaque native card**, not the PWA's textured
+frosted surface. Generated Swift/Compose/WinUI tokens
+must pass `tools/generate_tokens.py --check`.
+The fixture-only WebKit selected page passes 4/4
+icons-on/off phone/tablet cases; tablet width is
+still an iPhone WebKit descriptor. A Debug-only
+`FST_UI_TEST_RESET_SONG_CARDS=1` clears this app's
+icon, visible-chart, invalid-filter and metadata
+preferences on each **fresh XCTest app launch**,
+never simulator data or production preferences;
+the intentional selected-profile cold relaunch
+removes it to test persistence. Native iPhone/iPad
+**10/10 source-frozen cases on each** prove named chip
+states, selected Settings transitions, empty Bass,
+normal iPhone `.all`, named iPad contrast and actual
+AX chip-group bounds; this remains narrower than
+complete focus, high-contrast screenshot pixels,
+90% UX coverage or PWA parity.
+A read-only sample of one selected-player native screenshot
+on **each** device found real foreground pixels inside all
+four colored circles at at least 5.6:1 against their actual
+painted fills. This is private, one-state evidence—not an
+automated chip screenshot-contrast runner or a waiver for
+the remaining variants.
+Use the full-width stacked AX geometry only when published chips
+are visible. Anonymous, filtered, icons-off and unavailable
+profile rows retain their prior layout; a new anonymous AX
+Song→Detail case **passes on both devices** after this
+restriction. Exact chart/status XCTest entries disambiguate
+Drums from Pro Drums and Lead from Pro Lead.
+For a tall accessibility-size chip row, do **not** keep an XCTest
+`CollectionView containing <row>` query across a swipe: the child is
+virtualized, so the ancestor query can disappear after the scroll.
+Use `fst.songs.list` as the stable native List identifier; swipe the
+real collection until the requested Song row is hittable and its
+score data has settled. A chip can be `isHittable` while its lower
+siblings are still behind the Liquid Glass tab: assert the **entire**
+named chip-group Y range lies inside the current List viewport and
+above the system tab before capturing an AX screenshot. A single
+iPhone AX5 case passed that focused bound check after two rejected
+AX iterations; the earlier paired 10/10 matrix and separate
+post-review **4/4-per-device** affected-state matrix pass.
+The iPad full `.all` audit still has an unnamed text finding; do
+not mistake a named group-bounds check for full VoiceOver order.

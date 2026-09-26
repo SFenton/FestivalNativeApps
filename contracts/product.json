@@ -94,6 +94,14 @@
       "states": ["anonymous", "debouncing", "loading", "results", "empty-envelope", "http-error", "viewed", "syncing", "selected-syncing-retry", "unpinned-profile", "selected-player", "switch-confirm", "deselect-confirm", "band-blocked", "profile-reload", "publication-changed", "large-text"],
       "testId": "fst.profile.*",
       "spec": ".agents/controls/profile-selection.md"
+    },
+    {
+      "id": "songs-instrument-status-chips",
+      "status": "pending",
+      "source": "FortniteFestivalWeb/src/components/display/InstrumentIcons.tsx:117",
+      "states": ["anonymous", "loading", "syncing", "failed", "available-empty", "full-combo", "scored", "no-score", "not-charted", "inconsistent-zero-fc", "instrument-hidden", "chart-filtered", "icons-off", "invalid-filter-paused", "compact", "wide", "largest-text", "high-contrast", "screen-reader", "keyboard-variant", "band-blocked"],
+      "testId": "fst.songs.instrument-status.*",
+      "spec": ".agents/controls/instrument-status-chips.md"
     }
   ],
   "testIds": {
@@ -102,7 +110,10 @@
     "fst.shell.artwork-background": "artwork-background",
     "fst.nav.*": "app-navigation",
     "fst.profile.*": "profile-selection",
+    "fst.songs.instrument-status.*": "songs-instrument-status-chips",
+    "fst.settings.show-instrument-icons": "songs-instrument-status-chips",
     "fst.songs.instrument-filter": "songs",
+    "fst.songs.list": "songs",
     "fst.songs.search": "songs",
     "fst.songs.sort": "songs-sort",
     "fst.songs.sort.mode": "songs-sort",

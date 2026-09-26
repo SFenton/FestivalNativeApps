@@ -65,8 +65,10 @@
       "sourceRefs": [
         "FortniteFestivalWeb/src/pages/songs/SongsPage.tsx:622",
         "FortniteFestivalWeb/src/pages/songs/components/SongRow.tsx:173",
+        "FortniteFestivalWeb/src/pages/songs/layoutMode.ts:25",
         "FortniteFestivalWeb/src/components/display/InstrumentIcons.tsx:117",
         "FortniteFestivalWeb/src/components/songs/metadata/ScorePill.tsx:27",
+        "packages/theme/src/colors.ts:59",
         "FortniteFestivalWeb/src/contexts/SettingsContext.tsx:42"
       ],
       "acceptance": [
@@ -74,6 +76,7 @@
         "Measure legitimate maximum/p99 precomputed profile bytes and decoding latency; do not certify selected rows while valid large responses or percentile -1 sentinels can fail or mislead.",
         "Prove anonymous, selected-player and selected-band rows with real score, FC, status chips, shop indicators, score-invalid warning and metadata.",
         "When source instrument icons are hidden or a chart is filtered, bring the native first-visible-chart summary toward the source's right-aligned score, skewed gold accuracy, Top 10% bucket and stars/season/intensity/difficulty layout; native now buckets Top 10% correctly, but still shows inline score and a separate spoken FC. In the unfiltered source default with selected-player data and icons enabled, suppress those per-chart pills and show all enabled instrument status chips instead. Review Fluent/native adjustments against matched fixture-only PWA captures at phone/tablet widths before certification.",
+        "Native default player chips must derive all enabled instruments from one publication-validated per-song score index, including non-Lead scores, uncharted priority, an explicit zero-score/FC contradiction, empty/202/error separation, icon toggle and measured wrapping without copying source artwork.",
         "Toggling any of nine instruments or eight metadata fields updates row and Detail content immediately, preserving at least one visible chart.",
         "Matched PWA/native captures cover responsive row wraps, selection changes, bright artwork, Dynamic Type and accessibility."
       ]
@@ -320,7 +323,7 @@
   ],
   "routes": [
     {"id": "home-redirect", "apple": "partial", "epics": ["apple-shell-modals"], "gap": "Default Songs tab exists; URL/deep-link redirect, unknown route and native guarded recovery are untested."},
-    {"id": "songs", "apple": "partial", "epics": ["apple-anonymous-songs-sort", "apple-songs-cards", "apple-songs-actions", "apple-first-run-notifications"], "gap": "Four anonymous catalogue Sort modes, conditional Item Shop sort/status headings and offer badges, chart filter, and fixture-backed first-visible-chart selected-player score/FC/Settings metadata now exist, including source-bucketed Top 10%, no fabricated Score 0 and valid Last Played priority. Matched source WebKit phone/tablet captures (2/2) with source instrument icons hidden expose the missing native first-run Filter Songs overlay, different right-aligned score/gold accuracy layout and conditional tabs. Separately, the source's default unfiltered selected-player chips (all enabled instruments, FC/score/no-score/unavailable colors), band/member rows, FC/profile/band sorts, invalid-score fallback/warning, Shop filtering, quick-link rail, full iPhone grouped audit and iPad Sort/header focus audits remain pending."},
+    {"id": "songs", "apple": "partial", "epics": ["apple-anonymous-songs-sort", "apple-songs-cards", "apple-songs-actions", "apple-first-run-notifications"], "gap": "Four anonymous catalogue Sort modes, conditional Item Shop sort/status headings and offer badges, chart filter, and fixture-backed first-visible-chart selected-player score/FC/Settings metadata now exist. Source-default player chips and Settings toggle have hosted painted-state tests, a coherent synthetic non-Lead Drums leaderboard, source WebKit icons-off/on 4/4, an initial native 10/10 per-device named matrix and a post-review 4/4 per-device affected-state rerun. Native iPad split detail wraps chips differently from the one-row source full-width tablet, and full pixel/contrast/VoiceOver/coverage parity is not certified. Right-aligned score/gold accuracy-pill geometry, Keyboard signatures, selected band/member rows, conditional tabs, first-run Filter Songs overlay, FC/profile/band sorts, invalid-score fallback/warning, Shop filtering, quick-link rail, full iPhone grouped audit and iPad Sort/header focus audits remain pending."},
     {"id": "song-detail", "apple": "partial", "epics": ["apple-song-detail", "apple-chopt-paths"], "gap": "Ten-row solo previews with explicit FC versus graded accuracy, a top native View Full action, Shop availability/action and first CHOpt image/text modal exist; selected score/history, band cards, path column order, PWA-bottom action geometry, other offscreen auto-scroll and full Detail/Paths accessibility audits remain missing."},
     {"id": "song-band-leaderboard", "apple": "absent", "epics": ["apple-band-flows"], "gap": "No per-song Duet/Trio/Quad entries, combo filters, pagination or selected footer."},
     {"id": "song-leaderboard", "apple": "partial", "epics": ["apple-song-detail", "apple-statistics-history"], "gap": "Native solo pages, pager and explicit FC-versus-graded accuracy exist; selected player/member navigation, history, stars/season/difficulty, off-page spotlight and all PWA row states do not."},

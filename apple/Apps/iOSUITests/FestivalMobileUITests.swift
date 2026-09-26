@@ -10,6 +10,7 @@ final class FestivalMobileUITests: XCTestCase {
     private func fixtureApp() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["FST_UI_TEST_CLEAR_PROFILE"] = "1"
+        app.launchEnvironment["FST_UI_TEST_RESET_SONG_CARDS"] = "1"
         return app
     }
 
@@ -28,6 +29,7 @@ final class FestivalMobileUITests: XCTestCase {
         app.launch()
         let song = app.buttons["fst.songs.row.fixture-pulse"]
         XCTAssertTrue(song.waitForExistence(timeout: 15))
+        showSelectedScoreMetadata(in: app)
         let action = app.buttons["fst.profile.open"]
         XCTAssertTrue(action.waitForExistence(timeout: 10))
         XCTAssertTrue(action.isHittable)
@@ -78,6 +80,227 @@ final class FestivalMobileUITests: XCTestCase {
         record(app, name: "songs-anonymous-after-deselect")
     }
 
+    /// Source-default chips follow two players, Drums data and saved Settings.
+    ///
+    /// - Throws: A stale profile, first-chart-only lookup or hidden metadata that leaks through.
+    @MainActor
+    func testSelectedInstrumentChipsFollowProfileAndSettings() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launch()
+        let row = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(row.waitForExistence(timeout: 15))
+        viewFixturePlayer("fixture-player-1", query: "Fixture Player", in: app)
+        app.buttons["fst.profile.select"].tap()
+        let first = chipEntries(for: "fixture-pulse", in: app)
+        XCTAssertEqual(first.count, 9)
+        XCTAssertEqual(Array(first.prefix(4)), [
+            "Lead, scored", "Bass, no score",
+            "Drums, no score", "Tap Vocals, no score",
+        ])
+        XCTAssertTrue(first.contains("Pro Lead, not charted"))
+        XCTAssertFalse(row.label.contains("Score 99,900"))
+        record(app, name: "songs-player-one-default-instrument-chips")
+
+        viewFixturePlayer("fixture-player-2", query: "Fixture Player", in: app)
+        app.buttons["fst.profile.select"].tap()
+        let switchPlayer = app.buttons["Switch Profile"]
+        XCTAssertTrue(switchPlayer.waitForExistence(timeout: 10))
+        switchPlayer.tap()
+        let second = chipEntries(for: "fixture-pulse", in: app)
+        XCTAssertEqual(second.count, 9)
+        XCTAssertEqual(Array(second.prefix(4)), [
+            "Lead, full combo", "Bass, no score",
+            "Drums, scored", "Tap Vocals, no score",
+        ])
+        XCTAssertFalse(row.label.contains("Score 99,800"))
+        record(app, name: "songs-player-two-drums-scored-in-chips")
+        if UIDevice.current.userInterfaceIdiom == .phone {
+            try app.performAccessibilityAudit(for: .all)
+        }
+
+        rootControl("Settings", app: app).tap()
+        let icons = app.switches["fst.settings.show-instrument-icons"]
+        XCTAssertTrue(icons.waitForExistence(timeout: 10))
+        XCTAssertTrue(icons.isEnabled)
+        XCTAssertEqual(icons.value as? String, "1")
+        let lead = app.switches["fst.settings.instrument.Solo_Guitar"]
+        reveal(lead, in: app, scrollingUp: true)
+        setSwitch(lead, to: "0")
+        rootControl("Songs", app: app).tap()
+        let hidden = chipEntries(for: "fixture-pulse", in: app)
+        XCTAssertEqual(hidden.count, 8)
+        XCTAssertFalse(hidden.contains(where: { $0.hasPrefix("Lead, ") }))
+        XCTAssertTrue(hidden.contains("Drums, scored"))
+        record(app, name: "songs-hidden-lead-keeps-scored-drums-chip")
+
+        rootControl("Settings", app: app).tap()
+        reveal(lead, in: app, scrollingUp: true)
+        setSwitch(lead, to: "1")
+        rootControl("Songs", app: app).tap()
+        let filter = app.buttons["fst.songs.instrument-filter"]
+        XCTAssertTrue(filter.waitForExistence(timeout: 10))
+        filter.tap()
+        XCTAssertTrue(app.buttons["Drums"].waitForExistence(timeout: 10))
+        app.buttons["Drums"].tap()
+        XCTAssertTrue(row.label.contains("Score 88,800"))
+        XCTAssertFalse(app.descendants(matching: .any).matching(
+            identifier: "fst.songs.instrument-status.fixture-pulse"
+        ).firstMatch.exists)
+        record(app, name: "songs-filtered-drums-real-score-instead-of-chips")
+
+        filter.tap()
+        XCTAssertTrue(app.buttons["All instruments"].waitForExistence(timeout: 10))
+        app.buttons["All instruments"].tap()
+        XCTAssertTrue(chipEntries(for: "fixture-pulse", in: app).contains("Drums, scored"))
+        rootControl("Settings", app: app).tap()
+        reveal(icons, in: app, scrollingUp: false)
+        setSwitch(icons, to: "0")
+        rootControl("Songs", app: app).tap()
+        XCTAssertTrue(row.label.contains("Score 99,800"))
+        XCTAssertTrue(row.label.contains("Full combo"))
+        XCTAssertFalse(app.descendants(matching: .any).matching(
+            identifier: "fst.songs.instrument-status.fixture-pulse"
+        ).firstMatch.exists)
+        record(app, name: "songs-icons-off-restores-profile-score")
+
+        rootControl("Settings", app: app).tap()
+        reveal(icons, in: app, scrollingUp: false)
+        setSwitch(icons, to: "1")
+        let invalid = app.switches["Filter Invalid Scores"]
+        reveal(invalid, in: app, scrollingUp: false)
+        setSwitch(invalid, to: "1")
+        rootControl("Songs", app: app).tap()
+        XCTAssertTrue(row.label.contains("Filtered player score display is not available yet"))
+        XCTAssertFalse(app.descendants(matching: .any).matching(
+            identifier: "fst.songs.instrument-status.fixture-pulse"
+        ).firstMatch.exists)
+        record(app, name: "songs-invalid-filter-does-not-fabricate-status-chips")
+
+        rootControl("Settings", app: app).tap()
+        reveal(invalid, in: app, scrollingUp: false)
+        setSwitch(invalid, to: "0")
+        rootControl("Songs", app: app).tap()
+        XCTAssertTrue(chipEntries(for: "fixture-pulse", in: app).contains("Drums, scored"))
+        try deselectFixturePlayer(in: app)
+        let clearedChips = app.descendants(matching: .any).matching(
+            identifier: "fst.songs.instrument-status.fixture-pulse"
+        ).firstMatch
+        let cleared = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"), object: clearedChips
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [cleared], timeout: 10), .completed,
+            "A deselected profile left the previous player's chip states visible"
+        )
+    }
+
+    /// A selected card grows when actual largest Dynamic Type reaches native layout.
+    ///
+    /// - Throws: A missing icon state or accessibility-size row clipped at its old height.
+    @MainActor
+    func testSelectedInstrumentChipsRemainReachableAtLargestText() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launch()
+        let row = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(row.waitForExistence(timeout: 15))
+        viewFixturePlayer("fixture-player-2", query: "Fixture Player", in: app)
+        app.buttons["fst.profile.select"].tap()
+        XCTAssertTrue(chipEntries(for: "fixture-pulse", in: app).contains("Drums, scored"))
+        let normalHeight = row.frame.height
+        record(app, name: "songs-default-chips-normal-type")
+
+        app.terminate()
+        app.launchEnvironment.removeValue(forKey: "FST_UI_TEST_CLEAR_PROFILE")
+        app.launchEnvironment.removeValue(forKey: "FST_UI_TEST_RESET_SONG_CARDS")
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName",
+            UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+        ]
+        app.launch()
+        let enlarged = app.buttons["fst.songs.row.fixture-pulse"]
+        let list = app.collectionViews["fst.songs.list"]
+        XCTAssertTrue(list.waitForExistence(timeout: 10))
+        for _ in 0..<6 {
+            if enlarged.exists && enlarged.isHittable { break }
+            list.swipeUp()
+        }
+        XCTAssertTrue(enlarged.waitForExistence(timeout: 10))
+        XCTAssertTrue(enlarged.isHittable, "The selected Pulse row could not be scrolled into view")
+        let scoreLoaded = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label CONTAINS %@", "Drums, scored"),
+            object: enlarged
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [scoreLoaded], timeout: 15), .completed)
+        let loadedChips = chipEntries(for: "fixture-pulse", in: app)
+        XCTAssertEqual(loadedChips.count, 9)
+        XCTAssertTrue(loadedChips.contains("Lead, full combo"))
+        XCTAssertTrue(loadedChips.contains("Drums, scored"))
+        XCTAssertGreaterThan(enlarged.frame.height, normalHeight * 1.2)
+        let chipGroup = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.instrument-status.fixture-pulse").firstMatch
+        let visibleTop = list.frame.minY + 8
+        let tabBar = app.tabBars.firstMatch
+        let visibleBottom = (tabBar.exists
+            ? tabBar.frame.minY : app.windows.firstMatch.frame.maxY) - 8
+        for _ in 0..<6 {
+            if !chipGroup.exists {
+                list.swipeUp()
+                continue
+            }
+            let frame = chipGroup.frame
+            if frame.minY >= visibleTop && frame.maxY <= visibleBottom { break }
+            if frame.maxY > visibleBottom {
+                list.swipeUp()
+            } else {
+                list.swipeDown()
+            }
+        }
+        XCTAssertTrue(chipGroup.isHittable, "Visible chip status stayed behind system navigation")
+        XCTAssertGreaterThanOrEqual(chipGroup.frame.minY, visibleTop)
+        XCTAssertLessThanOrEqual(chipGroup.frame.maxY, visibleBottom)
+        record(app, name: "songs-default-chips-accessibility-xxxlarge")
+        try deselectFixturePlayer(in: app)
+    }
+
+    /// The chip-only AX layout must not replace anonymous row navigation.
+    ///
+    /// - Throws: A clipped anonymous catalogue row or offscreen Detail destination.
+    @MainActor
+    func testAnonymousSongsRowAtLargestTextRetainsDetailNavigation() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName",
+            UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+        ]
+        app.launch()
+        let list = app.collectionViews["fst.songs.list"]
+        XCTAssertTrue(list.waitForExistence(timeout: 15))
+        let orbit = app.buttons["fst.songs.row.fixture-orbit"]
+        for _ in 0..<6 {
+            if orbit.exists && orbit.isHittable { break }
+            list.swipeUp()
+        }
+        XCTAssertTrue(orbit.isHittable)
+        XCTAssertTrue(orbit.label.contains("Fixture Orbit"))
+        XCTAssertTrue(orbit.label.contains("Synthetic Quartet"))
+        XCTAssertFalse(app.descendants(matching: .any).matching(
+            identifier: "fst.songs.instrument-status.fixture-orbit"
+        ).firstMatch.exists)
+        record(app, name: "songs-anonymous-row-largest-text")
+        orbit.tap()
+        XCTAssertTrue(app.staticTexts["Fixture Orbit"].waitForExistence(timeout: 10))
+    }
+
     /// A subsequent XCTest launch cannot inherit identity from an interrupted selection.
     ///
     /// - Throws: Missing fixture accounts or a profile persisting into a fresh journey.
@@ -103,6 +326,9 @@ final class FestivalMobileUITests: XCTestCase {
             .waitForExistence(timeout: 15))
         XCTAssertEqual(next.buttons["fst.profile.open"].label, "Choose Profile")
         XCTAssertFalse(next.buttons["fst.songs.row.fixture-pulse"].label.contains("99,900"))
+        XCTAssertFalse(next.descendants(matching: .any).matching(
+            identifier: "fst.songs.instrument-status.fixture-pulse"
+        ).firstMatch.exists)
         XCTAssertFalse(next.descendants(matching: .any)
             .matching(identifier: "fst.songs.profile-status").firstMatch.exists)
     }
@@ -162,6 +388,7 @@ final class FestivalMobileUITests: XCTestCase {
         app.launch()
         let row = app.buttons["fst.songs.row.fixture-pulse"]
         XCTAssertTrue(row.waitForExistence(timeout: 15))
+        showSelectedScoreMetadata(in: app)
         viewFixturePlayer("fixture-player-1", query: "Fixture Player", in: app)
         let select = app.buttons["fst.profile.select"]
         XCTAssertTrue(select.waitForExistence(timeout: 10))
@@ -232,6 +459,7 @@ final class FestivalMobileUITests: XCTestCase {
 
         app.terminate()
         app.launchEnvironment.removeValue(forKey: "FST_UI_TEST_CLEAR_PROFILE")
+        app.launchEnvironment.removeValue(forKey: "FST_UI_TEST_RESET_SONG_CARDS")
         app.launch()
         let restored = app.buttons["fst.songs.row.fixture-pulse"]
         XCTAssertTrue(restored.waitForExistence(timeout: 15))
@@ -316,7 +544,19 @@ final class FestivalMobileUITests: XCTestCase {
             .waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["fst.profile.select"].exists)
         record(app, name: "profile-player-available-empty")
-        app.buttons["fst.profile.close"].tap()
+        app.buttons["fst.profile.select"].tap()
+        let emptyRow = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(emptyRow.waitForExistence(timeout: 10))
+        let emptyChips = chipEntries(for: "fixture-pulse", in: app)
+        XCTAssertEqual(emptyChips.count, 9)
+        XCTAssertEqual(Array(emptyChips.prefix(4)), [
+            "Lead, no score", "Bass, no score",
+            "Drums, no score", "Tap Vocals, no score",
+        ])
+        XCTAssertTrue(emptyChips.contains("Pro Lead, not charted"))
+        XCTAssertFalse(emptyRow.label.contains("Score 0"))
+        record(app, name: "songs-selected-available-empty-chips")
+        try deselectFixturePlayer(in: app)
 
         viewFixturePlayer("fixture-denied", query: "Denied", in: app)
         let scoreError = app.descendants(matching: .any)
@@ -408,6 +648,7 @@ final class FestivalMobileUITests: XCTestCase {
         app.launch()
         let song = app.buttons["fst.songs.row.fixture-pulse"]
         XCTAssertTrue(song.waitForExistence(timeout: 15))
+        showSelectedScoreMetadata(in: app)
         viewFixturePlayer("fixture-player-2", query: "Fixture Player", in: app)
         XCTAssertTrue(app.staticTexts["fst.profile.score-count"]
             .waitForExistence(timeout: 10))
@@ -2455,6 +2696,37 @@ final class FestivalMobileUITests: XCTestCase {
                 .allElementsBoundByIndex.first(where: \.isHittable),
             "No root profile action is hittable in the current section"
         )
+    }
+
+    /// Choose the source's icons-off variant for tests of numeric score metadata.
+    ///
+    /// - Parameter app: Launched fixture app before selecting an account.
+    @MainActor
+    private func showSelectedScoreMetadata(in app: XCUIApplication) {
+        rootControl("Settings", app: app).tap()
+        let icons = app.switches["fst.settings.show-instrument-icons"]
+        XCTAssertTrue(icons.waitForExistence(timeout: 10))
+        XCTAssertTrue(icons.isEnabled)
+        reveal(icons, in: app, scrollingUp: false)
+        setSwitch(icons, to: "0")
+        rootControl("Songs", app: app).tap()
+    }
+
+    /// Read each status as an exact instrument/meaning pair, not a row substring.
+    ///
+    /// - Parameters:
+    ///   - songId: Synthetic catalogue key whose chip group is currently shown.
+    ///   - app: Foreground Songs fixture after the player score settles.
+    /// - Returns: Source-ordered spoken entries with no Pro Drums/Drums ambiguity.
+    @MainActor
+    private func chipEntries(for songId: String, in app: XCUIApplication) -> [String] {
+        let chips = app.descendants(matching: .any).matching(
+            identifier: "fst.songs.instrument-status.\(songId)"
+        ).firstMatch
+        XCTAssertTrue(chips.waitForExistence(timeout: 10))
+        let entries = chips.label.components(separatedBy: "; ")
+        XCTAssertFalse(entries.contains(where: \.isEmpty))
+        return entries
     }
 
     /// Reach one synthetic player from a fresh profile sheet without selecting it.

@@ -3,7 +3,7 @@
 import json
 import unittest
 
-from tools.contrast_gate import ROOT, check_on_art, ratio
+from tools.contrast_gate import ROOT, check_on_art, check_song_chip_contrast, ratio
 
 
 class ArtworkContrastTests(unittest.TestCase):
@@ -35,6 +35,27 @@ class ArtworkContrastTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "dim opacity"):
             check_on_art(self.colors, dim_opacity=float("nan"))
         self.assertEqual(ratio((255, 255, 255), (0, 0, 0)), 21.0)
+
+    def test_native_chip_statuses_need_readable_marks_and_outlines(self):
+        """The solid-card baseline gates glyphs at 4.5 and status edges at 3.0."""
+        self.assertEqual(check_song_chip_contrast(self.colors), [])
+        for name, value, failing in (
+            ("gold", "#0B1220", "full combo glyph"),
+            ("statusRed", "#FFD700", "no-score glyph"),
+            ("textDisabled", "#223047", "unavailable outline"),
+        ):
+            with self.subTest(name=name):
+                modified = dict(self.colors, **{name: value})
+                self.assertTrue(any(
+                    error.startswith(failing + ": contrast")
+                    for error in check_song_chip_contrast(modified)
+                ))
+        self.assertTrue(any(
+            "must be opaque" in error
+            for error in check_song_chip_contrast(
+                dict(self.colors, statusGreen="rgba(46,204,113,0.5)")
+            )
+        ))
 
 
 if __name__ == "__main__":

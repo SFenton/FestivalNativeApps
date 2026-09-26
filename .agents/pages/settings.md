@@ -39,8 +39,17 @@ switches restored. Hosted tests exercise all seven
 label flags. Filter Invalid Scores **does not yet** evaluate the
 source's precomputed `ml`/`vs`/`rt` fallback variants for Songs:
 the selected card shows a visible pending message rather than a
-raw score disguised as valid. Experimental ranks and Show
-Instrument Icons stay disabled. Metadata ordering, complete
+raw score disguised as valid. Show Instrument Icons is now
+enabled, with status descriptions: a selected, published,
+unfiltered player shows enabled chart chips; turning icons
+off restores the ordinary first-visible-chart score fields.
+The seven other metadata switches retain their saved values
+but take visible effect only with icons off or one chart
+filtered. The 10/10-per-device selected matrix verifies
+Show Instrument Icons and Lead visibility changes affect
+the same card, then filtering Drums restores its real
+Score 88,800. Experimental ranks stay disabled.
+Metadata ordering, complete
 Detail propagation, source filter controls, accessibility/focus
 audits and live selected-player access remain pending; Settings
 is not route-certified.

@@ -79,8 +79,44 @@ def check_on_art(
     return errors
 
 
+def check_song_chip_contrast(colors: dict[str, str]) -> list[str]:
+    """Require readable native chip glyphs and discernible muted/red boundaries.
+
+    Args:
+        colors: Opaque semantic colors rendered inside native Songs cards.
+
+    Returns:
+        Missing, translucent or low-contrast chip token pairs.
+    """
+    pairs = (
+        ("full combo glyph", "cardBackground", "gold", 4.5),
+        ("scored glyph", "cardBackground", "statusGreen", 4.5),
+        ("no-score glyph", "textPrimary", "statusRed", 4.5),
+        ("unavailable glyph", "textPrimary", "surfaceMuted", 4.5),
+        ("unavailable outline", "textDisabled", "cardBackground", 3.0),
+        ("no-score fill", "statusRed", "cardBackground", 3.0),
+    )
+    errors: list[str] = []
+    for label, foreground, background, minimum in pairs:
+        if foreground not in colors or background not in colors:
+            errors.append(f"{label}: missing chip color token")
+            continue
+        first = parse_color(colors[foreground])
+        second = parse_color(colors[background])
+        if first[0] != 255 or second[0] != 255:
+            errors.append(f"{label}: chip colors must be opaque")
+            continue
+        measured = ratio(first[1:], second[1:])
+        print(f"song-chip.{label}: {measured:.2f}:1 (need {minimum:.1f}:1)")
+        if measured < minimum:
+            errors.append(
+                f"{label}: contrast {measured:.2f}:1 is below {minimum:.1f}:1"
+            )
+    return errors
+
+
 def main() -> int:
-    """Run the source-backed contrast threshold against generated native tokens.
+    """Run text/art and chip contrast thresholds against native color tokens.
 
     Returns:
         Exit zero only if every listed exposed text semantic passes 4.5:1.
@@ -90,6 +126,7 @@ def main() -> int:
             (ROOT / "contracts/fluent-tokens.json").read_text(encoding="utf-8")
         )
         errors = check_on_art(contract["colors"])
+        errors.extend(check_song_chip_contrast(contract["colors"]))
     except (OSError, KeyError, ValueError) as error:
         print(f"Artwork contrast gate error: {error}", file=sys.stderr)
         return 2

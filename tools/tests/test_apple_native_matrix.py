@@ -103,7 +103,14 @@ class AppleNativeMatrixTests(unittest.TestCase):
         self.assertIn('private func fixtureApp() -> XCUIApplication', source)
         self.assertIn('app.launchEnvironment["FST_UI_TEST_CLEAR_PROFILE"] = "1"', source)
         self.assertIn(
+            'app.launchEnvironment["FST_UI_TEST_RESET_SONG_CARDS"] = "1"', source
+        )
+        self.assertIn(
             'app.launchEnvironment.removeValue(forKey: "FST_UI_TEST_CLEAR_PROFILE")',
+            source,
+        )
+        self.assertIn(
+            'app.launchEnvironment.removeValue(forKey: "FST_UI_TEST_RESET_SONG_CARDS")',
             source,
         )
 

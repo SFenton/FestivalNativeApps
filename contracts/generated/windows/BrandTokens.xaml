@@ -13,12 +13,22 @@
     <SolidColorBrush x:Key="FSTGlassBorderBrush" Color="{StaticResource FSTGlassBorderColor}" />
     <Color x:Key="FSTGoldColor">#FFFFD700</Color>
     <SolidColorBrush x:Key="FSTGoldBrush" Color="{StaticResource FSTGoldColor}" />
+    <Color x:Key="FSTGoldStrokeColor">#FFCFA500</Color>
+    <SolidColorBrush x:Key="FSTGoldStrokeBrush" Color="{StaticResource FSTGoldStrokeColor}" />
     <Color x:Key="FSTStatusGreenColor">#FF2ECC71</Color>
     <SolidColorBrush x:Key="FSTStatusGreenBrush" Color="{StaticResource FSTStatusGreenColor}" />
+    <Color x:Key="FSTStatusGreenStrokeColor">#FF1E7F46</Color>
+    <SolidColorBrush x:Key="FSTStatusGreenStrokeBrush" Color="{StaticResource FSTStatusGreenStrokeColor}" />
     <Color x:Key="FSTStatusRedColor">#FFC62828</Color>
     <SolidColorBrush x:Key="FSTStatusRedBrush" Color="{StaticResource FSTStatusRedColor}" />
+    <Color x:Key="FSTStatusRedStrokeColor">#FF8B0000</Color>
+    <SolidColorBrush x:Key="FSTStatusRedStrokeBrush" Color="{StaticResource FSTStatusRedStrokeColor}" />
     <Color x:Key="FSTSurfaceFrostedColor">#C7121826</Color>
     <SolidColorBrush x:Key="FSTSurfaceFrostedBrush" Color="{StaticResource FSTSurfaceFrostedColor}" />
+    <Color x:Key="FSTSurfaceMutedColor">#FF223047</Color>
+    <SolidColorBrush x:Key="FSTSurfaceMutedBrush" Color="{StaticResource FSTSurfaceMutedColor}" />
+    <Color x:Key="FSTTextDisabledColor">#FF607089</Color>
+    <SolidColorBrush x:Key="FSTTextDisabledBrush" Color="{StaticResource FSTTextDisabledColor}" />
     <Color x:Key="FSTTextMutedColor">#FF8899AA</Color>
     <SolidColorBrush x:Key="FSTTextMutedBrush" Color="{StaticResource FSTTextMutedColor}" />
     <Color x:Key="FSTTextPrimaryColor">#FFFFFFFF</Color>

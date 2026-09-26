@@ -18,6 +18,32 @@ struct FestivalMobileApp: App {
                 UserDefaults.standard.removeObject(forKey: key)
             }
         }
+        if ProcessInfo.processInfo.environment["FST_UI_TEST_RESET_SONG_CARDS"] == "1" {
+            for key in [
+                "fst.settings.showInstrumentIcons",
+                "fst.settings.filterInvalidScores",
+                "fst.settings.leeway",
+                "fst.settings.showLead",
+                "fst.settings.showBass",
+                "fst.settings.showDrums",
+                "fst.settings.showVocals",
+                "fst.settings.showProLead",
+                "fst.settings.showProBass",
+                "fst.settings.showKaraoke",
+                "fst.settings.showProCymbals",
+                "fst.settings.showProDrums",
+                "fst.settings.metadataScore",
+                "fst.settings.metadataPercentage",
+                "fst.settings.metadataPercentile",
+                "fst.settings.metadataSeason",
+                "fst.settings.metadataIntensity",
+                "fst.settings.metadataDifficulty",
+                "fst.settings.metadataStars",
+                "fst.settings.metadataLastPlayed",
+            ] {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
         #endif
     }
 

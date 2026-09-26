@@ -73,7 +73,7 @@ audit failure. See [control](controls/score-accuracy.md) and
 |---|---|---|
 | Profile selection and search | `App.tsx:760-834`, `SearchModal.tsx:495-590`, `state/selectedProfile.ts:10-175`; player vs band identity, persistence, switch and deselect | Native header/sheet for both targets, errors and cancellation, guarded tabs; profile change invalidates dependent rows/routes. Avoid implicit production tracking POSTs. |
 | Adaptive shell/navigation | `BottomNav.tsx:41-100`, `MobileHeader.tsx:53-131`, `App.tsx:1011-1107`; no profile has three tabs, selected player/band adds Suggestions and Statistics, player enables Compete/Rivals | Native tab/sidebar selection, reselect, deep links, focus, safe areas, notifications and quick links in compact/wide layouts. |
-| Songs rows, filter and sort | `SongsPage.tsx:370-485,622-855,1112-1360`, `SongRow.tsx:173-511`, `SortModal.tsx:44-213`, `FilterModal.tsx:169-373` | Anonymous title/artist/year/duration and conditional Item Shop sort drafts, persistent direction and Shop New/Leaving row accents work on Apple; still test player/band scores/FC/invalid fallback, all instruments/metadata, other profile/FC sorts, Shop filter drafts and warning action separately from row navigation. |
+| Songs rows, filter and sort | `SongsPage.tsx:370-485,622-855,1112-1360`, `SongRow.tsx:173-511`, `SortModal.tsx:44-213`, `FilterModal.tsx:169-373` | Anonymous title/artist/year/duration, conditional Shop sorting and Shop New/Leaving row accents work on Apple. Selected-player default chips have source WebKit 4/4 and native 10/10-per-device named proofs, but band, invalid fallback, complete geometry/contrast/metadata, other profile/FC sorts, Shop filter drafts and warning action remain. |
 | Song Detail and Paths | `SongDetailPage.tsx:191-279,663-731`, `InstrumentCard.tsx:24-291`, `PathsModal.tsx:110-190,550-652` | Ten-row Solo previews, official Shop link/status and first path image/text states exist on Apple; selected/off-page score, history/band cards, path column reorder/layout, rapid-request race, warning persistence and complete focus/a11y remain. |
 | Rankings and Solo/Band paging | `LeaderboardsOverviewPage.tsx:137-240,443-488`, `FullRankingsPage.tsx:169-244`, `BandRankingsPage.tsx:155-285`, `LeaderboardPage.tsx:114-184` | Replace placeholder with data-backed solo+band cards, selection spotlight, metrics/rank history, full scope pagination and band combo filters; retain Solo progress honestly. |
 | Player, bands and stats | `PlayerPage.tsx:38-153`, `PlayerContent.tsx:214-292`, `BandPage.tsx:80-158,299-393`, `PlayerBandsPage.tsx:29-85` | Distinguish viewed vs selected account, expose stats and score/history, band members/configurations/songs, selected-team song cards and player-band group modal. |
@@ -146,11 +146,21 @@ card shows 99,800 at the right edge, a skewed gold 97.9% badge
 and Top 10% bucket. In the source's unfiltered default with
 icons enabled, instrument chips replace per-chart score metadata
 (`FortniteFestivalWeb/src/pages/songs/components/SongRow.tsx:191-200,264-271`).
-Native places first-visible-chart
+Native's icons-off row places first-visible-chart
 score inline with separate FC and the same Top 10% bucket, but
 not the source's score/accuracy-pill geometry. It omits the
-all-instrument chips and first-run Filter Songs overlay, and keeps
+first-run Filter Songs overlay and keeps
 only three tabs where the source adds player-only destinations.
+The default-icons-on native status-chip WIP is backed by
+Core policy/render tests, **4/4 fixture-only WebKit cases**
+and a serial **10/10 iPhone + 10/10 iPad** named device
+matrix, followed by a separate **4/4 on each** post-review
+matrix for the changed AX, exact-label, deselect and
+anonymous-row paths. The source WebKit tablet shows nine chips in
+one row, while native iPad wraps them into two in its
+system split-detail pane; native initials/marks replace
+source PNGs of unresolved rights. These differences
+are not pixel or complete accessibility parity.
 The source's mobile target row is below results; the native phone
 uses a top scope. Source screenshots live in private session
 evidence, not the repository.
