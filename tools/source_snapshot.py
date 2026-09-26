@@ -14,7 +14,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "contracts/source-snapshot.json"
 BACKLOG = ROOT / "contracts/parity-backlog.json"
-SOURCE_REF = re.compile(r"^(?:FortniteFestivalWeb|FSTService)/[\w./-]+\.(?:tsx|ts|cs):[1-9]\d*$")
+SOURCE_PATH = (
+    r"(?:FortniteFestivalWeb|FSTService|packages/(?:core|theme))"
+    r"(?:/[A-Za-z0-9_][A-Za-z0-9_.-]*)+\.(?:tsx|ts|cs)"
+)
+SOURCE_REF = re.compile(rf"^{SOURCE_PATH}:[1-9]\d*$")
+MARKDOWN_SOURCE_REF = re.compile(
+    rf"(?P<path>{SOURCE_PATH}):"
+    r"(?P<ranges>[1-9]\d*(?:-[1-9]\d*)?(?:,\s*[1-9]\d*(?:-[1-9]\d*)?)*)"
+)
 SOURCES = (
     "FSTService/Api/ApiPublicationClassification.cs",
     "FSTService/Api/LeaderboardEndpoints.cs",
@@ -45,12 +53,43 @@ SOURCES = (
     "FortniteFestivalWeb/src/utils/songSort.ts",
 )
 
-def tracked_source_paths(backlog: dict, base: tuple[str, ...] = SOURCES) -> tuple[str, ...]:
-    """Pin all existing inputs plus each cited React/service feature source.
+def markdown_source_citations(markdown_root: Path) -> list[tuple[str, str, int, int]]:
+    """Extract every fully qualified source range from agent guidance.
+
+    Args:
+        markdown_root: Existing directory containing agent specifications.
+
+    Returns:
+        Cited location, relative source path and each inclusive line range.
+
+    Raises:
+        ValueError: If guidance is missing or a Markdown file is a symlink.
+    """
+    if not markdown_root.is_dir():
+        raise ValueError(f"Agent guidance directory is missing: {markdown_root}")
+    citations = []
+    for doc in sorted(markdown_root.rglob("*.md")):
+        if doc.is_symlink() or not doc.is_file():
+            raise ValueError(f"Agent guidance file is unavailable or a symlink: {doc}")
+        for match in MARKDOWN_SOURCE_REF.finditer(doc.read_text(encoding="utf-8")):
+            for line_range in match.group("ranges").split(","):
+                bounds = line_range.strip().split("-", 1)
+                citations.append((
+                    f"{doc.relative_to(markdown_root)}: {match.group('path')}:{line_range.strip()}",
+                    match.group("path"), int(bounds[0]), int(bounds[-1]),
+                ))
+    return citations
+
+
+def tracked_source_paths(
+    backlog: dict, base: tuple[str, ...] = SOURCES, markdown_root: Path | None = None
+) -> tuple[str, ...]:
+    """Pin existing inputs and cited React/service/shared-package sources.
 
     Args:
         backlog: Validated versioned parity plan with sourceRefs on every epic.
         base: Previously pinned source files to retain across plan revisions.
+        markdown_root: Optional agent specifications with additional source citations.
 
     Returns:
         Sorted, de-duplicated source file paths without embedded code.
@@ -70,7 +109,42 @@ def tracked_source_paths(backlog: dict, base: tuple[str, ...] = SOURCES) -> tupl
             if not isinstance(ref, str) or not SOURCE_REF.fullmatch(ref):
                 raise ValueError(f"Invalid parity source reference: {ref!r}")
             paths.add(ref.rsplit(":", 1)[0])
+    if markdown_root is not None:
+        paths.update(path for _, path, _, _ in markdown_source_citations(markdown_root))
     return tuple(sorted(paths))
+
+
+def validate_citation_lines(source: Path, backlog: dict, markdown_root: Path) -> None:
+    """Reject out-of-bounds source references in the backlog and agent guidance.
+
+    Args:
+        source: Read-only local checkout for source line counts.
+        backlog: Source-backed feature epics with explicit path:line citations.
+        markdown_root: Existing directory of agent specs to check for full-path ranges.
+
+    Raises:
+        ValueError: For a missing file, reversed range or nonexistent cited line.
+    """
+    citations: list[tuple[str, str, int, int]] = []
+    for epic in backlog["epics"]:
+        for ref in epic["sourceRefs"]:
+            path, line = ref.rsplit(":", 1)
+            citations.append((ref, path, int(line), int(line)))
+    citations.extend(markdown_source_citations(markdown_root))
+    line_counts: dict[str, int] = {}
+    source_root = source.resolve()
+    for citation, path, first, last in citations:
+        if last < first:
+            raise ValueError(f"{citation}: source range ends before it starts")
+        if path not in line_counts:
+            content = source / path
+            if not content.is_file() or not content.resolve().is_relative_to(source_root):
+                raise ValueError(f"{citation}: cited source missing or outside checkout")
+            line_counts[path] = len(content.read_bytes().splitlines())
+        if last > line_counts[path]:
+            raise ValueError(
+                f"{citation}: source line out of range (1..{line_counts[path]})"
+            )
 
 
 def _git(source: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -133,7 +207,9 @@ def create_snapshot(source: Path, paths: tuple[str, ...] | None = None) -> dict:
     if revision.returncode != 0 or len(revision.stdout.strip()) != 40:
         raise ValueError(f"{source}: cannot read source HEAD")
     if paths is None:
-        paths = tracked_source_paths(json.loads(BACKLOG.read_text(encoding="utf-8")))
+        backlog = json.loads(BACKLOG.read_text(encoding="utf-8"))
+        paths = tracked_source_paths(backlog, markdown_root=ROOT / ".agents")
+        validate_citation_lines(source, backlog, ROOT / ".agents")
     files = {}
     for path in paths:
         content = source / path

@@ -810,28 +810,172 @@ final class FestivalMobileUITests: XCTestCase {
         XCTAssertTrue(song.waitForExistence(timeout: 15))
         song.tap()
         collapseSidebarOnPad(app)
-        let first = app.descendants(matching: .any).matching(
+        let viewFull = app.buttons["fst.song-detail.leaderboard.Solo_Guitar"]
+        XCTAssertTrue(viewFull.waitForExistence(timeout: 15))
+        let first = app.staticTexts.matching(
             identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-1"
-        ).firstMatch
+        ).matching(NSPredicate(format: "label == %@", "#1")).firstMatch
         XCTAssertTrue(first.waitForExistence(timeout: 15))
         XCTAssertTrue(app.staticTexts["Fixture Player 1"].exists)
+        let previewNonFC = app.staticTexts.matching(
+            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-1"
+        ).matching(NSPredicate(format: "label == %@", "Accuracy 98%")).firstMatch
+        let previewFC = app.staticTexts.matching(
+            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-2"
+        ).matching(NSPredicate(
+            format: "label == %@", "Full combo, accuracy 98%"
+        )).firstMatch
+        XCTAssertTrue(previewNonFC.waitForExistence(timeout: 10))
+        XCTAssertEqual(previewNonFC.label, "Accuracy 98%")
+        XCTAssertTrue(previewFC.exists)
+        XCTAssertEqual(previewFC.label, "Full combo, accuracy 98%")
+        try assertScoreAccuracyAccent(previewNonFC, fullCombo: false)
+        try assertScoreAccuracyAccent(previewFC, fullCombo: true)
+        let previewScoreOne = app.staticTexts.matching(
+            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-1"
+        ).matching(NSPredicate(format: "label == %@", "99,900")).firstMatch
+        let previewScoreTwo = app.staticTexts.matching(
+            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-2"
+        ).matching(NSPredicate(format: "label == %@", "99,800")).firstMatch
+        assertAlignedScoreColumn(
+            firstScore: previewScoreOne, secondScore: previewScoreTwo,
+            firstBadge: previewNonFC, secondBadge: previewFC
+        )
+        let previewRowThree = "fst.song-detail.preview-row.Solo_Guitar.fixture-player-3"
+        let previewRowFour = "fst.song-detail.preview-row.Solo_Guitar.fixture-player-4"
+        let previewScoreThree = app.staticTexts.matching(identifier: previewRowThree)
+            .matching(NSPredicate(format: "label == %@", "99,700")).firstMatch
+        let previewScoreFour = app.staticTexts.matching(identifier: previewRowFour)
+            .matching(NSPredicate(format: "label == %@", "99,600")).firstMatch
+        assertAlignedScoreEnds(previewScoreOne, previewScoreThree)
+        assertAlignedScoreEnds(previewScoreOne, previewScoreFour)
+        XCTAssertFalse(app.staticTexts.matching(identifier: previewRowThree)
+            .matching(NSPredicate(
+                format: "label CONTAINS[c] %@", "accuracy"
+            )).firstMatch.exists)
+        let previewFCWithoutAccuracy = app.staticTexts.matching(identifier: previewRowFour)
+            .matching(NSPredicate(
+                format: "label == %@", "Full combo; accuracy unavailable"
+            )).firstMatch
+        XCTAssertTrue(previewFCWithoutAccuracy.exists)
         let previewQuery = try await latestFixtureScoreQuery()
         XCTAssertEqual(previewQuery.top, 10)
         XCTAssertEqual(previewQuery.offset, 0)
         XCTAssertNil(previewQuery.leeway)
-        XCTAssertFalse(app.descendants(matching: .any).matching(
+        XCTAssertFalse(app.staticTexts.matching(
             identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-11"
-        ).firstMatch.exists)
+        ).matching(NSPredicate(format: "label == %@", "#11")).firstMatch.exists)
         record(app, name: "song-detail-real-top-scores")
         try assertHeaderContrast(app.staticTexts["Fixture Player 1"], in: app)
 
-        let viewFull = app.buttons["fst.song-detail.leaderboard.Solo_Guitar"]
-        XCTAssertTrue(viewFull.waitForExistence(timeout: 10))
         viewFull.tap()
         XCTAssertTrue(app.buttons["fst.song-leaderboard.page-next"].waitForExistence(timeout: 10))
-        let fullQuery = try await latestFixtureScoreQuery()
+        let fullQuery = try await latestFixtureScoreQuery(fullOnly: true)
         XCTAssertEqual(fullQuery.top, 25)
         XCTAssertEqual(fullQuery.offset, 0)
+        let fullNonFC = app.staticTexts["fst.score.accuracy.fixture-player-1"]
+        let fullFC = app.staticTexts["fst.score.accuracy.fixture-player-2"]
+        XCTAssertTrue(fullNonFC.waitForExistence(timeout: 10))
+        XCTAssertEqual(fullNonFC.label, "Accuracy 98%")
+        XCTAssertTrue(fullFC.exists)
+        XCTAssertEqual(fullFC.label, "Full combo, accuracy 98%")
+        try assertScoreAccuracyAccent(fullNonFC, fullCombo: false)
+        try assertScoreAccuracyAccent(fullFC, fullCombo: true)
+        let fullRowOne = app.descendants(matching: .any)
+            .matching(identifier: "fst.song-leaderboard.row.fixture-player-1").firstMatch
+        let fullRowTwo = app.descendants(matching: .any)
+            .matching(identifier: "fst.song-leaderboard.row.fixture-player-2").firstMatch
+        let fullScoreOne = fullRowOne.descendants(matching: .staticText)
+            .matching(NSPredicate(format: "label == %@", "99,900")).firstMatch
+        let fullScoreTwo = fullRowTwo.descendants(matching: .staticText)
+            .matching(NSPredicate(format: "label == %@", "99,800")).firstMatch
+        assertAlignedScoreColumn(
+            firstScore: fullScoreOne, secondScore: fullScoreTwo,
+            firstBadge: fullNonFC, secondBadge: fullFC
+        )
+        let fullRowThree = app.descendants(matching: .any)
+            .matching(identifier: "fst.song-leaderboard.row.fixture-player-3").firstMatch
+        let fullRowFour = app.descendants(matching: .any)
+            .matching(identifier: "fst.song-leaderboard.row.fixture-player-4").firstMatch
+        let fullScoreThree = fullRowThree.descendants(matching: .staticText)
+            .matching(NSPredicate(format: "label == %@", "99,700")).firstMatch
+        let fullScoreFour = fullRowFour.descendants(matching: .staticText)
+            .matching(NSPredicate(format: "label == %@", "99,600")).firstMatch
+        assertAlignedScoreEnds(fullScoreOne, fullScoreThree)
+        assertAlignedScoreEnds(fullScoreOne, fullScoreFour)
+        XCTAssertFalse(app.staticTexts["fst.score.accuracy.fixture-player-3"].exists)
+        let fullFCWithoutAccuracy = app.staticTexts["fst.score.accuracy.fixture-player-4"]
+        XCTAssertTrue(fullFCWithoutAccuracy.exists)
+        XCTAssertEqual(fullFCWithoutAccuracy.label, "Full combo; accuracy unavailable")
+        try assertScoreAccuracyAccent(fullFCWithoutAccuracy, fullCombo: true)
+        XCTAssertLessThanOrEqual(
+            abs(fullNonFC.frame.minX - fullFCWithoutAccuracy.frame.minX), 1,
+            "FC without accuracy must retain the same badge column"
+        )
+        record(app, name: "solo-fc-versus-graded-accuracy")
+    }
+
+    /// Probe system accessibility scrolling to the last score in a populated preview.
+    ///
+    /// - Throws: A stalled offscreen score target or missing painted preview row.
+    @MainActor
+    func testOffscreenDetailScoreRemainsReachable() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8774"
+        app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launch()
+        let song = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(song.waitForExistence(timeout: 15))
+        song.tap()
+        let first = app.staticTexts.matching(
+            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-1"
+        ).matching(NSPredicate(format: "label == %@", "#1")).firstMatch
+        XCTAssertTrue(first.waitForExistence(timeout: 15))
+        let tenth = app.staticTexts.matching(
+            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-10"
+        ).matching(NSPredicate(format: "label == %@", "#10")).firstMatch
+        XCTAssertTrue(tenth.waitForExistence(timeout: 10))
+        if UIDevice.current.userInterfaceIdiom == .phone {
+            XCTAssertFalse(tenth.isHittable, "The last score did not start offscreen")
+        }
+        tenth.tap()
+        XCTAssertTrue(tenth.isHittable, "Offscreen score could not be brought into view")
+        record(app, name: "song-detail-offscreen-score-revealed")
+    }
+
+    /// Probe an offscreen empty-chart action without inventing a successful score.
+    ///
+    /// - Throws: A stalled native scroll or missing genuinely empty Bass chart.
+    @MainActor
+    func testOffscreenEmptyChartActionRemainsReachable() async throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8775"
+        app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launch()
+        let song = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(song.waitForExistence(timeout: 15))
+        song.tap()
+        let first = app.staticTexts.matching(
+            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-1"
+        ).matching(NSPredicate(format: "label == %@", "#1")).firstMatch
+        XCTAssertTrue(first.waitForExistence(timeout: 15))
+        let bass = app.buttons["fst.song-detail.leaderboard.Solo_Bass"]
+        XCTAssertTrue(bass.waitForExistence(timeout: 15))
+        if UIDevice.current.userInterfaceIdiom == .phone {
+            XCTAssertFalse(bass.isHittable, "Bass action did not start offscreen")
+        }
+        bass.tap()
+        XCTAssertTrue(app.staticTexts["0 Bass entries"].waitForExistence(timeout: 10))
+        XCTAssertTrue(
+            app.buttons["fst.song-leaderboard.page-next"].waitForExistence(timeout: 10),
+            "Bass full chart did not finish loading"
+        )
+        try await awaitClosedFixture(port: 8775)
+        record(app, name: "song-detail-offscreen-bass-opened")
     }
 
     /// Traverse Songs, Detail and page two, then verify landscape layout survives.
@@ -863,7 +1007,15 @@ final class FestivalMobileUITests: XCTestCase {
         let first = app.buttons["fst.song-leaderboard.page-first"]
         XCTAssertFalse(first.isEnabled)
         XCTAssertTrue(next.isEnabled)
-        try app.performAccessibilityAudit(for: .all)
+        try app.performAccessibilityAudit(for: .all) { issue in
+            XCTFail(
+                "Solo page audit: \(issue.compactDescription); "
+                    + "element=\(issue.element?.identifier ?? "unidentified"), "
+                    + "label=\(issue.element?.label ?? "unidentified"), "
+                    + "frame=\(String(describing: issue.element?.frame))"
+            )
+            return false
+        }
         next.tap()
         XCTAssertTrue(app.staticTexts["2 / 2"].waitForExistence(timeout: 10))
         XCTAssertTrue(first.isEnabled)
@@ -925,7 +1077,9 @@ final class FestivalMobileUITests: XCTestCase {
         XCTAssertFalse(app.buttons["fst.song-leaderboard.page-first"].isEnabled)
         next.tap()
         XCTAssertTrue(app.staticTexts["2 / 2"].waitForExistence(timeout: 10))
-        let lastAccuracy = revealSoloAccuracy("fixture-player-26", app: app)
+        let lastAccuracy = revealSoloAccuracy(
+            "fixture-player-26", fullCombo: true, app: app
+        )
         assertWholeSoloScore("fixture-player-26", rank: 26, score: 97_400, app: app)
         XCTAssertTrue(lastAccuracy.isHittable)
         XCTAssertTrue(app.buttons["fst.song-leaderboard.page-first"].isEnabled)
@@ -1217,6 +1371,12 @@ final class FestivalMobileUITests: XCTestCase {
         )
         let lead = app.buttons["fst.song-detail.leaderboard.Solo_Guitar"]
         XCTAssertTrue(lead.waitForExistence(timeout: 10))
+        XCTAssertTrue(lead.isHittable, "View Full must be reachable above the score preview")
+        let tabs = app.tabBars.firstMatch
+        if tabs.exists {
+            XCTAssertLessThan(lead.frame.maxY, tabs.frame.minY)
+        }
+        record(app, name: "song-detail-view-full-leading")
         lead.tap()
         collapseSidebarOnPad(app)
         let score = app.descendants(matching: .any)
@@ -1889,15 +2049,19 @@ final class FestivalMobileUITests: XCTestCase {
     ///
     /// - Parameters:
     ///   - accountID: Synthetic player on the currently loaded chart page.
+    ///   - fullCombo: True only for a response-proven full-combo row.
     ///   - app: Foreground chart at AccessibilityXXXL.
     /// - Returns: The visible, explicitly labeled accuracy element.
     @MainActor
     private func revealSoloAccuracy(
-        _ accountID: String, app: XCUIApplication
+        _ accountID: String, fullCombo: Bool = false, app: XCUIApplication
     ) -> XCUIElement {
         let accuracy = app.staticTexts
-            .matching(identifier: "fst.song-leaderboard.row.\(accountID)")
-            .matching(NSPredicate(format: "label == %@", "Accuracy 98%"))
+            .matching(identifier: "fst.score.accuracy.\(accountID)")
+            .matching(NSPredicate(
+                format: "label == %@",
+                fullCombo ? "Full combo, accuracy 98%" : "Accuracy 98%"
+            ))
             .firstMatch
         let table = app.tables.firstMatch
         let list = table.exists ? table : app.collectionViews.firstMatch
@@ -1924,10 +2088,12 @@ final class FestivalMobileUITests: XCTestCase {
     private func assertWholeSoloScore(
         _ accountID: String, rank: Int, score: Int, app: XCUIApplication
     ) {
-        let identifier = "fst.song-leaderboard.row.\(accountID)"
-        let rankText = app.staticTexts.matching(identifier: identifier)
+        let row = app.descendants(matching: .any)
+            .matching(identifier: "fst.song-leaderboard.row.\(accountID)").firstMatch
+        XCTAssertTrue(row.exists)
+        let rankText = row.descendants(matching: .staticText)
             .matching(NSPredicate(format: "label == %@", "#\(rank)")).firstMatch
-        let scoreText = app.staticTexts.matching(identifier: identifier)
+        let scoreText = row.descendants(matching: .staticText)
             .matching(NSPredicate(format: "label == %@", score.formatted())).firstMatch
         XCTAssertTrue(rankText.exists)
         XCTAssertTrue(scoreText.exists)
@@ -2012,6 +2178,90 @@ final class FestivalMobileUITests: XCTestCase {
         return count
     }
 
+    /// Require a real gold FC outline or graded green fill in rendered score pixels.
+    ///
+    /// - Parameters:
+    ///   - element: Fully visible, separately accessible native accuracy pill.
+    ///   - fullCombo: Whether the validated score explicitly reports a full combo.
+    /// - Throws: An absent or visually incorrect accent on the named badge.
+    @MainActor
+    private func assertScoreAccuracyAccent(
+        _ element: XCUIElement, fullCombo: Bool
+    ) throws {
+        XCTAssertTrue(element.isHittable)
+        let image = try XCTUnwrap(element.screenshot().image.cgImage)
+        let pixels = try bitmapPixels(image)
+        var gold = 0
+        var graded = 0
+        for offset in stride(from: 0, to: pixels.count, by: 4) {
+            let red = Int(pixels[offset])
+            let green = Int(pixels[offset + 1])
+            let blue = Int(pixels[offset + 2])
+            if red >= 220 && green >= 170 && blue <= 65 {
+                gold += 1
+            }
+            if green >= 50 && green >= red + 25 && green >= blue + 5 {
+                graded += 1
+            }
+        }
+        if fullCombo {
+            XCTAssertGreaterThan(gold, 40, "FC outline is not visibly gold")
+            XCTAssertEqual(graded, 0, "FC badge shows a graded non-FC fill")
+        } else {
+            XCTAssertEqual(gold, 0, "Non-FC accuracy is misleadingly gold")
+            XCTAssertGreaterThan(graded, 80, "Non-FC accuracy lacks graded fill")
+        }
+        let inset = max(8, min(image.width, image.height) / 12)
+        let content = try XCTUnwrap(image.cropping(to: CGRect(
+            x: inset, y: inset,
+            width: image.width - inset * 2,
+            height: image.height - inset * 2
+        )))
+        let contrast = try measuredTextContrast(in: bitmapPixels(content))
+        XCTAssertGreaterThan(
+            contrast.brightPixels, 80,
+            "\(element.label) has no visible accuracy text"
+        )
+        XCTAssertGreaterThanOrEqual(
+            contrast.ratio, 4.5,
+            "\(element.label) text contrast \(contrast.ratio):1 is below 4.5:1"
+        )
+    }
+
+    /// Keep equal-digit scores in one column despite the visible FC prefix.
+    ///
+    /// - Parameters:
+    ///   - firstScore: Fully visible non-FC numeric score.
+    ///   - secondScore: Equal-width full-combo numeric score.
+    ///   - firstBadge: Graded non-FC accuracy pill.
+    ///   - secondBadge: Gold full-combo accuracy pill.
+    @MainActor
+    private func assertAlignedScoreColumn(
+        firstScore: XCUIElement, secondScore: XCUIElement,
+        firstBadge: XCUIElement, secondBadge: XCUIElement
+    ) {
+        XCTAssertTrue(firstScore.isHittable && secondScore.isHittable)
+        assertAlignedScoreEnds(firstScore, secondScore)
+        XCTAssertLessThanOrEqual(
+            abs(firstBadge.frame.minX - secondBadge.frame.minX), 1,
+            "FC and non-FC badges must occupy the same column"
+        )
+    }
+
+    /// Keep equal-width numeric scores aligned even when accuracy is absent.
+    ///
+    /// - Parameters:
+    ///   - first: Source-proven score on the first visible chart row.
+    ///   - second: Score of the same digit length with or without a badge.
+    @MainActor
+    private func assertAlignedScoreEnds(_ first: XCUIElement, _ second: XCUIElement) {
+        XCTAssertTrue(first.exists && second.exists)
+        XCTAssertLessThanOrEqual(
+            abs(first.frame.maxX - second.frame.maxX), 1,
+            "An FC or missing accuracy must not shift the numeric score column"
+        )
+    }
+
     /// Check actual rendered text contrast against its median surface.
     ///
     /// - Parameters:
@@ -2043,7 +2293,28 @@ final class FestivalMobileUITests: XCTestCase {
             height: frame.height * scaleY
         ).integral
         let crop = try XCTUnwrap(image.cropping(to: cropRect))
-        let bytes = try bitmapPixels(crop)
+        let measured = try measuredTextContrast(in: bitmapPixels(crop))
+        XCTAssertGreaterThan(
+            measured.brightPixels, 100,
+            "\(element.label) has no readable text pixels in its rendered section"
+        )
+        XCTAssertGreaterThanOrEqual(
+            measured.ratio, 4.5,
+            "\(element.label) lacks readable rendered contrast "
+                + "(background \(measured.background), text \(measured.text), "
+                + "element \(frame), window \(window), crop \(cropRect))"
+        )
+    }
+
+    /// Measure actual text and background luminance from one composited crop.
+    ///
+    /// - Parameter bytes: Opaque RGBA screenshot pixels of the intended text surface.
+    /// - Returns: Contrast ratio, median surface, bright glyphs and their count.
+    /// - Throws: A screenshot without any readable pixels.
+    @MainActor
+    private func measuredTextContrast(
+        in bytes: [UInt8]
+    ) throws -> (ratio: Double, background: Double, text: Double, brightPixels: Int) {
         let luminances = stride(from: 0, to: bytes.count, by: 4).map { offset in
             (0..<3).map { channel -> Double in
                 let value = Double(bytes[offset + channel]) / 255
@@ -2053,18 +2324,13 @@ final class FestivalMobileUITests: XCTestCase {
         }.map { channels in
             0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
         }.sorted()
-        XCTAssertFalse(luminances.isEmpty)
+        _ = try XCTUnwrap(luminances.first)
         let background = luminances[luminances.count / 2]
         let text = luminances[luminances.count * 99 / 100]
-        XCTAssertGreaterThan(
-            luminances.filter { $0 > background * 3 }.count, 100,
-            "\(element.label) has no readable text pixels in its rendered section"
-        )
-        XCTAssertGreaterThanOrEqual(
-            (text + 0.05) / (background + 0.05), 4.5,
-            "\(element.label) lacks readable rendered contrast "
-                + "(background \(background), text \(text), "
-                + "element \(frame), window \(window), crop \(cropRect))"
+        return (
+            (text + 0.05) / (background + 0.05),
+            background, text,
+            luminances.filter { $0 > background * 3 }.count
         )
     }
 
@@ -2233,7 +2499,7 @@ final class FestivalMobileUITests: XCTestCase {
 
     /// Wait for an approved one-shot fixture to stop listening before offline actions.
     ///
-    /// - Parameter port: Loopback Songs, solo or Shop one-shot fixture (8771-8773).
+    /// - Parameter port: Loopback one-shot fixture (8771-8775).
     /// - Throws: Unexpected transport failure or listener that never closes.
     @MainActor
     private func awaitClosedFixture(port: Int) async throws {

@@ -56,6 +56,14 @@
       "spec": ".agents/controls/songs-sort.md"
     },
     {
+      "id": "score-accuracy",
+      "status": "pending",
+      "source": "FortniteFestivalWeb/src/components/songs/metadata/AccuracyDisplay.tsx:13",
+      "states": ["absent", "graded-low", "graded-mid", "graded-high", "full-combo", "full-combo-no-accuracy", "invalid", "aligned-columns", "missing-accuracy-aligned", "badge-contrast", "normal-audit", "preview", "full-chart", "large-text", "sidebar-transition", "offscreen-targets"],
+      "testId": "fst.score.accuracy.*",
+      "spec": ".agents/controls/score-accuracy.md"
+    },
+    {
       "id": "chopt-paths",
       "status": "pending",
       "source": "FortniteFestivalWeb/src/pages/songinfo/components/path/PathsModal.tsx:110",
@@ -131,6 +139,7 @@
     "fst.song-detail.shop-offline": "shop-offers",
     "fst.song-detail.leaderboard.*": "song-detail",
     "fst.song-detail.preview-row.*": "song-detail",
+    "fst.score.accuracy.*": "score-accuracy",
     "fst.song-leaderboard.row.*": "song-leaderboard",
     "fst.song-leaderboard.page-first": "song-leaderboard",
     "fst.song-leaderboard.page-previous": "song-leaderboard",

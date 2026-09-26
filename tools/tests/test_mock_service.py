@@ -74,6 +74,13 @@ class MockServiceTests(unittest.TestCase):
             first = json.load(response)
         self.assertEqual(first["count"], 25)
         self.assertEqual(first["localEntries"], 26)
+        self.assertEqual(first["entries"][0]["accuracy"], 979_999)
+        self.assertFalse(first["entries"][0]["isFullCombo"])
+        self.assertNotIn("accuracy", first["entries"][2])
+        self.assertFalse(first["entries"][2]["isFullCombo"])
+        self.assertNotIn("accuracy", first["entries"][3])
+        self.assertTrue(first["entries"][3]["isFullCombo"])
+        self.assertEqual(first["entries"][25 - 1]["rank"], 25)
         with urlopen(self.base + "/api/leaderboard/fixture-pulse/Solo_Guitar?top=25&offset=25") as response:
             second = json.load(response)
         self.assertEqual(second["count"], 1)

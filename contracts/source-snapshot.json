@@ -1,6 +1,10 @@
 {
   "baseCommit": "47090ef1ab7c2e189b04a1e29cfcf469a4098464",
   "files": {
+    "FSTService/Api/AccountEndpoints.cs": {
+      "sha256": "f6a6ee82b928a5b86b84f83c9221006d4feb7c0d7b2d286e0e3012f3dce456fa",
+      "status": "committed"
+    },
     "FSTService/Api/ApiPublicationClassification.cs": {
       "sha256": "28b076b0731010dbd7c56036eb43ba9afd7da1f86987d239998e70b2a4928cc4",
       "status": "committed"
@@ -23,6 +27,14 @@
     },
     "FSTService/Api/SongsCacheService.cs": {
       "sha256": "a262c806bba550e8275bf1901a18cee2bb2723709fdd5e6f872842186f5314a2",
+      "status": "committed"
+    },
+    "FSTService/Persistence/DataTransferObjects.cs": {
+      "sha256": "6b035afdddf8b32b8e48c7f4f2ac4b757fc2896997f7b9832e8d31f9e4864a06",
+      "status": "committed"
+    },
+    "FSTService/Program.cs": {
+      "sha256": "7d1e807d61e27158bbaf48077113b6774503cdd8f5ca12442e480cf573b1bbff",
       "status": "committed"
     },
     "FSTService/Scraping/ShopUrlHelper.cs": {
@@ -53,6 +65,10 @@
       "sha256": "0381dcd6f67fff94ba5f327ccf17d207edb1b6f4ea8d9a729c5d58b3168951f5",
       "status": "committed"
     },
+    "FortniteFestivalWeb/src/components/page/BackgroundImage.tsx": {
+      "sha256": "db9e2fbb4062073ee8b3cc649accb0f9625d591d1c6adeacea5a9e22c341149a",
+      "status": "modified"
+    },
     "FortniteFestivalWeb/src/components/search/SearchModal.tsx": {
       "sha256": "ebbc5761be100a0219f3625bf567c093f1ae53b6d601a12a2e13cd70368d9276",
       "status": "committed"
@@ -64,6 +80,10 @@
     "FortniteFestivalWeb/src/components/shell/mobile/BottomNav.tsx": {
       "sha256": "0948890156cbafcf6dd7ee4deef2472d53604725a38b94dc05b07bec347bb79b",
       "status": "modified"
+    },
+    "FortniteFestivalWeb/src/components/songs/metadata/AccuracyDisplay.tsx": {
+      "sha256": "c1eef32a7c1788aa5e705cdabfdf9bd5caca8cb914f48689bacd89109d94ebf8",
+      "status": "committed"
     },
     "FortniteFestivalWeb/src/components/songs/metadata/DifficultyBars.tsx": {
       "sha256": "e32497df7631ae1741df2956b9e0e0f2505bf12171b767006b85794c54664eb0",
@@ -111,6 +131,10 @@
     },
     "FortniteFestivalWeb/src/pages/leaderboard/global/LeaderboardPage.tsx": {
       "sha256": "1b5542b6ce9a2d8f045fa51dfcbdecc8073080aa0527a3e0ab1585ec76193f9f",
+      "status": "committed"
+    },
+    "FortniteFestivalWeb/src/pages/leaderboard/global/components/LeaderboardEntry.tsx": {
+      "sha256": "32c8ce38cc5cc32fc45bc1af0e5280c5f615deb98496c052820f42d0a1710ea0",
       "status": "committed"
     },
     "FortniteFestivalWeb/src/pages/leaderboard/player/PlayerHistoryPage.tsx": {
@@ -209,6 +233,10 @@
       "sha256": "26d6e820c9f1b321de18ad97e9b54aa7be01f1c9eaf0d249e8ae51f29ec3ac6c",
       "status": "committed"
     },
+    "FortniteFestivalWeb/src/utils/formatters.ts": {
+      "sha256": "ee2cc5fa9f2ff5c6c6efec96d01b9515fe889159367db4733e5df9de127883e2",
+      "status": "committed"
+    },
     "FortniteFestivalWeb/src/utils/probableDuoDisplay.ts": {
       "sha256": "8e74447efd3eea0ebedbffa19e3af657b2b9115b7276f915eb773f436f13d43d",
       "status": "untracked"
@@ -229,8 +257,20 @@
       "sha256": "9fb9cfb7ccaaa5db2b7779cbd09ecd47d447183dbfe455820ea4f42bdedfbc61",
       "status": "committed"
     },
+    "packages/core/src/app/formatters.ts": {
+      "sha256": "6ce7ecb925c8c61db1aca8ccec1fda9339f95943c2bd882331253876ec515b1b",
+      "status": "committed"
+    },
     "packages/theme/src/colors.ts": {
       "sha256": "7353f3e80efa6a2bf51ad16f9f66f0c744fc551fbb90dd755f6d7d73e9f2a741",
+      "status": "committed"
+    },
+    "packages/theme/src/goldStyles.ts": {
+      "sha256": "773669cfb4fa924c70165205940bcbcf2b860d7bdd8176539c9aee60220d4305",
+      "status": "committed"
+    },
+    "packages/theme/src/spacing.ts": {
+      "sha256": "4d7e5da372a7b3fb6aebe2a53a04106ee69486f872517663a4c1068bf6ab2efd",
       "status": "committed"
     }
   },

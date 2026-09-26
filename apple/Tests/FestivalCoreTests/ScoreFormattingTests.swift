@@ -12,6 +12,28 @@ import Testing
     #expect(ScoreFormatting.leeway(-0.5) == "-0.5%")
 }
 
+/// Non-FC accuracy follows the source's bounded, translucent red-to-green ramp.
+@Test func scoreAccuracyTintMatchesSourceGradientWithoutInferringFullCombo() throws {
+    #expect(try ScoreFormatting.accuracyTint(0)
+            == ScoreAccuracyTint(red: 220, green: 40, blue: 40))
+    #expect(try ScoreFormatting.accuracyTint(500_000)
+            == ScoreAccuracyTint(red: 133, green: 122, blue: 77))
+    #expect(try ScoreFormatting.accuracyTint(980_000)
+            == ScoreAccuracyTint(red: 49, green: 201, blue: 112))
+    #expect(try ScoreFormatting.accuracyTint(1_000_000)
+            == ScoreAccuracyTint(red: 46, green: 204, blue: 113))
+    #expect(try ScoreFormatting.accuracyTint(-10)
+            == ScoreAccuracyTint(red: 220, green: 40, blue: 40))
+    #expect(try ScoreFormatting.accuracyTint(1_500_000)
+            == ScoreAccuracyTint(red: 46, green: 204, blue: 113))
+    #expect(throws: FestivalAPIError.invalidLeaderboard) {
+        try ScoreFormatting.accuracyTint(.infinity)
+    }
+    #expect(throws: FestivalAPIError.invalidLeaderboard) {
+        try ScoreFormatting.accuracyTint(.nan)
+    }
+}
+
 /// Each API failure reaches a retry screen without exposing an enum identifier.
 @Test func serviceFailuresHaveReadableExplanations() {
     let cases: [(FestivalAPIError, String)] = [

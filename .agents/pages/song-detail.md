@@ -14,6 +14,46 @@ Source: `FortniteFestivalWeb/src/pages/songinfo/SongDetailPage.tsx:109-731`, `sr
 
 The PWA's header/view of four icon-based Intensity meters, selected-player/member spotlight/history, promoted band rows, per-row profile navigation, Shop action and full visual layout still need porting. A new full iOS26.5 Detail `.all` probe reported score text under its translucent tab bar (named row/frame evidence in session results); failed structural edge/inset/footer probes were removed rather than hidden or waived. The permanent new UI test verifies actual 4.5:1 rendered pixels for the fully visible first preview row and navigation, **not** a passing full Detail audit. Fix the tab overlap and largest-type Intensity before marking this page complete.
 
+The shared Solo score row now distinguishes explicit FC from a graded
+non-FC accuracy in **both** the lazy top-ten preview and full chart,
+using a named spoken badge and separate real pixel assertions over
+synthetic alternating ranks. A matched iPad baseline at `31b783e`
+passed Hide Sidebar; the first native FC pill's padding caused
+a repeatable split-view/hosting-scroll layout loop after that tap.
+The padded build's UI test timed out after three minutes and a
+5-second main-thread sample confirmed it was busy in layout, not
+merely an inaccessible screenshot. Replacing badge padding with
+an explicit scaled frame preserves the graded and gold states,
+keeps the score column aligned and restores both Paths and
+Detail's selected iPad sidebar-toggle journeys. A compact 24pt
+ordinary-size badge also restores iPad Solo's normal full `.all`
+audits after a 30pt row height introduced a contrast warning.
+The preview badge retains its existing row accessibility ID; the
+full chart exposes a distinct badge ID. These
+focused states do not resolve the known Detail tab-edge audit or
+selected-player row navigation. See
+[score accuracy](../controls/score-accuracy.md).
+
+The PWA's InstrumentCard places View Full **after** prefetched rows
+(`InstrumentCard.tsx:300-327`). The native `SongScorePreview` now puts
+its **single** View Full action directly below the chart heading
+and before the loading/error/ten-score body. With a headerless
+freshness disclosure, programmatically tapping the offscreen
+footer action had reproducibly stalled the iPhone main thread
+in a SwiftUI layout loop before requesting the full chart; the
+pushed pre-FC baseline passed the same fixture journey. A real
+swipe to reveal the former footer did work, but the top native
+action avoids the hazardous automatic scroll, remains visible
+above tab chrome, and navigates to the same full 25-row page.
+The selected one-shot iPhone case asserts a direct hittable tap
+without a test-only swipe and proves warm offline/cold expiry.
+This placement is an **intentional native UX departure**, not
+pixel parity or proof for every VoiceOver/programmatic scroll. The
+native card already exposed View Full when loading, empty or failed;
+moving it did **not** add those states. The local iPhone offscreen
+Lead tenth-row and empty Bass actions both remain reachable, but
+matched real-data navigation and focus order remain pending.
+
 **New CHOpt Paths WIP slice (2026-09-25):** A native top-toolbar Paths action appears when Settings enables any of the eight path-capable charts; Karaoke cannot be selected for paths and triggers the source's warning until dismissed. The Swift client decodes both *real, keyless* public PNG and structured JSON with optional catalogue generation ID, distinct publication-aware ETags, bounded off-main decoding and validated process-only warm snapshots. A bounded opt-in native probe decoded one live schema-2 Lead/Expert text path and PNG; this access is independent of the edge-denied profile/rank routes. The native sheet opens at Expert and the saved image/text default, switches instrument/difficulty/display without stale results, offers pinch/button zoom and presents note frets, timing, OD and scores plus explicit error/Retry and freshness. The original synthetic fixture produced matched PWA/native image and text phone/tablet screenshots. The PWA bottom controls and wide drag-reorderable table are **not** copied: native uses top menu/segments and activation cards; native column reordering, source full table geometry, rapid-response race/focus proof, all postures and full iPad accessibility remain pending. The iPhone loaded image/text sheets pass `.all` audits; iPad `.all` reports unnamed "Potentially inaccessible text" despite selected rendered-contrast checks. See [the Paths control spec](../controls/chopt-paths.md); neither Detail nor the control is certified.
 
 The changed Settings visibility journey now also proves a hidden Bass is

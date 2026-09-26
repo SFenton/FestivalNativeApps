@@ -44,6 +44,18 @@ class ParityBacklogTests(unittest.TestCase):
         self.assertTrue(any("acceptance" in error for error in errors))
         self.assertTrue(any("unknown epic" in error for error in errors))
 
+    def test_shared_package_citations_allow_only_reviewed_source_roots(self):
+        """Core/theme feature files are valid; other packages and traversal fail closed."""
+        draft = copy.deepcopy(self.backlog)
+        draft["epics"][0]["sourceRefs"] = ["packages/core/src/app/formatters.ts:145"]
+        self.assertEqual(validate(draft, self.product), [])
+        draft["epics"][0]["sourceRefs"] = ["packages/unknown/src/app/formatters.ts:145"]
+        self.assertTrue(any("cite at least one source file and line" in error
+                            for error in validate(draft, self.product)))
+        draft["epics"][0]["sourceRefs"] = ["packages/core/../../secrets.ts:1"]
+        self.assertTrue(any("cite at least one source file and line" in error
+                            for error in validate(draft, self.product)))
+
     def test_bad_json_field_types_fail_as_errors(self):
         """Malformed status objects and missing page IDs cannot crash the gate."""
         backlog = copy.deepcopy(self.backlog)

@@ -17,13 +17,18 @@ from urllib.request import urlopen
 from tools.apple_native_matrix import (
     DUO_TEST,
     FIXTURE_INPUTS,
+    OFFSCREEN_EMPTY_CHART_PORT,
+    OFFSCREEN_SCORE_PORT,
     REQUIRED_INPUTS,
     ROOT,
+    SCORE_OFFLINE_PORT,
+    SERVICE_PORT,
     TEST_SOURCE,
     MatrixError,
     acquire_matrix_lock,
     booted_targets,
     boot_device,
+    device_fixture_plan,
     device_order,
     exit_on_signal,
     fixture_options,
@@ -80,6 +85,8 @@ class AppleNativeMatrixTests(unittest.TestCase):
         self.assertNotIn(DUO_TEST, full)
         self.assertIn("testSongsRecoversAfterSamePublicationSettingsCheck", full)
         self.assertIn("testFailureActionRemainsReachableAtLargestTypeAndLandscape", full)
+        self.assertIn("testOffscreenDetailScoreRemainsReachable", full)
+        self.assertIn("testOffscreenEmptyChartActionRemainsReachable", full)
         self.assertEqual(selected_tests(source, [full[0]]), [full[0]])
         for requested in ([DUO_TEST], [full[0], full[0]], ["testTypo"]):
             with self.subTest(requested=requested), self.assertRaises(MatrixError):
@@ -297,6 +304,33 @@ class AppleNativeMatrixTests(unittest.TestCase):
         with self.assertRaisesRegex(MatrixError, "Unknown"):
             fixture_options(["--stop-after-first-songs"])
 
+    def test_offscreen_probes_have_distinct_hashed_one_shot_ports(self):
+        """A full suite cannot let Bass consume the existing score-loss listener."""
+        for device in ("iphone", "ipad"):
+            with self.subTest(device=device):
+                plan = device_fixture_plan(device)
+                options = dict(plan)
+                self.assertEqual(len(plan), 7)
+                self.assertEqual(len(options), len(plan))
+                self.assertNotIn(SERVICE_PORT, options)
+                for port in (
+                    SCORE_OFFLINE_PORT, OFFSCREEN_SCORE_PORT, OFFSCREEN_EMPTY_CHART_PORT
+                ):
+                    self.assertEqual(
+                        options[port], ["--unpinned", "--stop-after-first-score"]
+                    )
+        with self.assertRaisesRegex(MatrixError, "Unknown product fixture device"):
+            device_fixture_plan("unrelated")
+        with TemporaryDirectory() as temporary, patch(
+            "tools.apple_native_matrix.port_is_free", return_value=False
+        ):
+            for port in (OFFSCREEN_SCORE_PORT, OFFSCREEN_EMPTY_CHART_PORT):
+                with self.subTest(port=port), self.assertRaisesRegex(MatrixError, "in use"):
+                    start_fixture(
+                        port, ["--unpinned", "--stop-after-first-score"],
+                        Path(temporary),
+                    )
+
     def test_runner_stops_only_its_own_fixture_child(self):
         """An ephemeral fixture is responsive, then terminates by its exact PID."""
         with FixtureServer(("127.0.0.1", 0), FixtureHandler) as probe:
@@ -358,7 +392,7 @@ class AppleNativeMatrixTests(unittest.TestCase):
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
             with patch("tools.apple_native_matrix.start_fixture", side_effect=[
-                Mock(), Mock(), Mock(), Mock(), Mock(),
+                Mock(), Mock(), Mock(), Mock(), Mock(), Mock(), Mock(),
             ]) as started, patch(
                 "tools.apple_native_matrix.stop_fixture"
             ) as stopped, patch(
@@ -375,8 +409,8 @@ class AppleNativeMatrixTests(unittest.TestCase):
                         baseline=file_hashes(ROOT, FIXTURE_INPUTS), env={},
                     )
                 self.assertEqual(result, root / "iphone.xcresult")
-                self.assertEqual(started.call_count, 5)
-                self.assertEqual(stopped.call_count, 5)
+                self.assertEqual(started.call_count, 7)
+                self.assertEqual(stopped.call_count, 7)
                 command = executed.call_args.args[0]
                 selectors = {
                     argument.removeprefix(
@@ -403,7 +437,7 @@ class AppleNativeMatrixTests(unittest.TestCase):
         }
         with TemporaryDirectory() as temporary:
             with patch("tools.apple_native_matrix.start_fixture", side_effect=[
-                Mock(), Mock(), Mock(), Mock(), Mock(),
+                Mock(), Mock(), Mock(), Mock(), Mock(), Mock(), Mock(),
             ]), patch(
                 "tools.apple_native_matrix.stop_fixture"
             ) as stopped, patch(
@@ -418,13 +452,13 @@ class AppleNativeMatrixTests(unittest.TestCase):
                     run_device("ipad", IPAD, Path(temporary),
                                expected_tests=["testWhiteArtworkExposedTextAccessibility"],
                                baseline=file_hashes(ROOT, FIXTURE_INPUTS), env={})
-                self.assertEqual(stopped.call_count, 5)
+                self.assertEqual(stopped.call_count, 7)
 
     def test_signal_while_xcode_runs_still_stops_both_fixtures(self):
         """SIGTERM unwinds the device suite instead of leaving owned fixtures alive."""
         with TemporaryDirectory() as temporary:
             with patch("tools.apple_native_matrix.start_fixture", side_effect=[
-                Mock(), Mock(), Mock(), Mock(), Mock(),
+                Mock(), Mock(), Mock(), Mock(), Mock(), Mock(), Mock(),
             ]), patch(
                 "tools.apple_native_matrix.stop_fixture"
             ) as stopped, patch(
@@ -439,7 +473,7 @@ class AppleNativeMatrixTests(unittest.TestCase):
                         expected_tests=["testWhiteArtworkExposedTextAccessibility"],
                         baseline=file_hashes(ROOT, FIXTURE_INPUTS), env={},
                     )
-                self.assertEqual(stopped.call_count, 5)
+                self.assertEqual(stopped.call_count, 7)
 
     def test_full_matrix_pairs_two_results_with_the_exact_coverage_gate(self):
         """The default run cannot claim success without invoking the existing gate."""

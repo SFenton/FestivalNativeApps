@@ -12,6 +12,23 @@ public enum ScoreFormatting {
         return rounded.formatted(.number.precision(.fractionLength(fractionDigits)))
     }
 
+    /// Match the source's red-to-green accuracy-pill background at 25% opacity.
+    ///
+    /// - Parameter expandedAccuracy: Service accuracy in ten-thousandths of a percent.
+    /// - Returns: Rounded sRGB components; the caller applies 25% opacity.
+    /// - Throws: `FestivalAPIError.invalidLeaderboard` for nonfinite score data.
+    public static func accuracyTint(_ expandedAccuracy: Double) throws -> ScoreAccuracyTint {
+        guard expandedAccuracy.isFinite else {
+            throw FestivalAPIError.invalidLeaderboard
+        }
+        let fraction = min(max(expandedAccuracy / 1_000_000, 0), 1)
+        return ScoreAccuracyTint(
+            red: Int((220 * (1 - fraction) + 46 * fraction).rounded()),
+            green: Int((40 * (1 - fraction) + 204 * fraction).rounded()),
+            blue: Int((40 * (1 - fraction) + 113 * fraction).rounded())
+        )
+    }
+
     /// Present a signed leeway value without turning zero into a positive offset.
     ///
     /// - Parameter value: Current percentage tolerance in Settings.
@@ -21,4 +38,11 @@ public enum ScoreFormatting {
         let text = rounded.formatted(.number.precision(.fractionLength(1)))
         return "\(rounded > 0 ? "+" : "")\(text)%"
     }
+}
+
+/// Pure color components for a graded, non-full-combo accuracy pill.
+public struct ScoreAccuracyTint: Equatable, Sendable {
+    public let red: Int
+    public let green: Int
+    public let blue: Int
 }

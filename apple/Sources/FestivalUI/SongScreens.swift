@@ -1202,6 +1202,20 @@ struct SongScorePreview: View {
             Text(instrument.label)
                 .font(.title3.bold())
                 .accessibilityAddTraits(.isHeader)
+            NavigationLink(value: SongRoute.leaderboard(song, instrument, 1)) {
+                Label("View full \(instrument.label) leaderboard", systemImage: "arrow.right")
+                    .font(.body)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .background(
+                        BrandTokens.appBackground,
+                        in: RoundedRectangle(cornerRadius: 10)
+                    )
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier(
+                "fst.song-detail.leaderboard.\(instrument.rawValue)"
+            )
             switch state {
             case .loading:
                 ProgressView("Loading \(instrument.label) scores")
@@ -1218,20 +1232,6 @@ struct SongScorePreview: View {
             case let .loaded(payload):
                 previewRows(payload)
             }
-            NavigationLink(value: SongRoute.leaderboard(song, instrument, 1)) {
-                Label("View full \(instrument.label) leaderboard", systemImage: "arrow.right")
-                    .font(.body)
-                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                    .padding(.horizontal, 12)
-                    .background(
-                        BrandTokens.appBackground,
-                        in: RoundedRectangle(cornerRadius: 10)
-                    )
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier(
-                "fst.song-detail.leaderboard.\(instrument.rawValue)"
-            )
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1315,6 +1315,8 @@ struct SongScorePreview: View {
 private struct SongLeaderboardEntryRow: View {
     let entry: LeaderboardEntry
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @ScaledMetric(relativeTo: .body) private var accuracyTextWidth: CGFloat = 80
+    @ScaledMetric(relativeTo: .body) private var accuracyPillHeight: CGFloat = 24
 
     var body: some View {
         let rank = Text("#\(entry.rank.formatted())")
@@ -1344,17 +1346,87 @@ private struct SongLeaderboardEntryRow: View {
             valuesLayout {
                 score
                 if let value = entry.accuracy {
-                    Text(
-                        dynamicTypeSize.isAccessibilitySize
-                            ? "Accuracy \(ScoreFormatting.accuracy(value))%"
-                            : "\(ScoreFormatting.accuracy(value))%"
+                    let color: Result<ScoreAccuracyTint, Error> = Result {
+                        try ScoreFormatting.accuracyTint(value)
+                    }
+                    switch color {
+                    case let .failure(error):
+                        Text("Accuracy unavailable: \(error.localizedDescription)")
+                            .font(.body)
+                            .foregroundStyle(BrandTokens.textPrimary)
+                            .accessibilityIdentifier("fst.score.accuracy.\(entry.accountId)")
+                    case let .success(tint):
+                        let fullCombo = entry.isFullCombo == true
+                        let percent = "\(ScoreFormatting.accuracy(value))%"
+                        let spoken = fullCombo
+                            ? "Full combo, accuracy \(percent)" : "Accuracy \(percent)"
+                        accuracyBadge(
+                            text: dynamicTypeSize.isAccessibilitySize
+                                ? spoken : fullCombo ? "FC \(percent)" : percent,
+                            spoken: spoken,
+                            fill: fullCombo ? BrandTokens.cardBackground
+                                : Color(
+                                    .sRGB,
+                                    red: Double(tint.red) / 255,
+                                    green: Double(tint.green) / 255,
+                                    blue: Double(tint.blue) / 255,
+                                    opacity: 0.25
+                                ),
+                            fullCombo: fullCombo
+                        )
+                    }
+                } else if entry.isFullCombo == true {
+                    accuracyBadge(
+                        text: dynamicTypeSize.isAccessibilitySize ? "Full combo" : "FC",
+                        spoken: "Full combo; accuracy unavailable",
+                        fill: BrandTokens.cardBackground, fullCombo: true
                     )
-                    .font(.body)
-                    .foregroundStyle(BrandTokens.gold)
+                } else if !dynamicTypeSize.isAccessibilitySize {
+                    Color.clear
+                        .frame(
+                            width: accuracyTextWidth + 16,
+                            height: accuracyPillHeight
+                        )
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
                 }
             }
         }
         .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 8 : 0)
+    }
+
+    /// Keep the compact and large-text accuracy states legible and independently spoken.
+    ///
+    /// - Parameters:
+    ///   - text: Visible percentage with a full-combo prefix only when explicitly true.
+    ///   - spoken: Expanded VoiceOver label that never infers a missing FC flag.
+    ///   - fill: Opaque card for an FC, or graded 25%-opaque accuracy color otherwise.
+    ///   - fullCombo: Whether to add the source's gold full-combo outline.
+    /// - Returns: One scalable, accessible score-accuracy pill.
+    private func accuracyBadge(
+        text: String, spoken: String, fill: Color, fullCombo: Bool
+    ) -> some View {
+        Text(text)
+            .font(.body)
+            .foregroundStyle(BrandTokens.textPrimary)
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+            .minimumScaleFactor(0.8)
+            .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
+            .frame(
+                width: dynamicTypeSize.isAccessibilitySize
+                    ? nil : accuracyTextWidth + 16,
+                height: dynamicTypeSize.isAccessibilitySize
+                    ? nil : accuracyPillHeight
+            )
+            .background(fill, in: RoundedRectangle(cornerRadius: 8))
+            .overlay {
+                if fullCombo {
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(BrandTokens.gold, lineWidth: 2)
+                }
+            }
+            .accessibilityLabel(spoken)
+            .accessibilityIdentifier("fst.score.accuracy.\(entry.accountId)")
     }
 }
 
@@ -1441,6 +1513,7 @@ struct SoloLeaderboardScreen: View {
                         ForEach(payload.leaderboard.entries) { entry in
                             SongLeaderboardEntryRow(entry: entry)
                             .listRowBackground(BrandTokens.cardBackground)
+                            .accessibilityElement(children: .contain)
                             .accessibilityIdentifier(
                                 "fst.song-leaderboard.row.\(entry.accountId)"
                             )

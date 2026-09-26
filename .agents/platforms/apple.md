@@ -31,6 +31,39 @@ Debug and Release native shells default to the keyless public `https://festivals
 
 At accessibility text sizes the Solo header and freshness disclosure scroll *inside the native score List* so a narrow iPhone retains a usable score viewport above its fixed pager. Rank/name, whole unwrapped numeric score and explicitly labeled accuracy each have their own scalable line; ordinary sizes retain compact Fluent score columns. Native iOS 26.5/iPadOS 26.5 targeted tests prove both page actions and first/last score text remain reachable, and normal-size Solo pinned/offline screens pass unwaived `.all` audits. An extra `.all` probe **launched already at AccessibilityXXXL** on iPadOS 26.5 reported three `Text clipped` issues with no identified element despite readable captured rows; it is an open audit gap, not a waived pass. A full post-change device/coverage matrix remains pending under the current targeted-test workflow.
 
+Keep the shared Solo score row's accuracy **non-gold** unless the
+decoded `isFullCombo` flag is explicitly true. Native Fluent uses an
+opaque-backed, 25%-tinted red-to-green pill for non-FC and a gold
+outline plus visible/spoken `FC` for full combo. A nil flag is not
+proof of FC. The score helper tests exact source RGB endpoints and
+rejects nonfinite values; selected real iPhone/iPad pixels must show
+green without gold for a non-FC row and gold without graded fill for
+an FC row. At normal sizes the same fixed, scaled badge slot must
+keep score ends within 1pt across FC/non-FC rows; accessibility
+sizes keep the existing stacked, unwrapped score. On iPad **do**
+test Hide Sidebar with Detail visible: padding inside the new
+accuracy badge caused a repeatable main-thread layout loop on
+that transition, while an equivalent scaled frame without
+padding restored the Paths and Detail toggles. Its initial 30pt
+height then failed iPad normal Solo contrast auditing; the compact
+24pt frame restored page-one/page-two `.all` without hiding text
+or changing the graded/gold pixels. A matched clean
+`31b783e` worktree passed the same fixture test; the padded
+variant hung. The full Solo List uses contained child accuracy
+IDs, while Detail preview keeps its earlier inherited row ID. See
+[score accuracy](../controls/score-accuracy.md).
+
+Keep the native Detail card's View Full action **ahead of** its
+lazy ten-row score preview. The source PWA puts View All after
+rows, but a headerless iPhone preview plus enlarged native FC
+badges made an offscreen programmatic tap reproduce a busy
+SwiftUI layout loop before any full-chart request; a matched
+`31b783e` app did not. An explicit user-like swipe worked, and
+placing the same sole action at the top made the isolated
+one-shot offline/cold-expiry journey pass with a directly
+hittable target. This does not certify automatic AX scrolling
+to other offscreen controls or fix the known full Detail audit.
+
 Song Detail now uses per-chart lazy, keyless **top-ten** score previews; full Solo keeps a separate top-25 cache key and both share a scalable native score-row control. Hiding an instrument removes its preview but keeps charted Intensity visible; enabling score validation changes the preview's request `leeway`. The PWA's batched `/api/leaderboard/{song}/all?top=10` returned a deployed HTTP 403, so avoid a speculative success-shaped fallback or nine eager requests: native cards load as they appear and disclose loading, error, empty and offline states. This is still a WIP: matched phone source/native captures show missing profile/band cards and incomplete Paths, and full Detail accessibility auditing currently fails on iOS 26.5 for rows under Liquid Glass tab chrome. Keep the exact `apple-detail-preview-iphone26-audit-frames` evidence rather than applying an issue waiver; tested hard scroll edge, inset, geometry and fixed footer did **not** resolve it and were removed. Use the rendered-pixel check only as proof for the first fully visible row; other rows and large text remain pending.
 
 CHOpt Paths have a **separate keyless public image and schema-2 JSON route** that the native Swift client decoded from one bounded live Lead/Expert probe on 2026-09-25; that fact does not unblock the Cloudflare-denied player/ranking APIs. `SongPathsSheet` pins the catalog artifact generation and publication, decodes single-frame PNG off the UI actor to a maximum 4,096px edge/24MP, and caches validated headerless bytes only in bounded process memory. Response-proven images have a separate 32 MB/16-entry LRU, and each path response is limited to 8 MB before entering either cache. Text activation rows are derived once on the client actor, not on every SwiftUI body pass. Present a native sheet with instrument/difficulty/display controls, readable Close and disabled Zoom, explicit error/Retry and provenance. Source PWA phone puts controls at the bottom; native top controls and an opaque backdrop deliberately trade pixel identity for safe-area/legibility behavior. iPhone 26.5's loaded image/text sheets passed unwaived `.all` audits after adapting zoom controls for Dynamic Type. iPadOS 26.5's full `.all` probe still reports unnamed "Potentially inaccessible text" and must remain pending despite measured visible header/Close/summary contrast. The [Paths control spec](../controls/chopt-paths.md) tracks unported drag-column order, complete responsive/focus states, macOS GUI and image performance on longer real charts.

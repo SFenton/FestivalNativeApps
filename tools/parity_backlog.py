@@ -14,7 +14,10 @@ ROOT = Path(__file__).resolve().parents[1]
 BACKLOG = ROOT / "contracts/parity-backlog.json"
 PRODUCT = ROOT / "contracts/product.json"
 IDENTIFIER = re.compile(r"^[a-z][a-z0-9-]*$")
-SOURCE_REF = re.compile(r"^(?:FortniteFestivalWeb|FSTService)/[\w./-]+\.(?:tsx|ts|cs):[1-9]\d*$")
+SOURCE_REF = re.compile(
+    r"^(?:FortniteFestivalWeb|FSTService|packages/(?:core|theme))"
+    r"(?:/[A-Za-z0-9_][A-Za-z0-9_.-]*)+\.(?:tsx|ts|cs):[1-9]\d*$"
+)
 STATES = {"pending", "in_progress", "blocked", "done"}
 APPLE_STATES = {"absent", "placeholder", "partial", "verified"}
 

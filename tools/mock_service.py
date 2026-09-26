@@ -584,7 +584,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
                     "displayName": f"Fixture Player {rank}",
                     "score": 100000 - rank * 100,
                     "rank": rank,
-                    "accuracy": 980000 - rank,
+                    **({"accuracy": 980000 - rank} if rank not in (3, 4) else {}),
                     "isFullCombo": rank % 2 == 0,
                     "stars": 5,
                     "season": 9,

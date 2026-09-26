@@ -35,6 +35,8 @@ RECOVERY_PORT = 8769
 OFFLINE_PORT = 8771
 SCORE_OFFLINE_PORT = 8772
 SHOP_OFFLINE_PORT = 8773
+OFFSCREEN_SCORE_PORT = 8774
+OFFSCREEN_EMPTY_CHART_PORT = 8775
 ROLLOVER_PORTS = {"iphone": 8767, "ipad": 8768}
 DEVICE_FAMILIES = {"iphone": "iPhone", "ipad": "iPad"}
 LOCK_FILE = Path("/tmp/festival-native-matrix.lock")
@@ -432,6 +434,35 @@ def fixture_options(flags: list[str]) -> dict[str, bool | int | None]:
     raise MatrixError("Unknown or non-deterministic local fixture flags")
 
 
+def device_fixture_plan(device: str) -> tuple[tuple[int, list[str]], ...]:
+    """Give each stateful iPhone/iPad journey an exclusive listener.
+
+    Args:
+        device: Pinned product role with its own rollover scenario.
+
+    Returns:
+        Unique loopback ports and exact startup flags, excluding the shared catalogue.
+
+    Raises:
+        MatrixError: On an unknown device, a duplicated port or an ordinary-port collision.
+    """
+    if device not in ROLLOVER_PORTS:
+        raise MatrixError(f"Unknown product fixture device: {device}")
+    plan = (
+        (ROLLOVER_PORTS[device], ["--unpinned", "--rollover-on-read", "2"]),
+        (RECOVERY_PORT, ["--fail-first-white-catalogue"]),
+        (OFFLINE_PORT, ["--unpinned", "--stop-after-first-songs"]),
+        (SCORE_OFFLINE_PORT, ["--unpinned", "--stop-after-first-score"]),
+        (SHOP_OFFLINE_PORT, ["--unpinned", "--stop-after-first-shop"]),
+        (OFFSCREEN_SCORE_PORT, ["--unpinned", "--stop-after-first-score"]),
+        (OFFSCREEN_EMPTY_CHART_PORT, ["--unpinned", "--stop-after-first-score"]),
+    )
+    ports = [port for port, _ in plan]
+    if SERVICE_PORT in ports or len(ports) != len(set(ports)):
+        raise MatrixError("Stateful fixture ports must be unique and distinct from catalogue")
+    return plan
+
+
 def require_fixture_identity(
     identity: dict, flags: list[str], expected: dict[str, str], port: int
 ) -> None:
@@ -645,7 +676,7 @@ def run_device(
     device: str, identifier: str, evidence: Path,
     *, expected_tests: list[str], baseline: dict[str, str], env: dict[str, str]
 ) -> Path:
-    """Run one full or explicit-targeted native suite with four fresh fixtures.
+    """Run one full or explicit-targeted native suite with fresh stateful fixtures.
 
     Args:
         device: iPhone or iPad role.
@@ -661,20 +692,13 @@ def run_device(
     Raises:
         MatrixError: If fixtures, build, test discovery or result validation fails.
     """
-    rollover = ROLLOVER_PORTS[device]
     managed: list[subprocess.Popen] = []
     try:
         fixture_hashes = {name: baseline[name] for name in FIXTURE_INPUTS}
     except KeyError as error:
         raise MatrixError(f"Missing fixture input snapshot: {error}") from error
     try:
-        for port, flags in (
-            (rollover, ["--unpinned", "--rollover-on-read", "2"]),
-            (RECOVERY_PORT, ["--fail-first-white-catalogue"]),
-            (OFFLINE_PORT, ["--unpinned", "--stop-after-first-songs"]),
-            (SCORE_OFFLINE_PORT, ["--unpinned", "--stop-after-first-score"]),
-            (SHOP_OFFLINE_PORT, ["--unpinned", "--stop-after-first-shop"]),
-        ):
+        for port, flags in device_fixture_plan(device):
             process = start_fixture(
                 port, flags, evidence, label=device, expected_hashes=fixture_hashes
             )

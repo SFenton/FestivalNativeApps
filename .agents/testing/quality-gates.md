@@ -22,6 +22,74 @@ At the **previous pushed WIP checkpoint**, Apple source passed **16/16 explicitl
 
 The new WIP Song Detail top-score preview has **two targeted Core wire tests**, one hosted five-state visual test and one explicitly selected native iPhone26.5/iPadOS26.5 test per device. It proves a 10-row independent URL/ETag, overfill rejection, filtered `leeway`, visible rendered ≥4.5:1 text and navigation to a 25-row full chart. A separate iPad Settings-leeway propagation case and iPhone AccessibilityXXXL/iPad Solo-page regression case passed on their selected runs. Updated iPhone/iPad **one-shot** tests explicitly serve the preview before the first full chart, then show unverified warm-offline banners in both places and cold expiry; an iPhone white-art fixture proves the preview error is visible. Do **not** promote this into a Detail page accessibility claim: its attempted iPhone26.5 unwaived `.all` audit failed with named preview row text at y=792/849 under the system tab beginning y=791, and some Dynamic Type meter labels. The failing xcresults remain local evidence; speculative edge/inset/footer fixes were reverted. Resolving visible-row/tab overlap and running full-screen audits at all required sizes remain gate requirements. The 24-route/18-epic [backlog](../../contracts/parity-backlog.json) and `python3 tools/parity_backlog.py` fail closed on an uncatalogued route; no new full-source coverage measurement was requested in this targeted iteration.
 
+The **Solo FC/accuracy WIP** changes one shared preview/full row,
+not profile navigation or ranking APIs. `ScoreFormattingTests`
+checks the source's 0/50/98/100% rounded sRGB ramp, bounds and
+nonfinite rejection; `scoreAccuracyBadgeRendersSourceStates` paints
+five hosted synthetic states, including missing data, unknown FC,
+zero accuracy and explicit FC with/without a percentage. The
+selected `testSongDetailShowsTopScorePreviewAndFullChart` verifies
+the fixture's first **non-FC** and second **FC** entries have
+different accessible labels and physically different gold/graded
+pixels in both Detail and Solo. The affected
+`testSoloScoresAtLargestTextSize` checks the score and
+explicit FC speech at AccessibilityXXXL, while the existing
+portrait/landscape Solo audit guards ordinary rows. An iPad
+preview test initially timed out after tapping system Hide Sidebar
+despite real rows painted in a non-invasive screenshot. A 5-second
+app-PID sample showed its main thread in UIKit split-view and
+SwiftUI scroll layout, and the same test passed on a detached
+`31b783e` baseline. Controlled iPad probes isolated new badge
+padding as a trigger: a plain helper passed, padding alone hung
+for three minutes, and replacing it with a fixed scaled frame
+restored both the Paths and Detail sidebar-toggle tests while
+keeping graded/FC color and <=1pt score alignment. **Do not**
+remove this transition from the device journey or infer
+responsiveness from a frozen painted frame. The first 30pt
+badge height then made iPad's normal Solo page-one audit fail
+with an unnamed "Contrast nearly passed" node even though
+individual badge text pixels measured ≥4.5:1. The clean
+`31b783e` audit passed; row/AX hiding and removing only
+gold/fill did not clear it. An otherwise identical **24pt**
+badge restored unwaived iPad page-one/page-two `.all` audits
+without clipping badge text. Keep the full
+Detail/tab-edge and other accessibility gaps pending; no
+current-source 95/90 line coverage is claimed.
+
+The changed headerless **iPhone** one-shot score journey exposed a
+separate navigation regression: with View Full below ten enlarged
+preview rows and the unverified-publication banner, XCTest's
+offscreen auto-scroll tap stalled the native main thread before
+port 8772 served the full chart. A same-simulator `31b783e`
+fixture run passed; a dirty isolated run reproduced it and a
+5-second app-PID sample was busy in SwiftUI layout. An explicit
+swipe of Detail's own ScrollView made View Full visible and the
+entire warm-offline/cold-expiry case passed. Moving the **one**
+native View Full action immediately after the chart heading
+also let the selected case pass with no preparatory swipe;
+assert its frame is hittable above the native tab and retain
+the original top-ten and full-25 wire checks. This preserves
+navigation but intentionally differs from the PWA bottom CTA.
+Do not infer that every other VoiceOver/offscreen auto-scroll
+state is certified from this selected test.
+
+New permanent offscreen probes use **different** local unpinned
+score-one-shot listeners: 8774 for the tenth Lead score, 8775
+for the empty Bass View Full action, and 8772 only for the
+existing warm-offline chart. `device_fixture_plan` rejects
+duplicate or shared-ordinary ports and starts seven exact-hash
+stateful listeners per device; targeted Python tests assert
+flags, occupied-port refusal and cleanup of only owned
+processes. Both offscreen cases passed together with the
+warm-offline case **3/3 on iPhone and 3/3 on iPadOS 26.5**
+without sharing a consumed listener. The fixture now omits
+accuracy on Lead ranks 3 (non-FC) and 4 (explicit FC) while
+preserving 26 total scores. The selected preview/full device
+case passed on each form factor, proving real equal-digit
+score-column alignment without a badge or with FC-only, no
+phantom percentage and an actual gold FC stroke. These are
+synthetic bounds, not real-data/VoiceOver certification.
+
 The focused Apple anonymous Sort slice adds two `SongCatalogSortTests` for four public-catalogue modes, missing numeric fields and stable descending ties; the single `testAnonymousSongsSortDraftApplyDiscardAndRelaunch` passed on **iPhone 26.5 and iPadOS 26.5** with exact test-name verification. It asserts changed draft, discard, actual row reorder, process relaunch, and scroll-to-visible Reset above the pinned footer. The iPhone default/draft sheet passed unwaived `.all` audits after the footer move. The iPad test measures visible header/action contrast but a separate full `.all` probe failed with an unnamed "Potentially inaccessible text"; iPad full audit and large-text/landscape/macos states remain **pending**, not waived. Two selected fixture-backed PWA WebKit Sort tests capture nearby phone/tablet default and changed modal states for structural comparison; they do not certify pixel or feature parity. Full coverage remains unmeasured for this source.
 
 The conditional **Item Shop Sort WIP** adds two more `SongCatalogSortTests` (four total) for membership-required ordering, reversed title/artist/year ties, validated empty feed, and first-seen Leaving/In/Not groups with no heading for a single bucket. `shop-single` leaves two Songs but offers only one; a selected PWA WebKit test proves the source's ascending/descending row **and section-header** order. The native `testAnonymousItemShopSortRestoresAfterHideAndFeedFailure` checks the same row/section changes plus saved-preference pause/resume across Hide Shop, HTTP 503, a known-empty feed, full two-offer Leaving/In buckets, grouped Detail/back navigation and cold relaunch; run it and the original draft/Reset test on **each** simulator with exact selectors. The new Shop choice passed an unwaived iPhone `.all` audit; the iPad option label and two *visible grouped headers* passed actual ≥4.5:1 screenshot crops without lowering the contrast bar. For the iPad headers, XCUITest reports x=0/full-window accessibility frames even though labels render in the detail pane; sample their Y at the native search field's visible detail-pane X and **keep focus bounds unverified**. The full iPad Sort-sheet audit is also still open. Failed feeds must remain visible errors, never silently sort as empty membership. Do not interpret these selected tests as iPad full-audit, VoiceOver-order, large-text/landscape, Android/Windows or current-source coverage certification.
@@ -106,13 +174,13 @@ profile-dependent sorting and selected-player/band score cards remain open.
 
 The generated Swift `BrandTokens.swift` contains stored constants and has no executable LLVM lines; it is the sole explicit coverage exclusion. The gate fails if a future report shows executable lines in an excluded file, and `tools/generate_tokens.py --check` separately verifies every generated token byte. Do not exclude handwritten logic or views to make a percentage pass.
 
-For a repeatable **serial full device matrix** when the operator resumes full passes, run `python3 -m tools.apple_native_matrix --iphone-udid <FST-iPhone-ID> --iphone-os 26.5 --ipad-udid <FST-iPad-ID> --ipad-os 26.5 --evidence-dir <new-session-evidence-path>`. OS version arguments are required: an actual iOS 27 device once entered a purported 26.5 run; the runner now rejects a mismatch **before** starting fixtures, changing simulators or writing evidence. It acquires an exclusive host-wide matrix lock, discovers every current test method (excluding only the separately failing Duo pose), verifies FST device names/families, refuses any other booted simulator, starts with an already-booted product device and switches between product devices one at a time. It starts **fresh** 8767/8768, 8769, 8771, 8772 and **8773** fixtures for each suite; 8771 exits after one valid unpinned Songs response, **8772 allows Detail's top-ten preview then closes after the first top-25 chart**, and **8773 only closes after a validated Shop read and a test-only proof of painted Shop art**. The runner stops only fixture processes it launched. A pre-existing ordinary 8765 listener is reused **only** when its startup mock-source/JSON hashes, default launch flags and original white-song response match the frozen test inputs; a stale or unpinned service is rejected, not killed.
+For a repeatable **serial full device matrix** when the operator resumes full passes, run `python3 -m tools.apple_native_matrix --iphone-udid <FST-iPhone-ID> --iphone-os 26.5 --ipad-udid <FST-iPad-ID> --ipad-os 26.5 --evidence-dir <new-session-evidence-path>`. OS version arguments are required: an actual iOS 27 device once entered a purported 26.5 run; the runner now rejects a mismatch **before** starting fixtures, changing simulators or writing evidence. It acquires an exclusive host-wide matrix lock, discovers every current test method (excluding only the separately failing Duo pose), verifies FST device names/families, refuses any other booted simulator, starts with an already-booted product device and switches between product devices one at a time. It starts **fresh** 8767/8768, 8769 and 8771-8775 fixtures for each suite; 8771 exits after one valid unpinned Songs response, **8772 allows Detail's top-ten preview then closes after the first top-25 chart**, and **8773 closes after a validated Shop read and a test-only proof of painted Shop art**. Distinct 8774/8775 listeners reserve the offscreen Lead score and empty Bass full-chart probes; 8775 closes after the full chart request. The runner stops only fixture processes it launched. A pre-existing ordinary 8765 listener is reused **only** when its startup mock-source/JSON hashes, default launch flags and original white-song response match the frozen test inputs; a stale or unpinned service is rejected, not killed.
 
 The runner snapshots compiled Swift, UI-test source, Xcode project/**scheme**, fixture (including `contracts/fixtures/path-demo.json`) and coverage-gate inputs before the first suite and checks those hashes during and after the run. A full matrix supplies an explicit `-only-testing` selector for **every** discovered case except Duo: Xcode previously reported a green broad-suite run while silently omitting a newly added warm-offline test. It writes non-overwriting result bundles and separate iPhone/iPad fixture logs, verifies the **exact executed test-name set** as well as counts/device identity, then runs the paired executable-line gate above. Fixture logs suppress request URLs; Xcode build logs are **raw, local evidence**, not sanitized or suitable to share. If Xcode omits `FestivalUI` or any input drifts, the matrix **fails closed**; a passing Xcode process alone is not coverage evidence. An iPad Paths setting rerun produced **zero** device/test entries despite a green Xcode process; the runner rejected it, and an Xcode build-only clean of the dedicated product iPad derived-data path restored the exact case without restarting the simulator. For focused work, add `--device iphone --only-test testSoloScoresAtLargestTextSize --no-coverage-gate` with the same explicit UDID/OS arguments; the output says coverage was not certified. Do not point the runner at Home Assistant devices or production.
 
 Run `python3 tools/mock_service.py --port 8765` **and explicitly launch Debug with `FST_API_BASE_URL=http://127.0.0.1:8765`** for local fixture sessions; Debug now defaults to the real public HTTPS service, while Release always uses it. The mock binds only to loopback, implements publication pin/ETag and rejects every POST. `FST_FIXTURE_SCENARIO=art-error` and `art-skip` simulate 404-only art and a valid→bad→valid catalogue without touching any CDN. `art-white` serves one original in-memory pure-white cover and a deliberately unavailable solo score so system-colored text is not hidden by the branded dark fixtures; fixture URLs and originals are generated locally.
 
-For the **initial Songs 503 → same-publication Settings success → recovered Songs** test, start a separate `python3 tools/mock_service.py --port 8769 --fail-first-white-catalogue` listener. Restart it before **each** native device suite or rerun: its failure is consumed exactly once. For isolated headerless generation 7→8 device journeys, start separate fresh processes with `--port 8767 --unpinned --rollover-on-read 2` (iPhone) and `--port 8768 --unpinned --rollover-on-read 2` (iPad); restart each before rerunning that stateful fixture. For an exact Songs network-loss/resume/cold-launch journey, start `python3 tools/mock_service.py --port 8771 --unpinned --stop-after-first-songs` afresh per device. For the analogous **Solo chart** journey use `--port 8772 --unpinned --stop-after-first-score`; unlike Songs, this listener must first serve a ten-row Detail preview **and** the first full 25-row chart before it closes, causing a real connection refusal rather than a success-shaped HTTP error. The iPhone/iPad targeted tests prove the unverified offline banners, unwaived normal-size audits, retained rows and cold-launch expiry; full source-identical device suites remain pending. `/__fixture__/last-score-query` exposes **only synthetic numeric** score-query arguments so UI tests can prove enabled `leeway` reaches the wire and disappears when disabled.
+For the **initial Songs 503 → same-publication Settings success → recovered Songs** test, start a separate `python3 tools/mock_service.py --port 8769 --fail-first-white-catalogue` listener. Restart it before **each** native device suite or rerun: its failure is consumed exactly once. For isolated headerless generation 7→8 device journeys, start separate fresh processes with `--port 8767 --unpinned --rollover-on-read 2` (iPhone) and `--port 8768 --unpinned --rollover-on-read 2` (iPad); restart each before rerunning that stateful fixture. For an exact Songs network-loss/resume/cold-launch journey, start `python3 tools/mock_service.py --port 8771 --unpinned --stop-after-first-songs` afresh per device. For the analogous **Solo chart** journey use `--port 8772 --unpinned --stop-after-first-score`; unlike Songs, this listener must first serve a ten-row Detail preview **and** the first full 25-row chart before it closes, causing a real connection refusal rather than a success-shaped HTTP error. Start **separate** fresh unpinned `--stop-after-first-score` listeners on ports 8774 and 8775 for the offscreen tenth Lead row and empty Bass full-chart journeys; 8774 need not serve a full chart, while 8775 must close only after its 25-row request. The runner owns and cleans up all seven stateful fixtures. The iPhone/iPad targeted tests prove the unverified offline banners, unwaived normal-size audits, retained rows and cold-launch expiry; full source-identical device suites remain pending. `/__fixture__/last-score-query` exposes **only synthetic numeric** score-query arguments so UI tests can prove enabled `leeway` reaches the wire and disappears when disabled.
 
 The separate **explicitly opt-in live contract probe** is `bash tools/apple_live_service_smoke.sh --read-public-live`. It builds and uses `FestivalCore` to request exactly one public publication, the Songs catalogue and **ten rows** of one playable Lead chart, printing only aggregate counts and response provenance. It makes no profile POSTs, admin calls, artwork requests or privileged-key requests; never run it in automated fixture/coverage suites. On 2026-09-25 it decoded 728 live Songs and a ten-row preview (the previous WIP version of this probe had requested 25), and a native Debug iPhone26.5 app independently rendered real Songs and artwork. Bounded reads of deployed other nominally-public account/band search, rankings and batched song leaderboard returned HTTP 403; a ranking response named **Cloudflare Error 1010: Access denied**. Resolve authorized edge access for native public clients before describing profile or Leaderboards as live; do not spoof headers or ship the privileged service key. These are bounded production read observations, **not** permission for scraping or an assertion that service data and pinning states stay fixed.
 

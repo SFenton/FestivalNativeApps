@@ -37,6 +37,10 @@ enum ScoreScenario: CaseIterable, Sendable {
     case loading, populated, offline, empty, failure
 }
 
+enum ScoreAccuracyScenario: CaseIterable, Sendable {
+    case missing, unknownFullCombo, nonFullComboLow, fullCombo, fullComboWithoutAccuracy
+}
+
 /// Each offline banner exposes the response's actual provenance, not just recency.
 @Test func offlineLabelsDistinguishUnverifiedFromPublicationBoundData() {
     #expect(OfflineDisclosure.label(.songs, publicationId: nil)
@@ -104,6 +108,32 @@ private func fixtureLeaderboard(visible: Int, stale: Bool = false) throws -> Lea
     return LeaderboardPayload(
         page: 1, leaderboard: result, publicationId: 7,
         observedPublicationId: 7, isStale: stale
+    )
+}
+
+/// Build one synthetic score state without exposing live player identity or network.
+///
+/// - Parameters:
+///   - accuracy: Expanded service percentage, or nil when it was not reported.
+///   - fullCombo: Explicit flag, or nil when its status is unknown.
+/// - Returns: A validated, offline-only preview payload.
+/// - Throws: Invalid test JSON or leaderboard shape.
+private func fixtureAccuracyScore(
+    accuracy: Int?, fullCombo: Bool?
+) throws -> LeaderboardPayload {
+    let accuracyField = accuracy.map { ",\"accuracy\":\($0)" } ?? ""
+    let comboField = fullCombo.map { ",\"isFullCombo\":\($0 ? "true" : "false")" } ?? ""
+    let data = Data("""
+    {"songId":"fixture-1","instrument":"Solo_Guitar","count":1,
+     "localEntries":1,"totalEntries":1,"entries":[{
+       "accountId":"fixture-player-1","displayName":"Fixture Player",
+       "score":99900,"rank":1\(accuracyField)\(comboField)}]}
+    """.utf8)
+    let result = try JSONDecoder().decode(LeaderboardResponse.self, from: data)
+    try result.validate(songId: "fixture-1", instrument: .lead)
+    return LeaderboardPayload(
+        page: 1, leaderboard: result, publicationId: 7,
+        observedPublicationId: 7, isStale: false
     )
 }
 
@@ -295,6 +325,63 @@ func detailVisualStates(_ songNumber: Int) throws {
     #expect(populated != empty)
     #expect(populated != stale)
     #expect(failed != loading)
+}
+
+/// Unknown FC is graded, explicit FC has gold, and missing data paints neither.
+@MainActor
+@Test(arguments: ScoreAccuracyScenario.allCases)
+func scoreAccuracyBadgeRendersSourceStates(_ scenario: ScoreAccuracyScenario) throws {
+    let (accuracy, fullCombo): (Int?, Bool?) = switch scenario {
+    case .missing: (nil, nil)
+    case .unknownFullCombo: (980_000, nil)
+    case .nonFullComboLow: (0, false)
+    case .fullCombo: (980_000, true)
+    case .fullComboWithoutAccuracy: (nil, true)
+    }
+    let payload = try fixtureAccuracyScore(accuracy: accuracy, fullCombo: fullCombo)
+    let song = try fixtureSong()
+    let renderer = ImageRenderer(content: NavigationStack {
+        SongScorePreview(
+            song: song, instrument: .lead,
+            session: offlineSession(), initialState: .loaded(payload)
+        )
+        .frame(width: 420, height: 280, alignment: .top)
+    })
+    renderer.scale = 1
+    let image = try #require(renderer.cgImage)
+    let bitmap = NSBitmapImageRep(cgImage: image)
+    var gold = 0
+    var green = 0
+    var red = 0
+    var sampled = 0
+    for y in 0..<image.height {
+        for x in 0..<image.width {
+            guard let color = bitmap.colorAt(x: x, y: y) else { continue }
+            sampled += 1
+            let r = color.redComponent
+            let g = color.greenComponent
+            let b = color.blueComponent
+            if r > 0.86 && g > 0.66 && b < 0.27 { gold += 1 }
+            if g > 0.18 && g > r + 0.09 && g > b + 0.015 { green += 1 }
+            if r > 0.17 && r > g + 0.08 && r > b + 0.05 { red += 1 }
+        }
+    }
+    #expect(sampled == image.width * image.height)
+    switch scenario {
+    case .missing:
+        #expect(gold == 0)
+        #expect(green == 0)
+        #expect(red == 0)
+    case .unknownFullCombo:
+        #expect(gold == 0)
+        #expect(green > 80)
+    case .nonFullComboLow:
+        #expect(gold == 0)
+        #expect(red > 80)
+    case .fullCombo, .fullComboWithoutAccuracy:
+        #expect(gold > 40)
+        #expect(green == 0)
+    }
 }
 
 /// Pagination/footer states remain visible at both score and empty boundaries.

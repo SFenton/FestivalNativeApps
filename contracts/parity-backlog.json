@@ -96,10 +96,20 @@
       "sourceRefs": [
         "FortniteFestivalWeb/src/pages/songinfo/SongDetailPage.tsx:191",
         "FortniteFestivalWeb/src/pages/songinfo/SongDetailPage.tsx:663",
-        "FortniteFestivalWeb/src/pages/songinfo/components/InstrumentCard.tsx:24"
+        "FortniteFestivalWeb/src/pages/songinfo/components/InstrumentCard.tsx:24",
+        "FortniteFestivalWeb/src/components/songs/metadata/AccuracyDisplay.tsx:13",
+        "FortniteFestivalWeb/src/pages/leaderboard/global/components/LeaderboardEntry.tsx:105",
+        "FortniteFestivalWeb/src/utils/formatters.ts:9",
+        "packages/core/src/app/formatters.ts:165",
+        "packages/theme/src/spacing.ts:142",
+        "packages/theme/src/goldStyles.ts:17"
       ],
       "acceptance": [
         "Show real top-score previews for visible solo charts with loading, error, empty, offline and View Full actions; keep Intensity independent of visibility.",
+        "Expose a directly hittable native View Full action above ten-row/headerless preview content without relying on an offscreen accessibility auto-scroll; its placement intentionally differs from the PWA's footer.",
+        "Use the shared score-row control to show graded non-FC accuracy and a gold, spoken FC badge only for an explicit full-combo flag in both preview and full Solo; never turn absent accuracy into 0%.",
+        "Keep normal-size FC, non-FC and missing-accuracy badge columns aligned within one point in Detail/Solo, verify badge text contrast at least 4.5:1, preserve large-text score reachability, and prove the iPad sidebar transition and normal Solo page-one/page-two full audits remain responsive.",
+        "A missing accuracy field is not a zero: test absent non-FC and FC-only score rows in Detail and Solo, and keep offscreen accessibility probes and warm-offline one-shots on distinct, runner-owned ports.",
         "Add selected-player/member spotlights and history, promoted band and remaining Duet/Trio/Quad previews with correct navigation.",
         "Compare header, artwork, card geometry, large text and portrait/landscape flow to the deterministic PWA reference."
       ]
@@ -304,9 +314,9 @@
   "routes": [
     {"id": "home-redirect", "apple": "partial", "epics": ["apple-shell-modals"], "gap": "Default Songs tab exists; URL/deep-link redirect, unknown route and native guarded recovery are untested."},
     {"id": "songs", "apple": "partial", "epics": ["apple-anonymous-songs-sort", "apple-songs-cards", "apple-songs-actions"], "gap": "Four catalogue Sort modes, conditional public Item Shop sort with first-seen Shop-status headings, validated Shop New/Leaving card indicators and chart filter exist; selected profile/band scores, Has FC and other conditional sorts, Shop filtering, other sort-mode sections, quick-link rail and invalid-score warning remain missing; grouped iPhone full audit and iPad full Sort audit/Shop-header focus bounds pending."},
-    {"id": "song-detail", "apple": "partial", "epics": ["apple-song-detail", "apple-chopt-paths"], "gap": "Ten-row solo previews, Shop availability/action and first CHOpt image/text modal exist; selected score/history, band cards, path column order and full Detail/Paths accessibility audits remain missing."},
+    {"id": "song-detail", "apple": "partial", "epics": ["apple-song-detail", "apple-chopt-paths"], "gap": "Ten-row solo previews with explicit FC versus graded accuracy, a top native View Full action, Shop availability/action and first CHOpt image/text modal exist; selected score/history, band cards, path column order, PWA-bottom action geometry, other offscreen auto-scroll and full Detail/Paths accessibility audits remain missing."},
     {"id": "song-band-leaderboard", "apple": "absent", "epics": ["apple-band-flows"], "gap": "No per-song Duet/Trio/Quad entries, combo filters, pagination or selected footer."},
-    {"id": "song-leaderboard", "apple": "partial", "epics": ["apple-song-detail", "apple-statistics-history"], "gap": "Native solo pages and pager exist; selected player/member navigation, history, off-page spotlight and all PWA row states do not."},
+    {"id": "song-leaderboard", "apple": "partial", "epics": ["apple-song-detail", "apple-statistics-history"], "gap": "Native solo pages, pager and explicit FC-versus-graded accuracy exist; selected player/member navigation, history, stars/season/difficulty, off-page spotlight and all PWA row states do not."},
     {"id": "player-history", "apple": "absent", "epics": ["apple-statistics-history"], "gap": "No song/instrument history page, sort modal or fallback-validity views."},
     {"id": "player-profile", "apple": "absent", "epics": ["native-profile-selector", "apple-statistics-history"], "gap": "No player search/view/select journey, stats, ranks, score cards or bands."},
     {"id": "rivals", "apple": "absent", "epics": ["apple-rivals"], "gap": "No player-only song/leaderboard tabs, instrument/common/combo rival lists or find-rival modal."},
