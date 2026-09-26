@@ -194,6 +194,52 @@ for (const viewport of viewports.filter(entry => entry.id.endsWith('portrait')))
   });
 }
 
+test('fixture-backed PWA anonymous Item Shop sort reorders Songs', async ({ page }, testInfo) => {
+  mkdirSync(output, { recursive: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route('**/api/shop*', async route => {
+    const fixture = await fetch('http://127.0.0.1:8765/api/shop?scenario=shop-single');
+    await route.fulfill({
+      status: fixture.status,
+      contentType: 'application/json',
+      body: Buffer.from(await fixture.arrayBuffer()),
+    });
+  });
+  await gotoAppRoute(page, '/songs');
+  const firstRow = page.locator('#main-content').getByText('Fixture Orbit', { exact: true });
+  const secondRow = page.locator('#main-content').getByText('Fixture Pulse', { exact: true });
+  const inShop = page.locator('#main-content').getByText('In Shop', { exact: true });
+  const notInShop = page.locator('#main-content').getByText('Not In Shop', { exact: true });
+  await expect(firstRow).toBeVisible({ timeout: 15_000 });
+  await expect(secondRow).toBeVisible();
+  await page.getByRole('button', { name: 'Sort Songs', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Sort Songs' });
+  await expect(dialog.getByRole('button', { name: 'Item Shop', exact: true })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Item Shop', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Apply Sort Changes', exact: true }).click();
+  await expect.poll(async () =>
+    (await secondRow.boundingBox())!.y < (await firstRow.boundingBox())!.y
+  ).toBe(true);
+  await expect(inShop).toBeVisible();
+  await expect(notInShop).toBeVisible();
+  await expect.poll(async () =>
+    (await inShop.boundingBox())!.y < (await notInShop.boundingBox())!.y
+  ).toBe(true);
+  await page.screenshot({
+    path: join(output, `${testInfo.project.name}-phone-portrait-songs-shop-sort-ascending.png`),
+    animations: 'disabled',
+  });
+  await page.getByRole('button', { name: 'Sort Songs', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Descending', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Apply Sort Changes', exact: true }).click();
+  await expect.poll(async () =>
+    (await firstRow.boundingBox())!.y < (await secondRow.boundingBox())!.y
+  ).toBe(true);
+  await expect.poll(async () =>
+    (await notInShop.boundingBox())!.y < (await inShop.boundingBox())!.y
+  ).toBe(true);
+});
+
 test('fixture-backed PWA artwork actually rotates after the five-second dwell', async ({ page }, testInfo) => {
   mkdirSync(output, { recursive: true });
   await page.setViewportSize({ width: 390, height: 844 });

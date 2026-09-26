@@ -51,7 +51,7 @@
       "id": "songs-sort",
       "status": "pending",
       "source": "FortniteFestivalWeb/src/pages/songs/modals/SortModal.tsx:44",
-      "states": ["default", "changed-mode", "changed-direction", "reset-draft", "discard-confirm", "applied", "relaunch-persisted", "instrument-filtered", "profile", "band", "shop-hidden", "large-text"],
+      "states": ["default", "changed-mode", "changed-direction", "reset-draft", "discard-confirm", "applied", "relaunch-persisted", "instrument-filtered", "profile", "band", "shop-loaded", "shop-sectioned", "shop-one-bucket", "shop-empty", "shop-unavailable", "shop-hidden", "large-text"],
       "testId": "fst.songs.sort",
       "spec": ".agents/controls/songs-sort.md"
     },
@@ -93,6 +93,8 @@
     "fst.songs.sort.reset": "songs-sort",
     "fst.songs.sort.cancel": "songs-sort",
     "fst.songs.sort.apply": "songs-sort",
+    "fst.songs.sort-paused": "songs-sort",
+    "fst.songs.shop-section.*": "songs-sort",
     "fst.songs.shop": "shop-offers",
     "fst.songs.shop-badge.*": "shop-offers",
     "fst.songs.shop-error": "shop-offers",

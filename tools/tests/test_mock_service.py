@@ -174,6 +174,12 @@ class MockServiceTests(unittest.TestCase):
             self.assertEqual(json.load(response)["count"], 0)
         with urlopen(self.base + "/api/songs?scenario=shop-error") as response:
             self.assertEqual(json.load(response)["count"], 2)
+        with urlopen(self.base + "/api/songs?scenario=shop-single") as response:
+            self.assertEqual(json.load(response)["count"], 2)
+        with urlopen(self.base + "/api/shop?scenario=shop-single") as response:
+            single = json.load(response)
+            self.assertEqual(single["count"], 1)
+            self.assertEqual(single["songs"][0]["songId"], "fixture-pulse")
         with urlopen(self.base + "/api/shop?scenario=art-white") as response:
             self.assertEqual(
                 json.load(response)["songs"][0]["albumArt"],

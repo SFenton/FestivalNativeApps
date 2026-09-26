@@ -93,6 +93,7 @@ public enum FixtureScenario: String, Sendable {
     case error
     case shopEmpty = "shop-empty"
     case shopError = "shop-error"
+    case shopSingle = "shop-single"
     case artError = "art-error"
     case artSkip = "art-skip"
     case artWhite = "art-white"

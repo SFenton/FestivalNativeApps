@@ -1,15 +1,16 @@
 import Foundation
 
-/// The four catalogue-only sort modes that work without a selected profile.
+/// Catalogue and public-Shop sort modes that work without a selected profile.
 public enum SongSortMode: String, CaseIterable, Codable, Sendable, Identifiable {
     case title
     case artist
     case year
     case duration
+    case shop
 
     public var id: String { rawValue }
 
-    /// Name the available sort without implying profile/shop-only data exists.
+    /// Name the available sort without implying profile-only data exists.
     ///
     /// - Returns: User-facing native sort choice.
     public var label: String {
@@ -18,23 +19,48 @@ public enum SongSortMode: String, CaseIterable, Codable, Sendable, Identifiable 
         case .artist: "Artist"
         case .year: "Year"
         case .duration: "Duration"
+        case .shop: "Item Shop"
         }
     }
 }
 
-/// Sort only typed public catalogue fields, never inventing profile scores.
+/// Source Shop quick-link buckets, ordered by their first song in the sorted list.
+public enum SongShopSectionKind: String, Identifiable, Sendable {
+    case leavingTomorrow = "leaving-tomorrow"
+    case inShop = "in-shop"
+    case notInShop = "not-in-shop"
+
+    public var id: String { rawValue }
+}
+
+/// A nonempty Shop bucket whose songs preserve their relative sorted order.
+public struct SongShopSection: Identifiable, Sendable {
+    public let kind: SongShopSectionKind
+    public internal(set) var songs: [Song]
+
+    public var id: SongShopSectionKind { kind }
+}
+
+/// Sort typed catalogue fields and validated public Shop membership, never profile scores.
 public enum SongCatalogSort {
-    /// Order catalogue rows with the source's title tie-break and a stable ID.
+    /// Order catalogue rows with source ties and a stable ID for otherwise equal songs.
     ///
     /// - Parameters:
     ///   - songs: Typed songs after search and instrument filtering.
-    ///   - mode: Catalogue-only sorting field selected by the user.
+    ///   - mode: Public catalogue or Item Shop sorting field selected by the user.
     ///   - ascending: Reverse all fields and title ties when false.
+    ///   - shopSongIds: Validated public Shop membership, required for `.shop` even when empty.
     /// - Returns: New array in the requested order, leaving its input unchanged.
+    /// - Throws: `FestivalAPIError.invalidShop` if Shop sorting has no validated feed.
     public static func sorted(
-        _ songs: [Song], mode: SongSortMode, ascending: Bool
-    ) -> [Song] {
-        songs.sorted { left, right in
+        _ songs: [Song], mode: SongSortMode, ascending: Bool,
+        shopSongIds: Set<String>? = nil
+    ) throws -> [Song] {
+        guard mode != .shop || shopSongIds != nil else {
+            throw FestivalAPIError.invalidShop
+        }
+        let membership = shopSongIds ?? []
+        return songs.sorted { left, right in
             let primary: ComparisonResult
             switch mode {
             case .title:
@@ -45,14 +71,54 @@ public enum SongCatalogSort {
                 primary = compare(left.year ?? 0, right.year ?? 0)
             case .duration:
                 primary = compare(left.durationSeconds ?? 0, right.durationSeconds ?? 0)
+            case .shop:
+                primary = compare(
+                    membership.contains(right.songId) ? 1 : 0,
+                    membership.contains(left.songId) ? 1 : 0
+                )
             }
             let title = left.title.localizedCompare(right.title)
-            let result = primary == .orderedSame ? title : primary
+            let result: ComparisonResult
+            if primary != .orderedSame {
+                result = primary
+            } else if title != .orderedSame || mode != .shop {
+                result = title
+            } else {
+                let artist = left.artist.localizedCompare(right.artist)
+                result = artist == .orderedSame
+                    ? compare(left.year ?? 0, right.year ?? 0) : artist
+            }
             if result == .orderedSame {
                 return ascending ? left.songId < right.songId : left.songId > right.songId
             }
             return ascending ? result == .orderedAscending : result == .orderedDescending
         }
+    }
+
+    /// Group sorted Shop rows as the source's first-seen quick-link buckets.
+    ///
+    /// - Parameters:
+    ///   - sortedSongs: Catalogue songs already ordered by `.shop` and direction.
+    ///   - offersById: Offers from a validated Shop response, including Leaving Tomorrow.
+    /// - Returns: Nonempty buckets in first-seen order; one bucket needs no visible header.
+    public static func shopSections(
+        _ sortedSongs: [Song], offersById: [String: ShopSong]
+    ) -> [SongShopSection] {
+        var sections: [SongShopSection] = []
+        for song in sortedSongs {
+            let kind: SongShopSectionKind
+            if let offer = offersById[song.songId] {
+                kind = offer.leavingTomorrow ? .leavingTomorrow : .inShop
+            } else {
+                kind = .notInShop
+            }
+            if let index = sections.firstIndex(where: { $0.kind == kind }) {
+                sections[index].songs.append(song)
+            } else {
+                sections.append(SongShopSection(kind: kind, songs: [song]))
+            }
+        }
+        return sections
     }
 
     /// Compare numeric values without locale-dependent string conversion.

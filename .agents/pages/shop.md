@@ -38,7 +38,7 @@ offers remain usable.
 | Empty/error | Genuine empty message vs fetch failure | Explicit empty card or scalable unavailable/Retry, not an empty-data fallback for HTTP errors |
 | Hide/highlight | Hide Shop nav/effective highlights while retaining saved preference | Native Settings removes Shop action/resets its route with notice; badge/border highlighting updates and its saved value survives hiding |
 | Offline | Web HTTP/React query state | Native validated Shop rows and recent original covers survive actual warm listener loss as "publication unverified"; both disappear after process relaunch |
-| Cross-page | Shop badges and filters affect Songs/Detail; WebSocket keeps rotation current | Native Songs New/Leaving borders/icons and Detail official link/status now consume validated membership; Shop-based sort/filter and live push updates remain missing |
+| Cross-page | Shop badges and filters affect Songs/Detail; WebSocket keeps rotation current | Native Songs New/Leaving borders/icons and Detail official link/status consume validated membership; anonymous Song sort groups first-seen Leaving/In/Not sections when multiple buckets exist, pauses with a notice when hidden/unavailable, and resumes without erasing its setting. Shop filters, quick-link rail and live push updates remain missing |
 
 **Matched fixture observation:** Two selected source WebKit tests capture
 phone 390x844 list and tablet 820x1180 grid from the same synthetic
@@ -77,5 +77,5 @@ the new validated offer, then release an old transport reply and
 require both visible membership and the next ETag read to stay new.
 Actual rapid device gestures and focus restoration are still
 unmeasured. iPad sidebar Shop entry, global search/profile header,
-push/shop WebSocket, Shop-based Songs sorts/filters and full-source
+push/shop WebSocket, Shop filters/remaining conditional Songs sorts and full-source
 coverage remain pending.

@@ -53,7 +53,7 @@ Dynamic Type. The one-shot test checks that the original art gradient
 is visible **before** sending the test-only local shutdown signal and
 again after route reentry on real connection refusal. Full large-text
 launch, VoiceOver focus order, landscape, macOS GUI, Windows/Android,
-Shop-dependent sorting/filtering, full Detail audit and full line
+Shop filtering and profile-dependent sorting, full Detail audit and full line
 coverage remain open. The matching source/native Songs screenshots
 demonstrate red/gold borders on phone/tablet; native adds compact
 status icons rather than communicating offer state by border alone.

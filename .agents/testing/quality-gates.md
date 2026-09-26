@@ -24,6 +24,18 @@ The new WIP Song Detail top-score preview has **two targeted Core wire tests**, 
 
 The focused Apple anonymous Sort slice adds two `SongCatalogSortTests` for four public-catalogue modes, missing numeric fields and stable descending ties; the single `testAnonymousSongsSortDraftApplyDiscardAndRelaunch` passed on **iPhone 26.5 and iPadOS 26.5** with exact test-name verification. It asserts changed draft, discard, actual row reorder, process relaunch, and scroll-to-visible Reset above the pinned footer. The iPhone default/draft sheet passed unwaived `.all` audits after the footer move. The iPad test measures visible header/action contrast but a separate full `.all` probe failed with an unnamed "Potentially inaccessible text"; iPad full audit and large-text/landscape/macos states remain **pending**, not waived. Two selected fixture-backed PWA WebKit Sort tests capture nearby phone/tablet default and changed modal states for structural comparison; they do not certify pixel or feature parity. Full coverage remains unmeasured for this source.
 
+The conditional **Item Shop Sort WIP** adds two more `SongCatalogSortTests` (four total) for membership-required ordering, reversed title/artist/year ties, validated empty feed, and first-seen Leaving/In/Not groups with no heading for a single bucket. `shop-single` leaves two Songs but offers only one; a selected PWA WebKit test proves the source's ascending/descending row **and section-header** order. The native `testAnonymousItemShopSortRestoresAfterHideAndFeedFailure` checks the same row/section changes plus saved-preference pause/resume across Hide Shop, HTTP 503, a known-empty feed, full two-offer Leaving/In buckets, grouped Detail/back navigation and cold relaunch; run it and the original draft/Reset test on **each** simulator with exact selectors. The new Shop choice passed an unwaived iPhone `.all` audit; the iPad option label and two *visible grouped headers* passed actual ≥4.5:1 screenshot crops without lowering the contrast bar. For the iPad headers, XCUITest reports x=0/full-window accessibility frames even though labels render in the detail pane; sample their Y at the native search field's visible detail-pane X and **keep focus bounds unverified**. The full iPad Sort-sheet audit is also still open. Failed feeds must remain visible errors, never silently sort as empty membership. Do not interpret these selected tests as iPad full-audit, VoiceOver-order, large-text/landscape, Android/Windows or current-source coverage certification.
+
+After replacing the Shop header's derived-weight subheadline with a
+direct semantic `.headline`, the selected iPhone grouped-Songs screen
+passed **one unwaived `.all`** audit, but the source-identical paired
+run failed again with an **unnamed Dynamic Type issue**. The issue
+handler returned a nil element/label/frame; neither Xcode attachment
+named the culprit. Do not waive the finding or certify the grouped
+screen from its single pass. The added deterministic iPhone/iPad
+≥4.5:1 rendered-header checks cover visible text only, not complete
+manufacturer audits, large-type scaling or VoiceOver focus order.
+
 The new **CHOpt Paths WIP** uses nine focused `songPath` Core tests for URL/generation/pin/304 keys, live-shaped JSON activation rows, bounded ImageIO decoding, separate 32 MB/16-entry verified PNG LRU, pre-cache 8 MB limit and rejecting invalid headerless PNG/JSON before warm-offline caching. An opt-in read through the actual Swift client decoded a real public schema-2 Lead/Expert path and a 1024x3736 PNG without printing content; two read-only path GETs were HTTP 200. The strict loopback fixture generates an original synthetic path PNG/JSON and keeps its source hash, generation, ETag, 404/409 and read-only contract in the serial runner; relevant Python fixture/runner tests passed. Two selected WebKit image/text modal tests captured the matching source phone/tablet views. The selected `testSongPathsImageTextSwitchAndMissingDifficulty` and `testSongPathsDefaultViewFollowsSettings` exercise each native iPhone/iPad modal, zoom, instrument/difficulty/error/recovery and Settings propagation. After accessible Close and disabled-zoom fixes, iPhone 26.5's loaded image **and** text sheets passed unwaived `.all` audits. A separate iPadOS 26.5 full `.all` probe reports unnamed **"Potentially inaccessible text"**; selected title/Close/summary on-screen pixels meet the contrast assertion, but **iPad full-audit certification remains pending**. No blanket waiver, all-state UX gate, current-source line-coverage figure, or full Detail page audit is claimed.
 
 The changed `testInstrumentVisibilityAndScoreFilterPropagation` passed
@@ -89,8 +101,8 @@ Shop ETag; successful reads now check cancellation before cache
 mutation and in the cache actor. Its follow-up 304 must retain the
 new offer, and `canceledPublicCacheWritesNeverPromoteOldResponses`
 checks canceled Shop/image actor writes. Both pass without a real
-service call. Actual rapid device gestures, Shop-dependent
-sorting/filtering and selected-player/band score cards remain open.
+service call. Actual rapid device gestures, Shop filtering,
+profile-dependent sorting and selected-player/band score cards remain open.
 
 The generated Swift `BrandTokens.swift` contains stored constants and has no executable LLVM lines; it is the sole explicit coverage exclusion. The gate fails if a future report shows executable lines in an excluded file, and `tools/generate_tokens.py --check` separately verifies every generated token byte. Do not exclude handwritten logic or views to make a percentage pass.
 

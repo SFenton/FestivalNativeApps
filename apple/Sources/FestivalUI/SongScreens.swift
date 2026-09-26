@@ -327,9 +327,24 @@ struct SongsScreen: View {
                     SongSearch.matches(song, query: settledSearch)
                         && (instrument.map(song.supports) ?? true)
                 }
-                let visible = SongCatalogSort.sorted(
-                    matching, mode: sortMode, ascending: sortAscending
-                )
+                let effectiveMode: SongSortMode = sortPausedMessage == nil ? sortMode : .title
+                let membership = session.currentShop.map { _ in
+                    Set(session.shopOffersById.keys)
+                }
+                let sorted: Result<[Song], Error> = Result {
+                    try SongCatalogSort.sorted(
+                        matching, mode: effectiveMode, ascending: sortAscending,
+                        shopSongIds: membership
+                    )
+                }
+                switch sorted {
+                case let .failure(error):
+                    ServiceUnavailableView(
+                        title: "Song sort unavailable", message: error.localizedDescription
+                    ) {
+                        shopRetryRevision += 1
+                    }
+                case let .success(visible):
                 if visible.isEmpty {
                     VStack(spacing: 8) {
                         if hasDisclosure(for: payload) {
@@ -368,27 +383,50 @@ struct SongsScreen: View {
                         if hasDisclosure(for: payload) {
                             disclosures(for: payload)
                         }
-                        ForEach(visible) { song in
-                            let shopHighlight = ShopPresentationPolicy.highlight(
-                                for: session.shopOffersById[song.songId],
-                                hidden: hideShop,
-                                highlightingDisabled: disableShopHighlighting
+                        if effectiveMode == .shop {
+                            let sections = SongCatalogSort.shopSections(
+                                visible, offersById: session.shopOffersById
                             )
-                            NavigationLink(value: SongRoute.detail(song)) {
-                                SongRowView(
-                                    song: song, instrument: instrument,
-                                    session: session, highContrast: highContrast,
-                                    shopHighlight: shopHighlight
-                                )
+                            if sections.count > 1 {
+                                ForEach(sections) { section in
+                                    HStack {
+                                        Text(section.kind.label.uppercased())
+                                            .font(.headline)
+                                            .foregroundStyle(BrandTokens.textPrimary)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                            .accessibilityLabel(section.kind.label)
+                                            .accessibilityAddTraits(.isHeader)
+                                            .accessibilityIdentifier(
+                                                "fst.songs.shop-section.\(section.kind.rawValue)"
+                                            )
+                                        Spacer(minLength: 0)
+                                    }
+                                    .padding(8)
+                                    .background(
+                                        BrandTokens.cardBackground,
+                                        in: RoundedRectangle(cornerRadius: 8)
+                                    )
+                                    .listRowSeparator(.hidden)
+                                    .listRowBackground(Color.clear)
+                                    ForEach(section.songs) { song in
+                                        songLink(for: song)
+                                    }
+                                }
+                            } else {
+                                ForEach(visible) { song in
+                                    songLink(for: song)
+                                }
                             }
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
-                            .accessibilityIdentifier("fst.songs.row.\(song.songId)")
+                        } else {
+                            ForEach(visible) { song in
+                                songLink(for: song)
+                            }
                         }
                     }
                     .listStyle(.plain)
                     .scrollContentBackground(.hidden)
                     .refreshable { await reload() }
+                }
                 }
             }
             }
@@ -426,7 +464,10 @@ struct SongsScreen: View {
             }
         }
         .sheet(isPresented: $sortPresented) {
-            SongsSortSheet(mode: sortMode, ascending: sortAscending) { mode, order in
+            SongsSortSheet(
+                mode: sortMode, ascending: sortAscending,
+                showShop: !hideShop, shopAvailable: session.currentShop != nil
+            ) { mode, order in
                 sortMode = mode
                 sortAscending = order
             }
@@ -478,10 +519,25 @@ struct SongsScreen: View {
         }
         .accessibilityValue(
             "\(sortMode.label), \(sortAscending ? "ascending" : "descending")"
+                + (sortPausedMessage == nil ? "" : ", paused; showing Title order")
         )
         .accessibilityIdentifier("fst.songs.sort")
         .tint(sortMode == .title && sortAscending
             ? BrandTokens.accentBlue : BrandTokens.gold)
+    }
+
+    /// Keep a saved Shop sort visible when its source is hidden or unavailable.
+    private var sortPausedMessage: String? {
+        guard sortMode == .shop else { return nil }
+        if hideShop {
+            return "Item Shop sort paused while Shop is hidden. Showing title order; "
+                + "your preference is saved."
+        }
+        if session.currentShop == nil {
+            return "Item Shop sort paused until public Shop data loads. "
+                + "Showing title order; retry Item Shop status if unavailable."
+        }
+        return nil
     }
 
     /// Avoid installing an empty accessibility node for an absent warning group.
@@ -496,6 +552,7 @@ struct SongsScreen: View {
                     || (session.currentShop == nil && shopRefreshFailure != nil)
                     || session.currentShop?.isStale == true
             ))
+            || sortPausedMessage != nil
     }
 
     /// Show freshness and update errors even when search finds no matching rows.
@@ -528,6 +585,10 @@ struct SongsScreen: View {
                 symbol: "arrow.clockwise"
             )
         }
+        if let sortPausedMessage {
+            FreshnessDisclosure(message: sortPausedMessage, symbol: "arrow.up.arrow.down")
+                .accessibilityIdentifier("fst.songs.sort-paused")
+        }
         if !hideShop, let shopFailure = session.shopError
             ?? (session.currentShop == nil ? shopRefreshFailure : nil) {
             FreshnessDisclosure(
@@ -555,6 +616,28 @@ struct SongsScreen: View {
             )
             .accessibilityIdentifier("fst.songs.shop-offline")
         }
+    }
+
+    /// Keep every grouped and ungrouped Song row on the same navigation path.
+    ///
+    /// - Parameter song: Validated catalogue song to display.
+    /// - Returns: One accessible Song Detail link with effective Shop highlighting.
+    private func songLink(for song: Song) -> some View {
+        let highlight = ShopPresentationPolicy.highlight(
+            for: session.shopOffersById[song.songId],
+            hidden: hideShop,
+            highlightingDisabled: disableShopHighlighting
+        )
+        return NavigationLink(value: SongRoute.detail(song)) {
+            SongRowView(
+                song: song, instrument: instrument,
+                session: session, highContrast: highContrast,
+                shopHighlight: highlight
+            )
+        }
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+        .accessibilityIdentifier("fst.songs.row.\(song.songId)")
     }
 
     /// Refresh the public catalogue, preserving the last-viewed process cache.
@@ -603,7 +686,17 @@ struct SongsScreen: View {
     }
 }
 
-/// Keep anonymous catalogue sorting as an explicit Apply/Reset/Discard draft.
+private extension SongShopSectionKind {
+    var label: String {
+        switch self {
+        case .leavingTomorrow: "Leaving Tomorrow"
+        case .inShop: "In Shop"
+        case .notInShop: "Not In Shop"
+        }
+    }
+}
+
+/// Keep anonymous catalogue and Shop sorting as an Apply/Reset/Discard draft.
 struct SongsSortSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -612,20 +705,27 @@ struct SongsSortSheet: View {
     @State private var discardPending = false
     let mode: SongSortMode
     let ascending: Bool
+    let showShop: Bool
+    let shopAvailable: Bool
     let onApply: (SongSortMode, Bool) -> Void
 
     /// Start every presentation from the currently applied sort preference.
     ///
     /// - Parameters:
-    ///   - mode: Applied catalogue-only sort mode.
+    ///   - mode: Applied public catalogue or Shop sort mode.
     ///   - ascending: Applied direction.
+    ///   - showShop: False when Settings hides the entire Shop feature.
+    ///   - shopAvailable: True only after receiving a validated public feed.
     ///   - onApply: Commit both draft fields together after explicit confirmation.
     init(
         mode: SongSortMode, ascending: Bool,
+        showShop: Bool = false, shopAvailable: Bool = false,
         onApply: @escaping (SongSortMode, Bool) -> Void
     ) {
         self.mode = mode
         self.ascending = ascending
+        self.showShop = showShop
+        self.shopAvailable = shopAvailable
         self.onApply = onApply
         _draftMode = State(initialValue: mode)
         _draftAscending = State(initialValue: ascending)
@@ -646,12 +746,25 @@ struct SongsSortSheet: View {
             Form {
                 Section("Sort by") {
                     Picker("Sort by", selection: $draftMode) {
-                        ForEach(SongSortMode.allCases) { choice in
+                        ForEach(SongSortMode.allCases.filter {
+                            showShop || $0 != .shop
+                        }) { choice in
                             Text(choice.label).tag(choice)
+                                .disabled(choice == .shop && !shopAvailable)
                         }
                     }
                     .pickerStyle(.inline)
                     .accessibilityIdentifier("fst.songs.sort.mode")
+                    if showShop && !shopAvailable {
+                        Text("Item Shop sorting requires loaded public Shop data.")
+                            .font(.footnote)
+                            .foregroundStyle(BrandTokens.textSecondary)
+                    } else if !showShop && mode == .shop {
+                        Text("Item Shop sort is saved but hidden. Reset to Title A-Z "
+                            + "to choose another mode.")
+                            .font(.footnote)
+                            .foregroundStyle(BrandTokens.textSecondary)
+                    }
                 }
                 Section("Direction") {
                     Picker("Direction", selection: $draftAscending) {
@@ -706,7 +819,8 @@ struct SongsSortSheet: View {
                             )
                     }
                     .buttonStyle(HighContrastPagerStyle())
-                    .disabled(!hasChanges)
+                    .disabled(!hasChanges
+                        || (draftMode == .shop && (!showShop || !shopAvailable)))
                     .accessibilityIdentifier("fst.songs.sort.apply")
                 }
                 .padding(12)

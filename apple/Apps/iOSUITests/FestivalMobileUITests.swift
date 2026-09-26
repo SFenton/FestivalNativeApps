@@ -419,6 +419,219 @@ final class FestivalMobileUITests: XCTestCase {
         XCTAssertEqual(sort.value as? String, "Title, ascending")
     }
 
+    /// Item Shop sorting uses validated membership and retains paused saved preferences.
+    ///
+    /// - Throws: Wrong order, unreadable headings, unavailable Shop as empty or lost sort.
+    @MainActor
+    func testAnonymousItemShopSortRestoresAfterHideAndFeedFailure() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "shop-single"
+        app.launch()
+        rootControl("Settings", app: app).tap()
+        let hidden = app.switches["fst.settings.hide-shop"]
+        reveal(hidden, in: app, scrollingUp: true)
+        let originallyHidden = try XCTUnwrap(hidden.value as? String)
+        setSwitch(hidden, to: "0")
+        rootControl("Songs", app: app).tap()
+
+        let sort = app.buttons["fst.songs.sort"]
+        XCTAssertTrue(sort.waitForExistence(timeout: 10))
+        if (sort.value as? String) != "Title, ascending" {
+            sort.tap()
+            revealSortReset(in: app).tap()
+            let resetApply = app.buttons["fst.songs.sort.apply"]
+            XCTAssertTrue(resetApply.isEnabled)
+            resetApply.tap()
+            XCTAssertEqual(sort.value as? String, "Title, ascending")
+        }
+        let orbit = app.buttons["fst.songs.row.fixture-orbit"]
+        let pulse = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(orbit.waitForExistence(timeout: 15))
+        XCTAssertTrue(pulse.exists)
+        XCTAssertLessThan(orbit.frame.minY, pulse.frame.minY)
+
+        sort.tap()
+        let inShop = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.shop-section.in-shop").firstMatch
+        let notInShop = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.shop-section.not-in-shop").firstMatch
+        let leaving = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.shop-section.leaving-tomorrow").firstMatch
+        let shopMode = app.buttons.matching(
+            identifier: "fst.songs.sort.mode"
+        ).matching(NSPredicate(format: "label == %@", "Item Shop")).firstMatch
+        XCTAssertTrue(
+            shopMode.waitForExistence(timeout: 10),
+            "Sort picker options: \(app.buttons.allElementsBoundByIndex.prefix(20).map(\.label))"
+        )
+        for _ in 0..<100 {
+            if shopMode.isEnabled { break }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        XCTAssertTrue(shopMode.isEnabled, "Shop mode was never backed by its public feed")
+        let readyShop = revealShopSort(in: app)
+        record(app, name: "songs-shop-sort-choice")
+        if UIDevice.current.userInterfaceIdiom == .phone {
+            try app.performAccessibilityAudit(for: .all)
+        } else {
+            try assertHeaderContrast(readyShop, in: app, leadingTextWidth: 180)
+        }
+        readyShop.tap()
+        let apply = app.buttons["fst.songs.sort.apply"]
+        XCTAssertTrue(apply.isEnabled)
+        apply.tap()
+        for _ in 0..<30 {
+            if pulse.frame.minY < orbit.frame.minY { break }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        XCTAssertLessThan(pulse.frame.minY, orbit.frame.minY)
+        XCTAssertEqual(sort.value as? String, "Item Shop, ascending")
+        XCTAssertTrue(inShop.waitForExistence(timeout: 10))
+        XCTAssertTrue(notInShop.exists)
+        XCTAssertLessThan(inShop.frame.minY, notInShop.frame.minY)
+        record(app, name: "songs-shop-sort-ascending")
+        if UIDevice.current.userInterfaceIdiom == .phone {
+            try assertHeaderContrast(inShop, in: app, leadingTextWidth: 180)
+            try assertHeaderContrast(notInShop, in: app, leadingTextWidth: 180)
+        } else {
+            let search = app.textFields["fst.songs.search"]
+            XCTAssertTrue(search.exists)
+            let contentX = search.frame.minX
+            XCTAssertGreaterThan(contentX, app.windows.firstMatch.frame.minX)
+            try assertHeaderContrast(
+                inShop, in: app, leadingTextWidth: 180, horizontalOrigin: contentX
+            )
+            try assertHeaderContrast(
+                notInShop, in: app, leadingTextWidth: 180, horizontalOrigin: contentX
+            )
+        }
+        pulse.tap()
+        let official = app.descendants(matching: .any).matching(
+            identifier: "fst.song-detail.shop"
+        ).firstMatch
+        XCTAssertTrue(official.waitForExistence(timeout: 10))
+        let back = app.navigationBars.buttons.matching(
+            NSPredicate(format: "label == %@ OR label == %@", "Songs", "Back")
+        ).firstMatch
+        XCTAssertTrue(back.waitForExistence(timeout: 10))
+        back.tap()
+        XCTAssertTrue(inShop.waitForExistence(timeout: 10))
+
+        sort.tap()
+        let direction = app.segmentedControls["fst.songs.sort.direction"]
+        XCTAssertTrue(direction.buttons["Ascending"].isSelected)
+        direction.buttons["Descending"].tap()
+        XCTAssertTrue(apply.isEnabled)
+        apply.tap()
+        for _ in 0..<30 {
+            if orbit.frame.minY < pulse.frame.minY { break }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        XCTAssertLessThan(orbit.frame.minY, pulse.frame.minY)
+        XCTAssertEqual(sort.value as? String, "Item Shop, descending")
+        XCTAssertLessThan(notInShop.frame.minY, inShop.frame.minY)
+
+        rootControl("Settings", app: app).tap()
+        reveal(hidden, in: app, scrollingUp: true)
+        setSwitch(hidden, to: "1")
+        rootControl("Songs", app: app).tap()
+        let paused = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.sort-paused").firstMatch
+        XCTAssertTrue(paused.waitForExistence(timeout: 10))
+        XCTAssertTrue(paused.label.contains("while Shop is hidden"))
+        XCTAssertLessThan(pulse.frame.minY, orbit.frame.minY)
+        XCTAssertTrue((sort.value as? String)?.contains("paused; showing Title") == true)
+        XCTAssertFalse(inShop.exists)
+        XCTAssertFalse(notInShop.exists)
+        record(app, name: "songs-shop-sort-paused-hidden")
+        sort.tap()
+        XCTAssertFalse(shopMode.exists, "Hidden Shop is still a selectable sort option")
+        app.buttons["fst.songs.sort.cancel"].tap()
+
+        rootControl("Settings", app: app).tap()
+        reveal(hidden, in: app, scrollingUp: true)
+        setSwitch(hidden, to: "0")
+        rootControl("Songs", app: app).tap()
+        for _ in 0..<40 {
+            if (sort.value as? String) == "Item Shop, descending" { break }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        XCTAssertEqual(sort.value as? String, "Item Shop, descending")
+        XCTAssertLessThan(orbit.frame.minY, pulse.frame.minY)
+        XCTAssertLessThan(notInShop.frame.minY, inShop.frame.minY)
+
+        app.terminate()
+        app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "shop-error"
+        app.launch()
+        XCTAssertTrue(orbit.waitForExistence(timeout: 15))
+        XCTAssertTrue(paused.waitForExistence(timeout: 10))
+        XCTAssertTrue(paused.label.contains("until public Shop data loads"))
+        XCTAssertTrue(app.descendants(matching: .any).matching(
+            identifier: "fst.songs.shop-error"
+        ).firstMatch.exists)
+        XCTAssertLessThan(pulse.frame.minY, orbit.frame.minY)
+        XCTAssertTrue((sort.value as? String)?.contains("paused; showing Title") == true)
+        XCTAssertFalse(inShop.exists)
+        XCTAssertFalse(notInShop.exists)
+        sort.tap()
+        let unavailableShop = app.buttons.matching(
+            identifier: "fst.songs.sort.mode"
+        ).matching(NSPredicate(format: "label == %@", "Item Shop")).firstMatch
+        XCTAssertTrue(unavailableShop.exists, "Unavailable Shop choice disappeared")
+        XCTAssertFalse(unavailableShop.isEnabled, "A failed Shop feed can be selected")
+        XCTAssertFalse(app.buttons["fst.songs.sort.apply"].isEnabled)
+        app.buttons["fst.songs.sort.cancel"].tap()
+
+        app.terminate()
+        app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "shop-empty"
+        app.launch()
+        XCTAssertTrue(orbit.waitForExistence(timeout: 15))
+        for _ in 0..<40 {
+            if (sort.value as? String) == "Item Shop, descending" { break }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        XCTAssertEqual(sort.value as? String, "Item Shop, descending")
+        XCTAssertFalse(paused.exists, "Known-empty Shop was treated as an unavailable feed")
+        XCTAssertLessThan(pulse.frame.minY, orbit.frame.minY)
+        XCTAssertFalse(inShop.exists)
+        XCTAssertFalse(notInShop.exists, "One Shop bucket should have no visible heading")
+        sort.tap()
+        XCTAssertTrue(revealShopSort(in: app).isEnabled)
+        app.buttons["fst.songs.sort.cancel"].tap()
+
+        app.terminate()
+        app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "shop-single"
+        app.launch()
+        XCTAssertTrue(pulse.waitForExistence(timeout: 15))
+        for _ in 0..<40 {
+            if (sort.value as? String) == "Item Shop, descending" { break }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        XCTAssertEqual(sort.value as? String, "Item Shop, descending")
+        XCTAssertLessThan(orbit.frame.minY, pulse.frame.minY)
+        XCTAssertLessThan(notInShop.frame.minY, inShop.frame.minY)
+
+        app.terminate()
+        app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "demo"
+        app.launch()
+        XCTAssertTrue(pulse.waitForExistence(timeout: 15))
+        XCTAssertTrue(leaving.waitForExistence(timeout: 10))
+        XCTAssertEqual(sort.value as? String, "Item Shop, descending")
+        XCTAssertLessThan(inShop.frame.minY, leaving.frame.minY)
+        XCTAssertFalse(notInShop.exists)
+        sort.tap()
+        revealSortReset(in: app).tap()
+        XCTAssertTrue(app.buttons["fst.songs.sort.apply"].isEnabled)
+        app.buttons["fst.songs.sort.apply"].tap()
+        XCTAssertEqual(sort.value as? String, "Title, ascending")
+        rootControl("Settings", app: app).tap()
+        reveal(hidden, in: app, scrollingUp: true)
+        setSwitch(hidden, to: originallyHidden)
+    }
+
     /// Public CHOpt paths switch image/text and difficulty without stale content.
     ///
     /// - Throws: Missing selectors, unsafe zoom, stale path, hidden error or unreachable close.
@@ -1631,6 +1844,34 @@ final class FestivalMobileUITests: XCTestCase {
         return reset
     }
 
+    /// Move the public-Shop option above the sheet footer before selecting it.
+    ///
+    /// - Parameter app: Foreground native Songs Sort sheet.
+    /// - Returns: A hittable, validated Item Shop sort row.
+    @MainActor
+    private func revealShopSort(in app: XCUIApplication) -> XCUIElement {
+        let choice = app.buttons.matching(
+            identifier: "fst.songs.sort.mode"
+        ).matching(NSPredicate(format: "label == %@", "Item Shop")).firstMatch
+        let table = app.tables.containing(
+            .button, identifier: "fst.songs.sort.reset"
+        ).firstMatch
+        let form = table.exists ? table : app.collectionViews.containing(
+            .button, identifier: "fst.songs.sort.reset"
+        ).firstMatch
+        let footer = app.buttons["fst.songs.sort.cancel"]
+        XCTAssertTrue(form.exists && footer.exists)
+        for _ in 0..<8 {
+            if choice.isHittable && choice.frame.maxY <= footer.frame.minY { break }
+            form.swipeUp()
+        }
+        XCTAssertTrue(
+            choice.isHittable && choice.frame.maxY <= footer.frame.minY,
+            "Item Shop sort option is hidden by the sheet footer"
+        )
+        return choice
+    }
+
     /// Expose the full detail pane before auditing iPad's split-view destination.
     ///
     /// - Parameter app: Foreground native Songs detail or leaderboard screen.
@@ -1771,25 +2012,37 @@ final class FestivalMobileUITests: XCTestCase {
         return count
     }
 
-    /// Check the actual rendered foreground against its median art-colored surface.
+    /// Check actual rendered text contrast against its median surface.
     ///
     /// - Parameters:
-    ///   - element: A completely visible Settings section header.
-    ///   - app: Its foreground white-cover app, used for a composited screenshot.
+    ///   - element: A completely visible text action or header.
+    ///   - app: Foreground app providing the composited screenshot.
+    ///   - leadingTextWidth: For wide rows, limit the crop to its leading text.
+    ///   - horizontalOrigin: A visible detail-pane anchor when iPadOS reports full-window bounds.
     /// - Throws: A missing screenshot or insufficient 4.5:1 rendered contrast.
     @MainActor
-    private func assertHeaderContrast(_ element: XCUIElement, in app: XCUIApplication) throws {
+    private func assertHeaderContrast(
+        _ element: XCUIElement, in app: XCUIApplication,
+        leadingTextWidth: CGFloat? = nil, horizontalOrigin: CGFloat? = nil
+    ) throws {
         XCTAssertTrue(element.isHittable)
         let image = try XCTUnwrap(app.screenshot().image.cgImage)
         let window = app.windows.firstMatch.frame
         let frame = element.frame
         let scaleX = Double(image.width) / window.width
         let scaleY = Double(image.height) / window.height
-        let crop = try XCTUnwrap(image.cropping(to: CGRect(
-            x: (frame.minX - window.minX) * scaleX,
+        let width = min(frame.width, leadingTextWidth ?? frame.width)
+        if let horizontalOrigin {
+            XCTAssertGreaterThanOrEqual(horizontalOrigin, window.minX)
+            XCTAssertLessThanOrEqual(horizontalOrigin + width, window.maxX)
+        }
+        let cropRect = CGRect(
+            x: ((horizontalOrigin ?? frame.minX) - window.minX) * scaleX,
             y: (frame.minY - window.minY) * scaleY,
-            width: frame.width * scaleX, height: frame.height * scaleY
-        ).integral))
+            width: width * scaleX,
+            height: frame.height * scaleY
+        ).integral
+        let crop = try XCTUnwrap(image.cropping(to: cropRect))
         let bytes = try bitmapPixels(crop)
         let luminances = stride(from: 0, to: bytes.count, by: 4).map { offset in
             (0..<3).map { channel -> Double in
@@ -1809,9 +2062,9 @@ final class FestivalMobileUITests: XCTestCase {
         )
         XCTAssertGreaterThanOrEqual(
             (text + 0.05) / (background + 0.05), 4.5,
-            "\(element.label) lacks readable contrast over pure-white fixture art "
+            "\(element.label) lacks readable rendered contrast "
                 + "(background \(background), text \(text), "
-                + "crop \(crop.width)x\(crop.height))"
+                + "element \(frame), window \(window), crop \(cropRect))"
         )
     }
 
