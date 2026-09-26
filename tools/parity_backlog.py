@@ -60,6 +60,10 @@ def validate(backlog: Any, product: Any) -> list[str]:
             errors.append(f"{identifier}: priority must be 0, 1 or 2")
         if not isinstance(epic.get("status"), str) or epic["status"] not in STATES:
             errors.append(f"{identifier}: invalid status")
+        if epic.get("status") == "blocked" and (
+            not isinstance(epic.get("blockedOn"), str) or not epic["blockedOn"].strip()
+        ):
+            errors.append(f"{identifier}: blocked work needs an explicit blocker")
         references = epic.get("sourceRefs")
         if not isinstance(references, list) or not references or any(
             not isinstance(ref, str) or not SOURCE_REF.fullmatch(ref) for ref in references
@@ -209,6 +213,8 @@ def main(argv: list[str] | None = None) -> int:
         for epic in sorted(backlog["epics"], key=lambda item: item["priority"]):
             print(f"P{epic['priority']} [{epic['status']}] {epic['id']}: "
                   f"{epic['acceptance'][0]}")
+            if epic["status"] == "blocked":
+                print(f"  BLOCKED: {epic['blockedOn']}")
         for route in backlog["routes"]:
             print(f"route {route['id']} [{route['apple']}]: {route['gap']}")
     return 0

@@ -6,7 +6,8 @@
     {
       "id": "service-public-data",
       "priority": 0,
-      "status": "in_progress",
+      "status": "blocked",
+      "blockedOn": "The deployed Cloudflare Error 1010 denies nominally public search, rankings and batched chart reads; the service owner must authorize a public native-client policy without bypassing the edge or distributing X-API-Key.",
       "shared": true,
       "dependsOn": [],
       "sourceRefs": [
@@ -260,6 +261,7 @@
       "id": "android-windows-parity",
       "priority": 1,
       "status": "blocked",
+      "blockedOn": "The operator intentionally shut down the Windows host; do not reconnect until it is resumed.",
       "shared": true,
       "dependsOn": ["native-visual-a11y-performance"],
       "sourceRefs": [

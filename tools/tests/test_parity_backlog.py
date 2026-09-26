@@ -73,6 +73,13 @@ class ParityBacklogTests(unittest.TestCase):
         self.assertNotIn("native-profile-selector", queued)
         self.assertNotIn("android-windows-parity", queued)
 
+    def test_blocked_epic_must_name_the_actual_external_gate(self):
+        """An external 403 or powered-off host may not look like ready work."""
+        draft = copy.deepcopy(self.backlog)
+        draft["epics"][0]["blockedOn"] = ""
+        self.assertTrue(any("blocked work needs an explicit blocker" in error
+                            for error in validate(draft, self.product)))
+
     def test_product_cannot_claim_ported_route_while_apple_is_partial(self):
         """Coverage and native evidence are needed before manifest status changes."""
         product = copy.deepcopy(self.product)
