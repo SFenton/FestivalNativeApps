@@ -29,6 +29,7 @@ struct ShopScreen: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @AppStorage("fst.shop.viewMode") private var preferredMode = ShopViewMode.grid
+    @AppStorage("fst.settings.hideShop") private var hideShop = false
     @AppStorage("fst.settings.disableShopHighlighting") private var disableHighlights = false
     @State private var state = LoadState.loading
     @State private var retryRevision = 0
@@ -374,10 +375,13 @@ struct ShopScreen: View {
     /// - Parameter offer: Source-labelled current Shop item.
     /// - Returns: Fluent border color for the effective highlight state.
     private func borderColor(for offer: ShopSong) -> Color {
-        guard !disableHighlights else { return BrandTokens.glassBorder }
-        if offer.leavingTomorrow { return BrandTokens.statusRed }
-        if offer.isNew { return BrandTokens.gold }
-        return BrandTokens.glassBorder
+        switch ShopPresentationPolicy.highlight(
+            for: offer, hidden: hideShop, highlightingDisabled: disableHighlights
+        ) {
+        case .leavingTomorrow: BrandTokens.statusRed
+        case .new: BrandTokens.gold
+        case nil: BrandTokens.glassBorder
+        }
     }
 
     /// Keep badged meaning in VoiceOver even when compact rows show only an icon.
@@ -388,9 +392,11 @@ struct ShopScreen: View {
     /// - Returns: Optional visible and accessible Shop badge.
     @ViewBuilder
     private func offerBadge(_ offer: ShopSong, compact: Bool) -> some View {
-        if !disableHighlights && (offer.leavingTomorrow || offer.isNew) {
-            let leaving = offer.leavingTomorrow
-            let title = leaving ? "Leaving Tomorrow" : "New"
+        if let highlight = ShopPresentationPolicy.highlight(
+            for: offer, hidden: hideShop, highlightingDisabled: disableHighlights
+        ) {
+            let leaving = highlight == .leavingTomorrow
+            let title = highlight.label
             HStack(spacing: 4) {
                 Image(systemName: leaving ? "clock" : "sparkles")
                 if !compact { Text(title) }

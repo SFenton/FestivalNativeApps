@@ -31,9 +31,16 @@ On headerless **live** responses, never claim the observed bootstrap verifies th
 The top native **Item Shop** action now pushes an independent public
 feed without changing the three-tab phone shell. Hiding Shop removes
 that action and returns an existing Shop route to Songs with a notice.
-The Shop page and its badges are data-backed, but **Songs rows still
-lack Shop New/Leaving indicators, Shop sorting/filtering and
-profile-aware changes**; do not mistake page navigation for Song-card
-parity. See [Shop](shop.md) and [Shop offers](../controls/shop-offers.md).
+The same validated feed now paints **New/Leaving** red/gold borders
+and accessible icons on Songs cards and an official Shop action on
+Detail. Selected iPhone/iPad fixture tests prove that the app's
+hide/highlight settings change those controls; a real Shop HTTP 503
+shows a visible Retry/status error instead of silently claiming no
+song is in Shop. Two additional source WebKit phone/tablet captures
+show the PWA's matching red/gold *border-only* rows; native adds small
+status icons as a legible, spoken distinction. Shop sorting/filtering,
+selected profile/band score rows and invalid-score action are **still
+not ported**. See [Shop](shop.md) and
+[Shop offers](../controls/shop-offers.md).
 
 The default Apple Debug/Release app now reads this **real public Songs endpoint** over HTTPS; native UI automation explicitly overrides it with loopback fixtures. A read-only Swift-client probe decoded 728 live Songs on 2026-09-25 and an already-running iOS 26.5 app rendered actual catalogue rows and album art. The screenshot is private session evidence, not a committed third-party artwork asset or a PWA/native layout parity comparison. Run `bash tools/apple_live_service_smoke.sh --read-public-live` for a bounded, aggregate-only wire check; never add production payloads or account identifiers to fixtures by copying this response. Catalogue counts and provenance can change on the service.

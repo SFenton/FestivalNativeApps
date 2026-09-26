@@ -86,11 +86,13 @@ public enum OperationalEndpoint: Sendable {
     }
 }
 
-/// Explicit synthetic catalogue states restricted to loopback development.
+/// Explicit synthetic public-read states restricted to loopback development.
 public enum FixtureScenario: String, Sendable {
     case demo
     case empty
     case error
+    case shopEmpty = "shop-empty"
+    case shopError = "shop-error"
     case artError = "art-error"
     case artSkip = "art-skip"
     case artWhite = "art-white"
@@ -388,6 +390,7 @@ public actor FestivalAPI {
             response = try await transport.send(
                 request(for: url, publication: publication, etag: cached?.etag)
             )
+            try Task.checkCancellation()
         } catch let error as URLError {
             try Task.checkCancellation()
             if error.canUseOfflineCache,
@@ -428,6 +431,7 @@ public actor FestivalAPI {
             response = try await transport.send(
                 request(for: url, publication: publication, etag: cached?.etag)
             )
+            try Task.checkCancellation()
             guard current?.publicationId == publication.publicationId else {
                 throw FestivalAPIError.invalidPublication
             }
@@ -447,6 +451,7 @@ public actor FestivalAPI {
             response = try await transport.send(
                 request(for: url, publication: publication, etag: nil)
             )
+            try Task.checkCancellation()
             if response.status == 304 {
                 throw FestivalAPIError.unexpectedNotModified
             }
@@ -482,22 +487,30 @@ public actor FestivalAPI {
             throw FestivalAPIError.invalidPublication
         }
         if responseId != nil {
+            try Task.checkCancellation()
             let entry = SessionResponseCache.Entry(
                 data: response.data,
                 publicationId: publication.publicationId,
                 etag: response.header("ETag")
             )
             if case let .path(_, _, _, display, _) = endpoint, display == .image {
-                await cache.storePathImage(entry, for: identifier)
+                try await cache.storePathImageIfActive(entry, for: identifier)
             } else {
-                await cache.store(entry, for: identifier)
+                try await cache.storeIfActive(entry, for: identifier)
             }
-            guard current?.publicationId == publication.publicationId else {
-                throw FestivalAPIError.invalidPublication
+            do {
+                try Task.checkCancellation()
+                guard current?.publicationId == publication.publicationId else {
+                    throw FestivalAPIError.invalidPublication
+                }
+            } catch {
+                await cache.removeVerifiedIfMatching(entry, for: identifier)
+                throw error
             }
         } else if publication.readyForPinning && publication.pinningEnabled {
             throw FestivalAPIError.invalidPublication
         }
+        try Task.checkCancellation()
         return PublicPayload(
             data: response.data, publicationId: responseId,
             observedPublicationId: publication.publicationId, isStale: false

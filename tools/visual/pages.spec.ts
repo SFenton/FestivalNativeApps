@@ -170,6 +170,30 @@ for (const viewport of viewports.filter(entry => entry.id.endsWith('portrait')))
   });
 }
 
+for (const viewport of viewports.filter(entry => entry.id.endsWith('portrait'))) {
+  test(`fixture-backed PWA Songs Shop highlights: ${viewport.id}`, async ({ page }, testInfo) => {
+    mkdirSync(output, { recursive: true });
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.route('**/api/shop*', async route => {
+      const source = new URL(route.request().url());
+      const fixture = await fetch(`http://127.0.0.1:8765${source.pathname}${source.search}`);
+      await route.fulfill({
+        status: fixture.status,
+        contentType: 'application/json',
+        body: Buffer.from(await fixture.arrayBuffer()),
+      });
+    });
+    await gotoAppRoute(page, '/songs');
+    await expect(page.locator('#main-content')).toContainText('Fixture Pulse', { timeout: 15_000 });
+    await expect(page.locator('[class*="shopHighlightRed"]')).toHaveCount(1, { timeout: 15_000 });
+    await expect(page.locator('[class*="shopHighlightGold"]')).toHaveCount(1);
+    await page.screenshot({
+      path: join(output, `${testInfo.project.name}-${viewport.id}-songs-shop-highlights.png`),
+      animations: 'disabled',
+    });
+  });
+}
+
 test('fixture-backed PWA artwork actually rotates after the five-second dwell', async ({ page }, testInfo) => {
   mkdirSync(output, { recursive: true });
   await page.setViewportSize({ width: 390, height: 844 });

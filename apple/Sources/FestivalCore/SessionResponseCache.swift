@@ -118,6 +118,17 @@ public actor SessionResponseCache {
         entries[Key(resource: resource, publicationId: entry.publicationId)] = entry
     }
 
+    /// Refuse an obsolete public response at the actor boundary before mutation.
+    ///
+    /// - Parameters:
+    ///   - entry: Verified response whose request is still active.
+    ///   - resource: Canonical resource URL.
+    /// - Throws: `CancellationError` if its originating read was canceled.
+    func storeIfActive(_ entry: Entry, for resource: String) throws {
+        try Task.checkCancellation()
+        store(entry, for: resource)
+    }
+
     /// Retain publication-proven path images under a separate bounded LRU.
     ///
     /// - Parameters:
@@ -146,6 +157,34 @@ public actor SessionResponseCache {
             }
         }
         return true
+    }
+
+    /// Apply the same cancellation boundary to larger, bounded path images.
+    ///
+    /// - Parameters:
+    ///   - entry: Image response with verified generation and ETag.
+    ///   - resource: Exact image URL and artifact revision.
+    /// - Throws: `CancellationError` if this image no longer belongs to the active task.
+    func storePathImageIfActive(_ entry: Entry, for resource: String) throws {
+        try Task.checkCancellation()
+        storePathImage(entry, for: resource)
+    }
+
+    /// Roll back only matching bytes if the caller was canceled after an actor hop.
+    ///
+    /// - Parameters:
+    ///   - entry: Just-stored response to remove, not another newer response.
+    ///   - resource: Scoped URL of the interrupted read.
+    func removeVerifiedIfMatching(_ entry: Entry, for resource: String) {
+        let key = Key(resource: resource, publicationId: entry.publicationId)
+        if entries[key] == entry {
+            entries.removeValue(forKey: key)
+        }
+        if pathImages[key] == entry {
+            pathImages.removeValue(forKey: key)
+            pathImageRecency.removeAll { $0 == key }
+            pathImageBytes -= entry.data.count
+        }
     }
 
     /// Reuse a last-seen response only during the same observed bootstrap.

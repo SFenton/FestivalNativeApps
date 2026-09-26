@@ -73,6 +73,10 @@
       "sha256": "bc2accaa348ca75a0d08597125bf621f93f8fdc2e90a1e6d8523c4a4ae166f31",
       "status": "committed"
     },
+    "FortniteFestivalWeb/src/contexts/ShopContext.tsx": {
+      "sha256": "ee134fc89131ef410f93ce6e3a7a4ecba5d0545e1e3f8eaccbce924049215ad6",
+      "status": "committed"
+    },
     "FortniteFestivalWeb/src/hooks/data/useFilteredSongs.ts": {
       "sha256": "f657ba294dd3629650b1c96e8653757e2f9dc5e9a34df6149bbf95ee94c6cf02",
       "status": "committed"

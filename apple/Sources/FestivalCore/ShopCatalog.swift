@@ -54,6 +54,41 @@ public struct ShopResponse: Decodable, Sendable {
     }
 }
 
+/// One real Shop availability accent, not a fallback for missing feed data.
+public enum ShopHighlight: String, Sendable, Equatable {
+    case new
+    case leavingTomorrow
+
+    /// Announce badge meaning independently of the highlight color.
+    ///
+    /// - Returns: Readable availability state.
+    public var label: String {
+        switch self {
+        case .new: "New"
+        case .leavingTomorrow: "Leaving Tomorrow"
+        }
+    }
+}
+
+/// Share the effective hide/highlight policy across Shop, Songs and Detail.
+public enum ShopPresentationPolicy {
+    /// Preserve preference while suppressing every hidden or disabled highlight.
+    ///
+    /// - Parameters:
+    ///   - offer: Validated current Shop row, nil until data exists or if absent.
+    ///   - hidden: The app's Hide Item Shop setting.
+    ///   - highlightingDisabled: The saved disable-highlighting preference.
+    /// - Returns: Leaving Tomorrow, then New, or nil when no accent applies.
+    public static func highlight(
+        for offer: ShopSong?, hidden: Bool, highlightingDisabled: Bool
+    ) -> ShopHighlight? {
+        guard !hidden, !highlightingDisabled, let offer else { return nil }
+        if offer.leavingTomorrow { return .leavingTomorrow }
+        if offer.isNew { return .new }
+        return nil
+    }
+}
+
 /// Shop bytes decoded without treating an observed publication as response proof.
 public struct ShopPayload: Sendable {
     public let shop: ShopResponse

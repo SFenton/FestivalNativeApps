@@ -204,6 +204,7 @@
       "sourceRefs": [
         "FortniteFestivalWeb/src/pages/shop/ShopPage.tsx:41",
         "FortniteFestivalWeb/src/hooks/data/useShopState.ts:1",
+        "FortniteFestivalWeb/src/contexts/ShopContext.tsx:30",
         "FSTService/Api/SongEndpoints.cs:244",
         "FSTService/Api/ShopCacheService.cs:48",
         "FSTService/Scraping/ShopUrlHelper.cs:10"
@@ -298,8 +299,8 @@
   ],
   "routes": [
     {"id": "home-redirect", "apple": "partial", "epics": ["apple-shell-modals"], "gap": "Default Songs tab exists; URL/deep-link redirect, unknown route and native guarded recovery are untested."},
-    {"id": "songs", "apple": "partial", "epics": ["apple-anonymous-songs-sort", "apple-songs-cards", "apple-songs-actions"], "gap": "Catalogue-only Sort, Shop navigation and chart filter exist; no selected profile/band score rows, Shop row badges/sort/filter propagation, quick links or invalid-score warnings; iPad full Sort audit pending."},
-    {"id": "song-detail", "apple": "partial", "epics": ["apple-song-detail", "apple-chopt-paths"], "gap": "Keyless ten-row solo previews, Shop-to-Detail navigation and first CHOpt image/text modal exist; selected score/history, band cards, Shop availability indicators, path column order and full accessibility audits remain missing."},
+    {"id": "songs", "apple": "partial", "epics": ["apple-anonymous-songs-sort", "apple-songs-cards", "apple-songs-actions"], "gap": "Catalogue-only Sort, validated Shop New/Leaving card indicators and chart filter exist; selected profile/band scores, Shop-based sort/filter modes, quick links and invalid-score warning remain missing; iPad full Sort audit pending."},
+    {"id": "song-detail", "apple": "partial", "epics": ["apple-song-detail", "apple-chopt-paths"], "gap": "Ten-row solo previews, Shop availability/action and first CHOpt image/text modal exist; selected score/history, band cards, path column order and full Detail/Paths accessibility audits remain missing."},
     {"id": "song-band-leaderboard", "apple": "absent", "epics": ["apple-band-flows"], "gap": "No per-song Duet/Trio/Quad entries, combo filters, pagination or selected footer."},
     {"id": "song-leaderboard", "apple": "partial", "epics": ["apple-song-detail", "apple-statistics-history"], "gap": "Native solo pages and pager exist; selected player/member navigation, history, off-page spotlight and all PWA row states do not."},
     {"id": "player-history", "apple": "absent", "epics": ["apple-statistics-history"], "gap": "No song/instrument history page, sort modal or fallback-validity views."},
@@ -310,7 +311,7 @@
     {"id": "rivalry", "apple": "absent", "epics": ["apple-rivals"], "gap": "No head-to-head song/rank breakdown, sort or link actions."},
     {"id": "statistics", "apple": "absent", "epics": ["apple-statistics-history", "apple-band-flows"], "gap": "No guarded player/band selected-profile hub, score charts, rank summaries or selected-state effects."},
     {"id": "suggestions", "apple": "absent", "epics": ["apple-suggestions-compete"], "gap": "No player/band categories, search/filter modal, incremental load or score-driven suggestions."},
-    {"id": "shop", "apple": "partial", "epics": ["apple-shop"], "gap": "Apple reads a real public Shop feed with list/grid, badges, safe official links, Settings toggles and warm-only art/data; PWA-wide sidebar/Shop websocket, Shop indicators on Songs/Detail, full visual/focus/performance and other platforms remain pending."},
+    {"id": "shop", "apple": "partial", "epics": ["apple-shop"], "gap": "Apple reads a real public feed with list/grid, badges, official links and Shop effects on Songs/Detail; PWA-wide sidebar, websocket rotation, Shop-based sort/filter, complete focus/performance and other platforms remain pending."},
     {"id": "manual", "apple": "absent", "epics": ["apple-settings-manual", "apple-first-run-notifications"], "gap": "No feature-flagged manual or replayable page guidance."},
     {"id": "leaderboards", "apple": "placeholder", "epics": ["apple-rankings"], "gap": "Tab renders migration message, not solo/band top-ten cards, rank history or selection spotlight."},
     {"id": "full-rankings", "apple": "absent", "epics": ["apple-rankings"], "gap": "No page/metric/instrument/combo/family rankings or player/band footer."},
@@ -319,7 +320,7 @@
     {"id": "bands", "apple": "absent", "epics": ["apple-band-flows"], "gap": "No band lookup/search-context route, selected band or band list."},
     {"id": "band-detail", "apple": "absent", "epics": ["apple-band-flows"], "gap": "No band member/stat/ranking/song page or select-as-band action."},
     {"id": "compete", "apple": "absent", "epics": ["apple-suggestions-compete", "apple-rivals", "apple-rankings"], "gap": "No guarded player-only ranking/rival scope cards or drill-down actions."},
-    {"id": "settings", "apple": "partial", "epics": ["apple-settings-manual", "apple-songs-cards"], "gap": "Instrument visibility, Paths default, Shop hide/highlights and accessibility aids work; profile metadata, Shop effects on Songs/Detail, visual/column order and many PWA sections remain incomplete."},
+    {"id": "settings", "apple": "partial", "epics": ["apple-settings-manual", "apple-songs-cards"], "gap": "Instrument visibility, Paths default, Shop hide/highlights across Shop/Songs/Detail and accessibility aids work; profile metadata, Shop-dependent sort/filter, visual/column order and many PWA sections remain incomplete."},
     {"id": "licenses", "apple": "absent", "epics": ["apple-settings-manual"], "gap": "No license list, detail modal or return-focus behavior."}
   ]
 }

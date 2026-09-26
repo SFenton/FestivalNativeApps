@@ -32,6 +32,9 @@ final class FestivalSession {
     private(set) var publicationId: Int?
     private(set) var publicationRevision = 0
     private(set) var artworkPaths: [String] = []
+    private(set) var currentShop: ShopPayload?
+    private(set) var shopOffersById: [String: ShopSong] = [:]
+    private(set) var shopError: String?
 
     /// Create a session without starting network work during view construction.
     ///
@@ -78,9 +81,27 @@ final class FestivalSession {
     /// - Returns: Validated current or explicitly stale Shop rows.
     /// - Throws: Configuration, network, publication or invalid-shop errors.
     func shop() async throws -> ShopPayload {
-        let result = try await client().shop()
-        try await observe(publicationId: result.observedPublicationId)
-        return result
+        do {
+            let result = try await client().shop()
+            try Task.checkCancellation()
+            try await observe(publicationId: result.observedPublicationId)
+            try Task.checkCancellation()
+            currentShop = result
+            shopOffersById = Dictionary(
+                result.shop.songs.map { ($0.songId, $0) },
+                uniquingKeysWith: { original, _ in original }
+            )
+            shopError = nil
+            return result
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw error
+        } catch {
+            guard !Task.isCancelled else { throw CancellationError() }
+            shopError = error.localizedDescription
+            throw error
+        }
     }
 
     /// Reuse bounded, decoded art instead of decoding the same cover while scrolling.
@@ -200,6 +221,9 @@ final class FestivalSession {
             if previous != publicationId {
                 self.publicationId = publicationId
                 publicationRevision += 1
+                currentShop = nil
+                shopOffersById.removeAll()
+                shopError = nil
                 sourceArtworkPaths.removeAll()
                 artworkPaths.removeAll()
                 thumbnails.removeAllObjects()

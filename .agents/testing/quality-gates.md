@@ -41,8 +41,9 @@ source and a separate run emitted a zero-test result; the runner failed
 closed, and **only the affected product DerivedData** was cleaned
 before fresh iPhone/iPad exact test-name passes. No simulator was reset.
 
-The **Shop WIP** adds five focused `shopCatalog` Core tests (validated
-official outbound host/path, order/count/flags, ETag pinning,
+The **Shop WIP** adds six focused Core tests for Shop wire and effective
+New/Leaving/hidden precedence (validated official outbound host/path,
+order/count/flags, ETag pinning,
 malformed/oversized byte rejection, unverified warm-only and cold
 expiry) plus the existing artwork generation-race regression.
 `tools/mock_service.py` serves two original offers with New/Leaving
@@ -64,6 +65,32 @@ recent tier. Loaded/empty/error and warm-offline Shop screens pass
 selected unwaived iPhone/iPad `.all` audits after list reflow at
 accessibility text sizes. None of these selected cases is an all-state
 Shop, four-platform, full-source coverage or performance certification.
+
+The new **Shop-to-Songs/Detail WIP** uses
+`shopHighlightPolicyKeepsSourcePrecedenceAndSavedSettings` plus
+`testPublicShopMembershipDecoratesSongsAndDetail` (one exact
+iPhone/iPad case each) to prove validated New/Leaving borders/labels
+on Songs and a distinct safe Detail Shop link. Settings highlight-off
+removes the badges but retains the outbound action, while Hide Shop
+removes membership UI without erasing its preference. Both selected
+full **Songs** `.all` audits passed with the extra status icons; the
+previously documented full Detail audit remains pending because of
+score rows under system tab chrome. Two more selected WebKit captures
+compare the PWA's red/gold Songs border-only states with native
+border-plus-icon states at nearby phone/tablet widths. Independent
+`shop-error` and `shop-empty` fixtures leave Songs populated;
+`testShopFeedFailureAndEmptyStaySeparateFromSongs` passed on both
+devices, showing explicit Shop 503/Retry on Songs and Detail rather
+than fabricated empty membership. Very-fast Detail navigation starts
+its own Shop task if Songs canceled an unfinished read. The targeted
+hosted `detailShopLoadsAfterCancelledSongsRequestWithoutStalePromotion`
+first reproduced an old canceled response poisoning the same-URL
+Shop ETag; successful reads now check cancellation before cache
+mutation and in the cache actor. Its follow-up 304 must retain the
+new offer, and `canceledPublicCacheWritesNeverPromoteOldResponses`
+checks canceled Shop/image actor writes. Both pass without a real
+service call. Actual rapid device gestures, Shop-dependent
+sorting/filtering and selected-player/band score cards remain open.
 
 The generated Swift `BrandTokens.swift` contains stored constants and has no executable LLVM lines; it is the sole explicit coverage exclusion. The gate fails if a future report shows executable lines in an excluded file, and `tools/generate_tokens.py --check` separately verifies every generated token byte. Do not exclude handwritten logic or views to make a percentage pass.
 

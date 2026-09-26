@@ -103,3 +103,29 @@ import Testing
     #expect(await cache.entry(for: "path-c", publicationId: 7) == nil)
     #expect(await cache.entry(for: "catalog", publicationId: 7) == nil)
 }
+
+/// A canceled request cannot replace valid Shop or path-image cache bytes.
+@Test func canceledPublicCacheWritesNeverPromoteOldResponses() async throws {
+    let cache = SessionResponseCache()
+    let entry = SessionResponseCache.Entry(
+        data: Data("obsolete".utf8), publicationId: 7, etag: "\"old\""
+    )
+    let shopWrite = Task { () throws -> Void in
+        withUnsafeCurrentTask { $0?.cancel() }
+        try await cache.storeIfActive(entry, for: "shop")
+    }
+    await #expect(throws: CancellationError.self) { try await shopWrite.value }
+    #expect(await cache.entry(for: "shop", publicationId: 7) == nil)
+    let imageWrite = Task { () throws -> Void in
+        withUnsafeCurrentTask { $0?.cancel() }
+        try await cache.storePathImageIfActive(entry, for: "image")
+    }
+    await #expect(throws: CancellationError.self) { try await imageWrite.value }
+    #expect(await cache.entry(for: "image", publicationId: 7) == nil)
+    await cache.store(entry, for: "shop")
+    await cache.removeVerifiedIfMatching(entry, for: "shop")
+    #expect(await cache.entry(for: "shop", publicationId: 7) == nil)
+    #expect(await cache.storePathImage(entry, for: "image"))
+    await cache.removeVerifiedIfMatching(entry, for: "image")
+    #expect(await cache.entry(for: "image", publicationId: 7) == nil)
+}

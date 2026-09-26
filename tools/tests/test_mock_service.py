@@ -168,6 +168,12 @@ class MockServiceTests(unittest.TestCase):
         self.assertEqual(stale.exception.code, 409)
         with urlopen(self.base + "/api/shop?scenario=empty") as response:
             self.assertEqual(json.load(response)["count"], 0)
+        with urlopen(self.base + "/api/songs?scenario=shop-empty") as response:
+            self.assertEqual(json.load(response)["count"], 2)
+        with urlopen(self.base + "/api/shop?scenario=shop-empty") as response:
+            self.assertEqual(json.load(response)["count"], 0)
+        with urlopen(self.base + "/api/songs?scenario=shop-error") as response:
+            self.assertEqual(json.load(response)["count"], 2)
         with urlopen(self.base + "/api/shop?scenario=art-white") as response:
             self.assertEqual(
                 json.load(response)["songs"][0]["albumArt"],
@@ -175,6 +181,7 @@ class MockServiceTests(unittest.TestCase):
             )
         for route, expected in (
             ("/api/shop?scenario=error", 503),
+            ("/api/shop?scenario=shop-error", 503),
             ("/api/shop?scenario=unknown", 400),
             ("/api/shop?scenario=empty&scenario=demo", 400),
         ):

@@ -189,6 +189,113 @@ final class FestivalMobileUITests: XCTestCase {
         setSwitch(hidden, to: originalHidden)
     }
 
+    /// Valid Shop offers change anonymous Songs cards and their Detail action.
+    ///
+    /// - Throws: Missing Shop badges, stale disabled state or an unsafe external action.
+    @MainActor
+    func testPublicShopMembershipDecoratesSongsAndDetail() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launch()
+        rootControl("Settings", app: app).tap()
+        let hidden = app.switches["fst.settings.hide-shop"]
+        reveal(hidden, in: app, scrollingUp: true)
+        let originalHidden = try XCTUnwrap(hidden.value as? String)
+        setSwitch(hidden, to: "0")
+        let highlights = app.switches["fst.settings.shop-highlights"]
+        reveal(highlights, in: app, scrollingUp: true)
+        let originalHighlights = try XCTUnwrap(highlights.value as? String)
+        setSwitch(highlights, to: "1")
+
+        rootControl("Songs", app: app).tap()
+        let row = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(row.waitForExistence(timeout: 15))
+        let newBadge = app.descendants(matching: .any).matching(
+            identifier: "fst.songs.shop-badge.fixture-pulse"
+        ).firstMatch
+        let leaving = app.descendants(matching: .any).matching(
+            identifier: "fst.songs.shop-badge.fixture-orbit"
+        ).firstMatch
+        XCTAssertTrue(newBadge.waitForExistence(timeout: 15))
+        XCTAssertTrue(leaving.exists)
+        record(app, name: "songs-public-shop-membership")
+        try app.performAccessibilityAudit(for: .all)
+        row.tap()
+        let official = app.descendants(matching: .any).matching(
+            identifier: "fst.song-detail.shop"
+        ).firstMatch
+        XCTAssertTrue(official.waitForExistence(timeout: 10))
+        XCTAssertTrue(official.label.contains("Item Shop"))
+
+        rootControl("Settings", app: app).tap()
+        reveal(highlights, in: app, scrollingUp: true)
+        setSwitch(highlights, to: "0")
+        rootControl("Songs", app: app).tap()
+        XCTAssertTrue(official.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.descendants(matching: .any).matching(
+            identifier: "fst.song-detail.shop-badge"
+        ).firstMatch.exists)
+        let back = app.navigationBars.buttons.matching(
+            NSPredicate(format: "label == %@ OR label == %@", "Songs", "Back")
+        ).firstMatch
+        XCTAssertTrue(back.waitForExistence(timeout: 10))
+        back.tap()
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertFalse(newBadge.exists)
+        XCTAssertFalse(leaving.exists)
+
+        rootControl("Settings", app: app).tap()
+        reveal(highlights, in: app, scrollingUp: true)
+        setSwitch(highlights, to: originalHighlights)
+        setSwitch(hidden, to: originalHidden)
+    }
+
+    /// Shop 503 is disclosed on Songs/Detail, never treated as an empty membership set.
+    ///
+    /// - Throws: A missing error/retry, invented Shop action or false empty-feed state.
+    @MainActor
+    func testShopFeedFailureAndEmptyStaySeparateFromSongs() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "shop-error"
+        app.launch()
+        let row = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(row.waitForExistence(timeout: 15))
+        let unavailable = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.shop-error").firstMatch
+        XCTAssertTrue(unavailable.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["fst.songs.shop-retry"].exists)
+        XCTAssertFalse(app.descendants(matching: .any).matching(
+            identifier: "fst.songs.shop-badge.fixture-pulse"
+        ).firstMatch.exists)
+        record(app, name: "songs-shop-service-unavailable")
+        row.tap()
+        let detailError = app.descendants(matching: .any).matching(
+            identifier: "fst.song-detail.shop-error"
+        ).firstMatch
+        XCTAssertTrue(detailError.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.descendants(matching: .any).matching(
+            identifier: "fst.song-detail.shop"
+        ).firstMatch.exists)
+
+        app.terminate()
+        app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "shop-empty"
+        app.launch()
+        XCTAssertTrue(row.waitForExistence(timeout: 15))
+        XCTAssertFalse(unavailable.exists)
+        XCTAssertFalse(app.descendants(matching: .any).matching(
+            identifier: "fst.songs.shop-badge.fixture-pulse"
+        ).firstMatch.exists)
+        openItemShop(in: app)
+        XCTAssertTrue(app.staticTexts["No songs in the Item Shop"]
+            .waitForExistence(timeout: 15))
+        record(app, name: "songs-populated-shop-genuinely-empty")
+    }
+
     /// Native Sort stages changes, persists rows and audits reachable modal text.
     ///
     /// - Throws: Wrong row order, silent discard, lost preference or visible contrast.

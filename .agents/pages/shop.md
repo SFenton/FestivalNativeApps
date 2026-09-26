@@ -38,7 +38,7 @@ offers remain usable.
 | Empty/error | Genuine empty message vs fetch failure | Explicit empty card or scalable unavailable/Retry, not an empty-data fallback for HTTP errors |
 | Hide/highlight | Hide Shop nav/effective highlights while retaining saved preference | Native Settings removes Shop action/resets its route with notice; badge/border highlighting updates and its saved value survives hiding |
 | Offline | Web HTTP/React query state | Native validated Shop rows and recent original covers survive actual warm listener loss as "publication unverified"; both disappear after process relaunch |
-| Cross-page | Shop badges and filters affect Songs/Detail; WebSocket keeps rotation current | **Not ported:** native Song cards/Detail/shop sort/filter and live updates do not yet consume Shop membership |
+| Cross-page | Shop badges and filters affect Songs/Detail; WebSocket keeps rotation current | Native Songs New/Leaving borders/icons and Detail official link/status now consume validated membership; Shop-based sort/filter and live push updates remain missing |
 
 **Matched fixture observation:** Two selected source WebKit tests capture
 phone 390x844 list and tablet 820x1180 grid from the same synthetic
@@ -47,11 +47,15 @@ the first native screenshots, compact rows were condensed to art/title/
 badge/bag actions and grid tiles made full-bleed with readable scrims
 and red/gold accents. Apple system title/back/tab/sidebar chrome and
 a separate Detail action intentionally differ; the PWA's source grid
-card itself opens the official Shop URL. This is a structural
-comparison, **not** pixel or full feature parity.
+card itself opens the official Shop URL. Separate fixture-backed
+Songs Shop-highlight captures compare source red/gold border-only
+rows with native border-plus-accessible-icon rows on both form
+factors. This is a structural comparison, **not** pixel or full
+feature parity.
 
 **Evidence and gaps:** `ShopCatalogTests` prove official-link
-validation, count/order, pin/304, malformed/oversized input rejection
+validation, shared New/Leaving/hidden precedence, count/order,
+pin/304, malformed/oversized input rejection
 and warm-only memory. `tools/mock_service.py` serves deterministic
 demo/empty/503/white-art states and an opt-in local port 8773 that
 closes only after the device test confirms actual artwork pixels.
@@ -61,6 +65,17 @@ iPadOS 26.5. Loaded, empty, error and warm-offline visible Shop states
 passed unwaived `.all` audits after large-text reflow and the bounded
 strong recent-art cache; they do **not** certify every card, external
 link focus, macOS GUI, Duo posture, animation performance, landscape,
-all Settings combinations or Android/Windows. iPad sidebar Shop entry,
-global search/profile header, push-notification/shop WebSocket,
-Shop-aware Songs/Detail and full-source coverage remain pending.
+all Settings combinations or Android/Windows. A separate selected
+iPhone/iPad Songs-to-Detail journey proves real Shop status appears,
+disappears on highlight-off and keeps the official Detail action,
+with unwaived full **Songs** screen audits. `shop-error` vs
+`shop-empty` fixtures prove a 503 is explicitly disclosed on
+Songs/Detail while a true empty feed leaves ordinary songs visible.
+The very-fast Detail-before-Songs-Shop-read race has a deterministic
+**hosted** test: cancel the held Songs request, mount Detail, return
+the new validated offer, then release an old transport reply and
+require both visible membership and the next ETag read to stay new.
+Actual rapid device gestures and focus restoration are still
+unmeasured. iPad sidebar Shop entry, global search/profile header,
+push/shop WebSocket, Shop-based Songs sorts/filters and full-source
+coverage remain pending.

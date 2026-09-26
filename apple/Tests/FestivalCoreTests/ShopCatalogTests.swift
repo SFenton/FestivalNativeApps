@@ -54,6 +54,37 @@ private let shopJSON = Data("""
     #expect(FestivalAPIError.invalidShop.errorDescription?.contains("Item Shop") == true)
 }
 
+@Test func shopHighlightPolicyKeepsSourcePrecedenceAndSavedSettings() throws {
+    let offers = try JSONDecoder().decode(ShopResponse.self, from: shopJSON).songs
+    #expect(ShopPresentationPolicy.highlight(
+        for: offers[0], hidden: false, highlightingDisabled: false
+    ) == .new)
+    #expect(ShopPresentationPolicy.highlight(
+        for: offers[1], hidden: false, highlightingDisabled: false
+    ) == .leavingTomorrow)
+    #expect(ShopPresentationPolicy.highlight(
+        for: nil, hidden: false, highlightingDisabled: false
+    ) == nil)
+    #expect(ShopPresentationPolicy.highlight(
+        for: offers[0], hidden: true, highlightingDisabled: false
+    ) == nil)
+    #expect(ShopPresentationPolicy.highlight(
+        for: offers[1], hidden: false, highlightingDisabled: true
+    ) == nil)
+    #expect(ShopHighlight.new.label == "New")
+    #expect(ShopHighlight.leavingTomorrow.label == "Leaving Tomorrow")
+    let both = try JSONDecoder().decode(ShopResponse.self, from: Data(
+        String(decoding: shopJSON, as: UTF8.self)
+            .replacingOccurrences(
+                of: "\"leavingTomorrow\":true,\"isNew\":false",
+                with: "\"leavingTomorrow\":true,\"isNew\":true"
+            ).utf8
+    ))
+    #expect(ShopPresentationPolicy.highlight(
+        for: both.songs[1], hidden: false, highlightingDisabled: false
+    ) == .leavingTomorrow)
+}
+
 @Test func shopCatalogPinsPublicationAndRevalidatesETag() async throws {
     let transport = FixtureTransport([
         HTTPResult(status: 200, data: shopPublication),

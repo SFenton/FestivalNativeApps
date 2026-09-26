@@ -407,14 +407,15 @@ class FixtureHandler(BaseHTTPRequestHandler):
         elif path == "/api/shop":
             scenarios = query.get("scenario", ["demo"])
             if len(scenarios) != 1 or scenarios[0] not in (
-                "demo", "empty", "error", "art-error", "art-skip", "art-white"
+                "demo", "empty", "error", "shop-empty", "shop-error",
+                "art-error", "art-skip", "art-white"
             ):
                 self._json(400, {"status": "unknown_fixture_scenario"})
                 return
-            if scenarios[0] == "error":
+            if scenarios[0] in ("error", "shop-error"):
                 self._json(503, {"status": "fixture_shop_unavailable"})
                 return
-            if scenarios[0] == "empty":
+            if scenarios[0] in ("empty", "shop-empty"):
                 shop, etag = {
                     "count": 0, "songs": [], "newSongs": [], "lastUpdated": None,
                 }, '"fst-fixture-shop-empty-v1"'
@@ -444,7 +445,8 @@ class FixtureHandler(BaseHTTPRequestHandler):
         elif path == "/api/songs":
             scenarios = query.get("scenario", ["demo"])
             if len(scenarios) != 1 or scenarios[0] not in (
-                "demo", "empty", "error", "art-error", "art-skip", "art-white"
+                "demo", "empty", "error", "shop-empty", "shop-error",
+                "art-error", "art-skip", "art-white"
             ):
                 self._json(400, {"status": "unknown_fixture_scenario"})
                 return

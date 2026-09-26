@@ -210,10 +210,14 @@ struct SongsScreen: View {
     @Binding private var instrument: Instrument?
     @Binding private var navigationNotice: String?
     @State private var refreshFailure: String?
+    @State private var shopRefreshFailure: String?
+    @State private var shopRetryRevision = 0
     @State private var sortPresented = false
     @AppStorage("fst.songs.sortMode") private var sortMode = SongSortMode.title
     @AppStorage("fst.songs.sortAscending") private var sortAscending = true
     @AppStorage("fst.settings.hideShop") private var hideShop = false
+    @AppStorage("fst.settings.disableShopHighlighting")
+    private var disableShopHighlighting = false
     @FocusState private var searchFocused: Bool
 
     enum LoadState {
@@ -226,6 +230,13 @@ struct SongsScreen: View {
     private struct CatalogueTaskKey: Equatable {
         let publicationRevision: Int
         let visible: Bool
+    }
+
+    private struct ShopTaskKey: Equatable {
+        let publicationRevision: Int
+        let visible: Bool
+        let hidden: Bool
+        let retryRevision: Int
     }
 
     /// Create a catalogue screen with a fixture state for hosted visual tests.
@@ -358,10 +369,16 @@ struct SongsScreen: View {
                             disclosures(for: payload)
                         }
                         ForEach(visible) { song in
+                            let shopHighlight = ShopPresentationPolicy.highlight(
+                                for: session.shopOffersById[song.songId],
+                                hidden: hideShop,
+                                highlightingDisabled: disableShopHighlighting
+                            )
                             NavigationLink(value: SongRoute.detail(song)) {
                                 SongRowView(
                                     song: song, instrument: instrument,
-                                    session: session, highContrast: highContrast
+                                    session: session, highContrast: highContrast,
+                                    shopHighlight: shopHighlight
                                 )
                             }
                             .listRowSeparator(.hidden)
@@ -428,6 +445,13 @@ struct SongsScreen: View {
                 }
             }
         }
+        .task(id: ShopTaskKey(
+            publicationRevision: session.publicationRevision,
+            visible: isVisible, hidden: hideShop, retryRevision: shopRetryRevision
+        )) {
+            guard isVisible && !hideShop else { return }
+            await reloadShop()
+        }
         .onChange(of: visibleInstruments) { _, updated in
             if let instrument, !updated.contains(instrument) {
                 self.instrument = nil
@@ -467,6 +491,11 @@ struct SongsScreen: View {
     private func hasDisclosure(for payload: CatalogPayload) -> Bool {
         refreshFailure != nil || payload.isStale || payload.publicationId == nil
             || session.publicationId.map { $0 != payload.observedPublicationId } == true
+            || (!hideShop && (
+                session.shopError != nil
+                    || (session.currentShop == nil && shopRefreshFailure != nil)
+                    || session.currentShop?.isStale == true
+            ))
     }
 
     /// Show freshness and update errors even when search finds no matching rows.
@@ -499,6 +528,33 @@ struct SongsScreen: View {
                 symbol: "arrow.clockwise"
             )
         }
+        if !hideShop, let shopFailure = session.shopError
+            ?? (session.currentShop == nil ? shopRefreshFailure : nil) {
+            FreshnessDisclosure(
+                message: "Item Shop status unavailable: \(shopFailure)",
+                symbol: "exclamationmark.triangle"
+            )
+            .accessibilityIdentifier("fst.songs.shop-error")
+            Button("Retry Item Shop status") { shopRetryRevision += 1 }
+                .font(.body)
+                .foregroundStyle(BrandTokens.textPrimary)
+                .frame(minHeight: 44)
+                .padding(.horizontal, 12)
+                .background(
+                    BrandTokens.cardBackground,
+                    in: RoundedRectangle(cornerRadius: 10)
+                )
+                .buttonStyle(HighContrastPagerStyle())
+                .accessibilityIdentifier("fst.songs.shop-retry")
+        } else if !hideShop, let shop = session.currentShop, shop.isStale {
+            FreshnessDisclosure(
+                message: OfflineDisclosure.label(
+                    .shop, publicationId: shop.publicationId
+                ),
+                symbol: "wifi.slash"
+            )
+            .accessibilityIdentifier("fst.songs.shop-offline")
+        }
     }
 
     /// Refresh the public catalogue, preserving the last-viewed process cache.
@@ -527,6 +583,22 @@ struct SongsScreen: View {
             } else {
                 state = .failed(error.localizedDescription)
             }
+        }
+    }
+
+    /// Keep Shop status distinct from Songs while revealing a usable retry on failure.
+    private func reloadShop() async {
+        do {
+            _ = try await session.shop()
+            try Task.checkCancellation()
+            shopRefreshFailure = nil
+        } catch is CancellationError {
+            return
+        } catch let error as URLError where error.code == .cancelled {
+            return
+        } catch {
+            guard !Task.isCancelled else { return }
+            shopRefreshFailure = error.localizedDescription
         }
     }
 }
@@ -668,6 +740,33 @@ struct SongRowView: View {
     let instrument: Instrument?
     let session: FestivalSession
     let highContrast: Bool
+    let shopHighlight: ShopHighlight?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// Decorate one real Shop offer without turning it into a new navigation action.
+    ///
+    /// - Parameters:
+    ///   - song: Public catalogue row.
+    ///   - instrument: Optional currently selected chart.
+    ///   - session: Process-scoped artwork loader.
+    ///   - highContrast: Explicit content contrast override.
+    ///   - shopHighlight: Validated, effectively enabled Shop badge.
+    init(
+        song: Song, instrument: Instrument?, session: FestivalSession,
+        highContrast: Bool, shopHighlight: ShopHighlight? = nil
+    ) {
+        self.song = song
+        self.instrument = instrument
+        self.session = session
+        self.highContrast = highContrast
+        self.shopHighlight = shopHighlight
+    }
+
+    private var trailingLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 8))
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -678,13 +777,37 @@ struct SongRowView: View {
                 Text(song.title)
                     .font(.headline)
                     .foregroundStyle(BrandTokens.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(song.year.map { "\(song.artist) · \($0)" } ?? song.artist)
                     .font(.subheadline)
                     .foregroundStyle(BrandTokens.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 4)
-            if let instrument, let difficulty = song.difficulty?.chartedValue(for: instrument) {
-                DifficultyMeter(level: difficulty, raw: true)
+            trailingLayout {
+                if let instrument,
+                   let difficulty = song.difficulty?.chartedValue(for: instrument) {
+                    DifficultyMeter(level: difficulty, raw: true)
+                }
+                if let shopHighlight {
+                    Image(systemName: shopHighlight == .leavingTomorrow
+                        ? "clock" : "sparkles")
+                        .font(.subheadline)
+                        .foregroundStyle(
+                            shopHighlight == .leavingTomorrow
+                                ? BrandTokens.textPrimary : BrandTokens.gold
+                        )
+                        .frame(minWidth: 30, minHeight: 30)
+                        .background(
+                            shopHighlight == .leavingTomorrow
+                                ? BrandTokens.statusRed : BrandTokens.appBackground,
+                            in: Circle()
+                        )
+                        .accessibilityLabel("Item Shop: \(shopHighlight.label)")
+                        .accessibilityIdentifier(
+                            "fst.songs.shop-badge.\(song.songId)"
+                        )
+                }
             }
         }
         .padding(.horizontal, 12)
@@ -693,8 +816,10 @@ struct SongRowView: View {
         .overlay {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(
-                    highContrast ? BrandTokens.textPrimary : BrandTokens.glassBorder,
-                    lineWidth: highContrast ? 2 : 1
+                    shopHighlight == .leavingTomorrow ? BrandTokens.statusRed
+                        : shopHighlight == .new ? BrandTokens.gold
+                        : highContrast ? BrandTokens.textPrimary : BrandTokens.glassBorder,
+                    lineWidth: shopHighlight != nil || highContrast ? 2 : 1
                 )
         }
         .accessibilityElement(children: .combine)
@@ -709,7 +834,16 @@ struct SongDetailScreen: View {
     let session: FestivalSession
     let visibleInstruments: Set<Instrument>
     @AppStorage("fst.settings.pathDefaultView") private var pathDefaultView = PathDisplayMode.image
+    @AppStorage("fst.settings.hideShop") private var hideShop = false
+    @AppStorage("fst.settings.disableShopHighlighting")
+    private var disableShopHighlighting = false
     @State private var pathsPresented = false
+    @State private var shopRefreshFailure: String?
+
+    private struct ShopDetailTaskKey: Equatable {
+        let publicationRevision: Int
+        let hidden: Bool
+    }
 
     private var charted: [Instrument] {
         Instrument.allCases.filter(song.supports)
@@ -719,6 +853,17 @@ struct SongDetailScreen: View {
         Instrument.allCases.filter {
             $0 != .karaoke && visibleInstruments.contains($0)
         }
+    }
+
+    private var shopOffer: ShopSong? {
+        hideShop ? nil : session.shopOffersById[song.songId]
+    }
+
+    private var shopHighlight: ShopHighlight? {
+        ShopPresentationPolicy.highlight(
+            for: shopOffer, hidden: hideShop,
+            highlightingDisabled: disableShopHighlighting
+        )
     }
 
     /// Supply enabled chart links without hiding the PWA's full Intensity grid.
@@ -761,9 +906,45 @@ struct SongDetailScreen: View {
                             Text(year.formatted(.number.grouping(.never)))
                                 .foregroundStyle(BrandTokens.textSecondary)
                         }
+                        if let shopHighlight {
+                            Label(
+                                "Item Shop: \(shopHighlight.label)",
+                                systemImage: shopHighlight == .leavingTomorrow
+                                    ? "clock" : "sparkles"
+                            )
+                            .font(.caption.bold())
+                            .foregroundStyle(
+                                shopHighlight == .leavingTomorrow
+                                    ? BrandTokens.textPrimary : BrandTokens.gold
+                            )
+                            .padding(8)
+                            .background(
+                                shopHighlight == .leavingTomorrow
+                                    ? BrandTokens.statusRed : BrandTokens.cardBackground,
+                                in: Capsule()
+                            )
+                            .accessibilityIdentifier("fst.song-detail.shop-badge")
+                        }
                     }
                 }
                 .accessibilityElement(children: .combine)
+
+                if !hideShop, let error = session.shopError
+                    ?? (session.currentShop == nil ? shopRefreshFailure : nil) {
+                    FreshnessDisclosure(
+                        message: "Item Shop status unavailable: \(error)",
+                        symbol: "exclamationmark.triangle"
+                    )
+                    .accessibilityIdentifier("fst.song-detail.shop-error")
+                } else if !hideShop, let shop = session.currentShop, shop.isStale {
+                    FreshnessDisclosure(
+                        message: OfflineDisclosure.label(
+                            .shop, publicationId: shop.publicationId
+                        ),
+                        symbol: "wifi.slash"
+                    )
+                    .accessibilityIdentifier("fst.song-detail.shop-offline")
+                }
 
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Intensity").font(.title2.bold())
@@ -807,6 +988,14 @@ struct SongDetailScreen: View {
         .background(ArtworkBackground(mode: .song(song.albumArt), session: session))
         .navigationTitle("")
         .toolbar {
+            if let offer = shopOffer {
+                ToolbarItem(placement: .primaryAction) {
+                    Link(destination: offer.shopUrl) {
+                        Label("Item Shop", systemImage: "bag")
+                    }
+                    .accessibilityIdentifier("fst.song-detail.shop")
+                }
+            }
             if !pathInstruments.isEmpty {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
@@ -825,6 +1014,24 @@ struct SongDetailScreen: View {
                     firstInstrument: first, defaultDisplay: pathDefaultView,
                     warnAboutKaraoke: visibleInstruments.contains(.karaoke)
                 )
+            }
+        }
+        .task(id: ShopDetailTaskKey(
+            publicationRevision: session.publicationRevision, hidden: hideShop
+        )) {
+            guard !hideShop, session.currentShop == nil,
+                  session.shopError == nil else { return }
+            do {
+                _ = try await session.shop()
+                try Task.checkCancellation()
+                shopRefreshFailure = nil
+            } catch is CancellationError {
+                return
+            } catch let error as URLError where error.code == .cancelled {
+                return
+            } catch {
+                guard !Task.isCancelled else { return }
+                shopRefreshFailure = error.localizedDescription
             }
         }
     }

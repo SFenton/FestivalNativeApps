@@ -47,9 +47,21 @@ sizes; a clipped iPad grid artist prompted this rule. Keep official
 purchase and local Song Detail **separate actions**. Native selected
 iPhone/iPad loaded, empty, HTTP 503, Settings hide/highlight and actual
 warm-offline/cold-expiry cases pass; selected visible Shop `.all` audits
-pass after the strong-art fix. The PWA's wide sidebar Shop entry,
-WebSocket rotation, Shop badges in Songs/Detail, performance under
-many real images and macOS GUI remain pending. See [Shop](../pages/shop.md).
+pass after the strong-art fix. A shared typed highlight policy now
+paints New/Leaving Songs row borders and accessible icons, a Detail
+badge and a validated official Detail action; app Settings suppress
+these accents independently of the saved Shop membership. An
+independent Detail task covers a cancelled Songs Shop request on
+fast navigation. A targeted hosted race holds the old reply after
+cancellation, lets Detail load a new offer and asserts the next
+304 cannot resurrect the old ETag; the cancellation guard runs
+before generic publication-cache mutation and again inside the
+cache actor. Rapid device gestures remain untested.
+`shop-error` vs `shop-empty` are separate loopback fixtures
+so a Shop 503 cannot silently look like no songs in Shop. The PWA's
+wide sidebar Shop entry, WebSocket rotation, Shop-dependent
+sort/filter, performance under many real images and macOS GUI remain
+pending. See [Shop](../pages/shop.md).
 
 For hosted macOS nested-route snapshots, a synchronous `ImageRenderer` of `NavigationStack` with a prefilled constant path can paint **only the brand surface** after hidden-page network tasks are correctly suppressed. Mount it in a real offscreen `NSHostingView`, allow navigation layout, and capture its bitmap instead; compare actual Detail and solo content, not two equally blank screenshots. These in-process view tests do not replace macOS GUI accessibility automation.
 
