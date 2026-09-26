@@ -37,6 +37,22 @@
       ]
     },
     {
+      "id": "apple-anonymous-songs-sort",
+      "priority": 0,
+      "status": "in_progress",
+      "dependsOn": [],
+      "sourceRefs": [
+        "FortniteFestivalWeb/src/utils/songSettings.ts:16",
+        "FortniteFestivalWeb/src/hooks/data/useFilteredSongs.ts:209",
+        "FortniteFestivalWeb/src/pages/songs/modals/SortModal.tsx:44"
+      ],
+      "acceptance": [
+        "Use real title, artist, year and duration from public Songs to sort deterministically in either direction; preserve search and chart filtering.",
+        "Native Sort sheet stages draft mode/direction with Apply, Reset, cancel/discard confirmation and process-relaunch preference persistence.",
+        "Prove actual row-order changes, visible control states, readable content and portrait/tablet layout; shop/FC/profile modes remain owned by the full Songs epic."
+      ]
+    },
+    {
       "id": "apple-songs-cards",
       "priority": 0,
       "status": "pending",
@@ -56,7 +72,7 @@
       "id": "apple-songs-actions",
       "priority": 0,
       "status": "pending",
-      "dependsOn": ["apple-songs-cards"],
+      "dependsOn": ["apple-songs-cards", "apple-anonymous-songs-sort"],
       "sourceRefs": [
         "FortniteFestivalWeb/src/pages/songs/SongsPage.tsx:820",
         "FortniteFestivalWeb/src/pages/songs/modals/SortModal.tsx:44",
@@ -277,7 +293,7 @@
   ],
   "routes": [
     {"id": "home-redirect", "apple": "partial", "epics": ["apple-shell-modals"], "gap": "Default Songs tab exists; URL/deep-link redirect, unknown route and native guarded recovery are untested."},
-    {"id": "songs", "apple": "partial", "epics": ["apple-songs-cards", "apple-songs-actions"], "gap": "Only title/artist/art/search and basic instrument filter; no profile/band score rows, quick links, sort/filter, shop or invalid-score states."},
+    {"id": "songs", "apple": "partial", "epics": ["apple-anonymous-songs-sort", "apple-songs-cards", "apple-songs-actions"], "gap": "Catalogue-only Sort draft and persistence exist, but iPad full Sort audit and profile/shop sorts remain pending; no profile/band score rows, quick links, conditional filter, shop or invalid-score states."},
     {"id": "song-detail", "apple": "partial", "epics": ["apple-song-detail", "apple-chopt-paths"], "gap": "Keyless ten-row solo previews now render; selected score/history, band cards, Shop, CHOpt paths and the full Detail accessibility audit remain missing."},
     {"id": "song-band-leaderboard", "apple": "absent", "epics": ["apple-band-flows"], "gap": "No per-song Duet/Trio/Quad entries, combo filters, pagination or selected footer."},
     {"id": "song-leaderboard", "apple": "partial", "epics": ["apple-song-detail", "apple-statistics-history"], "gap": "Native solo pages and pager exist; selected player/member navigation, history, off-page spotlight and all PWA row states do not."},

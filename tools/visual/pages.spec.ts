@@ -78,6 +78,35 @@ for (const viewport of viewports) {
   });
 }
 
+for (const viewport of viewports.filter(entry => entry.id.endsWith('portrait'))) {
+  test(`fixture-backed PWA anonymous Sort modal: ${viewport.id}`, async ({ page }, testInfo) => {
+    mkdirSync(output, { recursive: true });
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await gotoAppRoute(page, '/songs');
+    await expect(page.locator('#main-content')).toContainText('Fixture Pulse', { timeout: 15_000 });
+    await page.getByRole('button', { name: 'Sort Songs', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Sort Songs' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Duration', exact: true })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Reset', exact: true })).toBeVisible();
+    const apply = dialog.getByRole('button', { name: 'Apply Sort Changes', exact: true });
+    await expect(apply).toBeDisabled();
+    await page.screenshot({
+      path: join(output, `${testInfo.project.name}-${viewport.id}-songs-sort-default.png`),
+      animations: 'disabled',
+    });
+    await dialog.getByRole('button', { name: 'Artist', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Descending', exact: true }).click();
+    await expect(dialog.getByRole('button', { name: 'Artist', exact: true }))
+      .toHaveAttribute('aria-pressed', 'true');
+    await expect(apply).toBeEnabled();
+    await page.screenshot({
+      path: join(output, `${testInfo.project.name}-${viewport.id}-songs-sort-draft.png`),
+      animations: 'disabled',
+    });
+  });
+}
+
 test('fixture-backed PWA artwork actually rotates after the five-second dwell', async ({ page }, testInfo) => {
   mkdirSync(output, { recursive: true });
   await page.setViewportSize({ width: 390, height: 844 });

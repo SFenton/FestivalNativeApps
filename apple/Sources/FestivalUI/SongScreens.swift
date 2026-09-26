@@ -193,6 +193,9 @@ struct SongsScreen: View {
     @Binding private var instrument: Instrument?
     @Binding private var navigationNotice: String?
     @State private var refreshFailure: String?
+    @State private var sortPresented = false
+    @AppStorage("fst.songs.sortMode") private var sortMode = SongSortMode.title
+    @AppStorage("fst.songs.sortAscending") private var sortAscending = true
     @FocusState private var searchFocused: Bool
 
     enum LoadState {
@@ -289,15 +292,13 @@ struct SongsScreen: View {
                     Task { await reload() }
                 }
             case let .loaded(payload):
-                let visible = payload.catalog.songs.filter { song in
+                let matching = payload.catalog.songs.filter { song in
                     SongSearch.matches(song, query: settledSearch)
                         && (instrument.map(song.supports) ?? true)
-                }.sorted { left, right in
-                    let titleOrder = left.title.localizedCompare(right.title)
-                    return titleOrder == .orderedSame
-                        ? left.songId < right.songId
-                        : titleOrder == .orderedAscending
                 }
+                let visible = SongCatalogSort.sorted(
+                    matching, mode: sortMode, ascending: sortAscending
+                )
                 if visible.isEmpty {
                     VStack(spacing: 8) {
                         if hasDisclosure(for: payload) {
@@ -375,6 +376,13 @@ struct SongsScreen: View {
                 }
                 .accessibilityIdentifier("fst.songs.instrument-filter")
             }
+            ToolbarItem(placement: .primaryAction) { sortAction }
+        }
+        .sheet(isPresented: $sortPresented) {
+            SongsSortSheet(mode: sortMode, ascending: sortAscending) { mode, order in
+                sortMode = mode
+                sortAscending = order
+            }
         }
         .task(id: CatalogueTaskKey(
             publicationRevision: session.publicationRevision, visible: isVisible
@@ -405,6 +413,21 @@ struct SongsScreen: View {
                 state = .failed("Search could not finish: \(error.localizedDescription)")
             }
         }
+    }
+
+    /// Open a native Sort sheet while retaining the current instrument selection.
+    private var sortAction: some View {
+        Button {
+            sortPresented = true
+        } label: {
+            Label("Sort", systemImage: "arrow.up.arrow.down")
+        }
+        .accessibilityValue(
+            "\(sortMode.label), \(sortAscending ? "ascending" : "descending")"
+        )
+        .accessibilityIdentifier("fst.songs.sort")
+        .tint(sortMode == .title && sortAscending
+            ? BrandTokens.accentBlue : BrandTokens.gold)
     }
 
     /// Avoid installing an empty accessibility node for an absent warning group.
@@ -475,6 +498,126 @@ struct SongsScreen: View {
                 state = .failed(error.localizedDescription)
             }
         }
+    }
+}
+
+/// Keep anonymous catalogue sorting as an explicit Apply/Reset/Discard draft.
+struct SongsSortSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var draftMode: SongSortMode
+    @State private var draftAscending: Bool
+    @State private var discardPending = false
+    let mode: SongSortMode
+    let ascending: Bool
+    let onApply: (SongSortMode, Bool) -> Void
+
+    /// Start every presentation from the currently applied sort preference.
+    ///
+    /// - Parameters:
+    ///   - mode: Applied catalogue-only sort mode.
+    ///   - ascending: Applied direction.
+    ///   - onApply: Commit both draft fields together after explicit confirmation.
+    init(
+        mode: SongSortMode, ascending: Bool,
+        onApply: @escaping (SongSortMode, Bool) -> Void
+    ) {
+        self.mode = mode
+        self.ascending = ascending
+        self.onApply = onApply
+        _draftMode = State(initialValue: mode)
+        _draftAscending = State(initialValue: ascending)
+    }
+
+    private var hasChanges: Bool {
+        draftMode != mode || draftAscending != ascending
+    }
+
+    private var actionLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: 12))
+            : AnyLayout(HStackLayout(spacing: 12))
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Sort by") {
+                    Picker("Sort by", selection: $draftMode) {
+                        ForEach(SongSortMode.allCases) { choice in
+                            Text(choice.label).tag(choice)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                    .accessibilityIdentifier("fst.songs.sort.mode")
+                }
+                Section("Direction") {
+                    Picker("Direction", selection: $draftAscending) {
+                        Text("Ascending").tag(true)
+                        Text("Descending").tag(false)
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("fst.songs.sort.direction")
+                }
+                Section {
+                    Button("Reset to Title A-Z") {
+                        draftMode = .title
+                        draftAscending = true
+                    }
+                    .font(.body)
+                    .tint(BrandTokens.textPrimary)
+                    .accessibilityIdentifier("fst.songs.sort.reset")
+                }
+            }
+            .navigationTitle("Sort Songs")
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                actionLayout {
+                    Button {
+                        if hasChanges { discardPending = true }
+                        else { dismiss() }
+                    } label: {
+                        Text("Cancel")
+                            .font(.body)
+                            .foregroundStyle(BrandTokens.textPrimary)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .background(
+                                BrandTokens.cardBackground,
+                                in: RoundedRectangle(cornerRadius: 10)
+                            )
+                    }
+                    .buttonStyle(HighContrastPagerStyle())
+                    .accessibilityIdentifier("fst.songs.sort.cancel")
+                    Button {
+                        onApply(draftMode, draftAscending)
+                        dismiss()
+                    } label: {
+                        Text("Apply")
+                            .font(.body.bold())
+                            .foregroundStyle(
+                                hasChanges
+                                    ? BrandTokens.textPrimary : BrandTokens.textSecondary
+                            )
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .background(
+                                BrandTokens.cardBackground,
+                                in: RoundedRectangle(cornerRadius: 10)
+                            )
+                    }
+                    .buttonStyle(HighContrastPagerStyle())
+                    .disabled(!hasChanges)
+                    .accessibilityIdentifier("fst.songs.sort.apply")
+                }
+                .padding(12)
+                .background(BrandTokens.cardBackground)
+            }
+        }
+        .alert("Discard sort changes?", isPresented: $discardPending) {
+            Button("Continue Editing", role: .cancel) {}
+            Button("Discard Changes", role: .destructive) { dismiss() }
+        } message: {
+            Text("The song list will keep its current order.")
+        }
+        .interactiveDismissDisabled()
     }
 }
 

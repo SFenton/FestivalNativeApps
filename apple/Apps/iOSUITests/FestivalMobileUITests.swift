@@ -5,6 +5,129 @@ import UIKit
 final class FestivalMobileUITests: XCTestCase {
     // MARK: - Navigation and orientation
 
+    /// Native Sort stages changes, persists rows and audits reachable modal text.
+    ///
+    /// - Throws: Wrong row order, silent discard, lost preference or visible contrast.
+    @MainActor
+    func testAnonymousSongsSortDraftApplyDiscardAndRelaunch() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launch()
+        let sort = app.buttons["fst.songs.sort"]
+        XCTAssertTrue(sort.waitForExistence(timeout: 10))
+        if (sort.value as? String) != "Title, ascending" {
+            let savedSort = try XCTUnwrap(sort.value as? String)
+            sort.tap()
+            let initialDirection = app.segmentedControls["fst.songs.sort.direction"]
+            XCTAssertTrue(initialDirection.waitForExistence(timeout: 10))
+            XCTAssertTrue(
+                initialDirection.buttons[
+                    savedSort.hasSuffix("descending") ? "Descending" : "Ascending"
+                ].isSelected,
+                "Saved \(savedSort) did not initialize the modal draft"
+            )
+            record(app, name: "songs-sort-before-baseline-reset")
+            revealSortReset(in: app).tap()
+            record(app, name: "songs-sort-after-baseline-reset")
+            let initialApply = app.buttons["fst.songs.sort.apply"]
+            for _ in 0..<30 {
+                if initialApply.isEnabled { break }
+                RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+            }
+            XCTAssertTrue(initialApply.isEnabled, "Could not restore the default sort")
+            initialApply.tap()
+            XCTAssertEqual(sort.value as? String, "Title, ascending")
+        }
+        let orbit = app.buttons["fst.songs.row.fixture-orbit"]
+        let pulse = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(orbit.waitForExistence(timeout: 15))
+        XCTAssertTrue(pulse.exists)
+        XCTAssertLessThan(orbit.frame.minY, pulse.frame.minY)
+
+        sort.tap()
+        record(app, name: "songs-sort-default-sheet")
+        if UIDevice.current.userInterfaceIdiom == .phone {
+            try app.performAccessibilityAudit(for: .all)
+        } else {
+            try assertHeaderContrast(app.staticTexts["Sort Songs"], in: app)
+        }
+        let direction = app.segmentedControls["fst.songs.sort.direction"]
+        XCTAssertTrue(direction.waitForExistence(timeout: 10))
+        let descending = direction.buttons["Descending"]
+        XCTAssertTrue(descending.exists)
+        let apply = app.buttons["fst.songs.sort.apply"]
+        XCTAssertFalse(apply.isEnabled)
+        let artist = app.buttons["Artist"]
+        XCTAssertTrue(artist.exists)
+        artist.tap()
+        XCTAssertTrue(apply.isEnabled, "Choosing Artist did not change the sort draft")
+        app.buttons["Title"].tap()
+        XCTAssertFalse(apply.isEnabled, "Restoring Title did not clear the sort draft")
+        descending.tap()
+        XCTAssertTrue(descending.isSelected)
+        record(app, name: "songs-sort-draft-descending")
+        if UIDevice.current.userInterfaceIdiom == .phone {
+            try app.performAccessibilityAudit(for: .all)
+        } else {
+            try assertHeaderContrast(app.buttons["fst.songs.sort.cancel"], in: app)
+        }
+        XCTAssertTrue(apply.isEnabled, "Changing direction did not create a draft")
+        app.buttons["fst.songs.sort.cancel"].tap()
+        let continueEditing = app.buttons["Continue Editing"]
+        XCTAssertTrue(continueEditing.waitForExistence(timeout: 10))
+        continueEditing.tap()
+        XCTAssertTrue(descending.isSelected)
+        XCTAssertTrue(apply.isEnabled)
+        app.buttons["fst.songs.sort.cancel"].tap()
+        let discard = app.buttons["Discard Changes"]
+        XCTAssertTrue(discard.waitForExistence(timeout: 10))
+        discard.tap()
+        XCTAssertLessThan(orbit.frame.minY, pulse.frame.minY)
+
+        sort.tap()
+        XCTAssertTrue(direction.buttons["Ascending"].isSelected)
+        descending.tap()
+        XCTAssertTrue(apply.isEnabled)
+        apply.tap()
+        for _ in 0..<30 {
+            if pulse.frame.minY < orbit.frame.minY { break }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        XCTAssertLessThan(pulse.frame.minY, orbit.frame.minY)
+        XCTAssertEqual(sort.value as? String, "Title, descending")
+        record(app, name: "songs-title-descending")
+
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(pulse.waitForExistence(timeout: 15))
+        XCTAssertLessThan(pulse.frame.minY, orbit.frame.minY)
+        sort.tap()
+        XCTAssertTrue(direction.buttons["Descending"].isSelected)
+        revealSortReset(in: app).tap()
+        app.buttons["fst.songs.sort.cancel"].tap()
+        XCTAssertTrue(app.buttons["Discard Changes"].waitForExistence(timeout: 10))
+        app.buttons["Discard Changes"].tap()
+        XCTAssertEqual(sort.value as? String, "Title, descending")
+        sort.tap()
+        XCTAssertTrue(direction.buttons["Descending"].isSelected)
+        revealSortReset(in: app).tap()
+        let resetApply = app.buttons["fst.songs.sort.apply"]
+        for _ in 0..<30 {
+            if resetApply.isEnabled { break }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        XCTAssertTrue(resetApply.isEnabled, "Reset did not create a changed sort draft")
+        app.buttons["fst.songs.sort.apply"].tap()
+        for _ in 0..<30 {
+            if orbit.frame.minY < pulse.frame.minY { break }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        XCTAssertLessThan(orbit.frame.minY, pulse.frame.minY)
+        XCTAssertEqual(sort.value as? String, "Title, ascending")
+    }
+
     /// Show ten real fixture score rows, then open the independent full Solo page.
     ///
     /// - Throws: Missing native top-score rows, incorrect top parameter or hidden action.
@@ -983,6 +1106,31 @@ final class FestivalMobileUITests: XCTestCase {
     }
 
     // MARK: - Evidence
+
+    /// Scroll the modal Form until Reset is above the always-visible action footer.
+    ///
+    /// - Parameter app: Foreground Songs Sort sheet on phone or tablet.
+    /// - Returns: Hittable Reset button within the visible scroll viewport.
+    @MainActor
+    private func revealSortReset(in app: XCUIApplication) -> XCUIElement {
+        let reset = app.buttons["fst.songs.sort.reset"]
+        let table = app.tables.containing(.button, identifier: "fst.songs.sort.reset")
+            .firstMatch
+        let list = table.exists ? table : app.collectionViews.containing(
+            .button, identifier: "fst.songs.sort.reset"
+        ).firstMatch
+        let footer = app.buttons["fst.songs.sort.cancel"]
+        XCTAssertTrue(list.exists && footer.exists)
+        for _ in 0..<8 {
+            if reset.isHittable && reset.frame.maxY <= footer.frame.minY { break }
+            list.swipeUp()
+        }
+        XCTAssertTrue(
+            reset.isHittable && reset.frame.maxY <= footer.frame.minY,
+            "Reset is hidden by the Sort action footer"
+        )
+        return reset
+    }
 
     /// Expose the full detail pane before auditing iPad's split-view destination.
     ///

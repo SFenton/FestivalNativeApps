@@ -197,6 +197,10 @@
       "sha256": "73469e3ae8b618eec68a1e0fc42251c5a63943e23b5e29e9148c3c32e2787fc7",
       "status": "committed"
     },
+    "FortniteFestivalWeb/src/utils/songSettings.ts": {
+      "sha256": "5573fa9ea2fd07dc690e340f878fcd08b4bf3153ef95f81df289ba46264dcceb",
+      "status": "committed"
+    },
     "FortniteFestivalWeb/src/utils/songSort.ts": {
       "sha256": "e8d12db6aa398f7eb09665125775c13e0e410255f189fa95db98e729b58a7c93",
       "status": "committed"

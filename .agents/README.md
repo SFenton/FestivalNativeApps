@@ -8,6 +8,7 @@
 | WinUI 3, game-alongside performance | [platforms/windows.md](platforms/windows.md) |
 | Specific screen, guard, modal or deep link | `pages/<page-id>.md` and [contracts/product.json](../contracts/product.json) |
 | Control geometry, state, interaction | `controls/<control-id>.md` and [contracts/product.json](../contracts/product.json) |
+| Songs Sort draft, direction and state propagation | [controls/songs-sort.md](controls/songs-sort.md) |
 | Unit/UI/visual/a11y/serial runtime evidence | [testing/quality-gates.md](testing/quality-gates.md) |
 | Repeated page migration | [skills/port-page.md](skills/port-page.md) and `tools/verify_product.py` |
 | Prioritized React-to-native gap list and dependencies | [parity-audit.md](parity-audit.md), [contracts/parity-backlog.json](../contracts/parity-backlog.json), `python3 tools/parity_backlog.py --list` |

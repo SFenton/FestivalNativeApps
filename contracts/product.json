@@ -48,6 +48,14 @@
       "testId": "fst.shell.artwork-background"
     },
     {
+      "id": "songs-sort",
+      "status": "pending",
+      "source": "FortniteFestivalWeb/src/pages/songs/modals/SortModal.tsx:44",
+      "states": ["default", "changed-mode", "changed-direction", "reset-draft", "discard-confirm", "applied", "relaunch-persisted", "instrument-filtered", "profile", "band", "shop-hidden", "large-text"],
+      "testId": "fst.songs.sort",
+      "spec": ".agents/controls/songs-sort.md"
+    },
+    {
       "id": "app-navigation",
       "status": "pending",
       "source": "FortniteFestivalWeb/src/components/shell/mobile/BottomNav.tsx:45",
@@ -63,6 +71,12 @@
     "fst.nav.*": "app-navigation",
     "fst.songs.instrument-filter": "songs",
     "fst.songs.search": "songs",
+    "fst.songs.sort": "songs-sort",
+    "fst.songs.sort.mode": "songs-sort",
+    "fst.songs.sort.direction": "songs-sort",
+    "fst.songs.sort.reset": "songs-sort",
+    "fst.songs.sort.cancel": "songs-sort",
+    "fst.songs.sort.apply": "songs-sort",
     "fst.songs.navigation-notice": "songs",
     "fst.songs.offline": "songs",
     "fst.songs.refresh-error": "songs",

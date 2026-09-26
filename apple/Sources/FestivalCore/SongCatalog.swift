@@ -75,6 +75,7 @@ public struct Song: Decodable, Sendable, Identifiable, Equatable, Hashable {
     public let artist: String
     public let album: String?
     public let year: Int?
+    public let durationSeconds: Int?
     public let albumArt: String?
     public let difficulty: SongDifficulty?
 
