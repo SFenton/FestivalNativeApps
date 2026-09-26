@@ -92,22 +92,27 @@ extension FestivalAPI {
     ///   - songId: Song identifier from the catalog.
     ///   - instrument: Solo chart identifier.
     ///   - page: One-based page number.
+    ///   - top: Rows per request; ten for a Detail preview or 25 for a full page.
     ///   - leeway: Optional percentage from an enabled invalid-score filter.
     /// - Returns: Validated leaderboard rows and explicit offline freshness.
     /// - Throws: Invalid parameters, service failures or malformed wire responses.
     public func leaderboard(
-        songId: String, instrument: Instrument, page: Int, leeway: Double? = nil
+        songId: String, instrument: Instrument, page: Int,
+        top: Int = 25, leeway: Double? = nil
     ) async throws -> LeaderboardPayload {
-        guard page > 0, page - 1 <= Int.max / 25 else {
+        guard (1...25).contains(top), page > 0, page - 1 <= Int.max / top else {
             throw FestivalAPIError.invalidResource
         }
         let resource = PublicEndpoint.leaderboard(
             songId: songId, instrument: instrument.rawValue,
-            top: 25, offset: (page - 1) * 25, leeway: leeway
+            top: top, offset: (page - 1) * top, leeway: leeway
         )
         let payload = try await read(resource)
         let response = try JSONDecoder().decode(LeaderboardResponse.self, from: payload.data)
         try response.validate(songId: songId, instrument: instrument)
+        guard response.count <= top else {
+            throw FestivalAPIError.invalidLeaderboard
+        }
         try await rememberUnverified(payload, for: resource)
         return LeaderboardPayload(
             page: page, leaderboard: response,

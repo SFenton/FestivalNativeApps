@@ -222,8 +222,8 @@ class MockServiceTests(unittest.TestCase):
         with self.assertRaises(URLError):
             urlopen(base + "/api/songs", timeout=2)
 
-    def test_unpinned_one_shot_chart_stops_only_after_valid_scores(self):
-        """Songs can load before a real chart-connection loss on a fresh listener."""
+    def test_unpinned_one_shot_chart_stops_only_after_valid_full_page(self):
+        """A Detail preview must not use up the first full-page offline fixture."""
         with FixtureServer(
             ("127.0.0.1", 0), FixtureHandler,
             unpinned=True, stop_after_first_score=True,
@@ -235,6 +235,12 @@ class MockServiceTests(unittest.TestCase):
                 self.assertFalse(json.load(response)["pinningEnabled"])
             with urlopen(base + "/api/songs") as response:
                 self.assertEqual(json.load(response)["count"], 2)
+            with urlopen(base + "/__fixture__/health") as response:
+                self.assertTrue(json.load(response)["ready"])
+            with urlopen(
+                base + "/api/leaderboard/fixture-pulse/Solo_Guitar?top=10&offset=0"
+            ) as response:
+                self.assertEqual(json.load(response)["count"], 10)
             with urlopen(base + "/__fixture__/health") as response:
                 self.assertTrue(json.load(response)["ready"])
             with urlopen(

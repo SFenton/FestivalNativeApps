@@ -1,0 +1,302 @@
+{
+  "schemaVersion": 1,
+  "source": "SFenton/FortniteFestivalLeaderboardScraper",
+  "note": "Source checkout has uncommitted changes; compare the pinned source snapshot before declaring visual parity. Pending is not certified.",
+  "epics": [
+    {
+      "id": "service-public-data",
+      "priority": 0,
+      "status": "in_progress",
+      "shared": true,
+      "dependsOn": [],
+      "sourceRefs": [
+        "FortniteFestivalWeb/src/api/client.ts:114",
+        "FSTService/Api/PublicationRouteSurfaceContract.cs:25"
+      ],
+      "acceptance": [
+        "Typed, publication-consistent, keyless GETs decode real wire envelopes and reject invalid/late responses.",
+        "Resolve deployed Cloudflare 1010 access-denied responses for public search, rankings and batched chart reads without bypass headers, a privileged key or empty-data fallbacks.",
+        "Use opt-in, bounded live schema probes and deterministic local fixtures; never automate production mutations."
+      ]
+    },
+    {
+      "id": "native-profile-selector",
+      "priority": 0,
+      "status": "pending",
+      "dependsOn": ["service-public-data"],
+      "sourceRefs": [
+        "FortniteFestivalWeb/src/App.tsx:760",
+        "FortniteFestivalWeb/src/components/search/SearchModal.tsx:495",
+        "FortniteFestivalWeb/src/state/selectedProfile.ts:10"
+      ],
+      "acceptance": [
+        "Native header/sidebars open player-and-band search with debouncing, loading, empty, 403 and cancel states.",
+        "Player and band profiles retain validated identity and member data across navigation/relaunch; switch/deselect confirm and clear dependent state.",
+        "Selection changes the available native tabs and every dependent page without any implicit production POST."
+      ]
+    },
+    {
+      "id": "apple-songs-cards",
+      "priority": 0,
+      "status": "pending",
+      "dependsOn": ["native-profile-selector"],
+      "sourceRefs": [
+        "FortniteFestivalWeb/src/pages/songs/SongsPage.tsx:622",
+        "FortniteFestivalWeb/src/pages/songs/components/SongRow.tsx:173",
+        "FortniteFestivalWeb/src/contexts/SettingsContext.tsx:42"
+      ],
+      "acceptance": [
+        "Prove anonymous, selected-player and selected-band rows with real score, FC, status chips, shop indicators, score-invalid warning and metadata.",
+        "Toggling any of nine instruments or eight metadata fields updates row and Detail content immediately, preserving at least one visible chart.",
+        "Matched PWA/native captures cover responsive row wraps, selection changes, bright artwork, Dynamic Type and accessibility."
+      ]
+    },
+    {
+      "id": "apple-songs-actions",
+      "priority": 0,
+      "status": "pending",
+      "dependsOn": ["apple-songs-cards"],
+      "sourceRefs": [
+        "FortniteFestivalWeb/src/pages/songs/SongsPage.tsx:820",
+        "FortniteFestivalWeb/src/pages/songs/modals/SortModal.tsx:44",
+        "FortniteFestivalWeb/src/pages/songs/modals/FilterModal.tsx:169"
+      ],
+      "acceptance": [
+        "Port source sort modes, direction, priority reorder, profile/band conditional filters, persisted state and quick-link section navigation.",
+        "Draft Apply/Reset/Cancel/discard-confirm and invalid-combination states affect rows and downstream charts, never silently changing saved settings.",
+        "Search, Sort, Filter, selected instrument and status badges remain reachable with keyboard, VoiceOver and native layout reflow."
+      ]
+    },
+    {
+      "id": "apple-song-detail",
+      "priority": 0,
+      "status": "in_progress",
+      "dependsOn": [],
+      "sourceRefs": [
+        "FortniteFestivalWeb/src/pages/songinfo/SongDetailPage.tsx:191",
+        "FortniteFestivalWeb/src/pages/songinfo/SongDetailPage.tsx:663",
+        "FortniteFestivalWeb/src/pages/songinfo/components/InstrumentCard.tsx:24"
+      ],
+      "acceptance": [
+        "Show real top-score previews for visible solo charts with loading, error, empty, offline and View Full actions; keep Intensity independent of visibility.",
+        "Add selected-player/member spotlights and history, promoted band and remaining Duet/Trio/Quad previews with correct navigation.",
+        "Compare header, artwork, card geometry, large text and portrait/landscape flow to the deterministic PWA reference."
+      ]
+    },
+    {
+      "id": "apple-chopt-paths",
+      "priority": 1,
+      "status": "pending",
+      "dependsOn": ["apple-song-detail"],
+      "sourceRefs": [
+        "FortniteFestivalWeb/src/pages/songinfo/components/path/PathsModal.tsx:110",
+        "FortniteFestivalWeb/src/pages/songinfo/components/path/PathsModal.tsx:550"
+      ],
+      "acceptance": [
+        "Add real publication-aware image and structured-text CHOpt paths with generation ID, independent loading/error and stale-request cancellation.",
+        "Instrument/difficulty/image-text selection, mobile accordion exclusivity, warning acknowledgement and text-column order match source behavior.",
+        "Native sheet focus/return, pan-zoom, accessible table, path availability by settings and image/text states are visually tested."
+      ]
+    },
+    {
+      "id": "apple-rankings",
+      "priority": 0,
+      "status": "pending",
+      "dependsOn": ["service-public-data"],
+      "sourceRefs": [
+        "FortniteFestivalWeb/src/pages/leaderboards/LeaderboardsOverviewPage.tsx:137",
+        "FortniteFestivalWeb/src/pages/leaderboards/FullRankingsPage.tsx:169",
+        "FortniteFestivalWeb/src/pages/leaderboards/BandRankingsPage.tsx:155"
+      ],
+      "acceptance": [
+        "Replace the native placeholder with actual top-ten cards for nine visible solo charts and Duet/Trio/Quad, selected spotlight and optional rank history.",
+        "Build paginated solo/family/combo and band rankings, sort metric/instrument/combo draft modals, View All links and boundary/empty/error states.",
+        "Use a bounded service read plan; deployed public rankings currently return 403, which must be exposed rather than displayed as zero scores."
+      ]
+    },
+    {
+      "id": "apple-rivals",
+      "priority": 1,
+      "status": "pending",
+      "dependsOn": ["native-profile-selector", "service-public-data"],
+      "sourceRefs": [
+        "FortniteFestivalWeb/src/pages/rivals/RivalsPage.tsx:58",
+        "FortniteFestivalWeb/src/pages/rivals/AllRivalsPage.tsx:35",
+        "FortniteFestivalWeb/src/pages/rivals/RivalryPage.tsx:54"
+      ],
+      "acceptance": [
+        "Guard all player-only routes; render song/leaderboard tabs, common/intersection, instrument and combo scopes with explicit empty/error states.",
+        "Find Rival, All Rivals, rival detail and per-song/rank rivalry navigate with valid selected-profile context.",
+        "Changing instrument visibility updates rivals queries/sections; compare list/card order and visual states on compact and wide layouts."
+      ]
+    },
+    {
+      "id": "apple-statistics-history",
+      "priority": 1,
+      "status": "pending",
+      "dependsOn": ["native-profile-selector", "service-public-data"],
+      "sourceRefs": [
+        "FortniteFestivalWeb/src/pages/player/PlayerPage.tsx:38",
+        "FortniteFestivalWeb/src/pages/leaderboard/player/PlayerHistoryPage.tsx:41",
+        "FortniteFestivalWeb/src/pages/leaderboard/player/components/PlayerContent.tsx:214"
+      ],
+      "acceptance": [
+        "Separate viewed player from selected profile, with explicit select/switch confirmation and no implicit tracking POST.",
+        "Render totals, rank/percentile/FC/stars, charts, player bands, top songs and score history with filters/sort and unpublished/sync notices.",
+        "Changes in selected player propagate to Songs, Detail, Solo, rankings and navigation without mixed-identity cached content."
+      ]
+    },
+    {
+      "id": "apple-band-flows",
+      "priority": 1,
+      "status": "pending",
+      "dependsOn": ["native-profile-selector", "service-public-data"],
+      "sourceRefs": [
+        "FortniteFestivalWeb/src/pages/band/BandPage.tsx:80",
+        "FortniteFestivalWeb/src/pages/band/PlayerBandsPage.tsx:29",
+        "FortniteFestivalWeb/src/pages/leaderboard/band/SongBandLeaderboardPage.tsx:43"
+      ],
+      "acceptance": [
+        "Port band lookup/detail, member identities and assignments, selected band profile, stats, per-song band scores and filtered song rows.",
+        "Build player-bands paging/filter and song/band rankings with combo picker, selected footers and band-to-song/player navigation.",
+        "Duet/Trio/Quad controls respect selected band, shop/instrument settings and publication changes."
+      ]
+    },
+    {
+      "id": "apple-suggestions-compete",
+      "priority": 1,
+      "status": "pending",
+      "dependsOn": ["apple-statistics-history", "apple-band-flows"],
+      "sourceRefs": [
+        "FortniteFestivalWeb/src/pages/suggestions/SuggestionsPage.tsx:68",
+        "FortniteFestivalWeb/src/pages/compete/CompetePage.tsx:85"
+      ],
+      "acceptance": [
+        "Selected player/band Suggestions adapt categories, instrument/global filters and virtualized incremental loads.",
+        "Player-only Compete scopes combine leaderboards and Rivals, with gated routes and View All/navigation actions.",
+        "Selection, score-validity and Settings changes are reflected without stale cross-profile suggestions."
+      ]
+    },
+    {
+      "id": "apple-shop",
+      "priority": 1,
+      "status": "pending",
+      "dependsOn": ["service-public-data"],
+      "sourceRefs": [
+        "FortniteFestivalWeb/src/pages/shop/ShopPage.tsx:41",
+        "FortniteFestivalWeb/src/hooks/data/useShopState.ts:1"
+      ],
+      "acceptance": [
+        "Use public shop data to render grid/list, new/leaving badges, availability and empty/offline/error states.",
+        "Hide/highlight settings alter Songs/Detail/Shop and preserve preferences through re-enable.",
+        "Match source visual layouts at narrow/regular sizes and verify linked Song Detail flow."
+      ]
+    },
+    {
+      "id": "apple-settings-manual",
+      "priority": 1,
+      "status": "pending",
+      "dependsOn": ["apple-songs-cards", "apple-chopt-paths"],
+      "sourceRefs": [
+        "FortniteFestivalWeb/src/pages/settings/SettingsPage.tsx:513",
+        "FortniteFestivalWeb/src/pages/manual/ManualPage.tsx:222",
+        "FortniteFestivalWeb/src/pages/settings/LicensesPage.tsx:27"
+      ],
+      "acceptance": [
+        "Enable functioning row visual order/metadata/path/shop/search-target settings, conditional warning, service and version sections.",
+        "Port guarded Manual, licenses and approved profile export; keep operator-only service mutations out of the native client.",
+        "Reset scope and Settings-to-page propagation are deterministic; all headers/controls pass native accessibility checks."
+      ]
+    },
+    {
+      "id": "apple-shell-modals",
+      "priority": 0,
+      "status": "pending",
+      "dependsOn": ["native-profile-selector"],
+      "sourceRefs": [
+        "FortniteFestivalWeb/src/App.tsx:1011",
+        "FortniteFestivalWeb/src/App.tsx:1405",
+        "FortniteFestivalWeb/src/components/shell/mobile/BottomNav.tsx:41"
+      ],
+      "acceptance": [
+        "Implement profile/search/notification/quick-links actions, keyboard focus, native sidebar/tab selection, reselect/back and guarded deep links.",
+        "Port reusable native sheet/drawer, draft/discard/confirm, toast and loading/error controls without success-shaped placeholders.",
+        "System navigation and safe areas remain platform-native on iOS/iPad/macOS, including larger text, RTL, compact and regular widths."
+      ]
+    },
+    {
+      "id": "apple-first-run-notifications",
+      "priority": 2,
+      "status": "pending",
+      "dependsOn": ["apple-shell-modals"],
+      "sourceRefs": [
+        "FortniteFestivalWeb/src/components/firstRun/FirstRunCarousel.tsx:1",
+        "FortniteFestivalWeb/src/App.tsx:465",
+        "FortniteFestivalWeb/src/components/notifications/useProfileNotificationsFeed.tsx:1"
+      ],
+      "acceptance": [
+        "Page-specific first-run carousels, replay, manual screenshots and changelog have accessible focus/exit states.",
+        "Profile-scoped notifications show real freshness, unread badges, filtered destinations and connection failures.",
+        "No background activity or cross-profile notification data survives an identity change."
+      ]
+    },
+    {
+      "id": "native-visual-a11y-performance",
+      "priority": 0,
+      "status": "pending",
+      "shared": true,
+      "dependsOn": [],
+      "sourceRefs": [
+        "FortniteFestivalWeb/src/pages/songs/SongsPage.tsx:1112",
+        "FortniteFestivalWeb/src/pages/Page.tsx:1"
+      ],
+      "acceptance": [
+        "Every route/control state has matched fixture-backed PWA/native portrait and landscape captures with reviewed Fluent/native deviations.",
+        "Control-to-control behavior, VoiceOver/TalkBack/Narrator focus/order and visual contrast pass platform-native automation.",
+        "Prove 95% non-UX/90% UX line coverage, serial posture/runtime matrix and measured high-refresh scrolling/performance before certification."
+      ]
+    },
+    {
+      "id": "android-windows-parity",
+      "priority": 1,
+      "status": "blocked",
+      "shared": true,
+      "dependsOn": ["native-visual-a11y-performance"],
+      "sourceRefs": [
+        "FortniteFestivalWeb/src/App.tsx:49",
+        "FortniteFestivalWeb/src/components/shell/mobile/BottomNav.tsx:41"
+      ],
+      "acceptance": [
+        "After the operator resumes the Windows host, review saved Kotlin and WinUI branches before merging; do not reconnect while it is off.",
+        "Port each native route/control against this same source-backed contract with sequential Android form-factor and Windows GUI tests.",
+        "Gate release on cross-platform parity, coverage, accessibility and performance rather than Apple-only evidence."
+      ]
+    }
+  ],
+  "routes": [
+    {"id": "home-redirect", "apple": "partial", "epics": ["apple-shell-modals"], "gap": "Default Songs tab exists; URL/deep-link redirect, unknown route and native guarded recovery are untested."},
+    {"id": "songs", "apple": "partial", "epics": ["apple-songs-cards", "apple-songs-actions"], "gap": "Only title/artist/art/search and basic instrument filter; no profile/band score rows, quick links, sort/filter, shop or invalid-score states."},
+    {"id": "song-detail", "apple": "partial", "epics": ["apple-song-detail", "apple-chopt-paths"], "gap": "Keyless ten-row solo previews now render; selected score/history, band cards, Shop, CHOpt paths and the full Detail accessibility audit remain missing."},
+    {"id": "song-band-leaderboard", "apple": "absent", "epics": ["apple-band-flows"], "gap": "No per-song Duet/Trio/Quad entries, combo filters, pagination or selected footer."},
+    {"id": "song-leaderboard", "apple": "partial", "epics": ["apple-song-detail", "apple-statistics-history"], "gap": "Native solo pages and pager exist; selected player/member navigation, history, off-page spotlight and all PWA row states do not."},
+    {"id": "player-history", "apple": "absent", "epics": ["apple-statistics-history"], "gap": "No song/instrument history page, sort modal or fallback-validity views."},
+    {"id": "player-profile", "apple": "absent", "epics": ["native-profile-selector", "apple-statistics-history"], "gap": "No player search/view/select journey, stats, ranks, score cards or bands."},
+    {"id": "rivals", "apple": "absent", "epics": ["apple-rivals"], "gap": "No player-only song/leaderboard tabs, instrument/common/combo rival lists or find-rival modal."},
+    {"id": "all-rivals", "apple": "absent", "epics": ["apple-rivals"], "gap": "No category/mode-specific all-rivals results or pagination."},
+    {"id": "rival-detail", "apple": "absent", "epics": ["apple-rivals"], "gap": "No rival account, comparable-song sections or selected-player context."},
+    {"id": "rivalry", "apple": "absent", "epics": ["apple-rivals"], "gap": "No head-to-head song/rank breakdown, sort or link actions."},
+    {"id": "statistics", "apple": "absent", "epics": ["apple-statistics-history", "apple-band-flows"], "gap": "No guarded player/band selected-profile hub, score charts, rank summaries or selected-state effects."},
+    {"id": "suggestions", "apple": "absent", "epics": ["apple-suggestions-compete"], "gap": "No player/band categories, search/filter modal, incremental load or score-driven suggestions."},
+    {"id": "shop", "apple": "absent", "epics": ["apple-shop"], "gap": "No real shop feed, grid/list, highlights, leaving-tomorrow state or Song navigation."},
+    {"id": "manual", "apple": "absent", "epics": ["apple-settings-manual", "apple-first-run-notifications"], "gap": "No feature-flagged manual or replayable page guidance."},
+    {"id": "leaderboards", "apple": "placeholder", "epics": ["apple-rankings"], "gap": "Tab renders migration message, not solo/band top-ten cards, rank history or selection spotlight."},
+    {"id": "full-rankings", "apple": "absent", "epics": ["apple-rankings"], "gap": "No page/metric/instrument/combo/family rankings or player/band footer."},
+    {"id": "band-rankings", "apple": "absent", "epics": ["apple-rankings", "apple-band-flows"], "gap": "No band ranking pagination, combo filters, selected member/team footer or band links."},
+    {"id": "player-bands", "apple": "absent", "epics": ["apple-band-flows"], "gap": "No player Duet/Trio/Quad/all list, paging, group modal or navigation."},
+    {"id": "bands", "apple": "absent", "epics": ["apple-band-flows"], "gap": "No band lookup/search-context route, selected band or band list."},
+    {"id": "band-detail", "apple": "absent", "epics": ["apple-band-flows"], "gap": "No band member/stat/ranking/song page or select-as-band action."},
+    {"id": "compete", "apple": "absent", "epics": ["apple-suggestions-compete", "apple-rivals", "apple-rankings"], "gap": "No guarded player-only ranking/rival scope cards or drill-down actions."},
+    {"id": "settings", "apple": "partial", "epics": ["apple-settings-manual", "apple-songs-cards"], "gap": "Basic instrument toggles and accessibility aids work; many PWA metadata/shop/CHOpt/visual-order controls are disabled or do not affect rows."},
+    {"id": "licenses", "apple": "absent", "epics": ["apple-settings-manual"], "gap": "No license list, detail modal or return-focus behavior."}
+  ]
+}

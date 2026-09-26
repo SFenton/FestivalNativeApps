@@ -609,18 +609,15 @@ struct SongDetailScreen: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Leaderboards").font(.title2.bold())
-                    ForEach(charted.filter(visibleInstruments.contains)) { instrument in
-                        NavigationLink(value: SongRoute.leaderboard(song, instrument, 1)) {
-                            Label(instrument.label, systemImage: "list.number")
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(14)
-                                .background(
-                                    BrandTokens.cardBackground, in: RoundedRectangle(cornerRadius: 12)
-                                )
+                    LazyVGrid(
+                        columns: [GridItem(.adaptive(minimum: 360), spacing: 12)],
+                        alignment: .leading, spacing: 16
+                    ) {
+                        ForEach(charted.filter(visibleInstruments.contains)) { instrument in
+                            SongScorePreview(
+                                song: song, instrument: instrument, session: session
+                            )
                         }
-                        .accessibilityIdentifier(
-                            "fst.song-detail.leaderboard.\(instrument.rawValue)"
-                        )
                     }
                 }
             }
@@ -628,6 +625,213 @@ struct SongDetailScreen: View {
         }
         .background(ArtworkBackground(mode: .song(song.albumArt), session: session))
         .navigationTitle("")
+    }
+}
+
+/// Load a visible chart's top ten via the same public, publication-aware API as Solo.
+struct SongScorePreview: View {
+    let song: Song
+    let instrument: Instrument
+    let session: FestivalSession
+    @AppStorage("fst.settings.filterInvalidScores") private var filterInvalidScores = false
+    @AppStorage("fst.settings.leeway") private var leeway = 1.0
+    @State private var state: LoadState
+    private let usesLiveClient: Bool
+
+    private struct RequestKey: Equatable {
+        let publicationRevision: Int
+        let leeway: Double?
+    }
+
+    private var requestKey: RequestKey {
+        RequestKey(
+            publicationRevision: session.publicationRevision,
+            leeway: filterInvalidScores ? (leeway * 10).rounded() / 10 : nil
+        )
+    }
+
+    enum LoadState {
+        case loading
+        case loaded(LeaderboardPayload)
+        case failed(String)
+    }
+
+    /// Use the live client except when hosted tests provide a fixed visual state.
+    ///
+    /// - Parameters:
+    ///   - song: Catalog item whose score preview is requested.
+    ///   - instrument: Chart displayed in this card.
+    ///   - session: Publication-aware, process-scoped public service client.
+    ///   - initialState: Optional fixture state that does not start network work.
+    init(
+        song: Song, instrument: Instrument, session: FestivalSession,
+        initialState: LoadState? = nil
+    ) {
+        self.song = song
+        self.instrument = instrument
+        self.session = session
+        _state = State(initialValue: initialState ?? .loading)
+        usesLiveClient = initialState == nil
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(instrument.label)
+                .font(.title3.bold())
+                .accessibilityAddTraits(.isHeader)
+            switch state {
+            case .loading:
+                ProgressView("Loading \(instrument.label) scores")
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            case let .failed(message):
+                Text("Scores unavailable: \(message)")
+                    .font(.body)
+                    .foregroundStyle(BrandTokens.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("Retry \(instrument.label) scores") {
+                    Task { await load() }
+                }
+                .frame(minHeight: 44)
+            case let .loaded(payload):
+                previewRows(payload)
+            }
+            NavigationLink(value: SongRoute.leaderboard(song, instrument, 1)) {
+                Label("View full \(instrument.label) leaderboard", systemImage: "arrow.right")
+                    .font(.body)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .background(
+                        BrandTokens.appBackground,
+                        in: RoundedRectangle(cornerRadius: 10)
+                    )
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier(
+                "fst.song-detail.leaderboard.\(instrument.rawValue)"
+            )
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            BrandTokens.cardBackground,
+            in: RoundedRectangle(cornerRadius: 12)
+        )
+        .task(id: requestKey) {
+            guard usesLiveClient else { return }
+            await load()
+        }
+    }
+
+    /// Keep every response's freshness separate from its visible score rows.
+    ///
+    /// - Parameter payload: Validated first ten scores and response provenance.
+    /// - Returns: Empty, live or offline native row content.
+    @ViewBuilder
+    private func previewRows(_ payload: LeaderboardPayload) -> some View {
+        if payload.isStale {
+            FreshnessDisclosure(
+                message: OfflineDisclosure.label(
+                    .scores, publicationId: payload.publicationId
+                ),
+                symbol: "wifi.slash"
+            )
+        } else if payload.publicationId == nil {
+            FreshnessDisclosure(
+                message: "Showing live scores without publication verification",
+                symbol: "info.circle"
+            )
+        }
+        if payload.leaderboard.showLeaderboardEntryTotals == true {
+            Text("\(payload.leaderboard.totalEntries) \(instrument.label) entries")
+                .font(.subheadline)
+                .foregroundStyle(BrandTokens.textSecondary)
+        }
+        if payload.leaderboard.entries.isEmpty {
+            Text("No \(instrument.label) scores yet")
+                .foregroundStyle(BrandTokens.textSecondary)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        } else {
+            let displayed = Array(payload.leaderboard.entries.prefix(10))
+            ForEach(Array(displayed.enumerated()), id: \.offset) { index, entry in
+                SongLeaderboardEntryRow(entry: entry)
+                    .padding(.vertical, 6)
+                    .accessibilityIdentifier(
+                        "fst.song-detail.preview-row.\(instrument.rawValue).\(entry.accountId)"
+                    )
+                if index < displayed.count - 1 {
+                    Divider()
+                }
+            }
+        }
+    }
+
+    /// Refresh one chart only when visible or after an explicit retry.
+    private func load() async {
+        let requested = requestKey
+        state = .loading
+        do {
+            let payload = try await session.leaderboard(
+                songId: song.songId, instrument: instrument,
+                page: 1, top: 10, leeway: requested.leeway
+            )
+            try Task.checkCancellation()
+            guard requested == requestKey else { return }
+            state = .loaded(payload)
+        } catch is CancellationError {
+            return
+        } catch let error as URLError where error.code == .cancelled {
+            return
+        } catch {
+            guard !Task.isCancelled, requested == requestKey else { return }
+            state = .failed(error.localizedDescription)
+        }
+    }
+}
+
+/// Scalable score row shared by the native preview and the paginated Solo chart.
+private struct SongLeaderboardEntryRow: View {
+    let entry: LeaderboardEntry
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        let rank = Text("#\(entry.rank.formatted())")
+            .font(.body)
+            .monospacedDigit()
+            .foregroundStyle(BrandTokens.textSecondary)
+        let name = Text(
+            entry.displayName.flatMap { $0.isEmpty ? nil : $0 } ?? "Unknown User"
+        )
+        .font(.body)
+        .fixedSize(horizontal: false, vertical: true)
+        let score = Text(entry.score.formatted())
+            .font(.body)
+            .monospacedDigit()
+            .fixedSize(horizontal: true, vertical: false)
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 8))
+        let valuesLayout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 8))
+        return layout {
+            HStack(spacing: 8) {
+                rank
+                name.frame(maxWidth: .infinity, alignment: .leading)
+            }
+            valuesLayout {
+                score
+                if let value = entry.accuracy {
+                    Text(
+                        dynamicTypeSize.isAccessibilitySize
+                            ? "Accuracy \(ScoreFormatting.accuracy(value))%"
+                            : "\(ScoreFormatting.accuracy(value))%"
+                    )
+                    .font(.body)
+                    .foregroundStyle(BrandTokens.gold)
+                }
+            }
+        }
+        .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 8 : 0)
     }
 }
 
@@ -712,7 +916,7 @@ struct SoloLeaderboardScreen: View {
                                 .listRowBackground(Color.clear)
                         }
                         ForEach(payload.leaderboard.entries) { entry in
-                            scoreRow(entry)
+                            SongLeaderboardEntryRow(entry: entry)
                             .listRowBackground(BrandTokens.cardBackground)
                             .accessibilityIdentifier(
                                 "fst.song-leaderboard.row.\(entry.accountId)"
@@ -788,60 +992,6 @@ struct SoloLeaderboardScreen: View {
             BrandTokens.cardBackground,
             in: RoundedRectangle(cornerRadius: 12)
         )
-    }
-
-    /// Keep score and accuracy whole when accessibility text is enlarged.
-    ///
-    /// - Parameter entry: Validated chart result in the current 25-row page.
-    /// - Returns: Compact score columns or a wrapping stacked native row.
-    private func scoreRow(_ entry: LeaderboardEntry) -> some View {
-        let rank = Text("#\(entry.rank.formatted())")
-            .font(.body)
-            .monospacedDigit()
-            .foregroundStyle(BrandTokens.textSecondary)
-        let name = Text(
-            entry.displayName.flatMap { $0.isEmpty ? nil : $0 } ?? "Unknown User"
-        )
-        .font(.body)
-        .fixedSize(horizontal: false, vertical: true)
-        let score = Text(entry.score.formatted())
-            .font(.body)
-            .monospacedDigit()
-            .fixedSize(horizontal: true, vertical: false)
-        let layout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
-            : AnyLayout(HStackLayout(spacing: 8))
-        let valuesLayout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
-            : AnyLayout(HStackLayout(spacing: 8))
-        return layout {
-            HStack(spacing: 8) {
-                rank
-                name.frame(maxWidth: .infinity, alignment: .leading)
-            }
-            valuesLayout {
-                score
-                accuracy(for: entry)
-            }
-        }
-        .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 8 : 0)
-    }
-
-    /// Announce accuracy as a percent independently of the raw chart value.
-    ///
-    /// - Parameter entry: Score row that may have no accuracy measurement.
-    /// - Returns: Accessible, branded accuracy when present.
-    @ViewBuilder
-    private func accuracy(for entry: LeaderboardEntry) -> some View {
-        if let value = entry.accuracy {
-            Text(
-                dynamicTypeSize.isAccessibilitySize
-                    ? "Accuracy \(ScoreFormatting.accuracy(value))%"
-                    : "\(ScoreFormatting.accuracy(value))%"
-            )
-                .font(.body)
-                .foregroundStyle(BrandTokens.gold)
-        }
     }
 
     /// Load a specific page and reject late responses from a previous selection.

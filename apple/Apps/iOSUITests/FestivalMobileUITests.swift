@@ -5,6 +5,44 @@ import UIKit
 final class FestivalMobileUITests: XCTestCase {
     // MARK: - Navigation and orientation
 
+    /// Show ten real fixture score rows, then open the independent full Solo page.
+    ///
+    /// - Throws: Missing native top-score rows, incorrect top parameter or hidden action.
+    @MainActor
+    func testSongDetailShowsTopScorePreviewAndFullChart() async throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launch()
+        let song = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(song.waitForExistence(timeout: 15))
+        song.tap()
+        collapseSidebarOnPad(app)
+        let first = app.descendants(matching: .any).matching(
+            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-1"
+        ).firstMatch
+        XCTAssertTrue(first.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["Fixture Player 1"].exists)
+        let previewQuery = try await latestFixtureScoreQuery()
+        XCTAssertEqual(previewQuery.top, 10)
+        XCTAssertEqual(previewQuery.offset, 0)
+        XCTAssertNil(previewQuery.leeway)
+        XCTAssertFalse(app.descendants(matching: .any).matching(
+            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-11"
+        ).firstMatch.exists)
+        record(app, name: "song-detail-real-top-scores")
+        try assertHeaderContrast(app.staticTexts["Fixture Player 1"], in: app)
+
+        let viewFull = app.buttons["fst.song-detail.leaderboard.Solo_Guitar"]
+        XCTAssertTrue(viewFull.waitForExistence(timeout: 10))
+        viewFull.tap()
+        XCTAssertTrue(app.buttons["fst.song-leaderboard.page-next"].waitForExistence(timeout: 10))
+        let fullQuery = try await latestFixtureScoreQuery()
+        XCTAssertEqual(fullQuery.top, 25)
+        XCTAssertEqual(fullQuery.offset, 0)
+    }
+
     /// Traverse Songs, Detail and page two, then verify landscape layout survives.
     ///
     /// - Throws: An XCTest failure for missing accessible actions or screen state.
@@ -183,6 +221,9 @@ final class FestivalMobileUITests: XCTestCase {
         let whiteRow = app.buttons["fst.songs.row.fixture-white"]
         XCTAssertTrue(whiteRow.waitForExistence(timeout: 15))
         whiteRow.tap()
+        XCTAssertTrue(app.staticTexts.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Scores unavailable:")
+        ).firstMatch.waitForExistence(timeout: 10))
         let lead = app.buttons["fst.song-detail.leaderboard.Solo_Guitar"]
         XCTAssertTrue(lead.waitForExistence(timeout: 10))
         lead.tap()
@@ -376,6 +417,13 @@ final class FestivalMobileUITests: XCTestCase {
         let song = app.buttons["fst.songs.row.fixture-pulse"]
         XCTAssertTrue(song.waitForExistence(timeout: 15))
         song.tap()
+        let preview = app.descendants(matching: .any).matching(
+            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-1"
+        ).firstMatch
+        XCTAssertTrue(
+            preview.waitForExistence(timeout: 10),
+            "Full chart fixture closed before its ten-row Detail preview"
+        )
         let lead = app.buttons["fst.song-detail.leaderboard.Solo_Guitar"]
         XCTAssertTrue(lead.waitForExistence(timeout: 10))
         lead.tap()
@@ -399,6 +447,12 @@ final class FestivalMobileUITests: XCTestCase {
         XCTAssertTrue(back.exists)
         back.tap()
         XCTAssertTrue(lead.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any).matching(
+            NSPredicate(
+                format: "label == %@",
+                "Offline - last seen scores (publication unverified)"
+            )
+        ).firstMatch.waitForExistence(timeout: 10))
         lead.tap()
         let offline = app.descendants(matching: .any).matching(
             NSPredicate(
@@ -705,6 +759,12 @@ final class FestivalMobileUITests: XCTestCase {
         XCTAssertFalse(app.buttons["fst.song-detail.leaderboard.Solo_Bass"].exists)
         let leadChart = app.buttons["fst.song-detail.leaderboard.Solo_Guitar"]
         XCTAssertTrue(leadChart.exists)
+        XCTAssertTrue(app.descendants(matching: .any).matching(
+            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-1"
+        ).firstMatch.waitForExistence(timeout: 10))
+        let preview = try await latestFixtureScoreQuery()
+        XCTAssertEqual(preview.top, 10)
+        XCTAssertNotNil(preview.leeway, "Preview ignored the enabled score filter")
         leadChart.tap()
         let next = app.buttons["fst.song-leaderboard.page-next"]
         XCTAssertTrue(next.waitForExistence(timeout: 10))

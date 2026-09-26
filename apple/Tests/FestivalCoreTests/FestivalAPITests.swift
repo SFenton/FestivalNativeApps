@@ -469,6 +469,75 @@ private func reply(_ status: Int, _ text: String = "", headers: [String: String]
     #expect(requests[3].value(forHTTPHeaderField: "If-None-Match") == "p1")
 }
 
+/// A ten-row preview cannot reuse the full-page ETag or overfill its visible card.
+@Test func songDetailPreviewUsesBoundedIndependentChartQuery() async throws {
+    let previewRows = (1...10).map { rank in
+        """
+        {"accountId":"fixture-\(rank)","displayName":"Fixture \(rank)",
+        "rank":\(rank),"score":\(100_000 - rank)}
+        """
+    }.joined(separator: ",")
+    let preview = """
+    {"songId":"fixture-pulse","instrument":"Solo_Guitar","count":10,
+    "totalEntries":26,"localEntries":26,"entries":[\(previewRows)]}
+    """
+    let full = """
+    {"songId":"fixture-pulse","instrument":"Solo_Guitar","count":1,
+    "totalEntries":26,"localEntries":26,
+    "entries":[{"accountId":"fixture-1","rank":1,"score":99999}]}
+    """
+    let transport = FixtureTransport([
+        HTTPResult(status: 200, data: publicationJSON),
+        reply(200, preview, headers: ["X-FST-Publication-Id": "7", "ETag": "preview"]),
+        reply(200, full, headers: ["X-FST-Publication-Id": "7", "ETag": "full"]),
+        reply(304, headers: ["X-FST-Publication-Id": "7"]),
+    ])
+    let client = try FestivalAPI(transport: transport)
+    let first = try await client.leaderboard(
+        songId: "fixture-pulse", instrument: .lead, page: 1, top: 10
+    )
+    let fullPage = try await client.leaderboard(
+        songId: "fixture-pulse", instrument: .lead, page: 1
+    )
+    let cached = try await client.leaderboard(
+        songId: "fixture-pulse", instrument: .lead, page: 1, top: 10
+    )
+    #expect(first.leaderboard.entries.count == 10)
+    #expect(fullPage.leaderboard.entries.count == 1)
+    #expect(cached.leaderboard.entries == first.leaderboard.entries)
+    let requests = await transport.recorded()
+    #expect(requests.count == 4)
+    #expect(requests[1].url?.query == "top=10&offset=0")
+    #expect(requests[2].url?.query == "top=25&offset=0")
+    #expect(requests[2].value(forHTTPHeaderField: "If-None-Match") == nil)
+    #expect(requests[3].value(forHTTPHeaderField: "If-None-Match") == "preview")
+    await #expect(throws: FestivalAPIError.invalidResource) {
+        try await client.leaderboard(
+            songId: "fixture-pulse", instrument: .lead, page: 1, top: 26
+        )
+    }
+}
+
+/// Fail closed if a server ignores the requested preview size.
+@Test func songDetailPreviewRejectsOverfilledScores() async throws {
+    let rows = (1...11).map { rank in
+        "{\"accountId\":\"fixture-\(rank)\",\"rank\":\(rank),\"score\":90000}"
+    }.joined(separator: ",")
+    let transport = FixtureTransport([
+        HTTPResult(status: 200, data: publicationJSON),
+        reply(200, """
+        {"songId":"fixture-pulse","instrument":"Solo_Guitar","count":11,
+        "totalEntries":11,"entries":[\(rows)]}
+        """, headers: ["X-FST-Publication-Id": "7"]),
+    ])
+    let client = try FestivalAPI(transport: transport)
+    await #expect(throws: FestivalAPIError.invalidLeaderboard) {
+        try await client.leaderboard(
+            songId: "fixture-pulse", instrument: .lead, page: 1, top: 10
+        )
+    }
+}
+
 @Test func artworkCacheSurvivesWarmOfflineButRejectsInvalidImages() async throws {
     let url = URL(string: "https://cdn2.unrealengine.com/fixture.png")!
     let bytes = Data([137, 80, 78, 71])

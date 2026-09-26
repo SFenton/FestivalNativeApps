@@ -13,7 +13,9 @@ The source-of-truth website and service are in `SFenton/FortniteFestivalLeaderbo
 - [Design, platform, page/control, and testing index](.agents/README.md)
 - [Machine-checkable product inventory](contracts/product.json)
 - [Deterministic inventory validator](tools/verify_product.py)
+- [Every React route and 17 dependent native feature gaps](contracts/parity-backlog.json)
+- [Source-backed parity findings](.agents/parity-audit.md) and [deterministic backlog validator](tools/parity_backlog.py)
 
-Run `python3 -m unittest discover -s tools/tests` and `python3 tools/verify_product.py` after updating the inventory. The non-strict command checks consistency and reports unported surfaces; strict mode additionally fails unless every listed surface has evidence for all platforms.
+Run `python3 tools/parity_backlog.py --list` for prioritized work and every route's native gap. Its default mode checks the 24-route contract in CI; `python3 tools/verify_product.py` separately checks control IDs and certification evidence. Use focused tests during feature work, then full native/coverage gates before certifying a release. `python3 tools/verify_product.py --strict` still requires every page/control state on all four platforms.
 
 Public PWA functionality does **not** require distributing the service's privileged `X-API-Key`. Never put a shared service credential in an app, fixture, log, repository, or build artifact. Local UI automation uses fixtures, not production endpoints that may have side effects.

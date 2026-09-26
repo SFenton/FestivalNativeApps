@@ -5,11 +5,26 @@ import unittest
 from pathlib import Path
 from subprocess import DEVNULL, run
 
-from tools.source_snapshot import create_snapshot
+from tools.source_snapshot import create_snapshot, tracked_source_paths
 
 
 class SourceSnapshotTests(unittest.TestCase):
     """No source code is copied into generated metadata."""
+
+    def test_backlog_citations_expand_source_snapshot_without_copying_code(self):
+        """Every new audited feature source becomes drift-checked automatically."""
+        refs = {"epics": [
+            {"sourceRefs": ["FortniteFestivalWeb/src/pages/example/Example.tsx:19"]},
+            {"sourceRefs": ["FSTService/Api/Example.cs:3"]},
+        ]}
+        self.assertEqual(tracked_source_paths(refs, ("before.ts",)), (
+            "FSTService/Api/Example.cs",
+            "FortniteFestivalWeb/src/pages/example/Example.tsx",
+            "before.ts",
+        ))
+        refs["epics"][0]["sourceRefs"] = ["../../../secrets.env:1"]
+        with self.assertRaisesRegex(ValueError, "Invalid parity source reference"):
+            tracked_source_paths(refs, ())
 
     def test_committed_then_modified_source_hashes(self):
         """Dirty bytes are labeled as modifications to their original commit."""

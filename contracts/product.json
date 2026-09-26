@@ -69,6 +69,7 @@
     "fst.songs.row.*": "songs",
     "fst.song-detail.intensity": "song-detail",
     "fst.song-detail.leaderboard.*": "song-detail",
+    "fst.song-detail.preview-row.*": "song-detail",
     "fst.song-leaderboard.row.*": "song-leaderboard",
     "fst.song-leaderboard.page-first": "song-leaderboard",
     "fst.song-leaderboard.page-previous": "song-leaderboard",

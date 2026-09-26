@@ -261,6 +261,34 @@ func detailVisualStates(_ songNumber: Int) throws {
     })
 }
 
+/// The same preview control paints loading, scores, empty, stale and retry states.
+@MainActor
+@Test func songDetailPreviewRendersAllLocalStates() throws {
+    let song = try fixtureSong()
+    let session = offlineSession()
+    func snapshot(_ state: SongScorePreview.LoadState) throws -> Data {
+        let renderer = ImageRenderer(content: NavigationStack {
+            SongScorePreview(
+                song: song, instrument: .lead, session: session, initialState: state
+            )
+            .frame(width: 420, height: 510, alignment: .top)
+        })
+        let image = try #require(renderer.cgImage)
+        return try #require(
+            NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])
+        )
+    }
+    let loading = try snapshot(.loading)
+    let populated = try snapshot(.loaded(fixtureLeaderboard(visible: 10)))
+    let empty = try snapshot(.loaded(fixtureLeaderboard(visible: 0)))
+    let stale = try snapshot(.loaded(fixtureLeaderboard(visible: 10, stale: true)))
+    let failed = try snapshot(.failed("Fixture unavailable"))
+    #expect(loading != populated)
+    #expect(populated != empty)
+    #expect(populated != stale)
+    #expect(failed != loading)
+}
+
 /// Pagination/footer states remain visible at both score and empty boundaries.
 @MainActor
 @Test(arguments: ScoreScenario.allCases)

@@ -19,11 +19,11 @@ struct LiveServiceSmoke {
                 throw FestivalAPIError.invalidCatalogue
             }
             let chart = try await client.leaderboard(
-                songId: firstLead.songId, instrument: .lead, page: 1
+                songId: firstLead.songId, instrument: .lead, page: 1, top: 10
             )
             print("Public publication validated: contract \(publication.contractVersion)")
             print("Decoded live songs: \(songs.catalog.count)")
-            print("Decoded live Lead rows: \(chart.leaderboard.entries.count)")
+            print("Decoded live Lead preview rows: \(chart.leaderboard.entries.count)")
             print("Songs response provenance verified: \(songs.publicationId != nil)")
             print("Score response provenance verified: \(chart.publicationId != nil)")
         } catch {

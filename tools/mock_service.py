@@ -76,7 +76,7 @@ class FixtureServer(ThreadingHTTPServer):
             rollover_on_read: First publication GET that advances generation 7 to 8.
             fail_first_white_catalogue: Fail one white-art catalogue read, then recover.
             stop_after_first_songs: Stop this mock listener after its first successful Songs read.
-            stop_after_first_score: Stop after its first successful solo chart read.
+            stop_after_first_score: Stop after the first successful full 25-row chart read.
         """
         self.unpinned = unpinned
         self.rollover_on_read = rollover_on_read
@@ -156,12 +156,17 @@ class FixtureServer(ThreadingHTTPServer):
             self._stop_after_first_songs = False
             return should_stop
 
-    def should_stop_after_score(self) -> bool:
-        """Consume one chart response before simulating a real connection loss.
+    def should_stop_after_score(self, top: int) -> bool:
+        """Consume one full page, not a ten-row Detail preview, before disconnecting.
+
+        Args:
+            top: Validated number of chart rows requested.
 
         Returns:
-            True only after the first successful leaderboard read on this listener.
+            True only after the first successful 25-row chart on this listener.
         """
+        if top != 25:
+            return False
         with self._lock:
             should_stop = self._stop_after_first_score
             self._stop_after_first_score = False
@@ -400,7 +405,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 "localEntries": total, "totalEntries": total,
                 "showLeaderboardEntryTotals": True, "entries": entries,
             })
-            if self.fixture.should_stop_after_score():
+            if self.fixture.should_stop_after_score(top):
                 self.fixture.shutdown()
         else:
             self._json(404, {"status": "not_found"})

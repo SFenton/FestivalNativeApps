@@ -6,12 +6,15 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "contracts/source-snapshot.json"
+BACKLOG = ROOT / "contracts/parity-backlog.json"
+SOURCE_REF = re.compile(r"^(?:FortniteFestivalWeb|FSTService)/[\w./-]+\.(?:tsx|ts|cs):[1-9]\d*$")
 SOURCES = (
     "FSTService/Api/ApiPublicationClassification.cs",
     "FSTService/Api/LeaderboardEndpoints.cs",
@@ -41,6 +44,33 @@ SOURCES = (
     "FortniteFestivalWeb/src/utils/songSearch.ts",
     "FortniteFestivalWeb/src/utils/songSort.ts",
 )
+
+def tracked_source_paths(backlog: dict, base: tuple[str, ...] = SOURCES) -> tuple[str, ...]:
+    """Pin all existing inputs plus each cited React/service feature source.
+
+    Args:
+        backlog: Validated versioned parity plan with sourceRefs on every epic.
+        base: Previously pinned source files to retain across plan revisions.
+
+    Returns:
+        Sorted, de-duplicated source file paths without embedded code.
+
+    Raises:
+        ValueError: If a feature citation cannot identify a source file and line.
+    """
+    epics = backlog.get("epics")
+    if not isinstance(epics, list) or not epics:
+        raise ValueError("Parity backlog needs cited feature epics")
+    paths = set(base)
+    for epic in epics:
+        refs = epic.get("sourceRefs") if isinstance(epic, dict) else None
+        if not isinstance(refs, list) or not refs:
+            raise ValueError("Parity epic has no source references")
+        for ref in refs:
+            if not isinstance(ref, str) or not SOURCE_REF.fullmatch(ref):
+                raise ValueError(f"Invalid parity source reference: {ref!r}")
+            paths.add(ref.rsplit(":", 1)[0])
+    return tuple(sorted(paths))
 
 
 def _git(source: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -86,12 +116,12 @@ def source_status(source: Path, path: str) -> str:
     return "committed"
 
 
-def create_snapshot(source: Path, paths: tuple[str, ...] = SOURCES) -> dict:
+def create_snapshot(source: Path, paths: tuple[str, ...] | None = None) -> dict:
     """Hash every known parity input and attach its true source provenance.
 
     Args:
         source: Source repository with the reviewed, possibly dirty worktree.
-        paths: Explicit files to pin (defaults to current first-slice evidence).
+        paths: Explicit files to pin, or baseline plus every parity-epic citation.
 
     Returns:
         Machine-checkable metadata; never copies source code or credentials.
@@ -102,6 +132,8 @@ def create_snapshot(source: Path, paths: tuple[str, ...] = SOURCES) -> dict:
     revision = _git(source, "rev-parse", "HEAD")
     if revision.returncode != 0 or len(revision.stdout.strip()) != 40:
         raise ValueError(f"{source}: cannot read source HEAD")
+    if paths is None:
+        paths = tracked_source_paths(json.loads(BACKLOG.read_text(encoding="utf-8")))
     files = {}
     for path in paths:
         content = source / path

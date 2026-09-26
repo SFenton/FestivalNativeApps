@@ -114,14 +114,17 @@ final class FestivalSession {
     ///   - songId: Catalog identifier for the requested song.
     ///   - instrument: Solo instrument chart.
     ///   - page: One-based page number.
+    ///   - top: Ten preview rows or the full 25-row page.
     ///   - leeway: Present only when invalid-score filtering is enabled.
     /// - Returns: Validated score page and publication provenance.
     /// - Throws: Client configuration, transport, decoding or validation failures.
     func leaderboard(
-        songId: String, instrument: Instrument, page: Int, leeway: Double?
+        songId: String, instrument: Instrument, page: Int,
+        top: Int = 25, leeway: Double?
     ) async throws -> LeaderboardPayload {
         let payload = try await client().leaderboard(
-            songId: songId, instrument: instrument, page: page, leeway: leeway
+            songId: songId, instrument: instrument, page: page,
+            top: top, leeway: leeway
         )
         try await observe(publicationId: payload.observedPublicationId)
         return payload
