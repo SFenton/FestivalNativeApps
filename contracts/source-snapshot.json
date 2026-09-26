@@ -45,6 +45,10 @@
       "sha256": "a262c806bba550e8275bf1901a18cee2bb2723709fdd5e6f872842186f5314a2",
       "status": "committed"
     },
+    "FSTService/ComboIds.cs": {
+      "sha256": "3c84d8b270e013a2e6880a7acc440fb561c1532bdbeb5fd592472d523242bdf3",
+      "status": "committed"
+    },
     "FSTService/Persistence/BandLeaderboardPersistence.cs": {
       "sha256": "646c17f0c6b895ddf305baf6cb39714fc9928feb48336a0f5c30b37abba1ae56",
       "status": "committed"
@@ -63,6 +67,14 @@
     },
     "FSTService/Program.cs": {
       "sha256": "7d1e807d61e27158bbaf48077113b6774503cdd8f5ca12442e480cf573b1bbff",
+      "status": "committed"
+    },
+    "FSTService/Scraping/GlobalLeaderboardScraper.cs": {
+      "sha256": "1e42e1550da4784ee83eb2607226a83f330ec0488c00cefe22fb333ba7f4b1e5",
+      "status": "committed"
+    },
+    "FSTService/Scraping/ScrapeTimePrecomputer.cs": {
+      "sha256": "e9ab13f2a5c67e0f7813db5cd2fdf52817d2f9d836690f3fce0494d4c76e1a99",
       "status": "committed"
     },
     "FSTService/Scraping/ShopUrlHelper.cs": {

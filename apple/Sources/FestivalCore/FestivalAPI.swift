@@ -4,6 +4,7 @@ import Foundation
 public enum PublicEndpoint: Sendable {
     case songs
     case shop
+    case player(accountId: String)
     case leaderboard(
         songId: String, instrument: String, top: Int = 25, offset: Int = 0, leeway: Double? = nil
     )
@@ -16,7 +17,7 @@ public enum PublicEndpoint: Sendable {
     ///
     /// - Parameter baseURL: HTTPS service origin or a loopback fixture server.
     /// - Returns: Valid endpoint URL.
-    /// - Throws: `FestivalAPIError.invalidResource` for empty or malformed identifiers.
+    /// - Throws: Invalid resource or player identifier errors.
     func url(relativeTo baseURL: URL) throws -> URL {
         let segments: [String]
         var query: [URLQueryItem] = []
@@ -25,6 +26,11 @@ public enum PublicEndpoint: Sendable {
             segments = ["api", "songs"]
         case .shop:
             segments = ["api", "shop"]
+        case let .player(accountId):
+            guard ProfileSearchText.isValidAccountId(accountId) else {
+                throw FestivalAPIError.invalidPlayerProfile
+            }
+            segments = ["api", "player", accountId]
         case let .leaderboard(songId, instrument, top, offset, leeway):
             guard !songId.isEmpty, !instrument.isEmpty,
                   !songId.contains("/"), !instrument.contains("/"),
@@ -67,6 +73,14 @@ public enum PublicEndpoint: Sendable {
             throw FestivalAPIError.invalidResource
         }
         return resolved
+    }
+
+    /// Keep personal profile bytes out of the raw multi-resource cache.
+    ///
+    /// - Returns: False for account profiles, including HTTP 202 syncing envelopes.
+    var allowsSnapshotCache: Bool {
+        if case .player = self { return false }
+        return true
     }
 }
 
@@ -214,6 +228,7 @@ public struct PublicPayload: Sendable {
     public let publicationId: Int?
     public let observedPublicationId: Int
     public let isStale: Bool
+    public let httpStatus: Int
 
     /// Create a payload with an explicit offline/stale indicator.
     ///
@@ -223,13 +238,16 @@ public struct PublicPayload: Sendable {
     ///   - observedPublicationId: Validated bootstrap generation during the read,
     ///     not a claim that unpinned bytes came from that generation.
     ///   - isStale: True only when the network failed and a memory copy was used.
+    ///   - httpStatus: Actual successful HTTP result, or 200 for retained cached data.
     public init(
-        data: Data, publicationId: Int?, observedPublicationId: Int, isStale: Bool
+        data: Data, publicationId: Int?, observedPublicationId: Int,
+        isStale: Bool, httpStatus: Int = 200
     ) {
         self.data = data
         self.publicationId = publicationId
         self.observedPublicationId = observedPublicationId
         self.isStale = isStale
+        self.httpStatus = httpStatus
     }
 }
 
@@ -379,6 +397,9 @@ public actor FestivalAPI {
     func rememberUnverified(
         _ payload: PublicPayload, for endpoint: PublicEndpoint
     ) async throws {
+        guard endpoint.allowsSnapshotCache else {
+            throw FestivalAPIError.invalidResource
+        }
         guard payload.publicationId == nil, !payload.isStale else { return }
         try Task.checkCancellation()
         guard let active = current,
@@ -416,7 +437,10 @@ public actor FestivalAPI {
     ) async throws -> PublicPayload {
         var publication = generation
         let identifier = url.absoluteString
-        var cached = await cache.entry(for: identifier, publicationId: publication.publicationId)
+        var cached: SessionResponseCache.Entry?
+        if endpoint.allowsSnapshotCache {
+            cached = await cache.entry(for: identifier, publicationId: publication.publicationId)
+        }
         var response: HTTPResult
         do {
             response = try await transport.send(
@@ -459,7 +483,11 @@ public actor FestivalAPI {
            (try? JSONDecoder().decode(Conflict.self, from: response.data))?.status
                 == "publication_changed" {
             publication = try await self.publication(force: true)
-            cached = await cache.entry(for: identifier, publicationId: publication.publicationId)
+            if endpoint.allowsSnapshotCache {
+                cached = await cache.entry(
+                    for: identifier, publicationId: publication.publicationId
+                )
+            }
             response = try await transport.send(
                 request(for: url, publication: publication, etag: cached?.etag)
             )
@@ -496,6 +524,8 @@ public actor FestivalAPI {
             throw FestivalAPIError.httpStatus(response.status)
         }
         switch endpoint {
+        case .player where response.data.count > PlayerProfileResponse.wireByteLimit:
+            throw FestivalAPIError.invalidPlayerProfile
         case .shop where response.data.count > 4_000_000:
             throw FestivalAPIError.invalidShop
         case let .path(_, _, _, display, _) where response.data.count > 8_000_000:
@@ -518,26 +548,39 @@ public actor FestivalAPI {
         guard current?.publicationId == publication.publicationId else {
             throw FestivalAPIError.invalidPublication
         }
+        if response.status == 202 {
+            guard case .player = endpoint else {
+                throw FestivalAPIError.invalidResponse
+            }
+            try Task.checkCancellation()
+            return PublicPayload(
+                data: response.data, publicationId: responseId,
+                observedPublicationId: publication.publicationId,
+                isStale: false, httpStatus: 202
+            )
+        }
         if responseId != nil {
             try Task.checkCancellation()
-            let entry = SessionResponseCache.Entry(
-                data: response.data,
-                publicationId: publication.publicationId,
-                etag: response.header("ETag")
-            )
-            if case let .path(_, _, _, display, _) = endpoint, display == .image {
-                try await cache.storePathImageIfActive(entry, for: identifier)
-            } else {
-                try await cache.storeIfActive(entry, for: identifier)
-            }
-            do {
-                try Task.checkCancellation()
-                guard current?.publicationId == publication.publicationId else {
-                    throw FestivalAPIError.invalidPublication
+            if endpoint.allowsSnapshotCache {
+                let entry = SessionResponseCache.Entry(
+                    data: response.data,
+                    publicationId: publication.publicationId,
+                    etag: response.header("ETag")
+                )
+                if case let .path(_, _, _, display, _) = endpoint, display == .image {
+                    try await cache.storePathImageIfActive(entry, for: identifier)
+                } else {
+                    try await cache.storeIfActive(entry, for: identifier)
                 }
-            } catch {
-                await cache.removeVerifiedIfMatching(entry, for: identifier)
-                throw error
+                do {
+                    try Task.checkCancellation()
+                    guard current?.publicationId == publication.publicationId else {
+                        throw FestivalAPIError.invalidPublication
+                    }
+                } catch {
+                    await cache.removeVerifiedIfMatching(entry, for: identifier)
+                    throw error
+                }
             }
         } else if publication.readyForPinning && publication.pinningEnabled {
             throw FestivalAPIError.invalidPublication
@@ -545,7 +588,8 @@ public actor FestivalAPI {
         try Task.checkCancellation()
         return PublicPayload(
             data: response.data, publicationId: responseId,
-            observedPublicationId: publication.publicationId, isStale: false
+            observedPublicationId: publication.publicationId,
+            isStale: false, httpStatus: response.status
         )
     }
 

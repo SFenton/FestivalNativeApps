@@ -40,6 +40,7 @@ public enum FestivalAPIError: LocalizedError, Equatable, Sendable {
     case invalidProfileSearchQuery
     case invalidProfileSearchLimit
     case invalidProfileSearch
+    case invalidPlayerProfile
     case httpStatus(Int)
     case unexpectedNotModified
     case unavailable(retryAfter: String?)
@@ -71,6 +72,8 @@ public enum FestivalAPIError: LocalizedError, Equatable, Sendable {
             "Player search can request up to ten results."
         case .invalidProfileSearch:
             "Player search returned unreadable data. Try again."
+        case .invalidPlayerProfile:
+            "The selected player's scores could not be read. Try again."
         case let .httpStatus(status):
             if status == 404 {
                 "That song or chart is no longer available."

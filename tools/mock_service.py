@@ -43,6 +43,7 @@ EMPTY_SONGS, EMPTY_SONGS_HASH = load_fixture("songs-empty")
 DEMO_SONGS, DEMO_SONGS_HASH = load_fixture("songs-demo")
 PATH_DEMO, PATH_DEMO_HASH = load_fixture("path-demo")
 SHOP_DEMO, SHOP_DEMO_HASH = load_fixture("shop-demo")
+PLAYER_DEMO, PLAYER_DEMO_HASH = load_fixture("player-demo")
 SOURCE_HASHES = {
     "tools/mock_service.py": hashlib.sha256(Path(__file__).resolve().read_bytes()).hexdigest(),
     "contracts/fixtures/publication.json": PUBLICATION_HASH,
@@ -50,11 +51,13 @@ SOURCE_HASHES = {
     "contracts/fixtures/songs-demo.json": DEMO_SONGS_HASH,
     "contracts/fixtures/path-demo.json": PATH_DEMO_HASH,
     "contracts/fixtures/shop-demo.json": SHOP_DEMO_HASH,
+    "contracts/fixtures/player-demo.json": PLAYER_DEMO_HASH,
 }
 SONGS_ETAG = '"fst-fixture-songs-v1"'
 EMPTY_ETAG = '"fst-fixture-empty-v1"'
 SHOP_ETAG = '"fst-fixture-shop-v1"'
 LEADERBOARD = re.compile(r"^/api/leaderboard/(fixture-[a-z]+)/([A-Za-z_]+)$")
+PLAYER = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)$")
 PATH_ARTIFACT = re.compile(
     r"^/api/paths/(fixture-[a-z]+)/([A-Za-z_]+)/([a-z]+)(/data)?$"
 )
@@ -435,9 +438,12 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 return
             term = terms[0].strip().casefold()
             candidates = (
-                {"accountId": "fixture-player-1", "displayName": "Fixture Player One"},
-                {"accountId": "fixture-player-2", "displayName": "Fixture Player Two"},
+                {"accountId": "fixture-player-1", "displayName": "Fixture Player 1"},
+                {"accountId": "fixture-player-2", "displayName": "Fixture Player 2"},
                 {"accountId": "fixture-cpp", "displayName": "C++"},
+                {"accountId": "fixture-syncing", "displayName": "Syncing Player"},
+                {"accountId": "fixture-empty", "displayName": "Empty Player"},
+                {"accountId": "fixture-denied", "displayName": "Denied Player"},
             )
             matches = [
                 player for player in candidates
@@ -445,6 +451,36 @@ class FixtureHandler(BaseHTTPRequestHandler):
                     else term in player["displayName"].casefold())
             ]
             self._json(200, {"results": matches[:limit]})
+        elif match := PLAYER.fullmatch(path):
+            account_id = match.group(1)
+            if query:
+                self._json(400, {"status": "invalid_player_query"})
+                return
+            pin = self.headers.get("X-FST-Publication-Id")
+            if pin is not None and pin != str(self.fixture.publication_id):
+                self._json(409, {"status": "publication_changed"})
+                return
+            if account_id == "fixture-denied":
+                self._json(403, {"status": "player_profile_denied"})
+            elif account_id == "fixture-syncing":
+                self._json(202, {
+                    "accountId": account_id, "displayName": "Syncing Player",
+                    "status": "syncing", "notYetPublished": True,
+                    "totalScores": 0, "scores": [],
+                })
+            elif account_id in ("fixture-empty", "fixture-cpp"):
+                self._json(200, {
+                    "accountId": account_id,
+                    "displayName": "Empty Player" if account_id == "fixture-empty" else "C++",
+                    "totalScores": 0, "scores": [],
+                })
+            elif account_id in PLAYER_DEMO["profiles"]:
+                self._json(200, PLAYER_DEMO["profiles"][account_id])
+            else:
+                self._json(200, {
+                    "accountId": account_id, "displayName": None,
+                    "totalScores": 0, "scores": [],
+                })
         elif path == "/api/shop":
             scenarios = query.get("scenario", ["demo"])
             if len(scenarios) != 1 or scenarios[0] not in (

@@ -48,6 +48,7 @@ class MockServiceTests(unittest.TestCase):
             "contracts/fixtures/songs-demo.json",
             "contracts/fixtures/path-demo.json",
             "contracts/fixtures/shop-demo.json",
+            "contracts/fixtures/player-demo.json",
         })
         for name, digest in identity["sourceHashes"].items():
             self.assertEqual(
@@ -156,6 +157,96 @@ class MockServiceTests(unittest.TestCase):
                     headers={header: "synthetic"},
                 ))
             self.assertEqual(failure.exception.code, 400)
+
+    def test_player_profiles_keep_available_syncing_empty_and_denied_distinct(self):
+        """Two original accounts use compact score keys without mutation-shaped GETs."""
+        with urlopen(Request(
+            self.base + "/api/player/fixture-player-1",
+            headers={"X-FST-Publication-Id": "7"},
+        )) as response:
+            first = json.load(response)
+            self.assertEqual(response.headers["X-FST-Publication-Id"], "7")
+        self.assertEqual(first["totalScores"], 2)
+        self.assertEqual(first["scores"][0]["si"], "fixture-pulse")
+        self.assertEqual(first["scores"][0]["ins"], "01")
+        self.assertEqual(first["scores"][0]["acc"], 979)
+        self.assertFalse(first["scores"][0]["fc"])
+        self.assertTrue(all(row["ins"] == "01" for row in first["scores"]))
+        with urlopen(self.base + "/api/player/fixture-player-2") as response:
+            second = json.load(response)
+        self.assertEqual(second["totalScores"], 2)
+        self.assertTrue(second["scores"][0]["fc"])
+        self.assertNotEqual(second["scores"][0]["sc"], first["scores"][0]["sc"])
+        with urlopen(self.base + "/api/player/fixture-empty") as response:
+            empty = json.load(response)
+        self.assertEqual(empty["totalScores"], 0)
+        self.assertEqual(empty["scores"], [])
+        with urlopen(self.base + "/api/player/fixture-syncing") as response:
+            syncing = json.load(response)
+            self.assertEqual(response.status, 202)
+        self.assertEqual(syncing["status"], "syncing")
+        self.assertTrue(syncing["notYetPublished"])
+        self.assertEqual(syncing["scores"], [])
+        for route, expected in (
+            ("/api/player/fixture-denied", 403),
+            ("/api/player/fixture-player-1?leeway=1", 400),
+        ):
+            with self.subTest(route=route), self.assertRaises(HTTPError) as error:
+                urlopen(self.base + route)
+            self.assertEqual(error.exception.code, expected)
+        with urlopen(self.base + "/api/player/fixture-missing") as response:
+            unknown = json.load(response)
+        self.assertEqual(unknown["accountId"], "fixture-missing")
+        self.assertEqual(unknown["scores"], [])
+        self.assertIsNone(unknown["displayName"])
+        stale = Request(
+            self.base + "/api/player/fixture-player-1",
+            headers={"X-FST-Publication-Id": "6"},
+        )
+        with self.assertRaises(HTTPError) as error:
+            urlopen(stale)
+        self.assertEqual(error.exception.code, 409)
+        selected = Request(
+            self.base + "/api/player/fixture-player-1",
+            headers={"X-FST-Selected-Player": "fixture-player-1"},
+        )
+        with self.assertRaises(HTTPError) as error:
+            urlopen(selected)
+        self.assertEqual(error.exception.code, 400)
+        tracking = Request(
+            self.base + "/api/player/fixture-player-1/track", data=b"{}", method="POST"
+        )
+        with self.assertRaises(HTTPError) as error:
+            urlopen(tracking)
+        self.assertEqual(error.exception.code, 405)
+
+    def test_shared_player_rows_match_both_song_leaderboards(self):
+        """Never prove selection with a profile that contradicts the chart fixture."""
+        with urlopen(self.base + "/api/account/search?q=Fixture%20Player&limit=10") as response:
+            discovered = {player["accountId"]: player for player in json.load(response)["results"]}
+        for song in ("fixture-pulse", "fixture-orbit"):
+            with urlopen(
+                self.base + f"/api/leaderboard/{song}/Solo_Guitar?top=2&offset=0"
+            ) as response:
+                chart = json.load(response)
+            for entry in chart["entries"]:
+                with self.subTest(song=song, account=entry["accountId"]):
+                    account_id = entry["accountId"]
+                    with urlopen(self.base + f"/api/player/{account_id}") as response:
+                        profile = json.load(response)
+                    score = next(
+                        row for row in profile["scores"]
+                        if row["si"] == song and row["ins"] == "01"
+                    )
+                    self.assertEqual(discovered[account_id]["displayName"], entry["displayName"])
+                    self.assertEqual(profile["displayName"], entry["displayName"])
+                    self.assertEqual(score["sc"], entry["score"])
+                    self.assertEqual(score["fc"], entry["isFullCombo"])
+                    self.assertEqual(score["rk"], entry["rank"])
+                    self.assertEqual(score["st"], entry["stars"])
+                    self.assertEqual(score["sn"], entry["season"])
+                    self.assertEqual(score["acc"], entry["accuracy"] // 1000)
+                    self.assertAlmostEqual(score["pct"], entry["rank"] / chart["totalEntries"])
 
     def test_public_path_artifacts_have_generation_etags_and_no_mutations(self):
         """Original JSON/PNG fixtures expose valid paths without a live service."""

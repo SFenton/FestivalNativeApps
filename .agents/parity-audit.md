@@ -65,15 +65,24 @@ band sync-status GETs have other write paths
 `FSTService/Api/PlayerEndpoints.cs:508-546,815-830`,
 `FSTService/Api/BandSyncEndpoints.cs:10-43`).
 These are source-backed potential effects, not proof that they fired
-on any production read. A new native Apple Core account autocomplete
-model and loopback mock exercise only a bounded, **headerless** player
-search GET. The service classifies that GET as publication-bound,
+on any production read. Native Apple Core and loopback fixtures now
+validate bounded, **headerless** account search plus compact player
+score decoding across two synthetic identities, 202 syncing, empty
+and denied states. These two profile identities now agree with both
+synthetic Lead song leaderboards on score, rank, FC and quantized
+accuracy; a selected band's score model remains absent. An HTTP 200
+player profile can reflect an **unregistered** current-state read,
+not proof that a player is tracked or fully published
+(`FSTService/Api/PlayerEndpoints.cs:31-51,85-103`,
+`FSTService/Scraping/ScrapeTimePrecomputer.cs:911-953,2442-2476`).
+The actual Apple UI calls neither profile route
+yet. The service classifies the search GET as publication-bound,
 but this initial client does not pin it or cache account identities
 (`FSTService/Api/ApiPublicationClassification.cs:78-84`).
 An empty search envelope is not reliable proof of no matches: the
 service also returns one after a logged DB timeout
 (`FSTService/Persistence/MetaDatabase.cs:3495-3517,3523-3537`).
-Actual UI, live authorization, band search and profile score cards
+Actual UI, live authorization, band search and rendered profile score cards
 remain blocked or pending. See the
 [profile-selection contract](controls/profile-selection.md).
 

@@ -47,6 +47,7 @@ FIXTURE_INPUTS = (
     "contracts/fixtures/songs-demo.json",
     "contracts/fixtures/path-demo.json",
     "contracts/fixtures/shop-demo.json",
+    "contracts/fixtures/player-demo.json",
 )
 REQUIRED_INPUTS = (
     *FIXTURE_INPUTS,
@@ -471,7 +472,7 @@ def require_fixture_identity(
     Args:
         identity: Local fixture health payload containing immutable source hashes.
         flags: Known CLI flags requested by the matrix.
-        expected: Baseline SHA-256 hashes for loaded mock code and three JSON inputs.
+        expected: Baseline SHA-256 hashes for mock code and loaded JSON fixtures.
         port: Loopback port for a precise error.
 
     Raises:

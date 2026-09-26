@@ -1,0 +1,70 @@
+{
+  "profiles": {
+    "fixture-player-1": {
+      "accountId": "fixture-player-1",
+      "displayName": "Fixture Player 1",
+      "totalScores": 2,
+      "scores": [
+        {
+          "si": "fixture-pulse",
+          "ins": "01",
+          "sc": 99900,
+          "acc": 979,
+          "fc": false,
+          "st": 5,
+          "dif": 3,
+          "sn": 9,
+          "pct": 0.038461538461538464,
+          "rk": 1,
+          "te": 26
+        },
+        {
+          "si": "fixture-orbit",
+          "ins": "01",
+          "sc": 99900,
+          "acc": 979,
+          "fc": false,
+          "st": 5,
+          "dif": 3,
+          "sn": 9,
+          "pct": 0.038461538461538464,
+          "rk": 1,
+          "te": 26
+        }
+      ]
+    },
+    "fixture-player-2": {
+      "accountId": "fixture-player-2",
+      "displayName": "Fixture Player 2",
+      "totalScores": 2,
+      "scores": [
+        {
+          "si": "fixture-pulse",
+          "ins": "01",
+          "sc": 99800,
+          "acc": 979,
+          "fc": true,
+          "st": 5,
+          "dif": 3,
+          "sn": 9,
+          "pct": 0.07692307692307693,
+          "rk": 2,
+          "te": 26
+        },
+        {
+          "si": "fixture-orbit",
+          "ins": "01",
+          "sc": 99800,
+          "acc": 979,
+          "fc": true,
+          "st": 5,
+          "dif": 3,
+          "sn": 9,
+          "pct": 0.07692307692307693,
+          "rk": 2,
+          "te": 26
+        }
+      ]
+    }
+  }
+}

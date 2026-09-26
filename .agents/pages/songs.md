@@ -49,12 +49,18 @@ selected profile/band score rows and invalid-score action are **still
 not ported**. See [Shop](shop.md) and
 [Shop offers](../controls/shop-offers.md).
 
-The Apple Core player-search read contract now validates only
-synthetic loopback and injected-transport results. It is not yet
-wired to a profile selector or Songs card; a band-search GET can
-write in the service's missing-projection fallback, so native
-clients must not call it. The profile/viewed-versus-selected state,
-dependent metadata and all nine score cards remain pending; see
-[profile selection](../controls/profile-selection.md).
+Apple Core now decodes the source's compact player scores and
+distinguishes an available HTTP 200 empty-score envelope from
+registration-syncing (HTTP 202), using
+only injected and synthetic loopback responses. No profile read
+is initiated by the app UI yet, nor is the result wired to a
+profile selector or Songs card. An HTTP 200 score list does not
+prove the account is registered; a selected player's Songs
+percentile must derive from rank/total, not raw `pct`.
+A band-search GET can write in
+the service's missing-projection fallback, so native clients
+must not call it. The viewed-versus-selected state, dependent
+metadata and nine rendered score-card states remain pending;
+see [profile selection](../controls/profile-selection.md).
 
 The default Apple Debug/Release app now reads this **real public Songs endpoint** over HTTPS; native UI automation explicitly overrides it with loopback fixtures. A read-only Swift-client probe decoded 728 live Songs on 2026-09-25 and an already-running iOS 26.5 app rendered actual catalogue rows and album art. The screenshot is private session evidence, not a committed third-party artwork asset or a PWA/native layout parity comparison. Run `bash tools/apple_live_service_smoke.sh --read-public-live` for a bounded, aggregate-only wire check; never add production payloads or account identifiers to fixtures by copying this response. Catalogue counts and provenance can change on the service.

@@ -2,6 +2,16 @@ import Foundation
 
 /// Preserve legitimate name-joining format characters while blocking controls and bidi spoofing.
 enum ProfileSearchText {
+    /// Share the service's bounded ASCII account-ID shape across search and profile reads.
+    ///
+    /// - Parameter accountId: Untrusted public account identifier.
+    /// - Returns: True only for a safe, nonempty path and selection key.
+    static func isValidAccountId(_ accountId: String) -> Bool {
+        accountId.range(
+            of: #"\A[A-Za-z0-9_-]{1,128}\z"#, options: .regularExpression
+        ) != nil
+    }
+
     /// Check raw search and display text before it becomes visible or navigable.
     ///
     /// - Parameter text: Untrusted user-entered query or service display name.
@@ -45,10 +55,8 @@ public struct PlayerSearchResult: Decodable, Sendable, Equatable, Identifiable {
     ///
     /// - Throws: `FestivalAPIError.invalidProfileSearch` for an unusable result.
     public func validate() throws {
-        let validId = accountId.range(
-            of: #"\A[A-Za-z0-9_-]{1,128}\z"#, options: .regularExpression
-        ) != nil
-        guard validId, !displayName.isEmpty, displayName.count <= 200 else {
+        guard ProfileSearchText.isValidAccountId(accountId),
+              !displayName.isEmpty, displayName.count <= 200 else {
             throw FestivalAPIError.invalidProfileSearch
         }
     }

@@ -245,11 +245,17 @@ class AppleNativeMatrixTests(unittest.TestCase):
             source.parent.mkdir(parents=True)
             source.write_bytes(b"// fixture")
             baseline = input_hashes(root)
+            self.assertIn("contracts/fixtures/player-demo.json", baseline)
             self.assertEqual(
                 baseline["tools/mock_service.py"],
                 file_hashes(root, FIXTURE_INPUTS)["tools/mock_service.py"],
             )
             require_unchanged(baseline, root=root)
+            player = root / "contracts/fixtures/player-demo.json"
+            player.write_bytes(b"changed")
+            with self.assertRaisesRegex(MatrixError, "player-demo.json"):
+                require_unchanged(baseline, root=root)
+            player.write_bytes(b"fixture bytes")
             project = root / "apple/project.yml"
             project.write_bytes(b"changed")
             with self.assertRaisesRegex(MatrixError, "project.yml"):
