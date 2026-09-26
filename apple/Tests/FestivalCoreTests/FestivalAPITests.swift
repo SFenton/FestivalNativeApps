@@ -341,7 +341,7 @@ private func reply(_ status: Int, _ text: String = "", headers: [String: String]
 
 @Test func publicEndpointsAreConstrainedAndEncoded() throws {
     let base = URL(string: "https://example.com")!
-    #expect(OperationalEndpoint.features.url(relativeTo: base).path == "/api/features")
+    #expect(try OperationalEndpoint.features.url(relativeTo: base).path == "/api/features")
     #expect(
         try PublicEndpoint.leaderboard(songId: "track 1", instrument: "pro-lead")
             .url(relativeTo: base).absoluteString

@@ -384,6 +384,11 @@ class FixtureHandler(BaseHTTPRequestHandler):
         parsed = urlsplit(self.path)
         path = parsed.path
         query = parse_qs(parsed.query, keep_blank_values=True)
+        if self.headers.get("X-API-Key") is not None or any(
+            name.lower().startswith("x-fst-selected-") for name in self.headers
+        ):
+            self._json(400, {"status": "forbidden_client_header"})
+            return
         if path == "/__fixture__/health":
             self._json(200, {
                 "ready": True, "sourceHashes": self.fixture.source_hashes,
@@ -404,6 +409,42 @@ class FixtureHandler(BaseHTTPRequestHandler):
             self._json(200, self.fixture.publication())
         elif path == "/api/features":
             self._json(200, {"appManual": False})
+        elif path == "/api/account/search":
+            terms = query.get("q", [])
+            limits = query.get("limit", [])
+            if (set(query) != {"q", "limit"} or len(terms) != 1
+                    or len(limits) != 1 or not 2 <= len(terms[0].strip()) <= 200):
+                self._json(400, {"status": "invalid_account_search"})
+                return
+            try:
+                limit = int(limits[0])
+            except ValueError:
+                self._json(400, {"status": "invalid_account_search"})
+                return
+            if not 1 <= limit <= 10:
+                self._json(400, {"status": "invalid_account_search"})
+                return
+            if terms[0].strip().casefold() == "blocked":
+                self._json(403, {"status": "account_search_denied"})
+                return
+            if terms[0].strip().casefold() == "busy":
+                self._json(503, {"status": "account_search_unavailable"})
+                return
+            if terms[0].strip().casefold() == "rate":
+                self._json(429, {"status": "account_search_rate_limited"})
+                return
+            term = terms[0].strip().casefold()
+            candidates = (
+                {"accountId": "fixture-player-1", "displayName": "Fixture Player One"},
+                {"accountId": "fixture-player-2", "displayName": "Fixture Player Two"},
+                {"accountId": "fixture-cpp", "displayName": "C++"},
+            )
+            matches = [
+                player for player in candidates
+                if (player["displayName"].casefold().startswith(term) if len(term) <= 2
+                    else term in player["displayName"].casefold())
+            ]
+            self._json(200, {"results": matches[:limit]})
         elif path == "/api/shop":
             scenarios = query.get("scenario", ["demo"])
             if len(scenarios) != 1 or scenarios[0] not in (

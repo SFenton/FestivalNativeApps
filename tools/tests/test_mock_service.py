@@ -112,6 +112,51 @@ class MockServiceTests(unittest.TestCase):
         asset = ROOT / "apple/Tests/FestivalUITests/Fixtures/pulse.png"
         self.assertEqual(asset.read_bytes(), fixture_artwork("pulse"))
 
+    def test_account_search_is_bounded_and_does_not_accept_selected_headers(self):
+        """Player search returns only synthetic names and distinguishes a 403 from empty."""
+        with urlopen(self.base + "/api/account/search?q=Fixture%20Player&limit=10") as response:
+            players = json.load(response)["results"]
+        self.assertEqual([player["accountId"] for player in players], [
+            "fixture-player-1", "fixture-player-2",
+        ])
+        with urlopen(self.base + "/api/account/search?q=Fixture&limit=1") as response:
+            self.assertEqual(len(json.load(response)["results"]), 1)
+        with urlopen(self.base + "/api/account/search?q=missing&limit=10") as response:
+            self.assertEqual(json.load(response), {"results": []})
+        with urlopen(self.base + "/api/account/search?q=C%2B%2B&limit=10") as response:
+            self.assertEqual(
+                [player["accountId"] for player in json.load(response)["results"]],
+                ["fixture-cpp"],
+            )
+        with self.assertRaises(HTTPError) as lost_plus:
+            urlopen(self.base + "/api/account/search?q=C++&limit=10")
+        self.assertEqual(lost_plus.exception.code, 400)
+        with urlopen(self.base + "/api/account/search?q=Fi&limit=10") as response:
+            self.assertEqual(len(json.load(response)["results"]), 2)
+        with urlopen(self.base + "/api/account/search?q=Pl&limit=10") as response:
+            self.assertEqual(json.load(response), {"results": []})
+        for route, expected in (
+            ("/api/account/search?q=blocked&limit=10", 403),
+            ("/api/account/search?q=busy&limit=10", 503),
+            ("/api/account/search?q=rate&limit=10", 429),
+            ("/api/account/search?q=Fi&limit=0", 400),
+            ("/api/account/search?q=Fi&limit=11", 400),
+            ("/api/account/search?q=Fi&limit=x", 400),
+            ("/api/account/search?q=F&limit=10", 400),
+            ("/api/account/search?q=Fi&q=other&limit=10", 400),
+            ("/api/bands/search?q=fixture", 404),
+        ):
+            with self.subTest(route=route), self.assertRaises(HTTPError) as failure:
+                urlopen(self.base + route)
+            self.assertEqual(failure.exception.code, expected)
+        for header in ("X-FST-Selected-Player", "X-FST-Selected-Band-Id", "X-API-Key"):
+            with self.subTest(header=header), self.assertRaises(HTTPError) as failure:
+                urlopen(Request(
+                    self.base + "/api/account/search?q=Fixture&limit=10",
+                    headers={header: "synthetic"},
+                ))
+            self.assertEqual(failure.exception.code, 400)
+
     def test_public_path_artifacts_have_generation_etags_and_no_mutations(self):
         """Original JSON/PNG fixtures expose valid paths without a live service."""
         base = "/api/paths/fixture-pulse/Solo_Guitar/expert"

@@ -37,6 +37,9 @@ public enum FestivalAPIError: LocalizedError, Equatable, Sendable {
     case invalidShop
     case invalidPathData
     case invalidPathImage
+    case invalidProfileSearchQuery
+    case invalidProfileSearchLimit
+    case invalidProfileSearch
     case httpStatus(Int)
     case unexpectedNotModified
     case unavailable(retryAfter: String?)
@@ -62,6 +65,12 @@ public enum FestivalAPIError: LocalizedError, Equatable, Sendable {
             "The path data could not be read. Try another chart or difficulty."
         case .invalidPathImage:
             "The path image could not be displayed. Try another chart or difficulty."
+        case .invalidProfileSearchQuery:
+            "Enter 2 to 200 characters to search players."
+        case .invalidProfileSearchLimit:
+            "Player search can request up to ten results."
+        case .invalidProfileSearch:
+            "Player search returned unreadable data. Try again."
         case let .httpStatus(status):
             if status == 404 {
                 "That song or chart is no longer available."

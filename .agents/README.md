@@ -9,6 +9,7 @@
 | Specific screen, guard, modal or deep link | `pages/<page-id>.md` and [contracts/product.json](../contracts/product.json) |
 | Control geometry, state, interaction | `controls/<control-id>.md` and [contracts/product.json](../contracts/product.json) |
 | Songs Sort draft, direction and state propagation | [controls/songs-sort.md](controls/songs-sort.md) |
+| Safe player search, viewed vs selected identity and band-read gate | [controls/profile-selection.md](controls/profile-selection.md) |
 | Solo score accuracy and full-combo states | [controls/score-accuracy.md](controls/score-accuracy.md) |
 | CHOpt Paths image/text, chart selectors and stale loading | [controls/chopt-paths.md](controls/chopt-paths.md) |
 | Shop route, public offers and visibility/highlight rules | [pages/shop.md](pages/shop.md), [controls/shop-offers.md](controls/shop-offers.md) |

@@ -49,4 +49,12 @@ selected profile/band score rows and invalid-score action are **still
 not ported**. See [Shop](shop.md) and
 [Shop offers](../controls/shop-offers.md).
 
+The Apple Core player-search read contract now validates only
+synthetic loopback and injected-transport results. It is not yet
+wired to a profile selector or Songs card; a band-search GET can
+write in the service's missing-projection fallback, so native
+clients must not call it. The profile/viewed-versus-selected state,
+dependent metadata and all nine score cards remain pending; see
+[profile selection](../controls/profile-selection.md).
+
 The default Apple Debug/Release app now reads this **real public Songs endpoint** over HTTPS; native UI automation explicitly overrides it with loopback fixtures. A read-only Swift-client probe decoded 728 live Songs on 2026-09-25 and an already-running iOS 26.5 app rendered actual catalogue rows and album art. The screenshot is private session evidence, not a committed third-party artwork asset or a PWA/native layout parity comparison. Run `bash tools/apple_live_service_smoke.sh --read-public-live` for a bounded, aggregate-only wire check; never add production payloads or account identifiers to fixtures by copying this response. Catalogue counts and provenance can change on the service.

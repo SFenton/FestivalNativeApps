@@ -52,6 +52,31 @@ audit failure. See [control](controls/score-accuracy.md) and
 
 **Service boundary:** the app reads keyless HTTPS publication, Songs, one song-specific Solo leaderboard, two public CHOpt path routes and Item Shop (`FestivalAPI.swift`, `SongPaths.swift`, `ShopCatalog.swift`). One bounded read each of deployed `/api/account/search`, `/api/bands/search`, `/api/rankings/Solo_Guitar`, `/api/rankings/overview` and `/api/leaderboard/{songId}/all` returned **HTTP 403** on 2026-09-25, although the service source marks these as public GETs (`FSTService/Api/AccountEndpoints.cs:44-61`, `RankingsEndpoints.cs:187-270,1261-1336`, `PublicationRouteSurfaceContract.cs:25-42,143-219`). The ranking response identified **Cloudflare Error 1010: Access denied**; this is an edge-access boundary, not evidence that the service requires a privileged API key or that rankings are empty. Do **not** spoof client headers, bypass the edge or embed `X-API-Key`. The service owner needs a legitimate public-native-client policy before profile/Leaderboards/band parity can be claimed. The first native implementation slice uses the working song-specific Solo GET for ten real Detail preview rows per visible chart; `top=10`/`top=25` have separate query/ETag keys. The opt-in Swift smoke decoded one live ten-row Lead preview. Separately, bounded native Swift reads of `/api/paths/{song}/{chart}/expert` and `/data` returned **HTTP 200** with one real 1024x3736 PNG and schema-2 JSON; a public Shop GET returned **HTTP 200** and the typed Swift client decoded 133 validated official Shop offers (one New, one Leaving Tomorrow). All were keyless with response provenance; no song IDs, offer URLs or raw content were logged. This independent path/shop access does not imply rankings or profile search is available. Synthetic native tests cover preview, Shop error/empty/offline/settings, score warm-offline and path selector states; they do not prove selected-player/band behavior. Do not run scraping, tracking, name refresh, exports or load tests on production.
 
+**Profile-read safety discovery:** React adds selected-profile headers to
+every GET, and service activity middleware can touch registrations
+even when a public response is cached. A separate band-search GET
+fallback rebuilds membership summaries and writes inside a
+transaction when the search projection is absent; player stats and
+band sync-status GETs have other write paths
+(`FSTService/Api/SelectedProfileActivityMiddleware.cs:47-103`,
+`FSTService/Api/PublicApiResponseCacheMiddleware.cs:635-653`,
+`FSTService/Persistence/GlobalLeaderboardPersistence.cs:3954-3971,4433-4453`,
+`FSTService/Persistence/BandLeaderboardPersistence.cs:905-947`,
+`FSTService/Api/PlayerEndpoints.cs:508-546,815-830`,
+`FSTService/Api/BandSyncEndpoints.cs:10-43`).
+These are source-backed potential effects, not proof that they fired
+on any production read. A new native Apple Core account autocomplete
+model and loopback mock exercise only a bounded, **headerless** player
+search GET. The service classifies that GET as publication-bound,
+but this initial client does not pin it or cache account identities
+(`FSTService/Api/ApiPublicationClassification.cs:78-84`).
+An empty search envelope is not reliable proof of no matches: the
+service also returns one after a logged DB timeout
+(`FSTService/Persistence/MetaDatabase.cs:3495-3517,3523-3537`).
+Actual UI, live authorization, band search and profile score cards
+remain blocked or pending. See the
+[profile-selection contract](controls/profile-selection.md).
+
 **Audit boundary still open:** the new iPhone Detail full `.all` audit fails for score text at y=792/849 underneath the Liquid Glass tab bar beginning at y=791 (and sometimes partially visible row 5); the result is saved as private named xcresult evidence. Hard scroll-edge styling, a bottom safe-area inset, geometry limiting and a fixed footer did not remove the overlapping accessibility nodes, so those changes were reverted. A focused native test **does** assert ≥4.5:1 rendered contrast on a fully visible preview row and verifies the top-ten-to-full-chart navigation; this is *not* a full-page accessibility pass or a waiver. Correct tab-edge score reachability and the additional large-type Intensity warnings before changing `song-detail` to certified.
 
 **Execution order:** (1) keyless per-song scores, public CHOpt and Shop/Songs/Detail offer status plus anonymous Shop sorting, each now in a partial native slice; (2) legitimate native public-client edge policy before live player/band search, selected-profile state or rankings; (3) profile-aware Songs cards, remaining score/FC/profile sorting, Shop filtering, real solo/band overview and full rankings; (4) complete path table, Rivals, Suggestions/Compete, remaining Shop/Settings and shell modals/onboarding; (5) Android/Windows integration after host access; (6) matched visual/state/a11y/performance/coverage gates for every platform. Dependencies are enforced by `tools/parity_backlog.py`; this ordering is not a parity certification. During this iteration run only **changed or added** tests and narrowly affected regressions. Preserve one product simulator at a time and keep macOS GUI automation and unsupported Duo/iOS18 states explicitly pending.

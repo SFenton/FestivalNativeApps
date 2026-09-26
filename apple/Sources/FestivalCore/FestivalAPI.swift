@@ -70,18 +70,46 @@ public enum PublicEndpoint: Sendable {
     }
 }
 
-/// Live operational reads do not have a durable publication or ETag provenance.
+/// Direct keyless reads without client publication pinning or an offline snapshot.
 public enum OperationalEndpoint: Sendable {
     case features
+    case accountSearch(query: String, limit: Int)
 
-    /// Resolve a known operational path without attaching publication metadata.
+    /// Resolve a known operational path without attaching selected-profile metadata.
     ///
     /// - Parameter baseURL: Configured service origin.
-    /// - Returns: Public operational endpoint URL.
-    func url(relativeTo baseURL: URL) -> URL {
+    /// - Returns: Public operational endpoint URL with bounded search arguments.
+    /// - Throws: Profile search query or limit validation errors.
+    func url(relativeTo baseURL: URL) throws -> URL {
         switch self {
         case .features:
-            baseURL.appendingPathComponent("api").appendingPathComponent("features")
+            return baseURL.appendingPathComponent("api").appendingPathComponent("features")
+        case let .accountSearch(query, limit):
+            guard (2...200).contains(query.count),
+                  query == query.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !ProfileSearchText.containsUnsafeScalar(query)
+            else {
+                throw FestivalAPIError.invalidProfileSearchQuery
+            }
+            guard (1...10).contains(limit) else {
+                throw FestivalAPIError.invalidProfileSearchLimit
+            }
+            var components = URLComponents(
+                url: baseURL.appendingPathComponent("api")
+                    .appendingPathComponent("account").appendingPathComponent("search"),
+                resolvingAgainstBaseURL: false
+            )
+            components?.queryItems = [
+                URLQueryItem(name: "q", value: query),
+                URLQueryItem(name: "limit", value: String(limit)),
+            ]
+            let encodedQuery = components?.percentEncodedQuery
+            components?.percentEncodedQuery = encodedQuery?
+                .replacingOccurrences(of: "+", with: "%2B")
+            guard let url = components?.url else {
+                throw FestivalAPIError.invalidProfileSearchQuery
+            }
+            return url
         }
     }
 }
@@ -279,17 +307,20 @@ public actor FestivalAPI {
         return new
     }
 
-    /// Read live public operations independently of publication pinning.
+    /// Read allowlisted GETs without a client publication pin or offline cache.
     ///
-    /// - Parameter endpoint: Allowlisted operational path.
-    /// - Returns: Unversioned wire bytes (never treated as an offline snapshot).
-    /// - Throws: Network or HTTP errors, without a cache-shaped fallback.
+    /// - Parameter endpoint: Allowlisted direct-read path.
+    /// - Returns: Wire bytes never treated as an offline snapshot.
+    /// - Throws: Network or HTTP errors, including Retry-After on a service 503.
     public func readOperational(_ endpoint: OperationalEndpoint) async throws -> Data {
         let request = URLRequest(
-            url: endpoint.url(relativeTo: baseURL), cachePolicy: .reloadIgnoringLocalCacheData
+            url: try endpoint.url(relativeTo: baseURL), cachePolicy: .reloadIgnoringLocalCacheData
         )
         let response = try await transport.send(request)
         guard (200...299).contains(response.status) else {
+            if response.status == 503 {
+                throw FestivalAPIError.unavailable(retryAfter: response.header("Retry-After"))
+            }
             throw FestivalAPIError.httpStatus(response.status)
         }
         return response.data
