@@ -6,6 +6,10 @@ public enum PublicEndpoint: Sendable {
     case leaderboard(
         songId: String, instrument: String, top: Int = 25, offset: Int = 0, leeway: Double? = nil
     )
+    case path(
+        songId: String, instrument: Instrument, difficulty: PathDifficulty,
+        display: PathDisplayMode, generationId: String? = nil
+    )
 
     /// Build a URL from individually encoded path segments.
     ///
@@ -34,6 +38,20 @@ public enum PublicEndpoint: Sendable {
             ]
             if let leeway {
                 query.append(URLQueryItem(name: "leeway", value: String(leeway)))
+            }
+        case let .path(songId, instrument, difficulty, display, generationId):
+            guard !songId.isEmpty, !songId.contains("/"), !songId.contains(".."),
+                  instrument != .karaoke,
+                  generationId == nil || (
+                    !(generationId?.isEmpty ?? true)
+                    && (generationId?.count ?? 0) <= 200
+                  ) else {
+                throw FestivalAPIError.invalidResource
+            }
+            segments = ["api", "paths", songId, instrument.rawValue, difficulty.rawValue]
+                + (display == .text ? ["data"] : [])
+            if let generationId {
+                query = [URLQueryItem(name: "generationId", value: generationId)]
             }
         }
         let url = segments.reduce(baseURL) { url, segment in
@@ -281,7 +299,7 @@ public actor FestivalAPI {
         for attempt in 0..<2 {
             let generation = try await publication()
             do {
-                return try await readOnce(url, generation: generation)
+                return try await readOnce(url, generation: generation, endpoint: endpoint)
             } catch FestivalAPIError.invalidPublication where attempt == 0 {
                 if current?.publicationId == generation.publicationId {
                     _ = try await publication(force: true)
@@ -346,9 +364,12 @@ public actor FestivalAPI {
     /// - Parameters:
     ///   - url: Fully qualified public resource, including pagination arguments.
     ///   - generation: Publication observed before starting this attempt.
+    ///   - endpoint: Typed endpoint controlling path-image cache and byte limits.
     /// - Returns: Verified or explicitly unpinned response bytes.
     /// - Throws: Inconsistent generations, network or HTTP failures.
-    private func readOnce(_ url: URL, generation: Publication) async throws -> PublicPayload {
+    private func readOnce(
+        _ url: URL, generation: Publication, endpoint: PublicEndpoint
+    ) async throws -> PublicPayload {
         var publication = generation
         let identifier = url.absoluteString
         var cached = await cache.entry(for: identifier, publicationId: publication.publicationId)
@@ -427,6 +448,11 @@ public actor FestivalAPI {
             }
             throw FestivalAPIError.httpStatus(response.status)
         }
+        if case let .path(_, _, _, display, _) = endpoint,
+           response.data.count > 8_000_000 {
+            throw display == .image
+                ? FestivalAPIError.invalidPathImage : FestivalAPIError.invalidPathData
+        }
         let responseId = Int(response.header("X-FST-Publication-Id") ?? "")
         if let responseId, responseId != publication.publicationId {
             guard !publication.pinningEnabled, responseId > publication.publicationId else {
@@ -442,14 +468,16 @@ public actor FestivalAPI {
             throw FestivalAPIError.invalidPublication
         }
         if responseId != nil {
-            await cache.store(
-                .init(
-                    data: response.data,
-                    publicationId: publication.publicationId,
-                    etag: response.header("ETag")
-                ),
-                for: identifier
+            let entry = SessionResponseCache.Entry(
+                data: response.data,
+                publicationId: publication.publicationId,
+                etag: response.header("ETag")
             )
+            if case let .path(_, _, _, display, _) = endpoint, display == .image {
+                await cache.storePathImage(entry, for: identifier)
+            } else {
+                await cache.store(entry, for: identifier)
+            }
             guard current?.publicationId == publication.publicationId else {
                 throw FestivalAPIError.invalidPublication
             }

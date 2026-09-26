@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 2,
+  "songName": "Fixture Pulse",
+  "artist": "Synthetic Quartet",
+  "charter": "Original test chart",
+  "difficulty": "expert",
+  "totalScore": 9000,
+  "pathSummary": "Two synthetic Expert activations",
+  "activations": [
+    {
+      "startBeat": 5,
+      "endBeat": 7,
+      "activationBeat": 5.5,
+      "activationSeconds": 2.75,
+      "anchorBeat": 5,
+      "odAtActivation": 0.75,
+      "scoreBeforeActivation": 123,
+      "instruction": "Begin at the first synthetic chord"
+    },
+    {
+      "startBeat": 11.5,
+      "endBeat": 15,
+      "activationBeat": 11.5,
+      "activationSeconds": 6.25,
+      "anchorBeat": 11,
+      "odAtActivation": 0.3,
+      "scoreBeforeActivation": 700,
+      "instruction": "Continue at the second synthetic chord"
+    }
+  ],
+  "notes": [
+    {"beat": 5, "seconds": 2.5, "isSpNote": true, "frets": {"green": 0.1, "red": 0.2}},
+    {"beat": 11, "seconds": 6, "isSpNote": false, "frets": {"open": 0.5}}
+  ],
+  "spPhrases": [],
+  "measures": [],
+  "bpms": [],
+  "timeSignatures": []
+}

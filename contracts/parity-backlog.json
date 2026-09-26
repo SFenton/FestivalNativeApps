@@ -103,15 +103,17 @@
     {
       "id": "apple-chopt-paths",
       "priority": 1,
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": ["apple-song-detail"],
       "sourceRefs": [
         "FortniteFestivalWeb/src/pages/songinfo/components/path/PathsModal.tsx:110",
-        "FortniteFestivalWeb/src/pages/songinfo/components/path/PathsModal.tsx:550"
+        "FortniteFestivalWeb/src/pages/songinfo/components/path/PathsModal.tsx:550",
+        "FortniteFestivalWeb/src/pages/songinfo/components/path/PathDataTable.tsx:63",
+        "FSTService/Api/SongEndpoints.cs:259"
       ],
       "acceptance": [
         "Add real publication-aware image and structured-text CHOpt paths with generation ID, independent loading/error and stale-request cancellation.",
-        "Instrument/difficulty/image-text selection, mobile accordion exclusivity, warning acknowledgement and text-column order match source behavior.",
+        "Instrument/difficulty/image-text selection, exclusive native controls, warning acknowledgement and text-column order match source behavior.",
         "Native sheet focus/return, pan-zoom, accessible table, path availability by settings and image/text states are visually tested."
       ]
     },
@@ -294,7 +296,7 @@
   "routes": [
     {"id": "home-redirect", "apple": "partial", "epics": ["apple-shell-modals"], "gap": "Default Songs tab exists; URL/deep-link redirect, unknown route and native guarded recovery are untested."},
     {"id": "songs", "apple": "partial", "epics": ["apple-anonymous-songs-sort", "apple-songs-cards", "apple-songs-actions"], "gap": "Catalogue-only Sort draft and persistence exist, but iPad full Sort audit and profile/shop sorts remain pending; no profile/band score rows, quick links, conditional filter, shop or invalid-score states."},
-    {"id": "song-detail", "apple": "partial", "epics": ["apple-song-detail", "apple-chopt-paths"], "gap": "Keyless ten-row solo previews now render; selected score/history, band cards, Shop, CHOpt paths and the full Detail accessibility audit remain missing."},
+    {"id": "song-detail", "apple": "partial", "epics": ["apple-song-detail", "apple-chopt-paths"], "gap": "Keyless ten-row solo previews and a first CHOpt image/text modal exist; selected score/history, band cards, Shop, path table column order and full Detail/Paths accessibility audits remain missing."},
     {"id": "song-band-leaderboard", "apple": "absent", "epics": ["apple-band-flows"], "gap": "No per-song Duet/Trio/Quad entries, combo filters, pagination or selected footer."},
     {"id": "song-leaderboard", "apple": "partial", "epics": ["apple-song-detail", "apple-statistics-history"], "gap": "Native solo pages and pager exist; selected player/member navigation, history, off-page spotlight and all PWA row states do not."},
     {"id": "player-history", "apple": "absent", "epics": ["apple-statistics-history"], "gap": "No song/instrument history page, sort modal or fallback-validity views."},

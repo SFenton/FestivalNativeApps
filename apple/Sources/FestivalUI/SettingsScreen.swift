@@ -26,7 +26,9 @@ struct SettingsScreen: View {
     @AppStorage("fst.settings.showInstrumentIcons") private var showInstrumentIcons = true
     @AppStorage("fst.settings.filterInvalidScores") private var filterInvalidScores = false
     @AppStorage("fst.settings.leeway") private var leeway = 1.0
-    @AppStorage("fst.settings.pathDefaultView") private var pathDefaultView = "image"
+    @AppStorage("fst.settings.pathDefaultView") private var pathDefaultView = PathDisplayMode.image
+    @AppStorage("fst.settings.pathUnavailableWarningDismissed")
+    private var pathWarningDismissed = false
     @AppStorage("fst.settings.experimentalRanks") private var experimentalRanks = false
     @AppStorage("fst.settings.hideShop") private var hideShop = false
     @AppStorage("fst.settings.disableShopHighlighting") private var disableShopHighlighting = false
@@ -96,11 +98,11 @@ struct SettingsScreen: View {
                     }
                 }
                 Picker("CHOpt Path Default View", selection: $pathDefaultView) {
-                    Text("Image").tag("image")
-                    Text("Text").tag("text")
+                    Text("Image").tag(PathDisplayMode.image)
+                    Text("Text").tag(PathDisplayMode.text)
                 }
-                .disabled(true)
-                .accessibilityHint("Paths are not yet available")
+                .accessibilityValue(pathDefaultView.label)
+                .accessibilityIdentifier("fst.settings.path-default-view")
                 Toggle("Experimental Ranks", isOn: $experimentalRanks)
                     .disabled(true)
                     .accessibilityHint("Experimental ranks are not yet available")
@@ -290,7 +292,8 @@ struct SettingsScreen: View {
         showInstrumentIcons = true
         filterInvalidScores = false
         leeway = 1
-        pathDefaultView = "image"
+        pathDefaultView = .image
+        pathWarningDismissed = false
         experimentalRanks = false
         hideShop = false
         disableShopHighlighting = false

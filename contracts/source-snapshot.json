@@ -13,6 +13,10 @@
       "sha256": "87accac790a244f2b64412951ff5cebddf0ae255afa86592f7ae52d9a432cc16",
       "status": "committed"
     },
+    "FSTService/Api/SongEndpoints.cs": {
+      "sha256": "0bc0cc79899651334a846ea9698fc3ac01f7d19f582db8367d9d219127ad61e1",
+      "status": "committed"
+    },
     "FSTService/Api/SongsCacheService.cs": {
       "sha256": "a262c806bba550e8275bf1901a18cee2bb2723709fdd5e6f872842186f5314a2",
       "status": "committed"
@@ -155,6 +159,10 @@
     },
     "FortniteFestivalWeb/src/pages/songinfo/components/InstrumentCard.tsx": {
       "sha256": "4675d7da872cc9592cd0c402d5def7042592b56a3dfe3c17284eac51cfdd3cc2",
+      "status": "committed"
+    },
+    "FortniteFestivalWeb/src/pages/songinfo/components/path/PathDataTable.tsx": {
+      "sha256": "87be97721e0b52a3f11335fcd8147fb6b8b1b2e0fad53f3d9927a7e0654f01c5",
       "status": "committed"
     },
     "FortniteFestivalWeb/src/pages/songinfo/components/path/PathsModal.tsx": {

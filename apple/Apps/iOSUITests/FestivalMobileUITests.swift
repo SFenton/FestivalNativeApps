@@ -128,6 +128,170 @@ final class FestivalMobileUITests: XCTestCase {
         XCTAssertEqual(sort.value as? String, "Title, ascending")
     }
 
+    /// Public CHOpt paths switch image/text and difficulty without stale content.
+    ///
+    /// - Throws: Missing selectors, unsafe zoom, stale path, hidden error or unreachable close.
+    @MainActor
+    func testSongPathsImageTextSwitchAndMissingDifficulty() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launch()
+        let song = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(song.waitForExistence(timeout: 15))
+        song.tap()
+        collapseSidebarOnPad(app)
+        let open = app.buttons["fst.song-detail.paths"]
+        XCTAssertTrue(open.waitForExistence(timeout: 10))
+        open.tap()
+        let warning = app.alerts["Some Instruments Unavailable"]
+        if warning.waitForExistence(timeout: 2) {
+            XCTAssertTrue(warning.staticTexts[
+                "Karaoke is not available for path visualization yet."
+            ].exists)
+            warning.buttons["OK"].tap()
+        }
+
+        let display = app.segmentedControls["fst.paths.display"]
+        XCTAssertTrue(display.waitForExistence(timeout: 10))
+        display.buttons["Image"].tap()
+        let image = app.images["fst.paths.image"]
+        XCTAssertTrue(image.waitForExistence(timeout: 15))
+        if UIDevice.current.userInterfaceIdiom == .phone {
+            try app.performAccessibilityAudit(for: .all)
+        } else {
+            try assertHeaderContrast(app.staticTexts["Paths"], in: app)
+            try assertHeaderContrast(app.buttons["fst.paths.close"], in: app)
+        }
+        let fittedWidth = image.frame.width
+        let zoom = app.buttons["fst.paths.zoom-in"]
+        XCTAssertTrue(zoom.isHittable)
+        zoom.tap()
+        XCTAssertGreaterThan(image.frame.width, fittedWidth, "Zoom did not resize the path")
+        record(app, name: "song-path-expert-image")
+        zoom.tap()
+        zoom.tap()
+        XCTAssertFalse(zoom.isEnabled, "Zoom in did not stop at the supported scale")
+        let zoomOut = app.buttons["fst.paths.zoom-out"]
+        XCTAssertTrue(zoomOut.isEnabled)
+        zoomOut.tap()
+        XCTAssertTrue(zoom.isEnabled)
+
+        display.buttons["Text"].tap()
+        let summary = app.staticTexts["fst.paths.text-summary"]
+        XCTAssertTrue(summary.waitForExistence(timeout: 15))
+        XCTAssertEqual(summary.label, "Two synthetic Expert activations")
+        XCTAssertTrue(app.descendants(matching: .any).matching(
+            identifier: "fst.paths.activation.1"
+        ).firstMatch.exists)
+        if UIDevice.current.userInterfaceIdiom == .phone {
+            try app.performAccessibilityAudit(for: .all)
+        } else {
+            try assertHeaderContrast(summary, in: app)
+        }
+        record(app, name: "song-path-expert-text")
+
+        let difficulty = app.segmentedControls["fst.paths.difficulty"]
+        XCTAssertTrue(difficulty.buttons["Expert"].isSelected)
+        difficulty.buttons["Hard"].tap()
+        for _ in 0..<40 {
+            if summary.label.contains("Hard") { break }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        XCTAssertEqual(summary.label, "Two synthetic Hard activations")
+        difficulty.buttons["Medium"].tap()
+        XCTAssertTrue(app.staticTexts["Path unavailable"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Retry"].exists)
+        difficulty.buttons["Expert"].tap()
+        XCTAssertTrue(summary.waitForExistence(timeout: 15))
+        for _ in 0..<40 {
+            if summary.label.contains("Expert") { break }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        XCTAssertEqual(summary.label, "Two synthetic Expert activations")
+        let instrument = app.descendants(matching: .any).matching(
+            identifier: "fst.paths.instrument"
+        ).firstMatch
+        XCTAssertTrue(instrument.exists)
+        instrument.tap()
+        let bass = app.buttons["Bass"]
+        XCTAssertTrue(bass.waitForExistence(timeout: 10))
+        bass.tap()
+        XCTAssertTrue(app.staticTexts["Path unavailable"].waitForExistence(timeout: 10))
+        XCTAssertFalse(summary.exists, "Lead content remained visible for a missing Bass path")
+        instrument.tap()
+        app.buttons["Lead"].tap()
+        XCTAssertTrue(summary.waitForExistence(timeout: 15))
+        app.buttons["fst.paths.close"].tap()
+        XCTAssertTrue(open.waitForExistence(timeout: 10))
+    }
+
+    /// A saved Settings path default initializes the next modal without erasing it.
+    ///
+    /// - Throws: A disconnected setting, unavailable modal or lost original preference.
+    @MainActor
+    func testSongPathsDefaultViewFollowsSettings() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launch()
+        rootControl("Settings", app: app).tap()
+        let setting = app.descendants(matching: .any).matching(
+            identifier: "fst.settings.path-default-view"
+        ).firstMatch
+        XCTAssertTrue(setting.waitForExistence(timeout: 10))
+        reveal(setting, in: app, scrollingUp: false)
+        let original = try XCTUnwrap(setting.value as? String)
+        XCTAssertTrue(
+            ["Image", "Text"].contains(original),
+            "Unexpected path picker value \(original); label: \(setting.label)"
+        )
+        let changed = original == "Image" ? "Text" : "Image"
+        setting.tap()
+        let option = app.buttons[changed]
+        XCTAssertTrue(option.waitForExistence(timeout: 10))
+        option.tap()
+        XCTAssertEqual(setting.value as? String, changed)
+
+        rootControl("Songs", app: app).tap()
+        let song = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(song.waitForExistence(timeout: 15))
+        song.tap()
+        collapseSidebarOnPad(app)
+        let open = app.buttons["fst.song-detail.paths"]
+        XCTAssertTrue(open.waitForExistence(timeout: 10))
+        open.tap()
+        let warning = app.alerts["Some Instruments Unavailable"]
+        if warning.waitForExistence(timeout: 2) {
+            warning.buttons["OK"].tap()
+        }
+        let display = app.segmentedControls["fst.paths.display"]
+        XCTAssertTrue(display.waitForExistence(timeout: 10))
+        XCTAssertTrue(display.buttons[changed].isSelected)
+        if changed == "Text" {
+            XCTAssertTrue(app.staticTexts["fst.paths.text-summary"]
+                .waitForExistence(timeout: 15))
+        } else {
+            XCTAssertTrue(app.images["fst.paths.image"].waitForExistence(timeout: 15))
+        }
+        app.buttons["fst.paths.close"].tap()
+
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            let sidebar = app.buttons.matching(
+                NSPredicate(format: "label CONTAINS[c] %@", "sidebar")
+            ).firstMatch
+            XCTAssertTrue(sidebar.waitForExistence(timeout: 10))
+            sidebar.tap()
+        }
+        rootControl("Settings", app: app).tap()
+        reveal(setting, in: app, scrollingUp: false)
+        setting.tap()
+        app.buttons[original].tap()
+        XCTAssertEqual(setting.value as? String, original)
+    }
+
     /// Show ten real fixture score rows, then open the independent full Solo page.
     ///
     /// - Throws: Missing native top-score rows, incorrect top parameter or hidden action.

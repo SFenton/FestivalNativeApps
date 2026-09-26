@@ -7,7 +7,10 @@ import unittest
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from tools.mock_service import DEMO_SONGS, FixtureHandler, FixtureServer, ROOT, fixture_artwork
+from tools.mock_service import (
+    DEMO_SONGS, FixtureHandler, FixtureServer, ROOT,
+    fixture_artwork, fixture_path_image,
+)
 
 
 class MockServiceTests(unittest.TestCase):
@@ -42,6 +45,7 @@ class MockServiceTests(unittest.TestCase):
             "contracts/fixtures/publication.json",
             "contracts/fixtures/songs-empty.json",
             "contracts/fixtures/songs-demo.json",
+            "contracts/fixtures/path-demo.json",
         })
         for name, digest in identity["sourceHashes"].items():
             self.assertEqual(
@@ -88,6 +92,45 @@ class MockServiceTests(unittest.TestCase):
         self.assertNotEqual(fixture_artwork("pulse"), fixture_artwork("orbit"))
         asset = ROOT / "apple/Tests/FestivalUITests/Fixtures/pulse.png"
         self.assertEqual(asset.read_bytes(), fixture_artwork("pulse"))
+
+    def test_public_path_artifacts_have_generation_etags_and_no_mutations(self):
+        """Original JSON/PNG fixtures expose valid paths without a live service."""
+        base = "/api/paths/fixture-pulse/Solo_Guitar/expert"
+        with urlopen(self.base + base + "/data?generationId=fixture-path-generation") as response:
+            path = json.load(response)
+            text_etag = response.headers["ETag"]
+            self.assertEqual(response.headers["X-FST-Publication-Id"], "7")
+        self.assertEqual(path["schemaVersion"], 2)
+        self.assertEqual(path["difficulty"], "expert")
+        self.assertEqual(len(path["activations"]), 2)
+        self.assertEqual(path["pathSummary"], "Two synthetic Expert activations")
+        with urlopen(self.base + base + "?generationId=fixture-path-generation") as response:
+            image = response.read()
+            image_etag = response.headers["ETag"]
+            self.assertEqual(response.headers["Content-Type"], "image/png")
+        self.assertEqual(image, fixture_path_image("expert"))
+        self.assertEqual(image[:8], b"\x89PNG\r\n\x1a\n")
+        self.assertEqual(image[16:24], bytes.fromhex("00000100000003c0"))
+        self.assertNotEqual(fixture_path_image("hard"), image)
+        for route, etag in ((base + "/data", text_etag), (base, image_etag)):
+            request = Request(self.base + route, headers={"If-None-Match": etag})
+            with self.assertRaises(HTTPError) as cached:
+                urlopen(request)
+            self.assertEqual(cached.exception.code, 304)
+        stale = Request(self.base + base, headers={"X-FST-Publication-Id": "6"})
+        with self.assertRaises(HTTPError) as conflict:
+            urlopen(stale)
+        self.assertEqual(conflict.exception.code, 409)
+        for route, expected in (
+            (base + "/data?generationId=wrong", 404),
+            ("/api/paths/fixture-orbit/Solo_Guitar/expert", 404),
+            ("/api/paths/fixture-pulse/Solo_Guitar/medium/data", 404),
+            ("/api/paths/fixture-pulse/Solo_PeripheralVocals/expert", 400),
+            (base + "/data?generationId=fixture-path-generation&generationId=other", 400),
+        ):
+            with self.subTest(route=route), self.assertRaises(HTTPError) as failure:
+                urlopen(self.base + route)
+            self.assertEqual(failure.exception.code, expected)
 
     def test_conflict_and_mutations_are_rejected(self):
         """Stale readers retry; no POST can change a real profile or fixture."""

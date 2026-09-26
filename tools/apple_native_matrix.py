@@ -42,6 +42,7 @@ FIXTURE_INPUTS = (
     "contracts/fixtures/publication.json",
     "contracts/fixtures/songs-empty.json",
     "contracts/fixtures/songs-demo.json",
+    "contracts/fixtures/path-demo.json",
 )
 REQUIRED_INPUTS = (
     *FIXTURE_INPUTS,

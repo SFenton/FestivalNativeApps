@@ -7,6 +7,7 @@
       "title": "Fixture Pulse",
       "artist": "Synthetic Quartet",
       "year": 2026,
+      "pathArtifactGenerationId": "fixture-path-generation",
       "albumArt": "/__fixture__/art/pulse.png",
       "difficulty": {
         "guitar": 2,

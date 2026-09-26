@@ -1,0 +1,452 @@
+import SwiftUI
+import FestivalCore
+import FestivalDesign
+
+/// Native public CHOpt image/text viewer with generation-safe request switching.
+struct SongPathsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @AppStorage("fst.settings.pathUnavailableWarningDismissed")
+    private var warningDismissed = false
+    @State private var instrument: Instrument
+    @State private var difficulty = PathDifficulty.expert
+    @State private var display: PathDisplayMode
+    @State private var state = LoadState.loading
+    @State private var retryRevision = 0
+    @State private var zoom: CGFloat = 1
+    @State private var pinchOrigin: CGFloat = 1
+    @State private var warningPresented = false
+
+    let song: Song
+    let session: FestivalSession
+    let instruments: [Instrument]
+    let warnAboutKaraoke: Bool
+
+    private enum LoadState {
+        case loading
+        case image(SongPathImagePayload)
+        case text(SongPathDataPayload)
+        case failed(String)
+    }
+
+    private struct RequestKey: Equatable {
+        let instrument: Instrument
+        let difficulty: PathDifficulty
+        let display: PathDisplayMode
+        let publicationRevision: Int
+        let retryRevision: Int
+    }
+
+    private var requestKey: RequestKey {
+        RequestKey(
+            instrument: instrument, difficulty: difficulty, display: display,
+            publicationRevision: session.publicationRevision, retryRevision: retryRevision
+        )
+    }
+
+    private var zoomLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: 10))
+            : AnyLayout(HStackLayout(spacing: 12))
+    }
+
+    /// Reset controls for each opening without changing the Settings default.
+    ///
+    /// - Parameters:
+    ///   - song: Catalogue item with optional artifact generation ID.
+    ///   - session: Process-scoped, publication-aware public client.
+    ///   - instruments: Enabled path-capable instruments in source order.
+    ///   - firstInstrument: First validated entry in `instruments`.
+    ///   - defaultDisplay: Image or text preference from app Settings.
+    ///   - warnAboutKaraoke: Whether an enabled chart lacks CHOpt paths.
+    init(
+        song: Song, session: FestivalSession, instruments: [Instrument],
+        firstInstrument: Instrument, defaultDisplay: PathDisplayMode,
+        warnAboutKaraoke: Bool
+    ) {
+        self.song = song
+        self.session = session
+        self.instruments = instruments
+        self.warnAboutKaraoke = warnAboutKaraoke
+        _instrument = State(initialValue: firstInstrument)
+        _display = State(initialValue: defaultDisplay)
+    }
+
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                Text("Paths")
+                    .font(.title2.bold())
+                    .foregroundStyle(BrandTokens.textPrimary)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Label("Close", systemImage: "xmark")
+                        .font(.body)
+                        .foregroundStyle(BrandTokens.textPrimary)
+                        .padding(.horizontal, 12)
+                        .frame(minHeight: 44)
+                        .background(
+                            BrandTokens.cardBackground,
+                            in: Capsule()
+                        )
+                }
+                .buttonStyle(HighContrastPagerStyle())
+                .accessibilityIdentifier("fst.paths.close")
+            }
+            Picker("Instrument", selection: $instrument) {
+                ForEach(instruments) { choice in
+                    Text(choice.label).tag(choice)
+                }
+            }
+            .pickerStyle(.menu)
+            .accessibilityIdentifier("fst.paths.instrument")
+            Picker("Difficulty", selection: $difficulty) {
+                ForEach(PathDifficulty.allCases) { choice in
+                    Text(choice.label).tag(choice)
+                }
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("fst.paths.difficulty")
+            Picker("Display", selection: $display) {
+                ForEach(PathDisplayMode.allCases) { choice in
+                    Text(choice.label).tag(choice)
+                }
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("fst.paths.display")
+            pathContent
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(BrandTokens.appBackground)
+        .task(id: requestKey) { await loadPath() }
+        .onChange(of: instrument) { _, _ in resetZoom() }
+        .onChange(of: difficulty) { _, _ in resetZoom() }
+        .onChange(of: display) { _, _ in resetZoom() }
+        .onAppear { warningPresented = warnAboutKaraoke && !warningDismissed }
+        .alert("Some Instruments Unavailable", isPresented: $warningPresented) {
+            Button("OK") {}
+            Button("Don't show again") { warningDismissed = true }
+                .accessibilityIdentifier("fst.paths.warning.dismiss")
+        } message: {
+            Text("Karaoke is not available for path visualization yet.")
+        }
+        .interactiveDismissDisabled()
+    }
+
+    /// Render the independent image/text state with honest freshness and errors.
+    @ViewBuilder
+    private var pathContent: some View {
+        switch state {
+        case .loading:
+            ProgressView("Loading \(display.label.lowercased()) path")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case let .failed(message):
+            ServiceUnavailableView(title: "Path unavailable", message: message) {
+                retryRevision += 1
+            }
+            .accessibilityIdentifier("fst.paths.error")
+        case let .image(payload):
+            VStack(spacing: 8) {
+                freshness(publicationId: payload.publicationId, isStale: payload.isStale)
+                zoomLayout {
+                    zoomButton(
+                        "Zoom out", symbol: "minus.magnifyingglass", enabled: zoom > 1
+                    ) {
+                        setZoom(zoom / 1.5)
+                    }
+                    .accessibilityIdentifier("fst.paths.zoom-out")
+                    Text("\(Int(zoom * 100))%")
+                        .monospacedDigit()
+                    zoomButton(
+                        "Zoom in", symbol: "plus.magnifyingglass", enabled: zoom < 3
+                    ) {
+                        setZoom(zoom * 1.5)
+                    }
+                    .accessibilityIdentifier("fst.paths.zoom-in")
+                }
+                imageScroll(payload.image)
+            }
+        case let .text(payload):
+            VStack(spacing: 8) {
+                freshness(publicationId: payload.publicationId, isStale: payload.isStale)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text(payload.path.pathSummary.isEmpty
+                            ? "No path summary provided" : payload.path.pathSummary)
+                            .font(.headline)
+                            .foregroundStyle(BrandTokens.textPrimary)
+                            .accessibilityIdentifier("fst.paths.text-summary")
+                        Text("Max score: \(payload.path.totalScore.formatted())")
+                            .foregroundStyle(BrandTokens.textSecondary)
+                        let rows = payload.rows
+                        if rows.isEmpty {
+                            Text("No path activations for this chart")
+                                .foregroundStyle(BrandTokens.textSecondary)
+                        }
+                        ForEach(rows, id: \.number) { row in
+                            activationCard(row)
+                        }
+                    }
+                    .padding(.vertical, 12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+    }
+
+    /// Retain visible contrast for either enabled or disabled zoom actions.
+    ///
+    /// - Parameters:
+    ///   - title: Spoken and visible zoom action.
+    ///   - symbol: Decorative magnification icon.
+    ///   - enabled: Whether another zoom step is within the supported range.
+    ///   - action: New zoom scale to apply when activated.
+    /// - Returns: Native button with a stable opaque plate and disabled trait.
+    private func zoomButton(
+        _ title: String, symbol: String, enabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                .font(.body)
+                .foregroundStyle(
+                    enabled ? BrandTokens.textPrimary : BrandTokens.textSecondary
+                )
+                .padding(.horizontal, 10)
+                .frame(minHeight: 44)
+                .background(
+                    BrandTokens.cardBackground,
+                    in: Capsule()
+                )
+        }
+        .buttonStyle(HighContrastPagerStyle())
+        .disabled(!enabled)
+    }
+
+    /// Keep a large path scrollable at fit width while allowing pinch/button zoom.
+    ///
+    /// - Parameter image: Validated, bounded image decoded away from the UI actor.
+    /// - Returns: Scrollable native image viewport.
+    private func imageScroll(_ image: CGImage) -> some View {
+        GeometryReader { geometry in
+            let fit = min(1, max(1, geometry.size.width - 16) / CGFloat(image.width))
+            ScrollView([.vertical, .horizontal]) {
+                Image(image, scale: 1, label: Text(
+                    "\(instrument.label) \(difficulty.label) CHOpt path"
+                ))
+                .resizable()
+                .interpolation(.high)
+                .frame(
+                    width: CGFloat(image.width) * fit * zoom,
+                    height: CGFloat(image.height) * fit * zoom
+                )
+                .accessibilityIdentifier("fst.paths.image")
+                .simultaneousGesture(
+                    MagnifyGesture()
+                        .onChanged { value in
+                            zoom = min(3, max(1, pinchOrigin * value.magnification))
+                        }
+                        .onEnded { value in
+                            setZoom(pinchOrigin * value.magnification)
+                        }
+                )
+            }
+        }
+    }
+
+    /// Make the source's activation table readable at native Dynamic Type sizes.
+    ///
+    /// - Parameter row: Resolved beat, time, frets, OD and score for one activation.
+    /// - Returns: Accessible native activation card.
+    private func activationCard(_ row: PathActivationRow) -> some View {
+        let metrics: AnyLayout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("Activation \(row.number)")
+                .font(.headline)
+                .accessibilityAddTraits(.isHeader)
+            if let instruction = row.instruction, !instruction.isEmpty {
+                Text(instruction)
+                    .font(.body)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: 6) {
+                ForEach(["green", "red", "yellow", "blue", "orange"], id: \.self) { fret in
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(row.frets.contains(fret)
+                            ? Self.fretColor(fret) : BrandTokens.appBackground)
+                        .frame(width: 28, height: 28)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(BrandTokens.glassBorder, lineWidth: 1)
+                        }
+                        .accessibilityHidden(true)
+                }
+                if row.frets.contains("open") {
+                    Text("Open")
+                        .font(.caption.bold())
+                        .padding(6)
+                        .background(BrandTokens.appBackground, in: Capsule())
+                        .accessibilityHidden(true)
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Activation frets")
+            .accessibilityValue(
+                row.frets.isEmpty ? "No anchor" : row.frets.joined(separator: ", ")
+            )
+            metrics {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Beat")
+                        .font(.caption)
+                        .foregroundStyle(BrandTokens.textSecondary)
+                    Text(row.beat.formatted(.number.precision(.fractionLength(2))))
+                        .monospacedDigit()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Time")
+                        .font(.caption)
+                        .foregroundStyle(BrandTokens.textSecondary)
+                    Text(Self.time(row.seconds))
+                        .monospacedDigit()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Score")
+                        .font(.caption)
+                        .foregroundStyle(BrandTokens.textSecondary)
+                    Text(row.scoreBeforeActivation.map { $0.formatted() } ?? "Unavailable")
+                        .monospacedDigit()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            Text("Overdrive %")
+                .font(.caption.bold())
+                .foregroundStyle(BrandTokens.textSecondary)
+            if let amount = row.odPercent {
+                HStack {
+                    ProgressView(value: amount, total: 100)
+                        .tint(BrandTokens.gold)
+                        .accessibilityLabel("Overdrive")
+                        .accessibilityValue("\(Int(amount.rounded())) percent")
+                    Text("\(Int(amount.rounded()))%")
+                        .monospacedDigit()
+                }
+            } else {
+                Text("Unavailable")
+            }
+        }
+        .font(.subheadline)
+        .foregroundStyle(BrandTokens.textPrimary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(
+            BrandTokens.cardBackground,
+            in: RoundedRectangle(cornerRadius: 12)
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("fst.paths.activation.\(row.number)")
+    }
+
+    /// Match the source's five visible fret colors using original SwiftUI shapes.
+    ///
+    /// - Parameter name: One of the five validated CHOpt fret keys.
+    /// - Returns: The corresponding sRGB accent.
+    private static func fretColor(_ name: String) -> Color {
+        switch name {
+        case "green": Color(red: 46.0 / 255, green: 204.0 / 255, blue: 113.0 / 255)
+        case "red": Color(red: 231.0 / 255, green: 76.0 / 255, blue: 60.0 / 255)
+        case "yellow": Color(red: 241.0 / 255, green: 196.0 / 255, blue: 15.0 / 255)
+        case "blue": Color(red: 52.0 / 255, green: 152.0 / 255, blue: 219.0 / 255)
+        case "orange": Color(red: 230.0 / 255, green: 126.0 / 255, blue: 34.0 / 255)
+        default: BrandTokens.appBackground
+        }
+    }
+
+    /// Format seconds as the source's minute/second/millisecond time.
+    ///
+    /// - Parameter seconds: Nonnegative, validated time from CHOpt data.
+    /// - Returns: `mm:ss:SSS` with normalized millisecond rollover.
+    private static func time(_ seconds: Double) -> String {
+        let millis = Int((seconds * 1000).rounded())
+        return String(
+            format: "%02d:%02d:%03d", millis / 60_000,
+            millis / 1_000 % 60, millis % 1_000
+        )
+    }
+
+    /// Disclose whether this path is verified, unpinned or offline.
+    ///
+    /// - Parameters:
+    ///   - publicationId: Response-proven generation, if supplied.
+    ///   - isStale: True after an actual network failure reused process memory.
+    /// - Returns: Optional provenance banner.
+    @ViewBuilder
+    private func freshness(publicationId: Int?, isStale: Bool) -> some View {
+        if isStale {
+            FreshnessDisclosure(
+                message: OfflineDisclosure.label(.paths, publicationId: publicationId),
+                symbol: "wifi.slash"
+            )
+        } else if publicationId == nil {
+            FreshnessDisclosure(
+                message: "Showing live path without publication verification",
+                symbol: "info.circle"
+            )
+        }
+    }
+
+    /// Clamp the image scale and let the next pinch start from that new scale.
+    ///
+    /// - Parameter proposed: Zoom requested by a button or gesture.
+    private func setZoom(_ proposed: CGFloat) {
+        zoom = min(3, max(1, proposed))
+        pinchOrigin = zoom
+    }
+
+    /// Restore fit width when switching the image's chart or difficulty.
+    private func resetZoom() {
+        zoom = 1
+        pinchOrigin = 1
+    }
+
+    /// Ignore late responses after any selector, retry or publication change.
+    private func loadPath() async {
+        let requested = requestKey
+        state = .loading
+        do {
+            switch requested.display {
+            case .image:
+                let result = try await session.pathImage(
+                    song: song, instrument: requested.instrument,
+                    difficulty: requested.difficulty
+                )
+                try Task.checkCancellation()
+                guard requestKey == requested else { return }
+                state = .image(result)
+            case .text:
+                let result = try await session.pathData(
+                    song: song, instrument: requested.instrument,
+                    difficulty: requested.difficulty
+                )
+                try Task.checkCancellation()
+                guard requestKey == requested else { return }
+                state = .text(result)
+            }
+        } catch is CancellationError {
+            return
+        } catch let error as URLError where error.code == .cancelled {
+            return
+        } catch {
+            guard !Task.isCancelled, requestKey == requested else { return }
+            state = .failed(error.localizedDescription)
+        }
+    }
+}

@@ -8,6 +8,7 @@ enum OfflineDisclosure {
     enum Content: Sendable {
         case songs
         case scores
+        case paths
     }
 
     /// Name the source of an offline page without promoting observed IDs to proof.
@@ -22,16 +23,20 @@ enum OfflineDisclosure {
             "Offline - last seen songs (publication unverified)"
         case (.scores, nil):
             "Offline - last seen scores (publication unverified)"
+        case (.paths, nil):
+            "Offline - last seen paths (publication unverified)"
         case (.songs, .some):
             "Offline - showing cached songs"
         case (.scores, .some):
             "Offline - showing cached scores"
+        case (.paths, .some):
+            "Offline - showing cached paths"
         }
     }
 }
 
 /// Wrapping native text with a stable icon and explicit screen-reader label.
-private struct FreshnessDisclosure: View {
+struct FreshnessDisclosure: View {
     let message: String
     let symbol: String
 
@@ -59,7 +64,7 @@ private struct FreshnessDisclosure: View {
 }
 
 /// Scalable error content: the iOS 26 system unavailable view fails the Dynamic Type audit.
-private struct ServiceUnavailableView: View {
+struct ServiceUnavailableView: View {
     let title: String
     let message: String
     let retry: () -> Void
@@ -678,9 +683,17 @@ struct SongDetailScreen: View {
     let song: Song
     let session: FestivalSession
     let visibleInstruments: Set<Instrument>
+    @AppStorage("fst.settings.pathDefaultView") private var pathDefaultView = PathDisplayMode.image
+    @State private var pathsPresented = false
 
     private var charted: [Instrument] {
         Instrument.allCases.filter(song.supports)
+    }
+
+    private var pathInstruments: [Instrument] {
+        Instrument.allCases.filter {
+            $0 != .karaoke && visibleInstruments.contains($0)
+        }
     }
 
     /// Supply enabled chart links without hiding the PWA's full Intensity grid.
@@ -768,6 +781,27 @@ struct SongDetailScreen: View {
         }
         .background(ArtworkBackground(mode: .song(song.albumArt), session: session))
         .navigationTitle("")
+        .toolbar {
+            if !pathInstruments.isEmpty {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        pathsPresented = true
+                    } label: {
+                        Label("Paths", systemImage: "map")
+                    }
+                    .accessibilityIdentifier("fst.song-detail.paths")
+                }
+            }
+        }
+        .sheet(isPresented: $pathsPresented) {
+            if let first = pathInstruments.first {
+                SongPathsSheet(
+                    song: song, session: session, instruments: pathInstruments,
+                    firstInstrument: first, defaultDisplay: pathDefaultView,
+                    warnAboutKaraoke: visibleInstruments.contains(.karaoke)
+                )
+            }
+        }
     }
 }
 
@@ -1246,8 +1280,8 @@ struct SoloLeaderboardScreen: View {
     }
 }
 
-/// Preserve readable pager labels even when their native action is disabled.
-private struct HighContrastPagerStyle: ButtonStyle {
+/// Preserve readable control labels even when their native action is disabled.
+struct HighContrastPagerStyle: ButtonStyle {
     /// Render the label without the plain style's automatic disabled dimming.
     ///
     /// - Parameter configuration: Native press state and the button's label.

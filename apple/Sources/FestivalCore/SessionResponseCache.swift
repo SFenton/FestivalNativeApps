@@ -52,16 +52,23 @@ public actor SessionResponseCache {
         subsystem: "com.sfenton.festivalscoretracker", category: "response-cache"
     )
     private var entries: [Key: Entry] = [:]
+    private var pathImages: [Key: Entry] = [:]
+    private var pathImageRecency: [Key] = []
+    private var pathImageBytes = 0
     private var unverified: [ObservedKey: UnverifiedSnapshot] = [:]
     private var recency: [ObservedKey] = []
     private var unverifiedBytes = 0
     private let unverifiedByteLimit: Int
     private let unverifiedEntryLimit: Int
+    private let pathImageByteLimit: Int
+    private let pathImageEntryLimit: Int
 
     /// Creates an empty process-lifetime cache.
     public init() {
         unverifiedByteLimit = 16_000_000
         unverifiedEntryLimit = 128
+        pathImageByteLimit = 32_000_000
+        pathImageEntryLimit = 16
     }
 
     /// Set small deterministic budgets for eviction and invalid-input tests.
@@ -69,13 +76,21 @@ public actor SessionResponseCache {
     /// - Parameters:
     ///   - unverifiedByteLimit: Positive maximum total unpinned JSON bytes.
     ///   - unverifiedEntryLimit: Positive maximum separately keyed pages.
+    ///   - pathImageByteLimit: Positive maximum response-proven path PNG bytes.
+    ///   - pathImageEntryLimit: Positive maximum distinct verified path images.
     /// - Throws: `FestivalAPIError.invalidResource` for nonpositive limits.
-    init(unverifiedByteLimit: Int, unverifiedEntryLimit: Int) throws {
-        guard unverifiedByteLimit > 0, unverifiedEntryLimit > 0 else {
+    init(
+        unverifiedByteLimit: Int, unverifiedEntryLimit: Int,
+        pathImageByteLimit: Int = 32_000_000, pathImageEntryLimit: Int = 16
+    ) throws {
+        guard unverifiedByteLimit > 0, unverifiedEntryLimit > 0,
+              pathImageByteLimit > 0, pathImageEntryLimit > 0 else {
             throw FestivalAPIError.invalidResource
         }
         self.unverifiedByteLimit = unverifiedByteLimit
         self.unverifiedEntryLimit = unverifiedEntryLimit
+        self.pathImageByteLimit = pathImageByteLimit
+        self.pathImageEntryLimit = pathImageEntryLimit
     }
 
     /// Looks up a response only when it belongs to the current publication.
@@ -85,7 +100,13 @@ public actor SessionResponseCache {
     ///   - publicationId: Currently published generation.
     /// - Returns: Cached response, or nil if missing/stale.
     public func entry(for resource: String, publicationId: Int) -> Entry? {
-        entries[Key(resource: resource, publicationId: publicationId)]
+        let key = Key(resource: resource, publicationId: publicationId)
+        if let image = pathImages[key] {
+            pathImageRecency.removeAll { $0 == key }
+            pathImageRecency.append(key)
+            return image
+        }
+        return entries[key]
     }
 
     /// Replaces a cached response for the given public endpoint.
@@ -95,6 +116,36 @@ public actor SessionResponseCache {
     ///   - resource: Stable endpoint identifier.
     public func store(_ entry: Entry, for resource: String) {
         entries[Key(resource: resource, publicationId: entry.publicationId)] = entry
+    }
+
+    /// Retain publication-proven path images under a separate bounded LRU.
+    ///
+    /// - Parameters:
+    ///   - entry: Path PNG bytes and source-proven publication/ETag.
+    ///   - resource: Canonical path image URL including its artifact generation.
+    /// - Returns: False if this single image cannot fit the configured byte budget.
+    @discardableResult
+    func storePathImage(_ entry: Entry, for resource: String) -> Bool {
+        let key = Key(resource: resource, publicationId: entry.publicationId)
+        if let previous = pathImages.removeValue(forKey: key) {
+            pathImageBytes -= previous.data.count
+            pathImageRecency.removeAll { $0 == key }
+        }
+        guard entry.data.count <= pathImageByteLimit else {
+            Self.log.warning("Path image exceeds in-process cache limit")
+            return false
+        }
+        pathImages[key] = entry
+        pathImageBytes += entry.data.count
+        pathImageRecency.append(key)
+        while pathImages.count > pathImageEntryLimit
+            || pathImageBytes > pathImageByteLimit {
+            let oldest = pathImageRecency.removeFirst()
+            if let evicted = pathImages.removeValue(forKey: oldest) {
+                pathImageBytes -= evicted.data.count
+            }
+        }
+        return true
     }
 
     /// Reuse a last-seen response only during the same observed bootstrap.
@@ -169,6 +220,9 @@ public actor SessionResponseCache {
     /// Discards all payloads when a different publication becomes current.
     public func removeAll() {
         entries.removeAll()
+        pathImages.removeAll()
+        pathImageRecency.removeAll()
+        pathImageBytes = 0
         unverified.removeAll()
         recency.removeAll()
         unverifiedBytes = 0

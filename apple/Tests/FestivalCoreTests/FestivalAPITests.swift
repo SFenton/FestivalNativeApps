@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import FestivalCore
 
-private actor FixtureTransport: HTTPTransport {
+actor FixtureTransport: HTTPTransport {
     private var replies: [Result<HTTPResult, URLError>]
     private var requests: [URLRequest] = []
 

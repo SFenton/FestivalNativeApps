@@ -60,3 +60,46 @@ import Testing
     let cold = SessionResponseCache()
     #expect(await cold.unverifiedSnapshot(for: "two", observedPublicationId: 7) == nil)
 }
+
+/// Large publication-proven PNGs must not crowd out Songs or grow without a bound.
+@Test func songPathVerifiedImagesUseSeparateBoundedMemory() async throws {
+    #expect(throws: FestivalAPIError.invalidResource) {
+        try SessionResponseCache(
+            unverifiedByteLimit: 8, unverifiedEntryLimit: 2,
+            pathImageByteLimit: 0
+        )
+    }
+    let cache = try SessionResponseCache(
+        unverifiedByteLimit: 8, unverifiedEntryLimit: 2,
+        pathImageByteLimit: 5, pathImageEntryLimit: 2
+    )
+    let songs = SessionResponseCache.Entry(
+        data: Data("songs".utf8), publicationId: 7, etag: nil
+    )
+    await cache.store(songs, for: "catalog")
+    let first = SessionResponseCache.Entry(
+        data: Data("aaa".utf8), publicationId: 7, etag: "first"
+    )
+    let second = SessionResponseCache.Entry(
+        data: Data("bb".utf8), publicationId: 7, etag: "second"
+    )
+    let third = SessionResponseCache.Entry(
+        data: Data("cc".utf8), publicationId: 7, etag: "third"
+    )
+    #expect(await cache.storePathImage(first, for: "path-a"))
+    #expect(await cache.storePathImage(second, for: "path-b"))
+    _ = await cache.entry(for: "path-a", publicationId: 7)
+    #expect(await cache.storePathImage(third, for: "path-c"))
+    #expect(await cache.entry(for: "path-b", publicationId: 7) == nil)
+    #expect(await cache.entry(for: "path-a", publicationId: 7) == first)
+    #expect(await cache.entry(for: "path-c", publicationId: 7) == third)
+    #expect(await cache.entry(for: "catalog", publicationId: 7) == songs)
+    let oversized = SessionResponseCache.Entry(
+        data: Data("too large".utf8), publicationId: 7, etag: nil
+    )
+    #expect(!(await cache.storePathImage(oversized, for: "path-a")))
+    #expect(await cache.entry(for: "path-a", publicationId: 7) == nil)
+    await cache.removeAll()
+    #expect(await cache.entry(for: "path-c", publicationId: 7) == nil)
+    #expect(await cache.entry(for: "catalog", publicationId: 7) == nil)
+}

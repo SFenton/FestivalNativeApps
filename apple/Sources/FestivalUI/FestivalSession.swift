@@ -130,6 +130,44 @@ final class FestivalSession {
         return payload
     }
 
+    /// Load structured path text and propagate its observed publication to navigation.
+    ///
+    /// - Parameters:
+    ///   - song: Catalog record containing the optional path generation.
+    ///   - instrument: Path-capable solo chart.
+    ///   - difficulty: Selected CHOpt path difficulty.
+    /// - Returns: Validated text path and explicit freshness.
+    /// - Throws: Service, decoding, publication or transport errors.
+    func pathData(
+        song: Song, instrument: Instrument, difficulty: PathDifficulty
+    ) async throws -> SongPathDataPayload {
+        let result = try await client().pathData(
+            songId: song.songId, instrument: instrument, difficulty: difficulty,
+            generationId: song.pathArtifactGenerationId
+        )
+        try await observe(publicationId: result.observedPublicationId)
+        return result
+    }
+
+    /// Load a bounded, decoded path image under the same publication as Songs.
+    ///
+    /// - Parameters:
+    ///   - song: Catalog record containing the optional path generation.
+    ///   - instrument: Path-capable solo chart.
+    ///   - difficulty: Selected CHOpt path difficulty.
+    /// - Returns: Immutable image and explicit freshness.
+    /// - Throws: Service, image, publication or transport errors.
+    func pathImage(
+        song: Song, instrument: Instrument, difficulty: PathDifficulty
+    ) async throws -> SongPathImagePayload {
+        let result = try await client().pathImage(
+            songId: song.songId, instrument: instrument, difficulty: difficulty,
+            generationId: song.pathArtifactGenerationId
+        )
+        try await observe(publicationId: result.observedPublicationId)
+        return result
+    }
+
     /// Force-check the live service generation and notify views when it changes.
     ///
     /// - Returns: The currently published, validated service generation.

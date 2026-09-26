@@ -107,6 +107,46 @@ for (const viewport of viewports.filter(entry => entry.id.endsWith('portrait')))
   });
 }
 
+for (const viewport of viewports.filter(entry => entry.id.endsWith('portrait'))) {
+  test(`fixture-backed PWA CHOpt Paths modal: ${viewport.id}`, async ({ page }, testInfo) => {
+    mkdirSync(output, { recursive: true });
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await page.route('**/api/paths/**', async route => {
+      const source = new URL(route.request().url());
+      const fixture = await fetch(`http://127.0.0.1:8765${source.pathname}${source.search}`);
+      await route.fulfill({
+        status: fixture.status,
+        contentType: fixture.headers.get('content-type') ?? 'application/octet-stream',
+        body: Buffer.from(await fixture.arrayBuffer()),
+      });
+    });
+    await gotoAppRoute(page, '/songs/fixture-pulse');
+    await expect(page.locator('#main-content')).toContainText('Intensity', { timeout: 15_000 });
+    await page.getByRole('button', { name: 'View Paths' }).click();
+    await expect(page.getByText('Karaoke is not available for path visualization yet.'))
+      .toBeVisible();
+    await page.getByRole('button', { name: 'OK', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Paths' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('img', { name: 'Lead Expert path' }))
+      .toBeVisible({ timeout: 15_000 });
+    await page.screenshot({
+      path: join(output, `${testInfo.project.name}-${viewport.id}-chopt-path-image.png`),
+      animations: 'disabled',
+    });
+    await dialog.getByRole('button', {
+      name: viewport.width <= 768 ? 'Path display: Image' : 'Image',
+      exact: true,
+    }).click();
+    await dialog.getByRole('button', { name: 'Text', exact: true }).click();
+    await expect(dialog.getByText('5.50', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await page.screenshot({
+      path: join(output, `${testInfo.project.name}-${viewport.id}-chopt-path-text.png`),
+      animations: 'disabled',
+    });
+  });
+}
+
 test('fixture-backed PWA artwork actually rotates after the five-second dwell', async ({ page }, testInfo) => {
   mkdirSync(output, { recursive: true });
   await page.setViewportSize({ width: 390, height: 844 });

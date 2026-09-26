@@ -34,6 +34,8 @@ public enum FestivalAPIError: LocalizedError, Equatable, Sendable {
     case invalidCatalogue
     case invalidLeaderboard
     case invalidArtwork
+    case invalidPathData
+    case invalidPathImage
     case httpStatus(Int)
     case unexpectedNotModified
     case unavailable(retryAfter: String?)
@@ -53,6 +55,10 @@ public enum FestivalAPIError: LocalizedError, Equatable, Sendable {
             "That song or chart is unavailable."
         case .invalidArtwork:
             "Album artwork could not be displayed."
+        case .invalidPathData:
+            "The path data could not be read. Try another chart or difficulty."
+        case .invalidPathImage:
+            "The path image could not be displayed. Try another chart or difficulty."
         case let .httpStatus(status):
             if status == 404 {
                 "That song or chart is no longer available."

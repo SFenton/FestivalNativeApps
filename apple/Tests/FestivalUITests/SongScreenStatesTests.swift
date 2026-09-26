@@ -37,16 +37,20 @@ enum ScoreScenario: CaseIterable, Sendable {
     case loading, populated, offline, empty, failure
 }
 
-/// Both offline banners must expose the response's actual provenance, not just recency.
+/// Each offline banner exposes the response's actual provenance, not just recency.
 @Test func offlineLabelsDistinguishUnverifiedFromPublicationBoundData() {
     #expect(OfflineDisclosure.label(.songs, publicationId: nil)
             == "Offline - last seen songs (publication unverified)")
     #expect(OfflineDisclosure.label(.scores, publicationId: nil)
             == "Offline - last seen scores (publication unverified)")
+    #expect(OfflineDisclosure.label(.paths, publicationId: nil)
+            == "Offline - last seen paths (publication unverified)")
     #expect(OfflineDisclosure.label(.songs, publicationId: 7)
             == "Offline - showing cached songs")
     #expect(OfflineDisclosure.label(.scores, publicationId: 7)
             == "Offline - showing cached scores")
+    #expect(OfflineDisclosure.label(.paths, publicationId: 7)
+            == "Offline - showing cached paths")
 }
 
 /// Decode fixtures using the same strict wire models as the native app.
