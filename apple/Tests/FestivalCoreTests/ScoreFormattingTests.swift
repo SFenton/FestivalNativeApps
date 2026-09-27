@@ -61,6 +61,7 @@ import Testing
         (.invalidLeaderboard, "The service returned data we could not read. Try again."),
         (.invalidArtwork, "Album artwork could not be displayed."),
         (.invalidShop, "The Item Shop data could not be read. Try again."),
+        (.invalidSongFilter, "The saved song filters could not be read. Reset them to continue."),
         (.invalidPathData, "The path data could not be read. Try another chart or difficulty."),
         (.invalidPathImage, "The path image could not be displayed. Try another chart or difficulty."),
         (.invalidProfileSearchQuery, "Enter 2 to 200 characters to search players."),

@@ -213,13 +213,15 @@ struct SongsScreen: View {
     @State private var shopRefreshFailure: String?
     @State private var shopRetryRevision = 0
     @State private var sortPresented = false
-    @State private var shopFilterPresented = false
+    @State private var filterPresented = false
     @State private var profilePresented = false
     @AppStorage("fst.songs.sortMode") private var sortMode = SongSortMode.title
     @AppStorage("fst.songs.sortAscending") private var sortAscending = true
     @AppStorage("fst.songs.filterInShop") private var filterInShop = false
     @AppStorage("fst.songs.filterLeavingTomorrow")
     private var filterLeavingTomorrow = false
+    @AppStorage(SongPlayerScoreFilter.storageKey)
+    private var playerScoreFilterData = Data()
     @AppStorage("fst.settings.hideShop") private var hideShop = false
     @AppStorage("fst.settings.disableShopHighlighting")
     private var disableShopHighlighting = false
@@ -281,6 +283,20 @@ struct SongsScreen: View {
         SongShopFilter(inShop: filterInShop, leavingTomorrow: filterLeavingTomorrow)
     }
 
+    private var playerScoreFilterResult: Result<SongPlayerScoreFilter, Error> {
+        Result { try SongPlayerScoreFilter.decodeSaved(playerScoreFilterData) }
+    }
+
+    private var appliedPlayerScoreFilter: SongPlayerScoreFilter? {
+        if case let .success(filter) = playerScoreFilterResult { return filter }
+        return nil
+    }
+
+    private var playerScoreFilterError: Error? {
+        if case let .failure(error) = playerScoreFilterResult { return error }
+        return nil
+    }
+
     private var shopPublicationMismatch: Bool {
         guard case let .loaded(payload) = state,
               let current = session.publicationId else { return false }
@@ -305,6 +321,13 @@ struct SongsScreen: View {
               session.selectedPlayer != nil,
               session.playerLoadState == .available else { return false }
         return !session.hasCurrentPlayerScores(
+            forCatalogue: payload.observedPublicationId
+        )
+    }
+
+    private var scoreFilterAvailable: Bool {
+        guard case let .loaded(payload) = state else { return false }
+        return session.hasCurrentPlayerScores(
             forCatalogue: payload.observedPublicationId
         )
     }
@@ -334,13 +357,49 @@ struct SongsScreen: View {
         shopFilterPausedMessage == nil ? appliedShopFilter : SongShopFilter()
     }
 
+    private var playerScoreFilterPausedMessage: String? {
+        guard case .loaded = state,
+              let filter = appliedPlayerScoreFilter, filter.isActive else { return nil }
+        if !filter.scoped(to: visibleInstruments).isActive {
+            return "Player score filters paused while their charts are hidden in Settings. "
+                + "Your choices are saved."
+        }
+        if session.selectedPlayer == nil {
+            return "Player score filters paused until a player is selected. "
+                + "Showing songs without score filters."
+        }
+        if filterInvalidScores {
+            return "Player score filters paused while Filter Invalid Scores is enabled. "
+                + "Published raw scores cannot replace validated score variants."
+        }
+        if !scoreFilterAvailable {
+            return "Player score filters paused until selected scores and songs "
+                + "share the current publication. Showing songs without score filters."
+        }
+        return nil
+    }
+
+    private var effectivePlayerScoreFilter: SongPlayerScoreFilter {
+        playerScoreFilterPausedMessage == nil
+            ? (appliedPlayerScoreFilter?.scoped(to: visibleInstruments)
+                ?? SongPlayerScoreFilter())
+            : SongPlayerScoreFilter()
+    }
+
+    private var hiddenPlayerScoreChecks: Bool {
+        guard let filter = appliedPlayerScoreFilter else { return false }
+        return filter.scoped(to: visibleInstruments) != filter
+    }
+
     private var groupedRowInsets: EdgeInsets {
         EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16)
     }
 
     private var canPresentFilter: Bool {
-        (session.selectedPlayer != nil && session.playerLoadState == .available && !hideShop)
-            || appliedShopFilter.isActive
+        playerScoreFilterError == nil
+            && ((session.selectedPlayer != nil && session.playerLoadState == .available)
+                || appliedShopFilter.isActive
+                || appliedPlayerScoreFilter?.isActive == true)
     }
 
     /// Create a catalogue screen with a fixture state for hosted visual tests.
@@ -427,6 +486,9 @@ struct SongsScreen: View {
                     Task { await reload() }
                 }
             case let .loaded(payload):
+                if let error = playerScoreFilterError {
+                    invalidPlayerFilterView(error.localizedDescription)
+                } else {
                 let matching = payload.catalog.songs.filter { song in
                     SongSearch.matches(song, query: settledSearch)
                         && (instrument.map(song.supports) ?? true)
@@ -436,8 +498,16 @@ struct SongsScreen: View {
                     Set(offers.keys)
                 }
                 let sorted: Result<[Song], Error> = Result {
-                    let filtered = try effectiveShopFilter.filtered(
+                    let publicFiltered = try effectiveShopFilter.filtered(
                         matching, offersById: shopOffersForCurrentSongs
+                    )
+                    let filtered = try effectivePlayerScoreFilter.filtered(
+                        publicFiltered,
+                        scoresBySong: session.hasCurrentPlayerScores(
+                            forCatalogue: payload.observedPublicationId
+                        ) ? session.selectedPlayerScores : nil,
+                        visibleInstruments: visibleInstruments,
+                        selectedInstrument: instrument
                     )
                     return try SongCatalogSort.sorted(
                         filtered, mode: effectiveMode, ascending: sortAscending,
@@ -454,6 +524,7 @@ struct SongsScreen: View {
                 case let .success(visible):
                 if visible.isEmpty {
                     let filtersApplied = instrument != nil || effectiveShopFilter.isActive
+                        || effectivePlayerScoreFilter.isActive
                     VStack(spacing: 8) {
                         if hasDisclosure(for: payload) {
                             disclosures(for: payload)
@@ -480,6 +551,7 @@ struct SongsScreen: View {
                                         ? "No songs match your filters."
                                         : "No songs are available yet.")
                                     : (effectiveShopFilter.isActive
+                                        || effectivePlayerScoreFilter.isActive
                                         ? "Try a different search or filter."
                                         : "Try a different search.")
                             )
@@ -550,6 +622,7 @@ struct SongsScreen: View {
                     .refreshable { await reload() }
                 }
                 }
+                }
             }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -602,15 +675,25 @@ struct SongsScreen: View {
                 sortAscending = order
             }
         }
-        .sheet(isPresented: $shopFilterPresented) {
-            SongsShopFilterSheet(
-                applied: appliedShopFilter, showShop: !hideShop,
-                shopAvailable: shopOffersForCurrentSongs != nil,
-                profileAvailable: session.selectedPlayer != nil
-                    && session.playerLoadState == .available
-            ) { filter in
-                filterInShop = filter.inShop
-                filterLeavingTomorrow = filter.leavingTomorrow
+        .sheet(isPresented: $filterPresented) {
+            if let appliedPlayerScoreFilter {
+                SongsFilterSheet(
+                    applied: appliedShopFilter, showShop: !hideShop,
+                    shopAvailable: shopOffersForCurrentSongs != nil,
+                    profileAvailable: session.selectedPlayer != nil
+                        && session.playerLoadState == .available,
+                    appliedPlayerFilter: appliedPlayerScoreFilter,
+                    visibleInstruments: visibleInstruments,
+                    selectedPlayer: session.selectedPlayer != nil,
+                    scoreAvailable: scoreFilterAvailable,
+                    invalidScoreFilteringEnabled: filterInvalidScores
+                ) { shop, player in
+                    playerScoreFilterData = try player.encoded()
+                    filterInShop = shop.inShop
+                    filterLeavingTomorrow = shop.leavingTomorrow
+                }
+            } else {
+                Text("Saved song filters are invalid. Reset them from Songs to continue.")
             }
         }
         .sheet(isPresented: $profilePresented) {
@@ -690,26 +773,43 @@ struct SongsScreen: View {
             ? BrandTokens.accentBlue : BrandTokens.gold)
     }
 
-    private var shopFilterAccessibilityValue: String {
+    private var filterAccessibilityValue: String {
         let labels = [
             filterInShop ? "In Shop" : nil,
             filterLeavingTomorrow ? "Leaving Tomorrow" : nil,
         ].compactMap { $0 }
-        let selected = labels.isEmpty ? "No filters" : labels.joined(separator: ", ")
-        return selected + (shopFilterPausedMessage == nil
-            ? "" : ", paused; showing all songs")
+        let scoreCount = appliedPlayerScoreFilter.map { filter in
+            SongScoreFilterKind.allCases.reduce(0) { count, kind in
+                count + Instrument.allCases.filter {
+                    filter.contains(kind, for: $0)
+                }.count
+            }
+        } ?? 0
+        let scoreLabel = scoreCount > 0
+            ? "\(scoreCount) player score \(scoreCount == 1 ? "check" : "checks")"
+            : nil
+        let selected = (labels + [scoreLabel].compactMap { $0 })
+            .joined(separator: ", ")
+        let status = selected.isEmpty ? "No filters" : selected
+        if shopFilterPausedMessage != nil {
+            return status + (effectivePlayerScoreFilter.isActive
+                ? ", Item Shop filters paused" : ", paused; showing all songs")
+        }
+        return status + (playerScoreFilterPausedMessage == nil
+            ? "" : ", player score filters paused")
     }
 
     private var filterAction: some View {
         Button {
-            shopFilterPresented = true
+            filterPresented = true
         } label: {
             Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
         }
         .accessibilityLabel("Filter Songs")
-        .accessibilityValue(shopFilterAccessibilityValue)
+        .accessibilityValue(filterAccessibilityValue)
         .accessibilityIdentifier("fst.songs.filter")
-        .tint(appliedShopFilter.isActive ? BrandTokens.gold : BrandTokens.accentBlue)
+        .tint(appliedShopFilter.isActive || appliedPlayerScoreFilter?.isActive == true
+            ? BrandTokens.gold : BrandTokens.accentBlue)
     }
 
     /// Keep a saved Shop sort visible when its source is hidden or unavailable.
@@ -746,6 +846,8 @@ struct SongsScreen: View {
                     || session.currentShop?.isStale == true
             ))
             || sortPausedMessage != nil || shopFilterPausedMessage != nil
+            || playerScoreFilterPausedMessage != nil
+            || hiddenPlayerScoreChecks
     }
 
     /// Show freshness and update errors even when search finds no matching rows.
@@ -785,6 +887,20 @@ struct SongsScreen: View {
                 symbol: "pause.circle"
             )
             .accessibilityIdentifier("fst.songs.profile-paused")
+        }
+        if let playerScoreFilterPausedMessage {
+            FreshnessDisclosure(
+                message: playerScoreFilterPausedMessage,
+                symbol: "line.3.horizontal.decrease.circle"
+            )
+            .accessibilityIdentifier("fst.songs.score-filter-paused")
+        } else if hiddenPlayerScoreChecks {
+            FreshnessDisclosure(
+                message: "Player score checks for hidden charts are inactive. "
+                    + "Visible chart checks still apply.",
+                symbol: "eye.slash"
+            )
+            .accessibilityIdentifier("fst.songs.score-filter-hidden")
         }
         if let sortPausedMessage {
             FreshnessDisclosure(message: sortPausedMessage, symbol: "arrow.up.arrow.down")
@@ -865,6 +981,42 @@ struct SongsScreen: View {
             Task { await session.refreshSelectedPlayer() }
         }
         .accessibilityIdentifier("fst.songs.profile-retry")
+    }
+
+    /// Block corrupt saved filters with an explicit reset, never show unfiltered success.
+    ///
+    /// - Parameter message: Validated local-preference decode failure.
+    /// - Returns: Accessible error and user-controlled reset of only score filters.
+    private func invalidPlayerFilterView(_ message: String) -> some View {
+        ScrollView {
+            VStack(spacing: 16) {
+                Text("Saved song filters unavailable")
+                    .font(.title2.bold())
+                    .foregroundStyle(BrandTokens.textPrimary)
+                    .accessibilityAddTraits(.isHeader)
+                Text(message)
+                    .font(.body)
+                    .foregroundStyle(BrandTokens.textSecondary)
+                Button {
+                    playerScoreFilterData = Data()
+                } label: {
+                    Text("Reset saved score filters")
+                        .font(.body)
+                        .foregroundStyle(BrandTokens.textPrimary)
+                        .frame(minHeight: 44)
+                        .padding(.horizontal, 12)
+                        .background(
+                            BrandTokens.cardBackground,
+                            in: RoundedRectangle(cornerRadius: 10)
+                        )
+                }
+                .buttonStyle(HighContrastPagerStyle())
+                .accessibilityIdentifier("fst.songs.filter-reset-invalid")
+            }
+            .padding(24)
+            .frame(maxWidth: .infinity)
+        }
+        .accessibilityIdentifier("fst.songs.filter-invalid")
     }
 
     /// Keep every grouped and ungrouped Song row on the same navigation path.

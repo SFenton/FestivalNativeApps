@@ -19,8 +19,11 @@ private struct HostedSongsScenario {
     let stale: Bool
     let size: CGSize
     var shopFilter = SongShopFilter()
+    var playerScoreFilter = SongPlayerScoreFilter()
     var selectPlayer = false
     var restorePlayerLoading = false
+    var invalidScoreFiltering = false
+    var invalidSavedFilter = false
 }
 
 /// Decode one coherent selected player without adding account fixture bytes to the app.
@@ -84,6 +87,13 @@ private func hostedSongsState(
         scenario.shopFilter.leavingTomorrow,
         forKey: "fst.songs.filterLeavingTomorrow"
     )
+    storage.set(try scenario.playerScoreFilter.encoded(),
+                forKey: SongPlayerScoreFilter.storageKey)
+    storage.set(scenario.invalidScoreFiltering, forKey: "fst.settings.filterInvalidScores")
+    if scenario.invalidSavedFilter {
+        storage.set(Data("invalid saved filter".utf8),
+                    forKey: SongPlayerScoreFilter.storageKey)
+    }
     if scenario.restorePlayerLoading {
         let selection = try JSONDecoder().decode(PlayerSearchResult.self, from: Data("""
         {"accountId":"fixture-player-2","displayName":"Fixture Player 2"}
@@ -153,7 +163,7 @@ private func hostedSongsState(
     #expect((1...3).contains(scale))
     #expect(abs(CGFloat(image.height) / scenario.size.height - scale) < 0.02)
     #expect(nativeHostedControlPixels(image).bright > 20)
-    if scenario.restorePlayerLoading {
+    if scenario.restorePlayerLoading && scenario.shopFilter.leavingTomorrow {
         let rowEdges = try #require(image.cropping(to: CGRect(
             x: 0, y: CGFloat(image.height) * 0.14,
             width: CGFloat(image.width) * 0.06,
@@ -256,6 +266,40 @@ private func hostedSongsState(
             size: CGSize(width: 390, height: 844),
             shopFilter: SongShopFilter(inShop: true), selectPlayer: true
         ),
+        HostedSongsScenario(
+            name: "score-has-drums", shop: .populated, mode: .title,
+            hideShop: false, search: "", filter: nil, stale: false,
+            size: CGSize(width: 390, height: 844),
+            playerScoreFilter: SongPlayerScoreFilter(hasScores: [.drums]),
+            selectPlayer: true
+        ),
+        HostedSongsScenario(
+            name: "score-missing-pro-lead", shop: .populated, mode: .title,
+            hideShop: false, search: "", filter: nil, stale: false,
+            size: CGSize(width: 390, height: 844),
+            playerScoreFilter: SongPlayerScoreFilter(missingScores: [.proLead]),
+            selectPlayer: true
+        ),
+        HostedSongsScenario(
+            name: "score-paused-loading", shop: .populated, mode: .title,
+            hideShop: false, search: "", filter: nil, stale: false,
+            size: CGSize(width: 390, height: 844),
+            playerScoreFilter: SongPlayerScoreFilter(hasScores: [.drums]),
+            restorePlayerLoading: true
+        ),
+        HostedSongsScenario(
+            name: "score-paused-invalid-mode", shop: .populated, mode: .title,
+            hideShop: false, search: "", filter: nil, stale: false,
+            size: CGSize(width: 390, height: 844),
+            playerScoreFilter: SongPlayerScoreFilter(hasScores: [.drums]),
+            selectPlayer: true, invalidScoreFiltering: true
+        ),
+        HostedSongsScenario(
+            name: "score-invalid-saved", shop: .populated, mode: .title,
+            hideShop: false, search: "", filter: nil, stale: false,
+            size: CGSize(width: 390, height: 844),
+            selectPlayer: true, invalidSavedFilter: true
+        ),
     ]
     var images: [String: Data] = [:]
     var fills: [String: (gold: Int, green: Int, red: Int)] = [:]
@@ -279,9 +323,13 @@ private func hostedSongsState(
     #expect(images["filter-anonymous-paused"] != images["filter-leaving"])
     #expect(images["filter-hidden-paused"] != images["filter-selected-default"])
     #expect(images["filter-empty"] != images["filter-unavailable-paused"])
+    #expect(images["score-has-drums"] != images["score-missing-pro-lead"])
+    #expect(images["score-has-drums"] != images["score-paused-loading"])
+    #expect(images["score-has-drums"] != images["score-paused-invalid-mode"])
+    #expect(images["score-invalid-saved"] != images["filter-selected-default"])
 }
 
-/// A new Shop generation must not filter, sort or badge retained older Songs.
+/// New Shop and player data must not filter, sort or badge retained older Songs.
 @MainActor
 @Test func songsPauseShopDerivedRowsAcrossFailedPublicationRollover() async throws {
     let fixtures = try shopFixtureBytes()
@@ -341,7 +389,13 @@ private func hostedSongsState(
     let storage = try #require(UserDefaults(suiteName: suiteName))
     defer { storage.removePersistentDomain(forName: suiteName) }
     storage.set(true, forKey: "fst.songs.filterInShop")
+    let scoreFilter = SongPlayerScoreFilter(hasScores: [.drums])
+    storage.set(try scoreFilter.encoded(), forKey: SongPlayerScoreFilter.storageKey)
     storage.set(SongSortMode.shop.rawValue, forKey: "fst.songs.sortMode")
+    #expect(try scoreFilter.filtered(
+        oldSongs.catalog.songs, scoresBySong: session.selectedPlayerScores,
+        visibleInstruments: Set(Instrument.allCases), selectedInstrument: nil
+    ).map(\.songId) == ["fixture-pulse"])
     let size = CGSize(width: 820, height: 1180)
     let host = nativeHostedView(
         NavigationStack {
@@ -362,14 +416,14 @@ private func hostedSongsState(
     #expect(nativeHostedControlPixels(image).bright > 20)
     // Stacked notices use gold; sample only the actual Song-card edge band.
     let rowEdges = try #require(image.cropping(to: CGRect(
-        x: 0, y: CGFloat(image.height) * 0.32,
+        x: 0, y: CGFloat(image.height) * 0.40,
         width: CGFloat(image.width) * 0.06,
         height: CGFloat(image.height) * 0.14
     ).integral))
     let edgeColors = nativeHostedStatusPixels(rowEdges)
     #expect(edgeColors.gold == 0 && edgeColors.red == 0)
     let capture = try nativeHostedPNG(
-        image, filename: "songs-host-rollover-shop-join-paused.png",
+        image, filename: "songs-host-rollover-shop-and-score-joins-paused.png",
         environment: "FST_SONGS_RENDER_OUT"
     )
     #expect(!capture.isEmpty)

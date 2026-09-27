@@ -131,10 +131,10 @@ private func songFormSurfacePixels(
     var images: [String: Data] = [:]
     for scenario in cases {
         let host = nativeHostedView(
-            SongsShopFilterSheet(
+            SongsFilterSheet(
                 applied: scenario.filter, showShop: scenario.showShop,
                 shopAvailable: scenario.shopAvailable,
-                profileAvailable: scenario.profileAvailable, onApply: { _ in }
+                profileAvailable: scenario.profileAvailable, onApply: { _, _ in }
             )
             .preferredColorScheme(.dark)
             .tint(BrandTokens.accentBlue)
@@ -163,5 +163,53 @@ private func songFormSurfacePixels(
     #expect(images["phone-default"] != images["phone-profile-pending"])
     #expect(images["wide-in-shop"] != images["wide-leaving"])
     #expect(images["wide-in-shop"] != images["wide-hidden"])
+}
+
+/// Render the source's global score checks and per-chart disclosure without a GUI host.
+@MainActor
+@Test func songsFilterSheetPaintsSelectedScoreAndDisabledStates() throws {
+    let both: Set<Instrument> = [.lead, .drums]
+    let active = SongPlayerScoreFilter(hasScores: both, missingFCs: [.drums])
+    let cases: [(String, SongPlayerScoreFilter, Bool, Bool, DynamicTypeSize)] = [
+        ("score-default", SongPlayerScoreFilter(), true, false, .large),
+        ("score-global-and-chart", active, true, false, .large),
+        ("score-pending", active, false, false, .large),
+        ("score-invalid-mode", active, true, true, .large),
+        ("score-ax5", active, true, false, .accessibility5),
+    ]
+    var images: [String: Data] = [:]
+    for (name, saved, available, invalidMode, size) in cases {
+        let width = CGSize(width: 390, height: 844)
+        let host = nativeHostedView(
+            SongsFilterSheet(
+                applied: SongShopFilter(), showShop: true, shopAvailable: true,
+                profileAvailable: available, appliedPlayerFilter: saved,
+                visibleInstruments: both, selectedPlayer: true,
+                scoreAvailable: available,
+                invalidScoreFilteringEnabled: invalidMode,
+                onApply: { _, _ in }
+            )
+            .preferredColorScheme(.dark)
+            .tint(BrandTokens.accentBlue)
+            .environment(\.dynamicTypeSize, size)
+            .background(BrandTokens.appBackground),
+            size: width
+        )
+        let image = try nativeHostedImage(host)
+        let pixels = nativeHostedControlPixels(image)
+        #expect(pixels.bright > 20 && pixels.placeholder == 0)
+        #expect(songFormSurfacePixels(image, rowFraction: 0.5) > image.width / 8)
+        if name == "score-global-and-chart" {
+            #expect(pixels.selected > 10)
+        }
+        images[name] = try nativeHostedPNG(
+            image, filename: "songs-filter-\(name).png",
+            environment: "FST_FILTER_RENDER_OUT"
+        )
+    }
+    #expect(images["score-default"] != images["score-global-and-chart"])
+    #expect(images["score-global-and-chart"] != images["score-pending"])
+    #expect(images["score-global-and-chart"] != images["score-invalid-mode"])
+    #expect(images["score-global-and-chart"] != images["score-ax5"])
 }
 #endif

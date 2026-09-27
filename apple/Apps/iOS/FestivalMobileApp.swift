@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import FestivalCore
 import FestivalUI
 
 /// System-owned iOS/iPadOS lifecycle and navigation chrome.
@@ -42,6 +43,7 @@ struct FestivalMobileApp: App {
                 "fst.settings.metadataLastPlayed",
                 "fst.songs.filterInShop",
                 "fst.songs.filterLeavingTomorrow",
+                SongPlayerScoreFilter.storageKey,
             ] {
                 UserDefaults.standard.removeObject(forKey: key)
             }

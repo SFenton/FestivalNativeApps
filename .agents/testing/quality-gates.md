@@ -12,10 +12,12 @@ When the sibling web repository and its existing Playwright dependencies are pre
 
 `python3 tools/verify_product.py` validates inventory consistency and prints pending surfaces. Strict mode also requires evidence for every listed page, control and state on all four platforms. On the Mac run `bash tools/apple_coverage.sh`: it tests all three **SwiftPM test bundles**, merges real LLVM line coverage by test binary, checks `apple/Sources` for missing/nested files and requires 95% logic/90% UX. Re-run this full gate after compiled-source edits; targeted tests alone cannot certify a new source snapshot.
 
-The current full SwiftPM report (2026-09-27, after compact
-grouped Songs rows) measures
-**1804/1886 logic lines (95.65%, pass)** and
-**8599/9505 UX lines (90.47%, pass)**, plus contrast.
+The current full SwiftPM report (2026-09-27, after the
+selected-player Score/FC Filter extension) measures
+**2000/2087 logic lines (95.83%, pass)** and
+**9430/10415 UX lines (90.54%, pass)**, plus contrast.
+The earlier compact-grouped-Songs report measured
+1804/1886 (95.65%) logic and 8599/9505 (90.47%) UX.
 The preceding selected-score-publication report measured
 1805/1886 (95.71%) logic and 8583/9491 (90.43%) UX.
 The earlier post-Shop-Filter report measured
@@ -88,7 +90,7 @@ structural references, not pixel equivalence. The older nil-element
 grouped Dynamic Type finding, AX5/grouped scroll, iPadOS and broader
 iPhone UI/app line bar remain open; the focused pass does not erase them.
 
-The latest **iPhone-only source-line checkpoint** unions **11 distinct,
+The preceding, **pre-score-Filter iPhone-only source-line checkpoint** unions **11 distinct,
 fully passing Xcode result bundles** (23 named device methods) from
 the same iPhone 26.5 simulator: **4092/4695 unique `FestivalUI`/app
 lines (87.16%, below 90%)**, **134** executable lines short of the
@@ -109,6 +111,17 @@ The final **2/2** source-frozen iPhone motion/opaque and unavailable-art
 fixture suite included both coverage targets but contributed **zero new
 unique lines** to a remeasured 12-bundle union; the accepted
 **4092/4695 (87.16%)** value and **134-line deficit** are unchanged.
+That production source and its prior category measurement are
+**historical** after the new Score/FC Filter files and session
+changes; they cannot enter a current-source iPhone union. The
+new **7/7 current-source iPhone** Score/Shop Filter, Settings,
+normal/AX5 accessibility and pinned rollover archive contains both
+required Xcode targets but measures only **2630/4992 unique
+`FestivalUI`/mobile app lines (52.68%, below 90%)** on this
+selected subset alone. A complete source-frozen iPhone 90% line
+union, iPad/Duo/macOS GUI and full Filter control-state audits are
+still open. The complete SwiftPM host gate above passes
+95% logic/90% UX, not this device target.
 
 The warm-offline audit's failing element is the Songs **"Retry Item Shop status"** button, which may or may not appear when the one-shot Songs fixture races a Shop read. The test now uses an explicit local `shop-error` scenario and waits for the actual button. A private element capture showed white glyphs on the opaque card at **18.72:1**; the native test enforces **at least 4.5:1** before auditing. A separate normal/AX5 iPhone journey proves **greater than 1.35x actual glyph-height growth** and reaches the action with small in-list drags even when the row is lazily offscreen; full swipes skipped that narrow row. On **iPhone iOS 26.5 only**, the audit accepts **at most one contrast and one Dynamic Type report** for that exact button identifier and label after these independent checks; every other issue and other runtime remains failing. In the final **4/4** suite this warm-offline audit deliberately pins fixture Sort to Title using launch arguments without erasing a saved user preference. With an additional saved Shop Sort and its long paused notice, Xcode still reports an **unidentified contrast node**: that combined full-screen state remains open and is not waived. The focused Title-order result is not an unwaived `.all` certification. An experimental button restyle did not remove the reports and was reverted. The iPad Songs audit remains open under the iPhone-first sequence.
 

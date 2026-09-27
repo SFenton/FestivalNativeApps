@@ -177,11 +177,16 @@ private func viewedPlayer(_ rank: Int) throws -> PlayerSearchResult {
     #expect(restored.playerLoadState == .available)
     #expect(restored.selectedPlayerScores["fixture-pulse"]?[.lead]?.score == 99_900)
     #expect(restored.selectedPlayerScoreObservation == 7)
+    storage.set(try SongPlayerScoreFilter(hasScores: [.lead]).encoded(),
+                forKey: SongPlayerScoreFilter.storageKey)
+    storage.set(true, forKey: "fst.songs.filterInShop")
     restored.deselectPlayer()
     #expect(restored.selectedPlayer == nil)
     #expect(restored.selectedPlayerScores.isEmpty)
     #expect(restored.selectedPlayerScoreObservation == nil)
     #expect(storage.data(forKey: SelectedPlayerIdentity.storageKey) == nil)
+    #expect(storage.data(forKey: SongPlayerScoreFilter.storageKey) == nil)
+    #expect(storage.bool(forKey: "fst.songs.filterInShop"))
 }
 
 @MainActor

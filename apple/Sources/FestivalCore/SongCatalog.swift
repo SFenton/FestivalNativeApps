@@ -1,7 +1,7 @@
 import Foundation
 
 /// Exact service identifiers and labels for the nine solo instrument charts.
-public enum Instrument: String, CaseIterable, Decodable, Sendable, Identifiable, Hashable {
+public enum Instrument: String, CaseIterable, Codable, Sendable, Identifiable, Hashable {
     case lead = "Solo_Guitar"
     case bass = "Solo_Bass"
     case drums = "Solo_Drums"

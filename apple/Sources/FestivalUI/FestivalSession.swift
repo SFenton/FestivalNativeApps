@@ -185,6 +185,7 @@ final class FestivalSession {
     /// Remove identity and process-only scores while keeping app Settings intact.
     func deselectPlayer() {
         selectionStorage?.removeObject(forKey: SelectedPlayerIdentity.storageKey)
+        selectionStorage?.removeObject(forKey: SongPlayerScoreFilter.storageKey)
         profileRequestRevision += 1
         selectedPlayer = nil
         selectedPlayerScores.removeAll()

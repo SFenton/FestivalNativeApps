@@ -6,7 +6,7 @@ The source of truth is the **current, independently dirty** `SFenton/FortniteFes
 still has three root sections, with a pushed Shop subroute and a
 **placeholder** Leaderboards page. Songs has a title/art/search
 catalogue, four anonymous sorts plus conditional Item Shop sort,
-a selected-player Shop-only Filter draft, one visible-chart
+a selected-player Shop and per-chart score/FC Filter draft, one visible-chart
 selected-player score/FC row and partial Solo
 previews/pager. `ProfileSelectionSheet.swift` can search and view
 players separately, then explicitly select/switch/deselect a
@@ -20,6 +20,10 @@ Root, Songs, Detail, Solo, Shop and Settings remain **partial**;
 Leaderboards remains a **placeholder**, and the other **17 route
 families are absent**. Android and Windows review branches are
 not integrated; Windows remains off until the operator resumes it.
+The score/FC Filter addition still lacks source season, percentile,
+stars, difficulty, CHOpt threshold, conditional selected-instrument
+and band/member sections; its matched fixture evidence does not
+certify Songs or the Filter control.
 
 **Matched fixture observation:** source WebKit phone-portrait Songs
 and Detail were captured by the selected `tools/visual/pages.spec.ts`

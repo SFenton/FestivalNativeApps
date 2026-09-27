@@ -34,6 +34,19 @@ const scenario = createPopulatedScenario();
 scenario.songs = songs;
 scenario.songsEtag = '"fst-visual-songs"';
 
+async function selectedPlayerTwoFixture(): Promise<unknown> {
+  const response = await fetch('http://127.0.0.1:8765/api/player/fixture-player-2');
+  if (!response.ok) throw new Error(`Synthetic profile returned HTTP ${response.status}`);
+  const profile: unknown = await response.json();
+  if (!profile || typeof profile !== 'object'
+    || !('accountId' in profile) || profile.accountId !== 'fixture-player-2'
+    || !('totalScores' in profile) || profile.totalScores !== 3
+    || !('scores' in profile) || !Array.isArray(profile.scores)) {
+    throw new Error('Invalid coherent synthetic selected-player profile');
+  }
+  return profile;
+}
+
 const viewports = [
   { id: 'phone-portrait', width: 390, height: 844 },
   { id: 'phone-landscape', width: 844, height: 390 },
@@ -527,14 +540,7 @@ test('fixture-backed PWA selected-player Shop Filter changes Songs', async ({ pa
       body: Buffer.from(await fixture.arrayBuffer()),
     });
   });
-  const response = await fetch('http://127.0.0.1:8765/api/player/fixture-player-2');
-  if (!response.ok) throw new Error(`Synthetic profile returned HTTP ${response.status}`);
-  const profile: unknown = await response.json();
-  if (!profile || typeof profile !== 'object'
-    || !('accountId' in profile) || profile.accountId !== 'fixture-player-2'
-    || !('scores' in profile) || !Array.isArray(profile.scores)) {
-    throw new Error('Invalid coherent synthetic selected-player profile');
-  }
+  const profile = await selectedPlayerTwoFixture();
   api.override({ method: 'GET', path: '/api/player/fixture-player-2', status: 200, body: profile });
   api.override({ method: 'GET', path: '/api/songs', status: 200, body: songs });
   await gotoAppRoute(page, '/songs');
@@ -585,6 +591,54 @@ test('fixture-backed PWA selected-player Shop Filter changes Songs', async ({ pa
     path: join(output, `${testInfo.project.name}-phone-portrait-player-shop-filter-leaving.png`),
     animations: 'disabled',
   });
+});
+
+test('fixture-backed PWA selected-player score Filter changes Songs', async ({ page, api, appState }, testInfo) => {
+  mkdirSync(output, { recursive: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  api.override({
+    method: 'GET', path: '/api/player/fixture-player-2',
+    status: 200, body: await selectedPlayerTwoFixture(),
+  });
+  api.override({ method: 'GET', path: '/api/songs', status: 200, body: songs });
+  await appState.selectPlayer('fixture-player-2', 'Fixture Player 2');
+  await gotoAppRoute(page, '/songs');
+  await dismissObstructions(page);
+  const content = page.locator('#main-content');
+  const pulse = content.getByText('Fixture Pulse', { exact: true });
+  const orbit = content.getByText('Fixture Orbit', { exact: true });
+  await expect(pulse).toBeVisible({ timeout: 15_000 });
+  await expect(orbit).toBeVisible();
+  const filter = page.getByRole('button', { name: /^Filter(?: Songs)?$/i }).first();
+  await expect(filter).toBeVisible({ timeout: 15_000 });
+  await filter.click();
+  const dialog = page.getByRole('dialog', { name: 'Filter Songs' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText('Individual Score & FC Toggles')).toBeVisible();
+  await page.screenshot({
+    path: join(output, `${testInfo.project.name}-phone-portrait-player-score-filter-default.png`),
+    animations: 'disabled',
+  });
+  await dialog.getByRole('button', { name: 'Drums Drums', exact: true }).click();
+  const hasDrums = dialog.getByRole('button', { name: /Has Drums Scores/ }).first();
+  await expect(hasDrums).toBeVisible();
+  await hasDrums.click();
+  await page.screenshot({
+    path: join(output, `${testInfo.project.name}-phone-portrait-player-score-filter-drums-draft.png`),
+    animations: 'disabled',
+  });
+  await dialog.getByRole('button', { name: 'Apply Filter Changes', exact: true }).click();
+  await expect(pulse).toBeVisible();
+  await expect(orbit).toHaveCount(0);
+  await page.screenshot({
+    path: join(output, `${testInfo.project.name}-phone-portrait-player-score-filter-has-drums.png`),
+    animations: 'disabled',
+  });
+  await filter.click();
+  await dialog.getByRole('button', { name: 'Reset', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Apply Filter Changes', exact: true }).click();
+  await expect(pulse).toBeVisible();
+  await expect(orbit).toBeVisible();
 });
 
 test('fixture-backed PWA artwork actually rotates after the five-second dwell', async ({ page }, testInfo) => {
