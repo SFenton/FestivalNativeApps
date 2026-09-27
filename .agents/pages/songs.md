@@ -208,10 +208,12 @@ targeted `--no-coverage-gate` run nor the compared
 portraits certifies the full Songs route or other platforms.
 The current full SwiftPM UX result is **8005/8882 (90.13%,
 pass)**; the older selected paired iOS UI/app result stays at
-**3166/4419 (71.65%, fail)**. An earlier iPhone-only
-union reached **3737/4429 (84.38%, fail)** before a
-reverted UX experiment; later timestamps prevent reusing
-its archives for the current 90% gate. The exact Shop Retry
+**3166/4419 (71.65%, fail)**. Six newer complete,
+source-frozen iPhone archives covering 32 named methods
+union to **3907/4429 (88.21%, fail)**. Xcode dropped
+FestivalUI from several other passing Shop-state archives;
+neither their test counts nor older timestamps can fill
+the 80-line deficit. The exact Shop Retry
 failure is pinned with a local `shop-error` scenario:
 the iPhone test independently asserts rendered text contrast
 ≥4.5:1, actual AX5 glyph growth >1.35x and reachability
