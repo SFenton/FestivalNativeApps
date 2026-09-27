@@ -77,6 +77,7 @@
       ],
       "acceptance": [
         "Decode compact per-player score and FC wire data under a matching publication, distinguish a syncing 202 from an available HTTP 200 empty-score envelope without claiming registration, and never send selected-profile headers or cache raw cross-profile responses.",
+        "After a publication advance and failed Songs refresh, do not decorate retained older catalogue rows with a newer selected-player score index; test score-chip and metadata provenance against that exact interleaving before certifying selected cards.",
         "Measure legitimate maximum/p99 precomputed profile bytes and decoding latency; do not certify selected rows while valid large responses or percentile -1 sentinels can fail or mislead.",
         "Prove anonymous, selected-player and selected-band rows with real score, FC, status chips, shop indicators, score-invalid warning and metadata.",
         "When source instrument icons are hidden or a chart is filtered, compare the native first-visible-chart's top-trailing score and ordered FC/accuracy, tiered Top bucket, stars, season, catalogue Intensity and game-difficulty pills against the source's skewed gold accuracy and responsive rows; native keeps a visible/spoken FC, native Last Played and separate Shop action as explicit deviations. In the unfiltered source default with selected-player data and icons enabled, suppress those per-chart pills and show all enabled instrument status chips instead. Do not certify pixel parity from matched fixtures alone.",
@@ -91,15 +92,19 @@
     {
       "id": "apple-songs-actions",
       "priority": 0,
-      "status": "pending",
+      "status": "in_progress",
       "dependsOn": ["apple-songs-cards", "apple-anonymous-songs-sort"],
       "sourceRefs": [
         "FortniteFestivalWeb/src/pages/songs/SongsPage.tsx:820",
         "FortniteFestivalWeb/src/pages/songs/modals/SortModal.tsx:44",
-        "FortniteFestivalWeb/src/pages/songs/modals/FilterModal.tsx:169"
+        "FortniteFestivalWeb/src/pages/songs/modals/FilterModal.tsx:169",
+        "FortniteFestivalWeb/src/hooks/data/useFilteredSongs.ts:115",
+        "FortniteFestivalWeb/src/utils/songSettings.ts:109"
       ],
       "acceptance": [
         "Port source sort modes, direction, priority reorder, profile/band conditional filters, persisted state and quick-link section navigation.",
+        "The initial iPhone Shop Filter slice must keep Filter editing hidden until selected-player scores are available, stage independent In Shop/Leaving Tomorrow toggles with Apply/Reset/Cancel/discard, persist applied choices, reflow actual Songs rows, distinguish validated empty Shop from HTTP failure, pause hidden/no-identity/missing-Shop saved filters without success-shaped empty rows, and retain an explicit Reset after deselection. Native retains Shop choices across deselect while the PWA clears all filters; this deliberate deviation remains open for later parity review. Other score, instrument and band sections remain pending.",
+        "Use one observed-publication eligibility decision for Shop filtering, Shop sort/grouping and Songs-row badges: when a new Shop and profile load but the new Songs GET fails, preserve retained older Songs unfiltered/unbadged in Title order with explicit paused notices. A saved public-Shop filter remains effective while a selected player's scores load, sync or fail if the catalogue and Shop observations still match; a validated empty same-publication feed is genuinely empty.",
         "Draft Apply/Reset/Cancel/discard-confirm and invalid-combination states affect rows and downstream charts, never silently changing saved settings.",
         "Search, Sort, Filter, selected instrument and status badges remain reachable with keyboard, VoiceOver and native layout reflow."
       ]

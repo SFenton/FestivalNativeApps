@@ -12,8 +12,9 @@ dirty; check `contracts/source-snapshot.json` before a parity claim.
 `durationSeconds` may be absent and then sort numerically as zero. Ascending
 is the default. Sorting happens after query matching and instrument filtering.
 The five native anonymous modes are Title, Artist, Year, Duration and
-**conditional Item Shop**. A validated public Shop feed is required even when
-it is empty: ascending puts Shop members first, descending last; ties use
+**conditional Item Shop**. A validated public Shop feed from the
+**same observed publication** as the loaded Songs and session is required
+even when it is empty: ascending puts Shop members first, descending last; ties use
 title, artist, year, then a native stable `songId`. For catalogue-only modes,
 title remains the tie-break in both directions. Never infer empty membership
 from a missing/failed feed or display score, FC, player or band choices
@@ -36,9 +37,9 @@ its quick-link rail, other modes' buckets or scroll restoration.
 | Cancel unchanged / changed | Close directly / ask before discarding | Cancel closes or confirms Continue Editing vs Discard Changes; interactive gesture dismissal disabled |
 | Reset | Restore sort mode, direction and metadata priority to defaults *in the draft* | Reset changes the native draft only, including a paused Shop choice; Apply is still required; iPad Form may need scrolling to expose Reset above the fixed footer |
 | Relaunch | Saved sort/direction restored | Persistent native mode/direction restore, independently of process-only network/artwork caches |
-| Item Shop | Source presents Item Shop even anonymously; ascending prioritizes actual membership, descending reverses it | Native offers Item Shop if Settings shows Shop, enabled only with a validated public feed (including known empty). Hide removes the choice and pauses any saved Shop sort; if **no validated feed is retained**, an absent/failed feed disables it and pauses with an explicit notice and Retry. A failed refresh with already validated membership keeps sorting, disclosing the update error. Display Title order in the saved direction only while paused. |
+| Item Shop | Source presents Item Shop even anonymously; ascending prioritizes actual membership, descending reverses it | Native offers Item Shop if Settings shows Shop, enabled only with a validated public feed from the **same observed catalogue generation** (including known empty). Hide removes the choice and pauses any saved Shop sort; if **no matched validated feed is retained**, an absent/failed feed or old Songs/new Shop mismatch disables it with an explicit notice. A failed refresh with retained matching membership keeps sorting, disclosing the update error. Display Title order in the saved direction only while paused; do not group or accent old Songs using newer Shop rows. |
 | Shop sections | Source puts a header before each of at least two nonempty first-seen Leaving/In/Not buckets and exposes quick links | Native List uses the same three first-seen buckets and skips headings for one bucket; quick-link rail/jump drawer, other sort-mode buckets and exact row/layout geometry remain pending |
-| Contextual modes | Instrument, visibility, shop, player and band change mode/priority choices | Score/Has FC/player/band modes, metadata priorities, Shop filter, and full Songs actions remain pending |
+| Contextual modes | Instrument, visibility, shop, player and band change mode/priority choices | Score/Has FC/player/band modes, metadata priorities, non-Shop filter states and full Songs actions remain pending |
 
 **Native interaction and visual boundary:** On iOS 26 the bottom-toolbar
 Sort action collided with the system tab bar during a device test, so keep it

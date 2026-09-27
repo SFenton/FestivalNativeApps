@@ -213,9 +213,13 @@ struct SongsScreen: View {
     @State private var shopRefreshFailure: String?
     @State private var shopRetryRevision = 0
     @State private var sortPresented = false
+    @State private var shopFilterPresented = false
     @State private var profilePresented = false
     @AppStorage("fst.songs.sortMode") private var sortMode = SongSortMode.title
     @AppStorage("fst.songs.sortAscending") private var sortAscending = true
+    @AppStorage("fst.songs.filterInShop") private var filterInShop = false
+    @AppStorage("fst.songs.filterLeavingTomorrow")
+    private var filterLeavingTomorrow = false
     @AppStorage("fst.settings.hideShop") private var hideShop = false
     @AppStorage("fst.settings.disableShopHighlighting")
     private var disableShopHighlighting = false
@@ -271,6 +275,59 @@ struct SongsScreen: View {
             intensity: metadataIntensity, difficulty: metadataDifficulty,
             stars: metadataStars, lastPlayed: metadataLastPlayed
         )
+    }
+
+    private var appliedShopFilter: SongShopFilter {
+        SongShopFilter(inShop: filterInShop, leavingTomorrow: filterLeavingTomorrow)
+    }
+
+    private var shopPublicationMismatch: Bool {
+        guard case let .loaded(payload) = state,
+              let current = session.publicationId else { return false }
+        return payload.observedPublicationId != current
+            || session.currentShop.map {
+                $0.observedPublicationId != current
+            } == true
+    }
+
+    private var shopOffersForCurrentSongs: [String: ShopSong]? {
+        guard !hideShop, case let .loaded(payload) = state,
+              SongShopPublicationPolicy.matches(
+                catalogue: payload.observedPublicationId,
+                shop: session.currentShop?.observedPublicationId,
+                current: session.publicationId
+              ) else { return nil }
+        return session.shopOffersById
+    }
+
+    private var shopFilterPausedMessage: String? {
+        guard appliedShopFilter.isActive else { return nil }
+        if hideShop {
+            return "Item Shop filters paused while Shop is hidden. Showing all songs; "
+                + "your choices are saved."
+        }
+        if session.selectedPlayer == nil {
+            return "Item Shop filters paused until a selected player is available. "
+                + "Showing all songs; your choices are saved."
+        }
+        if shopPublicationMismatch {
+            return "Item Shop filters paused while songs and Shop publications differ. "
+                + "Showing songs without Shop filters; your choices are saved."
+        }
+        if shopOffersForCurrentSongs == nil {
+            return "Item Shop filters paused until public Shop data loads. "
+                + "Showing all songs; retry Item Shop status if unavailable."
+        }
+        return nil
+    }
+
+    private var effectiveShopFilter: SongShopFilter {
+        shopFilterPausedMessage == nil ? appliedShopFilter : SongShopFilter()
+    }
+
+    private var canPresentFilter: Bool {
+        (session.selectedPlayer != nil && session.playerLoadState == .available && !hideShop)
+            || appliedShopFilter.isActive
     }
 
     /// Create a catalogue screen with a fixture state for hosted visual tests.
@@ -362,12 +419,15 @@ struct SongsScreen: View {
                         && (instrument.map(song.supports) ?? true)
                 }
                 let effectiveMode: SongSortMode = sortPausedMessage == nil ? sortMode : .title
-                let membership = session.currentShop.map { _ in
-                    Set(session.shopOffersById.keys)
+                let membership = shopOffersForCurrentSongs.map { offers in
+                    Set(offers.keys)
                 }
                 let sorted: Result<[Song], Error> = Result {
-                    try SongCatalogSort.sorted(
-                        matching, mode: effectiveMode, ascending: sortAscending,
+                    let filtered = try effectiveShopFilter.filtered(
+                        matching, offersById: shopOffersForCurrentSongs
+                    )
+                    return try SongCatalogSort.sorted(
+                        filtered, mode: effectiveMode, ascending: sortAscending,
                         shopSongIds: membership
                     )
                 }
@@ -380,6 +440,7 @@ struct SongsScreen: View {
                     }
                 case let .success(visible):
                 if visible.isEmpty {
+                    let filtersApplied = instrument != nil || effectiveShopFilter.isActive
                     VStack(spacing: 8) {
                         if hasDisclosure(for: payload) {
                             disclosures(for: payload)
@@ -402,10 +463,12 @@ struct SongsScreen: View {
                         } description: {
                             Text(
                                 settledSearch.isEmpty
-                                    ? (instrument == nil
-                                        ? "No songs are available yet."
-                                        : "No songs match your filters.")
-                                    : "Try a different search."
+                                    ? (filtersApplied
+                                        ? "No songs match your filters."
+                                        : "No songs are available yet.")
+                                    : (effectiveShopFilter.isActive
+                                        ? "Try a different search or filter."
+                                        : "Try a different search.")
                             )
                             .foregroundStyle(BrandTokens.textSecondary)
                             .multilineTextAlignment(.center)
@@ -417,9 +480,9 @@ struct SongsScreen: View {
                         if hasDisclosure(for: payload) {
                             disclosures(for: payload)
                         }
-                        if effectiveMode == .shop {
+                        if effectiveMode == .shop, let shopOffersForCurrentSongs {
                             let sections = SongCatalogSort.shopSections(
-                                visible, offersById: session.shopOffersById
+                                visible, offersById: shopOffersForCurrentSongs
                             )
                             if sections.count > 1 {
                                 ForEach(sections) { section in
@@ -492,6 +555,9 @@ struct SongsScreen: View {
                 .accessibilityIdentifier("fst.songs.instrument-filter")
             }
             ToolbarItem(placement: .primaryAction) { sortAction }
+            if canPresentFilter {
+                ToolbarItem(placement: .primaryAction) { filterAction }
+            }
             if !hideShop, let openShop {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
@@ -506,10 +572,21 @@ struct SongsScreen: View {
         .sheet(isPresented: $sortPresented) {
             SongsSortSheet(
                 mode: sortMode, ascending: sortAscending,
-                showShop: !hideShop, shopAvailable: session.currentShop != nil
+                showShop: !hideShop, shopAvailable: shopOffersForCurrentSongs != nil
             ) { mode, order in
                 sortMode = mode
                 sortAscending = order
+            }
+        }
+        .sheet(isPresented: $shopFilterPresented) {
+            SongsShopFilterSheet(
+                applied: appliedShopFilter, showShop: !hideShop,
+                shopAvailable: shopOffersForCurrentSongs != nil,
+                profileAvailable: session.selectedPlayer != nil
+                    && session.playerLoadState == .available
+            ) { filter in
+                filterInShop = filter.inShop
+                filterLeavingTomorrow = filter.leavingTomorrow
             }
         }
         .sheet(isPresented: $profilePresented) {
@@ -589,6 +666,28 @@ struct SongsScreen: View {
             ? BrandTokens.accentBlue : BrandTokens.gold)
     }
 
+    private var shopFilterAccessibilityValue: String {
+        let labels = [
+            filterInShop ? "In Shop" : nil,
+            filterLeavingTomorrow ? "Leaving Tomorrow" : nil,
+        ].compactMap { $0 }
+        let selected = labels.isEmpty ? "No filters" : labels.joined(separator: ", ")
+        return selected + (shopFilterPausedMessage == nil
+            ? "" : ", paused; showing all songs")
+    }
+
+    private var filterAction: some View {
+        Button {
+            shopFilterPresented = true
+        } label: {
+            Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
+        }
+        .accessibilityLabel("Filter Songs")
+        .accessibilityValue(shopFilterAccessibilityValue)
+        .accessibilityIdentifier("fst.songs.filter")
+        .tint(appliedShopFilter.isActive ? BrandTokens.gold : BrandTokens.accentBlue)
+    }
+
     /// Keep a saved Shop sort visible when its source is hidden or unavailable.
     private var sortPausedMessage: String? {
         guard sortMode == .shop else { return nil }
@@ -596,7 +695,11 @@ struct SongsScreen: View {
             return "Item Shop sort paused while Shop is hidden. Showing title order; "
                 + "your preference is saved."
         }
-        if session.currentShop == nil {
+        if shopPublicationMismatch {
+            return "Item Shop sort paused while songs and Shop publications differ. "
+                + "Showing title order; your preference is saved."
+        }
+        if shopOffersForCurrentSongs == nil {
             return "Item Shop sort paused until public Shop data loads. "
                 + "Showing title order; retry Item Shop status if unavailable."
         }
@@ -617,7 +720,7 @@ struct SongsScreen: View {
                     || (session.currentShop == nil && shopRefreshFailure != nil)
                     || session.currentShop?.isStale == true
             ))
-            || sortPausedMessage != nil
+            || sortPausedMessage != nil || shopFilterPausedMessage != nil
     }
 
     /// Show freshness and update errors even when search finds no matching rows.
@@ -653,6 +756,13 @@ struct SongsScreen: View {
         if let sortPausedMessage {
             FreshnessDisclosure(message: sortPausedMessage, symbol: "arrow.up.arrow.down")
                 .accessibilityIdentifier("fst.songs.sort-paused")
+        }
+        if let shopFilterPausedMessage {
+            FreshnessDisclosure(
+                message: shopFilterPausedMessage,
+                symbol: "line.3.horizontal.decrease.circle"
+            )
+            .accessibilityIdentifier("fst.songs.filter-paused")
         }
         if let selected = session.selectedPlayer {
             switch session.playerLoadState {
@@ -730,7 +840,7 @@ struct SongsScreen: View {
     /// - Returns: One accessible Song Detail link with effective Shop highlighting.
     private func songLink(for song: Song) -> some View {
         let highlight = ShopPresentationPolicy.highlight(
-            for: session.shopOffersById[song.songId],
+            for: shopOffersForCurrentSongs?[song.songId],
             hidden: hideShop,
             highlightingDisabled: disableShopHighlighting
         )

@@ -1263,6 +1263,325 @@ final class FestivalMobileUITests: XCTestCase {
         record(app, name: "songs-populated-shop-genuinely-empty")
     }
 
+    /// A selected player's Shop Filter stages choices and persists only Apply.
+    ///
+    /// - Throws: Anonymous Filter leakage, a discarded draft, unchanged rows or lost preference.
+    @MainActor
+    func testSelectedShopFilterDraftApplyDiscardAndRelaunch() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "shop-single"
+        app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launch()
+        rootControl("Settings", app: app).tap()
+        let hidden = app.switches["fst.settings.hide-shop"]
+        reveal(hidden, in: app, scrollingUp: true)
+        let originallyHidden = try XCTUnwrap(hidden.value as? String)
+        setSwitch(hidden, to: "0")
+        rootControl("Songs", app: app).tap()
+        let pulse = app.buttons["fst.songs.row.fixture-pulse"]
+        let orbit = app.buttons["fst.songs.row.fixture-orbit"]
+        XCTAssertTrue(pulse.waitForExistence(timeout: 15))
+        XCTAssertTrue(orbit.exists)
+        let filter = app.buttons["fst.songs.filter"]
+        XCTAssertFalse(filter.exists, "Source mobile Filter requires an available player")
+
+        viewFixturePlayer("fixture-player-1", query: "Fixture Player", in: app)
+        app.buttons["fst.profile.select"].tap()
+        XCTAssertTrue(filter.waitForExistence(timeout: 10))
+        openSongsFilter(in: app)
+        let inShop = app.switches["fst.songs.filter.in-shop"]
+        let leaving = app.switches["fst.songs.filter.leaving"]
+        let apply = app.buttons["fst.songs.filter.apply"]
+        XCTAssertEqual(inShop.value as? String, "0")
+        XCTAssertEqual(leaving.value as? String, "0")
+        XCTAssertFalse(apply.isEnabled)
+        let available = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "enabled == true"), object: inShop
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [available], timeout: 15), .completed)
+        record(app, name: "songs-player-shop-filter-default")
+        try app.performAccessibilityAudit(for: .all)
+
+        setSwitch(inShop, to: "1")
+        XCTAssertTrue(apply.isEnabled)
+        app.buttons["fst.songs.filter.cancel"].tap()
+        XCTAssertTrue(app.buttons["Discard Changes"].waitForExistence(timeout: 10))
+        app.buttons["Continue Editing"].tap()
+        XCTAssertEqual(inShop.value as? String, "1")
+        apply.tap()
+        XCTAssertTrue(pulse.waitForExistence(timeout: 10))
+        XCTAssertFalse(orbit.exists)
+        XCTAssertEqual(filter.value as? String, "In Shop")
+        record(app, name: "songs-player-filtered-in-shop")
+
+        app.terminate()
+        app.launchEnvironment.removeValue(forKey: "FST_UI_TEST_CLEAR_PROFILE")
+        app.launchEnvironment.removeValue(forKey: "FST_UI_TEST_RESET_SONG_CARDS")
+        app.launch()
+        XCTAssertTrue(filter.waitForExistence(timeout: 15))
+        for _ in 0..<100 {
+            if pulse.exists && !orbit.exists
+                && (filter.value as? String) == "In Shop" { break }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        XCTAssertTrue(pulse.exists)
+        XCTAssertFalse(orbit.exists)
+        openSongsFilter(in: app)
+        let reset = app.buttons["fst.songs.filter.reset"]
+        for _ in 0..<6 {
+            if reset.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(reset.isHittable)
+        reset.tap()
+        XCTAssertTrue(apply.isEnabled)
+        apply.tap()
+        XCTAssertTrue(orbit.waitForExistence(timeout: 10))
+        XCTAssertEqual(filter.value as? String, "No filters")
+        record(app, name: "songs-player-shop-filter-reset")
+
+        rootControl("Settings", app: app).tap()
+        reveal(hidden, in: app, scrollingUp: true)
+        setSwitch(hidden, to: originallyHidden)
+    }
+
+    /// Keep saved Shop filters honest across hide, failure, true empty and deselection.
+    ///
+    /// - Throws: A hidden song, fabricated empty feed, lost setting or unreachable Reset.
+    @MainActor
+    func testSelectedShopFilterPausesAndRecoversAcrossShopStates() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "shop-single"
+        app.launch()
+        rootControl("Settings", app: app).tap()
+        let hidden = app.switches["fst.settings.hide-shop"]
+        reveal(hidden, in: app, scrollingUp: true)
+        let originallyHidden = try XCTUnwrap(hidden.value as? String)
+        setSwitch(hidden, to: "0")
+        rootControl("Songs", app: app).tap()
+        viewFixturePlayer("fixture-player-1", query: "Fixture Player", in: app)
+        app.buttons["fst.profile.select"].tap()
+        let filter = app.buttons["fst.songs.filter"]
+        XCTAssertTrue(filter.waitForExistence(timeout: 10))
+        openSongsFilter(in: app)
+        let inShop = app.switches["fst.songs.filter.in-shop"]
+        let leaving = app.switches["fst.songs.filter.leaving"]
+        let apply = app.buttons["fst.songs.filter.apply"]
+        let available = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "enabled == true"), object: inShop
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [available], timeout: 15), .completed)
+        setSwitch(inShop, to: "1")
+        apply.tap()
+        let pulse = app.buttons["fst.songs.row.fixture-pulse"]
+        let orbit = app.buttons["fst.songs.row.fixture-orbit"]
+        XCTAssertTrue(pulse.waitForExistence(timeout: 10))
+        XCTAssertFalse(orbit.exists)
+
+        rootControl("Settings", app: app).tap()
+        reveal(hidden, in: app, scrollingUp: true)
+        setSwitch(hidden, to: "1")
+        rootControl("Songs", app: app).tap()
+        let paused = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.filter-paused").firstMatch
+        XCTAssertTrue(paused.waitForExistence(timeout: 10))
+        XCTAssertTrue(paused.label.contains("Shop is hidden"))
+        XCTAssertTrue(orbit.waitForExistence(timeout: 10))
+        openSongsFilter(in: app)
+        XCTAssertEqual(inShop.value as? String, "1")
+        XCTAssertFalse(inShop.isEnabled)
+        XCTAssertFalse(leaving.isEnabled)
+        app.buttons["fst.songs.filter.cancel"].tap()
+        record(app, name: "songs-player-filter-paused-while-shop-hidden")
+
+        rootControl("Settings", app: app).tap()
+        reveal(hidden, in: app, scrollingUp: true)
+        setSwitch(hidden, to: "0")
+        rootControl("Songs", app: app).tap()
+        XCTAssertFalse(paused.exists)
+        XCTAssertFalse(orbit.exists)
+        XCTAssertTrue(pulse.exists)
+
+        app.terminate()
+        app.launchEnvironment.removeValue(forKey: "FST_UI_TEST_CLEAR_PROFILE")
+        app.launchEnvironment.removeValue(forKey: "FST_UI_TEST_RESET_SONG_CARDS")
+        app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "shop-error"
+        app.launch()
+        let shopPause = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label CONTAINS %@", "Shop data loads"),
+            object: paused
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [shopPause], timeout: 15), .completed,
+            "Expected a Shop-specific pause; last notice: \(paused.label)"
+        )
+        XCTAssertTrue(orbit.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.shop-error").firstMatch.exists)
+        openSongsFilter(in: app)
+        XCTAssertEqual(inShop.value as? String, "1")
+        XCTAssertFalse(inShop.isEnabled)
+        app.buttons["fst.songs.filter.cancel"].tap()
+        record(app, name: "songs-player-filter-paused-on-shop-error")
+
+        app.terminate()
+        app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "shop-empty"
+        app.launch()
+        XCTAssertTrue(app.staticTexts["No Results"].waitForExistence(timeout: 15))
+        XCTAssertFalse(paused.exists)
+        XCTAssertTrue(app.staticTexts["No songs match your filters."].exists)
+        XCTAssertFalse(pulse.exists)
+        record(app, name: "songs-player-filter-validated-empty-shop")
+        openSongsFilter(in: app)
+        let reset = app.buttons["fst.songs.filter.reset"]
+        for _ in 0..<6 {
+            if reset.isHittable { break }
+            app.swipeUp()
+        }
+        XCTAssertTrue(reset.isHittable)
+        reset.tap()
+        XCTAssertTrue(apply.isEnabled)
+        apply.tap()
+        XCTAssertTrue(pulse.waitForExistence(timeout: 10))
+        XCTAssertTrue(orbit.exists)
+
+        app.terminate()
+        app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "demo"
+        app.launch()
+        XCTAssertTrue(filter.waitForExistence(timeout: 15))
+        openSongsFilter(in: app)
+        let leavingAvailable = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "enabled == true"), object: leaving
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [leavingAvailable], timeout: 15), .completed
+        )
+        setSwitch(leaving, to: "1")
+        apply.tap()
+        XCTAssertTrue(orbit.waitForExistence(timeout: 10))
+        XCTAssertFalse(pulse.exists)
+        XCTAssertEqual(filter.value as? String, "Leaving Tomorrow")
+        record(app, name: "songs-player-filter-leaving-tomorrow")
+
+        openSongsFilter(in: app)
+        setSwitch(inShop, to: "1")
+        apply.tap()
+        XCTAssertEqual(filter.value as? String, "In Shop, Leaving Tomorrow")
+        XCTAssertTrue(orbit.exists)
+        XCTAssertFalse(pulse.exists)
+        record(app, name: "songs-player-filter-both-shop-conditions")
+
+        try deselectFixturePlayer(in: app)
+        XCTAssertTrue(paused.waitForExistence(timeout: 10))
+        XCTAssertTrue(paused.label.contains("selected player"))
+        XCTAssertTrue((filter.value as? String)?.contains("paused") == true)
+        XCTAssertTrue(pulse.waitForExistence(timeout: 10))
+        viewFixturePlayer("fixture-player-2", query: "Fixture Player", in: app)
+        app.buttons["fst.profile.select"].tap()
+        let reselected = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "In Shop, Leaving Tomorrow"),
+            object: filter
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [reselected], timeout: 15), .completed)
+        XCTAssertTrue(orbit.waitForExistence(timeout: 10))
+        XCTAssertFalse(pulse.exists)
+        record(app, name: "songs-player-filter-reapplied-after-reselect")
+        try deselectFixturePlayer(in: app)
+        XCTAssertTrue(paused.waitForExistence(timeout: 10))
+        XCTAssertTrue(pulse.waitForExistence(timeout: 10))
+        openSongsFilter(in: app)
+        XCTAssertFalse(leaving.isEnabled)
+        let clear = app.buttons["fst.songs.filter.reset"]
+        XCTAssertTrue(clear.waitForExistence(timeout: 10))
+        clear.tap()
+        XCTAssertTrue(apply.isEnabled)
+        apply.tap()
+        XCTAssertFalse(filter.exists)
+        XCTAssertTrue(orbit.exists)
+        record(app, name: "songs-anonymous-shop-filter-cleared")
+
+        rootControl("Settings", app: app).tap()
+        reveal(hidden, in: app, scrollingUp: true)
+        setSwitch(hidden, to: originallyHidden)
+    }
+
+    /// Verify Shop Filter actions and controls grow and remain reachable at AX5.
+    ///
+    /// - Throws: A stale draft, clipped footer, unscaled glyphs or failed manufacturer audit.
+    @MainActor
+    func testSelectedShopFilterAtLargestText() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "shop-single"
+        app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launch()
+        rootControl("Settings", app: app).tap()
+        let hidden = app.switches["fst.settings.hide-shop"]
+        reveal(hidden, in: app, scrollingUp: true)
+        let originallyHidden = try XCTUnwrap(hidden.value as? String)
+        setSwitch(hidden, to: "0")
+        rootControl("Songs", app: app).tap()
+        viewFixturePlayer("fixture-player-1", query: "Fixture Player", in: app)
+        app.buttons["fst.profile.select"].tap()
+        openSongsFilter(in: app)
+        let inShop = app.switches["fst.songs.filter.in-shop"]
+        let apply = app.buttons["fst.songs.filter.apply"]
+        let available = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "enabled == true"), object: inShop
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [available], timeout: 15), .completed)
+        setSwitch(inShop, to: "1")
+        XCTAssertTrue(apply.isEnabled)
+        let normalGlyphHeight = try brightGlyphHeight(in: apply)
+        app.buttons["fst.songs.filter.cancel"].tap()
+        XCTAssertTrue(app.buttons["Discard Changes"].waitForExistence(timeout: 10))
+        app.buttons["Discard Changes"].tap()
+
+        app.terminate()
+        app.launchEnvironment.removeValue(forKey: "FST_UI_TEST_CLEAR_PROFILE")
+        app.launchEnvironment.removeValue(forKey: "FST_UI_TEST_RESET_SONG_CARDS")
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName",
+            UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+        ]
+        app.launch()
+        XCTAssertTrue(app.buttons["fst.songs.filter"].waitForExistence(timeout: 15))
+        openSongsFilter(in: app)
+        let reset = revealFilterReset(in: app)
+        XCTAssertTrue(reset.isHittable)
+        let footerBottom = app.windows.firstMatch.frame.maxY - 16
+        XCTAssertTrue(apply.isHittable)
+        XCTAssertLessThanOrEqual(apply.frame.maxY, footerBottom)
+        XCTAssertEqual(inShop.value as? String, "0")
+        setSwitch(inShop, to: "1")
+        XCTAssertTrue(apply.isEnabled)
+        let largeGlyphHeight = try brightGlyphHeight(in: apply)
+        XCTAssertGreaterThan(
+            Double(largeGlyphHeight), Double(normalGlyphHeight) * 1.35,
+            "Filter Apply glyphs did not scale with Dynamic Type"
+        )
+        try assertHeaderContrast(apply, in: app, leadingTextWidth: 160)
+        record(app, name: "songs-player-shop-filter-ax5-sheet")
+        try app.performAccessibilityAudit(for: .all)
+        apply.tap()
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"]
+            .waitForExistence(timeout: 15))
+        XCTAssertFalse(app.buttons["fst.songs.row.fixture-orbit"].exists)
+        record(app, name: "songs-player-shop-filter-ax5-applied")
+
+        rootControl("Settings", app: app).tap()
+        reveal(hidden, in: app, scrollingUp: true)
+        setSwitch(hidden, to: originallyHidden)
+    }
+
     /// Prove the Songs Shop Retry text actually scales on a real iPhone.
     ///
     /// - Throws: Missing 503 action, clipped large text or unreadable rendered glyphs.
@@ -3165,19 +3484,70 @@ final class FestivalMobileUITests: XCTestCase {
         shop.tap()
     }
 
+    /// Open the selected player's native Filter through platform toolbar overflow.
+    ///
+    /// - Parameter app: Fixture app with a selected Songs profile or a saved filter.
+    @MainActor
+    private func openSongsFilter(in app: XCUIApplication) {
+        let filter = app.buttons["fst.songs.filter"]
+        if !filter.isHittable {
+            let more = app.buttons.matching(
+                NSPredicate(format: "label CONTAINS[c] %@", "more")
+            ).firstMatch
+            XCTAssertTrue(more.waitForExistence(timeout: 10))
+            more.tap()
+        }
+        XCTAssertTrue(filter.waitForExistence(timeout: 10))
+        XCTAssertTrue(filter.isHittable)
+        filter.tap()
+        XCTAssertTrue(app.switches["fst.songs.filter.in-shop"]
+            .waitForExistence(timeout: 10))
+    }
+
     /// Scroll the modal Form until Reset is above the always-visible action footer.
     ///
     /// - Parameter app: Foreground Songs Sort sheet on phone or tablet.
     /// - Returns: Hittable Reset button within the visible scroll viewport.
     @MainActor
     private func revealSortReset(in app: XCUIApplication) -> XCUIElement {
-        let reset = app.buttons["fst.songs.sort.reset"]
-        let table = app.tables.containing(.button, identifier: "fst.songs.sort.reset")
+        revealSheetReset(
+            "fst.songs.sort.reset", cancelId: "fst.songs.sort.cancel",
+            sheetName: "Sort", in: app
+        )
+    }
+
+    /// Keep Filter Reset entirely visible above its pinned footer at large text.
+    ///
+    /// - Parameter app: Native Filter sheet showing the original Shop toggles.
+    /// - Returns: A fully visible, hittable Reset action.
+    @MainActor
+    private func revealFilterReset(in app: XCUIApplication) -> XCUIElement {
+        revealSheetReset(
+            "fst.songs.filter.reset", cancelId: "fst.songs.filter.cancel",
+            sheetName: "Filter", in: app
+        )
+    }
+
+    /// Scroll the sheet's own Form instead of skipping Reset with root gestures.
+    ///
+    /// - Parameters:
+    ///   - identifier: Saved-sort or Shop-filter Reset action.
+    ///   - cancelId: Pinned footer control defining visible content height.
+    ///   - sheetName: Named native sheet for a precise failure message.
+    ///   - app: Foreground fixture app presenting that sheet.
+    /// - Returns: Reset once completely above the footer.
+    @MainActor
+    private func revealSheetReset(
+        _ identifier: String, cancelId: String,
+        sheetName: String, in app: XCUIApplication
+    ) -> XCUIElement {
+        let reset = app.buttons[identifier]
+        let table = app.tables.containing(.button, identifier: identifier)
             .firstMatch
         let list = table.exists ? table : app.collectionViews.containing(
-            .button, identifier: "fst.songs.sort.reset"
+            .button, identifier: identifier
         ).firstMatch
-        let footer = app.buttons["fst.songs.sort.cancel"]
+        let footer = app.buttons[cancelId]
         XCTAssertTrue(list.exists && footer.exists)
         for _ in 0..<8 {
             if reset.isHittable && reset.frame.maxY <= footer.frame.minY { break }
@@ -3185,7 +3555,7 @@ final class FestivalMobileUITests: XCTestCase {
         }
         XCTAssertTrue(
             reset.isHittable && reset.frame.maxY <= footer.frame.minY,
-            "Reset is hidden by the Sort action footer"
+            "Reset is hidden by the \(sheetName) action footer"
         )
         return reset
     }

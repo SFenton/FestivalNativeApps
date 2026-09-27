@@ -56,6 +56,14 @@
       "spec": ".agents/controls/songs-sort.md"
     },
     {
+      "id": "songs-filter",
+      "status": "pending",
+      "source": "FortniteFestivalWeb/src/pages/songs/modals/FilterModal.tsx:169",
+      "states": ["anonymous-hidden", "player-loaded", "player-unavailable", "player-loading-shop-active", "band-pending", "shop-draft", "leaving-draft", "discard-confirm", "reset-draft", "applied", "relaunch-persisted", "shop-hidden-paused", "shop-unavailable-paused", "shop-validated-empty", "publication-mismatch-paused", "shop-sort-badges-suppressed", "deselected-paused", "reselected-restored-native", "normal-audit", "largest-text", "focus-return", "score", "full-combo", "instrument", "season", "percentile", "stars", "intensity", "band-member"],
+      "testId": "fst.songs.filter",
+      "spec": ".agents/controls/songs-filter.md"
+    },
+    {
       "id": "score-accuracy",
       "status": "pending",
       "source": "FortniteFestivalWeb/src/components/songs/metadata/AccuracyDisplay.tsx:13",
@@ -132,6 +140,13 @@
     "fst.songs.sort.apply": "songs-sort",
     "fst.songs.sort-paused": "songs-sort",
     "fst.songs.shop-section.*": "songs-sort",
+    "fst.songs.filter": "songs-filter",
+    "fst.songs.filter.in-shop": "songs-filter",
+    "fst.songs.filter.leaving": "songs-filter",
+    "fst.songs.filter.reset": "songs-filter",
+    "fst.songs.filter.cancel": "songs-filter",
+    "fst.songs.filter.apply": "songs-filter",
+    "fst.songs.filter-paused": "songs-filter",
     "fst.songs.shop": "shop-offers",
     "fst.songs.shop-badge.*": "shop-offers",
     "fst.songs.shop-error": "shop-offers",

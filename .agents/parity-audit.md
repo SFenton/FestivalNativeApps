@@ -6,7 +6,8 @@ The source of truth is the **current, independently dirty** `SFenton/FortniteFes
 still has three root sections, with a pushed Shop subroute and a
 **placeholder** Leaderboards page. Songs has a title/art/search
 catalogue, four anonymous sorts plus conditional Item Shop sort,
-one visible-chart selected-player score/FC row and partial Solo
+a selected-player Shop-only Filter draft, one visible-chart
+selected-player score/FC row and partial Solo
 previews/pager. `ProfileSelectionSheet.swift` can search and view
 players separately, then explicitly select/switch/deselect a
 publication-proven account; identity alone persists across cold
@@ -189,9 +190,11 @@ SwiftPM logic to **1761/1843 (95.55%, pass)** and
 UX to **7994/8874 (90.08%, pass)** after genuine
 selected Songs and profile search/band/sync/error
 states; two full runs passed on that unchanged app source.
-After adding source-formatted Song-row duration, a new
-full run passes at **1773/1855 (95.58%) logic** and
-**8005/8882 (90.13%) UX**. A temporary Shop Retry
+After adding source-formatted Song-row duration, a
+selected-player Shop-only Filter and one shared Shop
+publication join, a new full run passes at
+**1799/1880 (95.69%) logic** and **8491/9399
+(90.34%) UX**. A temporary Shop Retry
 restyle was reverted after real iPhone AX5/pixel tests
 isolated narrowly scoped XCTest audit false positives.
 The last passing selected

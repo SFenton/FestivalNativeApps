@@ -495,6 +495,78 @@ test('fixture-backed PWA anonymous Item Shop sort reorders Songs', async ({ page
   ).toBe(true);
 });
 
+test('fixture-backed PWA selected-player Shop Filter changes Songs', async ({ page, api, appState }, testInfo) => {
+  mkdirSync(output, { recursive: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  let shopMode: 'shop-single' | 'demo' = 'shop-single';
+  await page.route('**/api/shop*', async route => {
+    const fixture = await fetch(`http://127.0.0.1:8765/api/shop?scenario=${shopMode}`);
+    await route.fulfill({
+      status: fixture.status,
+      contentType: 'application/json',
+      body: Buffer.from(await fixture.arrayBuffer()),
+    });
+  });
+  const response = await fetch('http://127.0.0.1:8765/api/player/fixture-player-2');
+  if (!response.ok) throw new Error(`Synthetic profile returned HTTP ${response.status}`);
+  const profile: unknown = await response.json();
+  if (!profile || typeof profile !== 'object'
+    || !('accountId' in profile) || profile.accountId !== 'fixture-player-2'
+    || !('scores' in profile) || !Array.isArray(profile.scores)) {
+    throw new Error('Invalid coherent synthetic selected-player profile');
+  }
+  api.override({ method: 'GET', path: '/api/player/fixture-player-2', status: 200, body: profile });
+  api.override({ method: 'GET', path: '/api/songs', status: 200, body: songs });
+  await gotoAppRoute(page, '/songs');
+  await expect(page.locator('#main-content')).toContainText('Fixture Pulse', { timeout: 15_000 });
+  await dismissObstructions(page);
+  const filter = page.getByRole('button', { name: /^Filter(?: Songs)?$/i }).first();
+  await expect(filter).toHaveCount(0);
+  await appState.selectPlayer('fixture-player-2', 'Fixture Player 2');
+  await page.reload({ waitUntil: 'load' });
+  await dismissObstructions(page);
+  const content = page.locator('#main-content');
+  const pulse = content.getByText('Fixture Pulse', { exact: true });
+  const orbit = content.getByText('Fixture Orbit', { exact: true });
+  await expect(pulse).toBeVisible({ timeout: 15_000 });
+  await expect(orbit).toBeVisible();
+  await expect(filter).toBeVisible({ timeout: 15_000 });
+  await filter.click();
+  const dialog = page.getByRole('dialog', { name: 'Filter Songs' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: /^Item Shop/ }).click();
+  const inShop = dialog.getByRole('button', { name: /In the Shop/ }).first();
+  await expect(inShop).toBeVisible();
+  await page.screenshot({
+    path: join(output, `${testInfo.project.name}-phone-portrait-player-shop-filter-default.png`),
+    animations: 'disabled',
+  });
+  await inShop.click();
+  await dialog.getByRole('button', { name: 'Apply Filter Changes', exact: true }).click();
+  await expect(orbit).toHaveCount(0);
+  await expect(pulse).toBeVisible();
+  await page.screenshot({
+    path: join(output, `${testInfo.project.name}-phone-portrait-player-shop-filter-in-shop.png`),
+    animations: 'disabled',
+  });
+
+  shopMode = 'demo';
+  await page.reload({ waitUntil: 'load' });
+  await dismissObstructions(page);
+  await expect(pulse).toBeVisible({ timeout: 15_000 });
+  await expect(orbit).toBeVisible();
+  await filter.click();
+  await dialog.getByRole('button', { name: /^Item Shop/ }).click();
+  await dialog.getByRole('button', { name: /Leaving Tomorrow/ }).first().click();
+  await dialog.getByRole('button', { name: 'Apply Filter Changes', exact: true }).click();
+  await expect(pulse).toHaveCount(0);
+  await expect(orbit).toBeVisible();
+  await page.screenshot({
+    path: join(output, `${testInfo.project.name}-phone-portrait-player-shop-filter-leaving.png`),
+    animations: 'disabled',
+  });
+});
+
 test('fixture-backed PWA artwork actually rotates after the five-second dwell', async ({ page }, testInfo) => {
   mkdirSync(output, { recursive: true });
   await page.setViewportSize({ width: 390, height: 844 });

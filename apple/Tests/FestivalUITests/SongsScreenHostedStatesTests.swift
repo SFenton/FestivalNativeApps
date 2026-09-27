@@ -18,6 +18,28 @@ private struct HostedSongsScenario {
     let filter: Instrument?
     let stale: Bool
     let size: CGSize
+    var shopFilter = SongShopFilter()
+    var selectPlayer = false
+    var restorePlayerLoading = false
+}
+
+/// Decode one coherent selected player without adding account fixture bytes to the app.
+///
+/// - Returns: The original checked-in compact player envelope.
+/// - Throws: A missing or malformed synthetic profile fixture.
+private func hostedFilterPlayer() throws -> Data {
+    let root = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent()
+        .deletingLastPathComponent().deletingLastPathComponent()
+    let data = try Data(contentsOf: root.appendingPathComponent(
+        "contracts/fixtures/player-demo.json"
+    ))
+    guard let envelope = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let profiles = envelope["profiles"] as? [String: Any],
+          let player = profiles["fixture-player-2"] as? [String: Any] else {
+        throw FestivalAPIError.invalidPlayerProfile
+    }
+    return try JSONSerialization.data(withJSONObject: player)
 }
 
 /// Render a publication-backed Songs list without mounting the active network tasks.
@@ -38,12 +60,31 @@ private func hostedSongsState(
     storage.set(scenario.mode.rawValue, forKey: "fst.songs.sortMode")
     storage.set(true, forKey: "fst.songs.sortAscending")
     storage.set(scenario.hideShop, forKey: "fst.settings.hideShop")
+    storage.set(scenario.shopFilter.inShop, forKey: "fst.songs.filterInShop")
+    storage.set(
+        scenario.shopFilter.leavingTomorrow,
+        forKey: "fst.songs.filterLeavingTomorrow"
+    )
+    if scenario.restorePlayerLoading {
+        let selection = try JSONDecoder().decode(PlayerSearchResult.self, from: Data("""
+        {"accountId":"fixture-player-2","displayName":"Fixture Player 2"}
+        """.utf8))
+        let identity = try SelectedPlayerIdentity(searchResult: selection)
+        storage.set(
+            try JSONEncoder().encode(identity),
+            forKey: SelectedPlayerIdentity.storageKey
+        )
+    }
 
     let transport = HostedShopTransport(
-        scenario: scenario.shop, offers: fixtures.offers, catalogue: fixtures.catalogue
+        scenario: scenario.shop, offers: fixtures.offers, catalogue: fixtures.catalogue,
+        player: scenario.selectPlayer ? try hostedFilterPlayer() : nil
     )
     let client = try FestivalAPI(transport: transport)
-    let session = FestivalSession(factory: { client })
+    let session = FestivalSession(
+        factory: { client },
+        selectionStorage: scenario.restorePlayerLoading ? storage : nil
+    )
     if scenario.shop == .unavailable {
         await #expect(throws: FestivalAPIError.unavailable(retryAfter: nil)) {
             try await session.shop()
@@ -55,6 +96,17 @@ private func hostedSongsState(
     }
     let loaded = try await session.catalog()
     #expect(loaded.catalog.count == 2)
+    if scenario.selectPlayer {
+        let selection = try JSONDecoder().decode(PlayerSearchResult.self, from: Data("""
+        {"accountId":"fixture-player-2","displayName":"Fixture Player 2"}
+        """.utf8))
+        try session.selectPlayer(selection, from: try await session.viewPlayer(selection))
+        #expect(session.playerLoadState == .available)
+    }
+    if scenario.restorePlayerLoading {
+        #expect(session.selectedPlayer?.accountId == "fixture-player-2")
+        #expect(session.playerLoadState == .loading)
+    }
     let payload = scenario.stale
         ? CatalogPayload(
             catalog: loaded.catalog, publicationId: nil,
@@ -82,9 +134,21 @@ private func hostedSongsState(
     #expect((1...3).contains(scale))
     #expect(abs(CGFloat(image.height) / scenario.size.height - scale) < 0.02)
     #expect(nativeHostedControlPixels(image).bright > 20)
+    if scenario.restorePlayerLoading {
+        let rowEdges = try #require(image.cropping(to: CGRect(
+            x: 0, y: CGFloat(image.height) * 0.14,
+            width: CGFloat(image.width) * 0.06,
+            height: CGFloat(image.height) * 0.32
+        ).integral))
+        let accents = nativeHostedStatusPixels(rowEdges)
+        #expect(accents.red > 10 && accents.gold == 0)
+    }
     let paths = await transport.recordedPaths()
     #expect(paths.contains("/api/songs"))
-    #expect(paths.allSatisfy { $0 == "/api/shop" || $0 == "/api/songs" })
+    #expect(paths.allSatisfy {
+        $0 == "/api/shop" || $0 == "/api/songs"
+            || (scenario.selectPlayer && $0 == "/api/player/fixture-player-2")
+    })
     let screenshot = try nativeHostedPNG(
         image, filename: "songs-host-\(scenario.name).png",
         environment: "FST_SONGS_RENDER_OUT"
@@ -131,6 +195,48 @@ private func hostedSongsState(
             name: "compact-grouped", shop: .populated, mode: .shop, hideShop: false,
             search: "", filter: nil, stale: false, size: CGSize(width: 390, height: 844)
         ),
+        HostedSongsScenario(
+            name: "filter-selected-default", shop: .populated, mode: .title,
+            hideShop: false, search: "", filter: nil, stale: false,
+            size: CGSize(width: 390, height: 844), selectPlayer: true
+        ),
+        HostedSongsScenario(
+            name: "filter-leaving", shop: .populated, mode: .title,
+            hideShop: false, search: "", filter: nil, stale: false,
+            size: CGSize(width: 390, height: 844),
+            shopFilter: SongShopFilter(leavingTomorrow: true), selectPlayer: true
+        ),
+        HostedSongsScenario(
+            name: "filter-restored-loading", shop: .populated, mode: .title,
+            hideShop: false, search: "", filter: nil, stale: false,
+            size: CGSize(width: 390, height: 844),
+            shopFilter: SongShopFilter(leavingTomorrow: true),
+            restorePlayerLoading: true
+        ),
+        HostedSongsScenario(
+            name: "filter-anonymous-paused", shop: .populated, mode: .title,
+            hideShop: false, search: "", filter: nil, stale: false,
+            size: CGSize(width: 390, height: 844),
+            shopFilter: SongShopFilter(inShop: true)
+        ),
+        HostedSongsScenario(
+            name: "filter-hidden-paused", shop: .populated, mode: .title,
+            hideShop: true, search: "", filter: nil, stale: false,
+            size: CGSize(width: 390, height: 844),
+            shopFilter: SongShopFilter(inShop: true), selectPlayer: true
+        ),
+        HostedSongsScenario(
+            name: "filter-unavailable-paused", shop: .unavailable, mode: .title,
+            hideShop: false, search: "", filter: nil, stale: false,
+            size: CGSize(width: 390, height: 844),
+            shopFilter: SongShopFilter(inShop: true), selectPlayer: true
+        ),
+        HostedSongsScenario(
+            name: "filter-empty", shop: .empty, mode: .title,
+            hideShop: false, search: "", filter: nil, stale: false,
+            size: CGSize(width: 390, height: 844),
+            shopFilter: SongShopFilter(inShop: true), selectPlayer: true
+        ),
     ]
     var images: [String: Data] = [:]
     var fills: [String: (gold: Int, green: Int, red: Int)] = [:]
@@ -149,6 +255,100 @@ private func hostedSongsState(
     #expect(images["grouped-shop"] != images["no-results"])
     #expect(images["grouped-shop"] != images["bass-chart"])
     #expect(images["grouped-shop"] != images["last-seen-unverified"])
+    #expect(images["filter-leaving"] != images["filter-selected-default"])
+    #expect(images["filter-restored-loading"] != images["filter-anonymous-paused"])
+    #expect(images["filter-anonymous-paused"] != images["filter-leaving"])
+    #expect(images["filter-hidden-paused"] != images["filter-selected-default"])
+    #expect(images["filter-empty"] != images["filter-unavailable-paused"])
+}
+
+/// A new Shop generation must not filter, sort or badge retained older Songs.
+@MainActor
+@Test func songsPauseShopDerivedRowsAcrossFailedPublicationRollover() async throws {
+    let fixtures = try shopFixtureBytes()
+    guard var oneOffer = try JSONSerialization.jsonObject(with: fixtures.offers)
+            as? [String: Any],
+          let entries = oneOffer["songs"] as? [[String: Any]],
+          let pulse = entries.first,
+          pulse["songId"] as? String == "fixture-pulse" else {
+        throw FestivalAPIError.invalidShop
+    }
+    oneOffer["songs"] = [pulse]
+    oneOffer["count"] = 1
+    let transport = HostedShopTransport(
+        scenario: .populated, offers: fixtures.offers, catalogue: fixtures.catalogue,
+        player: try hostedFilterPlayer(),
+        rolloverOffers: try JSONSerialization.data(withJSONObject: oneOffer),
+        failSongsAfterRollover: true
+    )
+    let client = try FestivalAPI(transport: transport)
+    let session = FestivalSession(factory: { client })
+    let oldSongs = try await session.catalog()
+    #expect(oldSongs.catalog.songs.count == 2)
+    #expect(try await session.shop().shop.count == 2)
+    let selection = try JSONDecoder().decode(PlayerSearchResult.self, from: Data("""
+    {"accountId":"fixture-player-2","displayName":"Fixture Player 2"}
+    """.utf8))
+    try session.selectPlayer(selection, from: try await session.viewPlayer(selection))
+
+    await transport.advancePublication()
+    #expect(try await session.refreshPublication().publicationId == 8)
+    #expect(session.currentShop == nil && session.playerLoadState == .loading)
+    let newShop = try await session.shop()
+    #expect(newShop.shop.count == 1 && newShop.observedPublicationId == 8)
+    await session.refreshSelectedPlayer()
+    #expect(session.playerLoadState == .available)
+    await #expect(throws: FestivalAPIError.unavailable(retryAfter: nil)) {
+        try await session.catalog()
+    }
+    #expect(oldSongs.observedPublicationId == 7 && session.publicationId == 8)
+    #expect(!SongShopPublicationPolicy.matches(
+        catalogue: oldSongs.observedPublicationId,
+        shop: newShop.observedPublicationId,
+        current: session.publicationId
+    ))
+    let paths = await transport.recordedGenerationPaths()
+    #expect(paths.contains("8:/api/shop"))
+    #expect(paths.contains("8:/api/player/fixture-player-2"))
+    #expect(paths.contains("8:/api/songs"))
+
+    let suiteName = "fst-songs-rollover-\(UUID().uuidString)"
+    let storage = try #require(UserDefaults(suiteName: suiteName))
+    defer { storage.removePersistentDomain(forName: suiteName) }
+    storage.set(true, forKey: "fst.songs.filterInShop")
+    storage.set(SongSortMode.shop.rawValue, forKey: "fst.songs.sortMode")
+    let size = CGSize(width: 820, height: 1180)
+    let host = nativeHostedView(
+        NavigationStack {
+            SongsScreen(
+                session: session, initialState: .loaded(oldSongs),
+                initialRefreshError: "Fixture catalogue refresh returned HTTP 503",
+                isVisible: false, openShop: {}
+            )
+        }
+        .defaultAppStorage(storage)
+        .preferredColorScheme(.dark)
+        .tint(BrandTokens.accentBlue),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    #expect(!window.isVisible)
+    let image = try nativeHostedImage(host)
+    #expect(nativeHostedControlPixels(image).bright > 20)
+    // Ignore scored red chips; only Shop accents color the left Song-card edges.
+    let rowEdges = try #require(image.cropping(to: CGRect(
+        x: 0, y: CGFloat(image.height) * 0.24,
+        width: CGFloat(image.width) * 0.06,
+        height: CGFloat(image.height) * 0.18
+    ).integral))
+    let edgeColors = nativeHostedStatusPixels(rowEdges)
+    #expect(edgeColors.gold == 0 && edgeColors.red == 0)
+    let capture = try nativeHostedPNG(
+        image, filename: "songs-host-rollover-shop-join-paused.png",
+        environment: "FST_SONGS_RENDER_OUT"
+    )
+    #expect(!capture.isEmpty)
+    withExtendedLifetime(window) {}
 }
 
 /// Paint a real selected account's score freshness without issuing page-owned GETs.

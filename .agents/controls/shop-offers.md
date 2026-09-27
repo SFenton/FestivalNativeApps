@@ -27,7 +27,7 @@ and "last-seen offline" as interchangeable.
 | Hide/highlight | While Shop is hidden, a pushed route returns to Songs with an explicit notice; highlight control is disabled, its preference retained, and offers reappear after re-enable |
 | Empty/failure | True `count=0` shows a scalable empty card; HTTP 503 shows unavailable/Retry, never a populated or success-shaped empty page |
 | Offline/cold | Real one-shot local connection loss keeps typed offers **and already painted cover pixels** warm with unverified provenance, then fails explicitly after process termination |
-| Songs/Detail | Validated flags paint Songs red/gold row borders and announced icons; Detail exposes the official action, availability badge and explicit Shop-fetch error; disabled highlighting suppresses badges without hiding the valid outbound link |
+| Songs/Detail | Validated **same-observed-generation** flags paint Songs red/gold row borders and announced icons; a retained older Songs catalogue receives no new Shop badges after rollover. Detail independently exposes the official action, availability badge and explicit Shop-fetch error; disabled highlighting suppresses badges without hiding the valid outbound link |
 
 `contracts/product.json` registers `fst.songs.shop`,
 `fst.shop.{view-toggle,empty,offline,song-details-error}`,
@@ -69,3 +69,6 @@ Shop filtering and profile-dependent sorting, full Detail audit and full line
 coverage remain open. The matching source/native Songs screenshots
 demonstrate red/gold borders on phone/tablet; native adds compact
 status icons rather than communicating offer state by border alone.
+The [initial selected-player Songs Filter](songs-filter.md) can now
+stage In Shop/Leaving Tomorrow using the same validated feed; all
+other Filter sections and Shop WebSocket states remain pending.

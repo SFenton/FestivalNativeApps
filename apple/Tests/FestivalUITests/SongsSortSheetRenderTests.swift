@@ -20,12 +20,16 @@ private struct HostedSortScenario {
 
 /// Refuse a black, unpresented Form masquerading as selected text and radio dots.
 ///
-/// - Parameter image: Real native Sort content inside its opaque dark host surface.
-/// - Returns: Nonblack purple pixels across the content's middle row.
+/// - Parameters:
+///   - image: Real native Form content inside its opaque dark host surface.
+///   - rowFraction: The rendered content row, not empty space around a short Form.
+/// - Returns: Nonblack purple pixels across the requested content row.
 @MainActor
-private func sortFormSurfacePixels(_ image: CGImage) -> Int {
+private func songFormSurfacePixels(
+    _ image: CGImage, rowFraction: CGFloat = 0.4
+) -> Int {
     let bitmap = NSBitmapImageRep(cgImage: image)
-    let row = image.height * 2 / 5
+    let row = Int(CGFloat(image.height) * rowFraction)
     return stride(from: 0, to: image.width, by: 4).reduce(0) { count, x in
         guard let color = bitmap.colorAt(x: x, y: row) else { return count }
         let red = color.redComponent
@@ -90,7 +94,7 @@ private func sortFormSurfacePixels(_ image: CGImage) -> Int {
         #expect(pixels.bright > 20)
         #expect(pixels.selected > 10)
         #expect(pixels.placeholder == 0)
-        #expect(sortFormSurfacePixels(image) > image.width / 8)
+        #expect(songFormSurfacePixels(image) > image.width / 8)
         images[scenario.name] = try nativeHostedPNG(
             image, filename: "songs-sort-\(scenario.name).png",
             environment: "FST_SORT_RENDER_OUT"
@@ -99,5 +103,65 @@ private func sortFormSurfacePixels(_ image: CGImage) -> Int {
     #expect(images["phone-default"] != images["phone-shop-unavailable"])
     #expect(images["wide-artist-descending"] != images["wide-shop-loaded"])
     #expect(images["wide-shop-loaded"] != images["wide-shop-hidden"])
+}
+
+/// Host the actual native Filter Form in available, paused and accessibility states.
+@MainActor
+@Test func songsShopFilterSheetPaintsDraftAvailabilityAndLargeText() throws {
+    let cases: [(
+        name: String, filter: SongShopFilter, showShop: Bool,
+        shopAvailable: Bool, profileAvailable: Bool,
+        size: CGSize, typeSize: DynamicTypeSize
+    )] = [
+        ("phone-default", SongShopFilter(), true, true, true,
+         CGSize(width: 390, height: 844), .large),
+        ("phone-no-feed", SongShopFilter(), true, false, true,
+         CGSize(width: 390, height: 844), .large),
+        ("phone-profile-pending", SongShopFilter(inShop: true), true, true, false,
+         CGSize(width: 390, height: 844), .large),
+        ("wide-in-shop", SongShopFilter(inShop: true), true, true, true,
+         CGSize(width: 820, height: 1180), .large),
+        ("wide-leaving", SongShopFilter(leavingTomorrow: true), true, true, true,
+         CGSize(width: 820, height: 1180), .large),
+        ("wide-hidden", SongShopFilter(inShop: true), false, true, true,
+         CGSize(width: 820, height: 1180), .large),
+        ("phone-leaving-ax5", SongShopFilter(leavingTomorrow: true), true, true, true,
+         CGSize(width: 390, height: 844), .accessibility5),
+    ]
+    var images: [String: Data] = [:]
+    for scenario in cases {
+        let host = nativeHostedView(
+            SongsShopFilterSheet(
+                applied: scenario.filter, showShop: scenario.showShop,
+                shopAvailable: scenario.shopAvailable,
+                profileAvailable: scenario.profileAvailable, onApply: { _ in }
+            )
+            .preferredColorScheme(.dark)
+            .tint(BrandTokens.accentBlue)
+            .environment(\.dynamicTypeSize, scenario.typeSize)
+            .background(BrandTokens.appBackground),
+            size: scenario.size
+        )
+        let image = try nativeHostedImage(host)
+        let scale = CGFloat(image.width) / scenario.size.width
+        #expect((1...3).contains(scale))
+        #expect(abs(CGFloat(image.height) / scenario.size.height - scale) < 0.02)
+        let pixels = nativeHostedControlPixels(image)
+        #expect(pixels.bright > 20)
+        #expect(pixels.placeholder == 0)
+        #expect(songFormSurfacePixels(image, rowFraction: 0.5) > image.width / 8)
+        if scenario.filter.isActive && scenario.showShop
+            && scenario.shopAvailable && scenario.profileAvailable {
+            #expect(pixels.selected > 10)
+        }
+        images[scenario.name] = try nativeHostedPNG(
+            image, filename: "songs-filter-\(scenario.name).png",
+            environment: "FST_FILTER_RENDER_OUT"
+        )
+    }
+    #expect(images["phone-default"] != images["phone-no-feed"])
+    #expect(images["phone-default"] != images["phone-profile-pending"])
+    #expect(images["wide-in-shop"] != images["wide-leaving"])
+    #expect(images["wide-in-shop"] != images["wide-hidden"])
 }
 #endif

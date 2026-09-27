@@ -16,7 +16,7 @@ Source: `FortniteFestivalWeb/src/pages/songs/SongsPage.tsx:340-1380`, `src/hooks
 | Search | empty, typing (250 ms debounce), matching, punctuation/diacritics, no results; query changes list and quick-link groups |
 | Instrument | all / one of nine visible charts; changes score validity, row chips, sort/filter modes and Detail's initial instrument |
 | Sort | title and conditional score/percentage/season/FC/difficulty/shop/band modes, direction, priority reorder; modal draft unchanged/changed/discard-confirmed/applied/reset; see [Sort control spec](../controls/songs-sort.md) |
-| Filter | instrument and member/FC/score/shop/difficulty/season/percentile/stars; band conflicts block Apply, shop-hidden removes choices; no profile has Sort but no Filter dock action |
+| Filter | Source instrument and member/FC/score/shop/difficulty/season/percentile/stars; band conflicts block Apply and no-profile mobile has no Filter action. Native iPhone now starts with a [selected-player Shop-only Filter slice](../controls/songs-filter.md); the other sections remain pending. |
 | Score warning | valid / valid fallback / no valid fallback / over threshold; modal action distinct from row navigation |
 | Artwork | randomized animated, reduced motion, Save-Data, invisible/paused, no art; see `../controls/artwork-background.md` |
 
@@ -34,6 +34,53 @@ The grouped-Songs iPhone 26.5 `.all` audit passed once with semantic
 failure in a source-identical run. Keep that full audit pending, not
 waived or declared certified; selected visible headings meet ≥4.5:1.
 This also does not resolve iPad's reported full-window focus frames.
+
+**New iPhone selected-player Filter slice, not full Filter parity:** The PWA
+shows its mobile Filter dock action only with player data or a selected
+band (`FortniteFestivalWeb/src/pages/songs/SongsPage.tsx:1122-1136`).
+Native matches the no-profile gate and currently exposes only
+**In Shop** and **Leaving Tomorrow** under a system Filter sheet.
+`SongShopFilter` uses validated Shop membership, after search and
+chart filtering but before the existing Sort; toggles stage a draft,
+Apply changes actual rows, Cancel confirms discard and Reset requires
+Apply. Saved choices survive cold relaunch. Hiding Shop, a cold HTTP
+failure, no selected identity or a changed publication with retained
+old Songs pauses applied choices with a visible notice rather than
+fabricating empty membership; a validated **same-generation** empty
+feed really does yield No Results. Public Shop filtering remains
+effective while a selected player's score read loads, syncs or fails
+if Songs/Shop generations match; editing waits for available scores.
+The PWA **clears** filters on confirmed deselect (not a player-to-player
+switch). Native deliberately **retains and reapplies** Shop choices
+after an explicit new selection and keeps the Filter action for
+anonymous Reset. Similarly, source hides Shop options when the feature
+is hidden; native leaves disabled toggles/Reset. These are open parity
+decisions, not source-equivalent modal behavior. The two-song source
+WebKit phone comparison
+passed **1/1** for anonymous gating and selected In Shop/
+Leaving Tomorrow;
+native iPhone 26.5 passed **1/1 each** for draft/relaunch and
+Shop hide/error/empty/deselect transitions. Both toggles can
+remain selected while the toolbar names each active choice.
+Loaded default and AX5 Filter sheets pass unwaived iPhone
+`.all` audits: at largest text, a Form-owned scroll brings the
+entire Reset row above the fixed footer and the real Apply
+glyphs grow >1.35x with ≥4.5:1 rendered contrast. A selected
+iPhone Sort/Shop Sort/AX5 Filter regression passes **3/3**.
+The reviewed generation-join iPhone fixture regressions pass
+**5/5**, a separate matched-Shop badge/instrument case passes
+**2/2**, and deselect→reselect applies saved public choices in
+**1/1**. A scripted hosted old-Songs/new-Shop/failed-Songs
+probe passes; an exact failed-rollover iPhone device replay
+is still pending. This guard covers **Shop-derived** state:
+selected-player score chips/metadata can still pair a newer
+profile with retained older Songs, an open
+`apple-songs-cards` backlog requirement. Private captures
+show the PWA's long bottom sheet with many instrument,
+score and band sections and five player tabs, while native uses
+an opaque full-height Shop-only sheet with three tabs. See the
+[Filter contract](../controls/songs-filter.md); full PWA visual,
+other AX5 states, iPad/Duo and non-Shop filter parity stay open.
 
 The top native **Item Shop** action now pushes an independent public
 feed without changing the three-tab phone shell. Hiding Shop removes

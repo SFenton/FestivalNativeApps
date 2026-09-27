@@ -9,6 +9,7 @@
 | Specific screen, guard, modal or deep link | `pages/<page-id>.md` and [contracts/product.json](../contracts/product.json) |
 | Control geometry, state, interaction | `controls/<control-id>.md` and [contracts/product.json](../contracts/product.json) |
 | Songs Sort draft, direction and state propagation | [controls/songs-sort.md](controls/songs-sort.md) |
+| Selected-player Songs Filter draft and validated Shop toggles | [controls/songs-filter.md](controls/songs-filter.md) |
 | Safe player search, viewed vs selected identity and band-read gate | [controls/profile-selection.md](controls/profile-selection.md) |
 | Selected-player Songs chips, status colors, instrument Settings and responsive flow | [controls/instrument-status-chips.md](controls/instrument-status-chips.md) |
 | Selected-player score/FC/percentile/stars/season/Intensity pill geometry | [controls/song-score-metadata.md](controls/song-score-metadata.md) |

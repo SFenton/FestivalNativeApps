@@ -17,7 +17,11 @@ actor HostedShopTransport: HTTPTransport {
     let scenario: HostedShopScenario
     let offers: Data
     let catalogue: Data
-    private var paths: [String] = []
+    let player: Data?
+    let rolloverOffers: Data?
+    let failSongsAfterRollover: Bool
+    private var generation = 7
+    private var requests: [(generation: Int, path: String)] = []
 
     /// Pin a synthetic Shop feed and optional catalogue to one publication.
     ///
@@ -25,10 +29,20 @@ actor HostedShopTransport: HTTPTransport {
     ///   - scenario: Populated, verified empty or real HTTP failure.
     ///   - offers: Original local Shop JSON, not a production response.
     ///   - catalogue: Matching original synthetic Songs JSON.
-    init(scenario: HostedShopScenario, offers: Data, catalogue: Data) {
+    ///   - player: Optional fixture player profile for selected Songs renders.
+    ///   - rolloverOffers: Changed Shop membership only after a test advances publication.
+    ///   - failSongsAfterRollover: Reproduce a retained old catalogue after generation eight.
+    init(
+        scenario: HostedShopScenario, offers: Data, catalogue: Data,
+        player: Data? = nil, rolloverOffers: Data? = nil,
+        failSongsAfterRollover: Bool = false
+    ) {
         self.scenario = scenario
         self.offers = offers
         self.catalogue = catalogue
+        self.player = player
+        self.rolloverOffers = rolloverOffers
+        self.failSongsAfterRollover = failSongsAfterRollover
     }
 
     /// Reject writes, privileged headers, wrong generations and non-fixture reads.
@@ -46,27 +60,33 @@ actor HostedShopTransport: HTTPTransport {
         }
         if url.path == "/api/publication" {
             return HTTPResult(status: 200, data: Data("""
-            {"contractVersion":1,"publicationId":7,"publishedScrapeId":42,
+            {"contractVersion":1,"publicationId":\(generation),"publishedScrapeId":42,
              "readyForPinning":true,"pinningEnabled":true,"unreadySurfaces":[]}
             """.utf8))
         }
-        guard request.value(forHTTPHeaderField: "X-FST-Publication-Id") == "7" else {
+        guard request.value(forHTTPHeaderField: "X-FST-Publication-Id")
+                == String(generation) else {
             throw FestivalAPIError.invalidPublication
         }
-        paths.append(url.path)
+        requests.append((generation, url.path))
         switch url.path {
         case "/api/shop":
             switch scenario {
             case .populated:
+                if generation == 8 && failSongsAfterRollover
+                    && rolloverOffers == nil {
+                    throw FestivalAPIError.invalidShop
+                }
                 return HTTPResult(
-                    status: 200, data: offers,
-                    headers: ["X-FST-Publication-Id": "7"]
+                    status: 200,
+                    data: generation == 8 ? (rolloverOffers ?? offers) : offers,
+                    headers: ["X-FST-Publication-Id": String(generation)]
                 )
             case .empty:
                 return HTTPResult(
                     status: 200,
                     data: Data(#"{"count":0,"songs":[],"newSongs":[]}"#.utf8),
-                    headers: ["X-FST-Publication-Id": "7"]
+                    headers: ["X-FST-Publication-Id": String(generation)]
                 )
             case .unavailable:
                 return HTTPResult(
@@ -74,9 +94,20 @@ actor HostedShopTransport: HTTPTransport {
                 )
             }
         case "/api/songs":
+            if generation == 8 && failSongsAfterRollover {
+                return HTTPResult(
+                    status: 503, data: Data(#"{"status":"fixture_unavailable"}"#.utf8)
+                )
+            }
             return HTTPResult(
                 status: 200, data: catalogue,
-                headers: ["X-FST-Publication-Id": "7"]
+                headers: ["X-FST-Publication-Id": String(generation)]
+            )
+        case "/api/player/fixture-player-2":
+            guard let player else { throw FestivalAPIError.invalidResource }
+            return HTTPResult(
+                status: 200, data: player,
+                headers: ["X-FST-Publication-Id": String(generation)]
             )
         default:
             throw FestivalAPIError.invalidResource
@@ -86,7 +117,17 @@ actor HostedShopTransport: HTTPTransport {
     /// Prove that a verified-empty Shop never asks for irrelevant song details.
     ///
     /// - Returns: Ordered paths read only through the fake transport.
-    func recordedPaths() -> [String] { paths }
+    func recordedPaths() -> [String] { requests.map(\.path) }
+
+    /// Advance only this in-memory fixture after the first generation is proven.
+    func advancePublication() { generation = 8 }
+
+    /// Verify the exact generation and route of each synthetic product GET.
+    ///
+    /// - Returns: Logged generation/route pairs without account or payload content.
+    func recordedGenerationPaths() -> [String] {
+        requests.map { "\($0.generation):\($0.path)" }
+    }
 }
 
 /// Resolve original Shop and Songs fixture bytes without a live service.
