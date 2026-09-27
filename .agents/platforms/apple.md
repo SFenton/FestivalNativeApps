@@ -171,8 +171,13 @@ independent fixed Solo badge. A new source-frozen
 **10/10 iPhone + 10/10 iPadOS** matrix passes the
 post-fix selected/anonymous cases, with **6/6**
 source WebKit comparison and both Apple Release
-builds. Full SwiftPM logic coverage reaches
-**95.17%**, but UX **57.62%** and the paired iOS
+builds. Additional genuine AppKit-hosted
+Profile/CHOpt/Shop control-state tests use a
+never-shown window only where lazy `List`
+requires one; `ImageRenderer`'s yellow
+native-control placeholders are rejected as
+visual evidence. Full SwiftPM logic coverage
+reaches **95.39%**, but UX **79.84%** and the paired iOS
 UI/app subset **71.65%** fail the 90% requirement.
 Complete iPad accessibility and all-route coverage
 remain open.

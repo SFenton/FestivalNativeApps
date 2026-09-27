@@ -183,9 +183,11 @@ native wraps it. The preceding 10/10 pair predates
 these review fixes; a fresh source-frozen pair now passes
 **10/10 on each** iPhone/iPadOS 26.5 simulator, with
 **6/6** source WebKit comparisons and both Apple Release
-builds. A full measured SwiftPM logic gate passes at
-**1754/1843 (95.17%)**, but UX fails at **5113/8874
-(57.62%)** and the paired iOS UI/app subset fails at
+builds. A subsequent test-only AppKit host pass on
+real Profile/CHOpt/Shop states raises measured
+SwiftPM logic to **1758/1843 (95.39%, pass)** and
+UX to **7085/8874 (79.84%, fail)**. The paired iOS
+UI/app subset still fails at
 **3166/4419 (71.65%)**. These are real release blockers,
 not acceptable proxies for full page/control parity.
 The source's mobile target row is below results; the native phone

@@ -16,6 +16,7 @@
 | CHOpt Paths image/text, chart selectors and stale loading | [controls/chopt-paths.md](controls/chopt-paths.md) |
 | Shop route, public offers and visibility/highlight rules | [pages/shop.md](pages/shop.md), [controls/shop-offers.md](controls/shop-offers.md) |
 | Unit/UI/visual/a11y/serial runtime evidence | [testing/quality-gates.md](testing/quality-gates.md) |
+| Real macOS picker/List snapshots and deterministic visual fixtures | [testing/native-hosted-snapshots.md](testing/native-hosted-snapshots.md) |
 | Repeated page migration | [skills/port-page.md](skills/port-page.md) and `tools/verify_product.py` |
 | Prioritized React-to-native gap list and dependencies | [parity-audit.md](parity-audit.md), [contracts/parity-backlog.json](../contracts/parity-backlog.json), `python3 tools/parity_backlog.py --list` |
 

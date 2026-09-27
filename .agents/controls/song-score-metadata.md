@@ -134,7 +134,8 @@ scroll position. The subsequent source-frozen post-fix pair passed
 the exact **10/10 iPhone and 10/10 iPadOS** selected/anonymous
 methods; matched source WebKit comparison passed **6/6**. Both
 Release builds succeed, but current merged SwiftPM logic coverage
-is **1754/1843 (95.17%)** and UX is **5113/8874 (57.62%)**;
+is **1758/1843 (95.39%)** and UX is **7085/8874 (79.84%)** after
+additional real AppKit profile/CHOpt/Shop host-state tests;
 the paired iOS UI/app subset is **3166/4419 (71.65%)**.
 Only the logic threshold is met, not the 90% UX gate.
 Future serial iPhone/iPad runs must retain

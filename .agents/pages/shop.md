@@ -79,3 +79,18 @@ Actual rapid device gestures and focus restoration are still
 unmeasured. iPad sidebar Shop entry, global search/profile header,
 push/shop WebSocket, Shop filters/remaining conditional Songs sorts and full-source
 coverage remain pending.
+
+Two more deterministic **Mac-hosted** tests cover the checked-in,
+publication-pinned two-offer Shop and matching catalogue in compact
+List, wide grid and AX5 List, plus independently verified empty and
+HTTP 503 error/Retry. Native red Leaving/gold New borders, text,
+distinct Detail/official actions and large-type reflow paint in
+private synthetic captures. A bare `NSHostingView` initially painted
+**no lazy List rows** despite successful Shop/Songs GETs; the shared
+[native snapshot harness](../testing/native-hosted-snapshots.md)
+attaches that List to an offscreen, never-visible `NSWindow` while
+capturing it. The host test does not use/download source artwork;
+the separate device fixtures retain that proof. Hosted
+`ShopScreen` coverage is **616/659 (93.47%)** executable lines.
+This does not certify the Shop route, full focus/VoiceOver order,
+macOS GUI or the aggregate 90% UX threshold.

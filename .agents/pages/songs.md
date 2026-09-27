@@ -195,7 +195,7 @@ metadata, selected/anonymous chip states, genuine empty
 Bass, Shop and Detail evidence together. Neither that
 targeted `--no-coverage-gate` run nor the compared
 portraits certifies the full Songs route or other platforms.
-The current full SwiftPM UX result is **5113/8874 (57.62%)**,
+The current full SwiftPM UX result is **7085/8874 (79.84%)**,
 and the paired iOS UI/app subset is **3166/4419 (71.65%)**;
 both remain below the 90% bar despite passing device journeys.
 For native AX-size list traversal use `fst.songs.list` instead of

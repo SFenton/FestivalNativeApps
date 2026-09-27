@@ -74,3 +74,16 @@ JSON loopback fixture with generation/pin/ETag/404 validation, two WebKit
 PWA captures, and two selected native iPhone/iPad modal/Settings journeys.
 The full 24-route parity inventory, cross-platform UI coverage and source
 line-coverage bars are **not certified** by these targeted cases.
+
+Two additional Mac-hosted tests use the
+[native AppKit snapshot harness](../testing/native-hosted-snapshots.md):
+real Lead/Expert Image/Text selectors, AX5, explicit failure/Retry,
+then the checked-in schema-2 synthetic path and a newly generated,
+bounded orange PNG. A strict in-memory transport serves only
+publication-pinned keyless GETs; it rejects wrong routes/charts,
+privileged/selected headers and writes. The rendered text has two
+activation cards, green/red/open frets, beat/time/scores and OD
+bars; the independent image has zoom actions. The test measures
+**758/811 (93.46%)** hosted `SongPathsSheet` lines without
+claiming draggable source table parity, iPad full accessibility
+or Mac app GUI authorization.

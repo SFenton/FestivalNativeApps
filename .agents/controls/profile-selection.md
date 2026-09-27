@@ -205,3 +205,17 @@ Statistics/Suggestions/Rivals tabs, player route and legitimate
 live edge access remain pending. No real profile endpoint was
 probed or privileged key/selected header used. The control
 stays `pending`.
+
+Real macOS **test-only**, offscreen `NSHostingView` snapshots
+now paint the anonymous profile Form, validated identity-only
+selected header, native Players/Bands segmented picker,
+search field, Deselect, Close, root action and AX5 variant
+at 390/820pt. `ImageRenderer` previously returned crossed
+yellow placeholders for its AppKit controls; it must not be
+used as a visual substitute. The 2/2 hosted tests use a
+throwing client factory, private optional synthetic captures
+and an isolated preference suite. They cover **573/1001**
+SwiftPM `ProfileSelectionSheet` executable lines but not
+result/preview/switch states, complete focus, Mac app GUI,
+live edge access or the 90% aggregate UX bar. See
+[native hosted snapshots](../testing/native-hosted-snapshots.md).

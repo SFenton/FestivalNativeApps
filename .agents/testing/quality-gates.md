@@ -12,17 +12,19 @@ When the sibling web repository and its existing Playwright dependencies are pre
 
 `python3 tools/verify_product.py` validates inventory consistency and prints pending surfaces. Strict mode also requires evidence for every listed page, control and state on all four platforms. On the Mac run `bash tools/apple_coverage.sh`: it tests all three **SwiftPM test bundles**, merges real LLVM line coverage by test binary, checks `apple/Sources` for missing/nested files and requires 95% logic/90% UX. The last measurement **before the Debug live-origin edit** was **682/711 logic lines (95.92%) and 3076/3349 UX lines (91.85%)**; it is not a final-source certification. During this operator-requested iteration use **only changed or added tests**; remeasure full coverage before claiming the current source passes a release or parity gate.
 
-The current full SwiftPM report (2026-09-26) measures **1754/1843
-logic lines (95.17%, pass)** and **5113/8874 UX lines (57.62%,
-fail)**; the combined script exits nonzero. The 90% UX bar needs
-2,874 additional *covered* executable lines at this source size,
-not an exclusion or an averaged score. Host-only gaps include
-ProfileSelectionSheet (1001 uncovered), SongPathsSheet (811),
-ShopScreen (659) and SongScreens (1006); expand actual
-host-rendered states and device interactions rather than
-declaring them untestable. This supersedes the older 91.85%
-UX figure without changing the threshold. macOS app-target
-GUI coverage and all-state accessibility remain separate gates.
+The current full SwiftPM report (2026-09-26, after
+[real native hosted snapshots](native-hosted-snapshots.md))
+measures **1758/1843 logic lines (95.39%, pass)** and
+**7085/8874 UX lines (79.84%, fail)**; the combined script
+exits nonzero. The 90% UX bar still needs 902 additional
+*covered* executable lines at this source size, not an
+exclusion or averaged score. `SongScreens` has 1006 uncovered
+lines and `ProfileSelectionSheet` has 428; hosted CHOpt Paths
+and Shop now cover 758/811 and 616/659 respectively. The
+earlier metadata-commit measurement of 5113/8874 (57.62%)
+UX is historical, as is the pre-live-origin 91.85% figure.
+Do not treat hosted renders as iOS UI/app or complete macOS
+GUI/VoiceOver coverage; their gates remain separate.
 
 The script also runs `python3 -m tools.contrast_gate`, requiring ≥4.5:1 on worst-case white artwork for **only three named semantic tokens**: `textPrimary`, `textSecondary` and `gold`. Run the pure Python gate separately on non-Mac hosts; it does **not** certify system colors, blue actions or every rendered label. `FST_FIXTURE_SCENARIO=art-white` paints a deliberately white cover: native UI tests run unwaived full audits on empty Songs and failed solo scores **over painted white art**, plus a separate initial Songs error **before** the art loads, and measure three fully visible Settings section headers from actual app pixels. On iPhone 26.5, the system `ContentUnavailableView` failure title/description/action failed the Dynamic Type audit; the native scalable error stack now passes without an exception. At `AccessibilityXXXL`, the test confirms real text growth and scrolls **the error view itself** to bring Retry above native chrome in both portrait and landscape; a whole-app swipe can miss the nested scroller. Pull-to-refresh belongs only on the **loaded Songs List**: the error scroller's pull-down must not replace the only Retry action with a stuck spinner. **Settings full-page audit remains pending**: Xcode reports a partly offscreen Item Shop heading or translucent compact system title as contrast failures. Keep the exact failing crops; do not call Settings audit-certified or blanket-waive the issues.
 
