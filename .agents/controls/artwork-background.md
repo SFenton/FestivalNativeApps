@@ -21,3 +21,22 @@ not a shorter animation or a weaker retry threshold.
 `FestivalSession` shuffles at most 100 catalogue paths only when source artwork changes; the carousel loads one image ahead, not 100. The shared ephemeral raw-byte `ArtworkCache` has a 32 MB evictable `NSCache` **and a separate strongly held, 16 MB/64-URL recent-art LRU**: evictable memory alone dropped two visible Shop covers on a warm route reentry after a real listener loss. The strong tier persists only within the running process, not on cold launch; decoded thumbnail `NSCache` (24 MB) can still evict pixels and redraw from those raw bytes off-main. Backdrops downsample to at most 1,024 pixels. A validated generation change clears both raw tiers and decoded thumbnails, rejecting old in-flight bytes. Artwork failures are logged; never replace a failed request with a success-shaped image. Only the repository's original synthetic PNG fixtures are bundled; production asset licensing/distribution remains a separate approval gate.
 
 **Evidence and gaps:** `ArtworkBackgroundTests.swift` covers no-art, dimmed static/contrast, Save Data and opaque pixels, exact 5/10/15-second deadline arithmetic, paced initial failure recovery with a valid fourth cover and a five-failure limit, steady-state skips and actual 404 B→valid C requests. `ArtworkBackgroundPolicyTests.swift` checks every motion/transparency/data/path suppression input. Native iPhone/iPad `testArtworkAnimationAndAccessibilityOverrides` compares a 16×16 background grid over the real six-second journey and verifies both app switches; original synthetic `art-error`/`art-skip` device scenarios test empty art and a missing middle cover. The Shop one-shot `testHeaderlessShopOffersRemainReadableAfterConnectionLoss` additionally checks that **real original synthetic motif pixels** render before test-confirmed listener shutdown and again after Shop route reentry on both devices; a cold relaunch cannot reuse the art. `tools/visual/pages.spec.ts` observes the PWA's own two-cover switch in WebKit using strictly local art/API fixtures. Run `python3 -m tools.contrast_gate` to require ≥4.5:1 for **only the three named text tokens** over the brightest white cover (primary 8.45:1, secondary 6.24:1, gold 6.03:1 at 0.7 dim). It does not certify system-rendered labels or blue actions. Muted text and accent blue **do not meet** that bar on art: keep them on opaque cards or replace with `textSecondary`, as in Detail's year and solo totals. The local-only `art-white` device test waits for painted white art, audits empty Songs and solo failure/retry **without exceptions**, and measures three rendered Settings section headers at ≥4.5:1; a full Settings audit still reports system-generated partially offscreen/compact-navigation contrast findings, so that page is not certified. Retain named source/native images in session evidence. Hardware Low Data/Low Power toggles, frame pacing under load, macOS GUI automation, iOS 18 and Duo posture still need device-level proof. Android and Windows backdrops are unimplemented; the control remains `pending` in `contracts/product.json`.
+
+**Visual fixture isolation (iPhone 26.5):** The 16×16 screenshot
+grid samples the empty page behind Songs. A saved Shop Sort from a
+prior journey groups the fixture rows and can place a card inside
+that crop. An attempted opaque-state assertion failed at distance
+**574 > 100**, but its recorded screenshot had **242/256 exact
+brand RGB (26,8,48) cells** and **14 card-background
+RGB (11,18,32) cells**; Reduce Transparency had removed both
+the image and its overlay. The unavailable-art case failed by
+exactly the same amount for the same reason. Both device tests
+now pin **Title ascending with per-launch arguments**, assert
+that state and leave the user's persisted Sort unchanged. The
+actual motion/static/reduced-motion/opaque **1/1** journey and
+unavailable-art/root/offline **3/3** iPhone journeys pass
+without relaxing the 100-distance threshold. Both affected
+artwork methods also pass **2/2 in one final source-frozen
+iPhone suite**. These are named
+fixture states, not every theme, pose, system setting or full
+accessibility result.

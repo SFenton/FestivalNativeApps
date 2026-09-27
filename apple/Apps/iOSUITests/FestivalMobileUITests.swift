@@ -3038,9 +3038,14 @@ final class FestivalMobileUITests: XCTestCase {
         let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launchArguments += [
+            "-fst.songs.sortMode", "title",
+            "-fst.songs.sortAscending", "YES",
+        ]
         app.launch()
         app.activate()
         XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
+        XCTAssertEqual(app.buttons["fst.songs.sort"].value as? String, "Title, ascending")
         rootControl("Settings", app: app).tap()
         let motion = app.switches["fst.settings.reduce-motion"]
         let disableArt = app.switches["fst.settings.disable-artwork-animation"]
@@ -3109,11 +3114,11 @@ final class FestivalMobileUITests: XCTestCase {
         reveal(opaque, in: app, scrollingUp: true)
         setSwitch(opaque, to: "1")
         rootControl("Songs", app: app).tap()
+        record(app, name: "songs-artwork-opaque-override")
         XCTAssertLessThanOrEqual(
             pixelDistance(try backgroundSignature(app), base), 100,
             "Reduce Transparency failed to remove the image and dark overlay"
         )
-        record(app, name: "songs-artwork-opaque-override")
 
         rootControl("Settings", app: app).tap()
         reveal(opaque, in: app, scrollingUp: true)
@@ -3134,9 +3139,14 @@ final class FestivalMobileUITests: XCTestCase {
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "art-error"
         app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launchArguments += [
+            "-fst.songs.sortMode", "title",
+            "-fst.songs.sortAscending", "YES",
+        ]
         app.launch()
         let song = app.buttons["fst.songs.row.fixture-pulse"]
         XCTAssertTrue(song.waitForExistence(timeout: 15))
+        XCTAssertEqual(app.buttons["fst.songs.sort"].value as? String, "Title, ascending")
         let brand: [UInt8] = [26, 8, 48]
         let base: [UInt8] = Array(repeating: brand, count: 256).flatMap { $0 }
         XCTAssertLessThanOrEqual(pixelDistance(try backgroundSignature(app), base), 100)

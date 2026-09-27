@@ -88,6 +88,28 @@ structural references, not pixel equivalence. The older nil-element
 grouped Dynamic Type finding, AX5/grouped scroll, iPadOS and broader
 iPhone UI/app line bar remain open; the focused pass does not erase them.
 
+The latest **iPhone-only source-line checkpoint** unions **11 distinct,
+fully passing Xcode result bundles** (23 named device methods) from
+the same iPhone 26.5 simulator: **4092/4695 unique `FestivalUI`/app
+lines (87.16%, below 90%)**, **134** executable lines short of the
+**4226-line** threshold. The gate verified matching production file
+and executable-line sets, passing test summaries, device identity
+and source timestamps. Two visual-artwork **test-only** launch
+fixtures were made Sort-independent during the sequence; each
+individual runner checked its own compiled-test marker, but this
+does **not** claim identical UITest bytes in every shard. Xcode
+omitted `FestivalUI` from separate passing Paths, Settings and
+root-recovery archives; none entered the union. Failed visual
+fixture archives were also excluded. This is an honest unmet
+**phone line gate**, not a full 23-case app matrix, not an iPad
+result, and not feature/UX parity. Further meaningful routes and
+control-state tests, not source exclusions or an averaged Xcode
+target summary, are needed to meet the 90% category bar.
+The final **2/2** source-frozen iPhone motion/opaque and unavailable-art
+fixture suite included both coverage targets but contributed **zero new
+unique lines** to a remeasured 12-bundle union; the accepted
+**4092/4695 (87.16%)** value and **134-line deficit** are unchanged.
+
 The warm-offline audit's failing element is the Songs **"Retry Item Shop status"** button, which may or may not appear when the one-shot Songs fixture races a Shop read. The test now uses an explicit local `shop-error` scenario and waits for the actual button. A private element capture showed white glyphs on the opaque card at **18.72:1**; the native test enforces **at least 4.5:1** before auditing. A separate normal/AX5 iPhone journey proves **greater than 1.35x actual glyph-height growth** and reaches the action with small in-list drags even when the row is lazily offscreen; full swipes skipped that narrow row. On **iPhone iOS 26.5 only**, the audit accepts **at most one contrast and one Dynamic Type report** for that exact button identifier and label after these independent checks; every other issue and other runtime remains failing. In the final **4/4** suite this warm-offline audit deliberately pins fixture Sort to Title using launch arguments without erasing a saved user preference. With an additional saved Shop Sort and its long paused notice, Xcode still reports an **unidentified contrast node**: that combined full-screen state remains open and is not waived. The focused Title-order result is not an unwaived `.all` certification. An experimental button restyle did not remove the reports and was reverted. The iPad Songs audit remains open under the iPhone-first sequence.
 
 At the **previous pushed WIP checkpoint**, Apple source passed **16/16 explicitly selected** native cases on each iPhone26.5 and iPadOS26.5 (excluding the known-failing Duo posture test), with a source-identical exact UI/app union of **1467/1592 unique lines (92.15%)**. These results **predate the new Solo/offline/large-text and live-default changes** and do not certify this worktree. After the score-typography fix, clean targeted iPhone26.5/iPadOS26.5 runs passed the **three changed Solo journeys per device**: dense/sparse pinned charts, a real one-shot warm-offline/cold-expiry case with unwaived normal-size audits, and actual AccessibilityXXXL score/action reachability. The Debug live-default test and bounded real Swift-client read passed separately. A source-identical full iPhone26.5/iPadOS26.5 matrix was stopped when the operator requested targeted-only passes; the later **selected 10/10-per-device** pair measures **3166/4419 unique UI/app lines (71.65%)**, still below 90% and not a full all-route suite. The earlier iOS27 5/5 target also predates these source changes. `FestivalCore` and `FestivalDesign` remain absent from Xcode coverage targets; macOS SwiftPM coverage and pixel-meter tests do **not** certify their iOS device-line coverage. The dedicated Duo four-rotation test **failed** at landscape-left (outer window stayed 466×678 portrait); selected cases are **not** a full device matrix or PWA parity certification. iOS 18 behavior is untested until that runtime is installed, and macOS app-target/GUI coverage needs host-authenticated Automation Mode.
