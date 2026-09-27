@@ -1056,13 +1056,24 @@ struct SongRowView: View {
             .accessibilityHidden(true)
     }
 
+    private var songSubtitle: String {
+        var subtitle = song.artist
+        if let year = song.year, year != 0 {
+            subtitle += " · \(year)"
+        }
+        if let duration = song.formattedDuration {
+            subtitle += " · \(duration)"
+        }
+        return subtitle
+    }
+
     private var songInfo: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(song.title)
                 .font(.headline)
                 .foregroundStyle(BrandTokens.textPrimary)
                 .fixedSize(horizontal: false, vertical: true)
-            Text(song.year.map { "\(song.artist) · \($0)" } ?? song.artist)
+            Text(songSubtitle)
                 .font(.subheadline)
                 .foregroundStyle(BrandTokens.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)

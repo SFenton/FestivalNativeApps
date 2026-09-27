@@ -1,12 +1,16 @@
-"""Check that the cross-device iOS coverage gate joins real executable lines."""
+"""Check the scoped iOS coverage gate joins only real executable source lines."""
 
+import io
+import json
+import time
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from tools.apple_xccov_gate import (
-    collect_result, device_identity, line_hits, union_lines, validate_device_pair,
+    collect_result, device_identity, line_hits, main, union_lines,
+    validate_result_devices,
 )
 
 
@@ -42,18 +46,78 @@ class XcodeCoverageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "exceed"):
             line_hits(archive, source, covered=0, executable=1)
 
-    def test_requires_two_distinct_phone_and_tablet_results(self):
-        """One result, its duplicate, or two phones must not satisfy the UX gate."""
-        first, second = Path("/fixture/iphone.xcresult"), Path("/fixture/ipad.xcresult")
-        with self.assertRaisesRegex(ValueError, "two distinct"):
-            validate_device_pair([first], [("iPhone", "phone")])
-        with self.assertRaisesRegex(ValueError, "two distinct"):
-            validate_device_pair([first, first], [("iPhone", "phone"), ("iPad", "tablet")])
+    def test_scoped_results_require_distinct_paths_and_consistent_devices(self):
+        """Phone shards cannot stand in for a phone/tablet pair or change device IDs."""
+        first = Path("/fixture/iphone.xcresult")
+        second = Path("/fixture/ipad.xcresult")
+        third = Path("/fixture/iphone-shard-2.xcresult")
+        with self.assertRaisesRegex(ValueError, "at least 2 distinct"):
+            validate_result_devices([first], [("iPhone", "phone")], "paired")
+        with self.assertRaisesRegex(ValueError, "distinct Xcode"):
+            validate_result_devices(
+                [first, first], [("iPhone", "phone"), ("iPad", "tablet")], "paired"
+            )
         with self.assertRaisesRegex(ValueError, "iPhone and iPad"):
-            validate_device_pair([first, second], [("iPhone", "one"), ("iPhone", "two")])
+            validate_result_devices(
+                [first, second], [("iPhone", "one"), ("iPhone", "one")], "paired"
+            )
         with self.assertRaisesRegex(ValueError, "distinct iPhone"):
-            validate_device_pair([first, second], [("iPhone", "same"), ("iPad", "same")])
-        validate_device_pair([first, second], [("iPhone", "phone"), ("iPad", "tablet")])
+            validate_result_devices(
+                [first, second], [("iPhone", "same"), ("iPad", "same")], "paired"
+            )
+        with self.assertRaisesRegex(ValueError, "same simulator"):
+            validate_result_devices(
+                [first, third], [("iPhone", "phone"), ("iPhone", "other")], "iphone"
+            )
+        with self.assertRaisesRegex(ValueError, "requires only iPhone"):
+            validate_result_devices([second], [("iPad", "tablet")], "iphone")
+        validate_result_devices([first], [("iPhone", "phone")], "iphone")
+        validate_result_devices(
+            [first, third], [("iPhone", "phone"), ("iPhone", "phone")], "iphone"
+        )
+        validate_result_devices(
+            [first, second, third],
+            [("iPhone", "phone"), ("iPad", "tablet"), ("iPhone", "phone")],
+            "paired",
+        )
+
+    def test_iphone_shards_union_exact_ninety_without_certifying_pair(self):
+        """The explicit phone scope joins disjoint hits while retaining the 90% bar."""
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "contracts").mkdir()
+            (root / "contracts/coverage-rules.json").write_text(
+                json.dumps({"thresholds": {"ux": 90}}), encoding="utf-8"
+            )
+            (root / "UI.swift").write_text("test", encoding="utf-8")
+            first, second = root / "first.xcresult", root / "second.xcresult"
+            start = time.time() + 10
+            first_hits = {"UI.swift": {line: line <= 5 for line in range(1, 11)}}
+            second_hits = {"UI.swift": {line: 6 <= line <= 9 for line in range(1, 11)}}
+            with (
+                patch("tools.apple_xccov_gate.collect_result", side_effect=[
+                    (first_hits, start, ("iPhone", "phone")),
+                    (second_hits, start, ("iPhone", "phone")),
+                ]),
+                patch("sys.stdout", new_callable=io.StringIO) as output,
+            ):
+                self.assertEqual(main([
+                    "--root", str(root), "--scope", "iphone",
+                    "--result", str(first), "--result", str(second),
+                ]), 0)
+                self.assertIn("ios.iphone.ui-and-app-ux: 9/10 lines = 90.00%", output.getvalue())
+            with (
+                patch(
+                    "tools.apple_xccov_gate.collect_result",
+                    return_value=(first_hits, start, ("iPhone", "phone")),
+                ),
+                patch("sys.stderr", new_callable=io.StringIO) as errors,
+                patch("sys.stdout", new_callable=io.StringIO),
+            ):
+                self.assertEqual(main([
+                    "--root", str(root), "--scope", "iphone", "--result", str(first),
+                ]), 1)
+                self.assertIn("below 90%", errors.getvalue())
 
     def test_rejects_missing_identity_and_coverage_target(self):
         """A passing but incomplete Xcode report cannot count as UX evidence."""

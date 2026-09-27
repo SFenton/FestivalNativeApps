@@ -160,26 +160,42 @@ def device_identity(summary: dict[str, Any]) -> tuple[str, str]:
     raise ValueError(f"Unsupported iOS simulator device family: {model}")
 
 
-def validate_device_pair(
-    results: list[Path], devices: list[tuple[str, str]]
+def validate_result_devices(
+    results: list[Path], devices: list[tuple[str, str]], scope: str
 ) -> None:
-    """Reject one device, duplicate results, or a pair from the same family.
+    """Require distinct passing-result paths and consistent simulator identities.
 
     Args:
-        results: Xcode result-bundle paths submitted to the gate.
-        devices: Family and device ID read from each passing result.
+        results: Complete Xcode result-bundle paths submitted to the gate.
+        devices: Family and device ID read from each result, in the same order.
+        scope: `paired`, `iphone` or `ipad`; never infer a paired pass from one family.
 
     Raises:
-        ValueError: If the input is not a distinct iPhone and iPad pair.
+        ValueError: On duplicates, mixed devices within a family or wrong scope.
     """
-    if len(results) != 2 or len({result.resolve() for result in results}) != 2:
-        raise ValueError("Provide two distinct Xcode results: one iPhone and one iPad")
-    if (
-        len(devices) != 2
-        or {family for family, _ in devices} != {"iPhone", "iPad"}
-        or len({identifier for _, identifier in devices}) != 2
-    ):
-        raise ValueError("Results must come from distinct iPhone and iPad simulators")
+    if scope not in {"paired", "iphone", "ipad"}:
+        raise ValueError(f"Unsupported iOS coverage scope: {scope}")
+    minimum = 2 if scope == "paired" else 1
+    if len(results) < minimum or len({result.resolve() for result in results}) != len(results):
+        raise ValueError(f"Provide at least {minimum} distinct Xcode result bundles")
+    if len(devices) != len(results):
+        raise ValueError("Xcode result and simulator counts differ")
+    by_family: dict[str, str] = {}
+    for family, identifier in devices:
+        if family not in {"iPhone", "iPad"} or not identifier:
+            raise ValueError("Xcode result has an unsupported simulator identity")
+        if family in by_family and by_family[family] != identifier:
+            raise ValueError(f"{family} result shards must use the same simulator")
+        by_family[family] = identifier
+    if scope == "paired":
+        if set(by_family) != {"iPhone", "iPad"}:
+            raise ValueError("Results must include an iPhone and iPad simulator")
+        if by_family["iPhone"] == by_family["iPad"]:
+            raise ValueError("Results must use distinct iPhone and iPad simulators")
+    else:
+        expected = "iPhone" if scope == "iphone" else "iPad"
+        if set(by_family) != {expected}:
+            raise ValueError(f"{scope} coverage requires only {expected} simulator results")
 
 
 def collect_result(
@@ -236,7 +252,7 @@ def collect_result(
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Check the iOS UX bar against passing, source-identical device runs.
+    """Check the iOS UX bar against complete, source-identical device results.
 
     Args:
         argv: Optional CLI arguments for tests.
@@ -247,11 +263,16 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--result", type=Path, action="append", required=True)
     parser.add_argument("--root", type=Path, default=ROOT)
+    parser.add_argument("--scope", choices=("paired", "iphone", "ipad"), default="paired")
     parser.add_argument("--details", action="store_true")
     args = parser.parse_args(argv)
     try:
-        if len(args.result) != 2 or len({result.resolve() for result in args.result}) != 2:
-            raise ValueError("Provide two distinct Xcode results: one iPhone and one iPad")
+        minimum = 2 if args.scope == "paired" else 1
+        if (
+            len(args.result) < minimum
+            or len({result.resolve() for result in args.result}) != len(args.result)
+        ):
+            raise ValueError(f"Provide at least {minimum} distinct Xcode result bundles")
         root = args.root.resolve()
         rules = json.loads((root / "contracts/coverage-rules.json").read_text(encoding="utf-8"))
         threshold = rules["thresholds"]["ux"]
@@ -260,7 +281,7 @@ def main(argv: list[str] | None = None) -> int:
         reports, starts, devices = zip(
             *(collect_result(result, root) for result in args.result)
         )
-        validate_device_pair(args.result, list(devices))
+        validate_result_devices(args.result, list(devices), args.scope)
         first_start = min(starts)
         for source in reports[0]:
             if (root / source).stat().st_mtime > first_start:
@@ -274,13 +295,17 @@ def main(argv: list[str] | None = None) -> int:
                     f"uncovered: {', '.join(missing[:45])}"
                 )
         covered, executable = union_lines(list(reports))
+        label = (
+            "ios.ui-and-app-ux" if args.scope == "paired"
+            else f"ios.{args.scope}.ui-and-app-ux"
+        )
         print(
-            f"ios.ui-and-app-ux: {covered}/{executable} lines "
+            f"{label}: {covered}/{executable} lines "
             f"= {100 * covered / executable:.2f}% "
             f"(need {threshold}%)"
         )
         if covered * 100 < threshold * executable:
-            raise ValueError(f"iOS UX coverage is below {threshold}%")
+            raise ValueError(f"{args.scope} UX coverage is below {threshold}%")
     except (OSError, KeyError, TypeError, ValueError, ZeroDivisionError) as error:
         print(f"iOS Xcode coverage error: {error}", file=sys.stderr)
         return 1

@@ -22,6 +22,7 @@ from tools.apple_native_matrix import (
     OFFSCREEN_SCORE_PORT,
     REQUIRED_INPUTS,
     ROOT,
+    ROLLOVER_PORTS,
     SCORE_OFFLINE_PORT,
     SERVICE_PORT,
     TEST_SOURCE,
@@ -46,6 +47,7 @@ from tools.apple_native_matrix import (
     validate_product_devices,
     verify_result,
     verify_test_names,
+    xcode_test_timeout,
 )
 from tools.mock_service import FixtureHandler, FixtureServer
 
@@ -386,6 +388,10 @@ class AppleNativeMatrixTests(unittest.TestCase):
         edge_options = fixture_options(["--metadata-edge"])
         self.assertTrue(edge_options["metadataEdge"])
         self.assertFalse(edge_options["unpinned"])
+        rollover = fixture_options(["--unpinned", "--rollover-on-command"])
+        self.assertTrue(rollover["unpinned"])
+        self.assertTrue(rollover["rolloverOnCommand"])
+        self.assertIsNone(rollover["rolloverOnRead"])
         with self.assertRaisesRegex(MatrixError, "Unknown"):
             fixture_options(["--stop-after-first-songs"])
 
@@ -399,6 +405,9 @@ class AppleNativeMatrixTests(unittest.TestCase):
                 self.assertEqual(len(options), len(plan))
                 self.assertNotIn(SERVICE_PORT, options)
                 self.assertEqual(options[METADATA_EDGE_PORT], ["--metadata-edge"])
+                self.assertEqual(
+                    options[ROLLOVER_PORTS[device]], ["--unpinned", "--rollover-on-command"]
+                )
                 for port in (
                     SCORE_OFFLINE_PORT, OFFSCREEN_SCORE_PORT, OFFSCREEN_EMPTY_CHART_PORT
                 ):
@@ -518,6 +527,71 @@ class AppleNativeMatrixTests(unittest.TestCase):
                 self.assertNotIn(DUO_TEST, selectors)
                 self.assertFalse(any(flag.startswith("-skip-testing:") for flag in command))
                 self.assertIn("-enableCodeCoverage", command)
+                self.assertEqual(
+                    executed.call_args.kwargs["timeout"], xcode_test_timeout(total)
+                )
+                self.assertEqual(
+                    command[command.index("-default-test-execution-time-allowance") + 1],
+                    "360",
+                )
+                self.assertEqual(
+                    command[command.index("-maximum-test-execution-time-allowance") + 1],
+                    "600",
+                )
+                self.assertEqual(
+                    command[command.index("-test-timeouts-enabled") + 1], "YES"
+                )
+
+    def test_serial_suite_timeout_scales_and_stays_bounded(self):
+        """One long matrix must fit while bad counts never become unbounded waits."""
+        for count, expected in [(1, 1200), (10, 1200), (20, 2400),
+                                (43, 5160), (100, 5400)]:
+            with self.subTest(count=count):
+                self.assertEqual(xcode_test_timeout(count), expected)
+        for invalid in (0, -1, True, 1.5):
+            with self.subTest(invalid=invalid), self.assertRaisesRegex(
+                MatrixError, "positive integer"
+            ):
+                xcode_test_timeout(invalid)
+
+    def test_timeout_stops_owned_fixtures_and_never_writes_pass_marker(self):
+        """A timed-out matrix cannot leave ports owned or imply compiled-test success."""
+        names = selected_tests(TEST_SOURCE.read_text(encoding="utf-8"), [])[:43]
+        self.assertEqual(len(names), 43)
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with patch("tools.apple_native_matrix.start_fixture", side_effect=[
+                Mock() for _ in device_fixture_plan("ipad")
+            ]), patch(
+                "tools.apple_native_matrix.stop_fixture"
+            ) as stopped, patch(
+                "tools.apple_native_matrix.subprocess.run",
+                side_effect=[
+                    Mock(returncode=0),
+                    subprocess.TimeoutExpired(
+                        cmd=["xcodebuild"], timeout=xcode_test_timeout(len(names))
+                    ),
+                ],
+            ) as executed, patch(
+                "tools.apple_native_matrix.require_unchanged"
+            ):
+                with self.assertRaisesRegex(
+                    MatrixError, "timed out after 5160s for 43 selected tests"
+                ):
+                    run_device(
+                        "ipad", IPAD, root, expected_tests=names,
+                        baseline=file_hashes(
+                            ROOT, FIXTURE_INPUTS + (UI_TEST_SOURCE_INPUT,)
+                        ), env={},
+                        derived_data=root / "apple/DerivedData/native-matrix-ipad",
+                        build_root=root,
+                    )
+                self.assertEqual(executed.call_count, 2)
+                self.assertEqual(stopped.call_count, len(device_fixture_plan("ipad")))
+                self.assertFalse(
+                    (root / "apple/DerivedData/native-matrix-ipad"
+                     / ".fst-ui-test-source-sha256").exists()
+                )
 
     def test_partial_green_result_still_cleans_stateful_fixtures(self):
         """Zero-test success must fail closed and terminate all owned listeners."""

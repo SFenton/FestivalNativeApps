@@ -25,6 +25,7 @@ Source: `FortniteFestivalWeb/src/pages/songs/SongsPage.tsx:340-1380`, `src/hooks
 **Accessibility/test order:** header profile, search, notifications; page title; search, Sort, conditional Filter; section headers and rows with separate warning buttons; quick-link index; tab navigation. Test control-to-control propagation, modal draft confirm/focus restore, filtered row deep link, VoiceOver/TalkBack/Narrator labels, visual states at narrow/regular widths and actual simulator motion. All profile POSTs are fixture-only pending separate service authorization. The current Apple slice implements a fixture-backed, title-ordered Songs list, search, a scene-owned instrument filter retained across iPad/macOS section switches, native Detail/solo navigation, and an accessible notice when a changed publication or hidden instrument clears a route/filter. The native no-results `ContentUnavailableView` uses a wrapping title and bright semantic text: the default one-line label clipped under Xcode's large-Dynamic-Type audit, while the replacement passes an unwaived audit over a synthetic pure-white cover on iPhone and iPad. An instrument-only empty result says no songs **match the filters**, not that the catalogue is empty. The Songs service-error state shares the solo error's readable text and opaque Retry control over artwork. When returning to a visible failed Songs tab, retry even if the observed publication stays the same: the isolated `--fail-first-white-catalogue` fixture verifies a 503, successful white-art Settings check on generation 7, and a recovered Songs row without retaining the old error.
 
 On headerless **live** responses, never claim the observed bootstrap verifies the bytes. After model validation, a separate bounded process-only `unverifiedSnapshot` permits warm-offline Songs with the explicit **"Offline - last seen songs (publication unverified)"** banner. Raw or malformed bytes are never retained, a cold launch has no snapshot, and a known generation change clears it. Verified ETag caching remains separate. Core/macOS hosted tests cover these states; a native iPhone/iPad test against a **self-stopping** local fixture proves warm background→resume→real connection-loss fallback, the rendered/wrapping accessible banner and cold-launch expiry. This does not certify profile rows, full Sort/Filter modals, quick links, persistent cold-launch filter state, broad accessibility postures or full page parity; those remain `pending`.
+The isolated generation 7→8 fixture now advances only after native Detail is visibly loaded: an explicit, one-shot **local mock** command precedes Settings Check. Both focused iPhone/iPad route-reset tests pass 1/1, showing the current unverified Songs banner and a named safe-return notice. An old second-GET counter could advance during concurrent Shop/catalogue startup, causing either an honest unverified-publication error before Detail or no new change to announce at Settings. Do not copy the fixture-only command into a production client or treat these selected tests as complete Songs accessibility or route parity.
 
 **New anonymous Sort slice, not Songs parity:** The top toolbar opens a native draft sheet for title, artist, year, duration or conditional public Item Shop and direction. Only Apply changes catalogue row order; changed Cancel confirms discard, Reset returns to Title A-Z *as a draft*, and the applied preference survives a cold launch. The Swift comparator runs after search and chart filtering, treats missing year/duration as zero like the PWA, and adds a stable song ID for identical titles. A validated Shop feed (including genuinely empty) enables membership sorting; with **no validated feed retained**, an absent/failed read disables that choice, and hiding Shop removes it. Either condition pauses a saved Shop preference with a Title-order notice in the saved direction without erasing it; restoration resumes when Shop and its feed return. A failed refresh after valid data is retained keeps sorting with an explicit error disclosure. The source groups a sorted Shop list into first-seen **Leaving Tomorrow / In Shop / Not In Shop** buckets, showing headings only for at least two nonempty groups. Native now uses those same section rules; before-and-after matched fixture captures exposed and then resolved a missing-header gap, not overall visual parity. The PWA phone uses a lower Search/Sort dock and a bottom sheet, while iOS 26's toolbar Sort originally overlapped its system tab; native now uses a top toolbar and a full-height system sheet. Matched fixture-backed PWA phone/tablet Sort captures show six anonymous modes, including still-unported Has FC, with hint/direction arrows and red Reset; native has at most five inline choices, a segmented direction control, an in-form Reset and fixed Cancel/Apply. A selected source WebKit case and exact iPhone/iPad native case prove Item Shop row/section order in both directions. Do not expose unbacked FC/profile/band modes as empty success. An iPhone 26.5 `.all` audit passed on default, changed and new Shop-choice sheets; iPadOS 26.5 reports unnamed "Potentially inaccessible text" and remains a full-audit gap despite scroll-reachable Reset and measured header/action contrast. The iPad grouped headers' reported accessibility frames span both split-view panes; selected rendered text contrast is measured in the visible detail pane, **not** evidence of correct VoiceOver focus bounds. Neither screenshot set proves responsive landscape, largest Dynamic Type, all mode states, quick-link navigation or VoiceOver focus; keep the complete Songs route `partial`.
 
@@ -171,9 +172,19 @@ score/pill right edges within 2pt, FC versus graded 4.5:1
 badge text and no Shop collision; iPad Hide/Show Sidebar
 and both AX5 long-title/Shop states remain responsive.
 Source fixture WebKit long-title cases pass **2/2** but
-marquee/truncate the title where native wraps it. Source
-also displays formatted duration (6:06) and native Songs
-does not yet; retain this as an explicit content gap.
+marquee/truncate the title where native wraps it. The
+source appends a positive formatted duration after
+artist/year
+(`FortniteFestivalWeb/src/components/songs/metadata/SongInfo.tsx:21-35`,
+`FortniteFestivalWeb/src/utils/formatters.ts:18-27`);
+native now displays the same
+`6:06` fixture value, including at accessibility text
+sizes, while retaining its full-title wrapping instead
+of claiming pixel parity. Missing/nonpositive duration
+does not produce a label. The updated source WebKit
+comparison passed **2/2**, and the native iPhone 26.5
+normal/AX5 card journey passed **1/1** with the combined
+row label; iPadOS has not been rerun for this edit.
 A later review added visible/spoken **Drums chart** context
 for a positive non-Lead score, actual scaled pill insets and
 one native star plus a readable count at accessibility sizes.
@@ -195,9 +206,12 @@ metadata, selected/anonymous chip states, genuine empty
 Bass, Shop and Detail evidence together. Neither that
 targeted `--no-coverage-gate` run nor the compared
 portraits certifies the full Songs route or other platforms.
-The current full SwiftPM UX result is **7994/8874 (90.08%,
-pass)**; selected paired iOS UI/app stays at **3166/4419
-(71.65%, fail)**. Native Mac-hosted tests now paint two
+The current full SwiftPM UX result is **8005/8882 (90.13%,
+pass)**; the older selected paired iOS UI/app result stays at
+**3166/4419 (71.65%, fail)**. A pre-duration eight-case
+iPhone-only shard measured **3414/4419 (77.26%, fail)**;
+the current-source phone gate remains unmeasured. Native
+Mac-hosted tests now paint two
 validated players' real chip/FC/Drums rows, source-ordered
 metadata, grouped Shop and paused/empty/error sort,
 search/no-results, unverified offline, and selected-identity

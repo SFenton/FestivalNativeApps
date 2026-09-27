@@ -82,6 +82,22 @@ public struct Song: Decodable, Sendable, Identifiable, Equatable, Hashable {
 
     public var id: String { songId }
 
+    /// Format a positive catalogue duration like the source Song info block.
+    ///
+    /// - Returns: `m:ss` or `h:mm:ss`, or nil for missing or nonpositive seconds.
+    public var formattedDuration: String? {
+        guard let durationSeconds, durationSeconds > 0 else { return nil }
+        let hours = durationSeconds / 3_600
+        let minutes = (durationSeconds % 3_600) / 60
+        let seconds = durationSeconds % 60
+        let secondText = seconds < 10 ? "0\(seconds)" : "\(seconds)"
+        if hours > 0 {
+            let minuteText = minutes < 10 ? "0\(minutes)" : "\(minutes)"
+            return "\(hours):\(minuteText):\(secondText)"
+        }
+        return "\(minutes):\(secondText)"
+    }
+
     /// Whether an instrument has a playable chart, independent of visibility.
     ///
     /// - Parameter instrument: Solo chart selected by the user.

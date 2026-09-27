@@ -42,6 +42,11 @@ METADATA_EDGE_PORT = 8776
 ROLLOVER_PORTS = {"iphone": 8767, "ipad": 8768}
 DEVICE_FAMILIES = {"iphone": "iPhone", "ipad": "iPad"}
 LOCK_FILE = Path("/tmp/festival-native-matrix.lock")
+MIN_XCODE_TEST_SECONDS = 1_200
+SECONDS_PER_UI_TEST = 120
+MAX_XCODE_TEST_SECONDS = 5_400
+DEFAULT_UI_CASE_SECONDS = 360
+MAX_UI_CASE_SECONDS = 600
 FIXTURE_INPUTS = (
     "tools/mock_service.py",
     "contracts/fixtures/publication.json",
@@ -257,6 +262,26 @@ def selected_tests(source: str, requested: list[str]) -> list[str]:
             raise MatrixError("Unknown, duplicate or Duo-only UI-test selector")
         return requested
     return [name for name in discovered if name != DUO_TEST]
+
+
+def xcode_test_timeout(test_count: int) -> int:
+    """Bound serial Xcode runs without truncating larger state-coverage suites.
+
+    Args:
+        test_count: Distinct source-discovered XCTest methods in this device run.
+
+    Returns:
+        At least 20 minutes, two minutes per method, capped at 90 minutes.
+
+    Raises:
+        MatrixError: For a missing or invalid method count.
+    """
+    if type(test_count) is not int or test_count < 1:
+        raise MatrixError("Xcode suite requires a positive integer test count")
+    return min(
+        MAX_XCODE_TEST_SECONDS,
+        max(MIN_XCODE_TEST_SECONDS, test_count * SECONDS_PER_UI_TEST),
+    )
 
 
 def booted_targets(report: dict, allowed: set[str]) -> set[str]:
@@ -477,6 +502,7 @@ def fixture_options(flags: list[str]) -> dict[str, bool | int | None]:
     """
     options: dict[str, bool | int | None] = {
         "unpinned": False, "rolloverOnRead": None,
+        "rolloverOnCommand": False,
         "failFirstWhiteCatalogue": False,
         "stopAfterFirstSongs": False,
         "stopAfterFirstScore": False,
@@ -487,6 +513,8 @@ def fixture_options(flags: list[str]) -> dict[str, bool | int | None]:
         return options
     if flags == ["--unpinned", "--rollover-on-read", "2"]:
         return dict(options, unpinned=True, rolloverOnRead=2)
+    if flags == ["--unpinned", "--rollover-on-command"]:
+        return dict(options, unpinned=True, rolloverOnCommand=True)
     if flags == ["--fail-first-white-catalogue"]:
         return dict(options, failFirstWhiteCatalogue=True)
     if flags == ["--unpinned", "--stop-after-first-songs"]:
@@ -515,7 +543,7 @@ def device_fixture_plan(device: str) -> tuple[tuple[int, list[str]], ...]:
     if device not in ROLLOVER_PORTS:
         raise MatrixError(f"Unknown product fixture device: {device}")
     plan = (
-        (ROLLOVER_PORTS[device], ["--unpinned", "--rollover-on-read", "2"]),
+        (ROLLOVER_PORTS[device], ["--unpinned", "--rollover-on-command"]),
         (RECOVERY_PORT, ["--fail-first-white-catalogue"]),
         (OFFLINE_PORT, ["--unpinned", "--stop-after-first-songs"]),
         (SCORE_OFFLINE_PORT, ["--unpinned", "--stop-after-first-score"]),
@@ -792,22 +820,29 @@ def run_device(
             "-derivedDataPath", str(product_derived),
             "-resultBundlePath", str(result), "-parallel-testing-enabled", "NO",
             "-enableCodeCoverage", "YES",
+            "-test-timeouts-enabled", "YES",
+            "-default-test-execution-time-allowance", str(DEFAULT_UI_CASE_SECONDS),
+            "-maximum-test-execution-time-allowance", str(MAX_UI_CASE_SECONDS),
         ]
         command.extend(
             f"-only-testing:FestivalMobileUITests/FestivalMobileUITests/{name}"
             for name in expected_tests
         )
         command.extend(["test", "CODE_SIGNING_ALLOWED=NO"])
+        timeout = xcode_test_timeout(len(expected_tests))
         log = evidence / f"{device}-xcodebuild.log"
         with log.open("x", encoding="utf-8") as output:
             try:
                 process = subprocess.run(
                     command, cwd=build_root, env=env, text=True,
                     stdout=output, stderr=subprocess.STDOUT,
-                    check=False, timeout=1200,
+                    check=False, timeout=timeout,
                 )
             except subprocess.TimeoutExpired as error:
-                raise MatrixError(f"{device} xcodebuild timed out; see {log}") from error
+                raise MatrixError(
+                    f"{device} xcodebuild timed out after {timeout}s "
+                    f"for {len(expected_tests)} selected tests; see {log}"
+                ) from error
         if process.returncode:
             raise MatrixError(
                 f"{device} xcodebuild exited {process.returncode}; see {log}\n"

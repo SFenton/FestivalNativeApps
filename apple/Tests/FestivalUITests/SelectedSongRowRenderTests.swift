@@ -231,4 +231,25 @@ private func selectedSongRow(
     #expect(lead.fills.gold > 10)
     #expect(largest.fills.gold > 10 && largest.fills.green > 10)
 }
+
+/// The same anonymous native card must paint the source's optional duration.
+@MainActor
+@Test func songRowPaintsOptionalCatalogueDuration() throws {
+    let plain = try JSONDecoder().decode(Song.self, from: Data("""
+    {"songId":"fixture-duration","title":"Fixture Ballad","artist":"Test Ensemble",
+     "year":2026}
+    """.utf8))
+    let timed = try JSONDecoder().decode(Song.self, from: Data("""
+    {"songId":"fixture-duration","title":"Fixture Ballad","artist":"Test Ensemble",
+     "year":2026,"durationSeconds":366}
+    """.utf8))
+    let session = FestivalSession(factory: { throw FestivalAPIError.invalidResource })
+    let withoutDuration = try selectedSongRow(
+        name: "without-duration", song: plain, session: session, season: 9, icons: false
+    )
+    let withDuration = try selectedSongRow(
+        name: "with-duration", song: timed, session: session, season: 9, icons: false
+    )
+    #expect(withoutDuration.data != withDuration.data)
+}
 #endif

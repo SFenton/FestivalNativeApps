@@ -114,19 +114,21 @@ class FixtureServer(ThreadingHTTPServer):
     def __init__(
         self, address: tuple[str, int], handler: type[BaseHTTPRequestHandler],
         *, unpinned: bool = False, rollover_on_read: int | None = None,
+        rollover_on_command: bool = False,
         fail_first_white_catalogue: bool = False,
         stop_after_first_songs: bool = False,
         stop_after_first_score: bool = False,
         stop_after_first_shop: bool = False,
         metadata_edge: bool = False,
     ) -> None:
-        """Create a deterministic, request-count-driven service fixture.
+        """Create a deterministic, bounded service fixture.
 
         Args:
             address: Loopback host and port.
             handler: Allowlisted HTTP request handler.
             unpinned: Omit response publication headers like an unfrozen service.
             rollover_on_read: First publication GET that advances generation 7 to 8.
+            rollover_on_command: Advance once only after an explicit test-only GET.
             fail_first_white_catalogue: Fail one white-art catalogue read, then recover.
             stop_after_first_songs: Stop this mock listener after its first successful Songs read.
             stop_after_first_score: Stop after the first successful full 25-row chart read.
@@ -134,17 +136,25 @@ class FixtureServer(ThreadingHTTPServer):
             metadata_edge: Publish one isolated long-title, score and Shop contract.
         """
         if metadata_edge and (
-            unpinned or rollover_on_read is not None or fail_first_white_catalogue
+            unpinned or rollover_on_read is not None or rollover_on_command
+            or fail_first_white_catalogue
             or stop_after_first_songs or stop_after_first_score or stop_after_first_shop
         ):
             raise ValueError("Metadata edge fixture must remain publication-pinned and persistent")
+        if rollover_on_command and (
+            not unpinned or rollover_on_read is not None or fail_first_white_catalogue
+            or stop_after_first_songs or stop_after_first_score or stop_after_first_shop
+        ):
+            raise ValueError("Command rollover needs its own persistent unpinned fixture")
         self.unpinned = unpinned
         self.metadata_edge = metadata_edge
         self.rollover_on_read = rollover_on_read
+        self.rollover_on_command = rollover_on_command
         self.source_hashes = SOURCE_HASHES.copy()
         self.options = {
             "unpinned": unpinned,
             "rolloverOnRead": rollover_on_read,
+            "rolloverOnCommand": rollover_on_command,
             "failFirstWhiteCatalogue": fail_first_white_catalogue,
             "stopAfterFirstSongs": stop_after_first_songs,
             "stopAfterFirstScore": stop_after_first_score,
@@ -183,6 +193,18 @@ class FixtureServer(ThreadingHTTPServer):
             "readyForPinning": not self.unpinned,
             "pinningEnabled": not self.unpinned,
         }
+
+    def advance_publication(self) -> bool:
+        """Move one dedicated local fixture from seven to eight exactly once.
+
+        Returns:
+            True only for a command-enabled, previously unadvanced listener.
+        """
+        with self._lock:
+            if not self.rollover_on_command or self._publication_id != 7:
+                return False
+            self._publication_id = 8
+            return True
 
     def record_score_query(self, top: int, offset: int, leeway: float | None) -> None:
         """Retain only validated synthetic query numbers, never account identifiers.
@@ -428,7 +450,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
 
     # region Public-only endpoint fixtures
     def do_GET(self) -> None:
-        """Answer only known read-only fixture endpoints with valid page bounds.
+        """Serve public reads and explicitly allowlisted local-only test controls.
 
         Returns:
             None; every known outcome produces a complete HTTP response.
@@ -446,6 +468,15 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 "ready": True, "sourceHashes": self.fixture.source_hashes,
                 "options": self.fixture.options,
             })
+        elif path == "/__fixture__/advance-publication":
+            if query:
+                self._json(400, {"status": "invalid_fixture_query"})
+            elif not self.fixture.rollover_on_command:
+                self._json(404, {"status": "not_found"})
+            elif self.fixture.advance_publication():
+                self._json(200, {"publicationId": 8})
+            else:
+                self._json(409, {"status": "publication_already_advanced"})
         elif path == "/__fixture__/last-score-query":
             self._json(200, {"last": self.fixture.last_score_query()})
         elif path == "/__fixture__/last-full-score-query":
@@ -805,6 +836,7 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--unpinned", action="store_true")
     parser.add_argument("--rollover-on-read", type=int)
+    parser.add_argument("--rollover-on-command", action="store_true")
     parser.add_argument("--fail-first-white-catalogue", action="store_true")
     parser.add_argument("--stop-after-first-songs", action="store_true")
     parser.add_argument("--stop-after-first-score", action="store_true")
@@ -824,16 +856,22 @@ def main() -> None:
             parser.error("one-shot offline fixtures require --unpinned")
         if one_shot_count > 1:
             parser.error("choose one endpoint for the one-shot connection loss")
+    if args.rollover_on_command and (
+        not args.unpinned or args.rollover_on_read is not None
+        or one_shot_count or args.fail_first_white_catalogue or args.metadata_edge
+    ):
+        parser.error("command rollover requires a separate persistent unpinned fixture")
     with FixtureServer(
         ("127.0.0.1", args.port), FixtureHandler,
         unpinned=args.unpinned, rollover_on_read=args.rollover_on_read,
+        rollover_on_command=args.rollover_on_command,
         fail_first_white_catalogue=args.fail_first_white_catalogue,
         stop_after_first_songs=args.stop_after_first_songs,
         stop_after_first_score=args.stop_after_first_score,
         stop_after_first_shop=args.stop_after_first_shop,
         metadata_edge=args.metadata_edge
     ) as server:
-        print(f"Read-only fixture service on 127.0.0.1:{server.server_port}", flush=True)
+        print(f"Local test fixture service on 127.0.0.1:{server.server_port}", flush=True)
         server.serve_forever()
 
 

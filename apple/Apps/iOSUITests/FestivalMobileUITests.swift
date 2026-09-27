@@ -637,6 +637,7 @@ final class FestivalMobileUITests: XCTestCase {
         XCTAssertTrue(row.label.contains(
             "Synthetic Quartet Featuring an Extended Ensemble"
         ))
+        XCTAssertTrue(row.label.contains("2026 · 6:06"))
         let lastPlayed = metadataElement(
             "lastPlayed", songId: "fixture-marathon", in: app
         )
@@ -699,6 +700,7 @@ final class FestivalMobileUITests: XCTestCase {
         XCTAssertTrue(restored.label.contains("Full combo, accuracy 97.9 percent"))
         XCTAssertTrue(restored.label.contains("Song intensity 3 of 7"))
         XCTAssertTrue(restored.label.contains("Last played"))
+        XCTAssertTrue(restored.label.contains("2026 · 6:06"))
         let tabs = app.tabBars.firstMatch
         let visibleBottom = (tabs.exists
             ? tabs.frame.minY : app.windows.firstMatch.frame.maxY) - 8
@@ -2834,14 +2836,20 @@ final class FestivalMobileUITests: XCTestCase {
     ///
     /// - Throws: Missing unverified-data label, stale Detail route or absent notice.
     @MainActor
-    func testHeaderlessRolloverExplainsRouteReset() throws {
+    func testHeaderlessRolloverExplainsRouteReset() async throws {
         continueAfterFailure = false
         let app = fixtureApp()
         let port = UIDevice.current.userInterfaceIdiom == .pad ? 8768 : 8767
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:\(port)"
         app.launch()
         let song = app.buttons["fst.songs.row.fixture-pulse"]
-        XCTAssertTrue(song.waitForExistence(timeout: 15))
+        let appeared = song.waitForExistence(timeout: 15)
+        if !appeared {
+            record(app, name: "songs-unpinned-rollover-initial-failure")
+        }
+        XCTAssertTrue(
+            appeared, "Unpinned Songs initial state: \(app.debugDescription.prefix(1_800))"
+        )
         XCTAssertTrue(app.descendants(matching: .any).matching(
             NSPredicate(
                 format: "label == %@",
@@ -2853,6 +2861,15 @@ final class FestivalMobileUITests: XCTestCase {
         ).firstMatch.exists)
         song.tap()
         XCTAssertTrue(app.staticTexts["Intensity"].waitForExistence(timeout: 10))
+
+        let advance = try XCTUnwrap(
+            URL(string: "http://127.0.0.1:\(port)/__fixture__/advance-publication")
+        )
+        let (data, response) = try await URLSession.shared.data(from: advance)
+        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+        XCTAssertEqual(
+            try JSONDecoder().decode(FixturePublicationAdvance.self, from: data).publicationId, 8
+        )
 
         rootControl("Settings", app: app).tap()
         let publication = app.buttons["Check Publication"]
@@ -2866,7 +2883,13 @@ final class FestivalMobileUITests: XCTestCase {
         let notice = app.staticTexts.matching(
             NSPredicate(format: "label BEGINSWITH %@", "Published scores changed.")
         ).firstMatch
-        XCTAssertTrue(notice.waitForExistence(timeout: 10))
+        let noticeAppeared = notice.waitForExistence(timeout: 10)
+        if !noticeAppeared {
+            record(app, name: "songs-unpinned-rollover-missing-notice")
+        }
+        XCTAssertTrue(
+            noticeAppeared, "Unpinned rollover return: \(app.debugDescription.prefix(2_400))"
+        )
         XCTAssertFalse(app.staticTexts["Intensity"].exists)
         XCTAssertTrue(song.waitForExistence(timeout: 10))
         record(app, name: "songs-unpinned-rollover-notice")
@@ -3548,6 +3571,11 @@ final class FestivalMobileUITests: XCTestCase {
 
     private struct ShopStopConfirmation: Decodable {
         let stopping: Bool
+    }
+
+    /// Only an explicitly signaled local fixture may move publication seven to eight.
+    private struct FixturePublicationAdvance: Decodable {
+        let publicationId: Int
     }
 
     /// Trigger only the fixture's one-shot loss after visible Shop artwork proof.

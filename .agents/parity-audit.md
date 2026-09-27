@@ -184,12 +184,15 @@ these review fixes; a fresh source-frozen pair now passes
 **10/10 on each** iPhone/iPadOS 26.5 simulator, with
 **6/6** source WebKit comparisons and both Apple Release
 builds. A subsequent test-only AppKit host pass on
-real Profile/CHOpt/Shop states raises measured
+real Profile/CHOpt/Shop states raised measured
 SwiftPM logic to **1761/1843 (95.55%, pass)** and
 UX to **7994/8874 (90.08%, pass)** after genuine
 selected Songs and profile search/band/sync/error
-states; two full runs passed on unchanged app source.
-The selected paired iOS UI/app subset still fails
+states; two full runs passed on that unchanged app source.
+After adding source-formatted Song-row duration, a new
+full run passes at **1773/1855 (95.58%) logic** and
+**8005/8882 (90.13%) UX**. The last passing selected
+paired iOS UI/app subset predates duration and still fails
 at **3166/4419 (71.65%)**. Passing hosted line
 coverage is not a proxy for complete accessibility,
 macOS GUI, PWA pixel or all-route parity.

@@ -36,6 +36,7 @@ class MockServiceTests(unittest.TestCase):
         self.assertTrue(identity["ready"])
         self.assertEqual(identity["options"], {
             "unpinned": False, "rolloverOnRead": None,
+            "rolloverOnCommand": False,
             "failFirstWhiteCatalogue": False,
             "stopAfterFirstSongs": False,
             "stopAfterFirstScore": False,
@@ -520,6 +521,53 @@ class MockServiceTests(unittest.TestCase):
             finally:
                 server.shutdown()
                 thread.join(timeout=2)
+
+    def test_explicit_rollover_waits_for_loaded_detail_and_changes_only_once(self):
+        """Concurrent bootstrap reads cannot consume a later user-triggered change."""
+        with FixtureServer(
+            ("127.0.0.1", 0), FixtureHandler,
+            unpinned=True, rollover_on_command=True,
+        ) as server:
+            worker = threading.Thread(target=server.serve_forever, daemon=True)
+            worker.start()
+            root = f"http://127.0.0.1:{server.server_port}"
+            try:
+                with urlopen(root + "/__fixture__/health") as response:
+                    options = json.load(response)["options"]
+                self.assertTrue(options["unpinned"])
+                self.assertTrue(options["rolloverOnCommand"])
+                self.assertIsNone(options["rolloverOnRead"])
+                for _ in range(4):
+                    with urlopen(root + "/api/publication") as response:
+                        self.assertEqual(json.load(response)["publicationId"], 7)
+                    with urlopen(root + "/api/songs") as response:
+                        self.assertEqual(json.load(response)["count"], 2)
+                        self.assertIsNone(response.headers.get("X-FST-Publication-Id"))
+                unsafe = Request(
+                    root + "/__fixture__/advance-publication",
+                    headers={"X-FST-Selected-Player": "fixture-player-1"},
+                )
+                with self.assertRaises(HTTPError) as blocked:
+                    urlopen(unsafe)
+                self.assertEqual(blocked.exception.code, 400)
+                with urlopen(root + "/api/publication") as response:
+                    self.assertEqual(json.load(response)["publicationId"], 7)
+                with urlopen(root + "/__fixture__/advance-publication") as response:
+                    self.assertEqual(json.load(response), {"publicationId": 8})
+                with urlopen(root + "/api/publication") as response:
+                    self.assertEqual(json.load(response)["publicationId"], 8)
+                with urlopen(root + "/api/songs") as response:
+                    self.assertEqual(json.load(response)["count"], 2)
+                    self.assertIsNone(response.headers.get("X-FST-Publication-Id"))
+                with self.assertRaises(HTTPError) as repeated:
+                    urlopen(root + "/__fixture__/advance-publication")
+                self.assertEqual(repeated.exception.code, 409)
+                with self.assertRaises(HTTPError) as ordinary:
+                    urlopen(self.base + "/__fixture__/advance-publication")
+                self.assertEqual(ordinary.exception.code, 404)
+            finally:
+                server.shutdown()
+                worker.join(timeout=2)
 
     def test_artwork_failure_fixtures_are_isolated_and_bounded(self):
         """Unavailable art is synthetic; ordinary song fixture remains unchanged."""

@@ -339,6 +339,7 @@ for (const viewport of viewports.filter(entry => entry.id.endsWith('portrait')))
     const score = row.getByText('1,234,567', { exact: true });
     await expect(title).toBeVisible();
     await expect(score).toBeVisible();
+    await expect(row).toContainText('Synthetic Quartet Featuring an Extended Ensemble · 2026 · 6:06');
     await page.screenshot({
       path: join(output, `${testInfo.project.name}-${viewport.id}-songs-long-seven-digit-shop.png`),
       animations: 'disabled',

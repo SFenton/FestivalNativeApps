@@ -40,3 +40,25 @@ func chartedInstrumentsMatchWireFields(_ instrument: Instrument) throws {
         try missingID.validate()
     }
 }
+
+/// Mirror the PWA's positive-duration labels without inventing missing metadata.
+@Test func songDurationMatchesSourceFormatting() throws {
+    let cases: [(Int?, String?)] = [
+        (nil, nil), (0, nil), (-1, nil),
+        (5, "0:05"), (59, "0:59"), (60, "1:00"),
+        (366, "6:06"), (3_600, "1:00:00"), (3_661, "1:01:01"),
+        (86_400, "24:00:00"),
+    ]
+    for (seconds, expected) in cases {
+        var record: [String: Any] = [
+            "songId": "fixture-duration", "title": "Fixture", "artist": "Test",
+        ]
+        if let seconds {
+            record["durationSeconds"] = seconds
+        }
+        let song = try JSONDecoder().decode(
+            Song.self, from: JSONSerialization.data(withJSONObject: record)
+        )
+        #expect(song.formattedDuration == expected)
+    }
+}
