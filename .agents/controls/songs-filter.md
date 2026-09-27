@@ -24,7 +24,10 @@ generation before Filter, Shop Sort/grouping or Songs-row Shop
 badges use those offers. A failed refresh may retain older Songs:
 keep them visible with explicit paused notices, without newer Shop
 membership or badges. An observed ID is not proof that a headerless
-response was pinned. Never synthesize empty membership from HTTP 503,
+response was pinned. The selected-player score index now has its **own**
+observation and paused state for the same old-Songs/new-profile failure;
+it does not control public Shop membership or Filter editing. Never
+synthesize empty membership from HTTP 503,
 send selected-profile headers or request a privileged key.
 Native entrypoints are `apple/Sources/FestivalCore/SongShopFilter.swift`,
 `apple/Sources/FestivalUI/SongScreens.swift` and

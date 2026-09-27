@@ -18,6 +18,7 @@ actor HostedShopTransport: HTTPTransport {
     let offers: Data
     let catalogue: Data
     let player: Data?
+    let rolloverPlayer: Data?
     let rolloverOffers: Data?
     let failSongsAfterRollover: Bool
     private var generation = 7
@@ -30,17 +31,20 @@ actor HostedShopTransport: HTTPTransport {
     ///   - offers: Original local Shop JSON, not a production response.
     ///   - catalogue: Matching original synthetic Songs JSON.
     ///   - player: Optional fixture player profile for selected Songs renders.
+    ///   - rolloverPlayer: Distinct selected score bytes after the generation changes.
     ///   - rolloverOffers: Changed Shop membership only after a test advances publication.
     ///   - failSongsAfterRollover: Reproduce a retained old catalogue after generation eight.
     init(
         scenario: HostedShopScenario, offers: Data, catalogue: Data,
-        player: Data? = nil, rolloverOffers: Data? = nil,
+        player: Data? = nil, rolloverPlayer: Data? = nil,
+        rolloverOffers: Data? = nil,
         failSongsAfterRollover: Bool = false
     ) {
         self.scenario = scenario
         self.offers = offers
         self.catalogue = catalogue
         self.player = player
+        self.rolloverPlayer = rolloverPlayer
         self.rolloverOffers = rolloverOffers
         self.failSongsAfterRollover = failSongsAfterRollover
     }
@@ -106,7 +110,8 @@ actor HostedShopTransport: HTTPTransport {
         case "/api/player/fixture-player-2":
             guard let player else { throw FestivalAPIError.invalidResource }
             return HTTPResult(
-                status: 200, data: player,
+                status: 200,
+                data: generation == 8 ? (rolloverPlayer ?? player) : player,
                 headers: ["X-FST-Publication-Id": String(generation)]
             )
         default:

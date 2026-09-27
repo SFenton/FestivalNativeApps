@@ -55,3 +55,28 @@ import Testing
     #expect(!SongShopPublicationPolicy.matches(catalogue: 8, shop: 7, current: 8))
     #expect(!SongShopPublicationPolicy.matches(catalogue: 7, shop: 7, current: 8))
 }
+
+/// The same observed-generation rule must reject a newer player score index on older Songs.
+@Test func relatedPublicationMatchRejectsMissingAndMixedScoreObservations() {
+    #expect(SongRelatedPublicationPolicy.matches(
+        catalogue: 7, related: 7, current: 7
+    ))
+    #expect(SongRelatedPublicationPolicy.matches(
+        catalogue: 8, related: 8, current: 8
+    ))
+    #expect(!SongRelatedPublicationPolicy.matches(
+        catalogue: 7, related: 8, current: 8
+    ))
+    #expect(!SongRelatedPublicationPolicy.matches(
+        catalogue: 8, related: 7, current: 8
+    ))
+    #expect(!SongRelatedPublicationPolicy.matches(
+        catalogue: 7, related: 7, current: 8
+    ))
+    #expect(!SongRelatedPublicationPolicy.matches(
+        catalogue: 7, related: nil, current: 7
+    ))
+    #expect(!SongRelatedPublicationPolicy.matches(
+        catalogue: 7, related: 7, current: nil
+    ))
+}

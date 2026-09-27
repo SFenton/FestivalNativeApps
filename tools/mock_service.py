@@ -45,6 +45,7 @@ PATH_DEMO, PATH_DEMO_HASH = load_fixture("path-demo")
 SHOP_DEMO, SHOP_DEMO_HASH = load_fixture("shop-demo")
 PLAYER_DEMO, PLAYER_DEMO_HASH = load_fixture("player-demo")
 METADATA_EDGE, METADATA_EDGE_HASH = load_fixture("metadata-edge")
+ROLLOVER_PLAYER_2_LEAD_SCORE = 99_850
 EDGE_SONG_ID = "fixture-marathon"
 _edge_song = METADATA_EDGE["songs"]["songs"][0]
 _edge_profile = METADATA_EDGE["player"]
@@ -606,7 +607,20 @@ class FixtureHandler(BaseHTTPRequestHandler):
                     "totalScores": 0, "scores": [],
                 })
             elif account_id in PLAYER_DEMO["profiles"]:
-                self._json(200, PLAYER_DEMO["profiles"][account_id])
+                profile = PLAYER_DEMO["profiles"][account_id]
+                if (self.fixture.mismatched_shop_rollover
+                        and self.fixture.publication_id == 8
+                        and account_id == "fixture-player-2"):
+                    profile = {
+                        **profile,
+                        "scores": [
+                            {**score, "sc": ROLLOVER_PLAYER_2_LEAD_SCORE}
+                            if score.get("si") == "fixture-pulse"
+                            and score.get("ins") == "01" else score
+                            for score in profile["scores"]
+                        ],
+                    }
+                self._json(200, profile)
                 if self.fixture.mismatched_shop_rollover:
                     self.fixture.record_publication_join_read("player")
             else:
@@ -844,6 +858,13 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 }
                 for rank in ranks
             ]
+            if (self.fixture.mismatched_shop_rollover
+                    and self.fixture.publication_id == 8
+                    and song_id == "fixture-pulse"
+                    and instrument == "Solo_Guitar"):
+                for entry in entries:
+                    if entry["rank"] == 2:
+                        entry["score"] = ROLLOVER_PLAYER_2_LEAD_SCORE
             total = 26 if instrument == "Solo_Guitar" else 0
             if song_id == "fixture-pulse" and instrument == "Solo_Drums":
                 total = 1

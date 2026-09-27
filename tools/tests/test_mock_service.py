@@ -596,7 +596,20 @@ class MockServiceTests(unittest.TestCase):
                     self.assertEqual(response.headers["X-FST-Publication-Id"], "7")
                     old_shop_etag = response.headers["ETag"]
                 with urlopen(root + "/api/player/fixture-player-2") as response:
-                    self.assertEqual(json.load(response)["totalScores"], 3)
+                    first_profile = json.load(response)
+                    self.assertEqual(first_profile["totalScores"], 3)
+                    self.assertEqual(
+                        next(score["sc"] for score in first_profile["scores"]
+                             if score["si"] == "fixture-pulse" and score["ins"] == "01"),
+                        99_800,
+                    )
+                with urlopen(
+                    root + "/api/leaderboard/fixture-pulse/Solo_Guitar?top=2&offset=0"
+                ) as response:
+                    self.assertEqual(
+                        [entry["score"] for entry in json.load(response)["entries"]],
+                        [99_900, 99_800],
+                    )
                 with self.assertRaises(HTTPError) as selected_header:
                     urlopen(Request(
                         root + "/__fixture__/advance-publication",
@@ -633,7 +646,28 @@ class MockServiceTests(unittest.TestCase):
                     headers={"X-FST-Publication-Id": "8"},
                 )) as response:
                     self.assertEqual(response.headers["X-FST-Publication-Id"], "8")
-                    self.assertEqual(json.load(response)["totalScores"], 3)
+                    new_profile = json.load(response)
+                    self.assertEqual(new_profile["totalScores"], 3)
+                    self.assertEqual(
+                        next(score["sc"] for score in new_profile["scores"]
+                             if score["si"] == "fixture-pulse" and score["ins"] == "01"),
+                        99_850,
+                    )
+                    self.assertEqual(
+                        next(score["sc"] for score in new_profile["scores"]
+                             if score["si"] == "fixture-pulse" and score["ins"] == "04"),
+                        88_800,
+                    )
+                with urlopen(Request(
+                    root + "/api/leaderboard/fixture-pulse/Solo_Guitar?top=2&offset=0",
+                    headers={"X-FST-Publication-Id": "8"},
+                )) as response:
+                    self.assertEqual(response.headers["X-FST-Publication-Id"], "8")
+                    self.assertEqual(
+                        [(entry["rank"], entry["score"])
+                         for entry in json.load(response)["entries"]],
+                        [(1, 99_900), (2, 99_850)],
+                    )
                 with self.assertRaises(HTTPError) as missing:
                     urlopen(Request(
                         root + "/api/songs",

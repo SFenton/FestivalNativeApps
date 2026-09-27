@@ -159,6 +159,8 @@
     "fst.songs.profile-summary.*": "profile-selection",
     "fst.songs.profile-status": "profile-selection",
     "fst.songs.profile-retry": "profile-selection",
+    "fst.songs.profile-paused": "profile-selection",
+    "fst.songs.profile-paused-row.*": "profile-selection",
     "fst.song-detail.intensity": "song-detail",
     "fst.song-detail.paths": "chopt-paths",
     "fst.paths.instrument": "chopt-paths",

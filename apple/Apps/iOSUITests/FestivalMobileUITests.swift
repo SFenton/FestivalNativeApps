@@ -886,9 +886,14 @@ final class FestivalMobileUITests: XCTestCase {
         let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launchArguments += [
+            "-fst.songs.sortMode", "title",
+            "-fst.songs.sortAscending", "YES",
+        ]
         app.launch()
         let song = app.buttons["fst.songs.row.fixture-pulse"]
         XCTAssertTrue(song.waitForExistence(timeout: 15))
+        XCTAssertEqual(app.buttons["fst.songs.sort"].value as? String, "Title, ascending")
         showSelectedScoreMetadata(in: app)
         viewFixturePlayer("fixture-player-2", query: "Fixture Player", in: app)
         XCTAssertTrue(app.staticTexts["fst.profile.score-count"]
@@ -3440,6 +3445,9 @@ final class FestivalMobileUITests: XCTestCase {
             .matching(identifier: "fst.songs.shop-badge.fixture-pulse").firstMatch
         XCTAssertTrue(orbitBadge.waitForExistence(timeout: 10))
         XCTAssertTrue(pulseBadge.exists)
+        XCTAssertTrue(
+            chipEntries(for: "fixture-pulse", in: app).contains("Lead, full combo")
+        )
         record(app, name: "songs-shop-join-publication-seven")
 
         try await advanceFixturePublication(port: port)
@@ -3479,6 +3487,14 @@ final class FestivalMobileUITests: XCTestCase {
         XCTAssertEqual(reads.shop, 8)
         XCTAssertEqual(reads.player, 8)
         XCTAssertEqual(reads.failedSongs, 8)
+        let profilePaused = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.profile-paused").firstMatch
+        let scoreNotice = XCTNSPredicateExpectation(
+            predicate: NSPredicate(
+                format: "label CONTAINS %@", "current observed publication"
+            ), object: profilePaused
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [scoreNotice], timeout: 15), .completed)
         let list = app.collectionViews["fst.songs.list"]
         XCTAssertTrue(list.waitForExistence(timeout: 10))
         for _ in 0..<8 {
@@ -3489,10 +3505,7 @@ final class FestivalMobileUITests: XCTestCase {
         let refreshedChips = app.descendants(matching: .any).matching(
             identifier: "fst.songs.instrument-status.fixture-pulse"
         ).firstMatch
-        XCTAssertTrue(
-            refreshedChips.waitForExistence(timeout: 10),
-            "Only newly available player scores may repaint instrument chips"
-        )
+        XCTAssertFalse(refreshedChips.exists, "Newer player chips decorated older Songs")
         XCTAssertFalse(app.descendants(matching: .any).matching(
             identifier: "fst.songs.shop-error"
         ).firstMatch.exists)
@@ -3505,9 +3518,6 @@ final class FestivalMobileUITests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any).matching(
             identifier: "fst.songs.shop-section.in-shop"
         ).firstMatch.exists)
-        XCTAssertTrue(app.descendants(matching: .any).matching(
-            identifier: "fst.songs.refresh-error"
-        ).firstMatch.exists)
         XCTAssertTrue((sort.value as? String)?.contains("paused; showing Title order") == true)
         let filter = app.buttons["fst.songs.filter"]
         XCTAssertTrue((filter.value as? String)?.contains("paused; showing all songs") == true)
@@ -3518,8 +3528,32 @@ final class FestivalMobileUITests: XCTestCase {
                 failureName: "songs-shop-join-\(name)-unreachable",
                 bottomMargin: 0
             )
+            XCTAssertTrue(
+                row.label.contains("Player scores paused until songs update"),
+                "The retained \(name) row still presents newer player data"
+            )
             record(app, name: "songs-shop-join-\(name)-fully-visible")
         }
+
+        rootControl("Settings", app: app).tap()
+        let icons = app.switches["fst.settings.show-instrument-icons"]
+        reveal(icons, in: app, scrollingUp: false)
+        XCTAssertEqual(icons.value as? String, "1")
+        setSwitch(icons, to: "0")
+        rootControl("Songs", app: app).tap()
+        let flatList = app.collectionViews["fst.songs.list"]
+        revealSongsControlAboveTab(
+            pulse, in: flatList, app: app,
+            failureName: "songs-shop-join-icons-off-pulse-unreachable",
+            bottomMargin: 0
+        )
+        XCTAssertTrue(pulse.label.contains("Player scores paused until songs update"))
+        XCTAssertFalse(pulse.label.contains("Score 99,850"))
+        XCTAssertFalse(pulse.label.contains("Score 99,800"))
+        XCTAssertFalse(app.descendants(matching: .any).matching(
+            identifier: "fst.songs.metadata.score.fixture-pulse"
+        ).firstMatch.exists)
+        record(app, name: "songs-player-newer-score-paused-with-icons-off")
 
         openSongsFilter(in: app)
         XCTAssertEqual(inShop.value as? String, "1")
@@ -3537,6 +3571,8 @@ final class FestivalMobileUITests: XCTestCase {
         app.buttons["fst.songs.sort.cancel"].tap()
 
         rootControl("Settings", app: app).tap()
+        reveal(icons, in: app, scrollingUp: false)
+        setSwitch(icons, to: "1")
         reveal(highlights, in: app, scrollingUp: true)
         setSwitch(highlights, to: originalHighlights)
         reveal(hidden, in: app, scrollingUp: true)

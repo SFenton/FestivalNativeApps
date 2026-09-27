@@ -55,6 +55,7 @@ final class FestivalSession {
     private(set) var shopError: String?
     private(set) var selectedPlayer: SelectedPlayerIdentity?
     private(set) var selectedPlayerScores: [String: [Instrument: PlayerScore]] = [:]
+    private(set) var selectedPlayerScoreObservation: Int?
     private(set) var playerLoadState: SelectedPlayerLoadState = .none
     private(set) var playerError: String?
     private(set) var selectionRevision = 0
@@ -175,6 +176,7 @@ final class FestivalSession {
         profileRequestRevision += 1
         selectedPlayer = identity
         selectedPlayerScores = scores
+        selectedPlayerScoreObservation = payload.observedPublicationId
         playerLoadState = .available
         playerError = nil
         selectionRevision += 1
@@ -186,6 +188,7 @@ final class FestivalSession {
         profileRequestRevision += 1
         selectedPlayer = nil
         selectedPlayerScores.removeAll()
+        selectedPlayerScoreObservation = nil
         playerLoadState = .none
         playerError = nil
         selectionRevision += 1
@@ -198,6 +201,7 @@ final class FestivalSession {
         let requestRevision = profileRequestRevision
         playerLoadState = .loading
         selectedPlayerScores.removeAll()
+        selectedPlayerScoreObservation = nil
         playerError = nil
         do {
             let payload = try await profile(accountId: identity.accountId)
@@ -215,6 +219,7 @@ final class FestivalSession {
                 selectedPlayerScores = try payload.profile.scoreIndex(
                     requestedAccountId: identity.accountId
                 )
+                selectedPlayerScoreObservation = payload.observedPublicationId
                 playerLoadState = .available
             }
         } catch is CancellationError {
@@ -225,9 +230,23 @@ final class FestivalSession {
             guard !Task.isCancelled, profileRequestRevision == requestRevision,
                   selectedPlayer == identity else { return }
             selectedPlayerScores.removeAll()
+            selectedPlayerScoreObservation = nil
             playerLoadState = .failed(error.localizedDescription)
             playerError = error.localizedDescription
         }
+    }
+
+    /// Apply selected scores only to Songs from the same current observation.
+    ///
+    /// - Parameter catalogueObservation: Generation observed for the displayed Songs rows.
+    /// - Returns: True only for selected, available, generation-matched score data.
+    func hasCurrentPlayerScores(forCatalogue catalogueObservation: Int?) -> Bool {
+        guard selectedPlayer != nil, playerLoadState == .available,
+              let catalogueObservation else { return false }
+        return SongRelatedPublicationPolicy.matches(
+            catalogue: catalogueObservation, related: selectedPlayerScoreObservation,
+            current: publicationId
+        )
     }
 
     /// Read one profile under the same observed publication as other visible pages.
@@ -362,6 +381,7 @@ final class FestivalSession {
                 publicationRevision += 1
                 profileRequestRevision += 1
                 selectedPlayerScores.removeAll()
+                selectedPlayerScoreObservation = nil
                 playerLoadState = selectedPlayer == nil ? .none : .loading
                 playerError = nil
                 currentShop = nil

@@ -47,8 +47,11 @@ Shop and selected profile become generation 8 but retained
 generation-7 Songs keep Title order and lose Shop bucket
 headings and badges. The Sort choice stays saved but
 disabled with an explicit mismatch notice. The profile
-score-chip publication check remains a separate Songs-card
-gap; this is not a full Shop Sort/Filter parity claim.
+score-chip check now shares the same observed-generation
+eligibility rule: an updated player-2 Pulse Lead score
+(99,800 to 99,850) is paused on retained older Songs
+alongside the Shop sort. This is not a full Shop
+Sort/Filter parity claim.
 
 **Native interaction and visual boundary:** On iOS 26 the bottom-toolbar
 Sort action collided with the system tab bar during a device test, so keep it

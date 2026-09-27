@@ -42,6 +42,25 @@ private func hostedFilterPlayer() throws -> Data {
     return try JSONSerialization.data(withJSONObject: player)
 }
 
+/// Give the newer publication a distinct Lead score without changing the old fixture.
+///
+/// - Returns: Validated fixture identity with a changed generation-eight score.
+/// - Throws: Missing or unexpected original player-score bytes.
+private func hostedRolloverPlayer() throws -> Data {
+    guard var player = try JSONSerialization.jsonObject(with: hostedFilterPlayer())
+            as? [String: Any],
+          var scores = player["scores"] as? [[String: Any]],
+          let index = scores.firstIndex(where: {
+              $0["si"] as? String == "fixture-pulse" && $0["ins"] as? String == "01"
+          }),
+          scores[index]["sc"] as? Int == 99_800 else {
+        throw FestivalAPIError.invalidPlayerProfile
+    }
+    scores[index]["sc"] = 99_850
+    player["scores"] = scores
+    return try JSONSerialization.data(withJSONObject: player)
+}
+
 /// Render a publication-backed Songs list without mounting the active network tasks.
 ///
 /// - Parameters:
@@ -277,7 +296,7 @@ private func hostedSongsState(
     oneOffer["count"] = 1
     let transport = HostedShopTransport(
         scenario: .populated, offers: fixtures.offers, catalogue: fixtures.catalogue,
-        player: try hostedFilterPlayer(),
+        player: try hostedFilterPlayer(), rolloverPlayer: try hostedRolloverPlayer(),
         rolloverOffers: try JSONSerialization.data(withJSONObject: oneOffer),
         failSongsAfterRollover: true
     )
@@ -290,6 +309,9 @@ private func hostedSongsState(
     {"accountId":"fixture-player-2","displayName":"Fixture Player 2"}
     """.utf8))
     try session.selectPlayer(selection, from: try await session.viewPlayer(selection))
+    #expect(session.selectedPlayerScoreObservation == 7)
+    #expect(session.selectedPlayerScores["fixture-pulse"]?[.lead]?.score == 99_800)
+    #expect(session.hasCurrentPlayerScores(forCatalogue: oldSongs.observedPublicationId))
 
     await transport.advancePublication()
     #expect(try await session.refreshPublication().publicationId == 8)
@@ -298,10 +320,13 @@ private func hostedSongsState(
     #expect(newShop.shop.count == 1 && newShop.observedPublicationId == 8)
     await session.refreshSelectedPlayer()
     #expect(session.playerLoadState == .available)
+    #expect(session.selectedPlayerScoreObservation == 8)
+    #expect(session.selectedPlayerScores["fixture-pulse"]?[.lead]?.score == 99_850)
     await #expect(throws: FestivalAPIError.unavailable(retryAfter: nil)) {
         try await session.catalog()
     }
     #expect(oldSongs.observedPublicationId == 7 && session.publicationId == 8)
+    #expect(!session.hasCurrentPlayerScores(forCatalogue: oldSongs.observedPublicationId))
     #expect(!SongShopPublicationPolicy.matches(
         catalogue: oldSongs.observedPublicationId,
         shop: newShop.observedPublicationId,
@@ -335,11 +360,11 @@ private func hostedSongsState(
     #expect(!window.isVisible)
     let image = try nativeHostedImage(host)
     #expect(nativeHostedControlPixels(image).bright > 20)
-    // Ignore scored red chips; only Shop accents color the left Song-card edges.
+    // Stacked notices use gold; sample only the actual Song-card edge band.
     let rowEdges = try #require(image.cropping(to: CGRect(
-        x: 0, y: CGFloat(image.height) * 0.24,
+        x: 0, y: CGFloat(image.height) * 0.32,
         width: CGFloat(image.width) * 0.06,
-        height: CGFloat(image.height) * 0.18
+        height: CGFloat(image.height) * 0.14
     ).integral))
     let edgeColors = nativeHostedStatusPixels(rowEdges)
     #expect(edgeColors.gold == 0 && edgeColors.red == 0)

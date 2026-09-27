@@ -36,9 +36,29 @@ public struct SongShopFilter: Sendable, Equatable {
     }
 }
 
-/// One observed publication must own the catalogue and all Shop-derived rows.
+/// One observed publication must own catalogue rows and their related data.
+public enum SongRelatedPublicationPolicy {
+    /// Reject data from a different observation, including a retained older catalogue.
+    ///
+    /// - Parameters:
+    ///   - catalogueObservation: Generation observed when Songs bytes were validated.
+    ///   - relatedObservation: Generation observed when related data was validated.
+    ///   - currentObservation: Latest generation observed by the native session.
+    /// - Returns: True only when all three observations are available and equal.
+    public static func matches(
+        catalogue catalogueObservation: Int,
+        related relatedObservation: Int?,
+        current currentObservation: Int?
+    ) -> Bool {
+        guard let relatedObservation, let currentObservation else { return false }
+        return catalogueObservation == currentObservation
+            && relatedObservation == currentObservation
+    }
+}
+
+/// Shop filtering, sorting and badges share the catalogue's observed generation.
 public enum SongShopPublicationPolicy {
-    /// Reject a new Shop feed against retained Songs from an older generation.
+    /// Keep validated empty offers eligible without crossing publications.
     ///
     /// - Parameters:
     ///   - catalogueObservation: Generation observed when Songs bytes were validated.
@@ -50,8 +70,9 @@ public enum SongShopPublicationPolicy {
         shop shopObservation: Int?,
         current currentObservation: Int?
     ) -> Bool {
-        guard let shopObservation, let currentObservation else { return false }
-        return catalogueObservation == currentObservation
-            && shopObservation == currentObservation
+        SongRelatedPublicationPolicy.matches(
+            catalogue: catalogueObservation, related: shopObservation,
+            current: currentObservation
+        )
     }
 }

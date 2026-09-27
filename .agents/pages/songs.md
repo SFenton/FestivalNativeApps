@@ -77,10 +77,29 @@ Retry/warm-offline/Shop-error suite additionally checks
 both old rows become individually hittable above native
 tabs and no new Shop badge IDs or section headings appear
 after the Shop/profile reach generation 8 but Songs fails
-HTTP 503. This guard covers **Shop-derived** state:
-selected-player score chips/metadata can still pair a newer
-profile with retained older Songs, an open
-`apple-songs-cards` backlog requirement. Private captures
+HTTP 503. The Shop guard covers **Shop-derived** state;
+the newer selected-player score index is independently
+guarded by the same observed-publication comparison.
+The amended pinned iPhone case passes **1/1**: profile 2
+advances Pulse Lead from 99,800 to 99,850 at generation 8;
+both retained generation-7 rows remain in Title order with
+visible **Player scores paused** labels, no newer instrument
+status chips or icons-off Score 99,850 metadata, while the
+new Songs GET fails HTTP 503. A separate scripted hosted
+transport renders the old rows and new paused notice; shared
+SwiftPM logic/UX categories pass 95%/90%, not the iPhone
+UI/app line bar. The guard is an explicit native safety
+constraint, not proof the PWA handles this failure identically.
+The same frozen iPhone code passes **6/6** selected profile,
+cold-metadata, status-chip, Shop Filter, rollover and
+**Title-pinned** Songs audit cases. Its measured iPhone
+UI/app subset is only **2714/4690 lines (57.87%, fail)**,
+not the full 90% bar. The selected audit inherits saved Shop
+Sort in a prior **5/6** run and failed an unnamed contrast
+node where the lower grouped card was behind the native tab.
+The final passing test pins Title per launch without deleting
+the preference; that separate combined-state audit remains
+pending. Private captures
 show the PWA's long bottom sheet with many instrument,
 score and band sections and five player tabs, while native uses
 an opaque full-height Shop-only sheet with three tabs. See the

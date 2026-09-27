@@ -138,6 +138,29 @@ a stale compiled-test marker **before** cleaning when the test
 source changes, so an H1 → failed H2 → H1 rollback cannot
 silently skip H1's clean.
 
+The in-process score index also records the publication observed for
+its validated player response, clearing both bytes and observation on
+retry, 202, failure, deselection, identity change and generation change.
+`hasCurrentPlayerScores(forCatalogue:)` reuses the catalogue/related
+data/current-session guard from `SongRelatedPublicationPolicy`. A retained
+older Song row displays an accessible **paused** score state instead of
+newer status chips, FC or icons-off numeric fields. The Songs List exposes
+`fst.songs.profile-paused` and its rows use
+`fst.songs.profile-paused-row.*`. The pinned loopback iPhone fixture advances
+player 2's Pulse Lead from 99,800 to 99,850 at generation 8 while new Songs
+returns HTTP 503; its first device run passed **1/1**, keeping both
+generation-7 rows visible without painting that newer score. The synthetic
+AppKit transport separately checks old/new observations and the 503.
+The same source-frozen iPhone six-case selected-profile/card matrix passes
+**6/6** after pinning the normal selected Songs accessibility case to
+Title order via launch arguments. The earlier **5/6** saved-Shop-sort
+variant left the lower grouped Song card behind the system tab and failed
+an unnamed full-audit contrast node; this combined state is still open.
+Only **2714/4690 (57.87%)** unique iPhone UI/app lines were covered by
+the passing six-case subset, not the required 90%.
+The PWA's source score map is not proof of its generation-join behavior;
+this fail-closed native safety guard is **not** a parity certification.
+
 A headerless player response may be previewed but cannot be
 selected or persisted: a trusted publication pin is required
 for score cards and live selection remains blocked until the

@@ -41,6 +41,17 @@ Scores still pauses selected score presentation until native `ml`/`vs`/`rt`
 fallback selection exists; never color raw, potentially invalid scores as
 though filtered. Icons off or one chart chosen retains the first-visible
 or selected-chart summary with independently saved metadata toggles.
+When a new player profile loads after a publication change but a failed
+Songs refresh retains older catalogue rows, do **not** draw newer FC/scored/
+no-score chips on those rows or treat them as anonymous. `FestivalSession`
+retains the selected score index's observed generation separately; the
+shared `SongRelatedPublicationPolicy` requires the catalogue, profile and
+current session observations to agree. Each retained row shows "Player
+scores paused until songs update"; the Songs List has a separate accessible
+pause notice. Icons-off/filtered numeric metadata must obey the same rule.
+An observed generation is not header provenance, and the player-score
+selection path still requires a response-proven profile.
+
 Source icons-off without a chart filter instead falls back to Lead even
 when Lead is hidden; native's first-visible behavior is a documented
 Settings-aware departure. Source last-played sorting can keep an extra
@@ -117,6 +128,12 @@ second row inaccessible until scrolled. A focused iPhone case now
 swipes the **named** `fst.songs.list` and requires the whole chip-group
 frame above the system tab bar, not just an `isHittable` chip. That
 focused path and the paired iPhone/iPad ten-case matrix pass.
+The later pinned iPhone publication-join case also proves player-2's
+newer 99,850 score cannot decorate retained older Songs as FC/status
+chips; both old rows instead speak "Player scores paused until songs update."
+That case and five selected-card/profile/default-Title-audit regressions
+pass **6/6** on iPhone. A saved Shop-sort version of the selected Songs
+full audit still fails with a partially tab-overlapped grouped card.
 Native iPad's split detail pane wraps nine chips into two
 balanced rows; the source 820px WebKit viewport places nine in
 one. This is an explicit platform-layout gap, not a false source

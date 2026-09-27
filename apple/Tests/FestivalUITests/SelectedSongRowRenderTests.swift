@@ -146,7 +146,8 @@ private func selectedSongRow(
     let host = nativeHostedView(
         SongRowView(
             song: song, instrument: filter, session: session, highContrast: false,
-            shopHighlight: shop, profileChart: chart, metadata: metadata,
+            shopHighlight: shop, profileChart: chart, catalogueObservation: 7,
+            metadata: metadata,
             filterInvalidScores: invalidFilter, showInstrumentIcons: icons,
             visibleInstruments: visible, currentSeason: season
         )

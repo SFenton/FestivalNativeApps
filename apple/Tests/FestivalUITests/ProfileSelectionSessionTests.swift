@@ -157,9 +157,13 @@ private func viewedPlayer(_ rank: Int) throws -> PlayerSearchResult {
     let viewed = try await session.viewPlayer(result)
     #expect(session.selectedPlayer == nil)
     #expect(session.selectedPlayerScores.isEmpty)
+    #expect(session.selectedPlayerScoreObservation == nil)
     try session.selectPlayer(result, from: viewed)
     #expect(session.playerLoadState == .available)
     #expect(session.selectedPlayerScores["fixture-pulse"]?[.lead]?.score == 99_900)
+    #expect(session.selectedPlayerScoreObservation == 7)
+    #expect(session.hasCurrentPlayerScores(forCatalogue: 7))
+    #expect(!session.hasCurrentPlayerScores(forCatalogue: nil))
     let data = try #require(storage.data(forKey: SelectedPlayerIdentity.storageKey))
     #expect(try JSONDecoder().decode(SelectedPlayerIdentity.self, from: data).accountId
         == result.accountId)
@@ -168,12 +172,15 @@ private func viewedPlayer(_ rank: Int) throws -> PlayerSearchResult {
     #expect(restored.selectedPlayer?.accountId == result.accountId)
     #expect(restored.playerLoadState == .loading)
     #expect(restored.selectedPlayerScores.isEmpty)
+    #expect(restored.selectedPlayerScoreObservation == nil)
     await restored.refreshSelectedPlayer()
     #expect(restored.playerLoadState == .available)
     #expect(restored.selectedPlayerScores["fixture-pulse"]?[.lead]?.score == 99_900)
+    #expect(restored.selectedPlayerScoreObservation == 7)
     restored.deselectPlayer()
     #expect(restored.selectedPlayer == nil)
     #expect(restored.selectedPlayerScores.isEmpty)
+    #expect(restored.selectedPlayerScoreObservation == nil)
     #expect(storage.data(forKey: SelectedPlayerIdentity.storageKey) == nil)
 }
 
@@ -205,6 +212,7 @@ private func viewedPlayer(_ rank: Int) throws -> PlayerSearchResult {
     await session.refreshSelectedPlayer()
     #expect(session.selectedPlayer?.accountId == result.accountId)
     #expect(session.selectedPlayerScores.isEmpty)
+    #expect(session.selectedPlayerScoreObservation == nil)
     guard case .failed = session.playerLoadState else {
         Issue.record("HTTP 403 must remain a visible failure, not an anonymous score")
         return
@@ -213,16 +221,21 @@ private func viewedPlayer(_ rank: Int) throws -> PlayerSearchResult {
     await session.refreshSelectedPlayer()
     #expect(session.playerLoadState == .available)
     #expect(session.selectedPlayerScores["fixture-pulse"]?[.lead]?.score == 99_900)
+    #expect(session.selectedPlayerScoreObservation == 7)
 
     await transport.setGeneration(8)
     _ = try await session.refreshPublication()
     #expect(session.publicationRevision == 1)
     #expect(session.selectedPlayer?.accountId == result.accountId)
     #expect(session.selectedPlayerScores.isEmpty)
+    #expect(session.selectedPlayerScoreObservation == nil)
     #expect(session.playerLoadState == .loading)
     await session.refreshSelectedPlayer()
     #expect(session.playerLoadState == .available)
     #expect(session.selectedPlayerScores["fixture-pulse"]?[.lead]?.score == 99_900)
+    #expect(session.selectedPlayerScoreObservation == 8)
+    #expect(!session.hasCurrentPlayerScores(forCatalogue: 7))
+    #expect(session.hasCurrentPlayerScores(forCatalogue: 8))
 }
 
 /// A selected 202 keeps identity while a user-initiated retry may restore scores.
@@ -238,10 +251,12 @@ private func viewedPlayer(_ rank: Int) throws -> PlayerSearchResult {
     #expect(session.selectedPlayer?.accountId == player.accountId)
     #expect(session.playerLoadState == .syncing)
     #expect(session.selectedPlayerScores.isEmpty)
+    #expect(session.selectedPlayerScoreObservation == nil)
     #expect(session.playerError == nil)
     await session.refreshSelectedPlayer()
     #expect(session.playerLoadState == .available)
     #expect(session.selectedPlayerScores["fixture-pulse"]?[.lead]?.score == 99_900)
+    #expect(session.selectedPlayerScoreObservation == 7)
 }
 
 /// A headerless player response may be viewed but cannot persist selected identity.
@@ -262,6 +277,7 @@ private func viewedPlayer(_ rank: Int) throws -> PlayerSearchResult {
     }
     #expect(session.selectedPlayer == nil)
     #expect(session.selectedPlayerScores.isEmpty)
+    #expect(session.selectedPlayerScoreObservation == nil)
     #expect(storage.data(forKey: SelectedPlayerIdentity.storageKey) == nil)
 }
 
@@ -283,6 +299,7 @@ private func viewedPlayer(_ rank: Int) throws -> PlayerSearchResult {
     #expect(updated.publicationId == 8)
     try session.selectPlayer(player, from: updated)
     #expect(session.selectedPlayer?.accountId == player.accountId)
+    #expect(session.selectedPlayerScoreObservation == 8)
 }
 
 @MainActor
@@ -300,9 +317,11 @@ private func viewedPlayer(_ rank: Int) throws -> PlayerSearchResult {
     try session.selectPlayer(second, from: await session.viewPlayer(second))
     #expect(session.selectedPlayer?.accountId == second.accountId)
     #expect(session.selectedPlayerScores["fixture-pulse"]?[.lead]?.score == 99_800)
+    #expect(session.selectedPlayerScoreObservation == 7)
     await transport.releaseHeld()
     await pending.value
     #expect(session.selectedPlayer?.accountId == second.accountId)
     #expect(session.selectedPlayerScores["fixture-pulse"]?[.lead]?.score == 99_800)
+    #expect(session.selectedPlayerScoreObservation == 7)
     #expect(session.playerError == nil)
 }

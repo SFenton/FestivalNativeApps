@@ -300,6 +300,15 @@ struct SongsScreen: View {
         return session.shopOffersById
     }
 
+    private var profilePublicationMismatch: Bool {
+        guard case let .loaded(payload) = state,
+              session.selectedPlayer != nil,
+              session.playerLoadState == .available else { return false }
+        return !session.hasCurrentPlayerScores(
+            forCatalogue: payload.observedPublicationId
+        )
+    }
+
     private var shopFilterPausedMessage: String? {
         guard appliedShopFilter.isActive else { return nil }
         if hideShop {
@@ -506,17 +515,26 @@ struct SongsScreen: View {
                                     .listRowSeparator(.hidden)
                                     .listRowBackground(Color.clear)
                                     ForEach(section.songs) { song in
-                                        songLink(for: song)
+                                        songLink(
+                                            for: song,
+                                            catalogueObservation: payload.observedPublicationId
+                                        )
                                     }
                                 }
                             } else {
                                 ForEach(visible) { song in
-                                    songLink(for: song)
+                                    songLink(
+                                        for: song,
+                                        catalogueObservation: payload.observedPublicationId
+                                    )
                                 }
                             }
                         } else {
                             ForEach(visible) { song in
-                                songLink(for: song)
+                                songLink(
+                                    for: song,
+                                    catalogueObservation: payload.observedPublicationId
+                                )
                             }
                         }
                     }
@@ -713,6 +731,7 @@ struct SongsScreen: View {
     private func hasDisclosure(for payload: CatalogPayload) -> Bool {
         refreshFailure != nil || payload.isStale || payload.publicationId == nil
             || session.publicationId.map { $0 != payload.observedPublicationId } == true
+            || profilePublicationMismatch
             || session.playerError != nil
             || (session.selectedPlayer != nil && session.playerLoadState != .available)
             || (!hideShop && (
@@ -752,6 +771,14 @@ struct SongsScreen: View {
                 message: "Publication changed - updating songs",
                 symbol: "arrow.clockwise"
             )
+        }
+        if profilePublicationMismatch {
+            FreshnessDisclosure(
+                message: "Player scores paused until songs and player data share "
+                    + "the current observed publication. Showing songs without player scores.",
+                symbol: "pause.circle"
+            )
+            .accessibilityIdentifier("fst.songs.profile-paused")
         }
         if let sortPausedMessage {
             FreshnessDisclosure(message: sortPausedMessage, symbol: "arrow.up.arrow.down")
@@ -836,9 +863,13 @@ struct SongsScreen: View {
 
     /// Keep every grouped and ungrouped Song row on the same navigation path.
     ///
-    /// - Parameter song: Validated catalogue song to display.
+    /// - Parameters:
+    ///   - song: Validated catalogue song to display.
+    ///   - catalogueObservation: Observed generation of the retained catalogue.
     /// - Returns: One accessible Song Detail link with effective Shop highlighting.
-    private func songLink(for song: Song) -> some View {
+    private func songLink(
+        for song: Song, catalogueObservation: Int
+    ) -> some View {
         let highlight = ShopPresentationPolicy.highlight(
             for: shopOffersForCurrentSongs?[song.songId],
             hidden: hideShop,
@@ -850,6 +881,7 @@ struct SongsScreen: View {
                 song: song, instrument: instrument,
                 session: session, highContrast: highContrast,
                 shopHighlight: highlight, profileChart: chart,
+                catalogueObservation: catalogueObservation,
                 metadata: metadataVisibility,
                 filterInvalidScores: filterInvalidScores,
                 showInstrumentIcons: showInstrumentIcons,
@@ -1078,6 +1110,7 @@ struct SongRowView: View {
     let highContrast: Bool
     let shopHighlight: ShopHighlight?
     let profileChart: Instrument?
+    let catalogueObservation: Int?
     let metadata: SongMetadataVisibility
     let filterInvalidScores: Bool
     let showInstrumentIcons: Bool
@@ -1094,6 +1127,7 @@ struct SongRowView: View {
     ///   - highContrast: Explicit content contrast override.
     ///   - shopHighlight: Validated, effectively enabled Shop badge.
     ///   - profileChart: First visible chart or explicit Songs chart filter.
+    ///   - catalogueObservation: Observed generation for this validated Songs row.
     ///   - metadata: Persisted score-field visibility switches.
     ///   - filterInvalidScores: Hide unsupported filtered-score details explicitly.
     ///   - showInstrumentIcons: Saved status-chip setting.
@@ -1103,6 +1137,7 @@ struct SongRowView: View {
         song: Song, instrument: Instrument?, session: FestivalSession,
         highContrast: Bool, shopHighlight: ShopHighlight? = nil,
         profileChart: Instrument? = nil,
+        catalogueObservation: Int? = nil,
         metadata: SongMetadataVisibility = SongMetadataVisibility(),
         filterInvalidScores: Bool = false,
         showInstrumentIcons: Bool = true,
@@ -1115,6 +1150,7 @@ struct SongRowView: View {
         self.highContrast = highContrast
         self.shopHighlight = shopHighlight
         self.profileChart = profileChart
+        self.catalogueObservation = catalogueObservation
         self.metadata = metadata
         self.filterInvalidScores = filterInvalidScores
         self.showInstrumentIcons = showInstrumentIcons
@@ -1128,10 +1164,14 @@ struct SongRowView: View {
             : AnyLayout(HStackLayout(spacing: 8))
     }
 
+    private var scoreDataCurrent: Bool {
+        session.hasCurrentPlayerScores(forCatalogue: catalogueObservation)
+    }
+
     private var usesInstrumentChips: Bool {
         SongInstrumentStatusPolicy.showsChips(
             hasSelectedPlayer: session.selectedPlayer != nil,
-            scoresAvailable: session.playerLoadState == .available,
+            scoresAvailable: scoreDataCurrent,
             iconsEnabled: showInstrumentIcons,
             instrumentFilter: instrument,
             filterInvalidScores: filterInvalidScores,
@@ -1141,7 +1181,7 @@ struct SongRowView: View {
 
     private var structuredScore: (chart: Instrument, score: PlayerScore)? {
         guard !usesInstrumentChips, !filterInvalidScores,
-              session.selectedPlayer != nil, session.playerLoadState == .available,
+              scoreDataCurrent,
               let chart = profileChart, song.supports(chart),
               let score = session.selectedPlayerScores[song.songId]?[chart],
               score.score > 0 else {
@@ -1204,7 +1244,12 @@ struct SongRowView: View {
 
     @ViewBuilder private var profileContent: some View {
         if let selected = session.selectedPlayer {
-            if usesInstrumentChips {
+            if session.playerLoadState == .available && !scoreDataCurrent {
+                Label("Player scores paused until songs update", systemImage: "pause.circle")
+                    .font(.footnote)
+                    .foregroundStyle(BrandTokens.gold)
+                    .accessibilityIdentifier("fst.songs.profile-paused-row.\(song.songId)")
+            } else if usesInstrumentChips {
                 SongInstrumentStatusChips(
                     songId: song.songId,
                     badges: SongInstrumentStatusPolicy.badges(
@@ -1216,9 +1261,9 @@ struct SongRowView: View {
                 SongProfileSummary(
                     player: selected, chart: profileChart,
                     chartAvailable: profileChart.map(song.supports) ?? false,
-                    score: profileChart.flatMap {
+                    score: scoreDataCurrent ? profileChart.flatMap {
                         session.selectedPlayerScores[song.songId]?[$0]
-                    },
+                    } : nil,
                     state: session.playerLoadState, visibility: metadata,
                     filterInvalidScores: filterInvalidScores, songId: song.songId
                 )
