@@ -71,7 +71,7 @@ struct SongsShopFilterSheet: View {
                         Text("Select a player with available scores to edit song filters.")
                             .foregroundStyle(BrandTokens.textSecondary)
                     } else if !shopAvailable {
-                        Text("Item Shop filters need loaded public Shop data.")
+                        Text("Item Shop filters need matching public Songs and Shop data.")
                             .foregroundStyle(BrandTokens.textSecondary)
                     }
                 }

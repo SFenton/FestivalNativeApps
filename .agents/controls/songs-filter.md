@@ -56,8 +56,23 @@ exercise a scripted generation 7→8 transition: newer Shop and
 profile reads succeed, new Songs returns HTTP 503, older Songs
 remain in title order without new Shop-colored card borders.
 A separate rendered state keeps the Leaving row filtered while
-selected-player scores are still loading. This exact failed
-rollover has **hosted** proof, not yet a device replay. Native
+selected-player scores are still loading. The dedicated
+**pinned** `--rollover-on-command --mismatched-shop-rollover`
+fixture runs on fresh runner-owned 8777 (iPhone) or deferred
+8778 (iPad): after the one-shot command, Shop exposes only
+Fixture Pulse and the selected player remains readable at
+publication 8, while every new Songs read (including old
+ETags) fails HTTP 503. Numeric-only
+`/__fixture__/publication-join-reads` proves the three
+independent request generations. The exact iPhone 26.5
+device test passes **1/1**, and a four-case iPhone Join/
+AX5 Retry/warm-offline/Shop error matrix passes **4/4**.
+The old Orbit and Pulse rows are each scrolled fully above
+the system tab, with no newer Shop badge IDs or grouped
+headers and explicit paused Sort/Filter notices; these
+private screenshots are not pixel-parity proof. The iPad
+listener is configured but its simulator has not run.
+Native
 AppKit-hosted snapshots also paint seven sheet states and
 selected-player loaded/empty/failed/paused Song screens. The iPhone
 `testSelectedShopFilterDraftApplyDiscardAndRelaunch` and
@@ -72,11 +87,15 @@ and Shop Sort in a selected iPhone **3/3** regression. A WebKit
 phone case proves the source Filter is absent anonymously and
 that selected In Shop and Leaving Tomorrow change the same
 two-song synthetic list. Full score/instrument/band filters,
-Shop WebSocket updates, rapid transitions, failed-rollover
-device replay, other AX5 states,
+Shop WebSocket updates, rapid transitions, other AX5 states,
 older iOS, Duo poses, iPadOS/macOS GUI and representative scroll
 performance remain pending. This control and the Songs route
 are **not certified**. Public account search/ranking currently
 hits the deployed edge access-denied boundary; selected-player
 device evidence here is fixture-backed, not proof of production
-account access.
+account access. A saved Shop sort combined with warm-offline
+Shop failure still has an **unidentified contrast** finding
+on the full Songs `.all` audit; the isolated Title-sort
+warm-offline test passes only with its documented, exact
+Shop Retry issue handler. Do not extend that exception to
+the unnamed issue.

@@ -978,7 +978,7 @@ struct SongsSortSheet: View {
                     .pickerStyle(.inline)
                     .accessibilityIdentifier("fst.songs.sort.mode")
                     if showShop && !shopAvailable {
-                        Text("Item Shop sorting requires loaded public Shop data.")
+                        Text("Item Shop sorting requires matching public Songs and Shop data.")
                             .font(.footnote)
                             .foregroundStyle(BrandTokens.textSecondary)
                     } else if !showShop && mode == .shop {

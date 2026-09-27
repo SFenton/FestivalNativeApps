@@ -23,6 +23,7 @@ from tools.apple_native_matrix import (
     REQUIRED_INPUTS,
     ROOT,
     ROLLOVER_PORTS,
+    SHOP_JOIN_PORTS,
     SCORE_OFFLINE_PORT,
     SERVICE_PORT,
     TEST_SOURCE,
@@ -392,6 +393,10 @@ class AppleNativeMatrixTests(unittest.TestCase):
         self.assertTrue(rollover["unpinned"])
         self.assertTrue(rollover["rolloverOnCommand"])
         self.assertIsNone(rollover["rolloverOnRead"])
+        join = fixture_options(["--rollover-on-command", "--mismatched-shop-rollover"])
+        self.assertFalse(join["unpinned"])
+        self.assertTrue(join["rolloverOnCommand"])
+        self.assertTrue(join["mismatchedShopRollover"])
         with self.assertRaisesRegex(MatrixError, "Unknown"):
             fixture_options(["--stop-after-first-songs"])
 
@@ -401,12 +406,16 @@ class AppleNativeMatrixTests(unittest.TestCase):
             with self.subTest(device=device):
                 plan = device_fixture_plan(device)
                 options = dict(plan)
-                self.assertEqual(len(plan), 8)
+                self.assertEqual(len(plan), 9)
                 self.assertEqual(len(options), len(plan))
                 self.assertNotIn(SERVICE_PORT, options)
                 self.assertEqual(options[METADATA_EDGE_PORT], ["--metadata-edge"])
                 self.assertEqual(
                     options[ROLLOVER_PORTS[device]], ["--unpinned", "--rollover-on-command"]
+                )
+                self.assertEqual(
+                    options[SHOP_JOIN_PORTS[device]],
+                    ["--rollover-on-command", "--mismatched-shop-rollover"],
                 )
                 for port in (
                     SCORE_OFFLINE_PORT, OFFSCREEN_SCORE_PORT, OFFSCREEN_EMPTY_CHART_PORT

@@ -193,7 +193,7 @@ states; two full runs passed on that unchanged app source.
 After adding source-formatted Song-row duration, a
 selected-player Shop-only Filter and one shared Shop
 publication join, a new full run passes at
-**1799/1880 (95.69%) logic** and **8491/9399
+**1798/1880 (95.64%) logic** and **8491/9399
 (90.34%) UX**. A temporary Shop Retry
 restyle was reverted after real iPhone AX5/pixel tests
 isolated narrowly scoped XCTest audit false positives.

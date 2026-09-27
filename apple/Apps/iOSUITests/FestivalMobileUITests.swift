@@ -1230,6 +1230,7 @@ final class FestivalMobileUITests: XCTestCase {
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "shop-error"
         app.launch()
+        let originallyHidden = try showFixtureShop(in: app)
         let row = app.buttons["fst.songs.row.fixture-pulse"]
         XCTAssertTrue(row.waitForExistence(timeout: 15))
         let unavailable = app.descendants(matching: .any)
@@ -1261,6 +1262,7 @@ final class FestivalMobileUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["No songs in the Item Shop"]
             .waitForExistence(timeout: 15))
         record(app, name: "songs-populated-shop-genuinely-empty")
+        restoreFixtureShopVisibility(originallyHidden, in: app)
     }
 
     /// A selected player's Shop Filter stages choices and persists only Apply.
@@ -1594,6 +1596,7 @@ final class FestivalMobileUITests: XCTestCase {
         app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "shop-error"
         app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
         app.launch()
+        let originallyHidden = try showFixtureShop(in: app)
         let retry = app.buttons["fst.songs.shop-retry"]
         XCTAssertTrue(retry.waitForExistence(timeout: 15))
         let normalGlyphHeight = try brightGlyphHeight(in: retry)
@@ -1608,34 +1611,11 @@ final class FestivalMobileUITests: XCTestCase {
         app.launch()
         let list = app.collectionViews["fst.songs.list"]
         XCTAssertTrue(list.waitForExistence(timeout: 15))
-        let retryReturned = retry.waitForExistence(timeout: 15)
-        if !retryReturned {
-            record(app, name: "songs-shop-retry-ax5-missing")
-        }
-        XCTAssertTrue(retryReturned, "Shop Retry did not return after AX5 relaunch")
         record(app, name: "songs-shop-retry-ax5-before-scroll")
-        let tabs = app.tabBars.firstMatch
-        let visibleBottom = (tabs.exists
-            ? tabs.frame.minY : app.windows.firstMatch.frame.maxY) - 8
-        for _ in 0..<8 {
-            if retry.isHittable && retry.frame.maxY <= visibleBottom { break }
-            // A full swipe can skip the short Retry row between an AX5 banner and songs.
-            let above = retry.frame.maxY < list.frame.minY
-            let startY: CGFloat = above ? 0.42 : 0.70
-            let endY: CGFloat = above ? 0.54 : 0.58
-            list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: startY))
-                .press(
-                    forDuration: 0.1,
-                    thenDragTo: list.coordinate(
-                        withNormalizedOffset: CGVector(dx: 0.5, dy: endY)
-                    )
-                )
-        }
-        if !retry.isHittable {
-            record(app, name: "songs-shop-retry-ax5-unreachable")
-        }
-        XCTAssertTrue(retry.isHittable, "Shop Retry must remain reachable in AX5 Songs")
-        XCTAssertLessThanOrEqual(retry.frame.maxY, visibleBottom)
+        revealSongsControlAboveTab(
+            retry, in: list, app: app,
+            failureName: "songs-shop-retry-ax5-unreachable"
+        )
         let largeGlyphHeight = try brightGlyphHeight(in: retry)
         XCTAssertGreaterThan(
             Double(largeGlyphHeight), Double(normalGlyphHeight) * 1.35,
@@ -1643,6 +1623,7 @@ final class FestivalMobileUITests: XCTestCase {
         )
         try assertHeaderContrast(retry, in: app, leadingTextWidth: 220)
         record(app, name: "songs-shop-retry-accessibility-xxxlarge")
+        restoreFixtureShopVisibility(originallyHidden, in: app)
     }
 
     /// Native Sort stages changes, persists rows and audits reachable modal text.
@@ -2653,7 +2634,15 @@ final class FestivalMobileUITests: XCTestCase {
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8771"
         app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "shop-error"
         app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launchArguments += [
+            "-fst.songs.sortMode", "title",
+            "-fst.songs.sortAscending", "YES",
+        ]
         app.launch()
+        let originallyHidden = try showFixtureShop(in: app)
+        let sort = app.buttons["fst.songs.sort"]
+        XCTAssertTrue(sort.waitForExistence(timeout: 10))
+        XCTAssertEqual(sort.value as? String, "Title, ascending")
         let row = app.buttons["fst.songs.row.fixture-pulse"]
         XCTAssertTrue(row.waitForExistence(timeout: 15))
         let shopRetry = app.buttons["fst.songs.shop-retry"]
@@ -2696,6 +2685,13 @@ final class FestivalMobileUITests: XCTestCase {
         var acceptedShopContrast = false
         var acceptedShopDynamicType = false
         try app.performAccessibilityAudit(for: .all) { issue in
+            let attachment = XCTAttachment(
+                string: "\(issue.auditType): \(issue.element?.identifier ?? "unidentified"): "
+                    + "\(issue.element?.label ?? "unidentified")"
+            )
+            attachment.name = "songs-offline-audit-node"
+            attachment.lifetime = .keepAlways
+            self.add(attachment)
             // Pixels pass 4.5:1 and a separate AX5 case proves >1.35x glyph growth.
             guard UIDevice.current.userInterfaceIdiom == .phone,
                   UIDevice.current.systemVersion == "26.5",
@@ -2719,6 +2715,7 @@ final class FestivalMobileUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Songs unavailable"].waitForExistence(timeout: 15))
         XCTAssertFalse(offline.exists)
         record(app, name: "songs-headerless-cold-no-cache")
+        restoreFixtureShopVisibility(originallyHidden, in: app)
     }
 
     /// Cache one score page across a warm resume but not after process termination.
@@ -3268,14 +3265,7 @@ final class FestivalMobileUITests: XCTestCase {
         song.tap()
         XCTAssertTrue(app.staticTexts["Intensity"].waitForExistence(timeout: 10))
 
-        let advance = try XCTUnwrap(
-            URL(string: "http://127.0.0.1:\(port)/__fixture__/advance-publication")
-        )
-        let (data, response) = try await URLSession.shared.data(from: advance)
-        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
-        XCTAssertEqual(
-            try JSONDecoder().decode(FixturePublicationAdvance.self, from: data).publicationId, 8
-        )
+        try await advanceFixturePublication(port: port)
 
         rootControl("Settings", app: app).tap()
         let publication = app.buttons["Check Publication"]
@@ -3299,6 +3289,164 @@ final class FestivalMobileUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Intensity"].exists)
         XCTAssertTrue(song.waitForExistence(timeout: 10))
         record(app, name: "songs-unpinned-rollover-notice")
+    }
+
+    /// Keep old Songs unfiltered and unbadged when only new Shop/profile reads succeed.
+    ///
+    /// - Throws: Mixed-publication rows, false No Results or an unowned fixture response.
+    @MainActor
+    func testPublicationRolloverPausesShopDerivedSongs() async throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = fixtureApp()
+        let port = UIDevice.current.userInterfaceIdiom == .pad ? 8778 : 8777
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:\(port)"
+        app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launch()
+        rootControl("Settings", app: app).tap()
+        let hidden = app.switches["fst.settings.hide-shop"]
+        let highlights = app.switches["fst.settings.shop-highlights"]
+        reveal(hidden, in: app, scrollingUp: true)
+        let originallyHidden = try XCTUnwrap(hidden.value as? String)
+        setSwitch(hidden, to: "0")
+        reveal(highlights, in: app, scrollingUp: true)
+        let originalHighlights = try XCTUnwrap(highlights.value as? String)
+        setSwitch(highlights, to: "1")
+        rootControl("Songs", app: app).tap()
+        let orbit = app.buttons["fst.songs.row.fixture-orbit"]
+        let pulse = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(orbit.waitForExistence(timeout: 15))
+        XCTAssertTrue(pulse.exists)
+        viewFixturePlayer("fixture-player-2", query: "Fixture Player", in: app)
+        app.buttons["fst.profile.select"].tap()
+        openSongsFilter(in: app)
+        let inShop = app.switches["fst.songs.filter.in-shop"]
+        let ready = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "enabled == true"), object: inShop
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 15), .completed)
+        setSwitch(inShop, to: "1")
+        app.buttons["fst.songs.filter.apply"].tap()
+        XCTAssertTrue(pulse.exists && orbit.exists)
+
+        let sort = app.buttons["fst.songs.sort"]
+        XCTAssertTrue(sort.waitForExistence(timeout: 10))
+        if (sort.value as? String) != "Title, ascending" {
+            sort.tap()
+            revealSortReset(in: app).tap()
+            app.buttons["fst.songs.sort.apply"].tap()
+        }
+        sort.tap()
+        revealShopSort(in: app).tap()
+        app.buttons["fst.songs.sort.apply"].tap()
+        XCTAssertEqual(sort.value as? String, "Item Shop, ascending")
+        let orbitBadge = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.shop-badge.fixture-orbit").firstMatch
+        let pulseBadge = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.shop-badge.fixture-pulse").firstMatch
+        XCTAssertTrue(orbitBadge.waitForExistence(timeout: 10))
+        XCTAssertTrue(pulseBadge.exists)
+        record(app, name: "songs-shop-join-publication-seven")
+
+        try await advanceFixturePublication(port: port)
+        rootControl("Settings", app: app).tap()
+        let publication = app.buttons["Check Publication"]
+        reveal(publication, in: app, scrollingUp: true)
+        publication.tap()
+        let status = app.staticTexts["fst.settings.publication-status"]
+        let failed = XCTNSPredicateExpectation(
+            predicate: NSPredicate(
+                format: "label BEGINSWITH %@", "Publication 8; songs update failed:"
+            ), object: status
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [failed], timeout: 15), .completed)
+        rootControl("Songs", app: app).tap()
+        let filterPaused = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.filter-paused").firstMatch
+        let sortPaused = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.sort-paused").firstMatch
+        let filterNotice = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label CONTAINS %@", "publications differ"),
+            object: filterPaused
+        )
+        let sortNotice = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label CONTAINS %@", "publications differ"),
+            object: sortPaused
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [filterNotice, sortNotice], timeout: 15),
+                       .completed)
+
+        var reads = try await fixturePublicationJoinReads(port: port)
+        for _ in 0..<80 {
+            if reads.shop == 8 && reads.player == 8 && reads.failedSongs == 8 { break }
+            try await Task.sleep(for: .milliseconds(100))
+            reads = try await fixturePublicationJoinReads(port: port)
+        }
+        XCTAssertEqual(reads.shop, 8)
+        XCTAssertEqual(reads.player, 8)
+        XCTAssertEqual(reads.failedSongs, 8)
+        let list = app.collectionViews["fst.songs.list"]
+        XCTAssertTrue(list.waitForExistence(timeout: 10))
+        for _ in 0..<8 {
+            if orbit.exists && pulse.exists { break }
+            list.swipeUp()
+        }
+        XCTAssertTrue(orbit.exists && pulse.exists, "Old catalogue rows must remain visible")
+        let refreshedChips = app.descendants(matching: .any).matching(
+            identifier: "fst.songs.instrument-status.fixture-pulse"
+        ).firstMatch
+        XCTAssertTrue(
+            refreshedChips.waitForExistence(timeout: 10),
+            "Only newly available player scores may repaint instrument chips"
+        )
+        XCTAssertFalse(app.descendants(matching: .any).matching(
+            identifier: "fst.songs.shop-error"
+        ).firstMatch.exists)
+        XCTAssertFalse(app.descendants(matching: .any).matching(
+            identifier: "fst.songs.profile-status"
+        ).firstMatch.exists)
+        XCTAssertLessThan(orbit.frame.minY, pulse.frame.minY)
+        XCTAssertFalse(orbitBadge.exists)
+        XCTAssertFalse(pulseBadge.exists)
+        XCTAssertFalse(app.descendants(matching: .any).matching(
+            identifier: "fst.songs.shop-section.in-shop"
+        ).firstMatch.exists)
+        XCTAssertTrue(app.descendants(matching: .any).matching(
+            identifier: "fst.songs.refresh-error"
+        ).firstMatch.exists)
+        XCTAssertTrue((sort.value as? String)?.contains("paused; showing Title order") == true)
+        let filter = app.buttons["fst.songs.filter"]
+        XCTAssertTrue((filter.value as? String)?.contains("paused; showing all songs") == true)
+        record(app, name: "songs-shop-join-old-catalogue-new-shop-paused")
+        for (row, name) in [(orbit, "orbit"), (pulse, "pulse")] {
+            revealSongsControlAboveTab(
+                row, in: list, app: app,
+                failureName: "songs-shop-join-\(name)-unreachable",
+                bottomMargin: 0
+            )
+            record(app, name: "songs-shop-join-\(name)-fully-visible")
+        }
+
+        openSongsFilter(in: app)
+        XCTAssertEqual(inShop.value as? String, "1")
+        XCTAssertFalse(inShop.isEnabled)
+        XCTAssertTrue(app.staticTexts[
+            "Item Shop filters need matching public Songs and Shop data."
+        ].exists)
+        app.buttons["fst.songs.filter.cancel"].tap()
+        sort.tap()
+        let shopChoice = app.buttons.matching(
+            identifier: "fst.songs.sort.mode"
+        ).matching(NSPredicate(format: "label == %@", "Item Shop")).firstMatch
+        XCTAssertTrue(shopChoice.waitForExistence(timeout: 10))
+        XCTAssertFalse(shopChoice.isEnabled)
+        app.buttons["fst.songs.sort.cancel"].tap()
+
+        rootControl("Settings", app: app).tap()
+        reveal(highlights, in: app, scrollingUp: true)
+        setSwitch(highlights, to: originalHighlights)
+        reveal(hidden, in: app, scrollingUp: true)
+        setSwitch(hidden, to: originallyHidden)
     }
 
     /// Probe Duo outer-window aspect and reachable controls; camera cutouts need pose tests.
@@ -3484,6 +3632,37 @@ final class FestivalMobileUITests: XCTestCase {
         shop.tap()
     }
 
+    /// Keep fixture Shop status independent of another test's saved Hide setting.
+    ///
+    /// - Parameter app: Running synthetic Songs app with a reachable Settings tab.
+    /// - Returns: Original Hide Shop switch value to restore after the journey.
+    /// - Throws: An unreadable native Settings switch.
+    @MainActor
+    private func showFixtureShop(in app: XCUIApplication) throws -> String {
+        rootControl("Settings", app: app).tap()
+        let hidden = app.switches["fst.settings.hide-shop"]
+        reveal(hidden, in: app, scrollingUp: true)
+        let original = try XCTUnwrap(hidden.value as? String)
+        setSwitch(hidden, to: "0")
+        rootControl("Songs", app: app).tap()
+        return original
+    }
+
+    /// Restore only the fixture Shop visibility preference after observing rows.
+    ///
+    /// - Parameters:
+    ///   - original: Switch value captured before this synthetic journey.
+    ///   - app: Running app with the native Settings tab.
+    @MainActor
+    private func restoreFixtureShopVisibility(
+        _ original: String, in app: XCUIApplication
+    ) {
+        rootControl("Settings", app: app).tap()
+        let hidden = app.switches["fst.settings.hide-shop"]
+        reveal(hidden, in: app, scrollingUp: true)
+        setSwitch(hidden, to: original)
+    }
+
     /// Open the selected player's native Filter through platform toolbar overflow.
     ///
     /// - Parameter app: Fixture app with a selected Songs profile or a saved filter.
@@ -3502,6 +3681,43 @@ final class FestivalMobileUITests: XCTestCase {
         filter.tap()
         XCTAssertTrue(app.switches["fst.songs.filter.in-shop"]
             .waitForExistence(timeout: 10))
+    }
+
+    /// Reach a short disclosure or Song row above the native tab with small drags.
+    ///
+    /// - Parameters:
+    ///   - element: List action that may still be lazily offscreen.
+    ///   - list: The loaded Songs List, not the app's outer navigation view.
+    ///   - app: Fixture application supplying real visible chrome.
+    ///   - failureName: Private diagnostic screenshot identifier if unreachable.
+    ///   - bottomMargin: Desired gap above the tab; zero permits an edge-to-edge row.
+    @MainActor
+    private func revealSongsControlAboveTab(
+        _ element: XCUIElement, in list: XCUIElement,
+        app: XCUIApplication, failureName: String,
+        bottomMargin: CGFloat = 8
+    ) {
+        let tabs = app.tabBars.firstMatch
+        let visibleBottom = (tabs.exists
+            ? tabs.frame.minY : app.windows.firstMatch.frame.maxY) - bottomMargin
+        for _ in 0..<12 {
+            if element.isHittable && element.frame.maxY <= visibleBottom { break }
+            let above = element.exists && element.frame.maxY < list.frame.minY
+            let startY: CGFloat = above ? 0.42 : 0.70
+            let endY: CGFloat = above ? 0.54 : 0.58
+            list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: startY))
+                .press(
+                    forDuration: 0.1,
+                    thenDragTo: list.coordinate(
+                        withNormalizedOffset: CGVector(dx: 0.5, dy: endY)
+                    )
+                )
+        }
+        if !element.isHittable || element.frame.maxY > visibleBottom {
+            record(app, name: failureName)
+        }
+        XCTAssertTrue(element.isHittable, "\(element.identifier) stayed outside Songs")
+        XCTAssertLessThanOrEqual(element.frame.maxY, visibleBottom)
     }
 
     /// Scroll the modal Form until Reset is above the always-visible action footer.
@@ -4033,6 +4249,46 @@ final class FestivalMobileUITests: XCTestCase {
     /// Only an explicitly signaled local fixture may move publication seven to eight.
     private struct FixturePublicationAdvance: Decodable {
         let publicationId: Int
+    }
+
+    /// Numeric-only diagnostic for a dedicated, locally owned rollover fixture.
+    private struct FixturePublicationJoinReads: Decodable {
+        let shop: Int?
+        let player: Int?
+        let failedSongs: Int?
+    }
+
+    /// Advance only an exact fixture port after the native before-state is visible.
+    ///
+    /// - Parameter port: Runner-owned command-rollover listener on loopback.
+    /// - Throws: Missing local endpoint, invalid publication or non-200 result.
+    @MainActor
+    private func advanceFixturePublication(port: Int) async throws {
+        let url = try XCTUnwrap(
+            URL(string: "http://127.0.0.1:\(port)/__fixture__/advance-publication")
+        )
+        let (data, response) = try await URLSession.shared.data(from: url)
+        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+        XCTAssertEqual(
+            try JSONDecoder().decode(FixturePublicationAdvance.self, from: data).publicationId, 8
+        )
+    }
+
+    /// Read sanitized request generations without inspecting profile or Shop content.
+    ///
+    /// - Parameter port: Dedicated pinned Join fixture for this simulator family.
+    /// - Returns: New Shop/player successes and an explicit new Songs failure.
+    /// - Throws: Invalid JSON, nonlocal endpoint or unexpected HTTP response.
+    @MainActor
+    private func fixturePublicationJoinReads(
+        port: Int
+    ) async throws -> FixturePublicationJoinReads {
+        let url = try XCTUnwrap(
+            URL(string: "http://127.0.0.1:\(port)/__fixture__/publication-join-reads")
+        )
+        let (data, response) = try await URLSession.shared.data(from: url)
+        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+        return try JSONDecoder().decode(FixturePublicationJoinReads.self, from: data)
     }
 
     /// Trigger only the fixture's one-shot loss after visible Shop artwork proof.

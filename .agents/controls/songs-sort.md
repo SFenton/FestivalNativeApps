@@ -41,6 +41,15 @@ its quick-link rail, other modes' buckets or scroll restoration.
 | Shop sections | Source puts a header before each of at least two nonempty first-seen Leaving/In/Not buckets and exposes quick links | Native List uses the same three first-seen buckets and skips headings for one bucket; quick-link rail/jump drawer, other sort-mode buckets and exact row/layout geometry remain pending |
 | Contextual modes | Instrument, visibility, shop, player and band change mode/priority choices | Score/Has FC/player/band modes, metadata priorities, non-Shop filter states and full Songs actions remain pending |
 
+A dedicated pinned iPhone 26.5 generation 7→8/503 fixture
+passes **1/1** (and in a **4/4** source-frozen related matrix):
+Shop and selected profile become generation 8 but retained
+generation-7 Songs keep Title order and lose Shop bucket
+headings and badges. The Sort choice stays saved but
+disabled with an explicit mismatch notice. The profile
+score-chip publication check remains a separate Songs-card
+gap; this is not a full Shop Sort/Filter parity claim.
+
 **Native interaction and visual boundary:** On iOS 26 the bottom-toolbar
 Sort action collided with the system tab bar during a device test, so keep it
 in the native top toolbar until the shell has a proven safe lower dock.

@@ -115,6 +115,7 @@ class FixtureServer(ThreadingHTTPServer):
         self, address: tuple[str, int], handler: type[BaseHTTPRequestHandler],
         *, unpinned: bool = False, rollover_on_read: int | None = None,
         rollover_on_command: bool = False,
+        mismatched_shop_rollover: bool = False,
         fail_first_white_catalogue: bool = False,
         stop_after_first_songs: bool = False,
         stop_after_first_score: bool = False,
@@ -129,6 +130,7 @@ class FixtureServer(ThreadingHTTPServer):
             unpinned: Omit response publication headers like an unfrozen service.
             rollover_on_read: First publication GET that advances generation 7 to 8.
             rollover_on_command: Advance once only after an explicit test-only GET.
+            mismatched_shop_rollover: Pinned new Shop/profile with a failed new Songs read.
             fail_first_white_catalogue: Fail one white-art catalogue read, then recover.
             stop_after_first_songs: Stop this mock listener after its first successful Songs read.
             stop_after_first_score: Stop after the first successful full 25-row chart read.
@@ -137,24 +139,30 @@ class FixtureServer(ThreadingHTTPServer):
         """
         if metadata_edge and (
             unpinned or rollover_on_read is not None or rollover_on_command
+            or mismatched_shop_rollover
             or fail_first_white_catalogue
             or stop_after_first_songs or stop_after_first_score or stop_after_first_shop
         ):
             raise ValueError("Metadata edge fixture must remain publication-pinned and persistent")
+        if mismatched_shop_rollover and not rollover_on_command:
+            raise ValueError("Mismatched Shop rollover needs an explicit command")
         if rollover_on_command and (
-            not unpinned or rollover_on_read is not None or fail_first_white_catalogue
+            unpinned == mismatched_shop_rollover
+            or rollover_on_read is not None or fail_first_white_catalogue
             or stop_after_first_songs or stop_after_first_score or stop_after_first_shop
         ):
-            raise ValueError("Command rollover needs its own persistent unpinned fixture")
+            raise ValueError("Command rollover needs its own persistent fixture mode")
         self.unpinned = unpinned
         self.metadata_edge = metadata_edge
         self.rollover_on_read = rollover_on_read
         self.rollover_on_command = rollover_on_command
+        self.mismatched_shop_rollover = mismatched_shop_rollover
         self.source_hashes = SOURCE_HASHES.copy()
         self.options = {
             "unpinned": unpinned,
             "rolloverOnRead": rollover_on_read,
             "rolloverOnCommand": rollover_on_command,
+            "mismatchedShopRollover": mismatched_shop_rollover,
             "failFirstWhiteCatalogue": fail_first_white_catalogue,
             "stopAfterFirstSongs": stop_after_first_songs,
             "stopAfterFirstScore": stop_after_first_score,
@@ -170,6 +178,9 @@ class FixtureServer(ThreadingHTTPServer):
         self._stop_after_first_score = stop_after_first_score
         self._stop_after_first_shop = stop_after_first_shop
         self._shop_read_succeeded = False
+        self._publication_join_reads: dict[str, int | None] = {
+            "shop": None, "player": None, "failedSongs": None,
+        }
         self._lock = threading.Lock()
         super().__init__(address, handler)
 
@@ -271,6 +282,31 @@ class FixtureServer(ThreadingHTTPServer):
         """Arm a visual-confirmed connection loss after one valid Shop feed."""
         with self._lock:
             self._shop_read_succeeded = True
+            if self.mismatched_shop_rollover:
+                self._publication_join_reads["shop"] = self._publication_id
+
+    def record_publication_join_read(self, kind: str) -> None:
+        """Record only allowlisted generation numbers in the dedicated fixture.
+
+        Args:
+            kind: Successful player read or failed new Songs read.
+
+        Raises:
+            ValueError: On an unrelated listener or unrecognized diagnostic.
+        """
+        if not self.mismatched_shop_rollover or kind not in ("player", "failedSongs"):
+            raise ValueError("Invalid publication-join diagnostic")
+        with self._lock:
+            self._publication_join_reads[kind] = self._publication_id
+
+    def publication_join_reads(self) -> dict[str, int | None]:
+        """Return sanitized generation-only read evidence for the local XCTest.
+
+        Returns:
+            Latest Shop/player/failed-Songs generation, with no account or song IDs.
+        """
+        with self._lock:
+            return self._publication_join_reads.copy()
 
     def acknowledge_visible_shop(self) -> bool:
         """Stop only after the test has seen the loaded offer and artwork.
@@ -477,6 +513,13 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 self._json(200, {"publicationId": 8})
             else:
                 self._json(409, {"status": "publication_already_advanced"})
+        elif path == "/__fixture__/publication-join-reads":
+            if query:
+                self._json(400, {"status": "invalid_fixture_query"})
+            elif not self.fixture.mismatched_shop_rollover:
+                self._json(404, {"status": "not_found"})
+            else:
+                self._json(200, self.fixture.publication_join_reads())
         elif path == "/__fixture__/last-score-query":
             self._json(200, {"last": self.fixture.last_score_query()})
         elif path == "/__fixture__/last-full-score-query":
@@ -564,6 +607,8 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 })
             elif account_id in PLAYER_DEMO["profiles"]:
                 self._json(200, PLAYER_DEMO["profiles"][account_id])
+                if self.fixture.mismatched_shop_rollover:
+                    self.fixture.record_publication_join_read("player")
             else:
                 self._json(200, {
                     "accountId": account_id, "displayName": None,
@@ -576,6 +621,9 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 "shop-single", "art-error", "art-skip", "art-white"
             ):
                 self._json(400, {"status": "unknown_fixture_scenario"})
+                return
+            if self.fixture.mismatched_shop_rollover and scenarios[0] != "demo":
+                self._json(400, {"status": "unsupported_publication_join_scenario"})
                 return
             if scenarios[0] in ("error", "shop-error"):
                 self._json(503, {"status": "fixture_shop_unavailable"})
@@ -595,6 +643,12 @@ class FixtureHandler(BaseHTTPRequestHandler):
                     "count": 1,
                     "songs": [SHOP_DEMO["songs"][0]],
                 }, '"fst-fixture-shop-single-v1"'
+            elif self.fixture.mismatched_shop_rollover and self.fixture.publication_id == 8:
+                shop, etag = {
+                    **SHOP_DEMO,
+                    "count": 1,
+                    "songs": [SHOP_DEMO["songs"][0]],
+                }, '"fst-fixture-shop-rollover-v8"'
             elif scenarios[0] == "art-white":
                 shop, etag = {
                     **SHOP_DEMO,
@@ -625,6 +679,17 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 "shop-single", "art-error", "art-skip", "art-white"
             ):
                 self._json(400, {"status": "unknown_fixture_scenario"})
+                return
+            if self.fixture.mismatched_shop_rollover and scenarios[0] != "demo":
+                self._json(400, {"status": "unsupported_publication_join_scenario"})
+                return
+            if self.fixture.mismatched_shop_rollover and self.fixture.publication_id == 8:
+                pin = self.headers.get("X-FST-Publication-Id")
+                if pin is not None and pin != "8":
+                    self._json(409, {"status": "publication_changed"})
+                else:
+                    self.fixture.record_publication_join_read("failedSongs")
+                    self._json(503, {"status": "fixture_new_songs_unavailable"})
                 return
             if scenarios[0] == "error":
                 self._json(503, {"status": "fixture_unavailable"})
@@ -837,6 +902,7 @@ def main() -> None:
     parser.add_argument("--unpinned", action="store_true")
     parser.add_argument("--rollover-on-read", type=int)
     parser.add_argument("--rollover-on-command", action="store_true")
+    parser.add_argument("--mismatched-shop-rollover", action="store_true")
     parser.add_argument("--fail-first-white-catalogue", action="store_true")
     parser.add_argument("--stop-after-first-songs", action="store_true")
     parser.add_argument("--stop-after-first-score", action="store_true")
@@ -856,15 +922,19 @@ def main() -> None:
             parser.error("one-shot offline fixtures require --unpinned")
         if one_shot_count > 1:
             parser.error("choose one endpoint for the one-shot connection loss")
+    if args.mismatched_shop_rollover and not args.rollover_on_command:
+        parser.error("mismatched Shop rollover needs an explicit command")
     if args.rollover_on_command and (
-        not args.unpinned or args.rollover_on_read is not None
+        args.unpinned == args.mismatched_shop_rollover
+        or args.rollover_on_read is not None
         or one_shot_count or args.fail_first_white_catalogue or args.metadata_edge
     ):
-        parser.error("command rollover requires a separate persistent unpinned fixture")
+        parser.error("command rollover requires a separate persistent fixture mode")
     with FixtureServer(
         ("127.0.0.1", args.port), FixtureHandler,
         unpinned=args.unpinned, rollover_on_read=args.rollover_on_read,
         rollover_on_command=args.rollover_on_command,
+        mismatched_shop_rollover=args.mismatched_shop_rollover,
         fail_first_white_catalogue=args.fail_first_white_catalogue,
         stop_after_first_songs=args.stop_after_first_songs,
         stop_after_first_score=args.stop_after_first_score,

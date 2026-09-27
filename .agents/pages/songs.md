@@ -71,8 +71,13 @@ The reviewed generation-join iPhone fixture regressions pass
 **5/5**, a separate matched-Shop badge/instrument case passes
 **2/2**, and deselect→reselect applies saved public choices in
 **1/1**. A scripted hosted old-Songs/new-Shop/failed-Songs
-probe passes; an exact failed-rollover iPhone device replay
-is still pending. This guard covers **Shop-derived** state:
+probe and a dedicated **pinned iPhone 26.5** replay pass
+**1/1**. A source-frozen **4/4** iPhone Join/AX5
+Retry/warm-offline/Shop-error suite additionally checks
+both old rows become individually hittable above native
+tabs and no new Shop badge IDs or section headings appear
+after the Shop/profile reach generation 8 but Songs fails
+HTTP 503. This guard covers **Shop-derived** state:
 selected-player score chips/metadata can still pair a newer
 profile with retained older Songs, an open
 `apple-songs-cards` backlog requirement. Private captures
@@ -81,6 +86,10 @@ score and band sections and five player tabs, while native uses
 an opaque full-height Shop-only sheet with three tabs. See the
 [Filter contract](../controls/songs-filter.md); full PWA visual,
 other AX5 states, iPad/Duo and non-Shop filter parity stay open.
+The saved Shop-sort plus failed warm-offline Shop **full**
+Songs audit still has an unnamed contrast finding; only the
+separate Title-sort warm-offline journey with a tightly scoped
+Shop Retry false-positive handler passed.
 
 The top native **Item Shop** action now pushes an independent public
 feed without changing the three-tab phone shell. Hiding Shop removes

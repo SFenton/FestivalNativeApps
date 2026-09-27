@@ -29,6 +29,14 @@ and "last-seen offline" as interchangeable.
 | Offline/cold | Real one-shot local connection loss keeps typed offers **and already painted cover pixels** warm with unverified provenance, then fails explicitly after process termination |
 | Songs/Detail | Validated **same-observed-generation** flags paint Songs red/gold row borders and announced icons; a retained older Songs catalogue receives no new Shop badges after rollover. Detail independently exposes the official action, availability badge and explicit Shop-fetch error; disabled highlighting suppresses badges without hiding the valid outbound link |
 
+The pinned iPhone 26.5 old-Songs/new-Shop/failed-Songs
+fixture passes **1/1**, and a related **4/4** native
+matrix confirms both old rows remain reachable without
+new Shop badge IDs. The separate matching-generation
+Shop badge/instrument check passes **2/2**; none of
+these prove iPad/Duo, Detail's entire accessibility
+state machine or live edge access.
+
 `contracts/product.json` registers `fst.songs.shop`,
 `fst.shop.{view-toggle,empty,offline,song-details-error}`,
 `fst.shop.{song,external,badge.new,badge.leaving}.*` and the two Settings

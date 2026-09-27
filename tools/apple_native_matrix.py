@@ -40,6 +40,7 @@ OFFSCREEN_SCORE_PORT = 8774
 OFFSCREEN_EMPTY_CHART_PORT = 8775
 METADATA_EDGE_PORT = 8776
 ROLLOVER_PORTS = {"iphone": 8767, "ipad": 8768}
+SHOP_JOIN_PORTS = {"iphone": 8777, "ipad": 8778}
 DEVICE_FAMILIES = {"iphone": "iPhone", "ipad": "iPad"}
 LOCK_FILE = Path("/tmp/festival-native-matrix.lock")
 MIN_XCODE_TEST_SECONDS = 1_200
@@ -503,6 +504,7 @@ def fixture_options(flags: list[str]) -> dict[str, bool | int | None]:
     options: dict[str, bool | int | None] = {
         "unpinned": False, "rolloverOnRead": None,
         "rolloverOnCommand": False,
+        "mismatchedShopRollover": False,
         "failFirstWhiteCatalogue": False,
         "stopAfterFirstSongs": False,
         "stopAfterFirstScore": False,
@@ -515,6 +517,8 @@ def fixture_options(flags: list[str]) -> dict[str, bool | int | None]:
         return dict(options, unpinned=True, rolloverOnRead=2)
     if flags == ["--unpinned", "--rollover-on-command"]:
         return dict(options, unpinned=True, rolloverOnCommand=True)
+    if flags == ["--rollover-on-command", "--mismatched-shop-rollover"]:
+        return dict(options, rolloverOnCommand=True, mismatchedShopRollover=True)
     if flags == ["--fail-first-white-catalogue"]:
         return dict(options, failFirstWhiteCatalogue=True)
     if flags == ["--unpinned", "--stop-after-first-songs"]:
@@ -544,6 +548,7 @@ def device_fixture_plan(device: str) -> tuple[tuple[int, list[str]], ...]:
         raise MatrixError(f"Unknown product fixture device: {device}")
     plan = (
         (ROLLOVER_PORTS[device], ["--unpinned", "--rollover-on-command"]),
+        (SHOP_JOIN_PORTS[device], ["--rollover-on-command", "--mismatched-shop-rollover"]),
         (RECOVERY_PORT, ["--fail-first-white-catalogue"]),
         (OFFLINE_PORT, ["--unpinned", "--stop-after-first-songs"]),
         (SCORE_OFFLINE_PORT, ["--unpinned", "--stop-after-first-score"]),

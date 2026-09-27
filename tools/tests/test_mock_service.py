@@ -37,6 +37,7 @@ class MockServiceTests(unittest.TestCase):
         self.assertEqual(identity["options"], {
             "unpinned": False, "rolloverOnRead": None,
             "rolloverOnCommand": False,
+            "mismatchedShopRollover": False,
             "failFirstWhiteCatalogue": False,
             "stopAfterFirstSongs": False,
             "stopAfterFirstScore": False,
@@ -568,6 +569,106 @@ class MockServiceTests(unittest.TestCase):
             finally:
                 server.shutdown()
                 worker.join(timeout=2)
+
+    def test_pinned_join_rollover_keeps_shop_player_and_failed_songs_distinct(self):
+        """New pinned Shop/profile succeed while all new Songs reads fail explicitly."""
+        with FixtureServer(
+            ("127.0.0.1", 0), FixtureHandler,
+            rollover_on_command=True, mismatched_shop_rollover=True,
+        ) as server:
+            worker = threading.Thread(target=server.serve_forever, daemon=True)
+            worker.start()
+            root = f"http://127.0.0.1:{server.server_port}"
+            try:
+                with urlopen(root + "/__fixture__/health") as response:
+                    options = json.load(response)["options"]
+                self.assertFalse(options["unpinned"])
+                self.assertTrue(options["rolloverOnCommand"])
+                self.assertTrue(options["mismatchedShopRollover"])
+                with urlopen(root + "/api/publication") as response:
+                    self.assertEqual(json.load(response)["publicationId"], 7)
+                    self.assertEqual(response.headers["X-FST-Publication-Id"], "7")
+                with urlopen(root + "/api/songs") as response:
+                    self.assertEqual(json.load(response)["count"], 2)
+                    old_etag = response.headers["ETag"]
+                with urlopen(root + "/api/shop") as response:
+                    self.assertEqual(json.load(response)["count"], 2)
+                    self.assertEqual(response.headers["X-FST-Publication-Id"], "7")
+                    old_shop_etag = response.headers["ETag"]
+                with urlopen(root + "/api/player/fixture-player-2") as response:
+                    self.assertEqual(json.load(response)["totalScores"], 3)
+                with self.assertRaises(HTTPError) as selected_header:
+                    urlopen(Request(
+                        root + "/__fixture__/advance-publication",
+                        headers={"X-FST-Selected-Player": "fixture-player-2"},
+                    ))
+                self.assertEqual(selected_header.exception.code, 400)
+                with self.assertRaises(HTTPError) as unsupported:
+                    urlopen(root + "/api/shop?scenario=shop-empty")
+                self.assertEqual(unsupported.exception.code, 400)
+                with urlopen(root + "/api/publication") as response:
+                    self.assertEqual(json.load(response)["publicationId"], 7)
+                with urlopen(root + "/__fixture__/advance-publication") as response:
+                    self.assertEqual(json.load(response), {"publicationId": 8})
+                with urlopen(root + "/api/publication") as response:
+                    self.assertEqual(json.load(response)["publicationId"], 8)
+                    self.assertEqual(response.headers["X-FST-Publication-Id"], "8")
+                with self.assertRaises(HTTPError) as stale:
+                    urlopen(Request(
+                        root + "/api/shop", headers={"X-FST-Publication-Id": "7"}
+                    ))
+                self.assertEqual(stale.exception.code, 409)
+                with urlopen(Request(
+                    root + "/api/shop", headers={"X-FST-Publication-Id": "8"}
+                )) as response:
+                    shop = json.load(response)
+                    self.assertEqual(response.headers["X-FST-Publication-Id"], "8")
+                    self.assertNotEqual(response.headers["ETag"], old_shop_etag)
+                self.assertEqual(shop["count"], 1)
+                self.assertEqual(
+                    [offer["songId"] for offer in shop["songs"]], ["fixture-pulse"]
+                )
+                with urlopen(Request(
+                    root + "/api/player/fixture-player-2",
+                    headers={"X-FST-Publication-Id": "8"},
+                )) as response:
+                    self.assertEqual(response.headers["X-FST-Publication-Id"], "8")
+                    self.assertEqual(json.load(response)["totalScores"], 3)
+                with self.assertRaises(HTTPError) as missing:
+                    urlopen(Request(
+                        root + "/api/songs",
+                        headers={
+                            "X-FST-Publication-Id": "8",
+                            "If-None-Match": old_etag,
+                        },
+                    ))
+                self.assertEqual(missing.exception.code, 503)
+                self.assertEqual(
+                    missing.exception.headers["X-FST-Publication-Id"], "8"
+                )
+                with urlopen(root + "/__fixture__/publication-join-reads") as response:
+                    self.assertEqual(json.load(response), {
+                        "shop": 8, "player": 8, "failedSongs": 8,
+                    })
+                with self.assertRaises(HTTPError) as repeated:
+                    urlopen(root + "/__fixture__/advance-publication")
+                self.assertEqual(repeated.exception.code, 409)
+            finally:
+                server.shutdown()
+                worker.join(timeout=2)
+        with self.assertRaises(HTTPError) as ordinary:
+            urlopen(self.base + "/__fixture__/publication-join-reads")
+        self.assertEqual(ordinary.exception.code, 404)
+        with self.assertRaisesRegex(ValueError, "explicit command"):
+            FixtureServer(
+                ("127.0.0.1", 0), FixtureHandler,
+                mismatched_shop_rollover=True,
+            )
+        with self.assertRaisesRegex(ValueError, "persistent fixture mode"):
+            FixtureServer(
+                ("127.0.0.1", 0), FixtureHandler, unpinned=True,
+                rollover_on_command=True, mismatched_shop_rollover=True,
+            )
 
     def test_artwork_failure_fixtures_are_isolated_and_bounded(self):
         """Unavailable art is synthetic; ordinary song fixture remains unchanged."""
