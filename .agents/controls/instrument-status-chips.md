@@ -132,8 +132,11 @@ The later pinned iPhone publication-join case also proves player-2's
 newer 99,850 score cannot decorate retained older Songs as FC/status
 chips; both old rows instead speak "Player scores paused until songs update."
 That case and five selected-card/profile/default-Title-audit regressions
-pass **6/6** on iPhone. A saved Shop-sort version of the selected Songs
-full audit still fails with a partially tab-overlapped grouped card.
+pass **6/6** on iPhone. A saved-Shop-sort version initially failed with
+a partially tab-overlapped grouped card; after reducing only the
+grouped List's unused vertical insets, the exact portrait case passes
+an unwaived full audit in a separate **5/5** iPhone regression. AX5
+grouped rows and the warm-offline failed-Shop-sort audit are still open.
 Native iPad's split detail pane wraps nine chips into two
 balanced rows; the source 820px WebKit viewport places nine in
 one. This is an explicit platform-layout gap, not a false source

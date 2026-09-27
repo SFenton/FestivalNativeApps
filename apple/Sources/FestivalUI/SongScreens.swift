@@ -334,6 +334,10 @@ struct SongsScreen: View {
         shopFilterPausedMessage == nil ? appliedShopFilter : SongShopFilter()
     }
 
+    private var groupedRowInsets: EdgeInsets {
+        EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16)
+    }
+
     private var canPresentFilter: Bool {
         (session.selectedPlayer != nil && session.playerLoadState == .available && !hideShop)
             || appliedShopFilter.isActive
@@ -514,11 +518,13 @@ struct SongsScreen: View {
                                     )
                                     .listRowSeparator(.hidden)
                                     .listRowBackground(Color.clear)
+                                    .listRowInsets(groupedRowInsets)
                                     ForEach(section.songs) { song in
                                         songLink(
                                             for: song,
                                             catalogueObservation: payload.observedPublicationId
                                         )
+                                        .listRowInsets(groupedRowInsets)
                                     }
                                 }
                             } else {

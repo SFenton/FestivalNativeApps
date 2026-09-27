@@ -38,7 +38,7 @@ its quick-link rail, other modes' buckets or scroll restoration.
 | Reset | Restore sort mode, direction and metadata priority to defaults *in the draft* | Reset changes the native draft only, including a paused Shop choice; Apply is still required; iPad Form may need scrolling to expose Reset above the fixed footer |
 | Relaunch | Saved sort/direction restored | Persistent native mode/direction restore, independently of process-only network/artwork caches |
 | Item Shop | Source presents Item Shop even anonymously; ascending prioritizes actual membership, descending reverses it | Native offers Item Shop if Settings shows Shop, enabled only with a validated public feed from the **same observed catalogue generation** (including known empty). Hide removes the choice and pauses any saved Shop sort; if **no matched validated feed is retained**, an absent/failed feed or old Songs/new Shop mismatch disables it with an explicit notice. A failed refresh with retained matching membership keeps sorting, disclosing the update error. Display Title order in the saved direction only while paused; do not group or accent old Songs using newer Shop rows. |
-| Shop sections | Source puts a header before each of at least two nonempty first-seen Leaving/In/Not buckets and exposes quick links | Native List uses the same three first-seen buckets and skips headings for one bucket; quick-link rail/jump drawer, other sort-mode buckets and exact row/layout geometry remain pending |
+| Shop sections | Source puts a header before each of at least two nonempty first-seen Leaving/In/Not buckets and exposes quick links | Native List uses the same three first-seen buckets and skips headings for one bucket; grouped headers/links use zero vertical List insets and native 16pt horizontal gutters so two selected cards clear iPhone 26.5's floating tab. Quick-link rail/jump drawer, other sort-mode buckets and full layout parity remain pending |
 | Contextual modes | Instrument, visibility, shop, player and band change mode/priority choices | Score/Has FC/player/band modes, metadata priorities, non-Shop filter states and full Songs actions remain pending |
 
 A dedicated pinned iPhone 26.5 generation 7→8/503 fixture
@@ -52,6 +52,23 @@ eligibility rule: an updated player-2 Pulse Lead score
 (99,800 to 99,850) is paused on retained older Songs
 alongside the Shop sort. This is not a full Shop
 Sort/Filter parity claim.
+
+The grouped selected-player **baseline** put the lower full Song row
+at y595..823.33pt with the iPhone 26.5 floating tab starting y791pt:
+32.33pt of that row was behind the tab, and a saved-Shop-sort `.all`
+audit had an unnamed contrast failure. Removing only the system List's
+vertical insets on grouped headings/links, while keeping a 16pt native
+horizontal gutter, lets the same two selected cards fit at rest.
+The exact `testSelectedShopSortSongsRowsClearFloatingTab` passes its
+row-versus-real-tab assertion and an unwaived `.all` audit **1/1**.
+The frozen **5/5 iPhone** Shop Sort, selected score/settings,
+Title-pinned default audit and pinned rollover regressions also pass;
+the measured iPhone `FestivalUI`/app subset is only
+**3071/4695 (65.41%, below 90%)**.
+This is one portrait iPhone fixture with icons off, not a pixel-perfect
+PWA copy, all sorting states, landscape, largest type, Duo, iPadOS or
+macOS evidence. The older grouped nil-element Dynamic Type finding
+remains open separately.
 
 **Native interaction and visual boundary:** On iOS 26 the bottom-toolbar
 Sort action collided with the system tab bar during a device test, so keep it

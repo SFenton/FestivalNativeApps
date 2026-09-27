@@ -926,6 +926,49 @@ final class FestivalMobileUITests: XCTestCase {
         try deselectFixturePlayer(in: app)
     }
 
+    /// A grouped selected-player catalogue must expose both rows above the floating tab.
+    ///
+    /// - Throws: Missing Shop groups, unreadable lower score row or failed full audit.
+    @MainActor
+    func testSelectedShopSortSongsRowsClearFloatingTab() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launchArguments += [
+            "-fst.settings.hideShop", "NO",
+            "-fst.songs.sortMode", "shop",
+            "-fst.songs.sortAscending", "YES",
+        ]
+        app.launch()
+        let pulse = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(pulse.waitForExistence(timeout: 15))
+        showSelectedScoreMetadata(in: app)
+        viewFixturePlayer("fixture-player-2", query: "Fixture Player", in: app)
+        app.buttons["fst.profile.select"].tap()
+        let sort = app.buttons["fst.songs.sort"]
+        XCTAssertEqual(sort.value as? String, "Item Shop, ascending")
+        let leaving = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.shop-section.leaving-tomorrow").firstMatch
+        let inShop = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.shop-section.in-shop").firstMatch
+        XCTAssertTrue(leaving.waitForExistence(timeout: 10))
+        XCTAssertTrue(inShop.exists)
+        let orbit = app.buttons["fst.songs.row.fixture-orbit"]
+        XCTAssertTrue(orbit.exists && pulse.exists)
+        XCTAssertTrue(pulse.label.contains("Score 99,800"))
+        XCTAssertLessThan(orbit.frame.minY, pulse.frame.minY)
+        let tabs = app.tabBars.firstMatch
+        XCTAssertTrue(tabs.exists)
+        record(app, name: "songs-selected-shop-sort-tab-edge")
+        XCTAssertLessThanOrEqual(
+            pulse.frame.maxY, tabs.frame.minY,
+            "Grouped card \(pulse.frame) extends behind floating tab \(tabs.frame)"
+        )
+        try app.performAccessibilityAudit(for: .all)
+    }
+
     /// Measure actual profile-action glyph growth when Dynamic Type becomes largest.
     ///
     /// - Throws: An unchanged rendered font size, clipped preview or unreachable action.

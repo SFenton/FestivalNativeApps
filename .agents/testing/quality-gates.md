@@ -12,10 +12,12 @@ When the sibling web repository and its existing Playwright dependencies are pre
 
 `python3 tools/verify_product.py` validates inventory consistency and prints pending surfaces. Strict mode also requires evidence for every listed page, control and state on all four platforms. On the Mac run `bash tools/apple_coverage.sh`: it tests all three **SwiftPM test bundles**, merges real LLVM line coverage by test binary, checks `apple/Sources` for missing/nested files and requires 95% logic/90% UX. Re-run this full gate after compiled-source edits; targeted tests alone cannot certify a new source snapshot.
 
-The current full SwiftPM report (2026-09-27, after the
-selected-player score-publication guard) measures
-**1805/1886 logic lines (95.71%, pass)** and
-**8583/9491 UX lines (90.43%, pass)**, plus contrast.
+The current full SwiftPM report (2026-09-27, after compact
+grouped Songs rows) measures
+**1804/1886 logic lines (95.65%, pass)** and
+**8599/9505 UX lines (90.47%, pass)**, plus contrast.
+The preceding selected-score-publication report measured
+1805/1886 (95.71%) logic and 8583/9491 (90.43%) UX.
 The earlier post-Shop-Filter report measured
 1798/1880 (95.64%) logic and 8491/9399 (90.34%) UX;
 the preceding hosted-snapshot report measured
@@ -56,15 +58,35 @@ instrument chips, Shop Filter and **Title-pinned** selected Songs
 saved Sort preference untouched. Without it, the same six-case suite
 passed **5/6** but the selected Songs `.all` audit failed for an unnamed
 SwiftUI contrast node: the lower grouped card extended behind the
-translucent system tab under a saved Shop sort. That **combined Shop-sort
-accessibility state remains open**, not waived by the Title case.
-The complete-current-source six-case iPhone `FestivalUI`/app subset is
-**2714/4690 unique executable lines (57.87%, below 90%)**; this selected
+translucent system tab under a saved Shop sort. The later grouped-row
+inset fix and the dedicated unwaived selected-Shop-sort audit below
+address **that exact portrait state**; the warm-offline failed-Shop
+sort with a long paused notice remains a separate open audit.
+The pre-grouped-spacing six-case iPhone `FestivalUI`/app subset measured
+**2714/4690 unique executable lines (57.87%, below 90%)**; it is
+**historical** after the newer Song List edit, and a current-source
+iPhone UI/app 90% pass remains pending. The selected
 subset does **not** certify the full iPhone category or the deferred
 iPadOS/Duo/macOS gates. The
 matching scripted AppKit host captures the update failure, profile/Shop
 paused notices and both retained rows; a Shop-edge pixel check excludes
 these new gold notices rather than misclassifying them as Shop borders.
+
+For the saved-Shop-sort selected Songs state, a dedicated iPhone 26.5
+fixture first measured the lower full-row frame at **y595..823.33pt**
+against the floating tab beginning at **y791pt**, a **32.33pt
+occlusion**. Keeping 16pt horizontal gutters while removing only
+the grouped List rows' unused vertical insets made that exact
+row-edge assertion and a full unwaived `.all` audit pass **1/1**.
+The final **5/5 source-frozen iPhone** grouped-Shop-Sort, selected
+metadata/default audit and pinned rollover regression also passes.
+Its current-source `FestivalUI`/app subset measures
+**3071/4695 lines (65.41%, below 90%)**, still not a complete
+iPhone UI/app line gate.
+Source WebKit grouped Songs and selected-profile captures are
+structural references, not pixel equivalence. The older nil-element
+grouped Dynamic Type finding, AX5/grouped scroll, iPadOS and broader
+iPhone UI/app line bar remain open; the focused pass does not erase them.
 
 The warm-offline audit's failing element is the Songs **"Retry Item Shop status"** button, which may or may not appear when the one-shot Songs fixture races a Shop read. The test now uses an explicit local `shop-error` scenario and waits for the actual button. A private element capture showed white glyphs on the opaque card at **18.72:1**; the native test enforces **at least 4.5:1** before auditing. A separate normal/AX5 iPhone journey proves **greater than 1.35x actual glyph-height growth** and reaches the action with small in-list drags even when the row is lazily offscreen; full swipes skipped that narrow row. On **iPhone iOS 26.5 only**, the audit accepts **at most one contrast and one Dynamic Type report** for that exact button identifier and label after these independent checks; every other issue and other runtime remains failing. In the final **4/4** suite this warm-offline audit deliberately pins fixture Sort to Title using launch arguments without erasing a saved user preference. With an additional saved Shop Sort and its long paused notice, Xcode still reports an **unidentified contrast node**: that combined full-screen state remains open and is not waived. The focused Title-order result is not an unwaived `.all` certification. An experimental button restyle did not remove the reports and was reverted. The iPad Songs audit remains open under the iPhone-first sequence.
 

@@ -35,6 +35,22 @@ failure in a source-identical run. Keep that full audit pending, not
 waived or declared certified; selected visible headings meet ≥4.5:1.
 This also does not resolve iPad's reported full-window focus frames.
 
+A separate source-frozen **selected Shop-sort** iPhone fixture measured
+the lower Song row at y595..823.33pt while iOS 26.5's tab began
+at y791pt, reproducing a **32.33pt** actual overlap before the audit.
+Grouped headers and links now remove only excess vertical system List
+insets while preserving 16pt horizontal content gutters. On the same
+portrait iPhone fixture both entire cards fit above the floating tab,
+and an unwaived `.all` audit passes **1/1**. The earlier default-Title
+selected audit and Shop Sort/metadata/rollover regressions also pass
+in one **5/5** frozen iPhone suite. Its `FestivalUI`/app subset
+measures **3071/4695 (65.41%, below 90%)**, not the full iPhone gate.
+This does not clear the independent
+nil-element grouped Dynamic Type/iPad focus findings or claim complete
+Song/Sort visual parity. The PWA Shop groups and selected rows are
+still shorter and place Search/Sort in a lower dock, an explicit native
+layout difference.
+
 **New iPhone selected-player Filter slice, not full Filter parity:** The PWA
 shows its mobile Filter dock action only with player data or a selected
 band (`FortniteFestivalWeb/src/pages/songs/SongsPage.tsx:1122-1136`).
@@ -98,8 +114,11 @@ not the full 90% bar. The selected audit inherits saved Shop
 Sort in a prior **5/6** run and failed an unnamed contrast
 node where the lower grouped card was behind the native tab.
 The final passing test pins Title per launch without deleting
-the preference; that separate combined-state audit remains
-pending. Private captures
+the preference; a later grouped-only List inset change makes
+**that same selected Shop-sort portrait state** pass an unwaived
+full audit in a separate **5/5** iPhone suite. The saved-Shop-sort
+**warm-offline** error/long-notice audit remains pending.
+Private captures
 show the PWA's long bottom sheet with many instrument,
 score and band sections and five player tabs, while native uses
 an opaque full-height Shop-only sheet with three tabs. See the

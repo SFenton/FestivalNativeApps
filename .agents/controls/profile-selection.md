@@ -155,9 +155,12 @@ The same source-frozen iPhone six-case selected-profile/card matrix passes
 **6/6** after pinning the normal selected Songs accessibility case to
 Title order via launch arguments. The earlier **5/6** saved-Shop-sort
 variant left the lower grouped Song card behind the system tab and failed
-an unnamed full-audit contrast node; this combined state is still open.
-Only **2714/4690 (57.87%)** unique iPhone UI/app lines were covered by
-the passing six-case subset, not the required 90%.
+an unnamed full-audit contrast node. Removing the grouped List's excess
+vertical insets later made that **exact** selected-Shop-sort iPhone
+portrait state pass an unwaived full audit in a separate **5/5**
+regression. The pre-inset six-case subset covered only **2714/4690
+(57.87%)** unique iPhone UI/app lines; the newer five-case subset is
+**3071/4695 (65.41%)**, also below the required 90%.
 The PWA's source score map is not proof of its generation-join behavior;
 this fail-closed native safety guard is **not** a parity certification.
 
