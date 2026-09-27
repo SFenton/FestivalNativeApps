@@ -13,6 +13,23 @@ const songs: unknown = JSON.parse(
 if (!isSongsResponse(songs) || songs.count !== songs.songs.length) {
   throw new Error('Invalid synthetic songs fixture');
 }
+const metadataEdge: unknown = JSON.parse(
+  readFileSync(join(root, 'contracts/fixtures/metadata-edge.json'), 'utf8'),
+);
+if (!metadataEdge || typeof metadataEdge !== 'object'
+  || !('songs' in metadataEdge) || !isSongsResponse(metadataEdge.songs)
+  || metadataEdge.songs.count !== 1
+  || !('player' in metadataEdge) || !metadataEdge.player
+  || typeof metadataEdge.player !== 'object'
+  || !('accountId' in metadataEdge.player)
+  || metadataEdge.player.accountId !== 'fixture-edge'
+  || !('totalScores' in metadataEdge.player)
+  || metadataEdge.player.totalScores !== 1
+  || !('shop' in metadataEdge) || !metadataEdge.shop
+  || typeof metadataEdge.shop !== 'object'
+  || !('count' in metadataEdge.shop) || metadataEdge.shop.count !== 1) {
+  throw new Error('Invalid coherent synthetic metadata edge fixture');
+}
 const scenario = createPopulatedScenario();
 scenario.songs = songs;
 scenario.songsEtag = '"fst-visual-songs"';
@@ -176,8 +193,70 @@ for (const viewport of viewports.filter(entry => entry.id.endsWith('portrait')))
     const scoreBox = await score.boundingBox();
     if (!titleBox || !scoreBox) throw new Error('Source selected-card text is not painted');
     expect(scoreBox.x).toBeGreaterThan(titleBox.x + titleBox.width);
+    const metadata = selectedRow.locator('[data-metadata-key]');
+    expect(await metadata.evaluateAll(nodes =>
+      nodes.map(node => node.getAttribute('data-metadata-key')))).toEqual([
+      'percentage', 'percentile', 'stars', 'seasonachieved', 'intensity', 'difficulty',
+    ]);
+    const bounds = [];
+    for (let index = 0; index < 6; index++) {
+      const box = await metadata.nth(index).boundingBox();
+      if (!box) throw new Error(`Source metadata field ${index} has no painted bounds`);
+      bounds.push(box);
+    }
+    const middles = bounds.map(box => Math.round(box.y + box.height / 2));
+    const rows = [...new Set(middles)].map(middle =>
+      middles.filter(value => value === middle).length);
+    expect(rows).toEqual(viewport.width <= 768 ? [3, 3] : [6]);
+    const accuracy = selectedRow.getByText('97.9%', { exact: true });
+    await expect(accuracy).toBeVisible();
+    const fcStyle = await accuracy.evaluate(element => ({
+      color: getComputedStyle(element).color,
+      fontStyle: getComputedStyle(element).fontStyle,
+      transform: getComputedStyle(element).transform,
+    }));
+    expect(fcStyle.color).toBe('rgb(255, 215, 0)');
+    expect(fcStyle.fontStyle).toBe('italic');
+    expect(fcStyle.transform).not.toBe('none');
     await page.screenshot({
       path: join(output, `${testInfo.project.name}-${viewport.id}-songs-selected-player-two.png`),
+      animations: 'disabled',
+    });
+
+    await appState.setSettings({ metadataShowScore: false });
+    await page.reload({ waitUntil: 'load' });
+    await dismissObstructions(page);
+    const scoreHidden = page.locator('#main-content')
+      .getByRole('link', { name: /Fixture Pulse/ }).first();
+    await expect(scoreHidden.getByText('99,800', { exact: true })).toHaveCount(0);
+    const promoted = scoreHidden.getByText('97.9%', { exact: true });
+    const promotedBox = await promoted.boundingBox();
+    const hiddenTitleBox = await scoreHidden.getByText('Fixture Pulse', { exact: true }).boundingBox();
+    if (!promotedBox || !hiddenTitleBox) {
+      throw new Error('Source score-hidden primary accuracy was not painted');
+    }
+    expect(promotedBox.x).toBeGreaterThan(hiddenTitleBox.x + hiddenTitleBox.width);
+    const hiddenBottomKeys = await scoreHidden.locator('[data-metadata-key]')
+      .evaluateAll(nodes => nodes.map(node => node.getAttribute('data-metadata-key')));
+    if (viewport.width <= 768) {
+      expect(hiddenBottomKeys).toEqual([
+        'percentile', 'stars', 'seasonachieved', 'intensity', 'difficulty',
+      ]);
+    } else {
+      // Removing Score lowers the page-wide inline threshold below tablet width.
+      expect(hiddenBottomKeys).toEqual([]);
+      const percentile = await scoreHidden.getByText('Top 10%', { exact: true }).boundingBox();
+      const season = await scoreHidden.getByText('S9', { exact: true }).boundingBox();
+      const difficulty = await scoreHidden.getByText('X', { exact: true }).boundingBox();
+      if (!percentile || !season || !difficulty) {
+        throw new Error('Source score-hidden inline metadata is not painted');
+      }
+      expect(promotedBox.x).toBeLessThan(percentile.x);
+      expect(percentile.x).toBeLessThan(season.x);
+      expect(season.x).toBeLessThan(difficulty.x);
+    }
+    await page.screenshot({
+      path: join(output, `${testInfo.project.name}-${viewport.id}-songs-player-two-score-hidden.png`),
       animations: 'disabled',
     });
   });
@@ -234,6 +313,51 @@ for (const viewport of viewports.filter(entry => entry.id.endsWith('portrait')))
       path: join(output, `${testInfo.project.name}-${viewport.id}-songs-player-two-default-chips.png`),
       animations: 'disabled',
     });
+  });
+}
+
+for (const viewport of viewports.filter(entry => entry.id.endsWith('portrait'))) {
+  test(`fixture-backed PWA long selected score and Shop: ${viewport.id}`, async ({ page, api, appState }, testInfo) => {
+    mkdirSync(output, { recursive: true });
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    api.override({ method: 'GET', path: '/api/songs', status: 200, body: metadataEdge.songs });
+    api.override({
+      method: 'GET', path: '/api/player/fixture-edge', status: 200, body: metadataEdge.player,
+    });
+    api.override({ method: 'GET', path: '/api/shop', status: 200, body: metadataEdge.shop });
+    await gotoAppRoute(page, '/songs');
+    await appState.selectPlayer('fixture-edge', 'Fixture Edge Player');
+    await appState.setSettings({ songsHideInstrumentIcons: true, filterInvalidScores: false });
+    await page.reload({ waitUntil: 'load' });
+    const content = page.locator('#main-content');
+    await expect(content).toContainText('A Very Long Synthetic Festival Anthem', { timeout: 15_000 });
+    await dismissObstructions(page);
+    const row = content.getByRole('link', { name: /A Very Long Synthetic Festival Anthem/ }).first();
+    const title = row.getByText(
+      'A Very Long Synthetic Festival Anthem with an Extended Encore', { exact: true },
+    ).first();
+    const score = row.getByText('1,234,567', { exact: true });
+    await expect(title).toBeVisible();
+    await expect(score).toBeVisible();
+    await page.screenshot({
+      path: join(output, `${testInfo.project.name}-${viewport.id}-songs-long-seven-digit-shop.png`),
+      animations: 'disabled',
+    });
+    const titleBox = await title.boundingBox();
+    const scoreBox = await score.boundingBox();
+    const rowBox = await row.boundingBox();
+    if (!titleBox || !scoreBox || !rowBox) {
+      throw new Error('Source long-title card has no painted geometry');
+    }
+    // The source marquee's intrinsic text bounds extend past its clipped viewport.
+    expect(scoreBox.x).toBeGreaterThan(rowBox.x + rowBox.width / 2);
+    expect(scoreBox.x + scoreBox.width).toBeLessThanOrEqual(rowBox.x + rowBox.width + 1);
+    await expect(row.getByText('Top 100%', { exact: true })).toBeVisible();
+    await expect(row.locator('[data-metadata-key="lastplayed"]')).toHaveCount(0);
+    expect(await row.locator('[data-metadata-key]').evaluateAll(nodes =>
+      nodes.map(node => node.getAttribute('data-metadata-key')))).toEqual([
+      'percentage', 'percentile', 'stars', 'seasonachieved', 'intensity', 'difficulty',
+    ]);
   });
 }
 

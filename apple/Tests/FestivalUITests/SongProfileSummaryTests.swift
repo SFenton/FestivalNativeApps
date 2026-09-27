@@ -26,6 +26,130 @@ private func selectedFixtureProfiles() throws -> [String: PlayerProfileResponse]
     return fixtures.profiles
 }
 
+/// Use the same validated synthetic song and season as source/browser captures.
+///
+/// - Returns: Charted Pulse and its current catalogue season.
+/// - Throws: Inconsistent catalogue bytes or a missing fixture song.
+private func selectedFixtureSong() throws -> (song: Song, season: Int) {
+    let fixtureURL = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent()
+        .deletingLastPathComponent().deletingLastPathComponent()
+        .appendingPathComponent("contracts/fixtures/songs-demo.json")
+    let catalogue = try JSONDecoder().decode(
+        SongsResponse.self, from: Data(contentsOf: fixtureURL)
+    )
+    try catalogue.validate()
+    return (
+        try #require(catalogue.songs.first { $0.songId == "fixture-pulse" }),
+        try #require(catalogue.currentSeason)
+    )
+}
+
+/// A selected FC song is projected into seven source-ordered, independent fields.
+@Test func selectedSongMetadataProjectsSourceOrderAndCurrentSeason() throws {
+    let player = try #require(selectedFixtureProfiles()["fixture-player-2"])
+    let score = try #require(player.scoreIndex(
+        requestedAccountId: "fixture-player-2"
+    )["fixture-pulse"]?[.lead])
+    let context = try selectedFixtureSong()
+    let fields = try SongProfileCardPolicy.fields(
+        for: score, chart: .lead, song: context.song,
+        currentSeason: context.season, visibility: SongMetadataVisibility()
+    )
+    #expect(fields.map(\.id) == [
+        .score, .accuracy, .percentile, .stars,
+        .season, .intensity, .difficulty
+    ])
+    #expect(fields[0] == .score(99_800))
+    #expect(fields[1] == .accuracy(979_000, fullCombo: true,
+                                  percentageVisible: true, tint: nil))
+    #expect(fields[1].announcement == "Full combo, accuracy 97.9 percent")
+    #expect(fields[2] == .percentile("Top 10%", tier: .ordinary))
+    #expect(fields[3] == .stars(count: 5, gold: false))
+    #expect(fields[4] == .season(9, current: true))
+    #expect(fields[5] == .intensity(2))
+    #expect(fields[5].announcement == "Song intensity 3 of 7")
+    #expect(SongMetadataField.intensity(1e200).announcement == "Song intensity 7 of 7")
+    #expect(fields[6] == .difficulty(3))
+    #expect(fields[6].announcement == "Expert difficulty")
+}
+
+/// The next *available* field becomes primary without weakening FC visibility.
+@Test func hiddenScorePromotesAccuracyAndHiddenPercentageRetainsFullCombo() throws {
+    let profile = try #require(selectedFixtureProfiles()["fixture-player-2"])
+    let lead = try #require(profile.scoreIndex(
+        requestedAccountId: "fixture-player-2"
+    )["fixture-pulse"]?[.lead])
+    let context = try selectedFixtureSong()
+    var visible = SongMetadataVisibility()
+    visible.score = false
+    var fields = try SongProfileCardPolicy.fields(
+        for: lead, chart: .lead, song: context.song,
+        currentSeason: context.season, visibility: visible
+    )
+    #expect(fields.first?.id == .accuracy)
+    #expect(fields.first?.announcement == "Full combo, accuracy 97.9 percent")
+    visible.percentage = false
+    fields = try SongProfileCardPolicy.fields(
+        for: lead, chart: .lead, song: context.song,
+        currentSeason: context.season, visibility: visible
+    )
+    #expect(fields.first == .accuracy(nil, fullCombo: true,
+                                      percentageVisible: false, tint: nil))
+    #expect(fields.first?.announcement == "Full combo")
+    visible.percentile = false
+    visible.stars = false
+    visible.season = false
+    visible.intensity = false
+    visible.difficulty = false
+    visible.lastPlayed = false
+    #expect(try SongProfileCardPolicy.fields(
+        for: lead, chart: .lead, song: context.song,
+        currentSeason: context.season, visibility: visible
+    ).map(\.id) == [.accuracy])
+}
+
+/// Rank tiers, six gold stars, old seasons and missing FC accuracy cannot invent values.
+@Test func profileMetadataEdgeTiersAndMissingAccuracyStayExplicit() throws {
+    let context = try selectedFixtureSong()
+    let edge = try JSONDecoder().decode(PlayerProfileResponse.self, from: Data("""
+    {"accountId":"fixture-edge","totalScores":1,"scores":[{
+      "si":"fixture-pulse","ins":"01","sc":1234567,"fc":true,
+      "st":6,"dif":0,"sn":8,"rk":1,"te":1000000,
+      "vlp":"2026-09-20T12:34:56.1234567Z"}]}
+    """.utf8))
+    _ = try edge.validate(requestedAccountId: "fixture-edge")
+    let row = try #require(edge.scores.first)
+    let fields = try SongProfileCardPolicy.fields(
+        for: row, chart: .lead, song: context.song,
+        currentSeason: context.season, visibility: SongMetadataVisibility()
+    )
+    #expect(fields.map(\.id) == [
+        .score, .accuracy, .percentile, .stars, .season,
+        .intensity, .difficulty, .lastPlayed
+    ])
+    #expect(fields[0] == .score(1_234_567))
+    #expect(fields[1] == .accuracy(nil, fullCombo: true,
+                                  percentageVisible: true, tint: nil))
+    #expect(fields[1].announcement == "Full combo, accuracy unavailable")
+    #expect(fields[2] == .percentile("Top 1%", tier: .topOne))
+    #expect(fields[3] == .stars(count: 5, gold: true))
+    #expect(fields[3].announcement == "5 gold stars")
+    #expect(fields[4] == .season(8, current: false))
+    #expect(fields[6] == .difficulty(0))
+    #expect(fields[7].announcement.contains("2026"))
+
+    let first = try #require(selectedFixtureProfiles()["fixture-player-1"])
+    let score = try #require(first.scoreIndex(
+        requestedAccountId: "fixture-player-1"
+    )["fixture-pulse"]?[.lead])
+    let earlier = try SongProfileCardPolicy.fields(
+        for: score, chart: .lead, song: context.song,
+        currentSeason: context.season, visibility: SongMetadataVisibility()
+    )
+    #expect(earlier.contains(.percentile("Top 4%", tier: .topFive)))
+}
+
 @Test func selectedPlayerChangesSongScoreAndExplicitFullCombo() throws {
     let profiles = try selectedFixtureProfiles()
     let first = try #require(
@@ -43,13 +167,13 @@ private func selectedFixtureProfiles() throws -> [String: PlayerProfileResponse]
     #expect(first.isFullCombo == false)
     #expect(second.isFullCombo == true)
     #expect(first.accuracy == 979_000)
-    #expect(SongProfileCardPolicy.labels(
+    #expect(try SongProfileCardPolicy.labels(
         for: first, chart: .lead, visibility: SongMetadataVisibility()
     ).contains("Score \(first.score.formatted())"))
-    #expect(SongProfileCardPolicy.labels(
+    #expect(try SongProfileCardPolicy.labels(
         for: second, chart: .lead, visibility: SongMetadataVisibility()
     ).contains("Score \(second.score.formatted())"))
-    #expect(SongProfileCardPolicy.labels(
+    #expect(try SongProfileCardPolicy.labels(
         for: second, chart: .lead, visibility: SongMetadataVisibility()
     ).contains("Top 10%"))
 }
@@ -62,7 +186,7 @@ private func selectedFixtureProfiles() throws -> [String: PlayerProfileResponse]
     """.utf8))
     _ = try response.validate(requestedAccountId: "fixture-metadata")
     let score = try #require(response.scores.first)
-    let all = SongProfileCardPolicy.labels(
+    let all = try SongProfileCardPolicy.labels(
         for: score, chart: .lead, visibility: SongMetadataVisibility()
     )
     for required in ["Score ", "Accuracy ", "Top ", "Season ", "Expert", "stars",
@@ -78,11 +202,14 @@ private func selectedFixtureProfiles() throws -> [String: PlayerProfileResponse]
     for (key, hiddenLabel) in switches {
         var changed = SongMetadataVisibility()
         changed[keyPath: key] = false
-        let labels = SongProfileCardPolicy.labels(
+        let labels = try SongProfileCardPolicy.labels(
             for: score, chart: .lead, visibility: changed
         )
-        #expect(labels.count == all.count - 1)
+        #expect(labels.count == all.count - (hiddenLabel == "Accuracy " ? 0 : 1))
         #expect(!labels.contains(where: { $0.contains(hiddenLabel) }))
+        if hiddenLabel == "Accuracy " {
+            #expect(labels.contains("Full combo"))
+        }
     }
     var preference = SongMetadataVisibility()
     preference.score = false
@@ -92,10 +219,10 @@ private func selectedFixtureProfiles() throws -> [String: PlayerProfileResponse]
     preference.difficulty = false
     preference.stars = false
     preference.lastPlayed = false
-    let hidden = SongProfileCardPolicy.labels(
+    let hidden = try SongProfileCardPolicy.labels(
         for: score, chart: .bass, visibility: preference
     )
-    #expect(hidden == ["Bass"])
+    #expect(hidden == ["Bass", "Full combo"])
     #expect(preference.intensity)
     preference.intensity = false
     #expect(!preference.intensity)
@@ -108,11 +235,10 @@ private func selectedFixtureProfiles() throws -> [String: PlayerProfileResponse]
     """.utf8))
     _ = try response.validate(requestedAccountId: "fixture-empty-metadata")
     let score = try #require(response.scores.first)
-    let labels = SongProfileCardPolicy.labels(
+    let labels = try SongProfileCardPolicy.labels(
         for: score, chart: .bass, visibility: SongMetadataVisibility()
     )
-    #expect(!labels.contains("Score 0"))
-    #expect(labels.contains("Last played date unavailable"))
+    #expect(labels == ["Bass"])
     #expect(!labels.contains(where: { $0.contains("Accuracy") || $0.contains("Top ") }))
 }
 
@@ -126,7 +252,7 @@ private func selectedFixtureProfiles() throws -> [String: PlayerProfileResponse]
     """.utf8))
     _ = try response.validate(requestedAccountId: "fixture-date")
     let score = try #require(response.scores.first)
-    let labels = SongProfileCardPolicy.labels(
+    let labels = try SongProfileCardPolicy.labels(
         for: score, chart: .lead, visibility: SongMetadataVisibility()
     )
     let date = try #require(labels.first(where: { $0.hasPrefix("Last played ") }))

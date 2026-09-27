@@ -3,7 +3,9 @@
 import json
 import unittest
 
-from tools.contrast_gate import ROOT, check_on_art, check_song_chip_contrast, ratio
+from tools.contrast_gate import (
+    ROOT, check_on_art, check_song_chip_contrast, check_song_metadata_contrast, ratio,
+)
 
 
 class ArtworkContrastTests(unittest.TestCase):
@@ -56,6 +58,22 @@ class ArtworkContrastTests(unittest.TestCase):
                 dict(self.colors, statusGreen="rgba(46,204,113,0.5)")
             )
         ))
+
+    def test_metadata_badges_need_readable_game_difficulty_and_tiers(self):
+        """White Easy/Hard glyphs cannot slip into opaque native pills."""
+        self.assertEqual(check_song_metadata_contrast(self.colors), [])
+        for token, replacement, issue in (
+            ("diffPillEasy", "#0B1220", "easy glyph"),
+            ("diffPillMedium", "#FFD700", "medium glyph"),
+            ("diffPillHard", "#0B1220", "hard glyph"),
+            ("textSecondary", "#162133", "current season label"),
+        ):
+            with self.subTest(token=token):
+                changed = dict(self.colors, **{token: replacement})
+                self.assertTrue(any(
+                    problem.startswith(issue + ": contrast")
+                    for problem in check_song_metadata_contrast(changed)
+                ))
 
 
 if __name__ == "__main__":

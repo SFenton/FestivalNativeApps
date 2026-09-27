@@ -7,8 +7,18 @@
     <SolidColorBrush x:Key="FSTAccentPurpleBrush" Color="{StaticResource FSTAccentPurpleColor}" />
     <Color x:Key="FSTAppBackgroundColor">#FF1A0830</Color>
     <SolidColorBrush x:Key="FSTAppBackgroundBrush" Color="{StaticResource FSTAppBackgroundColor}" />
+    <Color x:Key="FSTBorderSubtleColor">#FF1E2A3A</Color>
+    <SolidColorBrush x:Key="FSTBorderSubtleBrush" Color="{StaticResource FSTBorderSubtleColor}" />
     <Color x:Key="FSTCardBackgroundColor">#FF0B1220</Color>
     <SolidColorBrush x:Key="FSTCardBackgroundBrush" Color="{StaticResource FSTCardBackgroundColor}" />
+    <Color x:Key="FSTDiffPillEasyColor">#FF2ECC71</Color>
+    <SolidColorBrush x:Key="FSTDiffPillEasyBrush" Color="{StaticResource FSTDiffPillEasyColor}" />
+    <Color x:Key="FSTDiffPillExpertColor">#FF7C3AED</Color>
+    <SolidColorBrush x:Key="FSTDiffPillExpertBrush" Color="{StaticResource FSTDiffPillExpertColor}" />
+    <Color x:Key="FSTDiffPillHardColor">#FF2D82E6</Color>
+    <SolidColorBrush x:Key="FSTDiffPillHardBrush" Color="{StaticResource FSTDiffPillHardColor}" />
+    <Color x:Key="FSTDiffPillMediumColor">#FFC62828</Color>
+    <SolidColorBrush x:Key="FSTDiffPillMediumBrush" Color="{StaticResource FSTDiffPillMediumColor}" />
     <Color x:Key="FSTGlassBorderColor">#14FFFFFF</Color>
     <SolidColorBrush x:Key="FSTGlassBorderBrush" Color="{StaticResource FSTGlassBorderColor}" />
     <Color x:Key="FSTGoldColor">#FFFFD700</Color>
@@ -27,6 +37,8 @@
     <SolidColorBrush x:Key="FSTSurfaceFrostedBrush" Color="{StaticResource FSTSurfaceFrostedColor}" />
     <Color x:Key="FSTSurfaceMutedColor">#FF223047</Color>
     <SolidColorBrush x:Key="FSTSurfaceMutedBrush" Color="{StaticResource FSTSurfaceMutedColor}" />
+    <Color x:Key="FSTSurfaceSubtleColor">#FF162133</Color>
+    <SolidColorBrush x:Key="FSTSurfaceSubtleBrush" Color="{StaticResource FSTSurfaceSubtleColor}" />
     <Color x:Key="FSTTextDisabledColor">#FF607089</Color>
     <SolidColorBrush x:Key="FSTTextDisabledBrush" Color="{StaticResource FSTTextDisabledColor}" />
     <Color x:Key="FSTTextMutedColor">#FF8899AA</Color>

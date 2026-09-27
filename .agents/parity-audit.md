@@ -73,7 +73,7 @@ audit failure. See [control](controls/score-accuracy.md) and
 |---|---|---|
 | Profile selection and search | `App.tsx:760-834`, `SearchModal.tsx:495-590`, `state/selectedProfile.ts:10-175`; player vs band identity, persistence, switch and deselect | Native header/sheet for both targets, errors and cancellation, guarded tabs; profile change invalidates dependent rows/routes. Avoid implicit production tracking POSTs. |
 | Adaptive shell/navigation | `BottomNav.tsx:41-100`, `MobileHeader.tsx:53-131`, `App.tsx:1011-1107`; no profile has three tabs, selected player/band adds Suggestions and Statistics, player enables Compete/Rivals | Native tab/sidebar selection, reselect, deep links, focus, safe areas, notifications and quick links in compact/wide layouts. |
-| Songs rows, filter and sort | `SongsPage.tsx:370-485,622-855,1112-1360`, `SongRow.tsx:173-511`, `SortModal.tsx:44-213`, `FilterModal.tsx:169-373` | Anonymous title/artist/year/duration, conditional Shop sorting and Shop New/Leaving row accents work on Apple. Selected-player default chips have source WebKit 4/4 and native 10/10-per-device named proofs, but band, invalid fallback, complete geometry/contrast/metadata, other profile/FC sorts, Shop filter drafts and warning action remain. |
+| Songs rows, filter and sort | `SongsPage.tsx:370-485,622-855,1112-1360`, `SongRow.tsx:173-511`, `SortModal.tsx:44-213`, `FilterModal.tsx:169-373` | Anonymous title/artist/year/duration sorting and conditional Shop New/Leaving row accents work on Apple; selected default chips have source WebKit 4/4 and native 10/10-per-device named proofs. Icons-off/filtered selected cards now have typed source-order score/metadata pills and a separate pinned long-title Shop fixture with narrow native proof. Duration **display**, bands, invalid fallbacks, full geometry/contrast/metadata order, conditional profile/FC sorts, Shop filter drafts and warning action remain. |
 | Song Detail and Paths | `SongDetailPage.tsx:191-279,663-731`, `InstrumentCard.tsx:24-291`, `PathsModal.tsx:110-190,550-652` | Ten-row Solo previews, official Shop link/status and first path image/text states exist on Apple; selected/off-page score, history/band cards, path column reorder/layout, rapid-request race, warning persistence and complete focus/a11y remain. |
 | Rankings and Solo/Band paging | `LeaderboardsOverviewPage.tsx:137-240,443-488`, `FullRankingsPage.tsx:169-244`, `BandRankingsPage.tsx:155-285`, `LeaderboardPage.tsx:114-184` | Replace placeholder with data-backed solo+band cards, selection spotlight, metrics/rank history, full scope pagination and band combo filters; retain Solo progress honestly. |
 | Player, bands and stats | `PlayerPage.tsx:38-153`, `PlayerContent.tsx:214-292`, `BandPage.tsx:80-158,299-393`, `PlayerBandsPage.tsx:29-85` | Distinguish viewed vs selected account, expose stats and score/history, band members/configurations/songs, selected-team song cards and player-band group modal. |
@@ -146,9 +146,11 @@ card shows 99,800 at the right edge, a skewed gold 97.9% badge
 and Top 10% bucket. In the source's unfiltered default with
 icons enabled, instrument chips replace per-chart score metadata
 (`FortniteFestivalWeb/src/pages/songs/components/SongRow.tsx:191-200,264-271`).
-Native's icons-off row places first-visible-chart
-score inline with separate FC and the same Top 10% bucket, but
-not the source's score/accuracy-pill geometry. It omits the
+Native's icons-off row now places first-visible-chart
+Score top-trailing with FC/accuracy, tiered Top bucket,
+stars, season, Song Intensity and player game-difficulty
+pills. Its independently spoken FC and separate Shop action
+still differ from the source skew/geometry. It omits the
 first-run Filter Songs overlay and keeps
 only three tabs where the source adds player-only destinations.
 The default-icons-on native status-chip WIP is backed by
@@ -161,6 +163,31 @@ one row, while native iPad wraps them into two in its
 system split-detail pane; native initials/marks replace
 source PNGs of unresolved rights. These differences
 are not pixel or complete accessibility parity.
+An additional source-frozen **10/10 per-device** Apple
+matrix passed the structured icons-off/filtered pills,
+the distinct pinned long-title/Shop fixture and the
+unchanged selected/anonymous chip, Bass and Detail
+journeys. This is selected-state proof, not full Songs,
+coverage, iPad `.all` or platform parity.
+Post-review selected-player evidence now separately
+names a positive **Drums chart** rather than implying Lead,
+keeps four painted badge-text inset pixels at xLarge/AX3/
+AX5, and uses one star plus a count at accessibility sizes.
+The isolated dated Shop fixture initially exposed a
+14pt iPhone/57pt iPad AX5 date-to-Shop right-edge gap;
+measuring each wrapped pill's actual fitted width fixed
+both focused device journeys. The PWA Title card still
+omits Last Played, while native retains the switch/date,
+and the source phone still clips the long title where
+native wraps it. The preceding 10/10 pair predates
+these review fixes; a fresh source-frozen pair now passes
+**10/10 on each** iPhone/iPadOS 26.5 simulator, with
+**6/6** source WebKit comparisons and both Apple Release
+builds. A full measured SwiftPM logic gate passes at
+**1754/1843 (95.17%)**, but UX fails at **5113/8874
+(57.62%)** and the paired iOS UI/app subset fails at
+**3166/4419 (71.65%)**. These are real release blockers,
+not acceptable proxies for full page/control parity.
 The source's mobile target row is below results; the native phone
 uses a top scope. Source screenshots live in private session
 evidence, not the repository.

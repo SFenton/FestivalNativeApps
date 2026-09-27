@@ -256,6 +256,13 @@ struct SongsScreen: View {
         let visible: Bool
     }
 
+    private var currentSeason: Int? {
+        if case let .loaded(payload) = state {
+            return payload.catalog.currentSeason
+        }
+        return nil
+    }
+
     /// Share one set of Settings switches across lazy row renderers.
     private var metadataVisibility: SongMetadataVisibility {
         SongMetadataVisibility(
@@ -736,7 +743,8 @@ struct SongsScreen: View {
                 metadata: metadataVisibility,
                 filterInvalidScores: filterInvalidScores,
                 showInstrumentIcons: showInstrumentIcons,
-                visibleInstruments: visibleInstruments
+                visibleInstruments: visibleInstruments,
+                currentSeason: currentSeason
             )
         }
         .listRowSeparator(.hidden)
@@ -964,6 +972,7 @@ struct SongRowView: View {
     let filterInvalidScores: Bool
     let showInstrumentIcons: Bool
     let visibleInstruments: Set<Instrument>
+    let currentSeason: Int?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// Decorate one real Shop offer without turning it into a new navigation action.
@@ -979,6 +988,7 @@ struct SongRowView: View {
     ///   - filterInvalidScores: Hide unsupported filtered-score details explicitly.
     ///   - showInstrumentIcons: Saved status-chip setting.
     ///   - visibleInstruments: Enabled charts independent of chart availability.
+    ///   - currentSeason: Current catalogue season for the inverted season badge.
     init(
         song: Song, instrument: Instrument?, session: FestivalSession,
         highContrast: Bool, shopHighlight: ShopHighlight? = nil,
@@ -986,7 +996,8 @@ struct SongRowView: View {
         metadata: SongMetadataVisibility = SongMetadataVisibility(),
         filterInvalidScores: Bool = false,
         showInstrumentIcons: Bool = true,
-        visibleInstruments: Set<Instrument> = Set(Instrument.allCases)
+        visibleInstruments: Set<Instrument> = Set(Instrument.allCases),
+        currentSeason: Int? = nil
     ) {
         self.song = song
         self.instrument = instrument
@@ -998,6 +1009,7 @@ struct SongRowView: View {
         self.filterInvalidScores = filterInvalidScores
         self.showInstrumentIcons = showInstrumentIcons
         self.visibleInstruments = visibleInstruments
+        self.currentSeason = currentSeason
     }
 
     private var trailingLayout: AnyLayout {
@@ -1017,6 +1029,27 @@ struct SongRowView: View {
         )
     }
 
+    private var structuredScore: (chart: Instrument, score: PlayerScore)? {
+        guard !usesInstrumentChips, !filterInvalidScores,
+              session.selectedPlayer != nil, session.playerLoadState == .available,
+              let chart = profileChart, song.supports(chart),
+              let score = session.selectedPlayerScores[song.songId]?[chart],
+              score.score > 0 else {
+            return nil
+        }
+        return (chart, score)
+    }
+
+    private var structuredFields: Result<[SongMetadataField], Error>? {
+        guard let structuredScore else { return nil }
+        return Result {
+            try SongProfileCardPolicy.fields(
+                for: structuredScore.score, chart: structuredScore.chart,
+                song: song, currentSeason: currentSeason, visibility: metadata
+            )
+        }
+    }
+
     private var artworkTile: some View {
         ArtworkTile(raw: song.albumArt, session: session, size: 44)
             .id(song.albumArt)
@@ -1033,6 +1066,18 @@ struct SongRowView: View {
                 .font(.subheadline)
                 .foregroundStyle(BrandTokens.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var selectedChartInfo: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            songInfo
+            if let chart = structuredScore?.chart, chart != .lead {
+                Text("\(chart.label) chart")
+                    .font(.caption)
+                    .foregroundStyle(BrandTokens.textSecondary)
+                    .accessibilityIdentifier("fst.songs.metadata.chart.\(song.songId)")
+            }
         }
     }
 
@@ -1060,35 +1105,82 @@ struct SongRowView: View {
         }
     }
 
+    @ViewBuilder private var shopBadge: some View {
+        if let shopHighlight {
+            Image(systemName: shopHighlight == .leavingTomorrow
+                ? "clock" : "sparkles")
+                .font(.subheadline)
+                .foregroundStyle(
+                    shopHighlight == .leavingTomorrow
+                        ? BrandTokens.textPrimary : BrandTokens.gold
+                )
+                .frame(minWidth: 30, minHeight: 30)
+                .background(
+                    shopHighlight == .leavingTomorrow
+                        ? BrandTokens.statusRed : BrandTokens.appBackground,
+                    in: Circle()
+                )
+                .accessibilityLabel("Item Shop: \(shopHighlight.label)")
+                .accessibilityIdentifier("fst.songs.shop-badge.\(song.songId)")
+        }
+    }
+
     private var trailingContent: some View {
         trailingLayout {
-            if metadata.intensity, let instrument,
+            if metadata.intensity, let instrument, structuredScore == nil,
                let difficulty = song.difficulty?.chartedValue(for: instrument) {
                 DifficultyMeter(level: difficulty, raw: true)
             }
-            if let shopHighlight {
-                Image(systemName: shopHighlight == .leavingTomorrow
-                    ? "clock" : "sparkles")
-                    .font(.subheadline)
-                    .foregroundStyle(
-                        shopHighlight == .leavingTomorrow
-                            ? BrandTokens.textPrimary : BrandTokens.gold
-                    )
-                    .frame(minWidth: 30, minHeight: 30)
-                    .background(
-                        shopHighlight == .leavingTomorrow
-                            ? BrandTokens.statusRed : BrandTokens.appBackground,
-                        in: Circle()
-                    )
-                    .accessibilityLabel("Item Shop: \(shopHighlight.label)")
-                    .accessibilityIdentifier("fst.songs.shop-badge.\(song.songId)")
+            shopBadge
+        }
+    }
+
+    /// Keep a right-aligned primary field and a full-width wrapped secondary row.
+    ///
+    /// - Parameter fields: One validated, source-ordered selected-chart projection.
+    /// - Returns: One opaque, noninteractive native Song card content layout.
+    private func structuredMetadataRow(_ fields: [SongMetadataField]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                artworkTile
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .top, spacing: 8) {
+                        selectedChartInfo.frame(minWidth: 150, alignment: .leading)
+                        Spacer(minLength: 0)
+                        if let primary = fields.first {
+                            SongMetadataFieldView(field: primary, songId: song.songId)
+                        }
+                    }
+                    VStack(alignment: .leading, spacing: 6) {
+                        selectedChartInfo
+                        if let primary = fields.first {
+                            HStack {
+                                Spacer(minLength: 0)
+                                SongMetadataFieldView(field: primary, songId: song.songId)
+                            }
+                        }
+                    }
+                }
+            }
+            if fields.count > 1 {
+                SongProfileMetadataPills(
+                    fields: Array(fields.dropFirst()), songId: song.songId
+                )
+            }
+            if shopHighlight != nil {
+                HStack {
+                    Spacer(minLength: 0)
+                    shopBadge
+                }
             }
         }
     }
 
     var body: some View {
         Group {
-            if dynamicTypeSize.isAccessibilitySize && usesInstrumentChips {
+            if let structuredFields, case let .success(fields) = structuredFields {
+                structuredMetadataRow(fields)
+            } else if dynamicTypeSize.isAccessibilitySize && usesInstrumentChips {
                 VStack(alignment: .leading, spacing: 12) {
                     songInfo
                     HStack(alignment: .top, spacing: 12) {

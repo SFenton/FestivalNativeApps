@@ -146,8 +146,38 @@ The source tablet's one chip row
 becomes two in native iPad's platform split pane;
 full iPad `.all`, Keyboard variants, first-run
 navigation, responsive pixel parity and coverage
-remain open. Mac GUI automation,
-older iOS/Duo poses, complete accessibility/visual/coverage gates and
-real edge authorization remain pending.
+remain open.
+An additional compact-first selected-score pill WIP puts
+Score top trailing and wraps FC, percentile, stars,
+season, catalogue Intensity and game Difficulty in a
+source-ordered row; **focused 1/1 on each** iPhone/iPad
+tests prove score/pill edges within 2pt, graded/gold
+badge pixel contrast ≥4.5:1 and long-title/Shop AX5
+reachability. Native iPad Hide/Show Sidebar completed
+on the isolated synthetic edge without a hang. This is
+followed by a serial **10/10 on each** iPhone/iPadOS26.5
+source-frozen regression matrix. It is not a macOS GUI
+test or source pixel parity.
+Post-review focused iPhone/iPad cases also require a
+visible/spoken non-Lead chart caption and a fractional
+Last Played date. At AX5, a native star plus count and
+scaled badge text insets avoid overflowing five stars
+or touching a badge edge. The pill layout now uses the
+actual fitted wrapped width: red real-device assertions
+measured a 14pt iPhone and 57pt iPad date-to-Shop trailing
+gap, then passed within 2pt on both after this change.
+This pill-specific fix must not add padding to the
+independent fixed Solo badge. A new source-frozen
+**10/10 iPhone + 10/10 iPadOS** matrix passes the
+post-fix selected/anonymous cases, with **6/6**
+source WebKit comparison and both Apple Release
+builds. Full SwiftPM logic coverage reaches
+**95.17%**, but UX **57.62%** and the paired iOS
+UI/app subset **71.65%** fail the 90% requirement.
+Complete iPad accessibility and all-route coverage
+remain open.
+Mac GUI automation, older iOS/Duo poses, complete
+accessibility/visual/coverage gates and real edge
+authorization remain pending.
 
 Use DocC for function contracts, `// MARK: -` sections, accessibility identifiers from the shared registry, and a dedicated logic/UI coverage split. The app can expose additive Reduce Motion/Contrast/Transparency/Background overrides, **not** an OS VoiceOver switch.

@@ -21,6 +21,7 @@ private func searchedPlayer(_ accountId: String, _ displayName: String) throws
     let selected = try SelectedPlayerIdentity(searchResult: viewed)
     try selected.validate()
     #expect(selected.accountId == "fixture-player-1")
+    #expect(selected.id == selected.accountId)
     #expect(selected.displayName == "Fixture Player 1")
 
     let data = try JSONEncoder().encode(selected)

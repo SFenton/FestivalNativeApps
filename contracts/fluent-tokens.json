@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "source": "FortniteFestivalLeaderboardScraper/packages/theme/src/colors.ts:1-69",
+  "source": "FortniteFestivalLeaderboardScraper/packages/theme/src/colors.ts:1-110",
   "colors": {
     "appBackground": "#1A0830",
     "cardBackground": "#0B1220",
@@ -18,6 +18,12 @@
     "statusRed": "#C62828",
     "statusRedStroke": "#8B0000",
     "surfaceMuted": "#223047",
-    "textDisabled": "#607089"
+    "textDisabled": "#607089",
+    "surfaceSubtle": "#162133",
+    "borderSubtle": "#1E2A3A",
+    "diffPillEasy": "#2ECC71",
+    "diffPillMedium": "#C62828",
+    "diffPillHard": "#2D82E6",
+    "diffPillExpert": "#7C3AED"
   }
 }

@@ -40,6 +40,7 @@ class MockServiceTests(unittest.TestCase):
             "stopAfterFirstSongs": False,
             "stopAfterFirstScore": False,
             "stopAfterFirstShop": False,
+            "metadataEdge": False,
         })
         self.assertEqual(set(identity["sourceHashes"]), {
             "tools/mock_service.py",
@@ -49,6 +50,7 @@ class MockServiceTests(unittest.TestCase):
             "contracts/fixtures/path-demo.json",
             "contracts/fixtures/shop-demo.json",
             "contracts/fixtures/player-demo.json",
+            "contracts/fixtures/metadata-edge.json",
         })
         for name, digest in identity["sourceHashes"].items():
             self.assertEqual(
@@ -280,6 +282,98 @@ class MockServiceTests(unittest.TestCase):
                 bass = json.load(response)
             self.assertEqual(bass["count"], 0)
             self.assertEqual(bass["totalEntries"], 0)
+
+    def test_isolated_metadata_edge_keeps_song_profile_shop_and_chart_coherent(self):
+        """Long-title and seven-digit device proof never poisons the shared Bass fixture."""
+        with FixtureServer(
+            ("127.0.0.1", 0), FixtureHandler, metadata_edge=True
+        ) as edge:
+            worker = threading.Thread(target=edge.serve_forever, daemon=True)
+            worker.start()
+            root = f"http://127.0.0.1:{edge.server_port}"
+            try:
+                with urlopen(root + "/__fixture__/health") as response:
+                    health = json.load(response)
+                self.assertTrue(health["options"]["metadataEdge"])
+                self.assertFalse(health["options"]["unpinned"])
+                self.assertEqual(
+                    health["sourceHashes"]["contracts/fixtures/metadata-edge.json"],
+                    hashlib.sha256(
+                        (ROOT / "contracts/fixtures/metadata-edge.json").read_bytes()
+                    ).hexdigest(),
+                )
+                with urlopen(root + "/api/songs") as response:
+                    songs = json.load(response)
+                    etag = response.headers["ETag"]
+                self.assertEqual(songs["count"], 1)
+                song = songs["songs"][0]
+                self.assertEqual(song["songId"], "fixture-marathon")
+                self.assertGreater(len(song["title"]), 40)
+                self.assertEqual(song["durationSeconds"], 366)
+                cached = Request(root + "/api/songs", headers={"If-None-Match": etag})
+                with self.assertRaises(HTTPError) as not_modified:
+                    urlopen(cached)
+                self.assertEqual(not_modified.exception.code, 304)
+
+                with urlopen(root + "/api/account/search?q=Fixture%20Edge&limit=10") as response:
+                    results = json.load(response)["results"]
+                self.assertEqual([player["accountId"] for player in results], ["fixture-edge"])
+                profile_request = Request(
+                    root + "/api/player/fixture-edge",
+                    headers={"X-FST-Publication-Id": "7"},
+                )
+                with urlopen(profile_request) as response:
+                    profile = json.load(response)
+                self.assertEqual(profile["totalScores"], 1)
+                score = profile["scores"][0]
+                self.assertEqual(score["si"], song["songId"])
+                self.assertEqual(score["sc"], 1_234_567)
+                self.assertEqual(score["vlp"], "2026-09-20T12:34:56.1234567Z")
+                with urlopen(
+                    root + "/api/leaderboard/fixture-marathon/Solo_Guitar?top=10"
+                ) as response:
+                    chart = json.load(response)
+                entry = chart["entries"][0]
+                self.assertEqual(chart["count"], 1)
+                self.assertEqual(chart["totalEntries"], score["te"])
+                self.assertEqual(entry["accountId"], profile["accountId"])
+                self.assertEqual(entry["score"], score["sc"])
+                self.assertEqual(entry["accuracy"], score["acc"] * 1_000)
+                self.assertEqual(entry["isFullCombo"], score["fc"])
+                with urlopen(root + "/api/shop") as response:
+                    shop = json.load(response)
+                self.assertEqual(shop["count"], 1)
+                self.assertEqual(shop["newSongs"], [song["songId"]])
+                self.assertEqual(shop["songs"][0]["songId"], song["songId"])
+                self.assertTrue(shop["songs"][0]["shopUrl"].startswith(
+                    "https://www.fortnite.com/item-shop/jam-tracks/"
+                ))
+                for route in (
+                    "/api/player/fixture-player-1",
+                    "/api/leaderboard/fixture-pulse/Solo_Guitar",
+                    "/api/leaderboard/fixture-marathon/Solo_Bass",
+                ):
+                    with self.subTest(route=route), self.assertRaises(HTTPError) as failure:
+                        urlopen(root + route)
+                    self.assertEqual(failure.exception.code, 404)
+                selected = Request(
+                    root + "/api/player/fixture-edge",
+                    headers={"X-FST-Selected-Player": "fixture-edge"},
+                )
+                with self.assertRaises(HTTPError) as unsafe:
+                    urlopen(selected)
+                self.assertEqual(unsafe.exception.code, 400)
+                with self.assertRaises(HTTPError) as post:
+                    urlopen(Request(
+                        root + "/api/player/fixture-edge/track", data=b"{}", method="POST"
+                    ))
+                self.assertEqual(post.exception.code, 405)
+                with self.assertRaises(HTTPError) as ordinary:
+                    urlopen(self.base + "/api/leaderboard/fixture-marathon/Solo_Guitar")
+                self.assertEqual(ordinary.exception.code, 404)
+            finally:
+                edge.shutdown()
+                worker.join(timeout=2)
 
     def test_public_path_artifacts_have_generation_etags_and_no_mutations(self):
         """Original JSON/PNG fixtures expose valid paths without a live service."""

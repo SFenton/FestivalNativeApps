@@ -417,7 +417,7 @@ final class FestivalMobileUITests: XCTestCase {
         rootControl("Songs", app: app).tap()
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         XCTAssertTrue(row.label.contains("Score 99,900"))
-        XCTAssertTrue(row.label.contains("Accuracy 97.9%"))
+        XCTAssertTrue(row.label.contains("Accuracy 97.9 percent"))
         record(app, name: "songs-player-score-and-percentage-enabled")
 
         rootControl("Settings", app: app).tap()
@@ -425,7 +425,7 @@ final class FestivalMobileUITests: XCTestCase {
         setSwitch(score, to: "0")
         rootControl("Songs", app: app).tap()
         XCTAssertFalse(row.label.contains("Score 99,900"))
-        XCTAssertTrue(row.label.contains("Accuracy 97.9%"))
+        XCTAssertTrue(row.label.contains("Accuracy 97.9 percent"))
         record(app, name: "songs-profile-score-hidden-percentage-retained")
 
         rootControl("Settings", app: app).tap()
@@ -435,7 +435,7 @@ final class FestivalMobileUITests: XCTestCase {
         setSwitch(percentage, to: "0")
         rootControl("Songs", app: app).tap()
         XCTAssertTrue(row.label.contains("Score 99,900"))
-        XCTAssertFalse(row.label.contains("Accuracy 97.9%"))
+        XCTAssertFalse(row.label.contains("Accuracy 97.9 percent"))
 
         rootControl("Settings", app: app).tap()
         reveal(percentage, in: app, scrollingUp: true)
@@ -481,6 +481,245 @@ final class FestivalMobileUITests: XCTestCase {
         reveal(filtering, in: app, scrollingUp: false)
         setSwitch(filtering, to: originalFilter)
         rootControl("Songs", app: app).tap()
+        try deselectFixturePlayer(in: app)
+    }
+
+    /// An icons-off card must paint separate, ordered pills with one charted meter.
+    ///
+    /// - Throws: Incorrect score alignment, missing FC or Settings changes that do not reflow.
+    @MainActor
+    func testSelectedSongScorePillsFollowSettingsAndFilteredDrums() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launch()
+        let row = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(row.waitForExistence(timeout: 15))
+        showSelectedScoreMetadata(in: app)
+        viewFixturePlayer("fixture-player-2", query: "Fixture Player", in: app)
+        app.buttons["fst.profile.select"].tap()
+        let score = metadataElement("score", in: app)
+        let accuracy = metadataElement("accuracy", in: app)
+        let percentile = metadataElement("percentile", in: app)
+        let stars = metadataElement("stars", in: app)
+        let season = metadataElement("season", in: app)
+        let intensity = metadataElement("intensity", in: app)
+        let difficulty = metadataElement("difficulty", in: app)
+        for field in [score, accuracy, percentile, stars, season, intensity, difficulty] {
+            XCTAssertTrue(field.waitForExistence(timeout: 10), field.identifier)
+        }
+        XCTAssertEqual(score.label, "Score 99,800")
+        XCTAssertEqual(accuracy.label, "Full combo, accuracy 97.9 percent")
+        XCTAssertEqual(percentile.label, "Top 10%")
+        XCTAssertEqual(stars.label, "5 stars")
+        XCTAssertEqual(season.label, "Current season 9")
+        XCTAssertEqual(intensity.label, "Song intensity 3 of 7")
+        XCTAssertEqual(difficulty.label, "Expert difficulty")
+        let spoken = [
+            score.label, accuracy.label, percentile.label,
+            stars.label, season.label, intensity.label, difficulty.label,
+        ]
+        var offset = row.label.startIndex
+        for field in spoken {
+            guard let range = row.label.range(of: field, range: offset..<row.label.endIndex)
+            else {
+                XCTFail("Source-order metadata was not spoken in order: \(row.label)")
+                return
+            }
+            offset = range.upperBound
+        }
+        let trailingEdge = score.frame.maxX
+        XCTAssertLessThanOrEqual(abs(trailingEdge - difficulty.frame.maxX), 2)
+        let shop = app.descendants(matching: .any).matching(
+            identifier: "fst.songs.shop-badge.fixture-pulse"
+        ).firstMatch
+        XCTAssertTrue(shop.waitForExistence(timeout: 10))
+        XCTAssertFalse(shop.frame.intersects(score.frame))
+        try assertScoreAccuracyAccent(accuracy, fullCombo: true)
+        record(app, name: "songs-fc-metadata-ordered-and-trailing")
+
+        rootControl("Settings", app: app).tap()
+        let scoreSwitch = app.switches["fst.settings.metadata.score"]
+        reveal(scoreSwitch, in: app, scrollingUp: true)
+        setSwitch(scoreSwitch, to: "0")
+        rootControl("Songs", app: app).tap()
+        XCTAssertFalse(score.exists)
+        XCTAssertTrue(accuracy.waitForExistence(timeout: 10))
+        XCTAssertLessThanOrEqual(abs(trailingEdge - accuracy.frame.maxX), 2)
+        record(app, name: "songs-hidden-score-promotes-fc-primary")
+
+        rootControl("Settings", app: app).tap()
+        let percentage = app.switches["fst.settings.metadata.percentage"]
+        reveal(percentage, in: app, scrollingUp: true)
+        setSwitch(percentage, to: "0")
+        rootControl("Songs", app: app).tap()
+        XCTAssertEqual(accuracy.label, "Full combo")
+        XCTAssertFalse(row.label.contains("97.9"))
+        record(app, name: "songs-percentage-hidden-keeps-fc-only")
+
+        rootControl("Settings", app: app).tap()
+        reveal(scoreSwitch, in: app, scrollingUp: true)
+        setSwitch(scoreSwitch, to: "1")
+        reveal(percentage, in: app, scrollingUp: true)
+        setSwitch(percentage, to: "1")
+        rootControl("Songs", app: app).tap()
+        let filter = app.buttons["fst.songs.instrument-filter"]
+        XCTAssertTrue(filter.waitForExistence(timeout: 10))
+        filter.tap()
+        XCTAssertTrue(app.buttons["Drums"].waitForExistence(timeout: 10))
+        app.buttons["Drums"].tap()
+        XCTAssertEqual(score.label, "Score 88,800")
+        XCTAssertEqual(accuracy.label, "Accuracy 90.5 percent")
+        XCTAssertEqual(percentile.label, "Top 100%")
+        XCTAssertEqual(stars.label, "4 stars")
+        XCTAssertEqual(intensity.label, "Song intensity 5 of 7")
+        XCTAssertEqual(difficulty.label, "Expert difficulty")
+        XCTAssertEqual(row.label.components(separatedBy: "Song intensity").count - 1, 1)
+        try assertScoreAccuracyAccent(accuracy, fullCombo: false)
+        record(app, name: "songs-filtered-drums-graded-accuracy-and-one-meter")
+
+        filter.tap()
+        XCTAssertTrue(app.buttons["All instruments"].waitForExistence(timeout: 10))
+        app.buttons["All instruments"].tap()
+        rootControl("Settings", app: app).tap()
+        let lead = app.switches["fst.settings.instrument.Solo_Guitar"]
+        let bass = app.switches["fst.settings.instrument.Solo_Bass"]
+        reveal(lead, in: app, scrollingUp: false)
+        setSwitch(lead, to: "0")
+        reveal(bass, in: app, scrollingUp: false)
+        setSwitch(bass, to: "0")
+        rootControl("Songs", app: app).tap()
+        XCTAssertEqual(score.label, "Score 88,800")
+        let chart = metadataElement("chart", in: app)
+        XCTAssertTrue(chart.waitForExistence(timeout: 10))
+        XCTAssertEqual(chart.label, "Drums chart")
+        XCTAssertTrue(row.label.contains("Drums chart"))
+        record(app, name: "songs-hidden-lead-and-bass-names-visible-drums-score")
+        rootControl("Settings", app: app).tap()
+        reveal(lead, in: app, scrollingUp: false)
+        setSwitch(lead, to: "1")
+        reveal(bass, in: app, scrollingUp: false)
+        setSwitch(bass, to: "1")
+        rootControl("Songs", app: app).tap()
+        try deselectFixturePlayer(in: app)
+    }
+
+    /// A coherent long-title, seven-digit and Shop case must reflow without a new API.
+    ///
+    /// - Throws: An unavailable edge profile, clipped score/pill or stalled iPad sidebar.
+    @MainActor
+    func testLongScoreMetadataAndShopRemainReachableAcrossWidths() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8776"
+        app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launch()
+        let row = app.buttons["fst.songs.row.fixture-marathon"]
+        XCTAssertTrue(row.waitForExistence(timeout: 15))
+        showSelectedScoreMetadata(in: app)
+        viewFixturePlayer("fixture-edge", query: "Fixture Edge", in: app)
+        XCTAssertTrue(app.buttons["fst.profile.select"].waitForExistence(timeout: 10))
+        app.buttons["fst.profile.select"].tap()
+        let score = metadataElement("score", songId: "fixture-marathon", in: app)
+        let accuracy = metadataElement("accuracy", songId: "fixture-marathon", in: app)
+        let difficulty = metadataElement("difficulty", songId: "fixture-marathon", in: app)
+        XCTAssertTrue(score.waitForExistence(timeout: 15))
+        XCTAssertTrue(accuracy.waitForExistence(timeout: 10))
+        XCTAssertTrue(difficulty.waitForExistence(timeout: 10))
+        XCTAssertEqual(score.label, "Score 1,234,567")
+        XCTAssertEqual(accuracy.label, "Full combo, accuracy 97.9 percent")
+        XCTAssertTrue(row.label.contains(
+            "A Very Long Synthetic Festival Anthem with an Extended Encore"
+        ))
+        XCTAssertTrue(row.label.contains(
+            "Synthetic Quartet Featuring an Extended Ensemble"
+        ))
+        let lastPlayed = metadataElement(
+            "lastPlayed", songId: "fixture-marathon", in: app
+        )
+        XCTAssertTrue(lastPlayed.waitForExistence(timeout: 10))
+        XCTAssertTrue(lastPlayed.label.contains("Last played"))
+        XCTAssertTrue(lastPlayed.label.contains("2026"))
+        let fieldLabels = row.label
+        let difficultyIndex = try XCTUnwrap(
+            fieldLabels.range(of: difficulty.label)
+        ).lowerBound
+        let lastPlayedIndex = try XCTUnwrap(
+            fieldLabels.range(of: lastPlayed.label)
+        ).lowerBound
+        XCTAssertLessThan(difficultyIndex, lastPlayedIndex)
+        XCTAssertFalse(difficulty.frame.intersects(lastPlayed.frame))
+        XCTAssertLessThanOrEqual(abs(score.frame.maxX - lastPlayed.frame.maxX), 2)
+        let shop = app.descendants(matching: .any).matching(
+            identifier: "fst.songs.shop-badge.fixture-marathon"
+        ).firstMatch
+        XCTAssertTrue(shop.waitForExistence(timeout: 10))
+        XCTAssertFalse(shop.frame.intersects(score.frame))
+        XCTAssertTrue(row.isHittable)
+        record(app, name: "songs-long-title-seven-digit-shop-score")
+
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            collapseSidebarOnPad(app)
+            XCTAssertTrue(score.waitForExistence(timeout: 10))
+            XCTAssertEqual(score.label, "Score 1,234,567")
+            XCTAssertLessThanOrEqual(abs(score.frame.maxX - lastPlayed.frame.maxX), 2)
+            record(app, name: "ipad-long-metadata-sidebar-hidden")
+            let restore = app.buttons.matching(
+                NSPredicate(format: "label CONTAINS[c] %@", "sidebar")
+            ).firstMatch
+            XCTAssertTrue(restore.waitForExistence(timeout: 10))
+            restore.tap()
+            XCTAssertTrue(shop.isHittable)
+        }
+
+        app.terminate()
+        app.launchEnvironment.removeValue(forKey: "FST_UI_TEST_CLEAR_PROFILE")
+        app.launchEnvironment.removeValue(forKey: "FST_UI_TEST_RESET_SONG_CARDS")
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName",
+            UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+        ]
+        app.launch()
+        let list = app.collectionViews["fst.songs.list"]
+        XCTAssertTrue(list.waitForExistence(timeout: 15))
+        let restored = app.buttons["fst.songs.row.fixture-marathon"]
+        for _ in 0..<5 {
+            if restored.exists && restored.isHittable { break }
+            list.swipeUp()
+        }
+        XCTAssertTrue(restored.isHittable)
+        let scoreLoaded = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label CONTAINS %@", "Score 1,234,567"),
+            object: restored
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [scoreLoaded], timeout: 15), .completed)
+        XCTAssertTrue(restored.label.contains("Full combo, accuracy 97.9 percent"))
+        XCTAssertTrue(restored.label.contains("Song intensity 3 of 7"))
+        XCTAssertTrue(restored.label.contains("Last played"))
+        let tabs = app.tabBars.firstMatch
+        let visibleBottom = (tabs.exists
+            ? tabs.frame.minY : app.windows.firstMatch.frame.maxY) - 8
+        for _ in 0..<6 {
+            if shop.exists && shop.frame.maxY <= visibleBottom { break }
+            list.swipeUp()
+        }
+        XCTAssertTrue(shop.isHittable)
+        XCTAssertLessThanOrEqual(shop.frame.maxY, visibleBottom)
+        XCTAssertTrue(lastPlayed.isHittable)
+        let axStars = metadataElement(
+            "stars", songId: "fixture-marathon", in: app
+        )
+        XCTAssertTrue(axStars.isHittable)
+        XCTAssertEqual(axStars.label, "5 stars")
+        XCTAssertFalse(shop.frame.intersects(lastPlayed.frame))
+        XCTAssertLessThanOrEqual(
+            abs(shop.frame.maxX - lastPlayed.frame.maxX), 2,
+            "Wrapped Last Played must share the Shop badge's trailing card edge"
+        )
+        record(app, name: "songs-long-metadata-accessibility-xxxlarge")
         try deselectFixturePlayer(in: app)
     }
 
@@ -2729,6 +2968,22 @@ final class FestivalMobileUITests: XCTestCase {
         return entries
     }
 
+    /// Address one score field without matching similarly named metadata or chart chips.
+    ///
+    /// - Parameters:
+    ///   - key: Source-ordered field kind, such as score or intensity.
+    ///   - songId: Synthetic catalogue key, defaulting to the paired player fixture.
+    ///   - app: Foreground fixture app showing the selected Songs destination.
+    /// - Returns: Exact visible per-song accessibility element.
+    @MainActor
+    private func metadataElement(
+        _ key: String, songId: String = "fixture-pulse", in app: XCUIApplication
+    ) -> XCUIElement {
+        app.descendants(matching: .any).matching(
+            identifier: "fst.songs.metadata.\(key).\(songId)"
+        ).firstMatch
+    }
+
     /// Reach one synthetic player from a fresh profile sheet without selecting it.
     ///
     /// - Parameters:
@@ -3407,15 +3662,17 @@ final class FestivalMobileUITests: XCTestCase {
     /// - Parameters:
     ///   - element: Settings action to reveal before tapping or asserting.
     ///   - app: Fixture app with the Settings Form visible.
-    ///   - scrollingUp: True for lower sections, false for the first section.
+    ///   - scrollingUp: Preferred direction, reversed if Settings retained its scroll position.
     @MainActor
     private func reveal(_ element: XCUIElement, in app: XCUIApplication, scrollingUp: Bool) {
-        for _ in 0..<8 {
-            if element.isHittable { return }
-            if scrollingUp {
-                app.swipeUp()
-            } else {
-                app.swipeDown()
+        for direction in [scrollingUp, !scrollingUp] {
+            for _ in 0..<8 {
+                if element.isHittable { return }
+                if direction {
+                    app.swipeUp()
+                } else {
+                    app.swipeDown()
+                }
             }
         }
         XCTAssertTrue(

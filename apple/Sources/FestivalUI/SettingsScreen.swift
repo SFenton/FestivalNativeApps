@@ -170,7 +170,8 @@ struct SettingsScreen: View {
                     : showInstrumentIcons
                         ? "With icons and All instruments, status chips replace score "
                             + "metadata. Turn icons off or filter one chart to show these fields."
-                        : "Visible score fields update Songs cards. More metadata is coming.")
+                        : "Visible score fields update Songs cards. The source's "
+                            + "metadata ordering and Last Played sort are still being ported.")
                     .font(.footnote)
                     .foregroundStyle(BrandTokens.textSecondary)
                 ForEach(MetadataField.allCases) { field in
@@ -276,7 +277,12 @@ struct SettingsScreen: View {
     /// - Returns: Explanation of the actual currently supported row effect.
     private func metadataHint(for field: MetadataField) -> String {
         if field == .intensity {
-            return "Controls difficulty meters on filtered Songs cards"
+            return "Controls song Intensity on selected score cards or filtered anonymous rows"
+        }
+        if field == .lastPlayed {
+            return session.selectedPlayer == nil
+                ? "Select a player to show the saved date"
+                : "Shows the saved date on native Songs cards; Last Played sort is not yet available"
         }
         return session.selectedPlayer == nil
             ? "Select a player to use score metadata"

@@ -44,6 +44,36 @@ DEMO_SONGS, DEMO_SONGS_HASH = load_fixture("songs-demo")
 PATH_DEMO, PATH_DEMO_HASH = load_fixture("path-demo")
 SHOP_DEMO, SHOP_DEMO_HASH = load_fixture("shop-demo")
 PLAYER_DEMO, PLAYER_DEMO_HASH = load_fixture("player-demo")
+METADATA_EDGE, METADATA_EDGE_HASH = load_fixture("metadata-edge")
+EDGE_SONG_ID = "fixture-marathon"
+_edge_song = METADATA_EDGE["songs"]["songs"][0]
+_edge_profile = METADATA_EDGE["player"]
+_edge_score = _edge_profile["scores"][0]
+_edge_entry = METADATA_EDGE["leaderboard"]["entries"][0]
+if (
+    METADATA_EDGE["songs"]["count"] != 1
+    or METADATA_EDGE["shop"]["count"] != 1
+    or _edge_song["songId"] != EDGE_SONG_ID
+    or METADATA_EDGE["shop"]["songs"][0]["songId"] != EDGE_SONG_ID
+    or METADATA_EDGE["shop"]["newSongs"] != [EDGE_SONG_ID]
+    or _edge_profile["totalScores"] != 1
+    or _edge_score["si"] != EDGE_SONG_ID
+    or _edge_score["ins"] != "01"
+    or METADATA_EDGE["leaderboard"]["songId"] != EDGE_SONG_ID
+    or METADATA_EDGE["leaderboard"]["instrument"] != "Solo_Guitar"
+    or METADATA_EDGE["leaderboard"]["totalEntries"] != _edge_score["te"]
+    or _edge_profile["accountId"] != _edge_entry["accountId"]
+    or _edge_profile["displayName"] != _edge_entry["displayName"]
+    or any(
+        _edge_score[key] != _edge_entry[field]
+        for key, field in (
+            ("sc", "score"), ("rk", "rank"), ("fc", "isFullCombo"),
+            ("st", "stars"), ("sn", "season")
+        )
+    )
+    or _edge_score["acc"] * 1_000 != _edge_entry["accuracy"]
+):
+    raise ValueError("Metadata edge profile, Shop and leaderboard fixtures disagree")
 DRUMS_SCORE = next(
     (
         row for row in PLAYER_DEMO["profiles"]["fixture-player-2"]["scores"]
@@ -61,6 +91,7 @@ SOURCE_HASHES = {
     "contracts/fixtures/path-demo.json": PATH_DEMO_HASH,
     "contracts/fixtures/shop-demo.json": SHOP_DEMO_HASH,
     "contracts/fixtures/player-demo.json": PLAYER_DEMO_HASH,
+    "contracts/fixtures/metadata-edge.json": METADATA_EDGE_HASH,
 }
 SONGS_ETAG = '"fst-fixture-songs-v1"'
 EMPTY_ETAG = '"fst-fixture-empty-v1"'
@@ -86,7 +117,8 @@ class FixtureServer(ThreadingHTTPServer):
         fail_first_white_catalogue: bool = False,
         stop_after_first_songs: bool = False,
         stop_after_first_score: bool = False,
-        stop_after_first_shop: bool = False
+        stop_after_first_shop: bool = False,
+        metadata_edge: bool = False,
     ) -> None:
         """Create a deterministic, request-count-driven service fixture.
 
@@ -99,8 +131,15 @@ class FixtureServer(ThreadingHTTPServer):
             stop_after_first_songs: Stop this mock listener after its first successful Songs read.
             stop_after_first_score: Stop after the first successful full 25-row chart read.
             stop_after_first_shop: Stop after one Shop feed and explicit visual acknowledgement.
+            metadata_edge: Publish one isolated long-title, score and Shop contract.
         """
+        if metadata_edge and (
+            unpinned or rollover_on_read is not None or fail_first_white_catalogue
+            or stop_after_first_songs or stop_after_first_score or stop_after_first_shop
+        ):
+            raise ValueError("Metadata edge fixture must remain publication-pinned and persistent")
         self.unpinned = unpinned
+        self.metadata_edge = metadata_edge
         self.rollover_on_read = rollover_on_read
         self.source_hashes = SOURCE_HASHES.copy()
         self.options = {
@@ -110,6 +149,7 @@ class FixtureServer(ThreadingHTTPServer):
             "stopAfterFirstSongs": stop_after_first_songs,
             "stopAfterFirstScore": stop_after_first_score,
             "stopAfterFirstShop": stop_after_first_shop,
+            "metadataEdge": metadata_edge,
         }
         self._publication_reads = 0
         self._publication_id = 7
@@ -447,6 +487,9 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 return
             term = terms[0].strip().casefold()
             candidates = (
+                {"accountId": _edge_profile["accountId"],
+                 "displayName": _edge_profile["displayName"]},
+            ) if self.fixture.metadata_edge else (
                 {"accountId": "fixture-player-1", "displayName": "Fixture Player 1"},
                 {"accountId": "fixture-player-2", "displayName": "Fixture Player 2"},
                 {"accountId": "fixture-cpp", "displayName": "C++"},
@@ -469,7 +512,12 @@ class FixtureHandler(BaseHTTPRequestHandler):
             if pin is not None and pin != str(self.fixture.publication_id):
                 self._json(409, {"status": "publication_changed"})
                 return
-            if account_id == "fixture-denied":
+            if self.fixture.metadata_edge:
+                if account_id == _edge_profile["accountId"]:
+                    self._json(200, _edge_profile)
+                else:
+                    self._json(404, {"status": "unknown_metadata_edge_player"})
+            elif account_id == "fixture-denied":
                 self._json(403, {"status": "player_profile_denied"})
             elif account_id == "fixture-syncing":
                 self._json(202, {
@@ -501,7 +549,12 @@ class FixtureHandler(BaseHTTPRequestHandler):
             if scenarios[0] in ("error", "shop-error"):
                 self._json(503, {"status": "fixture_shop_unavailable"})
                 return
-            if scenarios[0] in ("empty", "shop-empty"):
+            if self.fixture.metadata_edge:
+                if scenarios[0] != "demo":
+                    self._json(400, {"status": "unsupported_metadata_edge_scenario"})
+                    return
+                shop, etag = METADATA_EDGE["shop"], '"fst-fixture-metadata-edge-shop-v1"'
+            elif scenarios[0] in ("empty", "shop-empty"):
                 shop, etag = {
                     "count": 0, "songs": [], "newSongs": [], "lastUpdated": None,
                 }, '"fst-fixture-shop-empty-v1"'
@@ -548,7 +601,12 @@ class FixtureHandler(BaseHTTPRequestHandler):
             if scenarios[0] == "art-white" and self.fixture.should_fail_white_catalogue():
                 self._json(503, {"status": "fixture_initial_white_failure"})
                 return
-            if scenarios[0] == "empty":
+            if self.fixture.metadata_edge:
+                if scenarios[0] != "demo":
+                    self._json(400, {"status": "unsupported_metadata_edge_scenario"})
+                    return
+                songs, etag = METADATA_EDGE["songs"], '"fst-fixture-metadata-edge-songs-v1"'
+            elif scenarios[0] == "empty":
                 songs, etag = EMPTY_SONGS, EMPTY_ETAG
             elif scenarios[0] == "art-error":
                 songs = {
@@ -645,7 +703,9 @@ class FixtureHandler(BaseHTTPRequestHandler):
             if song_id == "fixture-white" and instrument in INSTRUMENTS:
                 self._json(503, {"status": "fixture_score_unavailable"})
                 return
-            if song_id not in ("fixture-pulse", "fixture-orbit") or instrument not in INSTRUMENTS:
+            if (instrument not in INSTRUMENTS
+                    or (song_id != EDGE_SONG_ID if self.fixture.metadata_edge
+                        else song_id not in ("fixture-pulse", "fixture-orbit"))):
                 self._json(404, {"status": "unknown_chart"})
                 return
             if any(len(query.get(key, [""])) != 1 for key in ("top", "offset", "leeway")):
@@ -663,6 +723,17 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 self._json(400, {"status": "invalid_pagination"})
                 return
             self.fixture.record_score_query(top, offset, leeway)
+            if self.fixture.metadata_edge:
+                if instrument != "Solo_Guitar":
+                    self._json(404, {"status": "metadata_edge_chart_missing"})
+                    return
+                entries = METADATA_EDGE["leaderboard"]["entries"] if offset == 0 else []
+                self._json(200, {
+                    **METADATA_EDGE["leaderboard"],
+                    "count": len(entries),
+                    "entries": entries,
+                })
+                return
             ranks = range(offset + 1, min(offset + top, 26) + 1) if instrument == "Solo_Guitar" else ()
             entries = [
                 {
@@ -738,6 +809,7 @@ def main() -> None:
     parser.add_argument("--stop-after-first-songs", action="store_true")
     parser.add_argument("--stop-after-first-score", action="store_true")
     parser.add_argument("--stop-after-first-shop", action="store_true")
+    parser.add_argument("--metadata-edge", action="store_true")
     args = parser.parse_args()
     if not 1 <= args.port <= 65535:
         parser.error("port must be between 1 and 65535")
@@ -758,7 +830,8 @@ def main() -> None:
         fail_first_white_catalogue=args.fail_first_white_catalogue,
         stop_after_first_songs=args.stop_after_first_songs,
         stop_after_first_score=args.stop_after_first_score,
-        stop_after_first_shop=args.stop_after_first_shop
+        stop_after_first_shop=args.stop_after_first_shop,
+        metadata_edge=args.metadata_edge
     ) as server:
         print(f"Read-only fixture service on 127.0.0.1:{server.server_port}", flush=True)
         server.serve_forever()

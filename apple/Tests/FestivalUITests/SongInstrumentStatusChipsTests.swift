@@ -39,14 +39,17 @@ private func chipImage(
 /// - Parameters:
 ///   - target: Expected source-backed fill channels.
 ///   - image: Native SwiftUI ImageRenderer output on a real opaque card.
+///   - sampleStep: Sampling density; one checks thin painted text.
 /// - Returns: Sampled pixels within three channels of the source fill.
-private func paintedPixels(
-    near target: (Int, Int, Int), in image: CGImage
+func paintedPixels(
+    near target: (Int, Int, Int), in image: CGImage,
+    sampleStep: Int = 3
 ) -> Int {
+    precondition(sampleStep > 0)
     let bitmap = NSBitmapImageRep(cgImage: image)
     var count = 0
-    for y in stride(from: 0, to: image.height, by: 3) {
-        for x in stride(from: 0, to: image.width, by: 3) {
+    for y in stride(from: 0, to: image.height, by: sampleStep) {
+        for x in stride(from: 0, to: image.width, by: sampleStep) {
             guard let color = bitmap.colorAt(x: x, y: y) else { continue }
             let rgb = [
                 Int((color.redComponent * 255).rounded()),

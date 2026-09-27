@@ -39,6 +39,20 @@ class TokenGenerationTests(unittest.TestCase):
         self.assertIn("red: 207.0 / 255", render_swift(colors))
         self.assertIn('FSTTextDisabledColor">#FF607089', render_xaml(colors))
 
+    def test_metadata_difficulty_and_surface_tokens_share_exact_channels(self):
+        """Contrast-safe pill colors stay identical in Apple, Android and WinUI."""
+        colors = {
+            "diffPillEasy": parse_color("#2ECC71"),
+            "diffPillMedium": parse_color("#C62828"),
+            "diffPillHard": parse_color("#2D82E6"),
+            "diffPillExpert": parse_color("#7C3AED"),
+            "surfaceSubtle": parse_color("#162133"),
+            "borderSubtle": parse_color("#1E2A3A"),
+        }
+        self.assertIn("Color(0xFF2D82E6)", render_kotlin(colors))
+        self.assertIn("red: 22.0 / 255", render_swift(colors))
+        self.assertIn('FSTDiffPillExpertColor">#FF7C3AED', render_xaml(colors))
+
 
 if __name__ == "__main__":
     unittest.main()

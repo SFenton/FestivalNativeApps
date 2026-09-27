@@ -57,9 +57,15 @@ Only a validated, response-proven player profile can decorate
 Songs. In the selected iPhone/iPadOS 26.5 fixtures, a switched
 player changes the **actual** score from 99,900/non-FC to
 99,800/explicit gold-and-spoken FC for the same Lead song.
-Seven backed metadata labels respond independently to saved
-Settings switches; the eighth, Intensity, controls the visible
-difficulty meter when a chart is filtered. Hiding Lead changes
+For positive selected scores with icons off or one chart filtered,
+the native card now projects **separate typed fields in source
+default order**: right-aligned Score or the next renderable
+field, FC/Accuracy, percentile tier, five white or five gold
+stars, inverted current season, catalogue Intensity bars and
+player game difficulty. Settings switches independently update
+their backed fields; selected filtered Intensity occurs **once**
+in the pill row, and icons-off unfiltered Intensity now appears.
+Hiding Lead changes
 the unfiltered card to an explicit Bass no-score or uncharted
 state rather than leaking a hidden Lead score. An identity
 survives cold relaunch but its score bytes do not: the app
@@ -120,9 +126,15 @@ shows the enabled instrument status chips: FC gold, scored green,
 no score red, unavailable muted
 (`FortniteFestivalWeb/src/pages/songs/components/SongRow.tsx:191-200,264-271`,
 `FortniteFestivalWeb/src/components/display/InstrumentIcons.tsx:110-122`).
-Native's icons-off summary uses an inline first-visible-chart
-score, separate visible/spoken FC and the same Top 10% bucket;
-its score/pill geometry remains different. A second
+Native's new icons-off compact row uses top-trailing Score
+and source-ordered, right-aligned metadata pills with a
+visible/spoken **FC 97.9%** instead of React's percentage-only
+skewed gold badge. The source WebKit phone wraps 3+3 and
+820px tablet uses one line; a typed SwiftUI host paints
+those states but native device pixel parity is not claimed.
+React drops Last Played under Title whereas native deliberately
+retains the working toggle/date until its sort is implemented.
+The native score/pill/Shop geometry still differs. A second
 fixture-only **icons-on WebKit pair** now asserts all nine
 source chip keys and computed colors at phone/tablet widths:
 **4/4** selected WebKit cases pass across both modes.
@@ -151,6 +163,41 @@ overlay before the unobstructed Songs comparison. See the
 fixture-backed comparison in `tools/visual/pages.spec.ts`; the
 captures are private evidence, not redistributable artwork.
 The card, first-run and navigation controls stay `pending`.
+The separate pinned 8776 synthetic edge case paints a long
+title, one seven-digit selected score and Shop New with a
+matching Solo chart, not a production or account mutation.
+Focused iPhone/iPadOS 26.5 **1/1 per device** journeys prove
+score/pill right edges within 2pt, FC versus graded 4.5:1
+badge text and no Shop collision; iPad Hide/Show Sidebar
+and both AX5 long-title/Shop states remain responsive.
+Source fixture WebKit long-title cases pass **2/2** but
+marquee/truncate the title where native wraps it. Source
+also displays formatted duration (6:06) and native Songs
+does not yet; retain this as an explicit content gap.
+A later review added visible/spoken **Drums chart** context
+for a positive non-Lead score, actual scaled pill insets and
+one native star plus a readable count at accessibility sizes.
+The isolated 8776 profile now has a fractional Last Played date,
+which native deliberately shows under Title while source hides
+it. A restored Settings Form may open below Instruments, so the
+native automation scrolls back before changing Lead/Bass.
+At AX5, a wrapped date initially missed the card's trailing
+Shop edge by 14pt on iPhone and 57pt on iPad; using the pill's
+real fitted width resolved both focused device assertions to
+within 2pt. An earlier **10/10 per-device** matrix predates
+these review changes. A fresh source-frozen **10/10 on each**
+iPhone and iPadOS 26.5 matrix now passes those exact updated
+cases with source WebKit **6/6**, but retain zero route/control
+certifications until the full gates are complete.
+The earlier source-frozen serial **10/10 on each** iPhone
+and iPadOS 26.5 regression matrix retains structured
+metadata, selected/anonymous chip states, genuine empty
+Bass, Shop and Detail evidence together. Neither that
+targeted `--no-coverage-gate` run nor the compared
+portraits certifies the full Songs route or other platforms.
+The current full SwiftPM UX result is **5113/8874 (57.62%)**,
+and the paired iOS UI/app subset is **3166/4419 (71.65%)**;
+both remain below the 90% bar despite passing device journeys.
 For native AX-size list traversal use `fst.songs.list` instead of
 selecting a CollectionView by a child that will disappear on
 virtualization. Stack full-width title/artist before artwork and

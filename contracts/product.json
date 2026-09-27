@@ -102,6 +102,14 @@
       "states": ["anonymous", "loading", "syncing", "failed", "available-empty", "full-combo", "scored", "no-score", "not-charted", "inconsistent-zero-fc", "instrument-hidden", "chart-filtered", "icons-off", "invalid-filter-paused", "compact", "wide", "largest-text", "high-contrast", "screen-reader", "keyboard-variant", "band-blocked"],
       "testId": "fst.songs.instrument-status.*",
       "spec": ".agents/controls/instrument-status-chips.md"
+    },
+    {
+      "id": "song-score-metadata",
+      "status": "pending",
+      "source": "FortniteFestivalWeb/src/pages/songs/components/SongRow.tsx:43",
+      "states": ["anonymous", "loading", "syncing", "failed", "no-score", "score-primary", "score-hidden-accuracy-primary", "fc", "fc-only", "graded-accuracy", "missing-accuracy", "top-one", "top-five", "ordinary-percentile", "five-gold-stars", "ax-star-count", "current-season", "old-season", "catalogue-intensity", "game-difficulty", "last-played-native-deviation", "non-lead-chart-named", "ax5-wrapped-date-trailing", "filtered-chart", "invalid-filter-paused", "shop-badge", "narrow", "regular", "accessibility-text", "sidebar-transition", "contrast", "band-blocked"],
+      "testId": "fst.songs.metadata.*",
+      "spec": ".agents/controls/song-score-metadata.md"
     }
   ],
   "testIds": {
@@ -111,6 +119,7 @@
     "fst.nav.*": "app-navigation",
     "fst.profile.*": "profile-selection",
     "fst.songs.instrument-status.*": "songs-instrument-status-chips",
+    "fst.songs.metadata.*": "song-score-metadata",
     "fst.settings.show-instrument-icons": "songs-instrument-status-chips",
     "fst.songs.instrument-filter": "songs",
     "fst.songs.list": "songs",

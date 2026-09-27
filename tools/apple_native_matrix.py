@@ -38,6 +38,7 @@ SCORE_OFFLINE_PORT = 8772
 SHOP_OFFLINE_PORT = 8773
 OFFSCREEN_SCORE_PORT = 8774
 OFFSCREEN_EMPTY_CHART_PORT = 8775
+METADATA_EDGE_PORT = 8776
 ROLLOVER_PORTS = {"iphone": 8767, "ipad": 8768}
 DEVICE_FAMILIES = {"iphone": "iPhone", "ipad": "iPad"}
 LOCK_FILE = Path("/tmp/festival-native-matrix.lock")
@@ -49,6 +50,7 @@ FIXTURE_INPUTS = (
     "contracts/fixtures/path-demo.json",
     "contracts/fixtures/shop-demo.json",
     "contracts/fixtures/player-demo.json",
+    "contracts/fixtures/metadata-edge.json",
 )
 REQUIRED_INPUTS = (
     *FIXTURE_INPUTS,
@@ -479,6 +481,7 @@ def fixture_options(flags: list[str]) -> dict[str, bool | int | None]:
         "stopAfterFirstSongs": False,
         "stopAfterFirstScore": False,
         "stopAfterFirstShop": False,
+        "metadataEdge": False,
     }
     if flags == []:
         return options
@@ -492,6 +495,8 @@ def fixture_options(flags: list[str]) -> dict[str, bool | int | None]:
         return dict(options, unpinned=True, stopAfterFirstScore=True)
     if flags == ["--unpinned", "--stop-after-first-shop"]:
         return dict(options, unpinned=True, stopAfterFirstShop=True)
+    if flags == ["--metadata-edge"]:
+        return dict(options, metadataEdge=True)
     raise MatrixError("Unknown or non-deterministic local fixture flags")
 
 
@@ -517,6 +522,7 @@ def device_fixture_plan(device: str) -> tuple[tuple[int, list[str]], ...]:
         (SHOP_OFFLINE_PORT, ["--unpinned", "--stop-after-first-shop"]),
         (OFFSCREEN_SCORE_PORT, ["--unpinned", "--stop-after-first-score"]),
         (OFFSCREEN_EMPTY_CHART_PORT, ["--unpinned", "--stop-after-first-score"]),
+        (METADATA_EDGE_PORT, ["--metadata-edge"]),
     )
     ports = [port for port, _ in plan]
     if SERVICE_PORT in ports or len(ports) != len(set(ports)):

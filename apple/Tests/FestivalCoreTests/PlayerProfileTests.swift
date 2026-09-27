@@ -105,6 +105,18 @@ private struct LocalPlayerFixtures: Decodable {
     #expect(throws: FestivalAPIError.invalidPlayerProfile) {
         try invalid.validate(requestedAccountId: "fixture-precomputed")
     }
+    for variant in [
+        #"{"sc":90,"ml":1,"st":7}"#,
+        #"{"sc":90,"ml":1,"acc":1001}"#,
+    ] {
+        let corrupt = try player("""
+        {"accountId":"fixture-precomputed","totalScores":1,"scores":[{
+          "si":"fixture-pulse","ins":"01","sc":100,"vs":[\(variant)]}]}
+        """)
+        #expect(throws: FestivalAPIError.invalidPlayerProfile) {
+            try corrupt.validate(requestedAccountId: "fixture-precomputed")
+        }
+    }
 }
 
 @Test func committedPlayerFixturesDecodeAsDistinctAvailableProfiles() throws {
@@ -125,6 +137,50 @@ private struct LocalPlayerFixtures: Decodable {
     #expect(second.isFullCombo == true)
 }
 
+private struct MetadataEdgeFixture: Decodable {
+    let songs: SongsResponse
+    let player: PlayerProfileResponse
+    let shop: ShopResponse
+    let leaderboard: LeaderboardResponse
+}
+
+/// One isolated edge must decode coherently across all four real native clients.
+@Test func metadataEdgeFixtureKeepsSevenDigitPlayerShopAndChartConsistent() throws {
+    let fixtureURL = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent()
+        .deletingLastPathComponent().deletingLastPathComponent()
+        .appendingPathComponent("contracts/fixtures/metadata-edge.json")
+    let edge = try JSONDecoder().decode(
+        MetadataEdgeFixture.self, from: Data(contentsOf: fixtureURL)
+    )
+    try edge.songs.validate()
+    try edge.shop.validate()
+    #expect(try edge.player.validate(requestedAccountId: "fixture-edge") == .available)
+    try edge.leaderboard.validate(songId: "fixture-marathon", instrument: .lead)
+    let song = try #require(edge.songs.songs.first)
+    let score = try #require(
+        edge.player.scoreIndex(requestedAccountId: "fixture-edge")[song.songId]?[.lead]
+    )
+    let entry = try #require(edge.leaderboard.entries.first)
+    let offer = try #require(edge.shop.songs.first)
+    #expect(song.title.count > 40)
+    #expect(song.durationSeconds == 366)
+    #expect(score.score == 1_234_567)
+    #expect(score.score == entry.score)
+    #expect(score.rank == entry.rank)
+    #expect(score.totalEntries == edge.leaderboard.totalEntries)
+    #expect(score.accuracy == entry.accuracy)
+    #expect(score.isFullCombo == entry.isFullCombo)
+    #expect(score.validLastPlayedAt == "2026-09-20T12:34:56.1234567Z")
+    #expect(score.stars == entry.stars)
+    #expect(score.season == entry.season)
+    #expect(edge.shop.newSongs == [song.songId])
+    #expect(offer.songId == song.songId)
+    #expect(ShopPresentationPolicy.highlight(
+        for: offer, hidden: false, highlightingDisabled: false
+    ) == .new)
+}
+
 @Test func syncingProfileCannotMasqueradeAsAnAvailableEmptyOne() throws {
     let syncing = try player("""
     {"accountId":"fixture-player-1","displayName":null,"status":"syncing",
@@ -133,6 +189,14 @@ private struct LocalPlayerFixtures: Decodable {
     #expect(try syncing.validate(requestedAccountId: "fixture-player-1") == .syncing)
     #expect(throws: FestivalAPIError.invalidPlayerProfile) {
         try syncing.scoreIndex(requestedAccountId: "fixture-player-1")
+    }
+    let populatedSyncing = try player("""
+    {"accountId":"fixture-player-1","status":"syncing",
+     "notYetPublished":true,"totalScores":1,
+     "scores":[{"si":"fixture-pulse","ins":"01","sc":99900}]}
+    """)
+    #expect(throws: FestivalAPIError.invalidPlayerProfile) {
+        try populatedSyncing.validate(requestedAccountId: "fixture-player-1")
     }
     let empty = try player("""
     {"accountId":"fixture-player-1","displayName":"Fixture Player 1",
@@ -346,6 +410,16 @@ private func profileReply(
         await #expect(throws: expected) {
             try await client.playerProfile(accountId: "fixture-player-1")
         }
+    }
+    let malformed = try FestivalAPI(transport: FixtureTransport([
+        HTTPResult(status: 200, data: playerPublicationJSON),
+        profileReply(200, """
+        {"accountId":"fixture-player-1","totalScores":1,
+         "scores":[{"si":"fixture-pulse","ins":"01","sc":"99,900"}]}
+        """, headers: ["X-FST-Publication-Id": "7"]),
+    ]))
+    await #expect(throws: FestivalAPIError.invalidPlayerProfile) {
+        try await malformed.playerProfile(accountId: "fixture-player-1")
     }
     let unsent = FixtureTransport([])
     let invalid = try FestivalAPI(transport: unsent)

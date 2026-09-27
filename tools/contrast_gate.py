@@ -79,6 +79,41 @@ def check_on_art(
     return errors
 
 
+def check_semantic_pairs(
+    colors: dict[str, str],
+    pairs: tuple[tuple[str, str, str, float], ...],
+    *,
+    prefix: str,
+) -> list[str]:
+    """Check a typed list of opaque native glyph/surface or status/card pairs.
+
+    Args:
+        colors: Semantic palette from the shared Fluent token contract.
+        pairs: Name, foreground token, background token and minimum contrast.
+        prefix: Stable diagnostic category for the native control.
+
+    Returns:
+        Missing, translucent or low-contrast color-pair diagnostics.
+    """
+    errors: list[str] = []
+    for label, foreground, background, minimum in pairs:
+        if foreground not in colors or background not in colors:
+            errors.append(f"{label}: missing {prefix} color token")
+            continue
+        first = parse_color(colors[foreground])
+        second = parse_color(colors[background])
+        if first[0] != 255 or second[0] != 255:
+            errors.append(f"{label}: {prefix} colors must be opaque")
+            continue
+        measured = ratio(first[1:], second[1:])
+        print(f"{prefix}.{label}: {measured:.2f}:1 (need {minimum:.1f}:1)")
+        if measured < minimum:
+            errors.append(
+                f"{label}: contrast {measured:.2f}:1 is below {minimum:.1f}:1"
+            )
+    return errors
+
+
 def check_song_chip_contrast(colors: dict[str, str]) -> list[str]:
     """Require readable native chip glyphs and discernible muted/red boundaries.
 
@@ -88,31 +123,38 @@ def check_song_chip_contrast(colors: dict[str, str]) -> list[str]:
     Returns:
         Missing, translucent or low-contrast chip token pairs.
     """
-    pairs = (
+    return check_semantic_pairs(colors, (
         ("full combo glyph", "cardBackground", "gold", 4.5),
         ("scored glyph", "cardBackground", "statusGreen", 4.5),
         ("no-score glyph", "textPrimary", "statusRed", 4.5),
         ("unavailable glyph", "textPrimary", "surfaceMuted", 4.5),
         ("unavailable outline", "textDisabled", "cardBackground", 3.0),
         ("no-score fill", "statusRed", "cardBackground", 3.0),
-    )
-    errors: list[str] = []
-    for label, foreground, background, minimum in pairs:
-        if foreground not in colors or background not in colors:
-            errors.append(f"{label}: missing chip color token")
-            continue
-        first = parse_color(colors[foreground])
-        second = parse_color(colors[background])
-        if first[0] != 255 or second[0] != 255:
-            errors.append(f"{label}: chip colors must be opaque")
-            continue
-        measured = ratio(first[1:], second[1:])
-        print(f"song-chip.{label}: {measured:.2f}:1 (need {minimum:.1f}:1)")
-        if measured < minimum:
-            errors.append(
-                f"{label}: contrast {measured:.2f}:1 is below {minimum:.1f}:1"
-            )
-    return errors
+    ), prefix="song-chip")
+
+
+def check_song_metadata_contrast(colors: dict[str, str]) -> list[str]:
+    """Enforce text and status-edge bars for one native score-metadata row.
+
+    Args:
+        colors: Opaque generated Fluent colors rather than composited web frost.
+
+    Returns:
+        Every badge with insufficient text or essential fill contrast.
+    """
+    return check_semantic_pairs(colors, (
+        ("easy glyph", "cardBackground", "diffPillEasy", 4.5),
+        ("medium glyph", "textPrimary", "diffPillMedium", 4.5),
+        ("hard glyph", "cardBackground", "diffPillHard", 4.5),
+        ("expert glyph", "textPrimary", "diffPillExpert", 4.5),
+        ("full combo label", "gold", "cardBackground", 4.5),
+        ("top tier label", "gold", "cardBackground", 4.5),
+        ("ordinary percentile label", "textSecondary", "surfaceMuted", 4.5),
+        ("current season label", "surfaceSubtle", "textSecondary", 4.5),
+        ("older season label", "textSecondary", "surfaceSubtle", 4.5),
+        ("medium difficulty fill", "diffPillMedium", "cardBackground", 3.0),
+        ("expert difficulty fill", "diffPillExpert", "cardBackground", 3.0),
+    ), prefix="song-metadata")
 
 
 def main() -> int:
@@ -127,6 +169,7 @@ def main() -> int:
         )
         errors = check_on_art(contract["colors"])
         errors.extend(check_song_chip_contrast(contract["colors"]))
+        errors.extend(check_song_metadata_contrast(contract["colors"]))
     except (OSError, KeyError, ValueError) as error:
         print(f"Artwork contrast gate error: {error}", file=sys.stderr)
         return 2

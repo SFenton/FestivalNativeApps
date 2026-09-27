@@ -1,0 +1,77 @@
+{
+  "songs": {
+    "count": 1,
+    "currentSeason": 9,
+    "songs": [
+      {
+        "songId": "fixture-marathon",
+        "title": "A Very Long Synthetic Festival Anthem with an Extended Encore",
+        "artist": "Synthetic Quartet Featuring an Extended Ensemble",
+        "year": 2026,
+        "durationSeconds": 366,
+        "albumArt": "/__fixture__/art/pulse.png",
+        "difficulty": {
+          "guitar": 2
+        }
+      }
+    ]
+  },
+  "player": {
+    "accountId": "fixture-edge",
+    "displayName": "Fixture Edge Player",
+    "totalScores": 1,
+    "scores": [
+      {
+        "si": "fixture-marathon",
+        "ins": "01",
+        "sc": 1234567,
+        "acc": 979,
+        "fc": true,
+        "st": 5,
+        "dif": 3,
+        "sn": 9,
+        "rk": 1,
+        "te": 1,
+        "pct": 1,
+        "vlp": "2026-09-20T12:34:56.1234567Z"
+      }
+    ]
+  },
+  "shop": {
+    "count": 1,
+    "lastUpdated": "2026-09-25T00:00:00Z",
+    "newSongs": ["fixture-marathon"],
+    "songs": [
+      {
+        "songId": "fixture-marathon",
+        "title": "A Very Long Synthetic Festival Anthem with an Extended Encore",
+        "artist": "Synthetic Quartet Featuring an Extended Ensemble",
+        "year": 2026,
+        "albumArt": "/__fixture__/art/pulse.png",
+        "shopUrl": "https://www.fortnite.com/item-shop/jam-tracks/fixture-marathon",
+        "leavingTomorrow": false,
+        "isNew": true
+      }
+    ]
+  },
+  "leaderboard": {
+    "songId": "fixture-marathon",
+    "instrument": "Solo_Guitar",
+    "count": 1,
+    "localEntries": 1,
+    "totalEntries": 1,
+    "showLeaderboardEntryTotals": true,
+    "entries": [
+      {
+        "accountId": "fixture-edge",
+        "displayName": "Fixture Edge Player",
+        "score": 1234567,
+        "rank": 1,
+        "accuracy": 979000,
+        "isFullCombo": true,
+        "stars": 5,
+        "season": 9
+      }
+    ]
+  }
+}

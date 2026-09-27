@@ -48,7 +48,31 @@ but take visible effect only with icons off or one chart
 filtered. The 10/10-per-device selected matrix verifies
 Show Instrument Icons and Lead visibility changes affect
 the same card, then filtering Drums restores its real
-Score 88,800. Experimental ranks stay disabled.
+Score 88,800. Icons-off and selected-chart cards now
+render source-ordered semantic fields rather than one
+joined text label: Score-hidden promotes Accuracy, and
+Percentage-hidden retains a visible/spoken FC-only cue.
+The later source-frozen **10/10-per-device** selected
+matrix retains that transition with the independent
+Show Instrument Icons, Lead and invalid-filter states.
+The native Last Played switch still shows a saved date
+under Title; React waits for Last Played sort and its
+toggle controls modal order rather than Title rows.
+This is an intentional, temporary native behavior gap,
+not a source-parity claim. Experimental ranks stay disabled.
+The isolated 8776 selected profile now proves a real
+seven-digit-fraction `vlp` date on the native card at normal
+and accessibility text sizes; source WebKit Title rows still
+omit it. A positive Drums score also names its chart after
+Lead/Bass are hidden. Native Settings may preserve its Form
+scroll position across a tab switch: automation must locate
+an offscreen earlier Instruments control by trying the
+reverse scroll direction rather than interpreting lazy
+virtualization as a missing toggle.
+The post-review source-frozen **10/10-per-device** matrix
+exercises those named transitions, but the current SwiftPM
+UX and paired iOS UI/app coverage measurements remain
+below 90%; no Settings route or control is certified.
 Metadata ordering, complete
 Detail propagation, source filter controls, accessibility/focus
 audits and live selected-player access remain pending; Settings

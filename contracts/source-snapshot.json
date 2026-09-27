@@ -97,6 +97,10 @@
       "sha256": "80e1b24f62498a713a7892ea20adbeeaccab7b4932cbc8a5ad672ddbcacd8522",
       "status": "committed"
     },
+    "FortniteFestivalWeb/src/components/common/MarqueeText.tsx": {
+      "sha256": "ca04733a153087e44c5b77b9a0d5ea155682dff82888b33f6f2c01abd5159216",
+      "status": "committed"
+    },
     "FortniteFestivalWeb/src/components/display/InstrumentIcons.tsx": {
       "sha256": "51dcd9706c98a9f95b9546a7fb68d7dde7da84868dde70a66a935584bc9664e7",
       "status": "committed"
@@ -141,8 +145,28 @@
       "sha256": "e32497df7631ae1741df2956b9e0e0f2505bf12171b767006b85794c54664eb0",
       "status": "committed"
     },
+    "FortniteFestivalWeb/src/components/songs/metadata/DifficultyPill.tsx": {
+      "sha256": "95d7d5f7c01996bd59d0f91181e95f9402cd10d132c9fe37e185005cae3ff4ea",
+      "status": "committed"
+    },
+    "FortniteFestivalWeb/src/components/songs/metadata/MiniStars.tsx": {
+      "sha256": "894042ee84ca7a3746cf036f472cb16609d4149730b292bc339c64d8af181e12",
+      "status": "committed"
+    },
+    "FortniteFestivalWeb/src/components/songs/metadata/PercentilePill.tsx": {
+      "sha256": "04f0dfba64cd4793cbf1a282b94399dd42474bd5cf931804aee6f91fc88ae842",
+      "status": "committed"
+    },
     "FortniteFestivalWeb/src/components/songs/metadata/ScorePill.tsx": {
       "sha256": "b0da36a33ce56c1c4321c38456faeb0c4fd005470968d15b36835ad9c2fccaf9",
+      "status": "committed"
+    },
+    "FortniteFestivalWeb/src/components/songs/metadata/SeasonPill.tsx": {
+      "sha256": "51cd1ee92c7de95becbaef67003c95c7092eb48a0436e2ff20f41c168aadbd23",
+      "status": "committed"
+    },
+    "FortniteFestivalWeb/src/components/songs/metadata/SongInfo.tsx": {
+      "sha256": "4fc904c6fff3b09d9293dc66e8c9f01c46702c0d67b90daadf49dfaa5bca8734",
       "status": "committed"
     },
     "FortniteFestivalWeb/src/contexts/SettingsContext.tsx": {

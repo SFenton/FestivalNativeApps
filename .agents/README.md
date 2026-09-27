@@ -11,6 +11,7 @@
 | Songs Sort draft, direction and state propagation | [controls/songs-sort.md](controls/songs-sort.md) |
 | Safe player search, viewed vs selected identity and band-read gate | [controls/profile-selection.md](controls/profile-selection.md) |
 | Selected-player Songs chips, status colors, instrument Settings and responsive flow | [controls/instrument-status-chips.md](controls/instrument-status-chips.md) |
+| Selected-player score/FC/percentile/stars/season/Intensity pill geometry | [controls/song-score-metadata.md](controls/song-score-metadata.md) |
 | Solo score accuracy and full-combo states | [controls/score-accuracy.md](controls/score-accuracy.md) |
 | CHOpt Paths image/text, chart selectors and stale loading | [controls/chopt-paths.md](controls/chopt-paths.md) |
 | Shop route, public offers and visibility/highlight rules | [pages/shop.md](pages/shop.md), [controls/shop-offers.md](controls/shop-offers.md) |
