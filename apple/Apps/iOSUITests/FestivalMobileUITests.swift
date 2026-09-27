@@ -1263,6 +1263,69 @@ final class FestivalMobileUITests: XCTestCase {
         record(app, name: "songs-populated-shop-genuinely-empty")
     }
 
+    /// Prove the Songs Shop Retry text actually scales on a real iPhone.
+    ///
+    /// - Throws: Missing 503 action, clipped large text or unreadable rendered glyphs.
+    @MainActor
+    func testSongsShopRetryScalesAtLargestText() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "shop-error"
+        app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launch()
+        let retry = app.buttons["fst.songs.shop-retry"]
+        XCTAssertTrue(retry.waitForExistence(timeout: 15))
+        let normalGlyphHeight = try brightGlyphHeight(in: retry)
+        try assertHeaderContrast(retry, in: app, leadingTextWidth: 220)
+        record(app, name: "songs-shop-retry-normal-text")
+
+        app.terminate()
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName",
+            UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+        ]
+        app.launch()
+        let list = app.collectionViews["fst.songs.list"]
+        XCTAssertTrue(list.waitForExistence(timeout: 15))
+        let retryReturned = retry.waitForExistence(timeout: 15)
+        if !retryReturned {
+            record(app, name: "songs-shop-retry-ax5-missing")
+        }
+        XCTAssertTrue(retryReturned, "Shop Retry did not return after AX5 relaunch")
+        record(app, name: "songs-shop-retry-ax5-before-scroll")
+        let tabs = app.tabBars.firstMatch
+        let visibleBottom = (tabs.exists
+            ? tabs.frame.minY : app.windows.firstMatch.frame.maxY) - 8
+        for _ in 0..<8 {
+            if retry.isHittable && retry.frame.maxY <= visibleBottom { break }
+            // A full swipe can skip the short Retry row between an AX5 banner and songs.
+            let above = retry.frame.maxY < list.frame.minY
+            let startY: CGFloat = above ? 0.42 : 0.70
+            let endY: CGFloat = above ? 0.54 : 0.58
+            list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: startY))
+                .press(
+                    forDuration: 0.1,
+                    thenDragTo: list.coordinate(
+                        withNormalizedOffset: CGVector(dx: 0.5, dy: endY)
+                    )
+                )
+        }
+        if !retry.isHittable {
+            record(app, name: "songs-shop-retry-ax5-unreachable")
+        }
+        XCTAssertTrue(retry.isHittable, "Shop Retry must remain reachable in AX5 Songs")
+        XCTAssertLessThanOrEqual(retry.frame.maxY, visibleBottom)
+        let largeGlyphHeight = try brightGlyphHeight(in: retry)
+        XCTAssertGreaterThan(
+            Double(largeGlyphHeight), Double(normalGlyphHeight) * 1.35,
+            "Shop Retry rendered glyphs did not grow with Dynamic Type"
+        )
+        try assertHeaderContrast(retry, in: app, leadingTextWidth: 220)
+        record(app, name: "songs-shop-retry-accessibility-xxxlarge")
+    }
+
     /// Native Sort stages changes, persists rows and audits reachable modal text.
     ///
     /// - Throws: Wrong row order, silent discard, lost preference or visible contrast.
@@ -2260,19 +2323,22 @@ final class FestivalMobileUITests: XCTestCase {
         try app.performAccessibilityAudit(for: .all)
     }
 
-    /// Retain validated unpinned Songs across a warm resume, never a cold relaunch.
+    /// Keep unpinned Songs through warm resume with an independent Shop retry.
     ///
-    /// - Throws: A fixture still online, missing offline disclosure or persisted cold bytes.
+    /// - Throws: Missing offline disclosure, unreadable Shop retry or persisted cold bytes.
     @MainActor
     func testHeaderlessWarmOfflineSurvivesBackgroundButNotColdLaunch() async throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
         let app = fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8771"
+        app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "shop-error"
         app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
         app.launch()
         let row = app.buttons["fst.songs.row.fixture-pulse"]
         XCTAssertTrue(row.waitForExistence(timeout: 15))
+        let shopRetry = app.buttons["fst.songs.shop-retry"]
+        XCTAssertTrue(shopRetry.waitForExistence(timeout: 15))
         XCTAssertTrue(app.descendants(matching: .any).matching(
             NSPredicate(
                 format: "label == %@",
@@ -2305,8 +2371,29 @@ final class FestivalMobileUITests: XCTestCase {
         )
         XCTAssertEqual(offline.label, "Offline - last seen songs (publication unverified)")
         XCTAssertTrue(row.exists)
+        XCTAssertTrue(shopRetry.waitForExistence(timeout: 10))
+        try assertHeaderContrast(shopRetry, in: app, leadingTextWidth: 220)
         record(app, name: "songs-headerless-warm-offline")
-        try app.performAccessibilityAudit(for: .all)
+        var acceptedShopContrast = false
+        var acceptedShopDynamicType = false
+        try app.performAccessibilityAudit(for: .all) { issue in
+            // Pixels pass 4.5:1 and a separate AX5 case proves >1.35x glyph growth.
+            guard UIDevice.current.userInterfaceIdiom == .phone,
+                  UIDevice.current.systemVersion == "26.5",
+                  issue.element?.identifier == "fst.songs.shop-retry",
+                  issue.element?.label == "Retry Item Shop status" else {
+                return false
+            }
+            if issue.auditType == .contrast && !acceptedShopContrast {
+                acceptedShopContrast = true
+                return true
+            }
+            if issue.auditType == .dynamicType && !acceptedShopDynamicType {
+                acceptedShopDynamicType = true
+                return true
+            }
+            return false
+        }
 
         app.terminate()
         app.launch()

@@ -208,9 +208,17 @@ targeted `--no-coverage-gate` run nor the compared
 portraits certifies the full Songs route or other platforms.
 The current full SwiftPM UX result is **8005/8882 (90.13%,
 pass)**; the older selected paired iOS UI/app result stays at
-**3166/4419 (71.65%, fail)**. A pre-duration eight-case
-iPhone-only shard measured **3414/4419 (77.26%, fail)**;
-the current-source phone gate remains unmeasured. Native
+**3166/4419 (71.65%, fail)**. An earlier iPhone-only
+union reached **3737/4429 (84.38%, fail)** before a
+reverted UX experiment; later timestamps prevent reusing
+its archives for the current 90% gate. The exact Shop Retry
+failure is pinned with a local `shop-error` scenario:
+the iPhone test independently asserts rendered text contrast
+≥4.5:1, actual AX5 glyph growth >1.35x and reachability
+above the tab after short drags. Only that named button's
+contrast/Dynamic Type findings are scoped on iOS 26.5;
+the selected three-case iPhone run passes **3/3** with
+those exceptions, not an unwaived screen audit. Native
 Mac-hosted tests now paint two
 validated players' real chip/FC/Drums rows, source-ordered
 metadata, grouped Shop and paused/empty/error sort,

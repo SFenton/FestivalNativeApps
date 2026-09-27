@@ -191,7 +191,10 @@ selected Songs and profile search/band/sync/error
 states; two full runs passed on that unchanged app source.
 After adding source-formatted Song-row duration, a new
 full run passes at **1773/1855 (95.58%) logic** and
-**8005/8882 (90.13%) UX**. The last passing selected
+**8005/8882 (90.13%) UX**. A temporary Shop Retry
+restyle was reverted after real iPhone AX5/pixel tests
+isolated narrowly scoped XCTest audit false positives.
+The last passing selected
 paired iOS UI/app subset predates duration and still fails
 at **3166/4419 (71.65%)**. Passing hosted line
 coverage is not a proxy for complete accessibility,
