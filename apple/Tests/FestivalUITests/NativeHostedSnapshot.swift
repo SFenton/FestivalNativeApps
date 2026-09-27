@@ -86,6 +86,32 @@ func nativeHostedControlPixels(_ image: CGImage) -> (
     return (bright, selected, placeholder)
 }
 
+/// Read visible status fills on native Shop cards and selected Songs rows.
+///
+/// - Parameter image: AppKit-hosted content over an opaque native surface.
+/// - Returns: Sampled gold, green and red pixels after host color conversion.
+@MainActor
+func nativeHostedStatusPixels(_ image: CGImage) -> (
+    gold: Int, green: Int, red: Int
+) {
+    let bitmap = NSBitmapImageRep(cgImage: image)
+    var gold = 0
+    var green = 0
+    var red = 0
+    for y in stride(from: 0, to: image.height, by: 4) {
+        for x in stride(from: 0, to: image.width, by: 4) {
+            guard let color = bitmap.colorAt(x: x, y: y) else { continue }
+            let r = color.redComponent
+            let g = color.greenComponent
+            let b = color.blueComponent
+            if r > 0.7 && g > 0.5 && b < 0.25 { gold += 1 }
+            if g > 0.55 && g > r * 1.4 && g > b * 1.2 { green += 1 }
+            if r > 0.5 && g < 0.3 && b < 0.35 { red += 1 }
+        }
+    }
+    return (gold, green, red)
+}
+
 /// Optionally retain synthetic native screenshots outside the source worktree.
 ///
 /// - Parameters:

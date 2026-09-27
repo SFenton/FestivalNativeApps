@@ -14,17 +14,20 @@ When the sibling web repository and its existing Playwright dependencies are pre
 
 The current full SwiftPM report (2026-09-26, after
 [real native hosted snapshots](native-hosted-snapshots.md))
-measures **1758/1843 logic lines (95.39%, pass)** and
-**7085/8874 UX lines (79.84%, fail)**; the combined script
-exits nonzero. The 90% UX bar still needs 902 additional
-*covered* executable lines at this source size, not an
-exclusion or averaged score. `SongScreens` has 1006 uncovered
-lines and `ProfileSelectionSheet` has 428; hosted CHOpt Paths
-and Shop now cover 758/811 and 616/659 respectively. The
-earlier metadata-commit measurement of 5113/8874 (57.62%)
-UX is historical, as is the pre-live-origin 91.85% figure.
-Do not treat hosted renders as iOS UI/app or complete macOS
-GUI/VoiceOver coverage; their gates remain separate.
+measures **1761/1843 logic lines (95.55%, pass)** and
+**7994/8874 UX lines (90.08%, pass)**. The real full script
+passed **twice on the same app source** with 78 UI, 3 Design
+and 98 Core SwiftPM tests and the existing contrast gate.
+This supersedes the metadata-commit 5113/8874 (57.62%) and
+the intermediate 7085/8874 (79.84%) UX figures; it did not
+exclude previously uncovered sources. `SongScreens` measures
+3442/3667, `ProfileSelectionSheet` 667/1001, CHOpt Paths
+758/811 and Shop 616/659. A passing *aggregate* line gate
+does not certify each control state, rendered AX focus or
+native iOS/macOS app-target coverage. The selected paired
+iPhone/iPad UI/app subset remains **3166/4419 (71.65%,
+fail)**; macOS GUI/VoiceOver, older runtimes and the other
+platforms have separate open gates.
 
 The script also runs `python3 -m tools.contrast_gate`, requiring ≥4.5:1 on worst-case white artwork for **only three named semantic tokens**: `textPrimary`, `textSecondary` and `gold`. Run the pure Python gate separately on non-Mac hosts; it does **not** certify system colors, blue actions or every rendered label. `FST_FIXTURE_SCENARIO=art-white` paints a deliberately white cover: native UI tests run unwaived full audits on empty Songs and failed solo scores **over painted white art**, plus a separate initial Songs error **before** the art loads, and measure three fully visible Settings section headers from actual app pixels. On iPhone 26.5, the system `ContentUnavailableView` failure title/description/action failed the Dynamic Type audit; the native scalable error stack now passes without an exception. At `AccessibilityXXXL`, the test confirms real text growth and scrolls **the error view itself** to bring Retry above native chrome in both portrait and landscape; a whole-app swipe can miss the nested scroller. Pull-to-refresh belongs only on the **loaded Songs List**: the error scroller's pull-down must not replace the only Retry action with a stuck spinner. **Settings full-page audit remains pending**: Xcode reports a partly offscreen Item Shop heading or translucent compact system title as contrast failures. Keep the exact failing crops; do not call Settings audit-certified or blanket-waive the issues.
 
@@ -34,7 +37,7 @@ For the **measured iOS/iPadOS `FestivalUI` and mobile app entrypoint subset**, r
 
 At the **previous pushed WIP checkpoint**, Apple source passed **16/16 explicitly selected** native cases on each iPhone26.5 and iPadOS26.5 (excluding the known-failing Duo posture test), with a source-identical exact UI/app union of **1467/1592 unique lines (92.15%)**. These results **predate the new Solo/offline/large-text and live-default changes** and do not certify this worktree. After the score-typography fix, clean targeted iPhone26.5/iPadOS26.5 runs passed the **three changed Solo journeys per device**: dense/sparse pinned charts, a real one-shot warm-offline/cold-expiry case with unwaived normal-size audits, and actual AccessibilityXXXL score/action reachability. The Debug live-default test and bounded real Swift-client read passed separately. A source-identical full iPhone26.5/iPadOS26.5 matrix was stopped when the operator requested targeted-only passes; the later **selected 10/10-per-device** pair measures **3166/4419 unique UI/app lines (71.65%)**, still below 90% and not a full all-route suite. The earlier iOS27 5/5 target also predates these source changes. `FestivalCore` and `FestivalDesign` remain absent from Xcode coverage targets; macOS SwiftPM coverage and pixel-meter tests do **not** certify their iOS device-line coverage. The dedicated Duo four-rotation test **failed** at landscape-left (outer window stayed 466×678 portrait); selected cases are **not** a full device matrix or PWA parity certification. iOS 18 behavior is untested until that runtime is installed, and macOS app-target/GUI coverage needs host-authenticated Automation Mode.
 
-The new WIP Song Detail top-score preview has **two targeted Core wire tests**, one hosted five-state visual test and one explicitly selected native iPhone26.5/iPadOS26.5 test per device. It proves a 10-row independent URL/ETag, overfill rejection, filtered `leeway`, visible rendered ≥4.5:1 text and navigation to a 25-row full chart. A separate iPad Settings-leeway propagation case and iPhone AccessibilityXXXL/iPad Solo-page regression case passed on their selected runs. Updated iPhone/iPad **one-shot** tests explicitly serve the preview before the first full chart, then show unverified warm-offline banners in both places and cold expiry; an iPhone white-art fixture proves the preview error is visible. Do **not** promote this into a Detail page accessibility claim: its attempted iPhone26.5 unwaived `.all` audit failed with named preview row text at y=792/849 under the system tab beginning y=791, and some Dynamic Type meter labels. The failing xcresults remain local evidence; speculative edge/inset/footer fixes were reverted. Resolving visible-row/tab overlap and running full-screen audits at all required sizes remain gate requirements. The 24-route/18-epic [backlog](../../contracts/parity-backlog.json) and `python3 tools/parity_backlog.py` fail closed on an uncatalogued route; the later full-source measurement above leaves UX coverage explicitly failing.
+The new WIP Song Detail top-score preview has **two targeted Core wire tests**, one hosted five-state visual test and one explicitly selected native iPhone26.5/iPadOS26.5 test per device. It proves a 10-row independent URL/ETag, overfill rejection, filtered `leeway`, visible rendered ≥4.5:1 text and navigation to a 25-row full chart. A separate iPad Settings-leeway propagation case and iPhone AccessibilityXXXL/iPad Solo-page regression case passed on their selected runs. Updated iPhone/iPad **one-shot** tests explicitly serve the preview before the first full chart, then show unverified warm-offline banners in both places and cold expiry; an iPhone white-art fixture proves the preview error is visible. Do **not** promote this into a Detail page accessibility claim: its attempted iPhone26.5 unwaived `.all` audit failed with named preview row text at y=792/849 under the system tab beginning y=791, and some Dynamic Type meter labels. The failing xcresults remain local evidence; speculative edge/inset/footer fixes were reverted. Resolving visible-row/tab overlap and running full-screen audits at all required sizes remain gate requirements. The 24-route/18-epic [backlog](../../contracts/parity-backlog.json) and `python3 tools/parity_backlog.py` fail closed on an uncatalogued route; the later full SwiftPM host measurement above passes while the separate iOS UI/app union still fails.
 
 The **Solo FC/accuracy WIP** changes one shared preview/full row,
 not profile navigation or ranking APIs. `ScoreFormattingTests`
@@ -358,8 +361,9 @@ matrix subsequently passed these structured metadata journeys
 alongside selected chips, original empty Bass, Shop/Detail and
 anonymous accessibility-size regressions. It deliberately used
 `--no-coverage-gate`: that targeted result did not measure either
-source category. A subsequent full SwiftPM run passes the 95%
-logic bar but fails 90% UX. Keep the iPad full `.all` audit and
+source category. Subsequent real AppKit-hosted tests and a full
+SwiftPM run pass both host categories; paired iOS UI/app remains
+below 90%. Keep the iPad full `.all` audit and
 representative-data performance as release blockers.
 For an optional dated selected-player card, **Last Played is
 the last enabled pill**, so normal-size Score alignment must

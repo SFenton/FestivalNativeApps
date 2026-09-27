@@ -4,6 +4,18 @@ Source: `FortniteFestivalWeb/src/components/shell/AnimatedBackground.tsx:7-250` 
 
 States to reproduce: no art, animated, reduced motion (one static image), data saving (no images or overlay), not visible (timer/animation paused), and static detail art. Animation depends on system accessibility and in-app additive overrides. Use platform-appropriate data-saver, visibility and low-power signals; do not download 100 images at once, cache artwork only in the active process, predecode to displayed dimensions, and measure scrolling/frame delivery.
 
+**Paced failure evidence:** The five-second retry deadline starts when
+`ArtworkBackground.play` begins, *before* its first asynchronous cover
+GET. Runtime tests record a monotonic instant before constructing the
+view, enforce the fourth request no earlier than 4.7 seconds later,
+allow no more than three attempts in the initial burst or five distinct
+failed URLs across its publication pool, and still require a valid
+fourth cover to appear when one exists. A busy hosted suite may first
+observe four or five requests after that legal dwell; never use
+"exactly three when polled" or the first GET's later timestamp as a
+proxy for the actual clock origin. These are test-observation fixes,
+not a shorter animation or a weaker retry threshold.
+
 **Apple foundation (partial, not control-certified):** `ArtworkBackground.swift` uses two stable native compositor layers, the source's ten six-second presets, five-second transition-start deadlines and one-second overlapping crossfades on Songs, Settings and the no-profile Leaderboards overview. A standby cover loads during the current image's dwell; a bad cover is logged/skipped without stopping a valid successor. Startup tries at most three covers immediately, then waits for a five-second deadline before trying up to two more within the same five-failure publication-pool budget, so three 404s cannot hide a valid fourth image. Cancellation is checked before clearing, showing or staging after async work. Each layer retains its own six-second motion rather than being retargeted after a fade. Detail and solo scores show a single static song cover. The 0.7 black-dim effect (0.82 for Increase Contrast) is implemented as opaque color multiplication on **opaque** artwork, reducing translucent compositor work; transparent source art still needs its own pixel comparison. Native policy combines system and additive in-app Reduce Motion/Transparency, Disable Animated Artwork, Low Power Mode, page/scene visibility and `NWPathMonitor.isConstrained`; it waits for a known **satisfied** network path before fetching decoration and resumes when the path recovers. A data-saving or opaque presentation has **neither images nor a dark overlay**. Decorative layers are hidden from accessibility and never take taps.
 
 `FestivalSession` shuffles at most 100 catalogue paths only when source artwork changes; the carousel loads one image ahead, not 100. The shared ephemeral raw-byte `ArtworkCache` has a 32 MB evictable `NSCache` **and a separate strongly held, 16 MB/64-URL recent-art LRU**: evictable memory alone dropped two visible Shop covers on a warm route reentry after a real listener loss. The strong tier persists only within the running process, not on cold launch; decoded thumbnail `NSCache` (24 MB) can still evict pixels and redraw from those raw bytes off-main. Backdrops downsample to at most 1,024 pixels. A validated generation change clears both raw tiers and decoded thumbnails, rejecting old in-flight bytes. Artwork failures are logged; never replace a failed request with a success-shaped image. Only the repository's original synthetic PNG fixtures are bundled; production asset licensing/distribution remains a separate approval gate.

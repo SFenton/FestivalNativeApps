@@ -12,7 +12,7 @@ private struct SummaryFixtureProfiles: Decodable {
 ///
 /// - Returns: Two individually validated synthetic player envelopes.
 /// - Throws: A missing fixture or invalid compact score row.
-private func selectedFixtureProfiles() throws -> [String: PlayerProfileResponse] {
+func selectedFixtureProfiles() throws -> [String: PlayerProfileResponse] {
     let fixtureURL = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent()
         .deletingLastPathComponent().deletingLastPathComponent()
@@ -284,4 +284,16 @@ private func selectedFixtureSong() throws -> (song: Song, season: Int) {
         rendered.scale = 1
         #expect(rendered.cgImage?.width == 390)
     }
+}
+
+/// Invalid field identities must never read like a real tier or made-up percentage.
+@Test func invalidMetadataFieldsStayExplicitInSpeechAndFallbacks() {
+    let difficulty = SongMetadataField.difficulty(-1)
+    #expect(difficulty.announcement == "Invalid game difficulty -1")
+    #expect(difficulty.plainLabel == "Invalid game difficulty -1")
+    let unknown = SongMetadataField.accuracy(
+        nil, fullCombo: false, percentageVisible: true, tint: nil
+    )
+    #expect(unknown.announcement == "Accuracy unavailable")
+    #expect(unknown.plainLabel == "Accuracy unavailable")
 }

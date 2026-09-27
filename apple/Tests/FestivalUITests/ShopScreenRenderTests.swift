@@ -7,13 +7,13 @@ import Testing
 @testable import FestivalUI
 import FestivalDesign
 
-private enum HostedShopScenario: Sendable {
+enum HostedShopScenario: Sendable {
     case populated
     case empty
     case unavailable
 }
 
-private actor HostedShopTransport: HTTPTransport {
+actor HostedShopTransport: HTTPTransport {
     let scenario: HostedShopScenario
     let offers: Data
     let catalogue: Data
@@ -73,7 +73,7 @@ private actor HostedShopTransport: HTTPTransport {
                     status: 503, data: Data(#"{"status":"fixture_unavailable"}"#.utf8)
                 )
             }
-        case "/api/songs" where scenario == .populated:
+        case "/api/songs":
             return HTTPResult(
                 status: 200, data: catalogue,
                 headers: ["X-FST-Publication-Id": "7"]
@@ -89,33 +89,11 @@ private actor HostedShopTransport: HTTPTransport {
     func recordedPaths() -> [String] { paths }
 }
 
-/// Real native New and Leaving accents must paint on separate offer cards.
-///
-/// - Parameter image: Native AppKit-backed Shop bitmap.
-/// - Returns: Sampled gold and red status pixels, not catalogue text.
-@MainActor
-private func shopStatusPixels(_ image: CGImage) -> (gold: Int, red: Int) {
-    let bitmap = NSBitmapImageRep(cgImage: image)
-    var gold = 0
-    var red = 0
-    for y in stride(from: 0, to: image.height, by: 4) {
-        for x in stride(from: 0, to: image.width, by: 4) {
-            guard let color = bitmap.colorAt(x: x, y: y) else { continue }
-            let r = color.redComponent
-            let g = color.greenComponent
-            let b = color.blueComponent
-            if r > 0.7 && g > 0.5 && b < 0.25 { gold += 1 }
-            if r > 0.5 && g < 0.3 && b < 0.35 { red += 1 }
-        }
-    }
-    return (gold, red)
-}
-
 /// Resolve original Shop and Songs fixture bytes without a live service.
 ///
 /// - Returns: Publication-compatible synthetic offer and catalogue envelopes.
 /// - Throws: Missing checked-in local fixture.
-private func shopFixtureBytes() throws -> (offers: Data, catalogue: Data) {
+func shopFixtureBytes() throws -> (offers: Data, catalogue: Data) {
     let root = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent()
         .deletingLastPathComponent().deletingLastPathComponent()
@@ -161,10 +139,10 @@ private func shopFixtureBytes() throws -> (offers: Data, catalogue: Data) {
         #expect(window?.isVisible != true)
         var painted: CGImage?
         var lastImage: CGImage?
-        var lastAccents = (gold: 0, red: 0)
+        var lastAccents = (gold: 0, green: 0, red: 0)
         for _ in 0..<30 {
             let image = try nativeHostedImage(host)
-            let accents = shopStatusPixels(image)
+            let accents = nativeHostedStatusPixels(image)
             lastImage = image
             lastAccents = accents
             if accents.red > 10 && (typeSize.isAccessibilitySize || accents.gold > 10) {

@@ -195,9 +195,15 @@ metadata, selected/anonymous chip states, genuine empty
 Bass, Shop and Detail evidence together. Neither that
 targeted `--no-coverage-gate` run nor the compared
 portraits certifies the full Songs route or other platforms.
-The current full SwiftPM UX result is **7085/8874 (79.84%)**,
-and the paired iOS UI/app subset is **3166/4419 (71.65%)**;
-both remain below the 90% bar despite passing device journeys.
+The current full SwiftPM UX result is **7994/8874 (90.08%,
+pass)**; selected paired iOS UI/app stays at **3166/4419
+(71.65%, fail)**. Native Mac-hosted tests now paint two
+validated players' real chip/FC/Drums rows, source-ordered
+metadata, grouped Shop and paused/empty/error sort,
+search/no-results, unverified offline, and selected-identity
+loading/202/403/recovery/corrupt-store disclosures. Those
+private synthetic captures support named states only, not
+full PWA visual, focus or route parity.
 For native AX-size list traversal use `fst.songs.list` instead of
 selecting a CollectionView by a child that will disappear on
 virtualization. Stack full-width title/artist before artwork and

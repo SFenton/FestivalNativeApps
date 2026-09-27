@@ -88,3 +88,16 @@ at the native search field's detail-pane X origin and the header Y
 for a genuine ≥4.5:1 screenshot check; this does **not** certify
 the VoiceOver focus rectangle or the separately failing full iPad
 Sort-sheet audit. Revisit both before a full accessibility claim.
+
+Mac-hosted **test-only content** snapshots now exercise six real
+Title/Artist/Shop saved and conditional-feed variants at 390/820pt
+plus AX5; a mid-content opaque-surface assertion rejects a black
+headless Form with falsely readable radio dots. A bare
+`NSHostingView` with the app's dark surface paints selected blue
+native controls; attaching an offscreen window for *this Form*
+made them inactive-looking, unlike the lazy Shop List. This
+proves only the content and independent labels, not a presented
+system-sheet frame or Apply/Cancel tap; device XCTest owns the
+real draft/discard/navigation actions and the iPad full `.all`
+audit remains open. See
+[native hosted snapshots](../testing/native-hosted-snapshots.md).

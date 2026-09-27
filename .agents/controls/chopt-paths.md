@@ -6,7 +6,7 @@ Source: `FortniteFestivalWeb/src/pages/songinfo/SongDetailPage.tsx:163-167,302-3
 `src/contexts/SettingsContext.tsx:112-148`,
 `packages/core/src/api/serverTypes.ts:176-235`, and
 `FSTService/Api/SongEndpoints.cs:259-385`. Source references are hashed in
-`contracts/source-snapshot.json` (55 files, seven uncommitted); the website
+`contracts/source-snapshot.json` (91 files, nine independently uncommitted); the website
 worktree is independently owned and was not edited.
 
 **Real public wire:** `/api/paths/{songId}/{instrument}/{difficulty}` serves
@@ -86,4 +86,7 @@ activation cards, green/red/open frets, beat/time/scores and OD
 bars; the independent image has zoom actions. The test measures
 **758/811 (93.46%)** hosted `SongPathsSheet` lines without
 claiming draggable source table parity, iPad full accessibility
-or Mac app GUI authorization.
+or Mac app GUI authorization. The broader SwiftPM host
+logic/UX categories now pass 95%/90%, but the selected
+iOS UI/app union and full control-state/accessibility gates
+remain open.

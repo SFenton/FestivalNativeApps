@@ -70,9 +70,10 @@ an offscreen earlier Instruments control by trying the
 reverse scroll direction rather than interpreting lazy
 virtualization as a missing toggle.
 The post-review source-frozen **10/10-per-device** matrix
-exercises those named transitions, but the current SwiftPM
-UX and paired iOS UI/app coverage measurements remain
-below 90%; no Settings route or control is certified.
+exercises those named transitions. The full SwiftPM UX
+line gate now passes at **90.08%**; selected paired iOS
+UI/app still measures **71.65%**, below its 90% bar.
+No Settings route or control is certified.
 Metadata ordering, complete
 Detail propagation, source filter controls, accessibility/focus
 audits and live selected-player access remain pending; Settings

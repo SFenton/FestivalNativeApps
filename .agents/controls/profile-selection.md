@@ -214,8 +214,14 @@ at 390/820pt. `ImageRenderer` previously returned crossed
 yellow placeholders for its AppKit controls; it must not be
 used as a visual substitute. The 2/2 hosted tests use a
 throwing client factory, private optional synthetic captures
-and an isolated preference suite. They cover **573/1001**
-SwiftPM `ProfileSelectionSheet` executable lines but not
-result/preview/switch states, complete focus, Mac app GUI,
-live edge access or the 90% aggregate UX bar. See
+and an isolated preference suite. Further real AppKit text
+edits test the 250 ms player search through distinct result,
+validated-empty/Retry and 403/Retry responses; switching
+native Players→Bands→Players renders the blocked membership
+read warning with **zero** band GETs. These host tests cover
+**667/1001** SwiftPM `ProfileSelectionSheet` executable lines;
+viewed-result press/preview/selection, complete focus, Mac
+app GUI and live edge access are still pending. The full
+SwiftPM host category now passes 90%, while the paired iOS
+UI/app subset remains 71.65% and fails its own bar. See
 [native hosted snapshots](../testing/native-hosted-snapshots.md).

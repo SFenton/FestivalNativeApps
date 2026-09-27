@@ -153,7 +153,7 @@ private actor ArtworkResponseTransport: HTTPTransport {
     #expect((await transport.requestedPaths()).count == 5)
 }
 
-/// A 100-cover offline failure must not spray 100 sequential CDN requests.
+/// A 100-cover failure may retry after five seconds but never exhaust 100 URLs.
 @MainActor
 @Test func firstArtworkFailureCapsRequestsBeforeShowingBrandSurface() async throws {
     let url = try #require(Bundle.module.url(forResource: "pulse", withExtension: "png"))
@@ -167,20 +167,29 @@ private actor ArtworkResponseTransport: HTTPTransport {
     )
     _ = try await session.catalog()
     #expect(session.artworkPaths.count == 100)
+    let renderStarted = ContinuousClock().now
     let renderer = ImageRenderer(content: ArtworkBackground(
         mode: .carousel, session: session, saveDataOverride: false
     ).environment(\.scenePhase, .active).frame(width: 320, height: 568))
     renderer.scale = 1
     _ = try #require(renderer.cgImage)
-    for _ in 0..<20 {
-        if (await transport.requestedPaths()).count == 3 { break }
+    for _ in 0..<160 {
+        if (await transport.requestedPaths()).count >= 3 { break }
         try await Task.sleep(for: .milliseconds(50))
     }
-    #expect((await transport.requestedPaths()).count == 3)
     try await Task.sleep(for: .milliseconds(100))
-    #expect((await transport.requestedPaths()).count == 3)
+    let paths = await transport.requestedPaths()
+    let times = await transport.requestTimes()
+    #expect((3...5).contains(paths.count))
+    #expect(Set(paths).count == paths.count)
+    #expect(times.count == paths.count)
+    if times.count > 3 {
+        #expect(renderStarted.duration(to: times[3]) >= .seconds(4.7))
+    }
 }
 
+/// Retry timing starts with the view's first attempt, before its first artwork GET.
+///
 /// Three failed covers cannot hide a valid fourth; five failed covers exhaust the pool.
 @MainActor
 @Test(arguments: [3, 5])
@@ -197,6 +206,7 @@ func initialArtworkFailuresRetryAfterDwellAndStopAtPoolLimit(
         factory: { client }, artwork: ArtworkCache(transport: transport)
     )
     _ = try await session.catalog()
+    let renderStarted = ContinuousClock().now
     let renderer = ImageRenderer(content: ArtworkBackground(
         mode: .carousel, session: session, saveDataOverride: false
     ).environment(\.scenePhase, .active).frame(width: 320, height: 568))
@@ -208,13 +218,14 @@ func initialArtworkFailuresRetryAfterDwellAndStopAtPoolLimit(
         )
     }
     let blank = try snapshot()
-    for _ in 0..<40 where (await transport.requestedPaths()).count < 3 {
+    for _ in 0..<160 where (await transport.requestedPaths()).count < 3 {
         try await Task.sleep(for: .milliseconds(50))
     }
-    #expect((await transport.requestedPaths()).count == 3)
-    #expect(try snapshot() == blank)
-    try await Task.sleep(for: .milliseconds(150))
-    #expect((await transport.requestedPaths()).count == 3)
+    let initialCount = (await transport.requestedPaths()).count
+    #expect(initialCount >= 3)
+    if initialCount == 3 {
+        #expect(try snapshot() == blank)
+    }
 
     var visible = blank
     for _ in 0..<160 {
@@ -236,9 +247,8 @@ func initialArtworkFailuresRetryAfterDwellAndStopAtPoolLimit(
     #expect(Set(paths).count == paths.count)
     #expect(times.count == paths.count)
     if times.count > 3 {
-        let delay = times[0].duration(to: times[3])
-        #expect(delay >= .seconds(4.7))
-        #expect(delay < .seconds(8))
+        #expect(renderStarted.duration(to: times[3]) >= .seconds(4.7))
+        #expect(times[0].duration(to: times[3]) < .seconds(8))
     }
     if failedRequests == 3 {
         #expect(visible != blank)

@@ -92,5 +92,7 @@ attaches that List to an offscreen, never-visible `NSWindow` while
 capturing it. The host test does not use/download source artwork;
 the separate device fixtures retain that proof. Hosted
 `ShopScreen` coverage is **616/659 (93.47%)** executable lines.
-This does not certify the Shop route, full focus/VoiceOver order,
-macOS GUI or the aggregate 90% UX threshold.
+The later aggregate SwiftPM host UX gate passes 90% with
+additional Songs/Profile tests, but this does not certify
+the Shop route, full focus/VoiceOver order, macOS GUI or
+the still-failing iOS UI/app 90% gate.

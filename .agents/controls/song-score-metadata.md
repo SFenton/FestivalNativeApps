@@ -133,11 +133,12 @@ for the dated AX5 edge, trailing pill and Settings' retained
 scroll position. The subsequent source-frozen post-fix pair passed
 the exact **10/10 iPhone and 10/10 iPadOS** selected/anonymous
 methods; matched source WebKit comparison passed **6/6**. Both
-Release builds succeed, but current merged SwiftPM logic coverage
-is **1758/1843 (95.39%)** and UX is **7085/8874 (79.84%)** after
-additional real AppKit profile/CHOpt/Shop host-state tests;
+Release builds succeed; real AppKit profile/CHOpt/Shop/selected-
+Song state tests now raise merged SwiftPM logic coverage to
+**1761/1843 (95.55%)** and UX to **7994/8874 (90.08%)**;
 the paired iOS UI/app subset is **3166/4419 (71.65%)**.
-Only the logic threshold is met, not the 90% UX gate.
+Only the SwiftPM host categories meet their thresholds,
+not the native iOS UI/app gate or complete control-state parity.
 Future serial iPhone/iPad runs must retain
 status-chip, anonymous, Shop, Solo and sidebar navigation
 regressions. iOS 18, macOS GUI, full UX coverage, performance on

@@ -177,8 +177,11 @@ never-shown window only where lazy `List`
 requires one; `ImageRenderer`'s yellow
 native-control placeholders are rejected as
 visual evidence. Full SwiftPM logic coverage
-reaches **95.39%**, but UX **79.84%** and the paired iOS
-UI/app subset **71.65%** fail the 90% requirement.
+reaches **95.55%** and hosted UX **90.08%**, both
+passing on two identical full runs. The paired iOS
+UI/app subset still measures **71.65%** and fails
+its separate 90% requirement; Mac app-target GUI
+coverage is not measured by SwiftPM.
 Complete iPad accessibility and all-route coverage
 remain open.
 Mac GUI automation, older iOS/Duo poses, complete

@@ -129,4 +129,229 @@ private func profileSheetImage(
     )
     #expect(first != second)
 }
+
+/// Traverse only real AppKit controls, never SwiftUI's rendered placeholder pixels.
+///
+/// - Parameter view: Offscreen native profile Form subtree.
+/// - Returns: Native text fields exposed by the hosted view hierarchy.
+@MainActor
+private func profileTextFields(in view: NSView) -> [NSTextField] {
+    let current = (view as? NSTextField).map { [$0] } ?? []
+    return current + view.subviews.flatMap { profileTextFields(in: $0) }
+}
+
+/// Locate the actual native Players/Bands scope rather than simulating view state.
+///
+/// - Parameter view: AppKit-hosted search sheet.
+/// - Returns: Native segmented pickers whose real actions can be sent.
+@MainActor
+private func profileScopePickers(in view: NSView) -> [NSSegmentedControl] {
+    let current = (view as? NSSegmentedControl).map { [$0] } ?? []
+    return current + view.subviews.flatMap { profileScopePickers(in: $0) }
+}
+
+private enum HostedSearchOutcome: Sendable {
+    case results
+    case empty
+    case denied
+}
+
+private actor HostedAccountSearchTransport: HTTPTransport {
+    let outcome: HostedSearchOutcome
+    private var terms: [String] = []
+    private var paths: [String] = []
+
+    /// Distinguish a real empty envelope from a blocked public search.
+    ///
+    /// - Parameter outcome: Fixture results, validated empty or HTTP 403.
+    init(outcome: HostedSearchOutcome) { self.outcome = outcome }
+
+    /// Reject every request except one unprivileged, bounded synthetic search GET.
+    ///
+    /// - Parameter request: Operational public name search from the native form.
+    /// - Returns: One original fixture-shaped, merely viewed player identity.
+    /// - Throws: A write, selected header, key, wrong term, route or limit.
+    func send(_ request: URLRequest) async throws -> HTTPResult {
+        if let path = request.url?.path { paths.append(path) }
+        guard let url = request.url, request.httpMethod == "GET",
+              request.value(forHTTPHeaderField: "X-API-Key") == nil,
+              request.allHTTPHeaderFields?.keys.contains(where: {
+                  $0.lowercased().hasPrefix("x-fst-selected-")
+              }) != true, url.path == "/api/account/search",
+              let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
+              items.first(where: { $0.name == "q" })?.value == "Fixture",
+              items.first(where: { $0.name == "limit" })?.value == "10" else {
+            throw FestivalAPIError.invalidResource
+        }
+        terms.append("Fixture")
+        switch outcome {
+        case .results:
+            return HTTPResult(status: 200, data: Data("""
+            {"results":[{"accountId":"fixture-player-1","displayName":"Fixture Player 1"}]}
+            """.utf8))
+        case .empty:
+            return HTTPResult(status: 200, data: Data(#"{"results":[]}"#.utf8))
+        case .denied:
+            return HTTPResult(status: 403, data: Data(#"{"status":"denied"}"#.utf8))
+        }
+    }
+
+    /// Require the real search task to issue exactly one matching public GET.
+    ///
+    /// - Returns: Validated synthetic query terms actually requested.
+    func recordedTerms() -> [String] { terms }
+
+    /// Disallow even a rejected band, stats or selected-header GET.
+    ///
+    /// - Returns: Every route sent to the strict local transport.
+    func recordedPaths() -> [String] { paths }
+}
+
+/// Change the actual AppKit search field and require a source-debounced result.
+@MainActor
+@Test func profileSheetExposesNativeSearchField() async throws {
+    let transport = HostedAccountSearchTransport(outcome: .results)
+    let client = try FestivalAPI(transport: transport)
+    let session = FestivalSession(factory: { client })
+    let host = nativeHostedView(
+        ProfileSelectionSheet(session: session)
+            .preferredColorScheme(.dark)
+            .tint(BrandTokens.accentBlue),
+        size: CGSize(width: 390, height: 844)
+    )
+    let initial = try nativeHostedImage(host)
+    let field = try #require(profileTextFields(in: host).first)
+    #expect(field.stringValue.isEmpty)
+    field.stringValue = "Fixture"
+    field.delegate?.controlTextDidChange?(
+        Notification(name: NSControl.textDidChangeNotification, object: field)
+    )
+    field.sendAction(field.action, to: field.target)
+    for _ in 0..<30 {
+        if !(await transport.recordedTerms()).isEmpty { break }
+        host.layoutSubtreeIfNeeded()
+        try await Task.sleep(for: .milliseconds(50))
+    }
+    #expect(await transport.recordedTerms() == ["Fixture"])
+    let result = try nativeHostedImage(host)
+    let before = try nativeHostedPNG(
+        initial, filename: "profile-before-search.png",
+        environment: "FST_PROFILE_RENDER_OUT"
+    )
+    let found = try nativeHostedPNG(
+        result, filename: "profile-after-search.png",
+        environment: "FST_PROFILE_RENDER_OUT"
+    )
+    #expect(before != found)
+    #expect(session.selectedPlayer == nil)
+    let clear = try #require(profileTextFields(in: host).first)
+    clear.stringValue = ""
+    clear.delegate?.controlTextDidChange?(
+        Notification(name: NSControl.textDidChangeNotification, object: clear)
+    )
+    clear.sendAction(clear.action, to: clear.target)
+    try await Task.sleep(for: .milliseconds(300))
+    #expect(await transport.recordedPaths() == ["/api/account/search"])
+    let reset = try nativeHostedPNG(
+        nativeHostedImage(host), filename: "profile-cleared-search.png",
+        environment: "FST_PROFILE_RENDER_OUT"
+    )
+    #expect(reset != found)
+    #expect(session.selectedPlayer == nil)
+}
+
+/// Same query must show distinct source-like empty and actual HTTP 403 responses.
+@MainActor
+@Test func profileSheetPaintsEmptySearchSeparatelyFromAccessDenied() async throws {
+    var images: [Data] = []
+    for outcome: HostedSearchOutcome in [.empty, .denied] {
+        let transport = HostedAccountSearchTransport(outcome: outcome)
+        let client = try FestivalAPI(transport: transport)
+        let session = FestivalSession(factory: { client })
+        let host = nativeHostedView(
+            ProfileSelectionSheet(session: session)
+                .preferredColorScheme(.dark)
+                .tint(BrandTokens.accentBlue),
+            size: CGSize(width: 390, height: 844)
+        )
+        let field = try #require(profileTextFields(in: host).first)
+        field.stringValue = "Fixture"
+        field.delegate?.controlTextDidChange?(
+            Notification(name: NSControl.textDidChangeNotification, object: field)
+        )
+        field.sendAction(field.action, to: field.target)
+        for _ in 0..<30 {
+            if !(await transport.recordedTerms()).isEmpty { break }
+            host.layoutSubtreeIfNeeded()
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        #expect(await transport.recordedTerms() == ["Fixture"])
+        try await Task.sleep(for: .milliseconds(50))
+        let image = try nativeHostedImage(host)
+        let gold = nativeHostedStatusPixels(image).gold
+        if outcome == .denied {
+            #expect(gold > 10)
+        } else {
+            #expect(gold == 0)
+        }
+        #expect(session.selectedPlayer == nil)
+        let name = outcome == .denied ? "denied" : "empty"
+        images.append(try nativeHostedPNG(
+            image, filename: "profile-search-\(name).png",
+            environment: "FST_PROFILE_RENDER_OUT"
+        ))
+    }
+    #expect(images[0] != images[1])
+}
+
+/// Switching to Bands cannot make the native client issue its write-capable GET.
+@MainActor
+@Test func profileBandScopeKeepsUnsafeSearchBlocked() async throws {
+    let transport = HostedAccountSearchTransport(outcome: .results)
+    let client = try FestivalAPI(transport: transport)
+    let session = FestivalSession(factory: { client })
+    let host = nativeHostedView(
+        ProfileSelectionSheet(session: session)
+            .preferredColorScheme(.dark)
+            .tint(BrandTokens.accentBlue),
+        size: CGSize(width: 390, height: 844)
+    )
+    let before = try nativeHostedPNG(
+        nativeHostedImage(host), filename: "profile-players-scope.png",
+        environment: "FST_PROFILE_RENDER_OUT"
+    )
+    #expect(!profileTextFields(in: host).isEmpty)
+    let picker = try #require(profileScopePickers(in: host).first)
+    #expect(picker.segmentCount == 2)
+    picker.selectedSegment = 1
+    picker.sendAction(picker.action, to: picker.target)
+    for _ in 0..<20 {
+        if profileTextFields(in: host).isEmpty { break }
+        host.layoutSubtreeIfNeeded()
+        try await Task.sleep(for: .milliseconds(50))
+    }
+    #expect(profileTextFields(in: host).isEmpty)
+    #expect((await transport.recordedPaths()).isEmpty)
+    let image = try nativeHostedImage(host)
+    #expect(nativeHostedStatusPixels(image).gold == 0)
+    let after = try nativeHostedPNG(
+        image, filename: "profile-bands-blocked.png",
+        environment: "FST_PROFILE_RENDER_OUT"
+    )
+    #expect(before != after)
+    picker.selectedSegment = 0
+    picker.sendAction(picker.action, to: picker.target)
+    for _ in 0..<20 {
+        if !profileTextFields(in: host).isEmpty { break }
+        host.layoutSubtreeIfNeeded()
+        try await Task.sleep(for: .milliseconds(50))
+    }
+    #expect(!profileTextFields(in: host).isEmpty)
+    #expect((await transport.recordedPaths()).isEmpty)
+    let restored = try nativeHostedPNG(
+        nativeHostedImage(host), filename: "profile-players-restored.png",
+        environment: "FST_PROFILE_RENDER_OUT"
+    )
+    #expect(restored != after)
+}
 #endif

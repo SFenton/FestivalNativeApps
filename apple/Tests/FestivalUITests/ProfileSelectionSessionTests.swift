@@ -3,7 +3,7 @@ import Testing
 @testable import FestivalCore
 @testable import FestivalUI
 
-private actor ProfileSelectionTransport: HTTPTransport {
+actor ProfileSelectionTransport: HTTPTransport {
     private var generation = 7
     private var denied = false
     private var syncNext = false

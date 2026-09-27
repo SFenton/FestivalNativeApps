@@ -185,11 +185,14 @@ these review fixes; a fresh source-frozen pair now passes
 **6/6** source WebKit comparisons and both Apple Release
 builds. A subsequent test-only AppKit host pass on
 real Profile/CHOpt/Shop states raises measured
-SwiftPM logic to **1758/1843 (95.39%, pass)** and
-UX to **7085/8874 (79.84%, fail)**. The paired iOS
-UI/app subset still fails at
-**3166/4419 (71.65%)**. These are real release blockers,
-not acceptable proxies for full page/control parity.
+SwiftPM logic to **1761/1843 (95.55%, pass)** and
+UX to **7994/8874 (90.08%, pass)** after genuine
+selected Songs and profile search/band/sync/error
+states; two full runs passed on unchanged app source.
+The selected paired iOS UI/app subset still fails
+at **3166/4419 (71.65%)**. Passing hosted line
+coverage is not a proxy for complete accessibility,
+macOS GUI, PWA pixel or all-route parity.
 The source's mobile target row is below results; the native phone
 uses a top scope. Source screenshots live in private session
 evidence, not the repository.
