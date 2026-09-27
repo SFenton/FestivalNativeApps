@@ -46,6 +46,11 @@ struct FestivalMobileApp: App {
                 UserDefaults.standard.removeObject(forKey: key)
             }
         }
+        if ProcessInfo.processInfo.environment["FST_UI_TEST_RESET_PATH_WARNING"] == "1" {
+            UserDefaults.standard.removeObject(
+                forKey: "fst.settings.pathUnavailableWarningDismissed"
+            )
+        }
         #endif
     }
 

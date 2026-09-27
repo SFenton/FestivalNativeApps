@@ -2126,6 +2126,100 @@ final class FestivalMobileUITests: XCTestCase {
         XCTAssertEqual(setting.value as? String, original)
     }
 
+    /// Warn once per Paths opening until the explicit persistent choice survives cold launch.
+    ///
+    /// - Throws: Missing or low-contrast warning, ignored choice or forgotten dismissal.
+    @MainActor
+    func testPathUnavailableWarningCanPersistAcrossColdLaunch() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchEnvironment["FST_UI_TEST_RESET_PATH_WARNING"] = "1"
+        app.launch()
+        let song = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(song.waitForExistence(timeout: 15))
+        song.tap()
+        let open = app.buttons["fst.song-detail.paths"]
+        XCTAssertTrue(open.waitForExistence(timeout: 10))
+        open.tap()
+        let warning = app.alerts["Some Instruments Unavailable"]
+        XCTAssertTrue(warning.waitForExistence(timeout: 10))
+        XCTAssertTrue(warning.staticTexts[
+            "Karaoke is not available for path visualization yet."
+        ].exists)
+        XCTAssertTrue(warning.buttons["OK"].exists)
+        XCTAssertTrue(warning.buttons["Don't show again"].exists)
+        XCTAssertTrue(warning.buttons["OK"].isHittable)
+        XCTAssertTrue(
+            warning.buttons.matching(identifier: "fst.paths.warning.dismiss")
+                .allElementsBoundByIndex.contains(where: \.isHittable)
+        )
+        record(app, name: "song-path-karaoke-warning-first")
+        let title = warning.staticTexts["Some Instruments Unavailable"]
+        try assertHeaderContrast(title, in: app)
+        var acceptedSystemTitleContrast = false
+        try app.performAccessibilityAudit(for: .contrast) { issue in
+            let attachment = XCTAttachment(
+                string: "\(issue.auditType): \(issue.element?.identifier ?? "unidentified"): "
+                    + "\(issue.element?.label ?? "unidentified"): "
+                    + "\(String(describing: issue.element?.frame))"
+            )
+            attachment.name = "paths-warning-audit-node"
+            attachment.lifetime = .keepAlways
+            self.add(attachment)
+            // The rendered system alert title passes 4.5:1, but iOS 26.5 flags its UILabel.
+            guard UIDevice.current.userInterfaceIdiom == .phone,
+                  UIDevice.current.systemVersion == "26.5",
+                  issue.auditType == .contrast,
+                  issue.element?.identifier == "",
+                  issue.element?.label == title.label,
+                  !acceptedSystemTitleContrast else {
+                return false
+            }
+            acceptedSystemTitleContrast = true
+            return true
+        }
+        warning.buttons["OK"].tap()
+        let display = app.segmentedControls["fst.paths.display"]
+        XCTAssertTrue(display.waitForExistence(timeout: 10))
+        app.buttons["fst.paths.close"].tap()
+
+        open.tap()
+        XCTAssertTrue(warning.waitForExistence(timeout: 10))
+        record(app, name: "song-path-karaoke-warning-next-opening")
+        let permanent = try XCTUnwrap(
+            warning.buttons.matching(identifier: "fst.paths.warning.dismiss")
+                .allElementsBoundByIndex.first(where: \.isHittable)
+        )
+        permanent.tap()
+        XCTAssertTrue(display.waitForExistence(timeout: 10))
+        app.buttons["fst.paths.close"].tap()
+
+        app.terminate()
+        app.launchEnvironment.removeValue(forKey: "FST_UI_TEST_RESET_PATH_WARNING")
+        app.launch()
+        XCTAssertTrue(song.waitForExistence(timeout: 15))
+        song.tap()
+        XCTAssertTrue(open.waitForExistence(timeout: 10))
+        open.tap()
+        XCTAssertTrue(display.waitForExistence(timeout: 10))
+        XCTAssertFalse(warning.waitForExistence(timeout: 3))
+        record(app, name: "song-path-karaoke-warning-suppressed-after-cold-launch")
+        app.buttons["fst.paths.close"].tap()
+
+        app.terminate()
+        app.launchEnvironment["FST_UI_TEST_RESET_PATH_WARNING"] = "1"
+        app.launch()
+        XCTAssertTrue(song.waitForExistence(timeout: 15))
+        song.tap()
+        open.tap()
+        XCTAssertTrue(warning.waitForExistence(timeout: 10))
+        warning.buttons["OK"].tap()
+        app.buttons["fst.paths.close"].tap()
+        app.terminate()
+    }
+
     /// Show ten real fixture score rows, then open the independent full Solo page.
     ///
     /// - Throws: Missing native top-score rows, incorrect top parameter or hidden action.

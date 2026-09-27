@@ -28,7 +28,7 @@ logged. This does **not** resolve Cloudflare 1010 on search or rankings.
 | State / transition | Source behavior | Native Apple slice and open work |
 |---|---|---|
 | Open/default | Mobile FAB / desktop header; first visible path chart, Expert, saved image/text view | Detail toolbar Paths appears if a non-Karaoke chart is enabled; native sheet resets chart/Expert and uses the saved Settings default |
-| Warning | Enabled Karaoke warns once per opening or saves "Don't show again" | Matching native alert, independent of actual chart availability; warning reset with App Settings, persistent-dismiss journey still needs automation |
+| Warning | Enabled Karaoke warns once per opening or saves "Don't show again" | Matching native alert, independent of actual chart availability; OK/reopen, permanent dismissal and cold-launch retention pass a fixture-backed iPhone 26.5 journey. App Settings can reset the choice. |
 | Image | Separate PNG load/error, scroll and pinch zoom | Independent public GET, decoded off main thread with a 4,096px longest-edge/24MP bound; native scroll, pinch and high-contrast zoom buttons; large-image performance needs device measurement |
 | Text | Structured activation note, beat, time, OD and score table | Validated JSON, source-like five fret colors/OD bar, native activation cards and instructions; draggable desktop column order and full table geometry are pending |
 | Switch | Instrument, four difficulties, image/text; old requests never paint after new choice | `.task(id:)` cancellation plus exact request-key guard; fixture proves Expert to Hard, missing Medium (explicit 404), Bass error and recovery to Lead |
@@ -43,7 +43,7 @@ visibility preference. The boundary where only Karaoke is enabled (so
 Paths must disappear entirely) still needs device automation.
 
 **Observed layout:** `tools/visual/pages.spec.ts` captures fixture-only React
-image and text modals at 390x844 phone and 820x1180 tablet portraits.
+image, text and initial warning modals at 390x844 phone and 820x1180 tablet portraits.
 `testSongPathsImageTextSwitchAndMissingDifficulty` captures the same
 synthetic states on iPhone/iPadOS 26.5. PWA phone uses a bottom sheet with
 controls at the bottom, translucent cards and a compact note/beat/time/OD/
@@ -54,6 +54,17 @@ and summary alongside the five colored fret markers and OD meter. This is
 an intentional native/Fluent mapping, **not** pixel or complete UX parity.
 The fret accents are bespoke chart-content colors, isolated to this control,
 not replacements for shared Fluent tokens.
+
+The source WebKit phone/tablet warning cases pass **2/2** for OK
+acknowledgement on one opening, warning on the next, persistent choice and
+suppression after reload. The native iPhone warning/Settings/Paths cases pass
+**4/4** together, and the warning-only journey passes after a focused contrast
+check. It resets only `fst.settings.pathUnavailableWarningDismissed` via
+`FST_UI_TEST_RESET_PATH_WARNING=1` on explicit **Debug fixture** launches;
+normal and Release launches preserve the saved setting. Screenshots show the
+PWA warning's two horizontal actions truncate "Don't show again" at phone
+and tablet widths; the iPhone system alert intentionally stacks full-length
+actions. Neither capture implies pixel parity or native iPad warning coverage.
 
 **Accessibility and test IDs:** Header/Close -> instrument -> difficulty ->
 display -> freshness -> image/zoom *or* text summary/activation cards; the
@@ -68,10 +79,22 @@ sizes. The iPadOS 26.5 full `.all` probe **still fails** with unnamed
 summary have rendered-pixel contrast checks, not an audit waiver. Largest
 text from launch, landscape, tablet window sizes, full reader order and
 macOS GUI (host Automation Mode requires authentication) remain pending.
+The separate iPhone warning's full `.all` audit also **fails**: on iOS 26.5, Xcode
+flags its white system-alert title as low contrast despite an independent
+rendered-pixel assertion of **at least 4.5:1**, then reports an unnamed
+"Potentially inaccessible text" node with no inspectable element. A focused
+`.contrast` audit accepts **at most one** exact iPhone 26.5 system-title
+finding after the pixel check; every other contrast issue fails. A focused
+`.dynamicType` audit reports that the system alert's Karaoke-message UILabel
+does not support font-size changes. These unnamed/Dynamic Type findings
+are **not waived** or claimed to pass. The warning test separately checks
+both visible, hittable actions and the exact spoken warning text; AX5 size,
+VoiceOver focus/return and a full alert audit remain open.
 
 Focused automated proof: nine `songPath` Core tests, a strict original PNG/
 JSON loopback fixture with generation/pin/ETag/404 validation, two WebKit
-PWA captures, and two selected native iPhone/iPad modal/Settings journeys.
+PWA image/text and warning journeys, two selected native iPhone/iPad
+modal/Settings journeys, and one additional iPhone-only warning journey.
 The full 24-route parity inventory, cross-platform UI coverage and source
 line-coverage bars are **not certified** by these targeted cases.
 

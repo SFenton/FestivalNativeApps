@@ -363,7 +363,7 @@ for (const viewport of viewports.filter(entry => entry.id.endsWith('portrait')))
 }
 
 for (const viewport of viewports.filter(entry => entry.id.endsWith('portrait'))) {
-  test(`fixture-backed PWA CHOpt Paths modal: ${viewport.id}`, async ({ page }, testInfo) => {
+  test(`fixture-backed PWA CHOpt Paths modal: ${viewport.id}`, async ({ page, api }, testInfo) => {
     mkdirSync(output, { recursive: true });
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.route('**/api/paths/**', async route => {
@@ -378,9 +378,15 @@ for (const viewport of viewports.filter(entry => entry.id.endsWith('portrait')))
     await gotoAppRoute(page, '/songs/fixture-pulse');
     await expect(page.locator('#main-content')).toContainText('Intensity', { timeout: 15_000 });
     await page.getByRole('button', { name: 'View Paths' }).click();
-    await expect(page.getByText('Karaoke is not available for path visualization yet.'))
+    const warning = page.getByRole('alertdialog', { name: 'Some Instruments Unavailable' });
+    await expect(warning.getByText('Karaoke is not available for path visualization yet.'))
       .toBeVisible();
-    await page.getByRole('button', { name: 'OK', exact: true }).click();
+    await page.screenshot({
+      path: join(output, `${testInfo.project.name}-${viewport.id}-chopt-path-warning.png`),
+      animations: 'disabled',
+    });
+    await warning.getByRole('button', { name: 'OK', exact: true }).click();
+    await expect(warning).toHaveCount(0);
     const dialog = page.getByRole('dialog', { name: 'Paths' });
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole('img', { name: 'Lead Expert path' }))
@@ -399,6 +405,20 @@ for (const viewport of viewports.filter(entry => entry.id.endsWith('portrait')))
       path: join(output, `${testInfo.project.name}-${viewport.id}-chopt-path-text.png`),
       animations: 'disabled',
     });
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await page.getByRole('button', { name: 'View Paths' }).click();
+    await expect(warning).toBeVisible();
+    await warning.getByRole('button', { name: "Don't show again", exact: true }).click();
+    await expect(warning).toHaveCount(0);
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    api.override({ method: 'GET', path: '/api/songs', status: 200, body: songs });
+    await page.reload({ waitUntil: 'load' });
+    await page.getByRole('button', { name: 'View Paths' }).click();
+    await expect(dialog).toBeVisible();
+    await expect(warning).toHaveCount(0);
   });
 }
 

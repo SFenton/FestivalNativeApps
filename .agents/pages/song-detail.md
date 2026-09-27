@@ -56,6 +56,15 @@ matched real-data navigation and focus order remain pending.
 
 **New CHOpt Paths WIP slice (2026-09-25):** A native top-toolbar Paths action appears when Settings enables any of the eight path-capable charts; Karaoke cannot be selected for paths and triggers the source's warning until dismissed. The Swift client decodes both *real, keyless* public PNG and structured JSON with optional catalogue generation ID, distinct publication-aware ETags, bounded off-main decoding and validated process-only warm snapshots. A bounded opt-in native probe decoded one live schema-2 Lead/Expert text path and PNG; this access is independent of the edge-denied profile/rank routes. The native sheet opens at Expert and the saved image/text default, switches instrument/difficulty/display without stale results, offers pinch/button zoom and presents note frets, timing, OD and scores plus explicit error/Retry and freshness. The original synthetic fixture produced matched PWA/native image and text phone/tablet screenshots. The PWA bottom controls and wide drag-reorderable table are **not** copied: native uses top menu/segments and activation cards; native column reordering, source full table geometry, rapid-response race/focus proof, all postures and full iPad accessibility remain pending. The iPhone loaded image/text sheets pass `.all` audits; iPad `.all` reports unnamed "Potentially inaccessible text" despite selected rendered-contrast checks. See [the Paths control spec](../controls/chopt-paths.md); neither Detail nor the control is certified.
 
+The Karaoke warning now has a source WebKit phone/tablet **2/2** reopening,
+permanent-choice and reload proof, plus a native iPhone 26.5
+OK/reopen/permanent-choice/cold-launch journey. The native system alert shows
+the entire "Don't show again" label, unlike the PWA's clipped two-column
+action. This is not a full accessibility pass: the iPhone alert's `.all`
+audit reports unlocatable text and a separate Dynamic Type check flags the
+system message; only the exact title's rendered contrast and the focused
+contrast audit are proven. Native iPad and VoiceOver focus remain pending.
+
 The changed Settings visibility journey now also proves a hidden Bass is
 absent from **both** leaderboard actions and the Paths picker on iPhone
 and iPad, while its charted Intensity remains shown. The full Solo
