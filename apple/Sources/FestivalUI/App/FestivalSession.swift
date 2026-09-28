@@ -22,7 +22,7 @@ enum SelectedPlayerLoadState: Equatable {
     case loading
     case available
     case syncing
-    case failed(String)
+    case failed(ServiceIssue)
 }
 
 /// One native app session owns its publication and artwork caches across tabs.
@@ -258,7 +258,7 @@ final class FestivalSession {
                   selectedPlayer == identity else { return }
             selectedPlayerScores.removeAll()
             selectedPlayerScoreObservation = nil
-            playerLoadState = .failed(error.localizedDescription)
+            playerLoadState = .failed(ServiceIssue(error))
             playerError = error.localizedDescription
         }
     }

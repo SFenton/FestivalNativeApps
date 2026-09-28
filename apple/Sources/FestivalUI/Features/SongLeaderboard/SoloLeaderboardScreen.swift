@@ -21,7 +21,7 @@ struct SoloLeaderboardScreen: View {
     enum LoadState {
         case loading
         case loaded(LeaderboardPayload)
-        case failed(String)
+        case failed(ServiceIssue)
     }
 
     private struct RequestKey: Hashable {
@@ -64,8 +64,8 @@ struct SoloLeaderboardScreen: View {
             case .loading:
                 ProgressView("Loading leaderboard")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            case let .failed(message):
-                ServiceUnavailableView(title: "Leaderboard unavailable", message: message) {
+            case let .failed(issue):
+                ServiceStatusView(issue, title: "Leaderboard unavailable") {
                     Task { await loadPage() }
                 }
             case let .loaded(payload):
@@ -233,7 +233,7 @@ struct SoloLeaderboardScreen: View {
             if requested == requestKey { state = .loading }
         } catch {
             if requested == requestKey {
-                state = .failed(error.localizedDescription)
+                state = .failed(ServiceIssue(error))
             }
         }
     }

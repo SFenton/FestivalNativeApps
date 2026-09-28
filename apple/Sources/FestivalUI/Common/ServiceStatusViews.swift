@@ -67,50 +67,17 @@ struct FreshnessDisclosure: View {
     }
 }
 
-/// Scalable error content: the iOS 26 system unavailable view fails the Dynamic Type audit.
+/// A plain-message error page for failures that are not service reads (for
+/// example a local sort or filter failure). Service reads should use
+/// `ServiceStatusView(ServiceIssue(error), title:retry:)` so freezes, offline and
+/// syncing states read consistently.
 struct ServiceUnavailableView: View {
     let title: String
     let message: String
     let retry: () -> Void
 
     var body: some View {
-        GeometryReader { geometry in
-            ScrollView {
-                VStack(spacing: 16) {
-                    Image(systemName: "wifi.slash")
-                        .font(.largeTitle)
-                        .foregroundStyle(BrandTokens.textSecondary)
-                        .accessibilityHidden(true)
-                    Text(title)
-                        .font(.title2.bold())
-                        .foregroundStyle(BrandTokens.textPrimary)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityAddTraits(.isHeader)
-                    Text(message)
-                        .font(.body)
-                        .foregroundStyle(BrandTokens.textSecondary)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Button(action: retry) {
-                        Text("Retry")
-                            .font(.body)
-                            .foregroundStyle(BrandTokens.textPrimary)
-                            .frame(minWidth: 44, minHeight: 44)
-                            .padding(.horizontal, 12)
-                            .background(
-                                BrandTokens.cardBackground,
-                                in: RoundedRectangle(cornerRadius: 10)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(24)
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: geometry.size.height)
-            }
-            .scrollBounceBehavior(.basedOnSize)
-        }
+        ServiceStatusView(.other(message: message), title: title, retry: retry)
     }
 }
 

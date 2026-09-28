@@ -9,7 +9,7 @@ private enum PlayerProfilePhase {
     case loading
     case syncing
     case available(PlayerProfilePayload)
-    case failed(String)
+    case failed(ServiceIssue)
 }
 
 /// Shared body for the pushed `/player/:accountId` route (`PlayerProfileScreen`) and
@@ -123,11 +123,8 @@ struct PlayerProfileContent: View {
                 retry: { retryRevision += 1 }
             )
             .accessibilityIdentifier("fst.player.syncing")
-        case let .failed(message):
-            ServiceUnavailableView(
-                title: "Profile Unavailable", message: message,
-                retry: { retryRevision += 1 }
-            )
+        case let .failed(issue):
+            ServiceStatusView(issue, title: "Profile Unavailable") { retryRevision += 1 }
             .accessibilityIdentifier("fst.player.error")
         case let .available(payload):
             ScrollView {
@@ -331,7 +328,7 @@ struct PlayerProfileContent: View {
             return
         } catch {
             guard !Task.isCancelled else { return }
-            phase = .failed(error.localizedDescription)
+            phase = .failed(ServiceIssue(error))
         }
     }
 }

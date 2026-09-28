@@ -21,7 +21,7 @@ struct PlayerHistoryScreen: View {
     enum LoadState {
         case loading
         case loaded(PlayerHistoryPayload)
-        case failed(String)
+        case failed(ServiceIssue)
     }
 
     private struct RequestKey: Hashable {
@@ -67,8 +67,8 @@ struct PlayerHistoryScreen: View {
                 case .loading:
                     ProgressView("Loading Score History")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                case let .failed(message):
-                    ServiceUnavailableView(title: "History unavailable", message: message) {
+                case let .failed(issue):
+                    ServiceStatusView(issue, title: "History unavailable") {
                         Task { await load() }
                     }
                 case let .loaded(payload):
@@ -201,7 +201,7 @@ struct PlayerHistoryScreen: View {
         } catch let error as URLError where error.code == .cancelled {
         } catch {
             if requested == requestKey {
-                state = .failed(error.localizedDescription)
+                state = .failed(ServiceIssue(error))
             }
         }
     }

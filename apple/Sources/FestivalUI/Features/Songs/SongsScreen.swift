@@ -61,7 +61,7 @@ struct SongsScreen: View {
     enum LoadState {
         case loading
         case loaded(CatalogPayload)
-        case failed(String)
+        case failed(ServiceIssue)
     }
 
     /// Restart a single catalogue task on publication or tab/route visibility changes.
@@ -282,8 +282,8 @@ struct SongsScreen: View {
             case .loading:
                 ProgressView("Loading songs")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            case let .failed(message):
-                ServiceUnavailableView(title: "Songs unavailable", message: message) {
+            case let .failed(issue):
+                ServiceStatusView(issue, title: "Songs unavailable") {
                     Task { await reload() }
                 }
             case let .loaded(payload):
@@ -483,7 +483,7 @@ struct SongsScreen: View {
             } catch is CancellationError {
                 return
             } catch {
-                state = .failed("Search could not finish: \(error.localizedDescription)")
+                state = .failed(.other(message: "Search could not finish: \(error.localizedDescription)"))
             }
         }
     }
@@ -975,7 +975,7 @@ struct SongsScreen: View {
                 state = .loaded(prior)
                 refreshFailure = error.localizedDescription
             } else {
-                state = .failed(error.localizedDescription)
+                state = .failed(ServiceIssue(error))
             }
         }
     }

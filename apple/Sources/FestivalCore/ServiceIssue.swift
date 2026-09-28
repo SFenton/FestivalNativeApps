@@ -201,3 +201,15 @@ public struct ServiceRetryBackoff: Sendable {
         attempts[scope] = nil
     }
 }
+
+// MARK: - Literal convenience
+
+extension ServiceIssue: ExpressibleByStringLiteral {
+    /// A literal message is an `.other` issue, so previews, fixtures and tests
+    /// can write `.failed("Synthetic outage")` for a screen's failed state.
+    ///
+    /// - Parameter value: Readable failure text.
+    public init(stringLiteral value: String) {
+        self = .other(message: value)
+    }
+}

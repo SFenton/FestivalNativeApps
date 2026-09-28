@@ -54,8 +54,8 @@ struct PlayerBandsScreen: View {
                 case .loading:
                     ProgressView("Loading bands")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                case let .failed(message):
-                    ServiceUnavailableView(title: "Bands unavailable", message: message) {
+                case let .failed(issue):
+                    ServiceStatusView(issue, title: "Bands unavailable") {
                         Task { await load() }
                     }
                 case let .loaded(payload):
@@ -115,7 +115,7 @@ struct PlayerBandsScreen: View {
             return
         } catch {
             guard requested == requestKey else { return }
-            state = .failed(error.localizedDescription)
+            state = .failed(ServiceIssue(error))
         }
     }
 }

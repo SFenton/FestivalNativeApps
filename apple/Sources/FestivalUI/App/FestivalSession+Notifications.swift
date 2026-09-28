@@ -9,7 +9,7 @@ enum NotificationsLoadState: Equatable {
     case idle
     case loading
     case loaded
-    case failed(String)
+    case failed(ServiceIssue)
 }
 
 /// Per-session notification feed: fetch, seen-state and unread count.
@@ -61,7 +61,7 @@ final class NotificationsCenter {
             state = .loaded
         } catch is CancellationError {
         } catch {
-            state = .failed(error.localizedDescription)
+            state = .failed(ServiceIssue(error))
         }
     }
 

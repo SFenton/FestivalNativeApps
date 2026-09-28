@@ -149,8 +149,8 @@ struct RivalCommonSection: View {
         switch state {
         case .loading:
             shell { ProgressView().frame(maxWidth: .infinity).padding(.vertical, 12) }
-        case let .failed(message):
-            shell { RivalsSectionError(message: message) { Task { await load() } } }
+        case let .failed(issue):
+            shell { ServiceStatusInline(issue, scope: "rivals.common") { Task { await load() } } }
         case let .loaded(result) where result.above.isEmpty && result.below.isEmpty:
             EmptyView()
         case let .loaded(result):
@@ -224,8 +224,8 @@ struct RivalComboSection: View {
         switch state {
         case .loading:
             shell { ProgressView().frame(maxWidth: .infinity).padding(.vertical, 12) }
-        case let .failed(message):
-            shell { RivalsSectionError(message: message) { Task { await load() } } }
+        case let .failed(issue):
+            shell { ServiceStatusInline(issue, scope: "rivals.combo.\(scope.token)") { Task { await load() } } }
         case let .loaded(response) where response.isEmpty:
             EmptyView()
         case let .loaded(response):
@@ -271,7 +271,7 @@ struct RivalComboSection: View {
             state = .loaded(try await session.rivalsComboList(token: scope.token))
         } catch is CancellationError {
         } catch {
-            state = .failed(error.localizedDescription)
+            state = .failed(ServiceIssue(error))
         }
     }
 }
@@ -300,8 +300,8 @@ struct RivalInstrumentSongSection: View {
         switch state {
         case .loading:
             shell { ProgressView().frame(maxWidth: .infinity).padding(.vertical, 12) }
-        case let .failed(message):
-            shell { RivalsSectionError(message: message) { Task { await load() } } }
+        case let .failed(issue):
+            shell { ServiceStatusInline(issue, scope: "rivals.song.\(instrument.rawValue)") { Task { await load() } } }
         case let .loaded(response) where response.isEmpty:
             EmptyView()
         case let .loaded(response):
@@ -360,7 +360,7 @@ struct RivalInstrumentSongSection: View {
             state = .loaded(try await session.rivalsList(instrument: instrument))
         } catch is CancellationError {
         } catch {
-            state = .failed(error.localizedDescription)
+            state = .failed(ServiceIssue(error))
         }
     }
 }
@@ -384,8 +384,8 @@ struct RivalInstrumentLeaderboardSection: View {
         switch state {
         case .loading:
             shell { ProgressView().frame(maxWidth: .infinity).padding(.vertical, 12) }
-        case let .failed(message):
-            shell { RivalsSectionError(message: message) { Task { await load() } } }
+        case let .failed(issue):
+            shell { ServiceStatusInline(issue, scope: "rivals.leaderboard.\(instrument.rawValue)") { Task { await load() } } }
         case let .loaded(response) where response.isEmpty:
             EmptyView()
         case let .loaded(response):
@@ -442,7 +442,7 @@ struct RivalInstrumentLeaderboardSection: View {
             state = .loaded(try await session.leaderboardRivals(instrument: instrument, rankBy: rankBy))
         } catch is CancellationError {
         } catch {
-            state = .failed(error.localizedDescription)
+            state = .failed(ServiceIssue(error))
         }
     }
 }

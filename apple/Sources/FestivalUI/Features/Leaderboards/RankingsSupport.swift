@@ -8,7 +8,7 @@ import FestivalDesign
 enum RankLoadState<Value> {
     case loading
     case loaded(Value)
-    case failed(String)
+    case failed(ServiceIssue)
 }
 
 // MARK: - Account ranking row

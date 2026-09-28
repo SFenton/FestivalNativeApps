@@ -28,7 +28,7 @@ struct SongPathsSheet: View {
         case loading
         case image(SongPathImagePayload)
         case text(SongPathDataPayload)
-        case failed(String)
+        case failed(ServiceIssue)
     }
 
     private struct RequestKey: Equatable {
@@ -147,8 +147,8 @@ struct SongPathsSheet: View {
         case .loading:
             ProgressView("Loading \(display.label.lowercased()) path")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-        case let .failed(message):
-            ServiceUnavailableView(title: "Path unavailable", message: message) {
+        case let .failed(issue):
+            ServiceStatusView(issue, title: "Path unavailable") {
                 retryRevision += 1
             }
             .accessibilityIdentifier("fst.paths.error")
@@ -468,7 +468,7 @@ struct SongPathsSheet: View {
             return
         } catch {
             guard !Task.isCancelled, requestKey == requested else { return }
-            state = .failed(error.localizedDescription)
+            state = .failed(ServiceIssue(error))
         }
     }
 }

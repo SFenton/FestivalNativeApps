@@ -47,11 +47,10 @@ struct SuggestionsScreen: View {
                 noProfile
             } else if session.playerLoadState == .syncing {
                 syncing
-            } else if case let .failed(message) = session.playerLoadState {
-                ServiceUnavailableView(
-                    title: "Could Not Load Player", message: message,
-                    retry: { Task { await session.refreshSelectedPlayer() } }
-                )
+            } else if case let .failed(issue) = session.playerLoadState {
+                ServiceStatusView(issue, title: "Could Not Load Player") {
+                    Task { await session.refreshSelectedPlayer() }
+                }
             } else {
                 content
             }
@@ -124,11 +123,10 @@ struct SuggestionsScreen: View {
             } else {
                 list
             }
-        case let .failed(message):
-            ServiceUnavailableView(
-                title: "Could Not Load Suggestions", message: message,
-                retry: { Task { await viewModel.ensureLoaded(session: session) } }
-            )
+        case let .failed(issue):
+            ServiceStatusView(issue, title: "Could Not Load Suggestions") {
+                Task { await viewModel.ensureLoaded(session: session) }
+            }
         case .loaded:
             if visibleCategories.isEmpty {
                 emptyState

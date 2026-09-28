@@ -127,8 +127,8 @@ struct CompeteInstrumentLeaderboardSection: View {
             switch state {
             case .loading:
                 RankingsSkeletonRows(count: previewCount)
-            case let .failed(message):
-                RivalsSectionError(message: message) { Task { await load() } }
+            case let .failed(issue):
+                ServiceStatusInline(issue, scope: "compete.\(instrument.rawValue)") { Task { await load() } }
             case let .loaded(payload) where payload.rankings.entries.isEmpty:
                 FestivalFootnote("No ranked \(instrument.label) players yet.")
             case let .loaded(payload):
@@ -160,7 +160,7 @@ struct CompeteInstrumentLeaderboardSection: View {
             ))
         } catch is CancellationError {
         } catch {
-            state = .failed(error.localizedDescription)
+            state = .failed(ServiceIssue(error))
         }
     }
 }

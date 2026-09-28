@@ -53,8 +53,8 @@ struct NotificationsSheet: View {
         case (_, .loading), (_, .idle):
             ProgressView("Loading Notifications")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-        case let (_, .failed(message)):
-            ServiceUnavailableView(title: "Notifications unavailable", message: message) {
+        case let (_, .failed(issue)):
+            ServiceStatusView(issue, title: "Notifications unavailable") {
                 Task { await center.refresh(session: session) }
             }
         case (_, .loaded):

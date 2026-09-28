@@ -125,8 +125,10 @@ struct LeaderboardsScreen: View {
             switch instrumentStates[instrument] ?? .loading {
             case .loading:
                 RankingsSkeletonRows(count: 5)
-            case let .failed(message):
-                cardError(message) { await loadInstrument(instrument, rankBy: rankBy) }
+            case let .failed(issue):
+                ServiceStatusInline(issue, scope: "leaderboards.\(instrument.rawValue)") {
+                    Task { await loadInstrument(instrument, rankBy: rankBy) }
+                }
             case let .loaded(payload):
                 if payload.rankings.entries.isEmpty {
                     cardEmpty("No ranked \(instrument.label) players yet.")
@@ -162,8 +164,10 @@ struct LeaderboardsScreen: View {
             switch bandStates[bandType] ?? .loading {
             case .loading:
                 RankingsSkeletonRows(count: 5)
-            case let .failed(message):
-                cardError(message) { await loadBand(bandType, rankBy: metric) }
+            case let .failed(issue):
+                ServiceStatusInline(issue, scope: "leaderboards.\(bandType.rawValue)") {
+                    Task { await loadBand(bandType, rankBy: metric) }
+                }
             case let .loaded(payload):
                 if payload.rankings.entries.isEmpty {
                     cardEmpty("No ranked \(bandType.label.lowercased()) yet.")
@@ -189,16 +193,6 @@ struct LeaderboardsScreen: View {
         Text(message)
             .font(.footnote)
             .foregroundStyle(BrandTokens.textSecondary)
-    }
-
-    private func cardError(_ message: String, retry: @escaping () async -> Void) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(message)
-                .font(.footnote)
-                .foregroundStyle(BrandTokens.textSecondary)
-            Button("Retry") { Task { await retry() } }
-                .font(.footnote.weight(.semibold))
-        }
     }
 
     private func viewAllLink(_ route: AppRoute) -> some View {
@@ -237,7 +231,7 @@ struct LeaderboardsScreen: View {
             )
             instrumentStates[instrument] = .loaded(payload)
         } catch {
-            instrumentStates[instrument] = .failed(error.localizedDescription)
+            instrumentStates[instrument] = .failed(ServiceIssue(error))
         }
     }
 
@@ -254,7 +248,7 @@ struct LeaderboardsScreen: View {
             )
             bandStates[bandType] = .loaded(payload)
         } catch {
-            bandStates[bandType] = .failed(error.localizedDescription)
+            bandStates[bandType] = .failed(ServiceIssue(error))
         }
     }
 }

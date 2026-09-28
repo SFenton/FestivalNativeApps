@@ -75,10 +75,8 @@ struct RivalDetailScreen: View {
         switch state {
         case .loading:
             ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
-        case let .failed(message):
-            ServiceUnavailableView(
-                title: "Rivals Unavailable", message: message
-            ) { Task { await load() } }
+        case let .failed(issue):
+            ServiceStatusView(issue, title: "Rivals Unavailable") { Task { await load() } }
         case let .loaded(detail):
             let categories = RivalCategorization.categorize(detail.songs)
             if categories.isEmpty {
@@ -137,7 +135,7 @@ struct RivalDetailScreen: View {
             ))
         } catch is CancellationError {
         } catch {
-            state = .failed(error.localizedDescription)
+            state = .failed(ServiceIssue(error))
         }
     }
 

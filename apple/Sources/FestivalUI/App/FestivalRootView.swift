@@ -89,6 +89,14 @@ public struct FestivalRootView: View {
         } else {
             scenario = nil
         }
+        // FST_DEBUG_FORCE_FREEZE=1: answer each API path's first read with a
+        // synthetic scrape-freeze 503 so the "Scores are updating" state can be captured.
+        if environment["FST_DEBUG_FORCE_FREEZE"] == "1" {
+            return try FestivalAPI(
+                baseURL: url, fixtureScenario: scenario,
+                transport: ForcedFreezeTransport(wrapping: URLSessionHTTPTransport())
+            )
+        }
         return try FestivalAPI(baseURL: url, fixtureScenario: scenario)
         #else
         return try FestivalAPI(baseURL: url)

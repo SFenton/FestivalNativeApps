@@ -37,7 +37,7 @@ struct ShopScreen: View {
     private enum LoadState {
         case loading
         case loaded(ShopSnapshot)
-        case failed(String)
+        case failed(ServiceIssue)
     }
 
     private struct RequestKey: Equatable {
@@ -70,8 +70,8 @@ struct ShopScreen: View {
             case .loading:
                 ProgressView("Loading Item Shop")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            case let .failed(message):
-                ServiceUnavailableView(title: "Item Shop unavailable", message: message) {
+            case let .failed(issue):
+                ServiceStatusView(issue, title: "Item Shop unavailable") {
                     retryRevision += 1
                 }
             case let .loaded(snapshot):
@@ -141,7 +141,7 @@ struct ShopScreen: View {
             return
         } catch {
             guard !Task.isCancelled, requested == requestKey else { return }
-            state = .failed(error.localizedDescription)
+            state = .failed(ServiceIssue(error))
         }
     }
 

@@ -98,8 +98,8 @@ struct BandDetailScreen: View {
         case .loading:
             ProgressView("Loading band")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-        case let .failed(message):
-            ServiceUnavailableView(title: "Band unavailable", message: message) {
+        case let .failed(issue):
+            ServiceStatusView(issue, title: "Band unavailable") {
                 Task { await loadDetail() }
             }
         case let .loaded(detail):
@@ -219,12 +219,8 @@ struct BandDetailScreen: View {
             switch historyState {
             case .loading:
                 RankingsSkeletonRows(count: 4)
-            case let .failed(message):
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(message).font(.footnote).foregroundStyle(BrandTokens.textSecondary)
-                    Button("Retry") { Task { await loadHistory() } }
-                        .font(.footnote.weight(.semibold))
-                }
+            case let .failed(issue):
+                ServiceStatusInline(issue, scope: "band.history") { Task { await loadHistory() } }
             case let .loaded(history):
                 if history.history.isEmpty {
                     Text("No rank history yet.")
@@ -259,12 +255,8 @@ struct BandDetailScreen: View {
             switch songsState {
             case .loading:
                 RankingsSkeletonRows(count: 4)
-            case let .failed(message):
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(message).font(.footnote).foregroundStyle(BrandTokens.textSecondary)
-                    Button("Retry") { Task { await loadSongs() } }
-                        .font(.footnote.weight(.semibold))
-                }
+            case let .failed(issue):
+                ServiceStatusInline(issue, scope: "band.songs") { Task { await loadSongs() } }
             case let .loaded(extremes):
                 if extremes.best.isEmpty && extremes.worst.isEmpty {
                     Text("No scored songs yet.")
@@ -316,7 +308,7 @@ struct BandDetailScreen: View {
             let payload = try await session.bandProfile(bandType: bandType, teamKey: teamKey)
             detailState = .loaded(payload.detail)
         } catch {
-            detailState = .failed(error.localizedDescription)
+            detailState = .failed(ServiceIssue(error))
         }
     }
 
@@ -327,7 +319,7 @@ struct BandDetailScreen: View {
             let payload = try await session.bandRankHistory(bandType: bandType, teamKey: teamKey)
             historyState = .loaded(payload.response)
         } catch {
-            historyState = .failed(error.localizedDescription)
+            historyState = .failed(ServiceIssue(error))
         }
     }
 
@@ -338,7 +330,7 @@ struct BandDetailScreen: View {
             let payload = try await session.bandSongExtremes(bandType: bandType, teamKey: teamKey)
             songsState = .loaded(payload.response)
         } catch {
-            songsState = .failed(error.localizedDescription)
+            songsState = .failed(ServiceIssue(error))
         }
     }
 }

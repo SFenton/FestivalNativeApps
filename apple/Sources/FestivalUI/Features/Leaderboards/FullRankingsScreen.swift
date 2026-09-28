@@ -64,8 +64,8 @@ struct FullRankingsScreen: View {
             case .loading:
                 ProgressView("Loading rankings")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            case let .failed(message):
-                ServiceUnavailableView(title: "Rankings unavailable", message: message) {
+            case let .failed(issue):
+                ServiceStatusView(issue, title: "Rankings unavailable") {
                     Task { await load() }
                 }
             case let .loaded(payload):
@@ -150,7 +150,7 @@ struct FullRankingsScreen: View {
             return
         } catch {
             guard requested == requestKey else { return }
-            state = .failed(error.localizedDescription)
+            state = .failed(ServiceIssue(error))
         }
     }
 }

@@ -10,7 +10,7 @@ enum SuggestionsLoadState: Equatable {
     case idle
     case loading
     case loaded
-    case failed(String)
+    case failed(ServiceIssue)
 }
 
 /// Owns one `SuggestionGenerator` for the current (selected player, catalogue publication)
@@ -98,7 +98,7 @@ final class SuggestionsViewModel {
             }
         } catch {
             guard categories.isEmpty else { return }
-            loadState = .failed(error.localizedDescription)
+            loadState = .failed(ServiceIssue(error))
         }
     }
 

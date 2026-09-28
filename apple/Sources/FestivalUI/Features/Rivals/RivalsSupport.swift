@@ -12,7 +12,7 @@ import FestivalDesign
 enum RivalsLoadState<Value> {
     case loading
     case loaded(Value)
-    case failed(String)
+    case failed(ServiceIssue)
 }
 
 // MARK: - Visible instruments
@@ -206,26 +206,5 @@ struct RivalSongRowContent: View {
         }
         .foregroundStyle(color)
         .frame(minWidth: 28)
-    }
-}
-
-// MARK: - Section error content
-
-/// Compact inline failure row for one section, without displacing sibling sections.
-struct RivalsSectionError: View {
-    let message: String
-    let retry: () -> Void
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "exclamationmark.triangle")
-                .foregroundStyle(BrandTokens.gold)
-            Text(message)
-                .font(.footnote)
-                .foregroundStyle(BrandTokens.textSecondary)
-            Spacer()
-            Button("Retry", action: retry)
-                .font(.footnote.weight(.semibold))
-        }
     }
 }

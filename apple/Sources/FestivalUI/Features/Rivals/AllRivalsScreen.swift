@@ -79,10 +79,8 @@ struct AllRivalsScreen: View {
         switch state {
         case .loading:
             ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
-        case let .failed(message):
-            ServiceUnavailableView(
-                title: "Rivals Unavailable", message: message
-            ) { Task { await load() } }
+        case let .failed(issue):
+            ServiceStatusView(issue, title: "Rivals Unavailable") { Task { await load() } }
         case let .loaded(rows) where rows.isEmpty:
             ContentUnavailableView(
                 "No Rivals Yet", systemImage: "person.2.slash",
@@ -153,7 +151,7 @@ struct AllRivalsScreen: View {
             }
         } catch is CancellationError {
         } catch {
-            state = .failed(error.localizedDescription)
+            state = .failed(ServiceIssue(error))
         }
     }
 }
