@@ -521,7 +521,9 @@ fun SectionIndexScrubber(sections: List<SongSection>, current: SongSection?, onJ
                 )
             },
     ) {
-        val maxLabels = (maxHeight.value / 20f).toInt().coerceAtLeast(2)
+        // Each label is one 14 sp line plus breathing room; in sp so larger text samples more.
+        val labelStep = with(LocalDensity.current) { SECTION_LABEL_STEP.toDp() }
+        val maxLabels = (maxHeight / labelStep).toInt().coerceAtLeast(2)
         val stride = (sections.size + maxLabels - 1) / maxLabels
         val heightPx = constraints.maxHeight.toFloat()
         fun jumpTo(y: Float) {
@@ -545,6 +547,7 @@ fun SectionIndexScrubber(sections: List<SongSection>, current: SongSection?, onJ
                 Text(
                     section.label.take(4),
                     fontSize = if (section.label.length > 2) 8.sp else 11.sp,
+                    lineHeight = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = if (section.label == active) BrandTokens.gold else BrandTokens.textSecondary,
                 )
@@ -552,5 +555,8 @@ fun SectionIndexScrubber(sections: List<SongSection>, current: SongSection?, onJ
         }
     }
 }
+
+/** Vertical space budgeted per section-index label (a 14 sp line plus spacing). */
+private val SECTION_LABEL_STEP = 20.sp
 
 // endregion
