@@ -173,5 +173,98 @@
       "key:tab",
       "assertfocus:id=fst.leaderboards.card.Solo_Bass.view-all@3"
     ]
+  },
+  {
+    "name": "kb-titlebar-order",
+    "tab": "songs",
+    "profile": "fixture-player-1:Demo Player",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.shell.profile",
+      "assertfocus:id=fst.shell.profile@3",
+      "key:shift+tab",
+      "assertfocus:id=fst.shell.notifications@3",
+      "key:shift+tab",
+      "assertfocus:name=Search songs and players@3",
+      "key:shift+tab",
+      "assertfocus:id=PART_PaneToggleButton@3",
+      "key:tab",
+      "key:tab",
+      "key:tab",
+      "key:tab",
+      "assertfocus:id=fst.nav.songs@3"
+    ],
+    "sizes": [
+      "medium",
+      "wide"
+    ]
+  },
+  {
+    "name": "kb-titlebar-order-compact",
+    "tab": "songs",
+    "profile": "fixture-player-1:Demo Player",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.shell.profile",
+      "assertfocus:id=fst.shell.profile@3",
+      "key:shift+tab",
+      "assertfocus:id=fst.shell.notifications@3",
+      "key:shift+tab",
+      "assertfocus:name=Search songs and players@3",
+      "key:shift+tab",
+      "assertfocus:id=PART_PaneToggleButton@3",
+      "key:tab",
+      "key:tab",
+      "key:tab",
+      "key:tab",
+      "assertfocus:name=Search songs@3"
+    ],
+    "sizes": [
+      "compact"
+    ]
+  },
+  {
+    "name": "kb-quick-links-menu",
+    "route": "/leaderboards",
+    "tabs": 0,
+    "sizes": [
+      "compact",
+      "medium"
+    ],
+    "ready": [
+      "waitfor:id=fst.leaderboards.card.Solo_Guitar.view-all@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.quick-links.open",
+      "key:enter",
+      "waitfor:id=fst.quick-links.item.instrument:Solo_Drums@5",
+      "invoke:id=fst.quick-links.item.instrument:Solo_Drums",
+      "wait:1.5",
+      "assertfocus:id=fst.rankings.row.fixture-player-1@3",
+      "waitfor:id=fst.leaderboards.card.Solo_Drums@3"
+    ]
+  },
+  {
+    "name": "kb-quick-links-pane",
+    "route": "/leaderboards",
+    "tabs": 0,
+    "sizes": [
+      "wide"
+    ],
+    "ready": [
+      "waitfor:id=fst.quick-links.item.instrument:Solo_Drums@20"
+    ],
+    "after_ready": [
+      "click:id=fst.quick-links.item.instrument:Solo_Drums",
+      "wait:1.5",
+      "assertfocus:id=fst.rankings.row.fixture-player-1@3",
+      "waitfor:id=fst.leaderboards.card.Solo_Drums@3"
+    ]
   }
 ]

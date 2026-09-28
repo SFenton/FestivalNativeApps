@@ -1,5 +1,9 @@
+using Festival.App.Services;
+using Festival.Core.ViewModels;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.UI.ViewManagement;
 
@@ -115,9 +119,11 @@ public sealed class QuickLinksBinder
                 VerticalOffset = -LandingMargin,
                 AnimationDesired = !reduceMotion(),
             });
+            Land(realized, id);
             return;
         }
         if (!anchors.TryGetValue(id, out var element)) return;
+        Land(element, id);
         var top = element.TransformToVisual(scroller).TransformPoint(default).Y;
         var target = Math.Clamp(scroller.VerticalOffset + top - LandingMargin, 0, scroller.ScrollableHeight);
         if (Math.Abs(target - scroller.VerticalOffset) < 0.5)
@@ -128,6 +134,22 @@ public sealed class QuickLinksBinder
         {
             scroller.ChangeView(null, target, null, reduceMotion());
         }
+    }
+
+    /// <summary>
+    /// Like a web skip link, a jump moves keyboard focus to the section's first focusable element and tells Narrator
+    /// which section it reached (a scroll alone is silent and leaves focus on the menu or pane).
+    /// </summary>
+    /// <param name="target">Section element.</param>
+    /// <param name="id">Section ID.</param>
+    private void Land(FrameworkElement target, string id)
+    {
+        var title = model.Items.FirstOrDefault(i => i.Section.Id == id)?.Section.AccessibleTitle;
+        target.DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
+        {
+            if (FocusManager.FindFirstFocusableElement(target) is UIElement first) first.Focus(FocusState.Programmatic);
+            if (title is { Length: > 0 }) ScreenReader.Announce(target, new Announcement($"{title} section", AnnouncementKind.Completed));
+        });
     }
 
     /// <summary>Finds anchors in the content tree.</summary>

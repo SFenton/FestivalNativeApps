@@ -222,5 +222,26 @@
       "wait:0.5"
     ],
     "tabs": 12
+  },
+  {
+    "name": "quick-links-menu",
+    "route": "/leaderboards",
+    "sizes": [
+      "compact",
+      "medium"
+    ],
+    "tabs": 8,
+    "ready": [
+      "waitfor:id=fst.leaderboards.card.Solo_Guitar.view-all@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.quick-links.open",
+      "key:enter",
+      "waitfor:id=fst.quick-links.item.instrument:Solo_Drums@5"
+    ],
+    "teardown": [
+      "key:esc",
+      "wait:0.5"
+    ]
   }
 ]

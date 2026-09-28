@@ -23,6 +23,7 @@ Usage::
     python tools/windows/a11y_matrix.py --out out/a11y --scan --tabs 30
     python tools/windows/a11y_matrix.py --only songs,settings --sizes compact --mode hc-desert --out out/hc
     python tools/windows/a11y_matrix.py --pages tools/windows/journeys/a11y-keyboard.json --sizes medium --out out/kb
+    python tools/windows/a11y_matrix.py --exe aot --scan --out out/aot   # NativeAOT Release in automation mode
 """
 
 from __future__ import annotations
@@ -38,13 +39,12 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import journey_exe  # noqa: E402  (sibling module: --exe debug|release|aot)
 import uiwin  # noqa: E402  (sibling tool; provides the lock, driver and step parser)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PAGES = REPO_ROOT / "tools" / "windows" / "journeys" / "a11y.json"
 FIXTURE = REPO_ROOT / "tools" / "windows" / "rivals_fixture.py"
-DEBUG_EXE = (REPO_ROOT / "windows" / "Festival.App" / "bin" / "x64" / "Debug" /
-             "net9.0-windows10.0.26100.0" / "win-x64" / "FestivalScoreTracker.exe")
 
 # region Modes (pure, unit-tested)
 
@@ -207,6 +207,9 @@ def run_size(page: dict, mode: str, size: str, exe: Path, port: int, out: Path, 
     else:
         env["FST_DEBUG_ANONYMOUS"] = "1"
     env.update(uiwin.launch_env(page.get("tab"), page.get("route"), None))
+    warning = uiwin.prepare_automation(exe, env)
+    if warning:
+        print(f"warning: {warning}", file=sys.stderr)
     args = ["--base-url", f"http://127.0.0.1:{port}/", f"--first-run={page.get('first_run', 'off')}",
             f"--settings-path={settings}"]
     record: dict = {"page": page["name"], "size": size, "mode": mode, "ok": False}
@@ -273,7 +276,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--mode", default="normal", choices=sorted(MODES))
     parser.add_argument("--scan", action="store_true", help="run Axe.Windows at every page/size")
     parser.add_argument("--tabs", type=int, default=0, help="Tab presses per page/size (0: no walk)")
-    parser.add_argument("--exe", type=Path, default=DEBUG_EXE)
+    journey_exe.add_argument(parser)
     parser.add_argument("--hold", type=float, default=300.0)
     parser.add_argument("--pages", type=Path, default=PAGES,
                         help="page list (e.g. journeys/a11y-keyboard.json: assertfocus journeys, run without --scan)")
