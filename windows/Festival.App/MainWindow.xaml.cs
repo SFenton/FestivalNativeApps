@@ -128,6 +128,7 @@ public sealed partial class MainWindow : Window
         AppRoute.AllRivals => typeof(AllRivalsPage),
         AppRoute.RivalDetail => typeof(RivalDetailPage),
         AppRoute.Rivalry => typeof(RivalryPage),
+        AppRoute.Suggestions => typeof(SuggestionsPage),
         _ => typeof(PlaceholderPage),
     };
 
@@ -165,6 +166,7 @@ public sealed partial class MainWindow : Window
         AppSection.Leaderboards => typeof(LeaderboardsPage),
         AppSection.Rivals => typeof(RivalsPage),
         AppSection.Shop => typeof(ShopPage),
+        AppSection.Suggestions => typeof(SuggestionsPage),
         _ => typeof(PlaceholderPage),
     };
 

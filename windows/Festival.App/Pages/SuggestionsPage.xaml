@@ -1,0 +1,231 @@
+<Page
+    x:Class="Festival.App.Pages.SuggestionsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Festival.App.Controls"
+    xmlns:vm="using:Festival.Core.ViewModels"
+    NavigationCacheMode="Required"
+    Background="Transparent">
+    <Page.Resources>
+        <DataTemplate x:Key="TypeToggleTemplate" x:DataType="vm:SuggestionFilterToggle">
+            <Grid ColumnSpacing="12" Padding="0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{x:Bind Label}" />
+                    <TextBlock Text="{x:Bind Description}" Style="{StaticResource FSTSecondaryTextStyle}" FontSize="12" TextWrapping="Wrap" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsOn="{x:Bind IsOn, Mode=TwoWay}" OnContent="" OffContent="" MinWidth="0"
+                              AutomationProperties.Name="{x:Bind Label}" AutomationProperties.AutomationId="{x:Bind AutomationId}" />
+            </Grid>
+        </DataTemplate>
+    </Page.Resources>
+
+    <Grid Padding="24,12,12,0" RowSpacing="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Title and the Filter action (web: top-right pill). -->
+        <Grid Margin="0,0,12,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Suggestions" Style="{StaticResource FSTPageTitleStyle}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                       VerticalAlignment="Center" AutomationProperties.HeadingLevel="Level1" />
+            <DropDownButton x:Name="FilterButton" Grid.Column="1" AutomationProperties.Name="Filter Suggestions"
+                            AutomationProperties.AutomationId="fst.suggestions.filter-button"
+                            Visibility="{x:Bind ViewModel.ShowNoPlayer, Mode=OneWay, Converter={StaticResource FSTInverseVisibility}}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE71C;" FontSize="14" />
+                    <TextBlock Text="Filter" />
+                </StackPanel>
+                <DropDownButton.Flyout>
+                    <Flyout x:Name="FilterFlyout" Placement="BottomEdgeAlignedRight" Opening="OnFilterOpening">
+                        <Flyout.FlyoutPresenterStyle>
+                            <Style TargetType="FlyoutPresenter">
+                                <Setter Property="MaxWidth" Value="480" />
+                                <Setter Property="Padding" Value="0" />
+                            </Style>
+                        </Flyout.FlyoutPresenterStyle>
+                        <Grid Width="400" MaxHeight="640" RowSpacing="0" AutomationProperties.AutomationId="fst.suggestions.filter.form">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Filter Suggestions" Style="{StaticResource FSTSectionHeaderStyle}" Margin="16,16,16,8"
+                                       AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.suggestions.filter.title" />
+                            <ScrollViewer Grid.Row="1" Padding="16,0,16,0">
+                                <StackPanel Spacing="8" Padding="0,0,0,12">
+                                    <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="True"
+                                              AutomationProperties.AutomationId="fst.suggestions.filter.instruments">
+                                        <Expander.Header>
+                                            <StackPanel Padding="0,8">
+                                                <TextBlock Text="Instruments" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                                <TextBlock Text="Choose which instruments appear in your suggestions." Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" FontSize="12" />
+                                            </StackPanel>
+                                        </Expander.Header>
+                                        <ItemsControl ItemsSource="{x:Bind ViewModel.FilterDraft.InstrumentToggles}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:SuggestionFilterToggle">
+                                                    <Grid ColumnSpacing="12" MinHeight="40">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <controls:InstrumentIcon File="{x:Bind IconFile}" Label="{x:Bind Label}" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Column="1" Text="{x:Bind Label}" VerticalAlignment="Center" />
+                                                        <ToggleSwitch Grid.Column="2" IsOn="{x:Bind IsOn, Mode=TwoWay}" OnContent="" OffContent="" MinWidth="0"
+                                                                      AutomationProperties.Name="{x:Bind Label}" AutomationProperties.AutomationId="{x:Bind AutomationId}" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Expander>
+
+                                    <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                              AutomationProperties.AutomationId="fst.suggestions.filter.general">
+                                        <Expander.Header>
+                                            <StackPanel Padding="0,8">
+                                                <TextBlock Text="General" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                                <TextBlock Text="Toggle broad suggestion types on or off." Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" FontSize="12" />
+                                            </StackPanel>
+                                        </Expander.Header>
+                                        <ItemsControl ItemsSource="{x:Bind ViewModel.FilterDraft.TypeToggles}" ItemTemplate="{StaticResource TypeToggleTemplate}" />
+                                    </Expander>
+
+                                    <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                              IsEnabled="{x:Bind ViewModel.FilterDraft.HasInstruments, Mode=OneWay}"
+                                              AutomationProperties.AutomationId="fst.suggestions.filter.instrument-specific">
+                                        <Expander.Header>
+                                            <StackPanel Padding="0,8">
+                                                <TextBlock Text="Instrument-Specific" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                                <TextBlock Text="Select an instrument to filter its suggestion types individually." Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" FontSize="12" />
+                                            </StackPanel>
+                                        </Expander.Header>
+                                        <StackPanel Spacing="8">
+                                            <ComboBox Header="Instrument" HorizontalAlignment="Stretch"
+                                                      ItemsSource="{x:Bind ViewModel.FilterDraft.InstrumentChoices, Mode=OneWay}"
+                                                      SelectedIndex="{x:Bind ViewModel.FilterDraft.SelectedInstrumentIndex, Mode=TwoWay}"
+                                                      AutomationProperties.AutomationId="fst.suggestions.filter.instrument-picker" />
+                                            <ItemsControl ItemsSource="{x:Bind ViewModel.FilterDraft.InstrumentTypeToggles}" ItemTemplate="{StaticResource TypeToggleTemplate}" />
+                                        </StackPanel>
+                                    </Expander>
+                                </StackPanel>
+                            </ScrollViewer>
+                            <Grid Grid.Row="2" ColumnSpacing="8" Padding="16,12,16,16" BorderThickness="0,1,0,0" BorderBrush="{ThemeResource FSTCardStrokeBrush}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Button Content="Reset" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.FilterDraft.ResetCommand}"
+                                        AutomationProperties.AutomationId="fst.suggestions.filter.reset" />
+                                <Button Grid.Column="1" Content="Cancel" HorizontalAlignment="Stretch" Click="OnFilterCancel"
+                                        AutomationProperties.AutomationId="fst.suggestions.filter.cancel" />
+                                <Button Grid.Column="2" Content="Apply" HorizontalAlignment="Stretch" Style="{StaticResource AccentButtonStyle}"
+                                        IsEnabled="{x:Bind ViewModel.FilterDraft.CanApply, Mode=OneWay}" Click="OnFilterApply"
+                                        AutomationProperties.AutomationId="fst.suggestions.filter.apply" />
+                            </Grid>
+                        </Grid>
+                    </Flyout>
+                </DropDownButton.Flyout>
+            </DropDownButton>
+        </Grid>
+
+        <Grid Grid.Row="1">
+            <!-- One virtualized list of category cards; the third-from-last realized card loads the next batch. -->
+            <ListView x:Name="CardList" ItemsSource="{x:Bind ViewModel.Cards}" SelectionMode="None" IsItemClickEnabled="False"
+                      ContainerContentChanging="OnCardContainerChanging" Padding="0,0,12,24"
+                      Visibility="{x:Bind ViewModel.ShowList, Mode=OneWay}"
+                      AutomationProperties.Name="Suggestions" AutomationProperties.AutomationId="fst.suggestions.list">
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="Margin" Value="0,0,0,16" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="IsTabStop" Value="False" />
+                    </Style>
+                </ListView.ItemContainerStyle>
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SuggestionCardItem">
+                        <Border Style="{StaticResource FSTCardStyle}" Padding="0" MaxWidth="1100" HorizontalAlignment="Stretch"
+                                AutomationProperties.AutomationId="{x:Bind AutomationId}" AutomationProperties.Name="{x:Bind Title}">
+                            <StackPanel>
+                                <Grid Padding="16,12,16,12" ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" FontSize="16"
+                                                   TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level2" />
+                                        <TextBlock Text="{x:Bind Description}" Style="{StaticResource FSTSecondaryTextStyle}" FontSize="12" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <controls:InstrumentIcon Grid.Column="1" File="{x:Bind HeaderIcon}" Label="{x:Bind HeaderIconLabel}"
+                                                             Width="32" Height="32" VerticalAlignment="Center" Visibility="{x:Bind HasHeaderIcon}" />
+                                </Grid>
+                                <ItemsControl ItemsSource="{x:Bind Rows}" IsTabStop="False">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:SuggestionRowItem">
+                                            <controls:SuggestionSongRow Item="{x:Bind}" />
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+                <ListView.Footer>
+                    <StackPanel HorizontalAlignment="Center" Spacing="8" Padding="0,8,0,16">
+                        <ProgressRing IsActive="{x:Bind ViewModel.HasMore, Mode=OneWay}" Width="24" Height="24"
+                                      Visibility="{x:Bind ViewModel.HasMore, Mode=OneWay}" AutomationProperties.Name="Loading more suggestions" />
+                        <TextBlock Text="You've reached the end of this mix." HorizontalAlignment="Center"
+                                   Visibility="{x:Bind ViewModel.ReachedLimit, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" />
+                        <Button Content="Start New Mix" HorizontalAlignment="Center" Command="{x:Bind ViewModel.StartNewMixCommand}"
+                                Visibility="{x:Bind ViewModel.ReachedLimit, Mode=OneWay}"
+                                AutomationProperties.AutomationId="fst.suggestions.start-new-mix" />
+                    </StackPanel>
+                </ListView.Footer>
+            </ListView>
+
+            <ProgressRing IsActive="{x:Bind ViewModel.ShowLoading, Mode=OneWay}" Width="48" Height="48"
+                          AutomationProperties.Name="Loading suggestions" AutomationProperties.AutomationId="fst.suggestions.loading" />
+
+            <StackPanel Visibility="{x:Bind ViewModel.ShowSyncing, Mode=OneWay}" VerticalAlignment="Center" HorizontalAlignment="Center"
+                        Spacing="12" MaxWidth="420" AutomationProperties.AutomationId="fst.suggestions.syncing">
+                <ProgressRing IsActive="{x:Bind ViewModel.ShowSyncing, Mode=OneWay}" Width="32" Height="32" />
+                <TextBlock Text="Syncing Scores" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" />
+                <TextBlock Text="This player's scores are still being prepared. Suggestions will appear once they're ready."
+                           TextWrapping="Wrap" TextAlignment="Center" />
+            </StackPanel>
+
+            <StackPanel Visibility="{x:Bind ViewModel.ShowNoPlayer, Mode=OneWay}" VerticalAlignment="Center" HorizontalAlignment="Center"
+                        Spacing="12" MaxWidth="420" AutomationProperties.AutomationId="fst.suggestions.choose-profile">
+                <TextBlock Text="Select a Player" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" />
+                <TextBlock Text="Choose a player profile from the title bar to get suggestions based on their scores."
+                           TextWrapping="Wrap" TextAlignment="Center" />
+            </StackPanel>
+
+            <controls:ServiceStatusView Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
+                                        Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}"
+                                        AutomationProperties.AutomationId="fst.suggestions.error" />
+
+            <StackPanel Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" VerticalAlignment="Center" HorizontalAlignment="Center"
+                        Spacing="12" MaxWidth="420" AutomationProperties.AutomationId="fst.suggestions.no-results">
+                <TextBlock Text="No Suggestions" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" />
+                <TextBlock Text="{x:Bind ViewModel.EmptyMessage, Mode=OneWay}" TextWrapping="Wrap" TextAlignment="Center" />
+                <Button Content="Reset Filters" HorizontalAlignment="Center" Click="OnResetFilters"
+                        Visibility="{x:Bind ViewModel.IsFilterActive, Mode=OneWay}"
+                        AutomationProperties.AutomationId="fst.suggestions.reset-filters" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+
+</Page>
