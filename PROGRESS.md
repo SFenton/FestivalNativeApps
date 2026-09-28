@@ -220,9 +220,24 @@ Not yet assigned:
 
 ### Wave 4+ — other form factors
 
-**Lane W — iPhone Duo research + adaptive layout architecture** (Opus) — 🟨 running in `~/repos/FestivalNativeApps-lanes/duo` (research, `App/Layout/` model, pose tooling, baseline screenshots, concrete Duo lane plan)
+**Lane W — iPhone Duo research + adaptive layout architecture** (Opus) — ✅ landed
+- ✅ Research + decisions: `.agents/design/apple/duo.md` (per-pose layout, list/detail pages, toolbar rules, root plan, baseline breakages B1–B8), `.agents/platforms/apple/duo.md` (SDK APIs, vertical bar, reserved regions, hinge, simulator limits)
+- ✅ `App/Layout/DeviceLayout(+Environment).swift`: pure `LayoutSignals → DeviceLayout` + `\.deviceLayout`, published at the root (behavior-neutral); 14 unit tests
+- ✅ `ios_sim.py pose` / `shot --pose --display` / `drive --pose` / `shutdown`; driver `back` taps the vertical-bar `BackButton`
+- ⛔ **Pose/rotation cannot be scripted** (no simctl/XCTest hinge; `XCUIDevice` rotation ignored on the outer display). Unfolded, partially folded and rotated-outer captures need the operator to set the pose in Device Hub; then `shot --pose …` verifies it.
 
-- ⬜ iPhone Duo bespoke layout (folded/unfolded, outer rotations) · ⬜ iPadOS · ⬜ macOS · ⬜ iPhone iOS 17 classic tab bar
+**iPhone Duo bespoke layout** — ready to launch once Lanes U/U2/U3 finish (they assert against the shell). Decisions: [design/apple/duo.md](.agents/design/apple/duo.md). Each lane rebases on the previous lane's seam; Duo captures always use `--device duo --pose …` and end with `ios_sim.py shutdown --device duo`.
+
+| Lane | Owns (edit) | Ordered tasks |
+|---|---|---|
+| **W1 — Duo shell** (Opus) | `App/FestivalRootView.swift`, `App/Shell/*`, `App/Layout/*` | 1. Extract `FestivalShellContent` reading `\.deviceLayout` · 2. Regular section set from `usesRegularSectionSet` (Duo only; iPhone-landscape decision → orchestrator) · 3. Drawer insets by `overlayInsets`, never covers a leading vertical bar/camera (B5) · 4. Root chrome: profile symbol + title in vertical bars, bell `visibilityPriority(.high)` (B1) · 5. Folded captures ×4 rotations (operator rotates in Device Hub) |
+| **W2 — Duo list/detail** (Opus) | new `App/Layout/ListDetailStack.swift`, `App/Layout/ListDetailPolicy.swift` (+ tests); `SongNavigationRoot.swift` handed over from Lane S | 1. Pure `ListDetailPolicy.split(section:path:)` + tests (fold/unfold keep state) · 2. `ListDetailStack` (`NavigationSplitView` list + detail `NavigationStack`, empty-selection placeholder) · 3. Songs → Song Detail · 4. Full Rankings → Player · 5. Rivals/All Rivals → Rival Detail · 6. Unfolded + partially folded captures (operator unfolds) |
+| **W3 — Duo page polish** (Sonnet) | `Features/Leaderboards`, `Features/SongLeaderboard`, `Features/Songs` (scrubber only), `Features/{Statistics,Suggestions,Settings,Profile}` layout-only edits | 1. Pagination footer → `.bottomBar` symbol items when `.verticalBar` (B2) · 2. Instrument/sort capsules → `Menu` + `Label` · 3. Scrubber margin beside a trailing bar (B4) · 4. Regular-width 2-column grids for dashboards · 5. Row accessibility frames inside the content area (B6) |
+| **W4 — Duo UX tests** (Sonnet) | `Apps/iOSUITests/Duo*.swift`, `Tests/FestivalUITests/Duo*HostedTests.swift` | 1. Replace `testDuoOuterFourRotations` with pose-guarded journeys (`--pose`) · 2. Hosted snapshots per pose by injecting `\.deviceLayout` · 3. Vertical-bar item visibility/overflow assertions · 4. Duo coverage row in `.agents/testing/apple/coverage.md` |
+
+Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in Device Hub (unfold, partial fold, 3 outer rotations).
+
+- ⬜ iPadOS · ⬜ macOS · ⬜ iPhone iOS 17 classic tab bar
 - ⛔ Android / Windows (Windows host paused by operator)
 
 ---
@@ -309,3 +324,4 @@ Not yet assigned:
 | 2026-09-28 | Orchestrator | Enforced one booted simulator at a time (`ad76e5e`) |
 | 2026-09-28 | Lane U | UX tests for shell/leaderboards/background/history/notifications/first-run/licenses; flaky artwork test fixed; `ios_sim.py uitest` (5-min holds); found 3 bugs |
 | 2026-09-28 | Orchestrator | Launched Lane Z (bug fixes from UX tests) |
+| 2026-09-28 | Lane W | Duo research (27.1 SDK: vertical bar, `ReservedRegion`, `onHingeChange`, `ArrangementView`), per-pose decisions, `App/Layout` model + env, pose/display tooling, folded baselines (B1–B8), W1–W4 plan |
