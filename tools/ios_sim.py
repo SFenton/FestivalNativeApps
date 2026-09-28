@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import argparse
 import fcntl
+import signal
 import hashlib
 import os
 import shutil
@@ -439,6 +440,43 @@ def screenshot_display(args: argparse.Namespace, udid: str) -> str | None:
         return DUO_PANELS[POSE_PANEL.get(detect_pose(udid), "outer")]
     return None
 
+
+
+class ScreenRecording:
+    """Record the simulator screen to an H.264 MP4 while a block runs.
+
+    Use only while holding the simulator lock. ``simctl io recordVideo`` stops and
+    finalizes the file on SIGINT, so the context manager interrupts it on exit.
+
+    Args:
+        udid: Booted simulator to record.
+        out: Destination ``.mp4`` path, or None to do nothing.
+    """
+
+    def __init__(self, udid: str, out: str | None):
+        self.udid = udid
+        self.out = out
+        self.process: subprocess.Popen | None = None
+
+    def __enter__(self) -> "ScreenRecording":
+        if self.out:
+            Path(self.out).parent.mkdir(parents=True, exist_ok=True)
+            self.process = subprocess.Popen(
+                ["xcrun", "simctl", "io", self.udid, "recordVideo", "--codec=h264", "--force", self.out],
+                env=_env(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            time.sleep(1.0)  # recordVideo needs a moment before frames flow
+        return self
+
+    def __exit__(self, *exc) -> None:
+        if self.process:
+            self.process.send_signal(signal.SIGINT)
+            try:
+                self.process.wait(timeout=20)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+            print(f"video: {self.out}")
+
 # endregion
 
 # region Commands
@@ -503,13 +541,16 @@ def cmd_shot(args: argparse.Namespace) -> int:
         for pair in args.env or []:
             key, _, value = pair.partition("=")
             launch_env[f"SIMCTL_CHILD_{key}"] = value
-        _run(["xcrun", "simctl", "launch", udid, BUNDLE_ID], env=launch_env)
-        for index, out in enumerate(args.out):
-            time.sleep(args.wait if index == 0 else args.interval)
-            Path(out).parent.mkdir(parents=True, exist_ok=True)
-            selector = [f"--display={display}"] if display else []
-            _run(["xcrun", "simctl", "io", udid, "screenshot", *selector, out], capture_output=True)
-            print(out)
+        with ScreenRecording(udid, args.record):
+            _run(["xcrun", "simctl", "launch", udid, BUNDLE_ID], env=launch_env)
+            for index, out in enumerate(args.out):
+                time.sleep(args.wait if index == 0 else args.interval)
+                Path(out).parent.mkdir(parents=True, exist_ok=True)
+                selector = [f"--display={display}"] if display else []
+                _run(["xcrun", "simctl", "io", udid, "screenshot", *selector, out], capture_output=True)
+                print(out)
+            if args.record and args.record_tail:
+                time.sleep(args.record_tail)
         if not args.keep:
             _run(["xcrun", "simctl", "terminate", udid, BUNDLE_ID], check=False, capture_output=True)
     return 0
@@ -602,7 +643,7 @@ def cmd_drive(args: argparse.Namespace) -> int:
                 "test-without-building", "-quiet",
             ]
             print("+", " ".join(cmd), file=sys.stderr)
-            with open(log_path, "w") as log:
+            with open(log_path, "w") as log, ScreenRecording(udid, args.record):
                 try:
                     process = subprocess.run(
                         cmd, cwd=APPLE_DIR, env=launch_env,
@@ -871,6 +912,9 @@ def main(argv: list[str] | None = None) -> int:
     shot.add_argument("--interval", type=float, default=2.0, help="seconds between screenshots")
     shot.add_argument("--out", action="append", required=True, help="screenshot path (repeatable)")
     shot.add_argument("--keep", action="store_true", help="leave the app running")
+    shot.add_argument("--record", help="also record the session to this .mp4 (for remote review)")
+    shot.add_argument("--record-tail", type=float, default=3.0,
+                      help="seconds to keep recording after the last screenshot (animations)")
     shot.add_argument("--pose", choices=sorted(POSE_PANEL),
                       help="iPhone Duo: fail (exit 3) unless the device is in this pose (set it in Device Hub)")
     shot.add_argument("--display", choices=[*sorted(DUO_PANELS), "auto"],
@@ -884,6 +928,7 @@ def main(argv: list[str] | None = None) -> int:
     drive.add_argument("--tab", help="FST_DEBUG_TAB, applied at app launch")
     drive.add_argument("--animate", action="store_true",
                        help="keep the album carousel animating (default freezes it so steps don't wait for idle)")
+    drive.add_argument("--record", help="record the whole drive to this .mp4 (for remote review)")
     drive.add_argument("--timeout", type=float, default=180.0,
                        help="kill the run after this many seconds (default 180) so the sim lock is released")
     drive.add_argument("--route", help="FST_DEBUG_ROUTE, applied at app launch")
