@@ -41,6 +41,21 @@ func chartedInstrumentsMatchWireFields(_ instrument: Instrument) throws {
     }
 }
 
+/// The real `/api/songs` payload's `sig` field selects Lead/Pro Lead's icon
+/// variant; only the literal value `"Keyboard"` should switch it.
+@Test func signatureFieldSelectsTheKeyboardIconVariant() throws {
+    func song(sig: String?) throws -> Song {
+        var record: [String: Any] = [
+            "songId": "fixture-sig", "title": "Fixture", "artist": "Test",
+        ]
+        if let sig { record["sig"] = sig }
+        return try JSONDecoder().decode(Song.self, from: JSONSerialization.data(withJSONObject: record))
+    }
+    #expect(try song(sig: "Keyboard").usesKeyboardIcon == true)
+    #expect(try song(sig: "Guitar").usesKeyboardIcon == false)
+    #expect(try song(sig: nil).usesKeyboardIcon == false)
+}
+
 /// Mirror the PWA's positive-duration labels without inventing missing metadata.
 @Test func songDurationMatchesSourceFormatting() throws {
     let cases: [(Int?, String?)] = [

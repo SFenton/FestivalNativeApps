@@ -21,13 +21,14 @@ public struct SongSection: Identifiable, Equatable, Sendable {
 public enum SongSectionIndex {
     /// Group an already-sorted, already-filtered song list into jump sections.
     ///
-    /// Chunks by **consecutive** key changes rather than by unique key: a title
-    /// sorted by raw string (e.g. `"24K Magic"`) can land far from other titles
-    /// that share its first *letter* once digits are skipped (e.g. `"Kryptonite"`).
-    /// Merging by unique key would silently pull a later, unrelated `"K"` run
-    /// into an earlier one and misplace real rows; chunking instead accepts an
-    /// occasional extra one-song section (and an occasional repeated scrubber
-    /// label) for such titles, never wrong grouping.
+    /// Chunks by **consecutive** key changes rather than by unique key. Native
+    /// Contacts-style labeling (see `firstLetter`) already keeps every
+    /// non-letter-leading title in one shared "#" bucket that sorts first, so
+    /// this mainly guards against any future label scheme, or a stray locale
+    /// tie, putting the same label in two places: merging by unique key would
+    /// silently pull a later, unrelated run into an earlier one and misplace
+    /// real rows, where chunking instead accepts an occasional extra section
+    /// (and an occasional repeated scrubber label), never wrong grouping.
     ///
     /// - Parameters:
     ///   - songs: Songs in their final on-screen order (after search/filter/sort).
@@ -64,16 +65,30 @@ public enum SongSectionIndex {
         return result
     }
 
-    /// First letter of a title or artist, uppercased; "#" for anything else.
+    /// Native Contacts-style bucket key: the diacritic-folded first character
+    /// when it is A–Z, otherwise a single shared "#" bucket.
     ///
-    /// - Parameter text: Raw catalogue string, possibly starting with punctuation.
-    /// - Returns: A single-character bucket key, stable across locales' casing.
+    /// Never skips ahead past leading punctuation or digits to find "a real
+    /// letter" deeper in the string: doing that put a title's section under a
+    /// letter unrelated to where it actually sorts (`"24K Magic"` sorting to
+    /// the front of the list but labeled "K", stranding it away from other
+    /// K-titled songs). Every non-letter-leading title instead shares one "#"
+    /// bucket, matching how the sort already puts them all before "A" — so
+    /// they land in one contiguous run, not scattered ones.
+    ///
+    /// - Parameter text: Raw catalogue string, possibly starting with
+    ///   punctuation, a digit or an accented letter (e.g. "Öyster" → "O").
+    /// - Returns: A single uppercase ASCII letter, or "#".
     private static func firstLetter(_ text: String) -> String {
-        guard let scalar = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            .unicodeScalars.first(where: CharacterSet.letters.contains)
+        guard let first = text.trimmingCharacters(in: .whitespacesAndNewlines).first else {
+            return "#"
+        }
+        let folded = String(first).folding(options: .diacriticInsensitive, locale: nil)
+        guard let scalar = folded.uppercased().unicodeScalars.first,
+              scalar.isASCII, ("A"..."Z").contains(scalar)
         else {
             return "#"
         }
-        return String(Character(scalar)).uppercased()
+        return String(scalar)
     }
 }

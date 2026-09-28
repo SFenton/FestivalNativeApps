@@ -155,7 +155,8 @@ struct SongRowView: View {
                     badges: SongInstrumentStatusPolicy.badges(
                         for: song, visibleInstruments: visibleInstruments,
                         scores: session.selectedPlayerScores[song.songId] ?? [:]
-                    )
+                    ),
+                    keyboard: song.usesKeyboardIcon
                 )
             } else {
                 SongProfileSummary(

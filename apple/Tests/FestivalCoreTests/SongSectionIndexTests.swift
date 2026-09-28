@@ -47,18 +47,48 @@ private func fixtureSong(title: String, artist: String = "Artist", year: Int? = 
     #expect(sections.map(\.label) == ["2023", "2024", "—"])
 }
 
-/// A raw-string sort can put a numeral-prefixed title's derived letter far
-/// from other titles that share it; sections must never merge those runs.
-@Test func sectionsNeverMergeNonAdjacentRunsOfTheSameLabel() throws {
+/// Native Contacts convention: only A–Z leads its own section; punctuation,
+/// digits and symbols all share one leading "#" bucket, matching where a raw
+/// string sort already puts them (before any letter-led title).
+@Test func nonLetterLeadingTitlesShareOneContiguousHashSection() throws {
     let songs = try [
-        fixtureSong(title: "24K Magic"), // sorts first by raw string; derived label "K"
+        fixtureSong(title: "(Don't Fear) The Reaper"),
+        fixtureSong(title: "2055"),
+        fixtureSong(title: "24K Magic"),
+        fixtureSong(title: "4 Raws"),
+        fixtureSong(title: "500lbs"),
         fixtureSong(title: "Alpha"),
-        fixtureSong(title: "Kryptonite"), // unrelated later "K" title
+        fixtureSong(title: "Beta"),
     ]
     let sections = SongSectionIndex.sections(songs, mode: .title)
-    #expect(sections.map(\.label) == ["K", "A", "K"])
-    #expect(sections[0].songs.map(\.title) == ["24K Magic"])
-    #expect(sections[2].songs.map(\.title) == ["Kryptonite"])
+    #expect(sections.map(\.label) == ["#", "A", "B"])
+    #expect(sections[0].songs.count == 5)
+    // Labels must be unique across the whole index: no repeated or
+    // out-of-order letters from titles that used to skip ahead past
+    // punctuation/digits to an unrelated "real" letter.
+    #expect(Set(sections.map(\.label)).count == sections.count)
+}
+
+/// A diacritic folds to its plain Latin letter rather than falling to "#".
+@Test func diacriticLeadingTitlesFoldToTheirPlainLetter() throws {
+    let songs = try [fixtureSong(title: "Öyster Cult"), fixtureSong(title: "Zed")]
+    let sections = SongSectionIndex.sections(songs, mode: .title)
+    #expect(sections.map(\.label) == ["O", "Z"])
+}
+
+/// Chunking (not the label rule alone) still guards against merging two
+/// non-adjacent runs that happen to share a label, e.g. two separate "#"
+/// stretches if a locale tie ever splits them apart from each other.
+@Test func sectionsNeverMergeNonAdjacentRunsOfTheSameLabel() throws {
+    let songs = try [
+        fixtureSong(title: "2055"), // "#"
+        fixtureSong(title: "Alpha"), // "A"
+        fixtureSong(title: "500lbs"), // "#" again, non-adjacent to the first
+    ]
+    let sections = SongSectionIndex.sections(songs, mode: .title)
+    #expect(sections.map(\.label) == ["#", "A", "#"])
+    #expect(sections[0].songs.map(\.title) == ["2055"])
+    #expect(sections[2].songs.map(\.title) == ["500lbs"])
     // Distinct chunks must have distinct ids even when their labels repeat.
     #expect(Set(sections.map(\.id)).count == sections.count)
 }

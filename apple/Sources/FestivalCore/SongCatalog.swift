@@ -79,8 +79,14 @@ public struct Song: Decodable, Sendable, Identifiable, Equatable, Hashable {
     public let albumArt: String?
     public let difficulty: SongDifficulty?
     public let pathArtifactGenerationId: String?
+    /// Lead/Pro Lead controller signature from the service (`"Guitar"` or
+    /// `"Keyboard"`); selects the matching `InstrumentIcon` variant.
+    public let sig: String?
 
     public var id: String { songId }
+
+    /// Whether Lead/Pro Lead should use the keys icon variant instead of guitar.
+    public var usesKeyboardIcon: Bool { sig == "Keyboard" }
 
     /// Format a positive catalogue duration like the source Song info block.
     ///

@@ -123,7 +123,11 @@ struct SongDetailScreen: View {
                         ForEach(charted) { instrument in
                             if let level = song.difficulty?.chartedValue(for: instrument) {
                                 HStack(spacing: 8) {
-                                    InstrumentIcon(instrument, size: 22)
+                                    InstrumentIcon(
+                                        instrument, keyboard: song.usesKeyboardIcon
+                                            && (instrument == .lead || instrument == .proLead),
+                                        size: 22
+                                    )
                                     DifficultyMeter(level: level, raw: true)
                                     Spacer(minLength: 0)
                                 }

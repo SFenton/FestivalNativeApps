@@ -120,6 +120,8 @@ private struct SongChipRows: Layout {
 struct SongInstrumentStatusChips: View {
     let songId: String
     let badges: [SongInstrumentBadge]
+    /// This song's `sig == "Keyboard"`; swaps the Lead/Pro Lead icon variant.
+    var keyboard: Bool = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .body) private var scaledSide: CGFloat = 34
 
@@ -145,7 +147,11 @@ struct SongInstrumentStatusChips: View {
     /// - Parameter badge: Source-ordered, verified per-song instrument state.
     /// - Returns: A bounded circular native status with contrast-safe glyphs.
     private func chip(_ badge: SongInstrumentBadge) -> some View {
-        InstrumentIcon(badge.instrument, size: side * 0.56)
+        InstrumentIcon(
+            badge.instrument,
+            keyboard: keyboard && (badge.instrument == .lead || badge.instrument == .proLead),
+            size: side * 0.56
+        )
             .accessibilityHidden(true)
             .frame(width: side, height: side)
             .background(badge.status.fillColor, in: Circle())
