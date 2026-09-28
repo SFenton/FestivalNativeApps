@@ -1,0 +1,7 @@
+{
+  "publication": "Bundled preview · not live",
+  "songs": [
+    {"id": "preview-1", "title": "Preview track", "artist": "Festival", "difficulty": 3},
+    {"id": "preview-2", "title": "Another preview", "artist": "Festival", "difficulty": 6}
+  ]
+}
