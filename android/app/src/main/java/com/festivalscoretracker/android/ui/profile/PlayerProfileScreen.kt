@@ -50,6 +50,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -85,7 +86,7 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
 @Composable
 fun PlayerProfileScreen(viewModel: PlayerProfileViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    FestivalScreen(title = state.displayName.ifEmpty { "Player" }, isRoot = false, modifier = Modifier.testTag("fst.player")) { padding ->
+    FestivalScreen(title = state.displayName.ifEmpty { "Player" }, isRoot = false, modifier = Modifier.semantics { testTagsAsResourceId = true }.testTag("fst.player")) { padding ->
         PlayerProfileContent(viewModel, padding)
     }
 }
@@ -98,7 +99,7 @@ fun PlayerProfileScreen(viewModel: PlayerProfileViewModel) {
  */
 @Composable
 fun StatisticsScreen(viewModel: PlayerProfileViewModel, isRoot: Boolean = true) {
-    FestivalScreen(title = "Statistics", isRoot = isRoot, modifier = Modifier.testTag("fst.statistics")) { padding ->
+    FestivalScreen(title = "Statistics", isRoot = isRoot, modifier = Modifier.semantics { testTagsAsResourceId = true }.testTag("fst.statistics")) { padding ->
         PlayerProfileContent(viewModel, padding)
     }
 }
@@ -148,7 +149,7 @@ private fun LoadedProfile(viewModel: PlayerProfileViewModel, state: PlayerProfil
     var confirm by rememberSaveable { mutableStateOf<PlayerIdentityAction?>(null) }
     val direction = LocalLayoutDirection.current
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 380.dp),
+        columns = GridCells.Adaptive(minSize = 340.dp),
         contentPadding = PaddingValues(
             start = padding.calculateStartPadding(direction) + 16.dp,
             end = padding.calculateEndPadding(direction) + 16.dp,

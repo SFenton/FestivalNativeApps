@@ -48,6 +48,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -80,7 +81,7 @@ fun PlayerHistoryScreen(viewModel: PlayerHistoryViewModel) {
     FestivalScreen(
         title = "Score History",
         isRoot = false,
-        modifier = Modifier.testTag("fst.history"),
+        modifier = Modifier.semantics { testTagsAsResourceId = true }.testTag("fst.history"),
         actions = {
             if (state.phase == HistoryPhase.Loaded) {
                 IconButton(onClick = { sorting = true }, modifier = Modifier.testTag("fst.history.sort.open").semantics { contentDescription = sortLabel }) {

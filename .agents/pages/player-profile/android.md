@@ -29,7 +29,7 @@ None of these navigate. Selecting adds the profile tabs in place; deselecting on
 
 ## Layout
 
-- `LazyVerticalGrid(GridCells.Adaptive(380.dp))`: header, Overview and the Bands link span the full line; one glass card per Settings-visible instrument, so phones get one column and unfolded or tablet windows two or three.
+- `LazyVerticalGrid(GridCells.Adaptive(340.dp))`: header, Overview and the Bands link span the full line; one glass card per Settings-visible instrument, so phones and folded covers get one column and unfolded book folds (~770 dp beside the rail) or tablets two or more. A flat (non-separating) fold may cross a card; no separating-hinge padding yet.
 - Instrument card: stat tiles (`FlowRow`), Global Rank, Rank History (Canvas rank line over Total Score bars, #1 on top), Percentiles (horizontal bars, top 5% gold). Rank and history reads start in the card's `LaunchedEffect`, so unrealized cards read nothing; unplayed charts show a footnote and read nothing.
 - Charts draw precomputed geometry (`core/profile/PlayerCharts.kt`) with no per-frame work; each chart is one accessibility element carrying the trend summary, and tiles merge into one "Label: value" node.
 
