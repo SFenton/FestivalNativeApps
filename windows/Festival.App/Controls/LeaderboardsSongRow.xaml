@@ -5,14 +5,14 @@
     <!-- Solo chart row: rank | name | season, stars (wide only) | accuracy/FC pill | score. -->
     <Button x:Name="RowButton" Click="OnClick" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
             Padding="8,6" MinHeight="44" CornerRadius="6" BorderThickness="1" SizeChanged="OnSizeChanged">
-        <Grid ColumnSpacing="12">
+        <Grid x:Name="RowGrid" ColumnSpacing="12">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" MinWidth="56" />
+                <ColumnDefinition x:Name="RankColumn" Width="Auto" MinWidth="56" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition x:Name="SeasonColumn" Width="Auto" />
                 <ColumnDefinition x:Name="StarsColumn" Width="Auto" />
-                <ColumnDefinition Width="Auto" MinWidth="72" />
-                <ColumnDefinition Width="Auto" MinWidth="88" />
+                <ColumnDefinition x:Name="PillColumn" Width="Auto" MinWidth="72" />
+                <ColumnDefinition x:Name="ScoreColumn" Width="Auto" MinWidth="88" />
             </Grid.ColumnDefinitions>
             <TextBlock x:Name="RankText" VerticalAlignment="Center" HorizontalAlignment="Right" Style="{StaticResource FSTSecondaryTextStyle}" />
             <TextBlock x:Name="NameText" Grid.Column="1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />

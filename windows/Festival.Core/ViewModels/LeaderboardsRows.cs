@@ -53,11 +53,11 @@ public sealed class RankingRowViewModel
     /// <summary>Whether <see cref="BayesianText"/> is shown.</summary>
     public bool HasBayesian => BayesianText.Length > 0;
 
-    /// <summary>Destination.</summary>
-    public AppRoute Route => new AppRoute.Player(Entry.AccountId, Entry.DisplayName);
+    /// <summary>Profile destination, or <see langword="null"/> for a row without a usable account ID.</summary>
+    public AppRoute? Route => Entry.HasProfile ? new AppRoute.Player(Entry.AccountId, Entry.DisplayName) : null;
 
-    /// <summary>UIA automation ID (<c>fst.rankings.row.&lt;accountId&gt;</c>).</summary>
-    public string AutomationId => "fst.rankings.row." + Entry.AccountId;
+    /// <summary>UIA automation ID (<c>fst.rankings.row.&lt;accountId&gt;</c>, or <c>…row.rank-&lt;n&gt;</c> without an ID).</summary>
+    public string AutomationId => "fst.rankings.row." + (Entry.HasProfile ? Entry.AccountId : "rank-" + Rank);
 
     /// <summary>Screen-reader name; the selected row leads with "Your rank, 12th." like Apple's VoiceOver label.</summary>
     public string Announcement => (IsSelected ? $"Your rank, {RankingFormatting.Ordinal(Rank)}. {Name}." : $"Rank {RankText}, {Name}.") +
@@ -109,8 +109,8 @@ public sealed class BandRankingRowViewModel
     /// <summary>Whether <see cref="BayesianText"/> is shown.</summary>
     public bool HasBayesian => BayesianText.Length > 0;
 
-    /// <summary>Band Detail route (never the side-effecting <c>/api/bands/{id}</c> lookup).</summary>
-    public AppRoute Route => new AppRoute.Band(Entry.BandId, BandType.ServiceId(), Entry.TeamKey);
+    /// <summary>Band Detail route (never the side-effecting <c>/api/bands/{id}</c> lookup), or <see langword="null"/> without identity.</summary>
+    public AppRoute? Route => Entry.HasDetail ? new AppRoute.Band(Entry.BandId, BandType.ServiceId(), Entry.TeamKey) : null;
 
     /// <summary>UIA automation ID (<c>fst.band-rankings.row.&lt;teamKey&gt;</c>).</summary>
     public string AutomationId => "fst.band-rankings.row." + Entry.TeamKey;

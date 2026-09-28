@@ -60,6 +60,9 @@ public record AccountRankingEntry
     /// <summary>Display name, or the web's "Unknown User" placeholder.</summary>
     [JsonIgnore] public string Name => string.IsNullOrWhiteSpace(DisplayName) ? "Unknown User" : DisplayName!;
 
+    /// <summary>Whether the row's account ID is safe to open as a profile (empty or unsafe IDs are shown without a link).</summary>
+    [JsonIgnore] public bool HasProfile => ProfileText.IsValidAccountId(AccountId);
+
     /// <summary>Rank column for a metric.</summary>
     /// <param name="metric">Selected metric.</param>
     /// <returns>One-based rank for that metric.</returns>
@@ -120,13 +123,17 @@ public sealed record RankingsResponse
     /// <summary>Pages of <see cref="PageSize"/> rows, at least one.</summary>
     [JsonIgnore] public int PageCount => LeaderboardPaging.PageCount(TotalAccounts, PageSize);
 
-    /// <summary>Rejects a response for another chart or with an impossible row count.</summary>
+    /// <summary>
+    /// Rejects a response for another chart or with an impossible row count. Rows are not rejected for their account
+    /// ID: production serves rows with an empty <c>accountId</c> and no name (seen 2026-09-28, Lead rank 15), which are
+    /// shown as "Unknown User" without a profile link (<see cref="AccountRankingEntry.HasProfile"/>).
+    /// </summary>
     /// <param name="instrument">Requested chart.</param>
     /// <exception cref="FestivalApiException">With <see cref="FestivalApiErrorKind.InvalidResponse"/>.</exception>
     public void Validate(Instrument instrument)
     {
         if (Instrument != instrument.ServiceId() || Page < 1 || PageSize < 1 || TotalAccounts < 0 || Entries is null ||
-            Entries.Count > PageSize || Entries.Any(e => e is null || !ProfileText.IsValidAccountId(e.AccountId)))
+            Entries.Count > PageSize || Entries.Any(e => e is null))
             throw new FestivalApiException(FestivalApiErrorKind.InvalidResponse);
     }
 }
@@ -185,6 +192,16 @@ public sealed record BandRankingEntry
     [JsonPropertyName("avgRank")] public double AvgRank { get; init; }
     /// <summary>Unadjusted weighted rating, when sent.</summary>
     [JsonPropertyName("rawWeightedRating")] public double? RawWeightedRating { get; init; }
+
+    /// <summary>Whether Band Detail can be opened (needs the band hash and team key; bad rows are shown without a link).</summary>
+    [JsonIgnore]
+    public bool HasDetail => !string.IsNullOrEmpty(BandId) && !string.IsNullOrEmpty(TeamKey) &&
+                             !IsUnsafeValue(BandId) && !IsUnsafeValue(TeamKey);
+
+    /// <summary>Whether a value would be unsafe as a route segment or query value.</summary>
+    /// <param name="value">Candidate.</param>
+    /// <returns><see langword="true"/> when too long or containing control/bidi characters.</returns>
+    private static bool IsUnsafeValue(string value) => value.Length > 400 || ProfileText.ContainsUnsafeCharacter(value);
 
     /// <summary>Roster joined like the web ("Unknown User" for a blank name).</summary>
     [JsonIgnore]
@@ -255,7 +272,7 @@ public sealed record BandRankingsResponse
     public void Validate(BandType bandType)
     {
         if (BandType != bandType.ServiceId() || Page < 1 || PageSize < 1 || TotalTeams < 0 || Entries is null ||
-            Entries.Count > PageSize || Entries.Any(e => e is null || string.IsNullOrEmpty(e.BandId) || string.IsNullOrEmpty(e.TeamKey)))
+            Entries.Count > PageSize || Entries.Any(e => e is null))
             throw new FestivalApiException(FestivalApiErrorKind.InvalidResponse);
     }
 }

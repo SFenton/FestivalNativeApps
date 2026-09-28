@@ -353,6 +353,9 @@ public sealed class RankingRowTests
         Assert.Equal(new AppRoute.Player("abc", "Player 2"), row.Route);
         Assert.Equal("fst.rankings.row.abc", row.AutomationId);
         Assert.Equal("Rank #2, Player 2. Adjusted Top 2% (0.12), 38 / 50 songs", row.Announcement);
+        var anonymous = new RankingRowViewModel(RankingsWire.Account(15, ""), RankingMetric.TotalScore, false);
+        Assert.Null(anonymous.Route);
+        Assert.Equal("fst.rankings.row.rank-15", anonymous.AutomationId);
         var total = new RankingRowViewModel(RankingsWire.Account(2), RankingMetric.TotalScore, true);
         Assert.False(total.HasBayesian);
         Assert.Equal("Your rank, 2nd. Player 2. Total Score 89,999,998, 38 / 50 songs", total.Announcement);
@@ -371,6 +374,7 @@ public sealed class RankingRowTests
         Assert.Equal("fst.band-rankings.row.team1", row.AutomationId);
         Assert.Equal("Rank #2, Member A, Unknown User. Weighted Top 5% (0.05), 29 / 50 songs", row.Announcement);
         Assert.False(new BandRankingRowViewModel(board.Entries[0], BandType.Duets, BandRankingMetric.FcRate).HasBayesian);
+        Assert.Null(new BandRankingRowViewModel(board.Entries[0] with { TeamKey = "" }, BandType.Duets, BandRankingMetric.FcRate).Route);
     }
 
     [Fact]
@@ -741,5 +745,6 @@ public sealed class SongLeaderboardViewModelTests
         Assert.Equal("", row.Stars);
         Assert.Equal("", row.Season);
         Assert.Equal("", row.AccuracyPill);
+        Assert.Null(new SongLeaderboardRowViewModel(new LeaderboardEntry { AccountId = "" }, false).Route);
     }
 }

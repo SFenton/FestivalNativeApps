@@ -49,6 +49,8 @@ public sealed partial class LeaderboardsRankingRow : UserControl
                 route = band.Route;
                 break;
         }
+        // Rows without a usable identity (production serves some empty account IDs) are shown but not interactive.
+        RowButton.IsHitTestVisible = RowButton.IsTabStop = route is not null;
     }
 
     /// <summary>Writes texts, accessibility and the selected-player accent.</summary>

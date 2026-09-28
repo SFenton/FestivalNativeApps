@@ -232,7 +232,11 @@ public sealed class RankingsModelTests
         Assert.Throws<FestivalApiException>(() => (good with { TotalAccounts = -1 }).Validate(Instrument.Bass));
         Assert.Throws<FestivalApiException>(() => (good with { Entries = null! }).Validate(Instrument.Bass));
         Assert.Throws<FestivalApiException>(() => (good with { PageSize = 1, Entries = [RankingsWire.Account(1), RankingsWire.Account(2)] }).Validate(Instrument.Bass));
-        Assert.Throws<FestivalApiException>(() => (good with { Entries = [RankingsWire.Account(1, "bad/id")] }).Validate(Instrument.Bass));
+        // Production serves rows with an empty account ID: accepted, but without a profile link.
+        (good with { Entries = [RankingsWire.Account(1, "")] }).Validate(Instrument.Bass);
+        Assert.False(RankingsWire.Account(1, "").HasProfile);
+        Assert.False(RankingsWire.Account(1, "bad/id").HasProfile);
+        Assert.True(RankingsWire.Account(1, "ok").HasProfile);
 
         var band = new BandRankingsResponse { BandType = "Band_Duets", Page = 1, PageSize = 1, TotalTeams = 1 };
         band.Validate(BandType.Duets);
@@ -241,7 +245,10 @@ public sealed class RankingsModelTests
         Assert.Throws<FestivalApiException>(() => (band with { PageSize = 0 }).Validate(BandType.Duets));
         Assert.Throws<FestivalApiException>(() => (band with { TotalTeams = -1 }).Validate(BandType.Duets));
         Assert.Throws<FestivalApiException>(() => (band with { Entries = null! }).Validate(BandType.Duets));
-        Assert.Throws<FestivalApiException>(() => (band with { Entries = [new BandRankingEntry { BandId = "b" }] }).Validate(BandType.Duets));
+        (band with { Entries = [new BandRankingEntry { BandId = "b" }] }).Validate(BandType.Duets);
+        Assert.False(new BandRankingEntry { BandId = "b" }.HasDetail);
+        Assert.False(new BandRankingEntry { BandId = "b", TeamKey = "a‮b" }.HasDetail);
+        Assert.True(new BandRankingEntry { BandId = "b", TeamKey = "t" }.HasDetail);
     }
 }
 

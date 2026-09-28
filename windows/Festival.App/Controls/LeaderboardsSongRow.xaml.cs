@@ -44,6 +44,7 @@ public sealed partial class LeaderboardsSongRow : UserControl
         ScoreText.Text = row.Score;
         AutomationProperties.SetName(RowButton, row.Announcement);
         AutomationProperties.SetAutomationId(RowButton, row.AutomationId);
+        RowButton.IsHitTestVisible = RowButton.IsTabStop = row.Route is not null;
         if (row.IsSelected)
         {
             var accent = (Windows.UI.Color)Application.Current.Resources["FSTAccentPurpleColor"];
@@ -57,23 +58,31 @@ public sealed partial class LeaderboardsSongRow : UserControl
         }
     }
 
-    /// <summary>Collapses secondary columns at narrow widths.</summary>
+    /// <summary>Collapses season and stars below <see cref="WideWidth"/> and drops the column minimums below
+    /// <see cref="CompactWidth"/> so rank, name, accuracy and score all stay visible.</summary>
     /// <param name="sender">Button.</param>
     /// <param name="e">New size.</param>
     private void OnSizeChanged(object sender, SizeChangedEventArgs e)
     {
         var wide = e.NewSize.Width >= WideWidth;
         var visibility = wide ? Visibility.Visible : Visibility.Collapsed;
-        if (SeasonText.Visibility == visibility) return;
-        SeasonText.Visibility = StarsText.Visibility = visibility;
+        if (SeasonText.Visibility != visibility) SeasonText.Visibility = StarsText.Visibility = visibility;
+        var compact = e.NewSize.Width < CompactWidth;
+        RowGrid.ColumnSpacing = compact ? 8 : 12;
+        RankColumn.MinWidth = compact ? 32 : 56;
+        PillColumn.MinWidth = compact ? 0 : 72;
+        ScoreColumn.MinWidth = compact ? 0 : 88;
     }
+
+    /// <summary>Compact-row threshold in effective pixels.</summary>
+    private const double CompactWidth = 400;
 
     /// <summary>Opens Statistics for the selected player, otherwise the player's profile.</summary>
     /// <param name="sender">Button.</param>
     /// <param name="e">Unused.</param>
     private void OnClick(object sender, RoutedEventArgs e)
     {
-        if (Row is { } row) MainWindow.Instance?.Navigate(row.Route);
+        if (Row?.Route is { } route) MainWindow.Instance?.Navigate(route);
     }
 }
 #endregion

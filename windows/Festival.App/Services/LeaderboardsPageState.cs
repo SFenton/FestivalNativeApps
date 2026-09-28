@@ -11,7 +11,8 @@ namespace Festival.App.Services;
 /// <typeparam name="T">View model type.</typeparam>
 internal static class LeaderboardsPageState<T> where T : class
 {
-    private static readonly ConditionalWeakTable<object, T> States = new();
+    // Values are stored as object: a generic TValue would need a trimming annotation on T (IL2091 under AOT).
+    private static readonly ConditionalWeakTable<object, object> States = new();
 
     /// <summary>Returns the view model stored for this parameter, or creates and stores one.</summary>
     /// <param name="parameter">Navigation parameter (route object).</param>
@@ -20,7 +21,7 @@ internal static class LeaderboardsPageState<T> where T : class
     /// <returns>View model.</returns>
     public static T GetOrCreate(object parameter, Func<T> create, out bool created)
     {
-        if (States.TryGetValue(parameter, out var existing))
+        if (States.TryGetValue(parameter, out var stored) && stored is T existing)
         {
             created = false;
             return existing;
