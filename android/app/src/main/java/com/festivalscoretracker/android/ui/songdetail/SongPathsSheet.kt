@@ -191,7 +191,7 @@ internal fun decodePathImage(bytes: ByteArray, width: Int, height: Int): ImageBi
     var sample = 1
     while (width / sample > MAX_DECODED_WIDTH || (width / sample).toLong() * (height / sample) > MAX_DECODED_PIXELS) sample *= 2
     val options = BitmapFactory.Options().apply { inSampleSize = sample }
-    return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)?.asImageBitmap()
+    return runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)?.asImageBitmap() }.getOrNull()
 }
 
 private const val MAX_DECODED_WIDTH = 2_048
@@ -199,8 +199,9 @@ private const val MAX_DECODED_PIXELS = 16_000_000L
 
 @Composable
 private fun PathImage(image: SongPathImagePayload, description: String) {
-    val bitmap by produceState<ImageBitmap?>(null, image) {
-        value = withContext(Dispatchers.Default) { decodePathImage(image.bytes, image.width, image.height) }
+    // null = decoding, empty = undecodable, else the image.
+    val bitmap by produceState<List<ImageBitmap>?>(null, image) {
+        value = withContext(Dispatchers.Default) { listOfNotNull(decodePathImage(image.bytes, image.width, image.height)) }
     }
     var zoom by remember(image) { mutableFloatStateOf(1f) }
     Column(Modifier.testTag("fst.paths.image")) {
@@ -213,9 +214,11 @@ private fun PathImage(image: SongPathImagePayload, description: String) {
                 Icon(Icons.Filled.ZoomIn, contentDescription = "Zoom in")
             }
         }
-        val decoded = bitmap
-        if (decoded == null) {
+        val decoded = bitmap?.firstOrNull()
+        if (bitmap == null) {
             Box(Modifier.fillMaxWidth().heightIn(min = 160.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(28.dp)) }
+        } else if (decoded == null) {
+            Text("This path image couldn't be displayed.", color = BrandTokens.textSecondary, modifier = Modifier.padding(vertical = 24.dp).testTag("fst.paths.image-error"))
         } else {
             BoxWithConstraints(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                 Image(
