@@ -8,6 +8,8 @@ struct SongPathsSheet: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @AppStorage("fst.settings.pathUnavailableWarningDismissed")
     private var warningDismissed = false
+    @AppStorage("fst.settings.pathColumnOrder")
+    private var pathColumnOrderRaw = SettingsOrder.encode(PathColumnKey.allCases)
     @State private var instrument: Instrument
     @State private var difficulty = PathDifficulty.expert
     @State private var display: PathDisplayMode
@@ -276,71 +278,10 @@ struct SongPathsSheet: View {
                     .font(.body)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            HStack(spacing: 6) {
-                ForEach(["green", "red", "yellow", "blue", "orange"], id: \.self) { fret in
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(row.frets.contains(fret)
-                            ? Self.fretColor(fret) : BrandTokens.appBackground)
-                        .frame(width: 28, height: 28)
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(BrandTokens.glassBorder, lineWidth: 1)
-                        }
-                        .accessibilityHidden(true)
-                }
-                if row.frets.contains("open") {
-                    Text("Open")
-                        .font(.caption.bold())
-                        .padding(6)
-                        .background(BrandTokens.appBackground, in: Capsule())
-                        .accessibilityHidden(true)
-                }
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Activation frets")
-            .accessibilityValue(
-                row.frets.isEmpty ? "No anchor" : row.frets.joined(separator: ", ")
-            )
             metrics {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Beat")
-                        .font(.caption)
-                        .foregroundStyle(BrandTokens.textSecondary)
-                    Text(row.beat.formatted(.number.precision(.fractionLength(2))))
-                        .monospacedDigit()
+                ForEach(SettingsOrder.decode(pathColumnOrderRaw) as [PathColumnKey]) { key in
+                    column(key, row: row)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Time")
-                        .font(.caption)
-                        .foregroundStyle(BrandTokens.textSecondary)
-                    Text(Self.time(row.seconds))
-                        .monospacedDigit()
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Score")
-                        .font(.caption)
-                        .foregroundStyle(BrandTokens.textSecondary)
-                    Text(row.scoreBeforeActivation.map { $0.formatted() } ?? "Unavailable")
-                        .monospacedDigit()
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            Text("Overdrive %")
-                .font(.caption.bold())
-                .foregroundStyle(BrandTokens.textSecondary)
-            if let amount = row.odPercent {
-                HStack {
-                    ProgressView(value: amount, total: 100)
-                        .tint(BrandTokens.gold)
-                        .accessibilityLabel("Overdrive")
-                        .accessibilityValue("\(Int(amount.rounded())) percent")
-                    Text("\(Int(amount.rounded()))%")
-                        .monospacedDigit()
-                }
-            } else {
-                Text("Unavailable")
             }
         }
         .font(.subheadline)
@@ -353,6 +294,94 @@ struct SongPathsSheet: View {
         )
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("fst.paths.activation.\(row.number)")
+    }
+
+    /// One activation-table column, in Settings' saved `pathColumnOrder` position.
+    ///
+    /// - Parameters:
+    ///   - key: Which column to render.
+    ///   - row: Resolved beat, time, frets, OD and score for this activation.
+    /// - Returns: A labeled column matching the other four's compact style.
+    @ViewBuilder
+    private func column(_ key: PathColumnKey, row: PathActivationRow) -> some View {
+        switch key {
+        case .note:
+            VStack(alignment: .leading, spacing: 4) {
+                Text(key.label)
+                    .font(.caption)
+                    .foregroundStyle(BrandTokens.textSecondary)
+                HStack(spacing: 4) {
+                    ForEach(["green", "red", "yellow", "blue", "orange"], id: \.self) { fret in
+                        RoundedRectangle(cornerRadius: 5)
+                            .fill(row.frets.contains(fret)
+                                ? Self.fretColor(fret) : BrandTokens.appBackground)
+                            .frame(width: 20, height: 20)
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 5)
+                                    .stroke(BrandTokens.glassBorder, lineWidth: 1)
+                            }
+                            .accessibilityHidden(true)
+                    }
+                    if row.frets.contains("open") {
+                        Text("Open")
+                            .font(.caption2.bold())
+                            .padding(4)
+                            .background(BrandTokens.appBackground, in: Capsule())
+                            .accessibilityHidden(true)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Activation frets")
+            .accessibilityValue(row.frets.isEmpty ? "No anchor" : row.frets.joined(separator: ", "))
+        case .beat:
+            VStack(alignment: .leading, spacing: 4) {
+                Text(key.label)
+                    .font(.caption)
+                    .foregroundStyle(BrandTokens.textSecondary)
+                Text(row.beat.formatted(.number.precision(.fractionLength(2))))
+                    .monospacedDigit()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        case .time:
+            VStack(alignment: .leading, spacing: 4) {
+                Text(key.label)
+                    .font(.caption)
+                    .foregroundStyle(BrandTokens.textSecondary)
+                Text(Self.time(row.seconds))
+                    .monospacedDigit()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        case .od:
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Overdrive %")
+                    .font(.caption)
+                    .foregroundStyle(BrandTokens.textSecondary)
+                if let amount = row.odPercent {
+                    HStack(spacing: 6) {
+                        ProgressView(value: amount, total: 100)
+                            .tint(BrandTokens.gold)
+                            .accessibilityLabel("Overdrive")
+                            .accessibilityValue("\(Int(amount.rounded())) percent")
+                        Text("\(Int(amount.rounded()))%")
+                            .monospacedDigit()
+                    }
+                } else {
+                    Text("Unavailable")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        case .score:
+            VStack(alignment: .leading, spacing: 4) {
+                Text(key.label)
+                    .font(.caption)
+                    .foregroundStyle(BrandTokens.textSecondary)
+                Text(row.scoreBeforeActivation.map { $0.formatted() } ?? "Unavailable")
+                    .monospacedDigit()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     /// Match the source's five visible fret colors using original SwiftUI shapes.

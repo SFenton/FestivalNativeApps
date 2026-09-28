@@ -74,6 +74,34 @@ private func selectedFixtureSong() throws -> (song: Song, season: Int) {
     #expect(fields[6].announcement == "Expert difficulty")
 }
 
+/// Settings' saved Song row order (`fst.settings.songRowVisualOrder`) reorders an
+/// already-computed field list without adding, dropping or renaming any field.
+@Test func reorderedAppliesTheSavedSongRowFieldOrder() throws {
+    let player = try #require(selectedFixtureProfiles()["fixture-player-2"])
+    let score = try #require(player.scoreIndex(
+        requestedAccountId: "fixture-player-2"
+    )["fixture-pulse"]?[.lead])
+    let context = try selectedFixtureSong()
+    let fields = try SongProfileCardPolicy.fields(
+        for: score, chart: .lead, song: context.song,
+        currentSeason: context.season, visibility: SongMetadataVisibility()
+    )
+    // Put Stars first, Score last; leave the rest in their saved relative order.
+    let order: [MetadataField] = [
+        .stars, .percentage, .percentile, .season, .intensity, .difficulty, .lastPlayed, .score,
+    ]
+    let reordered = SongProfileCardPolicy.reordered(fields, by: order)
+    #expect(reordered.map(\.id) == [
+        .stars, .accuracy, .percentile, .season, .intensity, .difficulty, .score,
+    ])
+    #expect(Set(reordered.map(\.id)) == Set(fields.map(\.id)), "reordering never drops a field")
+
+    // A field kind absent from a stale saved order keeps its source position.
+    let partial = SongProfileCardPolicy.reordered(fields, by: [.stars])
+    #expect(partial.first?.id == .stars)
+    #expect(partial.count == fields.count)
+}
+
 /// The next *available* field becomes primary without weakening FC visibility.
 @Test func hiddenScorePromotesAccuracyAndHiddenPercentageRetainsFullCombo() throws {
     let profile = try #require(selectedFixtureProfiles()["fixture-player-2"])

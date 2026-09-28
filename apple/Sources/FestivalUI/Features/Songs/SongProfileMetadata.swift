@@ -212,4 +212,38 @@ enum SongProfileCardPolicy {
             currentSeason: nil, visibility: visibility
         )).map(\.plainLabel)
     }
+
+    /// Apply Settings' saved Song row field order (`fst.settings.songRowVisualOrder`,
+    /// drag-reordered in `SettingsReorderSheet`) to an already visibility-filtered
+    /// field list. The first field after reordering becomes the row's right-aligned
+    /// primary pill; the rest become `SongProfileMetadataPills`.
+    ///
+    /// - Parameters:
+    ///   - fields: Source-ordered fields `fields(for:chart:song:currentSeason:visibility:)` returned.
+    ///   - order: Settings' persisted field order, decoded via `SettingsOrder.decode`.
+    /// - Returns: The same fields in the saved order (stable sort: a field kind
+    ///   Settings doesn't mention, which cannot happen for a currently-defined
+    ///   case, keeps its source position at the end).
+    static func reordered(_ fields: [SongMetadataField], by order: [MetadataField]) -> [SongMetadataField] {
+        let rank = Dictionary(uniqueKeysWithValues: order.enumerated().map { index, field in
+            (field.songMetadataKind, index)
+        })
+        return fields.sorted { (rank[$0.id] ?? Int.max) < (rank[$1.id] ?? Int.max) }
+    }
+}
+
+extension MetadataField {
+    /// Map Settings' persisted field identity to the Songs card's own field kind.
+    var songMetadataKind: SongMetadataKind {
+        switch self {
+        case .score: .score
+        case .percentage: .accuracy
+        case .percentile: .percentile
+        case .season: .season
+        case .intensity: .intensity
+        case .difficulty: .difficulty
+        case .stars: .stars
+        case .lastPlayed: .lastPlayed
+        }
+    }
 }

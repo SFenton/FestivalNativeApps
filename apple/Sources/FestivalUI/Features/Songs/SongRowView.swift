@@ -16,6 +16,8 @@ struct SongRowView: View {
     let showInstrumentIcons: Bool
     let visibleInstruments: Set<Instrument>
     let currentSeason: Int?
+    @AppStorage("fst.settings.songRowVisualOrder")
+    private var songRowVisualOrderRaw = SettingsOrder.encode(MetadataField.allCases)
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// Decorate one real Shop offer without turning it into a new navigation action.
@@ -93,9 +95,12 @@ struct SongRowView: View {
     private var structuredFields: Result<[SongMetadataField], Error>? {
         guard let structuredScore else { return nil }
         return Result {
-            try SongProfileCardPolicy.fields(
+            let fields = try SongProfileCardPolicy.fields(
                 for: structuredScore.score, chart: structuredScore.chart,
                 song: song, currentSeason: currentSeason, visibility: metadata
+            )
+            return SongProfileCardPolicy.reordered(
+                fields, by: SettingsOrder.decode(songRowVisualOrderRaw)
             )
         }
     }
