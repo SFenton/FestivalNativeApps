@@ -98,21 +98,84 @@ first-run demo data) rather than instantiating the full `SongRowView`/`FestivalS
 a lighter-weight but faithful-looking equivalent. Reusing the literal `SongRowView` type is a
 possible future refinement, not required for a first pass.
 
-## Other pages (31 slides) — static illustration, live demos are a follow-up
+## Other pages (31 slides) — live native demos (Lane D2, 2026-09-28)
 
-Song Info (8), Player History (2), Statistics (6), Suggestions (4), Leaderboards (3), Compete (3),
-Rivals (3) and Item Shop (4, `shop-views` intentionally omitted — this lane's Shop screen has no
-grid/list view toggle yet) all render `FirstRunStaticIllustration`: a page-themed SF Symbol on a
-glass card. The slide's real title/description (shown below it by the carousel) still carries the
-actual explanation; only the interactive/live preview is deferred. Porting each of these ~31
-web demo components (`pages/<page>/firstRun/demo/*.tsx`) to a native mini-view is real, but
-separable, follow-up work — flagged rather than attempted wholesale in this pass so the core
-seen-state/gate/replay machinery (the part the operator's request was actually about) landed with
-full test coverage instead of being crowded out.
+Every remaining registered slide across Song Info (8), Player History (2), Statistics (6),
+Suggestions (4), Leaderboards (3), Compete (3), Rivals (3) and Item Shop (4, `shop-views`
+intentionally omitted — this lane's Shop screen has no grid/list view toggle yet) now renders a
+live native mini-demo, ported from `pages/<page>/firstRun/demo/*.tsx` and the shared
+`firstRun/demoData.ts`. All 42 catalog slides (9 Songs + 33 registered here) now resolve to a
+live demo; `FirstRunDemoContent.hasLiveDemo(id:)` is unit-tested
+(`FirstRunDemoCoverageTests.everyCatalogSlideHasALiveDemo`) against the full catalog so a future
+slide added without a demo fails the build instead of silently falling back to
+`FirstRunStaticIllustration`.
+
+Shared building blocks live in `Features/FirstRun/Demo/`:
+- `FirstRunDemoPool.swift` — hand-picked static sample data (songs, rankings, rivals, score
+  history, percentiles, rival comparisons), mirroring the shape of the web's `demoData.ts` so
+  every page's demo pulls from one small, non-networked pool instead of each file inventing its
+  own numbers.
+- `FirstRunDemoSupport.swift` — `firstRunPulse(_:)` (a `repeatForever` glow, standing in for the
+  web's `shopBreathe*`/`pulseWrap` CSS animations; a no-op under Reduce Motion) and
+  `firstRunStagger(_:)` (a brief per-row fade/rise-in echoing the web's cascading `FadeIn`, also a
+  no-op under Reduce Motion — appears immediately instead), plus shared row views
+  (`FirstRunRankRow`, `FirstRunRivalRow`, `FirstRunViewAllRow`, `FirstRunInstrumentHeader`,
+  `FirstRunAlbumArtPlaceholder`) and `firstRunAccuracyTint(_:isFullCombo:)`, an accuracy-to-color
+  ramp approximating the web's `accuracyColor` gradient.
+
+Both animation helpers are pure SwiftUI (`withAnimation`/`repeatForever`), not `Timer`/Combine —
+they cost nothing while a slide is off-screen in the carousel's `TabView(.page)`. The web's
+several *content-rotating* timers (`BarSelectDemo` cycling the selected bar, `CategoryCardDemo`
+swapping templates, `CompeteHubDemo`/`RivalsInstrumentsDemo` alternating rows, etc.) were
+deliberately **not** ported 1:1: `TabView(.page)` mounts every slide up front, so a real
+`setInterval`-style timer per demo would keep running for slides that aren't currently visible —
+exactly the "no heavy views and no timers when not visible" rule this lane was asked to keep.
+Each such demo instead shows one static, representative state (documented per-slide below) —
+still faithful to the slide's title/description, just not animated over time.
+
+| Slide id | Live demo | Notes |
+|---|---|---|
+| `songinfo-chart` | `FirstRunSongInfoChartDemo` | Swift Charts `BarMark` (accuracy, gold when FC) with score annotated per bar |
+| `songinfo-bar-select` | `FirstRunSongInfoBarSelectDemo` | Same chart with the last bar's selection stroke + a static detail row (web cycles the selection on a timer) |
+| `songinfo-view-all` | `FirstRunSongInfoViewAllDemo` | Own score rows (last one faded) + pulsing "View all scores" |
+| `songinfo-top-scores` | `FirstRunSongInfoTopScoresDemo` | Instrument header + top leaderboard rows + pulsing "View full leaderboard" |
+| `songinfo-paths` | `FirstRunSongInfoPathsDemo` | Instrument row + difficulty row + static path-preview placeholder (no network image fetch) |
+| `songinfo-shop-button` | `FirstRunSongInfoShopPillDemo(tone: .shop)` | Green pill, pulsing |
+| `songinfo-new-in-shop` | `FirstRunSongInfoShopPillDemo(tone: .new)` | Gold pill, pulsing |
+| `songinfo-leaving-tomorrow` | `FirstRunSongInfoShopPillDemo(tone: .leaving)` | Red pill, pulsing |
+| `playerhistory-score-list` | `FirstRunPlayerHistoryScoreListDemo` | Score rows, personal best highlighted purple |
+| `playerhistory-sort` | `FirstRunPlayerHistorySortDemo` | Sort-mode list (Date/Score/Accuracy/Season) + direction row, mirroring `FirstRunSortDemo`'s established layout |
+| `statistics-select-profile` | `FirstRunStatsSelectProfileDemo` | Pulsing "Select This Player" pill |
+| `statistics-drill-down` | `FirstRunStatsDrillDownDemo` | 2-col stat grid; drillable cards pulse |
+| `statistics-overview` | `FirstRunStatsOverviewDemo` | 2-col global summary stat grid |
+| `statistics-instrument-breakdown` | `FirstRunStatsInstrumentBreakdownDemo` | Instrument header + 2-col stat grid |
+| `statistics-percentiles` | `FirstRunStatsPercentilesDemo` | Percentile/song-count table |
+| `statistics-top-songs` | `FirstRunStatsTopSongsDemo` | Song rows with percentile badges |
+| `suggestions-category-card` | `FirstRunSuggestionsCategoryCardDemo` | One themed card ("Almost Full Combo"); web rotates templates on a timer, this shows the first |
+| `suggestions-global-filter` | `FirstRunSuggestionsGlobalFilterDemo` | Suggestion-type toggle list, all enabled |
+| `suggestions-instrument-filter` | `FirstRunSuggestionsInstrumentFilterDemo` | Instrument row + that instrument's toggles |
+| `suggestions-infinite-scroll` | `FirstRunSuggestionsInfiniteScrollDemo` | Stacked cards with a bottom fade mask (web auto-scrolls via `requestAnimationFrame`; a perpetual scroll loop is exactly the excluded "heavy" case) |
+| `leaderboards-overview` | `FirstRunLeaderboardsOverviewDemo` | Instrument header + top rankings |
+| `leaderboards-experimental-metrics` | `FirstRunLeaderboardsExperimentalMetricsDemo` | Metric radio list with hints |
+| `leaderboards-your-rank` | `FirstRunLeaderboardsYourRankDemo` | Rank neighborhood, player row highlighted, pulsing "View all rankings" |
+| `compete-hub` | `FirstRunCompeteHubDemo` | Compact rankings + one rival above/below shown together (web alternates the two layouts on a timer) |
+| `compete-leaderboards` | `FirstRunCompeteLeaderboardsDemo` | Reuses `FirstRunLeaderboardsOverviewDemo` |
+| `compete-rivals` | `FirstRunCompeteRivalsDemo` | Above/Below rival rows |
+| `rivals-overview` | `FirstRunRivalsOverviewDemo` | Above/Below rival rows |
+| `rivals-instruments` | `FirstRunRivalsInstrumentsDemo` | Per-instrument (Lead/Drums/Vocals) rival sections |
+| `rivals-detail` | `FirstRunRivalsDetailDemo` | "Closest Battles" song comparison rows (web cycles categories on a timer) |
+| `shop-overview` | `FirstRunShopOverviewDemo` | Grid of placeholder tiles |
+| `shop-highlighting` | `FirstRunShopHighlightingDemo` | Rows alternate a pulsing green highlight and none |
+| `shop-new-items` | `FirstRunShopNewItemsDemo` | Rows cycle gold/green/none by index (static per-row assignment, no timer) |
+| `shop-leaving-tomorrow` | `FirstRunShopLeavingTomorrowDemo` | Rows cycle red/green/none by index |
+
+Simplified vs. the web on every demo: no live network album art or session data (matching the
+web's own hardcoded first-run pools), no interactive taps (the carousel demos are inert previews,
+same as Songs'), and the several content-*rotation* timers noted above collapse to one
+representative state instead of cycling.
 
 ## Known gaps / follow-ups
 
-- Live demos for the 31 non-Songs slides (see above).
 - `shop-views` slide omitted pending the Shop grid/list view toggle (add it back to
   `FirstRunCatalog.shop` once that toggle ships).
 - `ready` is always `true`: `FestivalSession` resolves the selected-player identity synchronously
