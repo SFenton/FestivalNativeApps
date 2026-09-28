@@ -31,6 +31,11 @@ public sealed partial class QuickLinksPane : UserControl
         set => SetValue(ModelProperty, value);
     }
 
+    /// <summary>Shared instrument bitmap for a section, or none.</summary>
+    /// <param name="file">Icon file name (empty for glyph sections).</param>
+    /// <returns>Bitmap or <see langword="null"/>.</returns>
+    public static Microsoft.UI.Xaml.Media.ImageSource? Icon(string file) => file.Length > 0 ? InstrumentIcon.Bitmap(file) : null;
+
     /// <summary>Jumps to the clicked section.</summary>
     /// <param name="sender">List.</param>
     /// <param name="e">Clicked item.</param>

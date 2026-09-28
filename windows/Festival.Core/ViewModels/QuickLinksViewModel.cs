@@ -123,6 +123,12 @@ public sealed partial class QuickLinkItemViewModel(QuickLinkSection section) : O
     /// <summary>Glyph (empty when an instrument icon or nothing is shown).</summary>
     public string Glyph => Section.Glyph ?? "";
 
+    /// <summary>Instrument icon file (empty for glyph or plain sections).</summary>
+    public string IconFile => Section.Instrument?.IconFile() ?? "";
+
+    /// <summary>Whether an instrument icon replaces the glyph.</summary>
+    public bool HasIcon => Section.Instrument is not null;
+
     /// <summary>Automation ID.</summary>
     public string AutomationId => Section.AutomationId;
 

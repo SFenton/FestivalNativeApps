@@ -68,7 +68,8 @@ public sealed partial class QuickLinksMenuButton : DropDownButton
                 Text = item.Title,
                 GroupName = "fst-quick-links",
                 IsChecked = item.IsActive,
-                Icon = item.Glyph.Length > 0 ? new FontIcon { Glyph = item.Glyph } : null,
+                Icon = item.HasIcon ? new ImageIcon { Source = InstrumentIcon.Bitmap(item.IconFile) }
+                    : item.Glyph.Length > 0 ? new FontIcon { Glyph = item.Glyph } : null,
             };
             AutomationProperties.SetAutomationId(entry, item.AutomationId);
             AutomationProperties.SetName(entry, item.AccessibleName);

@@ -2,7 +2,8 @@
     x:Class="Festival.App.Controls.QuickLinksPane"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:vm="using:Festival.Core.ViewModels">
+    xmlns:vm="using:Festival.Core.ViewModels"
+    xmlns:controls="using:Festival.App.Controls">
     <!-- Wide (≥1440 epx) persistent jump pane: a labelled navigation landmark; the current section is selected. -->
     <Border Style="{StaticResource FSTCardStyle}" Padding="8,12" VerticalAlignment="Top"
             AutomationProperties.LandmarkType="Navigation"
@@ -24,7 +25,11 @@
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="vm:QuickLinkItemViewModel">
                         <StackPanel Orientation="Horizontal" Spacing="10">
-                            <FontIcon Glyph="{x:Bind Glyph}" FontSize="14" AutomationProperties.AccessibilityView="Raw" />
+                            <Grid Width="16" Height="16">
+                                <FontIcon Glyph="{x:Bind Glyph}" FontSize="14" AutomationProperties.AccessibilityView="Raw" />
+                                <Image Source="{x:Bind controls:QuickLinksPane.Icon(IconFile)}" Visibility="{x:Bind HasIcon}"
+                                       AutomationProperties.AccessibilityView="Raw" />
+                            </Grid>
                             <TextBlock Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" />
                         </StackPanel>
                     </DataTemplate>

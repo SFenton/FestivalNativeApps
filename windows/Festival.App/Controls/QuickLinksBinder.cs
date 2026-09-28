@@ -61,8 +61,8 @@ public sealed class QuickLinksBinder
     }
 
     /// <summary>
-    /// Realizes a section that is not in the tree yet (a virtualized card far below the viewport), e.g.
-    /// <c>ItemsRepeater.GetOrCreateElement</c>; <see langword="null"/> when the page has no virtualized sections.
+    /// Returns the live element for a repeater-owned section, realizing it if needed (a virtualized card far below the
+    /// viewport), e.g. <c>ItemsRepeater.GetOrCreateElement</c>; <see langword="null"/> for other sections.
     /// </summary>
     public Func<string, FrameworkElement?>? Resolve { get; set; }
 
@@ -105,12 +105,19 @@ public sealed class QuickLinksBinder
     private void Jump(string id)
     {
         if (anchors.Count == 0) Collect();
-        if (!anchors.TryGetValue(id, out var element))
+        // Repeater-owned sections go through the repeater: a recycled element can still carry an old anchor ID, and a
+        // just-realized one has no position until the repeater arranges it.
+        if (Resolve?.Invoke(id) is { } realized)
         {
-            if (Resolve?.Invoke(id) is not { } realized) return;
-            realized.UpdateLayout();
-            anchors[id] = element = realized;
+            realized.StartBringIntoView(new BringIntoViewOptions
+            {
+                VerticalAlignmentRatio = 0,
+                VerticalOffset = -LandingMargin,
+                AnimationDesired = !reduceMotion(),
+            });
+            return;
         }
+        if (!anchors.TryGetValue(id, out var element)) return;
         var top = element.TransformToVisual(scroller).TransformPoint(default).Y;
         var target = Math.Clamp(scroller.VerticalOffset + top - LandingMargin, 0, scroller.ScrollableHeight);
         if (Math.Abs(target - scroller.VerticalOffset) < 0.5)

@@ -23,7 +23,11 @@ public sealed partial class PlayerProfileView : UserControl
     public PlayerProfileView()
     {
         InitializeComponent();
-        _ = new QuickLinksHost(Root, Scroller, quickLinks, QuickLinksMenu, Pane);
+        var host = new QuickLinksHost(Root, Scroller, quickLinks, QuickLinksMenu, Pane);
+        // Instrument sections live in a virtualizing repeater: realize the target for a jump.
+        host.Binder.Resolve = id => ViewModel?.Instruments.FindIndex(i => i.QuickLinkId == id) is >= 0 and var index
+            ? InstrumentsRepeater.GetOrCreateElement(index) as FrameworkElement
+            : null;
     }
 
     /// <summary>Page model; set before <see cref="Bind"/>.</summary>
