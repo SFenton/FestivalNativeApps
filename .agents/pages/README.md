@@ -12,7 +12,7 @@ Status of record: [contracts/parity-backlog.json](../../contracts/parity-backlog
 | song-detail | `/songs/:songId` | none | partial | [spec](song-detail/spec.md) | [ios](song-detail/ios.md) · [ipados](song-detail/ipados.md) |
 | song-band-leaderboard | `/songs/:songId/bands/:bandType` | none | absent | [spec (stub)](song-band-leaderboard/spec.md) | — |
 | song-leaderboard | `/songs/:songId/:instrument` | none | partial | [spec](song-leaderboard/spec.md) | [ios](song-leaderboard/ios.md) · [ipados](song-leaderboard/ipados.md) |
-| player-history | `/songs/:songId/:instrument/history` | none | absent | [spec (stub)](player-history/spec.md) | — |
+| player-history | `/songs/:songId/:instrument/history` | none | absent | [spec](player-history/spec.md) | [ios](player-history/ios.md) |
 | player-profile | `/player/:accountId` | none | absent | [spec (stub)](player-profile/spec.md) | [ios](player-profile/ios.md) |
 | rivals | `/rivals` | player | absent | [spec (stub)](rivals/spec.md) | — |
 | all-rivals | `/rivals/all` | player | absent | [spec (stub)](all-rivals/spec.md) | — |
