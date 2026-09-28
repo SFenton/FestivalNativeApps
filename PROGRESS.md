@@ -292,6 +292,7 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
   - ✅ `win-suggestions` (`74a3863`…`17ea7c0`): exact parity with Apple generator (swiftc on Windows compiles unmodified Apple sources; 6 seeds × 228 pages), 828 Core tests.
   - ✅ `win-settings` (`d234d24`…`97b77bb`): all web Settings sections + Accessibility, Licenses from NuGet graph, first-run (ContentDialog, replay), notifications bell/flyout, Quick Links (menu < 1150 epx, pane ≥ 1150); 99.6% lines.
   - ✅ `win-leaderboards` (`d56f75f`…`bd71f1c`): overview + spotlight, full/band rankings w/ pinned "your rank", song leaderboard; 3-col grid wide; idle 0.03% CPU; found anonymous production ranking rows (fixed on Apple too, `2e90438`).
+  - ✅ `win-bands` (`be040ba`…`8719acf`): landing, player bands, band detail (safe `?teamKey=` read only), per-song band leaderboard; 99.3% band-file coverage; fixed tooling that killed other lanes' app windows; found bare `/api/rankings/bands/{type}/{teamKey}` writes (now in service-safety; Apple never used it).
   - 🟨 `win-shell` (`FST-win-shell`): compact NavigationView, occlusion pause, per-lane Debug data dir, UI-automation foreground robustness, reset registry.
   - **Original Windows foundation brief:** port Copilot foundation → **C# vs C++/WinRT measured decision** → tooling → MVVM + request gate → NavigationView shell (Mica, split Leaderboards/Rivals) + composition-thread background → Songs + Song Detail live → tests
 
@@ -418,3 +419,4 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Windows lanes | win-leaderboards landed; anonymous-ranking-row quirk fixed on Apple + documented |
 | 2026-09-28 | Lane W3 | Duo page polish landed (`e0e887f`): rail overflow decision (Bell+Profile visible, hamburger overflows, `RootChromeRailItem`), B2 pagination → `.bottomBar` items, B6 row accessibility clearance, regular-width 2-column dashboard grids (Leaderboards/Profile), Settings readable-width; found and fixed reappear-reload jitter in Statistics/Player Profile and Suggestions (`.task(id:)` restarting on `NavigationStack` reappearance even with an unchanged id) |
 | 2026-09-28 | Lane W3 | Duo rail/page polish landed; orchestrator fixed last non-standard spinners (`e5c41a4`) |
+| 2026-09-28 | Windows lanes | win-bands landed; new blocked endpoint recorded (`1536971`) |
