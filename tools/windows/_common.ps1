@@ -105,10 +105,11 @@ function Get-AppProcess {
 }
 
 # Desktop-session snippet: waits for the app's main window and sets $hwnd/$proc ($env:FST_CAPTURE_PROCESS overrides the name).
+# Without an override only this worktree's build matches, so other lanes' windows are never captured, minimized or covered.
 $script:FindWindowSnippet = @"
 `$proc = `$null; `$deadline = (Get-Date).AddSeconds(45)
 while ((Get-Date) -lt `$deadline) {
-    `$proc = Get-Process -Name '$(if ($env:FST_CAPTURE_PROCESS) { $env:FST_CAPTURE_PROCESS } else { $AppProcessName })' -ErrorAction SilentlyContinue | Where-Object { `$_.MainWindowHandle -ne 0 } | Select-Object -First 1
+    `$proc = Get-Process -Name '$(if ($env:FST_CAPTURE_PROCESS) { $env:FST_CAPTURE_PROCESS } else { $AppProcessName })' -ErrorAction SilentlyContinue | Where-Object { `$_.MainWindowHandle -ne 0 -and ('$(if ($env:FST_CAPTURE_PROCESS) { '' } else { $WindowsRoot })' -eq '' -or (`$_.Path -and `$_.Path.StartsWith('$WindowsRoot', [StringComparison]::OrdinalIgnoreCase))) } | Select-Object -First 1
     if (`$proc) { break }
     Start-Sleep -Milliseconds 200
 }

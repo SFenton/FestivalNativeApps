@@ -30,6 +30,7 @@ public sealed partial class MainWindow : Window
     private AppSection current = AppSection.Songs;
     private bool windowVisible = true;
     private bool minimized;
+    private OcclusionTracker? occlusion;
     #endregion
 
     /// <summary>Creates the shell.</summary>
@@ -62,6 +63,10 @@ public sealed partial class MainWindow : Window
 
         VisibilityChanged += (_, e) => { windowVisible = e.Visible; UpdateBackdropPolicy(); };
         AppWindow.Changed += OnAppWindowChanged;
+        occlusion = new OcclusionTracker(WinRT.Interop.WindowNative.GetWindowHandle(this), DispatcherQueue);
+        occlusion.Changed += (_, _) => UpdateBackdropPolicy();
+        Activated += (_, _) => occlusion?.Invalidate();
+        Closed += (_, _) => { occlusion?.Dispose(); occlusion = null; };
         uiSettings.AdvancedEffectsEnabledChanged += (_, _) => DispatcherQueue.TryEnqueue(ApplyTransparency);
         if (ApiInformation.IsEventPresent("Windows.UI.ViewManagement.UISettings", "AnimationsEnabledChanged"))
             uiSettings.AnimationsEnabledChanged += (_, _) => DispatcherQueue.TryEnqueue(UpdateBackdropPolicy);
@@ -368,11 +373,12 @@ public sealed partial class MainWindow : Window
         if (e.PropertyName == nameof(FestivalSession.Settings)) UpdateBackdropPolicy();
     }
 
-    /// <summary>Tracks minimize/restore.</summary>
+    /// <summary>Tracks minimize/restore; own moves, resizes and Z-order changes re-check occlusion.</summary>
     /// <param name="sender">App window.</param>
     /// <param name="args">Change flags.</param>
     private void OnAppWindowChanged(AppWindow sender, AppWindowChangedEventArgs args)
     {
+        if (args.DidPositionChange || args.DidSizeChange || args.DidZOrderChange || args.DidVisibilityChange) occlusion?.Invalidate();
         if (!args.DidPresenterChange && !args.DidSizeChange) return;
         minimized = sender.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Minimized };
         UpdateBackdropPolicy();
@@ -385,7 +391,7 @@ public sealed partial class MainWindow : Window
         var mode = ArtworkPlaybackPolicy.Resolve(new ArtworkPolicyInputs(
             SystemAnimationsEnabled: uiSettings.AnimationsEnabled,
             WindowVisible: windowVisible && !minimized,
-            WindowOccluded: false,
+            WindowOccluded: occlusion?.IsHidden == true,
             ReduceMotion: settings.ReduceMotion || options.ReduceMotion,
             DisableAnimatedArtwork: settings.DisableAnimatedArtwork,
             SaveData: settings.SaveData || options.NoArt));

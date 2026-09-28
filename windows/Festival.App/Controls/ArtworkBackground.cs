@@ -37,6 +37,7 @@ public sealed partial class ArtworkBackground : Grid
     private string? songArt;
     private bool showingSong;
     private bool hasFrontImage;
+    private bool frozen;
     private float coverOpacity;
     private CancellationTokenSource loadCancellation = new();
     #endregion
@@ -74,14 +75,8 @@ public sealed partial class ArtworkBackground : Grid
     public void ApplyMode(ArtworkMode next)
     {
         if (next == mode) return;
-        var previous = mode;
         mode = next;
-        if (previous == ArtworkMode.Paused && next == ArtworkMode.Animated && hasFrontImage && !showingSong)
-        {
-            SetAnimationsPaused(false);
-            timer.Start();
-            return;
-        }
+        Services.PerfLog.Event("backdrop-" + next.ToString().ToLowerInvariant());
         Refresh();
     }
 
@@ -164,7 +159,7 @@ public sealed partial class ArtworkBackground : Grid
         }
         if (showingSong)
         {
-            SetAnimationsPaused(true);
+            FreezeMotion();
             _ = ShowCoverAsync(songArt, loadCancellation.Token);
             return;
         }
@@ -172,15 +167,16 @@ public sealed partial class ArtworkBackground : Grid
         switch (mode)
         {
             case ArtworkMode.Paused:
-                SetAnimationsPaused(true);
+                FreezeMotion();
                 break;
             case ArtworkMode.Static:
                 StopMotion();
                 if (!hasFrontImage) _ = AdvanceAsync();
                 break;
             default:
-                SetAnimationsPaused(false);
-                if (!hasFrontImage) _ = AdvanceAsync();
+                // Resuming from a freeze starts the next crossfade and drift at once instead of holding a still frame.
+                if (!hasFrontImage || frozen) _ = AdvanceAsync();
+                frozen = false;
                 timer.Start();
                 break;
         }
@@ -256,6 +252,7 @@ public sealed partial class ArtworkBackground : Grid
         front = 1 - front;
         hasFrontImage = true;
         SwapCount++;
+        Services.PerfLog.Event(animate ? "backdrop-swap-animated" : "backdrop-swap-still");
     }
 
     /// <summary>
@@ -318,21 +315,17 @@ public sealed partial class ArtworkBackground : Grid
         cover.StartAnimation("Opacity", fade);
     }
 
-    /// <summary>Pauses or resumes every running background animation, keeping its position.</summary>
-    /// <param name="paused">Target state.</param>
-    private void SetAnimationsPaused(bool paused)
+    /// <summary>
+    /// Stops the carousel at its current frame (hidden, covered or under a song cover). Animations are stopped rather
+    /// than paused so an unseen window holds no running composition animation; <see cref="Refresh"/> starts the next
+    /// crossfade when motion resumes.
+    /// </summary>
+    private void FreezeMotion()
     {
-        if (paused) timer.Stop();
-        foreach (var slot in slots)
-        {
-            foreach (var property in AnimatedProperties)
-            {
-                var controller = slot?.TryGetAnimationController(property);
-                if (controller is null) continue;
-                if (paused) controller.Pause();
-                else controller.Resume();
-            }
-        }
+        timer.Stop();
+        if (!hasFrontImage) return;
+        StopMotion();
+        frozen = true;
     }
 
     /// <summary>Freezes motion at its current values (static mode).</summary>

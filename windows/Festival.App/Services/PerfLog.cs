@@ -43,6 +43,11 @@ internal static class PerfLog
         }
     }
 
+    /// <summary>Appends a repeatable <c>name=ms</c> event line (e.g. occlusion state changes).</summary>
+    /// <param name="name">Event name.</param>
+    public static void Event(string name) =>
+        Write(string.Create(CultureInfo.InvariantCulture, $"{name}={(DateTime.UtcNow - ProcessStart).TotalMilliseconds:F1}"));
+
     /// <summary>Appends a free-form line (repeatable, e.g. periodic frame statistics).</summary>
     /// <param name="line">Line text.</param>
     public static void Write(string line)
