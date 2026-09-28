@@ -30,6 +30,9 @@ struct StatisticsScreen: View {
                     session: session, accountId: selected.accountId,
                     routeDisplayName: selected.displayName, showsRootTrailingItems: true
                 )
+                // This tab root survives a profile switch, so key its per-account
+                // state (phase, rank rows, pending dialogs) by the account itself.
+                .id(selected.accountId)
             } else {
                 ContentUnavailableView {
                     Label("No Profile Selected", systemImage: "chart.bar")

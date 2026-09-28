@@ -69,12 +69,12 @@ enum SongsUITestSupport {
 
     /// Reach one synthetic player from a fresh profile sheet without selecting it.
     ///
-    /// Search results now push the real `AppRoute.player` destination inside the
-    /// sheet's own `NavigationStack` (`ProfileSelectionSheet.swift`'s documented
-    /// "push inside the sheet's own stack, not dismiss-then-push" choice) instead of
-    /// showing an inline preview with its own `fst.profile.*` identifiers, so this
-    /// waits for `fst.player.available`/`fst.player.name` on that pushed page. Pair
-    /// with ``selectViewedPlayer(in:)`` to select and return to the presenting tab.
+    /// A search result dismisses the sheet and pushes the real `AppRoute.player`
+    /// destination onto the presenting tab (`ProfileSelectionSheet.swift`'s
+    /// dismiss-then-push flow), so this waits for `fst.player.name` on that pushed
+    /// page and requires it to name `accountId`'s fixture player (the wrong-account
+    /// bug pushed every result, leaving the last on top). Pair with
+    /// ``selectViewedPlayer(in:)`` to select and return to the presenting tab.
     ///
     /// - Parameters:
     ///   - accountId: Fixture search result key.
@@ -105,13 +105,27 @@ enum SongsUITestSupport {
             "Pushed player page never replaced search results: "
                 + "\(app.staticTexts.allElementsBoundByIndex.prefix(14).map(\.label))"
         )
+        let expectedName = NSPredicate(
+            format: "label == %@", fixtureDisplayNames[accountId] ?? accountId
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(
+                for: [XCTNSPredicateExpectation(predicate: expectedName, object: viewed)],
+                timeout: 10
+            ),
+            .completed, "Viewed \(viewed.label) instead of \(accountId)"
+        )
     }
 
+    /// Display names `tools/mock_service.py` returns for its search fixtures.
+    private static let fixtureDisplayNames = [
+        "fixture-player-1": "Fixture Player 1",
+        "fixture-player-2": "Fixture Player 2",
+    ]
+
     /// Select (or switch to) the player page ``viewFixturePlayer(_:query:in:)`` just
-    /// pushed, then close the sheet to return to the presenting tab, matching
-    /// `ProfileSelectionSheet.swift`'s documented flow: "the pushed screen already
-    /// offers Select/Switch/Deselect, closing the sheet from there returns straight
-    /// to the tab it was opened from".
+    /// pushed, then return to the presenting tab root. The sheet was already
+    /// dismissed before the push (dismiss-then-push), so there is no sheet to close.
     ///
     /// - Parameter app: Foreground fixture app on the pushed Player Profile page.
     @MainActor
@@ -123,9 +137,15 @@ enum SongsUITestSupport {
         if switchConfirm.waitForExistence(timeout: 2) {
             switchConfirm.tap()
         }
-        let close = app.buttons["fst.profile.close"]
-        XCTAssertTrue(close.waitForExistence(timeout: 10))
-        close.tap()
+        // A selection change pops the Songs stack by itself ("Selected profile
+        // changed. Returned to Songs…"); only other tabs need a manual Back.
+        let viewed = app.staticTexts["fst.player.name"]
+        if !viewed.waitForNonExistence(timeout: 5) {
+            let back = app.navigationBars.buttons["BackButton"]
+            XCTAssertTrue(back.waitForExistence(timeout: 5))
+            back.tap()
+        }
+        XCTAssertTrue(app.buttons["fst.shell.profile"].waitForExistence(timeout: 10))
     }
 
     /// Remove only the app's selected identity through its own confirmation action.

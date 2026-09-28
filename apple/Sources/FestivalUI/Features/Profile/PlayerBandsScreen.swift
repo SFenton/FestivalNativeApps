@@ -20,12 +20,17 @@ struct PlayerBandsScreen: View {
     @State private var page = 1
     @State private var state: RankLoadState<PlayerBandListPayload> = .loading
 
+    /// Includes `accountId` so a reused view identity can never keep, or accept a
+    /// late response for, another player's bands.
     private struct RequestKey: Equatable {
+        let accountId: String
         let group: PlayerBandGroup
         let page: Int
     }
 
-    private var requestKey: RequestKey { RequestKey(group: group, page: page) }
+    private var requestKey: RequestKey {
+        RequestKey(accountId: accountId, group: group, page: page)
+    }
 
     /// Create the screen.
     ///

@@ -27,6 +27,19 @@ Separate navigation shells for iOS/iPadOS and macOS share Core, Design and scree
 - **Cancellation:** check cancellation before any cache mutation and again inside the cache actor, so a cancelled older reply cannot overwrite a newer one or poison the next 304.
 - **Accessibility settings:** the app may expose additive Reduce Motion / Contrast / Transparency / artwork-animation overrides; it never toggles VoiceOver.
 
+### Per-entity screens
+
+A screen showing one account, band or rival must reset its state when that entity changes. It must never draw, or accept a late response for, a different entity.
+
+- **Key identity with the entity.** Apply `.id(entityId)` wherever the entity can change under a surviving view: `AppRouteDestination` does this for `.player`/`.playerBands` (the viewed account) and for `.allRivals`/`.rivalDetail`/`.rivalry` (the selected account). `StatisticsScreen` keys `PlayerProfileContent` by `selected.accountId`, and the Rivals/Compete hubs key their sections by `session.selectedPlayer?.accountId`. `.id` must be applied by the *parent*: inside a view's own `body` it resets only children, not that view's `@State`.
+- **Include the id in `task(id:)`**, and in any late-response guard key (`PlayerBandsScreen.RequestKey` carries `accountId`). `task(id:)` alone is not enough: it reloads *after* the new id has already rendered once with the old state. That is why `PlayerProfilePhase.shown(for:)` also refuses to draw a payload whose `accountId` differs.
+- **Selected-player reads** (`FestivalSession+Rivals`) resolve `session.selectedPlayer` at call time. Their views must therefore key on the selected account, not just on instrument/scope.
+- **Never cache the entity in session-level singletons.** `FestivalSession` holds only the *selected* identity and its score index, never a "last viewed" profile.
+
+### List rows hold one action
+
+Never put several default-style `Button`s or `NavigationLink`s in **one** `List`/`Form` row (e.g. a `LazyVStack` of results inside a single `Section` row). On iOS such a row makes the whole row the hit target and fires **every** control in it on one tap. This caused the 2026-09-28 wrong-account bug: tapping any profile search result pushed one `/player/:id` per result, leaving the *last* result's profile on top. Emit one row per action (`PlayerSearchResultRows` is a bare `ForEach`), or give intentionally side-by-side controls `.buttonStyle(.borderless)`/`.plain` (as `ProfileSelectionSheet.selectedProfileRow` does). macOS hosted tests cannot reproduce the iOS tap behavior, so `ProfileSearchResultRowsTests` pins the row structure via `_VariadicView`, and `ProfileJourneyTests` covers the tap on-device.
+
 ## Shared components and conventions
 
 | Use | Not | Why |

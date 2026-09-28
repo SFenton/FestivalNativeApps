@@ -146,20 +146,19 @@ struct FindRivalSheet: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
             } else {
-                LazyVStack(spacing: 0) {
-                    ForEach(results) { player in
-                        Divider().overlay(BrandTokens.glassBorder)
-                        NavigationLink(value: AppRoute.rivalDetail(
-                            rivalId: player.accountId, name: player.displayName, scope: nil
-                        )) {
-                            Label(player.displayName, systemImage: "person.crop.circle")
-                                .foregroundStyle(BrandTokens.textPrimary)
-                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                        }
-                        .padding(.horizontal, 16)
-                        .accessibilityLabel("View rivalry with \(player.displayName)")
-                        .accessibilityIdentifier("fst.rivals.findRival.result.\(player.accountId)")
+                // One `Form` row per result (`PlayerSearchResultRows`' doc: a
+                // shared row of links fired every result on one tap).
+                PlayerSearchResultRows(results) { player in
+                    NavigationLink(value: AppRoute.rivalDetail(
+                        rivalId: player.accountId, name: player.displayName, scope: nil
+                    )) {
+                        Label(player.displayName, systemImage: "person.crop.circle")
+                            .foregroundStyle(BrandTokens.textPrimary)
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                     }
+                    .padding(.horizontal, 16)
+                    .accessibilityLabel("View rivalry with \(player.displayName)")
+                    .accessibilityIdentifier("fst.rivals.findRival.result.\(player.accountId)")
                 }
             }
         case let .failed(message):

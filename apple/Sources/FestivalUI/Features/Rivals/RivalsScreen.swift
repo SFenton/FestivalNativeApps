@@ -110,6 +110,12 @@ struct RivalsScreen: View {
             .padding(.bottom, 24)
         }
         .quickLinks(quickLinks, title: "Quick Links")
+        // Every section below loads for `session.selectedPlayer` but keys its
+        // `task(id:)` only on instrument/scope; this hub survives a profile switch
+        // (tab root, or pushed on a stack the switch does not reset), so key the
+        // sections' state by the selected account or they keep the old account's
+        // rivals (`.agents/platforms/apple/architecture.md`, "Per-entity screens").
+        .id(session.selectedPlayer?.accountId)
     }
 
     private var rankByPicker: some View {

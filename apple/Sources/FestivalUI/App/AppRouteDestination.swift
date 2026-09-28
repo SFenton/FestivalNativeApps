@@ -30,6 +30,15 @@ struct AppRouteDestination: View {
         self.isVisible = isVisible
     }
 
+    /// Selected account for selected-player-scoped routes (Rivals family), whose
+    /// loads read `session.selectedPlayer` rather than a route argument.
+    private var selectedAccountId: String? { session.selectedPlayer?.accountId }
+
+    /// Per-entity identity rule (`.agents/platforms/apple/architecture.md`,
+    /// "Per-entity screens"): every screen below that shows one account's data is
+    /// keyed with `.id(...)` on that account, so its `@State` (phase, pages, pending
+    /// dialogs) starts fresh when the account changes instead of drawing the
+    /// previous account until its `task(id:)` reloads.
     var body: some View {
         switch route {
         case let .songDetail(song):
@@ -47,8 +56,10 @@ struct AppRouteDestination: View {
                 .firstRun(.playerHistory, session: session)
         case let .player(accountId, displayName):
             PlayerProfileScreen(session: session, accountId: accountId, displayName: displayName)
+                .id(accountId)
         case let .playerBands(accountId, displayName):
             PlayerBandsScreen(session: session, accountId: accountId, displayName: displayName)
+                .id(accountId)
         case .bands:
             BandsScreen(session: session)
         case let .band(bandId, name, bandType, teamKey):
@@ -68,10 +79,13 @@ struct AppRouteDestination: View {
                 .firstRun(.rivals, session: session)
         case let .allRivals(scope):
             AllRivalsScreen(session: session, scope: scope)
+                .id(selectedAccountId)
         case let .rivalDetail(rivalId, name, scope):
             RivalDetailScreen(session: session, rivalId: rivalId, name: name, scope: scope)
+                .id(selectedAccountId)
         case let .rivalry(rivalId, mode, name, scope):
             RivalryScreen(session: session, rivalId: rivalId, mode: mode, name: name, scope: scope)
+                .id(selectedAccountId)
         case .statistics:
             StatisticsScreen(session: session)
                 .firstRun(.statistics, session: session)

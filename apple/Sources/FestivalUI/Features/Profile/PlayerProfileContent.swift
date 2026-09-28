@@ -5,11 +5,29 @@ import FestivalDesign
 // MARK: - PlayerProfileContent
 
 /// Loading, syncing, error and available states for one player-profile read.
-private enum PlayerProfilePhase {
+enum PlayerProfilePhase {
     case loading
     case syncing
     case available(PlayerProfilePayload)
     case failed(ServiceIssue)
+
+    /// The phase that may be drawn for `accountId`.
+    ///
+    /// `task(id:)` only restarts a load *after* SwiftUI has already re-rendered with
+    /// the new `accountId`, so a view whose identity survives an account change
+    /// (e.g. the Statistics root after a profile switch) would otherwise draw one
+    /// frame of the previous account's validated payload under the new identity.
+    /// An available payload for any other account is therefore shown as loading.
+    ///
+    /// - Parameter accountId: Account the view currently represents.
+    /// - Returns: `self`, or `.loading` when the payload belongs to another account.
+    func shown(for accountId: String) -> PlayerProfilePhase {
+        if case let .available(payload) = self,
+           payload.profile.accountId.caseInsensitiveCompare(accountId) != .orderedSame {
+            return .loading
+        }
+        return self
+    }
 }
 
 /// Shared body for the pushed `/player/:accountId` route (`PlayerProfileScreen`) and
@@ -86,8 +104,11 @@ struct PlayerProfileContent: View {
 
     private var isSelected: Bool { session.selectedPlayer?.accountId == accountId }
 
+    /// `phase`, never showing another account's payload (see `PlayerProfilePhase.shown(for:)`).
+    private var shownPhase: PlayerProfilePhase { phase.shown(for: accountId) }
+
     private var displayName: String {
-        if case let .available(payload) = phase, let name = payload.profile.displayName {
+        if case let .available(payload) = shownPhase, let name = payload.profile.displayName {
             return name
         }
         return routeDisplayName ?? accountId
@@ -131,7 +152,7 @@ struct PlayerProfileContent: View {
     }
 
     @ViewBuilder private var content: some View {
-        switch phase {
+        switch shownPhase {
         case .loading:
             ProgressView("Loading Profile")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -232,7 +253,7 @@ struct PlayerProfileContent: View {
 
     /// Promote the current viewed, response-proven read to the selected profile.
     private func select() {
-        guard case let .available(payload) = phase else { return }
+        guard case let .available(payload) = shownPhase else { return }
         let result = PlayerSearchResult(accountId: payload.profile.accountId, displayName: displayName)
         do {
             try session.selectPlayer(result, from: payload)

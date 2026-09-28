@@ -292,20 +292,20 @@ struct ProfileSelectionSheet: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
                 } else {
-                    LazyVStack(spacing: 0) {
-                        ForEach(results) { player in
-                            Divider().overlay(BrandTokens.glassBorder)
-                            Button {
-                                openPlayer(accountId: player.accountId, displayName: player.displayName)
-                            } label: {
-                                Label(player.displayName, systemImage: "person.crop.circle")
-                                    .foregroundStyle(BrandTokens.textPrimary)
-                                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                            }
-                            .padding(.horizontal, 16)
-                            .accessibilityLabel("View \(player.displayName)")
-                            .accessibilityIdentifier("fst.profile.result.\(player.accountId)")
+                    // One `Form` row per result (`PlayerSearchResultRows`' doc: a
+                    // shared row of Buttons fired every result on one tap).
+                    PlayerSearchResultRows(results) { player in
+                        Button {
+                            openPlayer(accountId: player.accountId, displayName: player.displayName)
+                        } label: {
+                            Label(player.displayName, systemImage: "person.crop.circle")
+                                .foregroundStyle(BrandTokens.textPrimary)
+                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                .contentShape(Rectangle())
                         }
+                        .padding(.horizontal, 16)
+                        .accessibilityLabel("View \(player.displayName)")
+                        .accessibilityIdentifier("fst.profile.result.\(player.accountId)")
                     }
                 }
             case let .failed(message):
