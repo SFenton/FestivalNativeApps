@@ -174,6 +174,48 @@ class TaskAndParserTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parser.parse_args(["shot", "a.png", "--mode", "gdi"])
 
+    def test_front_and_isolate_flags(self):
+        parser = u.build_parser()
+        front = parser.parse_args(["front", "--isolate"])
+        self.assertIs(front.func, u.cmd_front)
+        self.assertTrue(front.isolate)
+        drive = parser.parse_args(["drive", "--steps", "wait:1", "--isolate", "--pid", "9"])
+        self.assertEqual((drive.isolate, drive.pid), (True, 9))
+        self.assertFalse(parser.parse_args(["tree"]).isolate)
+
+
+class OcclusionRobustnessTests(unittest.TestCase):
+    """Regression: other lanes' windows covering the target (foreground/isolate) and MSYS step paths."""
+
+    def test_target_request(self):
+        self.assertEqual(u.target_request(5, None, {"pid": 1}), {"pid": 5})
+        self.assertEqual(u.target_request(None, "App", None), {"process": "App"})
+        self.assertEqual(u.target_request(None, None, {"pid": 7}, isolate=True),
+                         {"pid": 7, "isolate": True})
+        for last in (None, {}, {"pid": 0}):
+            with self.assertRaises(ValueError):
+                u.target_request(None, None, last)
+
+    def test_native_path(self):
+        if u.os.name != "nt":
+            self.skipTest("MSYS translation is Windows-only")
+        self.assertEqual(u.native_path("/c/Users/me/a.png"), "C:/Users/me/a.png")
+        self.assertEqual(u.native_path("/d"), "D:/")
+        for unchanged in ("C:/x.png", "out/a.png", "/tmp2/a.png", r"C:\x\y.png"):
+            self.assertEqual(u.native_path(unchanged), unchanged)
+        shot = u.parse_step("shot:/c/Temp/fst/a.png")
+        self.assertTrue(shot["arg"].upper().startswith("C:\\TEMP\\FST"), shot["arg"])
+
+    def test_driver_foregrounds_before_input_steps(self):
+        # The driver's contract lives in C#; guard that every real-input verb is foregrounded and that
+        # isolation is restored when the request ends.
+        source = (u.DRIVER_DIR / "Program.cs").read_text(encoding="utf-8")
+        verbs = source.split("InputVerbs = [", 1)[1].split("]", 1)[0]
+        for verb in ("click", "rightclick", "type", "key", "scroll"):
+            self.assertIn(f'"{verb}"', verbs)
+        self.assertIn("RestoreIsolated();", source.split("finally", 1)[1][:200])
+        self.assertIn('"front" => Front(', source)
+
 
 if __name__ == "__main__":
     unittest.main()

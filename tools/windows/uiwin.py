@@ -201,8 +201,27 @@ def parse_step(step: str) -> dict:
     elif shape == "preset":
         result["op"] = preset_op(arg)
     if shape == "path":
-        result["arg"] = str(Path(result["arg"]).resolve())
+        result["arg"] = str(Path(native_path(result["arg"])).resolve())
     return result
+
+
+def native_path(text: str) -> str:
+    """Translate an MSYS/Git Bash drive path (``/c/Users/...``) to Windows form.
+
+    Git Bash rewrites standalone ``/c/...`` arguments for native programs but not
+    paths embedded in a step (``shot:/c/...``), which Python would otherwise
+    resolve to ``C:\\c\\...``.
+
+    Args:
+        text: A path as typed.
+
+    Returns:
+        ``C:/Users/...`` for an MSYS drive path; anything else unchanged.
+    """
+    match = re.fullmatch(r"/([a-zA-Z])(/.*)?", text)
+    if match and os.name == "nt":
+        return f"{match.group(1).upper()}:{match.group(2) or '/'}"
+    return text
 
 
 def parse_steps(steps: str | None, steps_file: str | None) -> list[str]:
@@ -519,16 +538,44 @@ def _state_path() -> Path:
     return EXCHANGE_DIR / f"last-{REPO_ROOT.name}.json"
 
 
+def target_request(pid: int | None, process: str | None, last: dict | None,
+                   isolate: bool = False) -> dict:
+    """Build the target part of a driver request.
+
+    Args:
+        pid: Explicit ``--pid``.
+        process: Explicit ``--process`` name.
+        last: This worktree's last-launch record (``{"pid": ...}``) or None.
+        isolate: ``--isolate``: minimize other same-named app windows overlapping
+            the target before input (restored when the request ends).
+
+    Returns:
+        ``{"pid": ...}`` or ``{"process": ...}``, plus ``"isolate": True`` when set.
+
+    Raises:
+        ValueError: No target could be resolved.
+    """
+    if pid:
+        target: dict = {"pid": pid}
+    elif process:
+        target = {"process": process}
+    elif last and last.get("pid"):
+        target = {"pid": last["pid"]}
+    else:
+        raise ValueError("no target: pass --pid/--process or `launch` first")
+    if isolate:
+        target["isolate"] = True
+    return target
+
+
 def _target(args: argparse.Namespace) -> dict:
     """Resolve ``--pid``/``--process`` or the pid last launched from this worktree."""
-    if getattr(args, "pid", None):
-        return {"pid": args.pid}
-    if getattr(args, "process", None):
-        return {"process": args.process}
     try:
-        return {"pid": json.loads(_state_path().read_text(encoding="utf-8"))["pid"]}
-    except (OSError, ValueError, KeyError):
-        raise ValueError("no target: pass --pid/--process or `launch` first") from None
+        last = json.loads(_state_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        last = None
+    return target_request(getattr(args, "pid", None), getattr(args, "process", None), last,
+                          getattr(args, "isolate", False))
 
 
 def _lock(args: argparse.Namespace, purpose: str) -> HostLock:
@@ -543,7 +590,7 @@ def _report(result: dict) -> None:
 
 def cmd_launch(args: argparse.Namespace) -> int:
     """Launch the app with debug environment, optionally resize and screenshot."""
-    exe = Path(args.exe).resolve()
+    exe = Path(native_path(args.exe)).resolve()
     if not exe.is_file():
         raise ValueError(f"no executable at {exe}")
     request = {"command": "launch", "exe": str(exe), "args": args.arg or [],
@@ -562,7 +609,7 @@ def cmd_launch(args: argparse.Namespace) -> int:
         if args.shot:
             time.sleep(args.wait)
             result = run_driver({"command": "shot", "pid": result["pid"],
-                                 "out": str(Path(args.shot).resolve())}, lock)
+                                 "out": str(Path(native_path(args.shot)).resolve())}, lock)
     _report(result)
     return 0
 
@@ -588,7 +635,7 @@ def cmd_resize(args: argparse.Namespace) -> int:
 
 def cmd_shot(args: argparse.Namespace) -> int:
     """Screenshot the target window (PrintWindow, or composited screen pixels)."""
-    out = str(Path(args.out).resolve())
+    out = str(Path(native_path(args.out)).resolve())
     with _lock(args, "shot") as lock:
         result = run_driver({"command": "shot", **_target(args), "out": out,
                              "mode": args.mode}, lock)
@@ -599,7 +646,7 @@ def cmd_shot(args: argparse.Namespace) -> int:
 
 def cmd_tree(args: argparse.Namespace) -> int:
     """Dump the UIA control-view tree (to a file or stdout)."""
-    out = str(Path(args.out).resolve()) if args.out else None
+    out = str(Path(native_path(args.out)).resolve()) if args.out else None
     with _lock(args, "tree") as lock:
         result = run_driver({"command": "tree", **_target(args), "out": out,
                              "depth": args.depth}, lock)
@@ -616,6 +663,13 @@ def cmd_drive(args: argparse.Namespace) -> int:
     with _lock(args, "drive") as lock:
         _report(run_driver({"command": "drive", **_target(args), "steps": steps}, lock,
                            budget=lock.remaining()))
+    return 0
+
+
+def cmd_front(args: argparse.Namespace) -> int:
+    """Bring the target to the foreground and report anything still covering it."""
+    with _lock(args, "front") as lock:
+        _report(run_driver({"command": "front", **_target(args)}, lock))
     return 0
 
 
@@ -715,6 +769,9 @@ def build_parser() -> argparse.ArgumentParser:
     group = target.add_mutually_exclusive_group()
     group.add_argument("--pid", type=int)
     group.add_argument("--process", help="process name without .exe")
+    target.add_argument("--isolate", action="store_true",
+                        help="minimize other instances' windows overlapping the target during "
+                             "input (other lanes' app windows); restored afterwards")
 
     sub = parser.add_subparsers(dest="command", required=True)
     launch = sub.add_parser("launch", parents=[common], help="launch with debug env")
@@ -745,6 +802,8 @@ def build_parser() -> argparse.ArgumentParser:
     drive.add_argument("--steps")
     drive.add_argument("--steps-file")
     drive.set_defaults(func=cmd_drive)
+    sub.add_parser("front", parents=[target],
+                   help="bring to foreground; report covering windows").set_defaults(func=cmd_front)
     sub.add_parser("close", parents=[target], help="close window").set_defaults(func=cmd_close)
     perf = sub.add_parser("perf-sample", parents=[target], help="CPU/GPU/memory sampling")
     perf.add_argument("--seconds", type=int, default=10)

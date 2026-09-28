@@ -80,12 +80,18 @@ public static class Program
     #endregion
 }
 
-/// <summary>Executes launch/window/resize/shot/tree/drive/close requests.</summary>
+/// <summary>Executes launch/window/resize/shot/tree/drive/front/close requests.</summary>
 /// <param name="automation">Shared UIA3 automation instance.</param>
 /// <param name="response">Response object (steps append to <c>log</c>).</param>
 internal sealed class Driver(UIA3Automation automation, JsonObject response)
 {
     #region Dispatch
+
+    /// <summary>Other app windows minimized by <c>isolate</c>; restored when the request ends.</summary>
+    private readonly List<IntPtr> isolated = [];
+
+    /// <summary>Whether input steps minimize overlapping windows of other same-named processes (other lanes).</summary>
+    private bool isolate;
 
     /// <summary>Runs the request's <c>command</c>.</summary>
     /// <param name="request">Request JSON.</param>
@@ -93,17 +99,119 @@ internal sealed class Driver(UIA3Automation automation, JsonObject response)
     public JsonNode Execute(JsonObject request)
     {
         var command = (string?)request["command"] ?? throw new ArgumentException("missing command");
-        return command switch
+        isolate = (bool?)request["isolate"] ?? false;
+        try
         {
-            "launch" => Launch(request),
-            "window" => Describe(FindWindow(request)),
-            "resize" => Resize(FindWindow(request), request["op"]!.AsObject()),
-            "shot" => Shot(FindWindow(request), (string)request["out"]!, (string?)request["mode"] ?? "print"),
-            "tree" => Tree(FindWindow(request), (string?)request["out"], (int?)request["depth"] ?? 40),
-            "drive" => Drive(FindWindow(request), request["steps"]!.AsArray()),
-            "close" => Close(request),
-            _ => throw new ArgumentException($"unknown command {command}"),
-        };
+            return command switch
+            {
+                "launch" => Launch(request),
+                "window" => Describe(FindWindow(request)),
+                "resize" => Resize(FindWindow(request), request["op"]!.AsObject()),
+                "shot" => Shot(FindWindow(request), (string)request["out"]!, (string?)request["mode"] ?? "print"),
+                "tree" => Tree(FindWindow(request), (string?)request["out"], (int?)request["depth"] ?? 40),
+                "drive" => Drive(FindWindow(request), request["steps"]!.AsArray()),
+                "front" => Front(FindWindow(request)),
+                "close" => Close(request),
+                _ => throw new ArgumentException($"unknown command {command}"),
+            };
+        }
+        finally
+        {
+            RestoreIsolated();
+        }
+    }
+
+    #endregion
+
+    #region Foreground
+
+    /// <summary>
+    /// Makes the target the foreground window before real input: raises it to the top of the non-topmost band,
+    /// optionally minimizes overlapping windows of other same-named processes (other lanes' app instances), activates
+    /// it and waits until Windows reports it as foreground. Throws when it is still not foreground and something
+    /// overlaps it from above, since clicks, wheel scrolls and keys would otherwise land in another window.
+    /// </summary>
+    /// <param name="window">Target.</param>
+    /// <returns>State after the attempt: <c>foreground</c> and <c>covered_by</c> (windows above that overlap it).</returns>
+    private JsonObject EnsureForeground(Window window)
+    {
+        var hwnd = window.Properties.NativeWindowHandle.Value;
+        var pid = window.Properties.ProcessId.Value;
+        if (isolate) IsolateFrom(hwnd, pid);
+        var foreground = Native.BringToForeground(hwnd, TimeSpan.FromSeconds(3));
+        var blockers = Native.WindowsAbove(hwnd, pid);
+        if (!foreground && blockers.Count > 0)
+        {
+            throw new InvalidOperationException("target window is not foreground and is covered by " +
+                string.Join(", ", blockers.Select(b => $"\"{b.Title}\" (pid {b.Pid})")) + "; retry with --isolate or close them");
+        }
+        var covered = new JsonArray();
+        foreach (var blocker in blockers) covered.Add(JsonValue.Create($"{blocker.Title} (pid {blocker.Pid})"));
+        return new JsonObject { ["foreground"] = foreground, ["covered_by"] = covered };
+    }
+
+    /// <summary>Minimizes visible, overlapping top-level windows of other processes with the target's name.</summary>
+    /// <param name="hwnd">Target window.</param>
+    /// <param name="pid">Target process.</param>
+    private void IsolateFrom(IntPtr hwnd, int pid)
+    {
+        string name;
+        try
+        {
+            using var target = Process.GetProcessById(pid);
+            name = target.ProcessName;
+        }
+        catch (ArgumentException)
+        {
+            return;
+        }
+        var bounds = Native.VisibleBounds(hwnd);
+        foreach (var other in Process.GetProcessesByName(name))
+        {
+            using (other)
+            {
+                if (other.Id == pid) continue;
+                foreach (var candidate in Native.TopLevelWindows(other.Id))
+                {
+                    if (Native.IsIconic(candidate) || !Native.VisibleBounds(candidate).IntersectsWith(bounds)) continue;
+                    Native.ShowWindow(candidate, Native.SwMinimize);
+                    isolated.Add(candidate);
+                    Log($"isolate: minimized pid {other.Id} window 0x{candidate.ToInt64():x}");
+                }
+            }
+        }
+    }
+
+    /// <summary>Restores windows minimized by <see cref="IsolateFrom"/> without activating them.</summary>
+    private void RestoreIsolated()
+    {
+        foreach (var hwnd in isolated) Native.ShowWindow(hwnd, Native.SwShowNoActivate);
+        if (isolated.Count > 0) Log($"isolate: restored {isolated.Count} window(s)");
+        isolated.Clear();
+    }
+
+    /// <summary><c>front</c>: foreground the target and report what (if anything) still covers it.</summary>
+    /// <param name="window">Target.</param>
+    /// <returns>Window description plus foreground state.</returns>
+    private JsonNode Front(Window window)
+    {
+        var state = EnsureForeground(window);
+        var result = Describe(window).AsObject();
+        result["foreground"] = (bool)state["foreground"]!;
+        result["covered_by"] = state["covered_by"]!.DeepClone();
+        return result;
+    }
+
+    /// <summary>Appends a line to the response log.</summary>
+    /// <param name="line">Text.</param>
+    private void Log(string line)
+    {
+        if (response["log"] is not JsonArray log)
+        {
+            log = [];
+            response["log"] = log;
+        }
+        log.Add(JsonValue.Create(line));
     }
 
     #endregion
@@ -247,7 +355,12 @@ internal sealed class Driver(UIA3Automation automation, JsonObject response)
     {
         var hwnd = window.Properties.NativeWindowHandle.Value;
         var bounds = Native.VisibleBounds(hwnd);
-        using var bitmap = mode == "screen" ? ScreenCapture(window, bounds) : Native.PrintWindow(hwnd, bounds);
+        if (mode == "screen")
+        {
+            EnsureForeground(window);
+            Thread.Sleep(300);
+        }
+        using var bitmap = mode == "screen" ? ScreenCapture(bounds) : Native.PrintWindow(hwnd, bounds);
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(output))!);
         bitmap.Save(output, ImageFormat.Png);
         var result = Describe(window).AsObject();
@@ -256,10 +369,8 @@ internal sealed class Driver(UIA3Automation automation, JsonObject response)
         return result;
     }
 
-    private static Bitmap ScreenCapture(Window window, Rectangle bounds)
+    private static Bitmap ScreenCapture(Rectangle bounds)
     {
-        window.SetForeground();
-        Thread.Sleep(300);
         var bitmap = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppArgb);
         using var graphics = Graphics.FromImage(bitmap);
         graphics.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size);
@@ -322,17 +433,20 @@ internal sealed class Driver(UIA3Automation automation, JsonObject response)
 
     #region Drive
 
+    /// <summary>Steps that send real mouse/keyboard input and so need the target in front.</summary>
+    private static readonly HashSet<string> InputVerbs = ["click", "rightclick", "type", "key", "scroll"];
+
     private JsonNode Drive(Window window, JsonArray steps)
     {
-        var log = new JsonArray();
-        response["log"] = log;
         foreach (var node in steps)
         {
             var step = node!.AsObject();
             var verb = (string)step["verb"]!;
             var arg = (string?)step["arg"] ?? "";
+            if (InputVerbs.Contains(verb) && !(bool)EnsureForeground(window)["foreground"]!)
+                Log("warning: target is not foreground (nothing covers it, so input proceeds)");
             RunStep(window, verb, arg, step);
-            log.Add(JsonValue.Create($"ok {verb}:{arg}"));
+            Log($"ok {verb}:{arg}");
         }
         return Describe(window);
     }
@@ -371,11 +485,9 @@ internal sealed class Driver(UIA3Automation automation, JsonObject response)
                 Find(window, step);
                 break;
             case "type":
-                window.SetForeground();
                 Keyboard.Type(arg);
                 break;
             case "key":
-                window.SetForeground();
                 var keys = step["vk"]!.AsArray().Select(k => (VirtualKeyShort)(int)k!).ToArray();
                 Keyboard.TypeSimultaneously(keys);
                 break;
@@ -415,7 +527,6 @@ internal sealed class Driver(UIA3Automation automation, JsonObject response)
         {
             point = Find(window, step).GetClickablePoint();
         }
-        window.SetForeground();
         Mouse.Click(point, button);
     }
 
@@ -466,6 +577,16 @@ internal static class Native
 
     public const int SwMaximize = 3;
     public const int SwRestore = 9;
+    public const int SwMinimize = 6;
+    public const int SwShowNoActivate = 4;
+    private const int DwmwaCloaked = 14;
+    private const uint GwHwndPrev = 3;
+    private const int GwlExStyle = -20;
+    private const long WsExTransparent = 0x20;
+    private const uint SwpNoSize = 0x0001;
+    private const uint SwpNoMove = 0x0002;
+    private static readonly IntPtr HwndTopmost = new(-1);
+    private static readonly IntPtr HwndNoTopmost = new(-2);
     private const int DwmwaExtendedFrameBounds = 9;
     private const uint PwRenderFullContent = 2;
     private const uint SwpNoZOrder = 0x0004;
@@ -488,6 +609,104 @@ internal static class Native
     [DllImport("user32.dll")] private static extern bool GetMonitorInfo(IntPtr monitor, ref MONITORINFO info);
     [DllImport("user32.dll")] private static extern bool PrintWindow(IntPtr hwnd, IntPtr hdc, uint flags);
     [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(IntPtr hwnd, int attribute, out RECT value, int size);
+    [DllImport("dwmapi.dll", EntryPoint = "DwmGetWindowAttribute")] private static extern int DwmGetWindowAttributeInt(IntPtr hwnd, int attribute, out int value, int size);
+    [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hwnd);
+    [DllImport("user32.dll")] private static extern bool BringWindowToTop(IntPtr hwnd);
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
+    [DllImport("user32.dll")] private static extern bool AttachThreadInput(uint attach, uint to, bool doAttach);
+    [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")] private static extern IntPtr GetWindow(IntPtr hwnd, uint command);
+    [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr hwnd);
+    [DllImport("user32.dll")] private static extern IntPtr GetWindowLongPtrW(IntPtr hwnd, int index);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowTextW(IntPtr hwnd, StringBuilder text, int max);
+    [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowsProc callback, IntPtr data);
+    [DllImport("user32.dll")] private static extern uint SendInput(uint count, INPUT[] inputs, int size);
+
+    private delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr data);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct INPUT { public uint type; public MOUSEINPUT mi; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MOUSEINPUT { public int dx, dy; public uint mouseData, dwFlags, time; public IntPtr dwExtraInfo; }
+
+    #endregion
+
+    #region Foreground and Z-order
+
+    /// <summary>
+    /// Raises and activates a window despite the foreground lock (this driver is a background process): a
+    /// topmost/not-topmost bounce puts it above every normal window, then activation is retried with the foreground
+    /// thread's input attached and after a zero-length mouse move (which makes this process the last input owner).
+    /// </summary>
+    /// <returns><see langword="true"/> when it became the foreground window within <paramref name="timeout"/>.</returns>
+    public static bool BringToForeground(IntPtr hwnd, TimeSpan timeout)
+    {
+        if (IsIconic(hwnd)) ShowWindow(hwnd, SwRestore);
+        SetWindowPos(hwnd, HwndTopmost, 0, 0, 0, 0, SwpNoMove | SwpNoSize | SwpNoActivate);
+        SetWindowPos(hwnd, HwndNoTopmost, 0, 0, 0, 0, SwpNoMove | SwpNoSize | SwpNoActivate);
+        var until = DateTime.UtcNow + timeout;
+        for (var attempt = 0; DateTime.UtcNow < until; attempt++)
+        {
+            if (GetForegroundWindow() == hwnd) return true;
+            if (attempt > 0) SendInput(1, [new INPUT { type = 0, mi = new MOUSEINPUT { dwFlags = 0x0001 } }], Marshal.SizeOf<INPUT>());
+            var current = GetForegroundWindow();
+            var foregroundThread = current == IntPtr.Zero ? 0 : GetWindowThreadProcessId(current, out _);
+            var me = GetCurrentThreadId();
+            var attached = foregroundThread != 0 && foregroundThread != me && AttachThreadInput(me, foregroundThread, true);
+            try
+            {
+                BringWindowToTop(hwnd);
+                SetForegroundWindow(hwnd);
+            }
+            finally
+            {
+                if (attached) AttachThreadInput(me, foregroundThread, false);
+            }
+            for (var i = 0; i < 10 && GetForegroundWindow() != hwnd; i++) Thread.Sleep(50);
+        }
+        return GetForegroundWindow() == hwnd;
+    }
+
+    /// <summary>Visible, uncloaked, non-click-through windows of other processes above the target that overlap it.</summary>
+    public static List<(string Title, int Pid)> WindowsAbove(IntPtr hwnd, int ownPid)
+    {
+        var bounds = VisibleBounds(hwnd);
+        var result = new List<(string, int)>();
+        var count = 0;
+        for (var other = GetWindow(hwnd, GwHwndPrev); other != IntPtr.Zero && count < 4096; other = GetWindow(other, GwHwndPrev), count++)
+        {
+            if (!IsWindowVisible(other) || IsIconic(other) || IsCloaked(other)) continue;
+            if ((GetWindowLongPtrW(other, GwlExStyle).ToInt64() & WsExTransparent) != 0) continue;
+            GetWindowThreadProcessId(other, out var pid);
+            if (pid == ownPid) continue;
+            var overlap = VisibleBounds(other);
+            overlap.Intersect(bounds);
+            if (overlap.Width <= 0 || overlap.Height <= 0) continue;
+            var title = new StringBuilder(256);
+            GetWindowTextW(other, title, title.Capacity);
+            result.Add((title.ToString(), (int)pid));
+        }
+        return result;
+    }
+
+    /// <summary>Visible, uncloaked top-level windows owned by a process.</summary>
+    public static List<IntPtr> TopLevelWindows(int pid)
+    {
+        var windows = new List<IntPtr>();
+        EnumWindows((hwnd, _) =>
+        {
+            GetWindowThreadProcessId(hwnd, out var owner);
+            if (owner == pid && IsWindowVisible(hwnd) && !IsCloaked(hwnd)) windows.Add(hwnd);
+            return true;
+        }, IntPtr.Zero);
+        return windows;
+    }
+
+    /// <summary>Whether DWM cloaks the window (another virtual desktop or shell-hidden).</summary>
+    private static bool IsCloaked(IntPtr hwnd) =>
+        DwmGetWindowAttributeInt(hwnd, DwmwaCloaked, out var cloaked, sizeof(int)) == 0 && cloaked != 0;
 
     #endregion
 
