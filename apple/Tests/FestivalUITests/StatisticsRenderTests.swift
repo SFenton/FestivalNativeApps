@@ -10,7 +10,7 @@ import FestivalDesign
 // MARK: - StatisticsScreen
 //
 // `StatisticsScreen` is a thin wrapper reusing `PlayerProfileContent` (deeply
-// covered by `PlayerProfileRenderTests.swift`) always in its "This Is Me" state,
+// covered by `PlayerProfileRenderTests.swift`) always in its selected (Deselect) state,
 // plus its own no-profile guard. These tests cover just that wrapper's own two
 // branches, not every `PlayerProfileContent` sub-state again.
 

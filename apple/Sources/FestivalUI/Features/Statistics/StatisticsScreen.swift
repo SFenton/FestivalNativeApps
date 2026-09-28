@@ -10,7 +10,7 @@ import FestivalDesign
 /// account (`App.tsx:95-105`); this tab is only reachable once a player is
 /// selected (`FestivalTabPolicy.sections(profile:)`), so this screen reuses the
 /// same `PlayerProfileContent` the pushed `/player/:accountId` route uses, always
-/// in its "This Is Me" state. The defensive empty state below only appears for the
+/// in its selected (Deselect) state. The defensive empty state below only appears for the
 /// brief moment between an explicit deselect and the tab bar hiding Statistics.
 struct StatisticsScreen: View {
     let session: FestivalSession

@@ -8,7 +8,7 @@ import FestivalDesign
 /// profile; ported from the web `PlayerPage` in "viewed" mode).
 ///
 /// Shows the same content whether or not `accountId` is the currently selected
-/// player: `PlayerProfileContent` renders "This Is Me"/Deselect when it is, and a
+/// player: `PlayerProfileContent` offers Deselect when it is, and a
 /// Select/Switch action (or an honest unverified/changed notice) otherwise.
 struct PlayerProfileScreen: View {
     let session: FestivalSession

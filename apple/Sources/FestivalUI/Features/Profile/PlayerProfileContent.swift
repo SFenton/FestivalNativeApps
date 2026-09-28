@@ -267,21 +267,13 @@ struct PlayerProfileContent: View {
         FestivalGlassSection {
             HStack(spacing: 12) {
                 ProfileAvatar(name: displayName, size: 44)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(displayName)
-                        .font(.title3.bold())
-                        .foregroundStyle(BrandTokens.textPrimary)
-                        .accessibilityIdentifier("fst.player.name")
-                    Text(isSelected ? "This Is Me" : "Public Profile")
-                        .font(.subheadline)
-                        .foregroundStyle(isSelected ? BrandTokens.accentBlue : BrandTokens.textSecondary)
-                }
+                // Name only, like the web's PlayerPage: selection state shows solely
+                // through the Select/Switch/Deselect action (operator, 2026-09-28).
+                Text(displayName)
+                    .font(.title3.bold())
+                    .foregroundStyle(BrandTokens.textPrimary)
+                    .accessibilityIdentifier("fst.player.name")
                 Spacer(minLength: 0)
-                if isSelected {
-                    Image(systemName: "checkmark.seal.fill")
-                        .foregroundStyle(BrandTokens.accentBlue)
-                        .accessibilityHidden(true)
-                }
             }
             identityPause(payload)
             if let actionError {

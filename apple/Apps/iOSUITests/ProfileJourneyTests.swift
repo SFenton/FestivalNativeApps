@@ -100,7 +100,8 @@ final class ProfileJourneyTests: XCTestCase {
     }
 
     /// Operator rule: Select and Deselect on the Player Profile page update it in
-    /// place ("This Is Me" ⇄ "Public Profile"). They never pop, push or dismiss, and
+    /// place (the action flips Select ⇄ Deselect; there is no "This Is Me" / "Public
+    /// Profile" subtitle, matching the web). They never pop, push or dismiss, and
     /// the page keeps showing the same account throughout. Uses Settings, the one
     /// iPhone tab that exists both with and without a selected player, so tab-set
     /// changes cannot mask a navigation.
@@ -121,7 +122,7 @@ final class ProfileJourneyTests: XCTestCase {
             app.buttons["fst.player.deselect"].waitForExistence(timeout: 10),
             "Select did not update the page to its selected state in place"
         )
-        XCTAssertTrue(app.staticTexts["This Is Me"].exists)
+        XCTAssertFalse(app.staticTexts["This Is Me"].exists)
         assertViewing("Fixture Player 1", in: app)
 
         app.buttons["fst.player.deselect"].tap()
@@ -133,7 +134,7 @@ final class ProfileJourneyTests: XCTestCase {
             app.buttons["fst.player.select"].waitForExistence(timeout: 10),
             "Deselect did not update the page to its public state in place"
         )
-        XCTAssertTrue(app.staticTexts["Public Profile"].exists)
+        XCTAssertFalse(app.staticTexts["Public Profile"].exists)
         assertViewing("Fixture Player 1", in: app)
         XCTAssertTrue(app.navigationBars.buttons["BackButton"].exists, "The page was popped")
     }

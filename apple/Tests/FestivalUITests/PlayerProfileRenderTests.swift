@@ -67,7 +67,7 @@ private func renderProfile(
 }
 
 @MainActor
-@Test func playerProfileSelectedShowsDeselectAndThisIsMe() async throws {
+@Test func playerProfileSelectedShowsDeselectAction() async throws {
     let (session, storage, suite) = try await profileFixtureSession(identity: "fixture-player-1")
     defer { if let suite { storage?.removePersistentDomain(forName: suite) } }
     #expect(session.selectedPlayer?.accountId == "fixture-player-1")
