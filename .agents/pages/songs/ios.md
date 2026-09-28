@@ -5,7 +5,7 @@
 ## Implemented (partial)
 
 - Live public Songs by default (728 songs decoded on 2026-09-25); fixtures via loopback override.
-- Search: iOS 26.1+ "Search Songs" pill in the tab-bar accessory (`fst.songs.search.open`, clear `fst.songs.search.clear`) that docks a focused field `fst.songs.search` above the keyboard; `.searchable` elsewhere ([nav-accessories.md](../../design/apple/nav-accessories.md)); title-ordered list by default, scene-owned instrument filter (now applied via [Filter](../../controls/songs-filter/ios.md), not its own toolbar Menu), Detail/Solo navigation, accessible notice when a publication change or hidden instrument clears a route/filter.
+- Inline `.searchable` list filter, prompt "Filter Songs" (separate from [global search](../../controls/global-search/ios.md), which lives in the tab accessory / toolbar); title-ordered list by default, scene-owned instrument filter (now applied via [Filter](../../controls/songs-filter/ios.md), not its own toolbar Menu), Detail/Solo navigation, accessible notice when a publication change or hidden instrument clears a route/filter.
 - `.festivalRootChrome(session:)` owns the top-right profile button and (drawer, Lane A) — Songs no longer keeps its own profile button/sheet or an Item Shop toolbar button; Shop is reached from the drawer. The in-page "Choose Profile" empty state uses `@Environment(\.openProfile)`.
 - Sort + Filter are a `ToolbarItemGroup(Self.pageActionPlacement)` (`.topBarTrailing` on iOS, `.primaryAction` elsewhere); both tint gold when their applied choice is non-default. Per the [toolbar order rule](../../controls/app-navigation/ios.md#toolbar-order-rule-tab-roots), Songs ends its own `.toolbar` with `FestivalRootTrailingItems(session:)` and applies `.festivalProvidesRootTrailingItems()` so the shared bell+avatar capsule (which owns its own `ToolbarSpacer`) stays the rightmost item: `[drawer] … [sort] [filter] [quick links] [bell] [avatar]`.
 - Duration and Item Shop sorts show a **Quick Links** toolbar menu ([quick-links/ios.md](../../controls/quick-links/ios.md)); Title/Artist/Year hide it because the section-index scrubber already owns jump navigation there.
@@ -23,7 +23,7 @@
 
 | Web | iPhone | Why |
 |---|---|---|
-| Lower Search/Sort dock, bottom sheets | Search in the tab-bar accessory (26.1+) or large-title `.searchable`; top toolbar Sort/Filter; full-height system sheets | A bottom toolbar renders behind the Liquid Glass tab; the accessory is the system slot above it |
+| Lower Search/Sort dock, bottom sheets | Large-title `.searchable` filter, top toolbar Sort/Filter, full-height system sheets; global Search in the tab accessory | A bottom toolbar renders behind the Liquid Glass tab |
 | Row is a link with a trailing chevron in most lists | Card-style row **is** the tap target, no chevron | Apple HIG: card rows drop the disclosure indicator. Implemented as an invisible, stretched `NavigationLink` behind the visible glass card (`ZStack` + `.opacity(0)`), combined into one VoiceOver stop — a List row's automatic accessory only appears for a *visible* `NavigationLink` label |
 | Icons-off fallback to Lead even if hidden | First **visible/filtered** chart | Respect Settings |
 | Last Played hidden under Title | Toggle-controlled date under Title | Until Last Played sort ships |

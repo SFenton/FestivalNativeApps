@@ -59,31 +59,18 @@ enum ProfileIdentityAction: Hashable {
 
 // MARK: - Accessory
 
-/// Mini-player-style bar: avatar, name and relationship, and the action button.
+/// The player page's part of the tab accessory, after global Search: the account's
+/// monogram and the action button (the page title already names the player).
 struct ProfileIdentityAccessory: View {
     let name: String
     let action: ProfileIdentityAction
     let perform: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
-            ProfileAvatar(name: name, size: 28)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(name)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(BrandTokens.textPrimary)
-                    .lineLimit(1)
-                Text(action == .deselect ? "Selected Profile" : "Public Profile")
-                    .font(.caption)
-                    .foregroundStyle(BrandTokens.textSecondary)
-                    .lineLimit(1)
-            }
-            .accessibilityElement(children: .combine)
-            Spacer(minLength: 8)
+        HStack(spacing: 8) {
+            ProfileAvatar(name: name, size: 26)
             button
         }
-        .padding(.leading, 12)
-        .padding(.trailing, 6)
     }
 
     /// Flat (non-glass) button inside the system's glass accessory: no glass on glass.
@@ -95,7 +82,7 @@ struct ProfileIdentityAccessory: View {
         }
         .buttonBorderShape(.capsule)
         .controlSize(.small)
-        .accessibilityLabel(action.title)
+        .accessibilityLabel(action == .deselect ? "Deselect \(name)" : "\(action.title): \(name)")
         .accessibilityIdentifier(action.accessibilityIdentifier)
         if action.isProminent {
             base.buttonStyle(.borderedProminent).tint(BrandTokens.accentBlue)

@@ -483,24 +483,20 @@ enum SongsUITestSupport {
         return app.tabBars.buttons[name]
     }
 
-    /// The Songs search field, opened first where search lives in the tab-bar accessory.
+    /// The Songs list's inline filter field (`.searchable`, prompt "Filter Songs").
     ///
-    /// iOS 26.1+ iPhone docks `fst.songs.search` only after the accessory's
-    /// `fst.songs.search.open` pill is tapped; elsewhere the system `.searchable`
-    /// field is always present (`.agents/design/apple/nav-accessories.md`).
+    /// Matched by its prompt so it is never confused with global search's field
+    /// (the iOS 26 search tab), see `.agents/controls/global-search/ios.md`.
     ///
     /// - Parameter app: Foreground app on the Songs root.
-    /// - Returns: The focused (accessory) or tappable (`.searchable`) search field.
+    /// - Returns: The Songs filter search field.
     @MainActor
     static func songsSearchField(in app: XCUIApplication) -> XCUIElement {
-        let open = app.buttons["fst.songs.search.open"]
-        if open.waitForExistence(timeout: 2) {
-            open.tap()
-            let field = app.textFields["fst.songs.search"]
-            XCTAssertTrue(field.waitForExistence(timeout: 5))
-            return field
-        }
-        return app.searchFields.firstMatch
+        let field = app.searchFields.matching(
+            NSPredicate(format: "placeholderValue == %@", "Filter Songs")
+        ).firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        return field
     }
 
     /// Scroll a large-type error until Retry is both tappable and above native navigation.

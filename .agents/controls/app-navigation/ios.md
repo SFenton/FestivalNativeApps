@@ -21,4 +21,4 @@ SwiftUI lays out items from an outer `.toolbar` modifier (the root chrome) *befo
 
 ## Tab-bar bottom accessory
 
-`FestivalRootView` applies `.festivalTabAccessoryHost()` to the iPhone `TabView` (`Common/TabAccessory/TabAccessory.swift`). Pages register content with `.festivalTabAccessory(token:isEnabled:)` while visible; the newest registration is shown, and the tab bar minimizes on scroll only while one is. Which pages use it, and their fallbacks: [nav-accessories.md](../../design/apple/nav-accessories.md).
+`FestivalRootView` applies `.festivalTabAccessoryHost()` to the iPhone `TabView` (`Common/TabAccessory/TabAccessory.swift`) on iOS 26.1+: global Search on every page, then the visible page's action registered with `.festivalTabAccessory(token:isEnabled:)`. The tab bar minimizes on scroll. Elsewhere `FestivalRootTrailingItems` and pushed pages show a toolbar Search button. Details: [nav-accessories.md](../../design/apple/nav-accessories.md), [global-search](../global-search/ios.md).

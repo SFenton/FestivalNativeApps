@@ -4,11 +4,12 @@ import FestivalDesign
 
 // MARK: - Registry
 
-/// The pages currently offering a tab-bar bottom accessory, most recently shown last.
+/// The pages currently offering an action for the tab-bar bottom accessory, most
+/// recently shown last.
 ///
-/// SwiftUI allows one `tabViewBottomAccessory` per `TabView`, attached at the root,
-/// but its content belongs to whichever page is on screen (Songs search, the
-/// player page's Select/Deselect). Pages register while they are visible
+/// SwiftUI allows one `tabViewBottomAccessory` per `TabView`, attached at the root. It
+/// always holds global Search; its trailing action belongs to whichever page is on
+/// screen (today the player page's Select/Switch/Deselect). Pages register while they are visible
 /// (`onAppear` … `onDisappear`); the host shows the newest registration. A push
 /// registers the new page before the covered page disappears, and a pop does the
 /// reverse, so "newest wins" always names the visible page.
@@ -62,13 +63,14 @@ extension EnvironmentValues {
 // MARK: - Host (root)
 
 extension View {
-    /// Host page-provided bottom accessories on this `TabView` (Music's mini-player slot).
+    /// Host the tab-bar bottom accessory (Music's mini-player slot) on this `TabView`:
+    /// global Search on every page, plus the visible page's action when it offers one.
     ///
     /// Apply once, directly on the iPhone `TabView`. Active only on iOS 26.1+ with a
     /// horizontal tab bar (`DeviceLayout.sectionChrome == .tabBar`); on the iPhone Duo
-    /// vertical bar, iPad and earlier iOS it publishes no registry, so pages fall back.
-    /// While an accessory is shown the tab bar minimizes on scroll and the accessory
-    /// moves inline beside it, as in Music.
+    /// vertical bar, iPad and earlier iOS it publishes no registry, so Search falls back to
+    /// a toolbar button and page actions to toolbar items. The tab bar minimizes on scroll
+    /// and the accessory moves inline beside it, as in Music.
     ///
     /// - Returns: The tab view with the accessory host attached.
     func festivalTabAccessoryHost() -> some View {
@@ -80,17 +82,19 @@ extension View {
 struct TabAccessoryHost: ViewModifier {
     @State private var registry = TabAccessoryRegistry()
     @Environment(\.deviceLayout) private var layout
+    @Environment(\.openGlobalSearch) private var openGlobalSearch
 
     func body(content: Content) -> some View {
         #if os(iOS)
         if #available(iOS 26.1, *) {
-            let supported = layout.sectionChrome == .tabBar
-            let active = supported ? registry.active : nil
+            let supported = layout.sectionChrome == .tabBar && openGlobalSearch != nil
             content
-                .tabViewBottomAccessory(isEnabled: active != nil) {
-                    active?.content
+                .tabViewBottomAccessory(isEnabled: supported) {
+                    if let openGlobalSearch {
+                        TabAccessoryBar(page: registry.active?.content) { openGlobalSearch() }
+                    }
                 }
-                .tabBarMinimizeBehavior(active != nil ? .onScrollDown : .never)
+                .tabBarMinimizeBehavior(supported ? .onScrollDown : .never)
                 .environment(\.tabAccessoryRegistry, supported ? registry : nil)
         } else {
             content
@@ -98,6 +102,39 @@ struct TabAccessoryHost: ViewModifier {
         #else
         content
         #endif
+    }
+}
+
+/// Accessory content: a field-shaped Search button, then the page's action if any.
+struct TabAccessoryBar: View {
+    /// The visible page's registered accessory (e.g. profile Select/Deselect).
+    let page: AnyView?
+    let openSearch: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button(action: openSearch) {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .accessibilityHidden(true)
+                    Text("Search")
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                .foregroundStyle(BrandTokens.textSecondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Search")
+            .accessibilityHint("Searches songs, players and bands")
+            .accessibilityIdentifier("fst.global-search.open")
+            if let page {
+                page
+            }
+        }
+        .padding(.leading, 16)
+        .padding(.trailing, page == nil ? 16 : 6)
     }
 }
 

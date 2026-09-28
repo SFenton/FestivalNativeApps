@@ -18,6 +18,8 @@ public struct FestivalRootView: View {
     @State private var songsNotice: String?
     @State private var session: FestivalSession
     @State private var rootProfilePresented = false
+    /// Global search sheet (opened from the tab accessory, a toolbar button, ⌘K or ⌘F).
+    @State private var globalSearchPresented = false
     @AppStorage("fst.settings.showLead") private var showLead = true
     @AppStorage("fst.settings.showBass") private var showBass = true
     @AppStorage("fst.settings.showDrums") private var showDrums = true
@@ -202,6 +204,7 @@ public struct FestivalRootView: View {
         }
         .environment(\.openProfile, OpenProfileAction { rootProfilePresented = true })
         .environment(\.openDrawer, usesDrawer ? OpenDrawerAction { openDrawer() } : nil)
+        .environment(\.openGlobalSearch, OpenGlobalSearchAction { globalSearchPresented = true })
         .preferredColorScheme(.dark)
         .transaction { transaction in
             if reduceMotion || systemReduceMotion {
@@ -214,6 +217,26 @@ public struct FestivalRootView: View {
             // content once SwiftUI hosts it as a separate presentation (verified
             // empirically — see `ProfileSelectionSheet.openRoute`'s doc comment).
             ProfileSelectionSheet(session: session) { route in
+                paths[selected, default: []].append(route)
+            }
+            .festivalSheet()
+        }
+        .background {
+            // Hardware keyboards: ⌘F and ⌘K open global search from any page.
+            Button("Search") { globalSearchPresented = true }
+                .keyboardShortcut("f", modifiers: .command)
+                .opacity(0)
+                .frame(width: 0, height: 0)
+                .accessibilityHidden(true)
+            Button("Search") { globalSearchPresented = true }
+                .keyboardShortcut("k", modifiers: .command)
+                .opacity(0)
+                .frame(width: 0, height: 0)
+                .accessibilityHidden(true)
+        }
+        .sheet(isPresented: $globalSearchPresented) {
+            // Closure passed directly, like the profile sheet (environment trap).
+            GlobalSearchSheet(session: session) { route in
                 paths[selected, default: []].append(route)
             }
             .festivalSheet()
@@ -267,7 +290,7 @@ public struct FestivalRootView: View {
                     }
                 }
             }
-            // Page-provided bottom accessory (Songs search, profile Select/Deselect);
+            // Global search + page action (profile Select/Deselect) above the tab bar;
             // see `.agents/design/apple/nav-accessories.md`.
             .festivalTabAccessoryHost()
         } else {
@@ -529,9 +552,9 @@ public struct FestivalRootView: View {
     /// - Returns: True when the root supplies the bell and avatar itself.
     private func rootProvidesTrailingItems(_ section: FestivalSection) -> Bool {
         switch section {
-        case .leaderboards, .compete, .settings: true
+        case .leaderboards, .compete, .settings, .suggestions, .rivals: true
         case .statistics: session.selectedPlayer != nil
-        case .songs, .suggestions, .rivals: false
+        case .songs: false
         }
     }
 }

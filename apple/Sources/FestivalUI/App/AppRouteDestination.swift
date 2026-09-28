@@ -140,6 +140,8 @@ struct FestivalTabStack<Root: View>: View {
                     route: route, session: session, visibleInstruments: visibleInstruments,
                     path: $path, isVisible: isVisible
                 )
+                // Search on every pushed page where the tab accessory can't show it.
+                .globalSearchToolbarItem()
             }
         }
     }

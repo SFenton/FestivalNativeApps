@@ -23,7 +23,7 @@ All controls are `pending` until every platform has state/visual/accessibility e
 | songs-section-index | `fst.songs.section-index.*` | 5 | pending | [spec](songs-section-index/spec.md) | [ios](songs-section-index/ios.md) |
 | first-run | `fst.first-run.*` | 6 | pending | [spec](first-run/spec.md) | [ios](first-run/ios.md) · [windows](first-run/windows.md) |
 | service-status | `fst.service-status.*` | 8 | pending | [spec](service-status/spec.md) | [ios](service-status/ios.md) · [android](service-status/android.md) |
-| global-search | `fst.global-search.*` | 9 | pending | [spec](global-search/spec.md) | [android](global-search/android.md) · [windows](global-search/windows.md) |
+| global-search | `fst.global-search.*` | 9 | pending | [spec](global-search/spec.md) | [ios](global-search/ios.md) · [ipados](global-search/ipados.md) · [macos](global-search/macos.md) · [android](global-search/android.md) · [windows](global-search/windows.md) |
 <!-- END GENERATED -->
 # Controls router
 

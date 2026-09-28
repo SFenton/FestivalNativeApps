@@ -374,7 +374,9 @@ struct SongsScreen: View {
         }
         .festivalBackground(.carousel, session: session, visible: isVisible)
         .navigationTitle("Songs")
-        .songsSearch(text: $searchText)
+        // Inline filter of this list (HIG "search as an inline field", like Music's
+        // Library); global search is the search tab / toolbar button.
+        .searchable(text: $searchText, prompt: Text("Filter Songs"))
         .toolbar {
             ToolbarItemGroup(placement: Self.pageActionPlacement) {
                 sortAction
