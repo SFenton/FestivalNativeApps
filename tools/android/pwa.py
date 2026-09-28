@@ -195,11 +195,19 @@ class AndroidLab:
     # region Device steps
 
     def tree(self) -> str:
-        """UIAutomator XML ("" when the dump yields nothing, e.g. mid-transition)."""
-        try:
-            return self.device.dump_tree() or ""
-        except dv.DeviceError:
-            return ""
+        """UIAutomator XML, decoded as UTF-8 ("" if the dump fails, e.g. mid-transition).
+
+        ``Device.dump_tree`` decodes with the Windows code page, which fails on
+        pages showing non-ASCII player names, so the lab reads the bytes itself.
+        """
+        for _ in range(3):
+            out = self.device.shell("uiautomator dump /sdcard/fst-pwa-ui.xml", cap=30, check=False)
+            if "dumped to" in out:
+                data = self.device.adb("exec-out", "cat", "/sdcard/fst-pwa-ui.xml", cap=30,
+                                       binary=True).stdout
+                return data.decode("utf-8", errors="replace")
+            time.sleep(1)
+        return ""
 
     def try_step(self, step: str) -> bool:
         """Run a ``device.py`` step; ``False`` if its node is absent."""
