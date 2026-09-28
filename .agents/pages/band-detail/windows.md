@@ -36,4 +36,5 @@ Fixture screenshots (mock service, compact/medium/wide): `windows/reports/screen
 - No instrument-combo filter (web `BandInstrumentFilterModal`/`?combo=`) and no Select Band Profile (the session models only a selected player).
 - Rank links go to `BandRankings(bandType)` without `rankBy`/page (the web jumps to the rank's page); needs the Leaderboards lane's route parameters.
 - Deep links through `uiwin.py --route` lose everything after `&`; open Band Detail by clicking a band card in automation.
-- UI automation tests and Narrator pass pending.
+- Journeys: `tools/windows/journeys/bands.json`. Open: in the long player-bands journey the Best/Worst read against the loopback fixture intermittently fails with a client-side `WSAECONNABORTED` (10053) and the page correctly shows its inline offline state + Retry; the same read passes in isolation and under a 40-request concurrency stress test. TODO(orchestrator): root-cause the fixture transport reset (mock HTTP/1.0 server vs. the artwork burst) before gating on that journey.
+- Narrator pass pending.
