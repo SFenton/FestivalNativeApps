@@ -100,6 +100,10 @@ struct DeviceLayout: Sendable, Equatable {
         case stack
         /// Two columns side by side (`NavigationSplitView` list/detail).
         case listDetail
+        /// Two stacked regions, top and bottom: the page's own content above a second,
+        /// related source of information (`DualSourceLayout`). iPhone Duo inner display
+        /// in portrait only, where the fold (when partially open) runs horizontally.
+        case dualSource
     }
 
     let pose: Pose
@@ -116,11 +120,14 @@ struct DeviceLayout: Sendable, Equatable {
     /// Whether `FestivalTabPolicy` should use its regular-width section set
     /// (Leaderboards and Rivals as separate sections, like the web at ≥ 600 px).
     ///
-    /// Only the sidebar shell (iPad/macOS) and an iPhone Duo inner display qualify
-    /// (operator, 2026-09-28): a large iPhone in landscape is regular width too, but
-    /// keeps its portrait tabs (`pose == .standard`).
+    /// Only the sidebar shell (iPad/macOS) and an iPhone Duo inner display in landscape
+    /// qualify (operator, 2026-09-28): a large iPhone in landscape is regular width too,
+    /// but keeps its portrait tabs (`pose == .standard`). The inner display in portrait
+    /// stacks two phone-width regions (``ContentArrangement/dualSource``), so it keeps
+    /// the compact set, whose Compete hub shows leaderboards and rivals together.
     var usesRegularSectionSet: Bool {
-        sectionChrome == .sidebar || (pose != .standard && widthClass == .regular)
+        sectionChrome == .sidebar
+            || (pose != .standard && widthClass == .regular && contentArrangement != .dualSource)
     }
 
     /// Default before the first geometry pass: an ordinary compact phone.
@@ -144,7 +151,7 @@ struct DeviceLayout: Sendable, Equatable {
             orientation: signals.size.width > signals.size.height ? .landscape : .portrait,
             widthClass: signals.widthClass,
             sectionChrome: chrome(for: signals),
-            contentArrangement: signals.widthClass == .regular ? .listDetail : .stack,
+            contentArrangement: arrangement(for: signals, fold: fold),
             overlayInsets: overlayInsets(
                 safeArea: signals.safeAreaInsets, occlusions: signals.occlusions, bounds: bounds
             ),
@@ -172,6 +179,27 @@ struct DeviceLayout: Sendable, Equatable {
             guard signals.verticalBarEdge != nil else { return .standard }
             return signals.widthClass == .compact ? .folded : .unfolded
         }
+    }
+
+    /// Choose how pages with two related sources arrange them.
+    ///
+    /// The iPhone Duo inner display in portrait (flat, or partially open with its fold
+    /// running across the screen) stacks two regions top and bottom; otherwise regular
+    /// width is list/detail and compact width is one stack. Decided by pose and aspect,
+    /// not width, so the arrangement follows the device rather than a size threshold.
+    ///
+    /// - Parameters:
+    ///   - signals: Observed signals.
+    ///   - fold: Active division intersecting the window, if any.
+    /// - Returns: Content arrangement.
+    private static func arrangement(for signals: LayoutSignals, fold: CGRect?) -> ContentArrangement {
+        let portrait = signals.size.height > signals.size.width
+        let inner = pose(for: signals, fold: fold)
+        let horizontalFold = fold.map { $0.width >= $0.height } ?? true
+        if !signals.usesSidebarShell, portrait, horizontalFold, inner == .unfolded || inner == .partiallyFolded {
+            return .dualSource
+        }
+        return signals.widthClass == .regular ? .listDetail : .stack
     }
 
     /// Choose the section chrome: the platform sidebar shell wins, then the system

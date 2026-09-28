@@ -92,9 +92,9 @@ func duoFoldedKeepsCompactTabs(layout: DeviceLayout) {
     #expect(presentation == ShellPresentation(navigation: .tabs, usesRegularSectionSet: false))
 }
 
-/// The Duo inner display (flat, partially folded, or portrait) splits Compete into
+/// The Duo inner display in landscape (flat or partially folded) splits Compete into
 /// Leaderboards and Rivals while keeping the tab shell for continuity with folded.
-@Test(arguments: [Layouts.duoUnfolded, Layouts.duoPartiallyFolded, Layouts.duoUnfoldedPortrait])
+@Test(arguments: [Layouts.duoUnfolded, Layouts.duoPartiallyFolded])
 func duoInnerDisplayUsesRegularSections(layout: DeviceLayout) {
     let presentation = ShellPresentation.resolve(layout: layout, usesSidebarShell: false)
     #expect(presentation.navigation == .tabs)
@@ -196,4 +196,13 @@ func duoDrawerAvoidsBarAndCamera(layout: DeviceLayout) {
     #expect(Presentation.resolve(displayName: "Fixture", chrome: .sidebar) == .monogram("Fixture"))
     #expect(Presentation.resolve(displayName: "Fixture", chrome: .verticalBar(.leading))
         == .symbol(title: "Profile: Fixture"))
+}
+
+/// The Duo inner display in portrait stacks two phone-width regions, so it keeps the
+/// compact set: Compete shows leaderboards above rivals (dual-source, W4 duo-dual).
+@Test func duoInnerPortraitKeepsCompete() {
+    let presentation = ShellPresentation.resolve(layout: Layouts.duoUnfoldedPortrait, usesSidebarShell: false)
+    #expect(presentation == ShellPresentation(navigation: .tabs, usesRegularSectionSet: false))
+    #expect(presentation.sections(profile: .player)
+        == [.songs, .suggestions, .compete, .statistics, .settings])
 }

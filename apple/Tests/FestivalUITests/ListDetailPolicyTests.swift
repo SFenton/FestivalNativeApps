@@ -68,7 +68,8 @@ private let allRivals = AppRoute.allRivals(scope: .song(instruments: ["Solo_Guit
     #expect(!ListDetailPolicy.usesSplit(ListDetailLayouts.duoFolded))
     #expect(!ListDetailPolicy.usesSplit(.standardPhone))
     #expect(ListDetailPolicy.usesSplit(ListDetailLayouts.duoUnfolded))
-    #expect(ListDetailPolicy.usesSplit(ListDetailLayouts.duoUnfoldedPortrait))
+    // Inner portrait stacks dual-source regions instead (`DualSourcePolicy`).
+    #expect(!ListDetailPolicy.usesSplit(ListDetailLayouts.duoUnfoldedPortrait))
     #expect(ListDetailPolicy.usesSplit(ListDetailLayouts.duoPartiallyFolded))
 }
 

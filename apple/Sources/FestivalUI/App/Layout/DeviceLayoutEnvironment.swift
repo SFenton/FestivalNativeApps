@@ -45,12 +45,17 @@ struct DeviceLayoutPublisher: ViewModifier {
         #else
         let widthClass: WidthClass = .regular
         #endif
-        return LayoutSignals(
+        let observed = LayoutSignals(
             size: geometry.size, widthClass: widthClass, safeAreaInsets: geometry.safeAreaInsets,
             verticalBarEdge: verticalBarEdge, hinge: hinge,
             occlusions: geometry.occlusions, divisions: geometry.divisions,
             usesSidebarShell: usesSidebarShell
         )
+        #if DEBUG
+        return DebugDuoPose.launch?.apply(to: observed) ?? observed
+        #else
+        return observed
+        #endif
     }
 
     func body(content: Content) -> some View {
@@ -140,3 +145,55 @@ extension HingeState {
     }
 }
 #endif
+
+// MARK: - Debug pose override
+
+/// Launch-time hinge override for captures while Device Hub's pose controls cannot be
+/// scripted (no Accessibility grant): `FST_DEBUG_DUO_POSE=half-portrait` or
+/// `unfolded-portrait` (Debug builds only; `.agents/platforms/apple/duo.md`).
+///
+/// It replaces only the hinge and the fold, keeping the real window, size class,
+/// safe area and vertical bar. On the folded outer display (466×678) it therefore
+/// previews the dual-source regions at outer-display size inside the outer display's
+/// chrome; it is layout evidence, not a capture of the inner display.
+enum DebugDuoPose: String, Sendable {
+    /// Partially open, portrait: a horizontal division across the window's middle.
+    case halfPortrait = "half-portrait"
+    /// Fully open, portrait: no division.
+    case unfoldedPortrait = "unfolded-portrait"
+
+    /// Height of the synthesized fold (points), close to the inner display's crease margin.
+    static let foldHeight: CGFloat = 24
+
+    /// The override named by the launch environment, if any.
+    static let launch: DebugDuoPose? = parse(ProcessInfo.processInfo.environment["FST_DEBUG_DUO_POSE"])
+
+    /// Parse an override value.
+    ///
+    /// - Parameter raw: `FST_DEBUG_DUO_POSE` value.
+    /// - Returns: The override, or nil when absent or unknown.
+    static func parse(_ raw: String?) -> DebugDuoPose? {
+        raw.flatMap(DebugDuoPose.init(rawValue:))
+    }
+
+    /// Replace the hinge and fold in observed signals.
+    ///
+    /// - Parameter signals: Signals observed from the real window.
+    /// - Returns: Signals with the overridden hinge (and synthesized fold).
+    func apply(to signals: LayoutSignals) -> LayoutSignals {
+        var result = signals
+        guard signals.size.width > 0, signals.size.height > 0 else { return result }
+        switch self {
+        case .halfPortrait:
+            result.hinge = .partiallyOpen
+            result.divisions = [CGRect(
+                x: 0, y: (signals.size.height - Self.foldHeight) / 2,
+                width: signals.size.width, height: Self.foldHeight
+            )]
+        case .unfoldedPortrait:
+            result.hinge = .fullyOpen
+            result.divisions = []
+        }
+        return result
+    }
+}
