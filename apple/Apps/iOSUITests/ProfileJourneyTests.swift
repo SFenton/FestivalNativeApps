@@ -101,6 +101,46 @@ final class ProfileJourneyTests: XCTestCase {
         assertSingleBackReturnsToRoot(in: app)
     }
 
+    /// Operator rule: Select and Deselect on the Player Profile page update it in
+    /// place ("This Is Me" ⇄ "Public Profile"). They never pop, push or dismiss, and
+    /// the page keeps showing the same account throughout. Uses Settings, the one
+    /// iPhone tab that exists both with and without a selected player, so tab-set
+    /// changes cannot mask a navigation.
+    @MainActor
+    func testSelectAndDeselectUpdateProfilePageInPlace() {
+        let app = XCUIApplication()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchEnvironment["FST_UI_TEST_CLEAR_PROFILE"] = "1"
+        app.launchEnvironment["FST_DEBUG_STILL_BACKGROUND"] = "1"
+        app.launchEnvironment["FST_DEBUG_TAB"] = "settings"
+        app.launchEnvironment["FST_DEBUG_ROUTE"] = "player:fixture-player-1"
+        app.launch()
+        assertViewing("Fixture Player 1", in: app)
+
+        let select = app.buttons["fst.player.select"]
+        XCTAssertTrue(select.waitForExistence(timeout: 10))
+        select.tap()
+        XCTAssertTrue(
+            app.buttons["fst.player.deselect"].waitForExistence(timeout: 10),
+            "Select did not update the page to its selected state in place"
+        )
+        XCTAssertTrue(app.staticTexts["This Is Me"].exists)
+        assertViewing("Fixture Player 1", in: app)
+
+        app.buttons["fst.player.deselect"].tap()
+        let confirm = app.buttons.matching(identifier: "Deselect Profile")
+            .allElementsBoundByIndex.first(where: \.isHittable)
+        XCTAssertNotNil(confirm, "Deselect confirmation missing")
+        confirm?.tap()
+        XCTAssertTrue(
+            app.buttons["fst.player.select"].waitForExistence(timeout: 10),
+            "Deselect did not update the page to its public state in place"
+        )
+        XCTAssertTrue(app.staticTexts["Public Profile"].exists)
+        assertViewing("Fixture Player 1", in: app)
+        XCTAssertTrue(app.navigationBars.buttons["BackButton"].exists, "The page was popped")
+    }
+
     /// View A, go back, then view B: B's page shows B (no state kept from A).
     @MainActor
     func testSecondSearchShowsSecondPlayerNotFirst() {
