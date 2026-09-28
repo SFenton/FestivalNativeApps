@@ -48,8 +48,17 @@ Not causes: `NavigationStack`/`ScrollView` layout, lazy stacks (with a window), 
 ## Tests that execute views but are not visual evidence
 
 - Find Rival's loading shot asserts only the painted sheet and query: a busy run can outlast the 250 ms debounce.
-- `rivalsScreenRendersCommonAndComboSectionErrors` records a known issue: `RivalCommonSection` hides instead of showing its 503 error (product bug, `try?` in `load()`).
 - Component tests using `ImageRenderer` (chips, pills, difficulty meter, artwork) assert layout/geometry, not native control rendering.
+
+Fixed 2026-09-28 (Lane C): `RivalCommonSection.load()` (`Features/Rivals/RivalsScreen.swift`)
+used `try?` per instrument read, so a 503 across every visible instrument silently
+intersected an empty list and rendered `EmptyView()` instead of its `.failed`
+`ServiceStatusInline` branch — the only Rivals/Compete section that hid its error
+rather than showing it, unlike `RivalComboSection`/per-instrument sections'
+try/catch. Now propagates the first read's error the same way. Regression:
+`rivalsScreenRendersCommonAndComboSectionErrors` in `RivalsRenderTests.swift`
+asserts "Common Rivals" reaches the accessibility tree during a 503 directly,
+no longer wrapped in `withKnownIssue`.
 
 Content-asserted full-page selector (test IDs are `FestivalUITests.<function>()`, so filter on function names, not files):
 

@@ -226,12 +226,11 @@ private let routableRivalId = "408abb67d81446f0ac714506950ce178"
         image, filename: "rivals-common-combo-errors.png", environment: "FST_RIVALS_RENDER_OUT"
     )
     assertRendersContent(host, image: image, containing: ["Combo Rivals", "Scores are updating"])
-    // Product bug (reported by the hosted-harness lane): `RivalCommonSection.load()`
-    // reads each instrument with `try?`, so when every read 503s it intersects
-    // nothing and renders `EmptyView()`; its `.failed` branch is unreachable.
-    withKnownIssue("Common Rivals hides instead of showing its 503 error") {
-        #expect(nativeHostedAccessibility(host).contains("Common Rivals"))
-    }
+    // Regression for a fixed product bug: `RivalCommonSection.load()` used to
+    // read each instrument with `try?`, so when every read 503s it intersected
+    // nothing and rendered `EmptyView()` instead of its `.failed` branch. It now
+    // propagates the first read's error like every sibling section.
+    #expect(nativeHostedAccessibility(host).contains("Common Rivals"))
 }
 
 /// An empty per-instrument scenario hides the Common Rivals/Combo sections

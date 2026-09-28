@@ -203,10 +203,21 @@ struct RivalCommonSection: View {
         // Sequential rather than a `TaskGroup`, matching `combinedRivalDetail`: at
         // most a handful of instruments, and this keeps every read on the
         // session's own `@MainActor` isolation.
-        for instrument in instruments {
-            if let list = try? await session.rivalsList(instrument: instrument) {
-                lists.append(list)
+        //
+        // Every read must succeed before intersecting: `try?` here used to
+        // swallow a real failure (e.g. a scrape-freeze 503) into an empty
+        // `lists` array, so the section silently disappeared (`.loaded` with
+        // an empty intersection renders `EmptyView()`) instead of showing its
+        // `ServiceStatusInline` error like every sibling section.
+        do {
+            for instrument in instruments {
+                lists.append(try await session.rivalsList(instrument: instrument))
             }
+        } catch is CancellationError {
+            return
+        } catch {
+            state = .failed(ServiceIssue(error))
+            return
         }
         state = .loaded(RivalCommonRivals.intersect(lists))
     }
