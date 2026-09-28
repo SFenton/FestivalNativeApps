@@ -78,20 +78,18 @@ final class RivalsJourneyTests: XCTestCase {
     /// Compete's Quick Links menu lists its two coarse sections ("Leaderboards",
     /// "Rivals") and jumping to one updates the active section.
     ///
-    /// **Real bug found (2026-09-28, this lane):** tapping a `QuickLinksMenu` row
-    /// other than the first activates the row *above* the one tapped, not the one
-    /// tapped — reproduced twice independently: here (tapping
-    /// `fst.quick-links.item.rivals`, the 2nd of 2 rows, activates "Leaderboards",
-    /// the 1st) and on `RivalsScreen` via `ios_sim.py drive`'s `tree:` dump
-    /// (tapping `fst.quick-links.item.Solo_Bass`, the 3rd of 10 rows after
-    /// "Common Rivals"/"Lead Rivals", activates "Lead Rivals", the 2nd — the row
-    /// immediately above). This is a shared-component bug (`Common/QuickLinks/
-    /// QuickLinksToolbar.swift`'s `QuickLinksMenu`, a `Picker(.inline)` inside a
-    /// `Menu`) affecting every page that adopts Quick Links, not just Compete or
-    /// Rivals — out of scope for this lane to fix (owned by Lane Q). Flagged via
-    /// `spawn_task`; `XCTExpectFailure` keeps this test green (and re-failing
-    /// loudly the moment the underlying bug is fixed) rather than asserting the
-    /// wrong behavior or silently dropping coverage.
+    /// **Fixed bug (lane/bugfix, 2026-09-28):** tapping a `QuickLinksMenu` row
+    /// other than the first used to activate the row *above* the one tapped —
+    /// reproduced here (tapping `fst.quick-links.item.rivals`, the 2nd of 2 rows,
+    /// activated "Leaderboards", the 1st) and on `RivalsScreen`. Root cause was in
+    /// the shared `Common/QuickLinks/QuickLinksModifiers.swift`: the scroll
+    /// animation's completion handler could fire before the target section's real,
+    /// post-scroll frame had published, so `QuickLinkTracker.settle` read stale
+    /// geometry and fell back to the previous section. Fixed by
+    /// `QuickLinksContainerModifier.correctAndSettle`, which polls the target's
+    /// frame until it stabilizes before settling — see that lane's commit for the
+    /// full root-cause writeup. The polling loop below is kept (rather than a bare
+    /// wait) since settling is still asynchronous, just now correct.
     @MainActor
     func testCompeteQuickLinksMenuListsBothSections() throws {
         continueAfterFailure = false
@@ -110,12 +108,7 @@ final class RivalsJourneyTests: XCTestCase {
             Thread.sleep(forTimeInterval: 0.1)
             value = quickLinks.value as? String
         }
-        XCTExpectFailure(
-            "QuickLinksMenu selects the row above the one tapped (see doc comment); "
-            + "remove this once fixed."
-        ) {
-            XCTAssertEqual(value, "Rivals")
-        }
+        XCTAssertEqual(value, "Rivals")
     }
 
     // MARK: - Find Rival: search -> select
