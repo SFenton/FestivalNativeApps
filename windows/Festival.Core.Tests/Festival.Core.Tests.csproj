@@ -22,5 +22,10 @@
     <!-- Shared synthetic fixtures (read-only; owned by contracts/). -->
     <None Include="..\..\contracts\fixtures\songs-demo.json" Link="fixtures\songs-demo.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\contracts\fixtures\publication.json" Link="fixtures\publication.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\contracts\fixtures\rivals-list-demo.json" Link="fixtures\rivals-list-demo.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\contracts\fixtures\leaderboard-rivals-demo.json" Link="fixtures\leaderboard-rivals-demo.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\contracts\fixtures\rival-detail-demo.json" Link="fixtures\rival-detail-demo.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\contracts\fixtures\leaderboard-rival-detail-demo.json" Link="fixtures\leaderboard-rival-detail-demo.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\contracts\fixtures\rivals-all-demo.json" Link="fixtures\rivals-all-demo.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
