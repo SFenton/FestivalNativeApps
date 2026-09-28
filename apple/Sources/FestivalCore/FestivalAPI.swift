@@ -12,6 +12,15 @@ public enum PublicEndpoint: Sendable {
     )
     case rankings(instrument: String, rankBy: String, page: Int, pageSize: Int)
     case bandRankings(bandType: String, rankBy: String, page: Int, pageSize: Int)
+    case playerBands(accountId: String, group: String, page: Int, pageSize: Int)
+    case playerBandsByType(accountId: String, bandType: String, combo: String?)
+    /// One team's ranking row via the same pure-read rankings board as
+    /// `bandRankings`, never `/api/bands/{bandId}` (see `FestivalAPI+Bands.swift`
+    /// for why that endpoint is not called).
+    case bandProfile(bandType: String, teamKey: String, combo: String?)
+    case bandRankHistory(bandType: String, teamKey: String, combo: String?, days: Int)
+    case bandSongExtremes(bandType: String, teamKey: String, combo: String?, limit: Int)
+    case songBandLeaderboard(songId: String, bandType: String, top: Int, offset: Int, combo: String?)
     case path(
         songId: String, instrument: Instrument, difficulty: PathDifficulty,
         display: PathDisplayMode, generationId: String? = nil
@@ -95,6 +104,70 @@ public enum PublicEndpoint: Sendable {
                 URLQueryItem(name: "page", value: String(page)),
                 URLQueryItem(name: "pageSize", value: String(pageSize)),
             ]
+        case let .playerBands(accountId, group, page, pageSize):
+            guard ProfileSearchText.isValidAccountId(accountId),
+                  ["all", "duos", "trios", "quads"].contains(group),
+                  page > 0, (1...100).contains(pageSize) else {
+                throw FestivalAPIError.invalidResource
+            }
+            segments = ["api", "player", accountId, "bands"]
+            query = [
+                URLQueryItem(name: "group", value: group),
+                URLQueryItem(name: "page", value: String(page)),
+                URLQueryItem(name: "pageSize", value: String(pageSize)),
+            ]
+        case let .playerBandsByType(accountId, bandType, combo):
+            guard ProfileSearchText.isValidAccountId(accountId),
+                  !bandType.isEmpty, !bandType.contains("/"),
+                  Self.isValidCombo(combo) else {
+                throw FestivalAPIError.invalidResource
+            }
+            segments = ["api", "player", accountId, "bands", bandType]
+            query = combo.map { [URLQueryItem(name: "combo", value: $0)] } ?? []
+        case let .bandProfile(bandType, teamKey, combo):
+            guard !bandType.isEmpty, !bandType.contains("/"),
+                  !teamKey.isEmpty, !teamKey.contains("/"),
+                  Self.isValidCombo(combo) else {
+                throw FestivalAPIError.invalidResource
+            }
+            segments = ["api", "rankings", "bands", bandType]
+            query = [
+                URLQueryItem(name: "teamKey", value: teamKey),
+                URLQueryItem(name: "rankBy", value: "adjusted"),
+                URLQueryItem(name: "page", value: "1"),
+                URLQueryItem(name: "pageSize", value: "1"),
+            ]
+            if let combo { query.append(URLQueryItem(name: "combo", value: combo)) }
+        case let .bandRankHistory(bandType, teamKey, combo, days):
+            guard !bandType.isEmpty, !bandType.contains("/"),
+                  !teamKey.isEmpty, !teamKey.contains("/"),
+                  (1...3650).contains(days), Self.isValidCombo(combo) else {
+                throw FestivalAPIError.invalidResource
+            }
+            segments = ["api", "rankings", "bands", bandType, teamKey, "history"]
+            query = [URLQueryItem(name: "days", value: String(days))]
+            if let combo { query.append(URLQueryItem(name: "combo", value: combo)) }
+        case let .bandSongExtremes(bandType, teamKey, combo, limit):
+            guard !bandType.isEmpty, !bandType.contains("/"),
+                  !teamKey.isEmpty, !teamKey.contains("/"),
+                  (1...20).contains(limit), Self.isValidCombo(combo) else {
+                throw FestivalAPIError.invalidResource
+            }
+            segments = ["api", "rankings", "bands", bandType, teamKey, "songs"]
+            query = [URLQueryItem(name: "limit", value: String(limit))]
+            if let combo { query.append(URLQueryItem(name: "combo", value: combo)) }
+        case let .songBandLeaderboard(songId, bandType, top, offset, combo):
+            guard !songId.isEmpty, !songId.contains("/"),
+                  !bandType.isEmpty, !bandType.contains("/"),
+                  (1...100).contains(top), offset >= 0, Self.isValidCombo(combo) else {
+                throw FestivalAPIError.invalidResource
+            }
+            segments = ["api", "leaderboard", songId, "bands", bandType]
+            query = [
+                URLQueryItem(name: "top", value: String(top)),
+                URLQueryItem(name: "offset", value: String(offset)),
+            ]
+            if let combo { query.append(URLQueryItem(name: "combo", value: combo)) }
         case let .path(songId, instrument, difficulty, display, generationId):
             guard !songId.isEmpty, !songId.contains("/"), !songId.contains(".."),
                   instrument != .karaoke,
@@ -124,12 +197,23 @@ public enum PublicEndpoint: Sendable {
 
     /// Keep personal profile bytes out of the raw multi-resource cache.
     ///
-    /// - Returns: False for account profiles, including HTTP 202 syncing envelopes.
+    /// - Returns: False for account profiles, including HTTP 202 syncing envelopes,
+    ///   and for a player's own bands list (also account-scoped).
     var allowsSnapshotCache: Bool {
         switch self {
-        case .player, .playerHistory, .playerNotifications: false
+        case .player, .playerHistory, .playerNotifications, .playerBands, .playerBandsByType: false
         default: true
         }
+    }
+
+    /// Reject an empty or path-breaking combo filter without over-constraining it,
+    /// since valid combo identifiers are server-defined (e.g. `"GB"`, `"GV"`).
+    ///
+    /// - Parameter combo: Optional instrument-combo filter.
+    /// - Returns: True when absent or a plausible single path segment.
+    private static func isValidCombo(_ combo: String?) -> Bool {
+        guard let combo else { return true }
+        return !combo.isEmpty && !combo.contains("/")
     }
 }
 

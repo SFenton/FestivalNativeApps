@@ -1,0 +1,51 @@
+{
+  "bandType": "Band_Duets",
+  "comboId": null,
+  "rankBy": "adjusted",
+  "page": 1,
+  "pageSize": 1,
+  "totalTeams": 12,
+  "entries": [],
+  "selectedPlayerEntry": null,
+  "selectedBandEntry": {
+    "bandId": "fixture-band-1",
+    "comboId": null,
+    "teamKey": "fixture-rank-1:fixture-rank-2",
+    "teamMembers": [
+      { "accountId": "fixture-rank-1", "displayName": "Fixture Rank One" },
+      { "accountId": "fixture-rank-2", "displayName": null }
+    ],
+    "members": [
+      {
+        "accountId": "fixture-rank-1",
+        "displayName": "Fixture Rank One",
+        "instruments": ["Solo_Guitar"]
+      },
+      {
+        "accountId": "fixture-rank-2",
+        "displayName": null,
+        "instruments": ["Solo_Drums"]
+      }
+    ],
+    "configurations": [],
+    "songsPlayed": 40,
+    "totalChartedSongs": 40,
+    "coverage": 1.0,
+    "rawSkillRating": 0.004,
+    "adjustedSkillRating": 0.0041,
+    "adjustedSkillRank": 1,
+    "weightedRating": 0.91,
+    "weightedRank": 1,
+    "fcRate": 0.9,
+    "fcRateRank": 2,
+    "totalScore": 222222222,
+    "totalScoreRank": 1,
+    "avgAccuracy": 98.2,
+    "fullComboCount": 36,
+    "avgStars": 4.9,
+    "bestRank": 1,
+    "avgRank": 1.5,
+    "rawWeightedRating": 0.9,
+    "computedAt": "2026-09-27T00:00:00Z"
+  }
+}

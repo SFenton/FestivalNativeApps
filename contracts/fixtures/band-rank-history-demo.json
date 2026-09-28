@@ -1,0 +1,40 @@
+{
+  "bandType": "Band_Duets",
+  "teamKey": "fixture-rank-1:fixture-rank-2",
+  "comboId": null,
+  "days": 30,
+  "history": [
+    {
+      "snapshotDate": "2026-09-27",
+      "snapshotTakenAt": "2026-09-27T00:00:00Z",
+      "adjustedSkillRank": 1,
+      "weightedRank": 1,
+      "fcRateRank": 2,
+      "totalScoreRank": 1,
+      "adjustedSkillRating": 0.0041,
+      "weightedRating": 0.91,
+      "fcRate": 0.9,
+      "totalScore": 222222222,
+      "songsPlayed": 40,
+      "totalChartedSongs": 40,
+      "totalRankedTeams": 12
+    },
+    {
+      "snapshotDate": "2026-09-26",
+      "snapshotTakenAt": "2026-09-26T00:00:00Z",
+      "adjustedSkillRank": 2,
+      "weightedRank": 2,
+      "fcRateRank": 3,
+      "totalScoreRank": 2,
+      "adjustedSkillRating": 0.0052,
+      "weightedRating": 0.88,
+      "fcRate": 0.85,
+      "totalScore": 210000000,
+      "songsPlayed": 39,
+      "totalChartedSongs": 40,
+      "totalRankedTeams": 12
+    }
+  ],
+  "historyStatus": "ready",
+  "historyMessage": null
+}

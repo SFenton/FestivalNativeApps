@@ -1,0 +1,90 @@
+{
+  "songId": "fixture-pulse",
+  "bandType": "Band_Duets",
+  "showLeaderboardEntryTotals": true,
+  "count": 2,
+  "totalEntries": 26,
+  "localEntries": 26,
+  "entries": [
+    {
+      "bandId": "fixture-band-1",
+      "bandType": "Band_Duets",
+      "teamKey": "fixture-rank-1:fixture-rank-2",
+      "comboId": null,
+      "members": [
+        {
+          "accountId": "fixture-rank-1",
+          "displayName": "Fixture Rank One",
+          "instruments": ["Solo_Guitar"],
+          "score": 500000,
+          "accuracy": 992000,
+          "isFullCombo": true,
+          "stars": 5,
+          "difficulty": 3,
+          "season": 9
+        },
+        {
+          "accountId": "fixture-rank-2",
+          "displayName": null,
+          "instruments": ["Solo_Drums"],
+          "score": 499999,
+          "accuracy": 988000,
+          "isFullCombo": true,
+          "stars": 5,
+          "difficulty": 3,
+          "season": 9
+        }
+      ],
+      "score": 999999,
+      "rank": 1,
+      "accuracy": 990000,
+      "isFullCombo": true,
+      "stars": 5,
+      "season": 9,
+      "difficulty": 3,
+      "percentile": 0.0385,
+      "endTime": "2026-09-27T00:00:00Z"
+    },
+    {
+      "bandId": "fixture-band-2",
+      "bandType": "Band_Duets",
+      "teamKey": "fixture-rank-3:fixture-rank-4",
+      "comboId": null,
+      "members": [
+        {
+          "accountId": "fixture-rank-3",
+          "displayName": "Fixture Rank Three",
+          "instruments": ["Solo_Bass"],
+          "score": 400000,
+          "accuracy": 900000,
+          "isFullCombo": false,
+          "stars": 4,
+          "difficulty": 2,
+          "season": 9
+        },
+        {
+          "accountId": "fixture-rank-4",
+          "displayName": "",
+          "instruments": ["Solo_Vocals"],
+          "score": 399000,
+          "accuracy": 890000,
+          "isFullCombo": false,
+          "stars": 4,
+          "difficulty": 2,
+          "season": 9
+        }
+      ],
+      "score": 799000,
+      "rank": 2,
+      "accuracy": 895000,
+      "isFullCombo": false,
+      "stars": 4,
+      "season": 9,
+      "difficulty": 2,
+      "percentile": 0.0769,
+      "endTime": "2026-09-26T00:00:00Z"
+    }
+  ],
+  "selectedPlayerEntry": null,
+  "selectedBandEntry": null
+}

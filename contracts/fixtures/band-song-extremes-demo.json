@@ -1,0 +1,36 @@
+{
+  "bandType": "Band_Duets",
+  "teamKey": "fixture-rank-1:fixture-rank-2",
+  "comboId": null,
+  "limit": 2,
+  "best": [
+    {
+      "songId": "fixture-pulse",
+      "comboId": null,
+      "rank": 1,
+      "totalEntries": 26,
+      "percentile": 0.0385,
+      "score": 999999,
+      "accuracy": 992000,
+      "isFullCombo": true,
+      "stars": 5,
+      "season": 9,
+      "endTime": "2026-09-27T00:00:00Z"
+    }
+  ],
+  "worst": [
+    {
+      "songId": "fixture-orbit",
+      "comboId": null,
+      "rank": 20,
+      "totalEntries": 26,
+      "percentile": 0.769,
+      "score": 450000,
+      "accuracy": 812000,
+      "isFullCombo": false,
+      "stars": 3,
+      "season": 9,
+      "endTime": "2026-09-20T00:00:00Z"
+    }
+  ]
+}

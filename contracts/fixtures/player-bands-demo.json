@@ -1,0 +1,48 @@
+{
+  "accountId": "fixture-player-1",
+  "group": "all",
+  "totalCount": 2,
+  "entries": [
+    {
+      "bandId": "fixture-band-1",
+      "teamKey": "fixture-player-1:fixture-player-2",
+      "bandType": "Band_Duets",
+      "appearanceCount": 42,
+      "members": [
+        {
+          "accountId": "fixture-player-1",
+          "displayName": "Fixture Player 1",
+          "instruments": ["Solo_Guitar"]
+        },
+        {
+          "accountId": "fixture-player-2",
+          "displayName": "Fixture Player 2",
+          "instruments": ["Solo_Drums"]
+        }
+      ]
+    },
+    {
+      "bandId": "fixture-band-2",
+      "teamKey": "fixture-player-1:fixture-player-2:fixture-player-3",
+      "bandType": "Band_Trios",
+      "appearanceCount": 5,
+      "members": [
+        {
+          "accountId": "fixture-player-1",
+          "displayName": "Fixture Player 1",
+          "instruments": ["Solo_Bass"]
+        },
+        {
+          "accountId": "fixture-player-2",
+          "displayName": null,
+          "instruments": ["Solo_Vocals"]
+        },
+        {
+          "accountId": "fixture-player-3",
+          "displayName": "Fixture Player 3",
+          "instruments": ["Solo_Drums"]
+        }
+      ]
+    }
+  ]
+}
