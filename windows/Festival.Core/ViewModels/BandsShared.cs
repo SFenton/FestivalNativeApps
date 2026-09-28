@@ -97,7 +97,8 @@ public sealed record BandMemberRow(BandMember Member)
     public bool HasScore => ScoreText.Length > 0;
 
     /// <summary>Player profile route, when the account ID is safe.</summary>
-    public AppRoute? Route => Member.HasValidAccount ? new AppRoute.Player(Member.AccountId) : null;
+    public AppRoute? Route => Member.HasValidAccount
+        ? new AppRoute.Player(Member.AccountId, string.IsNullOrWhiteSpace(Member.DisplayName) ? null : Name) : null;
 
     /// <summary>Automation ID (<c>fst.band.member.&lt;accountId&gt;</c>).</summary>
     public string AutomationId => "fst.band.member." + Member.AccountId;

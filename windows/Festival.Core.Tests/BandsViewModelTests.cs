@@ -60,7 +60,8 @@ public class PlayerBandsViewModelTests
         Assert.Equal("Lead", lead.InstrumentsText);
         Assert.Equal("instrument_guitar.png", lead.Icons.Single().File);
         Assert.Equal("Lead", lead.Icons.Single().Label);
-        Assert.Equal(new AppRoute.Player("acc"), lead.Route);
+        Assert.Equal(new AppRoute.Player("acc", "Player One"), lead.Route);
+        Assert.Equal(new AppRoute.Player("mate1"), card.Members[1].Route);
         Assert.Equal("No observed instrument", new BandMemberRow(new BandMember { AccountId = "bad id" }).InstrumentsText);
         Assert.Null(new BandMemberRow(new BandMember { AccountId = "bad id" }).Route);
         Assert.Equal("fst.band.member.acc", lead.AutomationId);
