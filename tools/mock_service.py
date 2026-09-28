@@ -45,6 +45,12 @@ PATH_DEMO, PATH_DEMO_HASH = load_fixture("path-demo")
 SHOP_DEMO, SHOP_DEMO_HASH = load_fixture("shop-demo")
 PLAYER_DEMO, PLAYER_DEMO_HASH = load_fixture("player-demo")
 METADATA_EDGE, METADATA_EDGE_HASH = load_fixture("metadata-edge")
+RIVALS_LIST_DEMO, RIVALS_LIST_DEMO_HASH = load_fixture("rivals-list-demo")
+LEADERBOARD_RIVALS_DEMO, LEADERBOARD_RIVALS_DEMO_HASH = load_fixture("leaderboard-rivals-demo")
+RIVAL_DETAIL_DEMO, RIVAL_DETAIL_DEMO_HASH = load_fixture("rival-detail-demo")
+LEADERBOARD_RIVAL_DETAIL_DEMO, LEADERBOARD_RIVAL_DETAIL_DEMO_HASH = load_fixture(
+    "leaderboard-rival-detail-demo"
+)
 ROLLOVER_PLAYER_2_LEAD_SCORE = 99_850
 EDGE_SONG_ID = "fixture-marathon"
 _edge_song = METADATA_EDGE["songs"]["songs"][0]
@@ -93,6 +99,10 @@ SOURCE_HASHES = {
     "contracts/fixtures/shop-demo.json": SHOP_DEMO_HASH,
     "contracts/fixtures/player-demo.json": PLAYER_DEMO_HASH,
     "contracts/fixtures/metadata-edge.json": METADATA_EDGE_HASH,
+    "contracts/fixtures/rivals-list-demo.json": RIVALS_LIST_DEMO_HASH,
+    "contracts/fixtures/leaderboard-rivals-demo.json": LEADERBOARD_RIVALS_DEMO_HASH,
+    "contracts/fixtures/rival-detail-demo.json": RIVAL_DETAIL_DEMO_HASH,
+    "contracts/fixtures/leaderboard-rival-detail-demo.json": LEADERBOARD_RIVAL_DETAIL_DEMO_HASH,
 }
 SONGS_ETAG = '"fst-fixture-songs-v1"'
 EMPTY_ETAG = '"fst-fixture-empty-v1"'
@@ -162,6 +172,103 @@ def _band_ranking_entry(rank: int) -> dict:
         "totalScore": 50_000_000 - rank * 500_000, "totalScoreRank": rank,
         "avgAccuracy": 0.95, "fullComboCount": max(0, 10 - rank),
         "avgStars": 4.5, "bestRank": 1, "avgRank": float(rank),
+
+    }
+
+
+# Rivals/Compete: `RivalsEndpoints.cs`/`LeaderboardRivalsEndpoints.cs` reads
+# (see `.agents/pages/rivals/ios.md`). The selected player's own accountId
+# selects a scenario (`-empty`/`-503` suffix); the rival id is echoed back
+# verbatim so Find Rival / deep-link journeys see a consistent identity.
+RIVALS_LIST = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)/rivals/([A-Za-z0-9_]+)$")
+RIVALS_DETAIL = re.compile(
+    r"^/api/player/(fixture-[a-z0-9-]+)/rivals/([A-Za-z0-9_]+)/([A-Za-z0-9]+)$"
+)
+LEADERBOARD_RIVALS_LIST = re.compile(
+    r"^/api/player/(fixture-[a-z0-9-]+)/leaderboard-rivals/([A-Za-z_]+)$"
+)
+LEADERBOARD_RIVALS_DETAIL = re.compile(
+    r"^/api/player/(fixture-[a-z0-9-]+)/leaderboard-rivals/([A-Za-z_]+)/([A-Za-z0-9]+)$"
+)
+RIVAL_DISPLAY_NAMES = {
+    "fixture-player-1": "Fixture Player 1",
+    "fixture-player-2": "Fixture Player 2",
+    "fixture-cpp": "C++",
+}
+
+
+def _rivals_scenario(account_id: str) -> str:
+    """Select a Rivals/Compete fixture scenario from the viewing player's own id.
+
+    Args:
+        account_id: Path segment naming the selected (viewing) player.
+
+    Returns:
+        `"empty"` (no rivals/shared songs yet), `"unavailable"` (503, matching
+        the live service's scrape-window freeze) or `"demo"` (populated).
+    """
+    if account_id.endswith("-empty"):
+        return "empty"
+    if account_id.endswith("-503"):
+        return "unavailable"
+    return "demo"
+
+
+def _rivals_list_body(token: str, scenario: str) -> dict:
+    """Build a `GET /api/player/{id}/rivals/{token}` (or combo) body."""
+    if scenario == "empty":
+        return {"combo": token, "above": [], "below": []}
+    return {**RIVALS_LIST_DEMO, "combo": token}
+
+
+def _leaderboard_rivals_body(instrument: str, rank_by: str, scenario: str) -> dict:
+    """Build a `GET /api/player/{id}/leaderboard-rivals/{instrument}` body."""
+    if scenario == "empty":
+        return {
+            "instrument": instrument, "rankBy": rank_by, "userRank": None,
+            "above": [], "below": [],
+        }
+    return {**LEADERBOARD_RIVALS_DEMO, "instrument": instrument, "rankBy": rank_by}
+
+
+def _rival_detail_body(token: str, rival_id: str, scenario: str) -> dict:
+    """Build a `GET /api/player/{id}/rivals/{token}/{rivalId}` (or combo) body."""
+    display_name = RIVAL_DISPLAY_NAMES.get(rival_id)
+    if scenario == "empty":
+        return {
+            "rival": {"accountId": rival_id, "displayName": display_name},
+            "combo": token, "source": None, "totalSongs": 0,
+            "offset": 0, "limit": 50, "sort": "closest",
+            "songs": [], "songsToCompete": [], "yourExclusiveSongs": [],
+        }
+    return {
+        **RIVAL_DETAIL_DEMO,
+        "rival": {
+            "accountId": rival_id,
+            "displayName": display_name or RIVAL_DETAIL_DEMO["rival"]["displayName"],
+        },
+        "combo": token,
+    }
+
+
+def _leaderboard_rival_detail_body(
+    instrument: str, rank_by: str, rival_id: str, scenario: str
+) -> dict:
+    """Build a `GET /api/player/{id}/leaderboard-rivals/{instrument}/{rivalId}` body."""
+    display_name = RIVAL_DISPLAY_NAMES.get(rival_id)
+    if scenario == "empty":
+        return {
+            "rival": {"accountId": rival_id, "displayName": display_name},
+            "instrument": instrument, "rankBy": rank_by, "totalSongs": 0,
+            "sort": "closest", "songs": [], "songsToCompete": [], "yourExclusiveSongs": [],
+        }
+    return {
+        **LEADERBOARD_RIVAL_DETAIL_DEMO,
+        "rival": {
+            "accountId": rival_id,
+            "displayName": display_name or LEADERBOARD_RIVAL_DETAIL_DEMO["rival"]["displayName"],
+        },
+        "instrument": instrument, "rankBy": rank_by,
     }
 
 
@@ -1096,6 +1203,78 @@ class FixtureHandler(BaseHTTPRequestHandler):
             if self.fixture.should_stop_after_score(top):
                 print("Scores fixture stopped after full chart", flush=True)
                 self.fixture.shutdown()
+        elif match := RIVALS_DETAIL.fullmatch(path):
+            account_id, token, rival_id = match.groups()
+            sorts = query.get("sort", ["closest"])
+            limits = query.get("limit", ["0"])
+            offsets = query.get("offset", ["0"])
+            if (set(query) - {"sort", "limit", "offset"} or len(sorts) != 1
+                    or sorts[0] not in ("closest", "they_lead", "you_lead")
+                    or len(limits) != 1 or len(offsets) != 1):
+                self._json(400, {"status": "invalid_rivals_query"})
+                return
+            scenario = _rivals_scenario(account_id)
+            if scenario == "unavailable":
+                self.send_response(503)
+                self.send_header("Retry-After", "30")
+                self.send_header("X-Fst-Public-Read-Freeze-Reason", "scrape")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            self._json(200, _rival_detail_body(token, rival_id, scenario))
+        elif match := RIVALS_LIST.fullmatch(path):
+            account_id, token = match.groups()
+            if query:
+                self._json(400, {"status": "invalid_rivals_query"})
+                return
+            scenario = _rivals_scenario(account_id)
+            if scenario == "unavailable":
+                self.send_response(503)
+                self.send_header("Retry-After", "30")
+                self.send_header("X-Fst-Public-Read-Freeze-Reason", "scrape")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            self._json(200, _rivals_list_body(token, scenario))
+        elif match := LEADERBOARD_RIVALS_DETAIL.fullmatch(path):
+            account_id, instrument, rival_id = match.groups()
+            rank_bys = query.get("rankBy", ["totalscore"])
+            sorts = query.get("sort", ["closest"])
+            if (set(query) - {"rankBy", "sort"} or len(rank_bys) != 1 or len(sorts) != 1
+                    or sorts[0] not in ("closest", "they_lead", "you_lead")):
+                self._json(400, {"status": "invalid_rivals_query"})
+                return
+            scenario = _rivals_scenario(account_id)
+            if scenario == "unavailable":
+                self.send_response(503)
+                self.send_header("Retry-After", "30")
+                self.send_header("X-Fst-Public-Read-Freeze-Reason", "scrape")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            self._json(
+                200,
+                _leaderboard_rival_detail_body(instrument, rank_bys[0], rival_id, scenario),
+            )
+        elif match := LEADERBOARD_RIVALS_LIST.fullmatch(path):
+            account_id, instrument = match.groups()
+            rank_bys = query.get("rankBy", ["totalscore"])
+            if set(query) - {"rankBy"} or len(rank_bys) != 1:
+                self._json(400, {"status": "invalid_rivals_query"})
+                return
+            scenario = _rivals_scenario(account_id)
+            if scenario == "unavailable":
+                self.send_response(503)
+                self.send_header("Retry-After", "30")
+                self.send_header("X-Fst-Public-Read-Freeze-Reason", "scrape")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            self._json(200, _leaderboard_rivals_body(instrument, rank_bys[0], scenario))
         else:
             self._json(404, {"status": "not_found"})
 
@@ -1128,7 +1307,10 @@ def main() -> None:
         None; the command remains attached to the current development session.
     """
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument(
+        "--port", type=int, default=8765,
+        help="0 asks the OS for a free loopback port (see the printed ready line)",
+    )
     parser.add_argument("--unpinned", action="store_true")
     parser.add_argument("--rollover-on-read", type=int)
     parser.add_argument("--rollover-on-command", action="store_true")
@@ -1139,8 +1321,8 @@ def main() -> None:
     parser.add_argument("--stop-after-first-shop", action="store_true")
     parser.add_argument("--metadata-edge", action="store_true")
     args = parser.parse_args()
-    if not 1 <= args.port <= 65535:
-        parser.error("port must be between 1 and 65535")
+    if not 0 <= args.port <= 65535:
+        parser.error("port must be between 0 (OS-assigned) and 65535")
     if args.rollover_on_read is not None and args.rollover_on_read < 2:
         parser.error("rollover-on-read must be at least 2")
     one_shot_count = sum((
