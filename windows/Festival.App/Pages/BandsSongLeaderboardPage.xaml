@@ -20,11 +20,11 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <Border Width="72" Height="72" CornerRadius="8" Background="{StaticResource FSTSurfaceMutedBrush}">
+            <Border x:Name="HeaderArtFrame" Width="72" Height="72" CornerRadius="8" Background="{StaticResource FSTSurfaceMutedBrush}">
                 <Image x:Name="HeaderArt" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
             </Border>
             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                <TextBlock Text="{x:Bind ViewModel.Title, Mode=OneWay}" Style="{StaticResource FSTPageTitleStyle}"
+                <TextBlock x:Name="TitleText" Text="{x:Bind ViewModel.Title, Mode=OneWay}" Style="{StaticResource FSTPageTitleStyle}" TextWrapping="WrapWholeWords"
                            AutomationProperties.HeadingLevel="Level1" AutomationProperties.AutomationId="fst.song-band-leaderboard.title" />
                 <HyperlinkButton Content="{x:Bind ViewModel.SongTitle, Mode=OneWay}" Click="OnSongTitle" Padding="0"
                                  FontWeight="SemiBold" AutomationProperties.AutomationId="fst.song-band-leaderboard.song" />
@@ -55,17 +55,21 @@
                 </ListView.ItemContainerStyle>
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="vm:SongBandRow">
-                        <Grid Padding="14,10" ColumnSpacing="14" CornerRadius="8" BorderThickness="1"
+                        <!-- Web SongBandScoreFooter shape: rank + members on top, team score footer below (fits any width). -->
+                        <Grid Padding="14,10" ColumnSpacing="12" RowSpacing="6" CornerRadius="8" BorderThickness="1"
                               Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}"
                               AutomationProperties.Name="{x:Bind Announcement}" AutomationProperties.AutomationId="{x:Bind AutomationId}">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="56" />
+                                <ColumnDefinition Width="Auto" MinWidth="40" />
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="{x:Bind Rank}" VerticalAlignment="Center" Style="{StaticResource BodyStrongTextBlockStyle}"
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="{x:Bind Rank}" VerticalAlignment="Top" Margin="0,4,0,0" Style="{StaticResource BodyStrongTextBlockStyle}"
                                        Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-                            <ItemsRepeater Grid.Column="1" ItemsSource="{x:Bind Members}" VerticalAlignment="Center">
+                            <ItemsRepeater Grid.Column="1" ItemsSource="{x:Bind Members}">
                                 <ItemsRepeater.Layout>
                                     <StackLayout Spacing="4" />
                                 </ItemsRepeater.Layout>
@@ -89,28 +93,32 @@
                                             </ItemsRepeater>
                                             <TextBlock Grid.Column="1" Text="{x:Bind Name}" VerticalAlignment="Center"
                                                        TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
-                                            <TextBlock Grid.Column="2" Text="{x:Bind ScoreText}" VerticalAlignment="Center"
-                                                       Style="{StaticResource FSTSecondaryTextStyle}"
-                                                       Visibility="{x:Bind HasScore}" />
+                                            <TextBlock Grid.Column="2" Text="{x:Bind ScoreText}" VerticalAlignment="Center" HorizontalAlignment="Right"
+                                                       Style="{StaticResource FSTSecondaryTextStyle}" Visibility="{x:Bind HasScore}" />
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsRepeater.ItemTemplate>
                             </ItemsRepeater>
-                            <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="4">
-                                <TextBlock Text="{x:Bind Score}" Style="{StaticResource BodyStrongTextBlockStyle}" HorizontalAlignment="Right" />
-                                <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
-                                    <Border CornerRadius="4" Padding="6,1" BorderThickness="1" BorderBrush="{StaticResource FSTGoldBrush}"
-                                            Visibility="{x:Bind IsFullCombo}">
-                                        <TextBlock Text="FC" FontSize="12" FontWeight="SemiBold" />
-                                    </Border>
-                                    <Border CornerRadius="4" Padding="6,1" Background="{StaticResource FSTSurfaceMutedBrush}"
-                                            Visibility="{x:Bind HasAccuracy}">
-                                        <TextBlock Text="{x:Bind Accuracy}" FontSize="12" />
-                                    </Border>
-                                    <TextBlock Text="{x:Bind Stars}" FontSize="12" VerticalAlignment="Center"
-                                               Foreground="{StaticResource FSTGoldBrush}" Visibility="{x:Bind HasStars}" />
-                                </StackPanel>
-                            </StackPanel>
+                            <Grid Grid.Row="1" Grid.Column="1" ColumnSpacing="6" Padding="0,6,0,0" BorderThickness="0,1,0,0"
+                                  BorderBrush="{ThemeResource FSTCardStrokeBrush}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{x:Bind Score}" Style="{StaticResource BodyStrongTextBlockStyle}" VerticalAlignment="Center" TextWrapping="NoWrap" />
+                                <Border Grid.Column="1" CornerRadius="4" Padding="6,1" BorderThickness="1" BorderBrush="{StaticResource FSTGoldBrush}"
+                                        Visibility="{x:Bind IsFullCombo}" VerticalAlignment="Center">
+                                    <TextBlock Text="FC" FontSize="12" FontWeight="SemiBold" />
+                                </Border>
+                                <Border Grid.Column="2" CornerRadius="4" Padding="6,1" Background="{StaticResource FSTSurfaceMutedBrush}"
+                                        Visibility="{x:Bind HasAccuracy}" VerticalAlignment="Center">
+                                    <TextBlock Text="{x:Bind Accuracy}" FontSize="12" />
+                                </Border>
+                                <TextBlock Grid.Column="3" Text="{x:Bind Stars}" FontSize="12" VerticalAlignment="Center"
+                                           Foreground="{StaticResource FSTGoldBrush}" Visibility="{x:Bind HasStars}" />
+                            </Grid>
                         </Grid>
                     </DataTemplate>
                 </ListView.ItemTemplate>

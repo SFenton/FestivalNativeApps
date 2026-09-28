@@ -13,7 +13,14 @@ namespace Festival.App.Pages;
 public sealed partial class BandsDetailPage : Page
 {
     /// <summary>Creates the page.</summary>
-    public BandsDetailPage() => InitializeComponent();
+    public BandsDetailPage()
+    {
+        InitializeComponent();
+        SizeChanged += (_, e) => ApplyWidth(e.NewSize.Width);
+    }
+
+    /// <summary>Page width from which the quick-links rail replaces the pill bar.</summary>
+    private const double RailWidth = 1100;
 
     /// <summary>Page model (set on navigation).</summary>
     public BandDetailViewModel ViewModel { get; private set; } = null!;
@@ -30,6 +37,16 @@ public sealed partial class BandsDetailPage : Page
     }
 
     #region Quick links
+    /// <summary>Shows the rail on wide pages and the pill bar otherwise; compacts the title on narrow pages.</summary>
+    /// <param name="width">Page width in epx.</param>
+    private void ApplyWidth(double width)
+    {
+        var wide = width >= RailWidth;
+        Rail.Visibility = wide ? Visibility.Visible : Visibility.Collapsed;
+        PillBar.Visibility = wide ? Visibility.Collapsed : Visibility.Visible;
+        TitleText.Style = (Style)Application.Current.Resources[width < 560 ? "SubtitleTextBlockStyle" : "FSTPageTitleStyle"];
+    }
+
     /// <summary>Adds one quick link per section to both the pill bar and the rail.</summary>
     private void BuildQuickLinks()
     {

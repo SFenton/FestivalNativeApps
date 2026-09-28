@@ -13,7 +13,11 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
     private CancellationTokenSource headerArt = new();
 
     /// <summary>Creates the page.</summary>
-    public BandsSongLeaderboardPage() => InitializeComponent();
+    public BandsSongLeaderboardPage()
+    {
+        InitializeComponent();
+        SizeChanged += (_, e) => ApplyWidth(e.NewSize.Width);
+    }
 
     /// <summary>Page model (set on navigation).</summary>
     public SongBandLeaderboardViewModel ViewModel { get; private set; } = null!;
@@ -40,6 +44,15 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
     {
         headerArt.Cancel();
         base.OnNavigatedFrom(e);
+    }
+
+    /// <summary>Compacts the header when the page itself is narrow (the navigation pane can take most of a compact window).</summary>
+    /// <param name="width">Page width in epx.</param>
+    private void ApplyWidth(double width)
+    {
+        var narrow = width < 560;
+        TitleText.Style = (Style)Application.Current.Resources[narrow ? "SubtitleTextBlockStyle" : "FSTPageTitleStyle"];
+        HeaderArtFrame.Width = HeaderArtFrame.Height = narrow ? 48 : 72;
     }
 
     /// <summary>Applies the band-size choice in place.</summary>

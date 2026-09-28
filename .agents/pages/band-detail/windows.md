@@ -23,6 +23,10 @@
 - Quick links: right rail at window width ≥ 1280 epx, pill bar under the title otherwise; `StartBringIntoView` to each section.
 - Sections fail independently: history and songs have their own inline status/Retry; the band row failure replaces the page.
 
+## Evidence
+
+Fixture screenshots (mock service, compact/medium/wide): `windows/reports/screenshots/band-detail-{compact,medium,wide}.png`. At compact (500 epx) the shell keeps the navigation pane open, leaving ~340 epx of content; pages switch to a smaller title below 560 epx page width.
+
 ## IDs
 
 `fst.band.screen`, `.title`, `.subtitle`, `.unresolved`, `.error`, `.members-section`, `.member.<accountId>`, `.summary-section`, `.statistics-section`, `.stat.<id>` (`type`, `appearances`, `members`, `rank`, `songs-played`, `full-combos`, `total-score`, `fc-rate`, `avg-accuracy`, `avg-stars`, `best-rank`, `avg-rank`), `.rank-by`, `.history-section`, `.history-chart`, `.history-row.<date>`, `.history-empty`, `.songs-section`, `.best-songs`, `.worst-songs`, `.song-row.<songId>`, `.quick-links`, `.quick-link.<id>`, `.quick-links-rail`, `.rail-link.<id>`. Panels with IDs are not in the UIA control view; drive by the title or cards.

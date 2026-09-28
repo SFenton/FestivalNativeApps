@@ -11,6 +11,10 @@
 - Paging: shared `BandsPager` (First/Previous/`1 / N`/Next/Last), hidden for one page; a page past the end (list shrank) reloads the last page. Late responses for an older group/page are discarded.
 - States: loading ring, empty (`No bands found` + `No <group> have been recorded for this player yet.`), failure (`ServiceStatusView`, Retry).
 
+## Evidence
+
+Fixture screenshots (mock service, compact/medium/wide): `windows/reports/screenshots/player-bands-{compact,medium,wide}.png`. At compact (500 epx) the shell keeps the navigation pane open, leaving ~340 epx of content; pages switch to a smaller title below 560 epx page width.
+
 ## IDs
 
 `fst.player-bands.screen`, `.title`, `.subtitle`, `.group-picker`, `.group.<all|duos|trios|quads>`, `.list`, `.row.<bandId>`, `.empty`, `.error`, `.page-first|page-previous|page-info|page-next|page-last`.

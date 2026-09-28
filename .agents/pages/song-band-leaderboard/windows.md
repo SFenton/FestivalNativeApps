@@ -10,6 +10,10 @@
 - Rows (`ListView`, virtualized): rank, each member's instrument icons + name + per-song member score, team score, FC badge (gold outline), accuracy pill, `★ stars`. A row opens `AppRoute.Band(bandId, bandType, teamKey)`.
 - Paging with the shared `BandsPager`; empty state `No band scores found` / `No <Size> scores have been recorded for this song yet.`; failure via `ServiceStatusView`. Late responses for an older size/page are discarded.
 
+## Evidence
+
+Fixture screenshots (mock service, compact/medium/wide): `windows/reports/screenshots/song-band-leaderboard-{compact,medium,wide}.png`. At compact (500 epx) the shell keeps the navigation pane open, leaving ~340 epx of content; pages switch to a smaller title below 560 epx page width.
+
 ## IDs
 
 `fst.song-band-leaderboard.screen`, `.title`, `.song`, `.subtitle`, `.band-type-menu`, `.band-type.<bandType>`, `.list`, `.row.<bandId>:<rank>`, `.empty`, `.error`, `.page-first|page-previous|page-info|page-next|page-last`.
