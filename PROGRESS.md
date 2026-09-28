@@ -209,6 +209,8 @@ Not yet assigned:
 
 ## 5. Known issues / decisions
 
+- **Simulator lock budget:** UX lanes' XCUITest batches held the lock 10+ min and starved feature lanes. Rule: ≤5 min per lock hold with a hard timeout, batches split; `ios_sim.py uitest` (Lane U) enforces it.
+
 - **Toolbar order rule (`c53b5cb`):** profile avatar is rightmost on tab roots, with the bell in one capsule. Tab roots with their own actions compose `FestivalRootTrailingItems` last and use `.topBarTrailing` (see `.agents/controls/app-navigation/ios.md`).
 - **Band detail GET writes:** `GET /api/bands/{bandId}` rebuilds band team configs on cache miss → blocked; band detail resolves via `/api/rankings/bands/{bandType}?teamKey=`.
 - **Test-ID families are implicit:** `verify_product.py` accepts `fst.<page-or-control-id>.*` for every declared page/control.
@@ -274,3 +276,5 @@ Not yet assigned:
 | 2026-09-28 | Lane R2 | Typed `RivalScope` on AppRoute (singleton removed), Common/combo rivals (22 tests), Find Rival, Quick Links on Compete/Rivals; 503s explained (scrape freeze) |
 | 2026-09-28 | Orchestrator | Launched Lane K (client consolidation + freeze UX) and Lane U3 (Rivals/Compete UX tests) |
 | 2026-09-28 | Lane G2 | Suggestions follow-ups: `near_max_5k/10k/15k` + decades ported; `visibleInstruments` seam closed; verified rival-suggestion data needs a combined `/rivals/all` read not yet in `FestivalAPI+Rivals.swift` |
+| 2026-09-28 | Lane G2 | near_max families (+decades), visibleInstruments seam; Suggestions Core coverage 96–100% |
+| 2026-09-28 | Orchestrator | Sim lock budget rule for UX lanes; `/rivals/all` read assigned to Lane K |
