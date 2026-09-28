@@ -59,6 +59,22 @@ sealed interface ServiceEndpoint {
     }
 
     /**
+     * A feature-owned allowlisted read declared in its own
+     * `data/<feature>/FestivalApi<Feature>.kt` file, so feature lanes add reads
+     * without editing this `when`. Every segment must pass [isSafeSegment]; the
+     * owning file documents the endpoint's purity (service-safety.md).
+     *
+     * @property segments Path segments after `/api/`.
+     * @property query Query parameters in order.
+     */
+    data class Feature(
+        val segments: List<String>,
+        val query: List<Pair<String, String>> = emptyList(),
+        override val pinned: Boolean = true,
+        override val acceptsSyncing: Boolean = false,
+    ) : ServiceEndpoint
+
+    /**
      * Build the URL from individually validated, percent-encoded segments.
      *
      * @param base Validated origin.
@@ -84,6 +100,11 @@ sealed interface ServiceEndpoint {
                 builder.addPathSegment("account").addPathSegment("search")
                     .addQueryParameter("q", query)
                     .addQueryParameter("limit", limit.toString())
+            }
+            is Feature -> {
+                if (segments.isEmpty() || !segments.all(::isSafeSegment)) throw FestivalApiException.InvalidResource()
+                segments.forEach(builder::addPathSegment)
+                query.forEach { (name, value) -> builder.addQueryParameter(name, value) }
             }
         }
         return builder.build().toString()
@@ -337,8 +358,16 @@ class FestivalApi(origin: String, transport: HttpTransport) {
 
     // endregion
 
+    /**
+     * Decode a body with the tolerant decoder, mapping malformed JSON to
+     * [FestivalApiException.InvalidResponse] (feature reads use this too).
+     *
+     * @param strategy Serializer.
+     * @param body Body bytes.
+     * @return Decoded value.
+     */
     @OptIn(ExperimentalSerializationApi::class)
-    private fun <T> decode(strategy: DeserializationStrategy<T>, body: ByteArray): T =
+    internal fun <T> decode(strategy: DeserializationStrategy<T>, body: ByteArray): T =
         try {
             JSON.decodeFromStream(strategy, ByteArrayInputStream(body))
         } catch (error: IllegalArgumentException) {
