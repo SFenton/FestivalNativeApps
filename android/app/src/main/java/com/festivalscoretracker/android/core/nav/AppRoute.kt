@@ -89,15 +89,30 @@ data class BandRoute(
 /** `/rivals` pushed from the drawer or Compete. */
 @Serializable data object RivalsRoute : AppRoute
 
-/** `/rivals/all`; [scope] is the Apple `RivalScope.debugToken` form. */
+/** `/rivals/all`; [scope] is a typed `RivalScope.routeToken` (`core/rivals/RivalScope.kt`). */
 @Serializable data class AllRivalsRoute(val scope: String) : AppRoute
 
-/** `/rivals/:rivalId`. */
-@Serializable data class RivalDetailRoute(val rivalId: String, val name: String? = null, val scope: String? = null) : AppRoute
-
-/** `/rivals/:rivalId/rivalry?mode=`. */
+/**
+ * `/rivals/:rivalId`; [scope] is a `RivalScope.routeToken`. [allowLiveFallback] is set only
+ * when opened from Find Rival (web `RivalsPage.tsx:263`).
+ */
 @Serializable
-data class RivalryRoute(val rivalId: String, val mode: String, val name: String? = null, val scope: String? = null) : AppRoute
+data class RivalDetailRoute(
+    val rivalId: String,
+    val name: String? = null,
+    val scope: String? = null,
+    val allowLiveFallback: Boolean = false,
+) : AppRoute
+
+/** `/rivals/:rivalId/rivalry?mode=`; scope and live fallback are forwarded from Rival Detail. */
+@Serializable
+data class RivalryRoute(
+    val rivalId: String,
+    val mode: String,
+    val name: String? = null,
+    val scope: String? = null,
+    val allowLiveFallback: Boolean = false,
+) : AppRoute
 
 // Profile hubs pushed outside their tab
 

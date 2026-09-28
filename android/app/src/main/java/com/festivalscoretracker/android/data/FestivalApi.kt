@@ -383,6 +383,25 @@ class FestivalApi(origin: String, transport: HttpTransport) {
 
     // endregion
 
+    // region Unpinned feature reads
+
+    /**
+     * Send one unpinned keyless GET for a feature endpoint (Rivals and other reads
+     * outside the catalogue publication contract, like Apple's `fetchJSON`) through
+     * the shared [RequestGate]: no publication bootstrap, pin header or ETag cache.
+     *
+     * @param endpoint Allowlisted endpoint (usually [ServiceEndpoint.Feature] with `pinned = false`).
+     * @return Body bytes of a 2xx response.
+     * @throws FestivalApiException for an unsafe segment or any mapped status (404 → `HttpStatus(404)`).
+     */
+    internal suspend fun readUnpinned(endpoint: ServiceEndpoint): ByteArray {
+        val response = gate.send(RequestGate.makeRequest(endpoint.url(base)))
+        RequestGate.mapStatus(response, endpoint.acceptsSyncing)
+        return response.body
+    }
+
+    // endregion
+
     /**
      * Decode a body with the tolerant decoder, mapping malformed JSON to
      * [FestivalApiException.InvalidResponse] (feature reads use this too).

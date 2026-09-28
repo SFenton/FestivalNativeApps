@@ -2,6 +2,7 @@ package com.festivalscoretracker.android.core.nav
 
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.SelectedPlayer
+import com.festivalscoretracker.android.core.rivals.RivalRoutes
 import com.festivalscoretracker.android.core.search.SearchScope
 
 // region Debug launch
@@ -16,7 +17,8 @@ import com.festivalscoretracker.android.core.search.SearchScope
  * `playerHistory:<songId>:<Instrument wire ID>`, `player:<accountId>`,
  * `playerBands:<accountId>`, `leaderboards`, `fullRankings:<Instrument wire ID>`,
  * `bandRankings:<bandType>`, `shop`, `rivals`, `statistics`, `suggestions`,
- * `compete`, `bands`, `band:<bandId>`, `licenses`.
+ * `compete`, `bands`, `band:<bandId>`, `licenses`, `allRivals:<scope>`,
+ * `rivalDetail:<rivalId>[:<scope>]`, `rivalry:<rivalId>:<mode>[:<scope>]` (scope = `RivalScope.routeToken`).
  *
  * @property section `FST_DEBUG_TAB`.
  * @property route Parsed `FST_DEBUG_ROUTE`, excluding song lookups.
@@ -111,6 +113,7 @@ data class DebugLaunch(
                 "band" -> arg?.split(":", limit = 3)?.let { BandRoute(it[0], bandType = it.getOrNull(1), teamKey = it.getOrNull(2)) }
                 "songBandLeaderboard" -> arg?.split(":", limit = 2)?.let { SongBandLeaderboardRoute(it[0], it.getOrNull(1) ?: "Band_Duets") }
                 "licenses" -> LicensesRoute
+                "allRivals", "rivalDetail", "rivalry" -> RivalRoutes.parseDebug(parts[0], arg)
                 else -> null
             }
         }
