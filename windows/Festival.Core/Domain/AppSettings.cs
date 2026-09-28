@@ -64,6 +64,144 @@ public sealed record AppSettings
     /// <summary>In-app additive override: no artwork at all (data saving).</summary>
     [JsonPropertyName("saveData")] public bool SaveData { get; init; }
 
+    #region App settings (Settings page; restored by Reset)
+    /// <summary>Show per-chart status icons on unfiltered Songs rows.</summary>
+    [JsonPropertyName("showInstrumentIcons")] public bool ShowInstrumentIcons { get; init; } = true;
+
+    /// <summary>Song-row metadata order is independent of sort priority.</summary>
+    [JsonPropertyName("enableVisualOrder")] public bool EnableVisualOrder { get; init; }
+
+    /// <summary>Song-row metadata display order (every field exactly once).</summary>
+    [JsonPropertyName("songRowVisualOrder")] public IReadOnlyList<MetadataField> SongRowVisualOrder { get; init; } = SettingsOrder.Normalize<MetadataField>(null);
+
+    /// <summary>CHOpt text-path column order (every column exactly once).</summary>
+    [JsonPropertyName("pathColumnOrder")] public IReadOnlyList<PathColumnKey> PathColumnOrder { get; init; } = SettingsOrder.Normalize<PathColumnKey>(null);
+
+    /// <summary>Hide scores above the CHOpt maximum plus leeway.</summary>
+    [JsonPropertyName("filterInvalidScores")] public bool FilterInvalidScores { get; init; }
+
+    /// <summary>Invalid-score leeway percent, −5…+5 in 0.1 steps.</summary>
+    [JsonPropertyName("leeway")] public double Leeway { get; init; } = ScoreLeeway.Default;
+
+    /// <summary>How CHOpt paths open by default.</summary>
+    [JsonPropertyName("pathDefaultView")] public PathDisplayMode PathDefaultView { get; init; } = PathDisplayMode.Image;
+
+    /// <summary>The Paths unavailable-chart warning was dismissed.</summary>
+    [JsonPropertyName("pathUnavailableWarningDismissed")] public bool PathUnavailableWarningDismissed { get; init; }
+
+    /// <summary>Experimental leaderboard ranks (not yet available: always sanitized to off).</summary>
+    [JsonPropertyName("experimentalRanks")] public bool ExperimentalRanks { get; init; }
+
+    /// <summary>Hide the Item Shop (navigation and highlights; the highlight preference is kept).</summary>
+    [JsonPropertyName("hideShop")] public bool HideShop { get; init; }
+
+    /// <summary>Stop highlighting Shop songs.</summary>
+    [JsonPropertyName("disableShopHighlighting")] public bool DisableShopHighlighting { get; init; }
+
+    /// <summary>Debug-only tap diagnostics.</summary>
+    [JsonPropertyName("tapDiagnostics")] public bool TapDiagnostics { get; init; }
+
+    /// <summary>Debug-only tap telemetry (requires diagnostics).</summary>
+    [JsonPropertyName("tapTelemetry")] public bool TapTelemetry { get; init; }
+
+    /// <summary>Show the Score metadata field.</summary>
+    [JsonPropertyName("metadataScore")] public bool MetadataScore { get; init; } = true;
+    /// <summary>Show the Percentage metadata field.</summary>
+    [JsonPropertyName("metadataPercentage")] public bool MetadataPercentage { get; init; } = true;
+    /// <summary>Show the Percentile metadata field.</summary>
+    [JsonPropertyName("metadataPercentile")] public bool MetadataPercentile { get; init; } = true;
+    /// <summary>Show the Season Achieved metadata field.</summary>
+    [JsonPropertyName("metadataSeason")] public bool MetadataSeason { get; init; } = true;
+    /// <summary>Show the Intensity metadata field.</summary>
+    [JsonPropertyName("metadataIntensity")] public bool MetadataIntensity { get; init; } = true;
+    /// <summary>Show the Game Difficulty metadata field.</summary>
+    [JsonPropertyName("metadataDifficulty")] public bool MetadataDifficulty { get; init; } = true;
+    /// <summary>Show the Stars metadata field.</summary>
+    [JsonPropertyName("metadataStars")] public bool MetadataStars { get; init; } = true;
+    /// <summary>Show the Last Played metadata field.</summary>
+    [JsonPropertyName("metadataLastPlayed")] public bool MetadataLastPlayed { get; init; } = true;
+
+    /// <summary>In-app additive override: stronger text and strokes.</summary>
+    [JsonPropertyName("moreContrast")] public bool MoreContrast { get; init; }
+
+    /// <summary>In-app additive override: opaque surfaces.</summary>
+    [JsonPropertyName("lessTransparency")] public bool LessTransparency { get; init; }
+
+    /// <summary>Whether Shop songs are highlighted (Shop visible and highlighting on).</summary>
+    [JsonIgnore] public bool ShopHighlightEnabled => !HideShop && !DisableShopHighlighting;
+
+    /// <summary>Whether a metadata field is visible.</summary>
+    /// <param name="field">Field.</param>
+    /// <returns>Visibility.</returns>
+    public bool IsMetadataVisible(MetadataField field) => field switch
+    {
+        MetadataField.Score => MetadataScore,
+        MetadataField.Percentage => MetadataPercentage,
+        MetadataField.Percentile => MetadataPercentile,
+        MetadataField.Season => MetadataSeason,
+        MetadataField.Intensity => MetadataIntensity,
+        MetadataField.Difficulty => MetadataDifficulty,
+        MetadataField.Stars => MetadataStars,
+        _ => MetadataLastPlayed,
+    };
+
+    /// <summary>Sets one metadata field's visibility (all may be off).</summary>
+    /// <param name="field">Field.</param>
+    /// <param name="visible">Visibility.</param>
+    /// <returns>Updated settings.</returns>
+    public AppSettings WithMetadataVisible(MetadataField field, bool visible) => field switch
+    {
+        MetadataField.Score => this with { MetadataScore = visible },
+        MetadataField.Percentage => this with { MetadataPercentage = visible },
+        MetadataField.Percentile => this with { MetadataPercentile = visible },
+        MetadataField.Season => this with { MetadataSeason = visible },
+        MetadataField.Intensity => this with { MetadataIntensity = visible },
+        MetadataField.Difficulty => this with { MetadataDifficulty = visible },
+        MetadataField.Stars => this with { MetadataStars = visible },
+        _ => this with { MetadataLastPlayed = visible },
+    };
+
+    /// <summary>
+    /// Restores app settings only (web Reset Settings). Starts from <c>this</c>, so the selected player,
+    /// Songs sort/filter state and every other Songs-owned field survive.
+    /// </summary>
+    /// <returns>Settings with every Settings-page preference at its default.</returns>
+    public AppSettings ResetAppSettings()
+    {
+        var defaults = new AppSettings();
+        return (this with
+        {
+            ShowInstrumentIcons = defaults.ShowInstrumentIcons,
+            EnableVisualOrder = defaults.EnableVisualOrder,
+            SongRowVisualOrder = defaults.SongRowVisualOrder,
+            PathColumnOrder = defaults.PathColumnOrder,
+            FilterInvalidScores = defaults.FilterInvalidScores,
+            Leeway = defaults.Leeway,
+            PathDefaultView = defaults.PathDefaultView,
+            PathUnavailableWarningDismissed = defaults.PathUnavailableWarningDismissed,
+            ExperimentalRanks = defaults.ExperimentalRanks,
+            HideShop = defaults.HideShop,
+            DisableShopHighlighting = defaults.DisableShopHighlighting,
+            TapDiagnostics = defaults.TapDiagnostics,
+            TapTelemetry = defaults.TapTelemetry,
+            MetadataScore = true,
+            MetadataPercentage = true,
+            MetadataPercentile = true,
+            MetadataSeason = true,
+            MetadataIntensity = true,
+            MetadataDifficulty = true,
+            MetadataStars = true,
+            MetadataLastPlayed = true,
+            VisibleInstruments = defaults.VisibleInstruments,
+            ReduceMotion = defaults.ReduceMotion,
+            DisableAnimatedArtwork = defaults.DisableAnimatedArtwork,
+            SaveData = defaults.SaveData,
+            MoreContrast = defaults.MoreContrast,
+            LessTransparency = defaults.LessTransparency,
+        }).Sanitized();
+    }
+    #endregion
+
     /// <summary>Returns a copy with every field clamped to a valid state.</summary>
     /// <returns>Sanitized settings.</returns>
     public AppSettings Sanitized()
@@ -79,21 +217,40 @@ public sealed record AppSettings
             SongSort = Enum.IsDefined(SongSort) ? SongSort : SongSortMode.Title,
             SongFilter = filter,
             VisibleInstruments = visible,
+            SongRowVisualOrder = SettingsOrder.Normalize(SongRowVisualOrder),
+            PathColumnOrder = SettingsOrder.Normalize(PathColumnOrder),
+            Leeway = ScoreLeeway.Clamp(Leeway),
+            PathDefaultView = Enum.IsDefined(PathDefaultView) ? PathDefaultView : PathDisplayMode.Image,
+            ExperimentalRanks = false,
+            TapTelemetry = TapTelemetry && TapDiagnostics,
         };
     }
 
-    /// <summary>Value equality, comparing the instrument list by contents.</summary>
+    /// <summary>Value equality, comparing lists by contents.</summary>
     /// <param name="other">Other settings.</param>
     /// <returns><see langword="true"/> when every field matches.</returns>
     public bool Equals(AppSettings? other) =>
         other is not null && Version == other.Version && SelectedPlayer == other.SelectedPlayer && SongSort == other.SongSort &&
         SongSortAscending == other.SongSortAscending && SongFilter == other.SongFilter &&
         DisableAnimatedArtwork == other.DisableAnimatedArtwork && ReduceMotion == other.ReduceMotion && SaveData == other.SaveData &&
-        (VisibleInstruments ?? []).SequenceEqual(other.VisibleInstruments ?? []);
+        (VisibleInstruments ?? []).SequenceEqual(other.VisibleInstruments ?? []) &&
+        ShowInstrumentIcons == other.ShowInstrumentIcons && EnableVisualOrder == other.EnableVisualOrder &&
+        (SongRowVisualOrder ?? []).SequenceEqual(other.SongRowVisualOrder ?? []) &&
+        (PathColumnOrder ?? []).SequenceEqual(other.PathColumnOrder ?? []) &&
+        FilterInvalidScores == other.FilterInvalidScores && Leeway.Equals(other.Leeway) && PathDefaultView == other.PathDefaultView &&
+        PathUnavailableWarningDismissed == other.PathUnavailableWarningDismissed && ExperimentalRanks == other.ExperimentalRanks &&
+        HideShop == other.HideShop && DisableShopHighlighting == other.DisableShopHighlighting &&
+        TapDiagnostics == other.TapDiagnostics && TapTelemetry == other.TapTelemetry &&
+        MetadataScore == other.MetadataScore && MetadataPercentage == other.MetadataPercentage &&
+        MetadataPercentile == other.MetadataPercentile && MetadataSeason == other.MetadataSeason &&
+        MetadataIntensity == other.MetadataIntensity && MetadataDifficulty == other.MetadataDifficulty &&
+        MetadataStars == other.MetadataStars && MetadataLastPlayed == other.MetadataLastPlayed &&
+        MoreContrast == other.MoreContrast && LessTransparency == other.LessTransparency;
 
     /// <summary>Hash consistent with <see cref="Equals(AppSettings?)"/>.</summary>
     /// <returns>Hash code.</returns>
-    public override int GetHashCode() => HashCode.Combine(SelectedPlayer, SongSort, SongSortAscending, SongFilter, VisibleInstruments?.Count);
+    public override int GetHashCode() =>
+        HashCode.Combine(SelectedPlayer, SongSort, SongSortAscending, SongFilter, VisibleInstruments?.Count, Leeway, HideShop);
 
     /// <summary>Toggles a chart's visibility; the last visible chart cannot be hidden.</summary>
     /// <param name="instrument">Chart.</param>
