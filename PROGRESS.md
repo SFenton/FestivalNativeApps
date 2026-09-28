@@ -266,11 +266,14 @@ Not yet assigned:
 
 ### Global search (operator, 2026-09-28) — all platforms, all layouts
 
-Web: search is its own button on every page (songs, players, bands). Native apps need a **global** search entry point on every page and layout.
-- 🟨 **R-search** (Opus, docs only): web behavior spec → `.agents/controls/global-search/spec.md`; Android + Windows per-layout designs (`android.md`, `windows.md`); contract entry `global-search` (`fst.global-search.*`); per-platform implementation plan.
-- 🟨 **Apple** — folded into Lane A2 (nav accessories): design + implement for iPhone (26 / pre-26), Duo folded/unfolded, iPad, macOS; `ios.md`/`ipados.md`/`macos.md`.
-- ⬜ **Windows** `win-search` and ⬜ **Android** `and-search` implementation lanes — launch after the spec lands (Android after its foundation).
-- Safety: players via `GET /api/account/search` (allowed); **band search writes → blocked, shown with explanation**; songs are local catalog search.
+Web: a magnifier in the shell header on every page opens one search over songs (local catalogue), players and bands. Spec: [global-search/spec.md](.agents/controls/global-search/spec.md) (contract `global-search`, `fst.global-search.*`). Safety: players via `GET /api/account/search` (allowed); **band search writes → Bands scope shown but unavailable, with explanation and a Band Rankings link**; songs are local.
+- ✅ **R-search** (Opus, docs only): web behavior spec, Android/Windows per-layout designs, contract entry, this plan.
+
+| Lane | Owns (edit) | Tasks | Test plan |
+|---|---|---|---|
+| **A2** (Apple, Opus) — 🟨 | Apple files only; records `ios.md`/`ipados.md`/`macos.md` under `.agents/controls/global-search/` | Search action in every page's chrome on iPhone 26 / pre-26, Duo folded + unfolded, iPad, macOS; shared engine for songs + players; Bands explanation; routes onto the current tab | Swift Testing for the engine (debounce, cancel, late result, <2 chars, empty → Retry, freeze, no band request); XCUITest open/search/tap/Back per layout; hosted snapshots per state |
+| **win-search** (Windows) — ⬜ ready | `Festival.Core/ViewModels/GlobalSearchViewModel.cs`, `Domain/GlobalSearchResults.cs`, `Pages/SearchPage.xaml(.cs)`, `MainWindow.Search.cs`, the `TitleBar.Content` + compact button in `MainWindow.xaml`; `AppRoute.Search` via `win-shell` | 1. Model + tests · 2. Title-bar `AutoSuggestBox` + mixed suggestions · 3. Search page (SelectorBar All/Songs/Players/Bands, grouped list, Retry, InfoBar) · 4. Compact (<720 epx) button · 5. Ctrl+E / Ctrl+F accelerators · 6. Narrator notification · 7. UIA journeys ([windows.md](.agents/controls/global-search/windows.md)) | xUnit ≥95% on the model/results; `uiwin.py drive` at `compact`, `medium`, `wide`, `snap-left` (+683 epx): Ctrl+E, type, arrow + Enter on a suggestion, submit → page, scopes, Bands InfoBar, Back; fixture log shows no `/api/bands/search`; Axe.Windows scan of the page |
+| **and-search** (Android) — ⬜ after the Android foundation | `search/GlobalSearchModel.kt` + UI `search/GlobalSearch*.kt`; one shell call site via the shell owner | 1. Model + JUnit · 2. Compact action → `ExpandedFullScreenSearchBar` · 3. Medium docked · 4. Expanded persistent `SearchBar` + docked panel · 5. Fold/tabletop/tri-fold clamping + continuity · 6. Ctrl+K / Search key / Ctrl+F + shortcuts helper · 7. Predictive back + TalkBack ([android.md](.agents/controls/global-search/android.md)) | JUnit ≥95% on the model; Compose UI tests by `testTag`; `device.py drive` on phone, book fold (folded/unfolded/tabletop), passport, tri-fold (3 states), tablet, resizable presets, each with a fold/resize mid-search continuity check; TalkBack walkthrough |
 
 ### Wave 4+ — other form factors
 
