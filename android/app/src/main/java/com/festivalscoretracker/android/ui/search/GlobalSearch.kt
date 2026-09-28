@@ -2,7 +2,6 @@ package com.festivalscoretracker.android.ui.search
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,29 +14,28 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExpandedDockedSearchBar
 import androidx.compose.material3.ExpandedFullScreenSearchBar
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MultiChoiceSegmentedButtonRow
 import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.SearchBarState
 import androidx.compose.material3.SearchBarValue
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -45,13 +43,16 @@ import androidx.compose.material3.TextFieldColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -91,6 +92,9 @@ import com.festivalscoretracker.android.presentation.search.GlobalSearchViewMode
 import com.festivalscoretracker.android.presentation.search.SectionPhase
 import com.festivalscoretracker.android.ui.common.SearchChrome
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
+import com.festivalscoretracker.android.ui.common.fadeInStagger
+import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlinx.coroutines.launch
 
@@ -147,6 +151,9 @@ object GlobalSearchTags {
      * @return Tag.
      */
     fun scope(scope: SearchScope) = "fst.global-search.scope.${scope.token}"
+
+    /** Segmented scope row. */
+    const val SCOPES = "fst.global-search.scopes"
 
     /**
      * Section heading tag.
@@ -370,22 +377,27 @@ fun GlobalSearchContent(
     onBandRankings: () -> Unit,
 ) {
     Column(Modifier.fillMaxWidth()) {
-        // Chips go above results: on Android the IME covers the bottom (Material search view layout).
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+        // Scope toggles go above results (the IME covers the bottom): a full-width M3 segmented
+        // row with equal segments. Multi-choice segments give toggle semantics like the web's
+        // `aria-pressed` chips; tapping the pressed one returns to All, so at most one is on.
+        MultiChoiceSegmentedButtonRow(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).testTag(GlobalSearchTags.SCOPES),
         ) {
-            SearchScope.chips.forEach { chip ->
-                FilterChip(
-                    selected = ui.scope == chip,
-                    onClick = { onToggleScope(chip) },
-                    label = { Text(chip.title) },
-                    leadingIcon = if (chip == SearchScope.Bands) {
-                        { Icon(Icons.Outlined.Groups, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize)) }
-                    } else {
-                        null
-                    },
-                    modifier = Modifier.testTag(GlobalSearchTags.scope(chip)),
+            SearchScope.chips.forEachIndexed { index, chip ->
+                SegmentedButton(
+                    checked = ui.scope == chip,
+                    onCheckedChange = { onToggleScope(chip) },
+                    shape = SegmentedButtonDefaults.itemShape(index, SearchScope.chips.size),
+                    colors = SegmentedButtonDefaults.colors(
+                        activeContainerColor = BrandTokens.accentPurple.copy(alpha = 0.45f),
+                        activeContentColor = BrandTokens.textPrimary,
+                        inactiveContainerColor = Color.Transparent,
+                        inactiveContentColor = BrandTokens.textSecondary,
+                        activeBorderColor = BrandTokens.glassBorder,
+                        inactiveBorderColor = BrandTokens.glassBorder,
+                    ),
+                    label = { Text(chip.title, maxLines = 1) },
+                    modifier = Modifier.weight(1f).testTag(GlobalSearchTags.scope(chip)),
                 )
             }
         }
@@ -414,16 +426,31 @@ fun GlobalSearchContent(
 
 @Composable
 private fun Results(ui: GlobalSearchUiState, artworkUrl: (String?) -> String?, onRetry: () -> Unit, onOpen: (SearchDestination) -> Unit) {
+    // Web SearchModal restaggers once per content signature: hide for a frame when the result
+    // set changes, then fade rows in (web fadeInUp, 125 ms stagger).
+    val signature = remember(ui.songs, ui.players) { ui.songs.map { it.songId } to ui.players.map { it.accountId } }
+    var settled by remember { mutableStateOf<Any?>(null) }
+    LaunchedEffect(signature) { settled = signature }
+    val revealed = rememberRevealed(settled == signature)
+    val playersOffset = if (ui.showSongsSection) ui.songs.size + 1 else 0
     LazyColumn(Modifier.fillMaxWidth().testTag("fst.global-search.results")) {
         if (ui.showSongsSection) {
-            item(key = "h-songs") { SectionTitle("Songs", GlobalSearchTags.section(SearchScope.Songs)) }
+            item(key = "h-songs") {
+                Box(Modifier.festivalFadeIn(revealed)) { SectionTitle("Songs", GlobalSearchTags.section(SearchScope.Songs)) }
+            }
             if (ui.songsPhase == SectionPhase.Failed) {
                 item(key = "songs-failed") { InlineMessage(GlobalSearchResults.SONGS_FAILED) }
             }
-            items(ui.songs, key = { "s-${it.songId}" }) { song -> SongResultRow(song, artworkUrl(song.albumArt)) { onOpen(song.destination) } }
+            itemsIndexed(ui.songs, key = { _, song -> "s-${song.songId}" }) { index, song ->
+                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index + 1))) {
+                    SongResultRow(song, artworkUrl(song.albumArt)) { onOpen(song.destination) }
+                }
+            }
         }
         if (ui.showPlayersSection) {
-            item(key = "h-players") { SectionTitle("Players", GlobalSearchTags.section(SearchScope.Players)) }
+            item(key = "h-players") {
+                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(playersOffset))) { SectionTitle("Players", GlobalSearchTags.section(SearchScope.Players)) }
+            }
             when (ui.playersPhase) {
                 SectionPhase.Loading -> item(key = "players-loading") {
                     LinearProgressIndicator(
@@ -451,7 +478,11 @@ private fun Results(ui: GlobalSearchUiState, artworkUrl: (String?) -> String?, o
                 }
                 else -> Unit
             }
-            items(ui.players, key = { "p-${it.accountId}" }) { player -> PlayerResultRow(player) { onOpen(player.destination) } }
+            itemsIndexed(ui.players, key = { _, player -> "p-${player.accountId}" }) { index, player ->
+                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(playersOffset + index + 1))) {
+                    PlayerResultRow(player) { onOpen(player.destination) }
+                }
+            }
         }
     }
 }

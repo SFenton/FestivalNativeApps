@@ -7,17 +7,19 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
@@ -127,14 +129,19 @@ class GlobalSearchUiTest {
         h.waitForTag(GlobalSearchTags.RESULT_SONG)
         rule.onNodeWithTag(GlobalSearchTags.section(SearchScope.Songs)).assertIsDisplayed()
 
-        // Scope chips: Songs only, then back to all.
+        // Scope segments fill the width equally (phone), no icon on Bands.
+        val row = rule.onNodeWithTag(GlobalSearchTags.SCOPES).fetchSemanticsNode().boundsInRoot
+        val widths = SearchScope.chips.map { rule.onNodeWithTag(GlobalSearchTags.scope(it)).fetchSemanticsNode().boundsInRoot.width }
+        assertTrue("segments $widths", widths.max() - widths.min() < 2f)
+        assertTrue(widths.sum() > row.width - 4f)
+        // Scope toggles: Songs only, then back to all.
         rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Songs)).performClick()
         h.settle()
-        rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Songs)).assertIsSelected()
+        rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Songs)).assertIsOn()
         assertEquals(0, rule.onAllNodesWithTag(GlobalSearchTags.section(SearchScope.Players)).fetchSemanticsNodes().size)
         rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Songs)).performClick()
         h.settle()
-        rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Songs)).assertIsNotSelected()
+        rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Songs)).assertIsOff()
 
         // Bands: explanation, no request, Band Rankings link.
         rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Bands)).performClick()
@@ -222,7 +229,7 @@ class GlobalSearchUiTest {
     fun keyboardShortcutsAndDebugLaunchOpenSearch() {
         h.launch(DebugLaunch(stillBackground = true, searchQuery = "alpha", searchScope = SearchScope.Songs))
         h.waitForTag(GlobalSearchTags.RESULT_SONG)
-        rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Songs)).assertIsSelected()
+        rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Songs)).assertIsOn()
         rule.onNodeWithTag(GlobalSearchTags.CLOSE).performClick()
         h.waitForGone(GlobalSearchTags.SURFACE)
         rule.runOnIdle { assertTrue(h.shortcuts.dispatch(ShellShortcut.OpenSearch)) }

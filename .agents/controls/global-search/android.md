@@ -8,7 +8,7 @@
 
 | Width class (window) | Entry point | Expanded surface |
 |---|---|---|
-| Compact (< 600 dp): phone, book/passport cover screens, tri-fold folded | Magnifier `IconButton` in every page's `TopAppBar` actions, before the bell and avatar (`fst.global-search.open`) | `ExpandedFullScreenSearchBar`: covers the window, field at the top, scope chips under it, results below |
+| Compact (< 600 dp): phone, book/passport cover screens, tri-fold folded | Magnifier `IconButton` in every page's `TopAppBar` actions, before the bell and avatar (`fst.global-search.open`) | `ExpandedFullScreenSearchBar`: covers the window, field at the top, scope segments under it, results below |
 | Medium (600–839 dp): tri-fold partial, portrait tablet, small resizable windows | Same action icon (the top bar is still title + actions) | `ExpandedDockedSearchBar` anchored under the top bar at the end edge, ≤ 720 dp wide, ≤ 2/3 window height |
 | Expanded and wider (≥ 840 dp): book fold unfolded, passport unfolded, tri-fold unfolded, landscape tablet, desktop windows | **Persistent collapsed `SearchBar`** in the app-level top bar of the content pane, next to the bell/avatar ("Search songs or players") on every page | `ExpandedDockedSearchBar` under the bar |
 
@@ -27,9 +27,9 @@ Rejected:
 ## Surface content (all widths)
 
 - `SearchBarDefaults.InputField` with placeholder "Search songs or players", leading back arrow when expanded (content description "Close search", `fst.global-search.close`), trailing clear `IconButton` when text is non-empty (`fst.global-search.clear`).
-- Under the field: `FilterChip` row **Songs · Players · Bands** (single-select, tap again to clear = all), `fst.global-search.scope.*`. Web puts chips below results on phones for thumb reach; on Android the IME covers the bottom, so chips go **above** results (Material search view layout).
+- Under the field: a full-width M3 segmented row **Songs · Players · Bands** with equal segments and no icons (operator 2026-09-28; `MultiChoiceSegmentedButtonRow`, so each segment is a toggle like the web's `aria-pressed` chips; at most one is on and tapping it again clears to all), `fst.global-search.scopes` / `fst.global-search.scope.*`. Web puts chips below results on phones for thumb reach; on Android the IME covers the bottom, so chips go **above** results (Material search view layout).
 - `LazyColumn`: sticky section headers Songs → Players (`semantics { heading() }`), song rows reuse the Songs row composable (no status chips), player rows are `ListItem`s with an avatar monogram. Players section has its own `LinearProgressIndicator`/Retry/hint.
-- Bands chip → no request; an info card with the [spec](spec.md#band-scope-blocked) explanation and a "Band Rankings" `TextButton` (`fst.global-search.bands-unavailable`).
+- Bands segment → no request; an info card with the [spec](spec.md#band-scope-blocked) explanation and a "Band Rankings" `TextButton` (`fst.global-search.bands-unavailable`).
 - Tapping a result collapses the search (`searchBarState.animateToCollapsed()`), clears it, then navigates on the current destination's back stack; selected player → Statistics.
 - The IME opens when the user opens search (focus the field in the expand callback); `imeAction = Search` closes the IME only (web parity: Enter does not open a result).
 
@@ -67,7 +67,7 @@ Handle them at the activity root (`onPreviewKeyEvent` on the scaffold, plus `onK
 ## Predictive back and TalkBack
 
 - The M3 search bar collapses with the system predictive-back animation when expanded; do not add a separate `BackHandler` that fires before it. Back with text clears nothing: it collapses search (text is kept only for the session, not restored after navigation). `SearchBar` supports predictive back automatically since Material3 1.3.0 ([predictive back](https://developer.android.com/guide/navigation/custom-back/predictive-back-gesture)).
-- TalkBack: the field's label is "Search songs and players"; chips expose selected state; section headers are headings; the players progress row is `liveRegion = Polite`; after a settled query, a polite announcement "{n} songs, {m} players" via a status text with `liveRegion = LiveRegionMode.Polite` (not `announceForAccessibility`, which is deprecated). Traversal: close → field → clear → chips → results; `isTraversalGroup` on the surface so focus doesn't leak to the page underneath; order with `traversalIndex` as the Compose search sample does ([semantics](https://developer.android.com/develop/ui/compose/accessibility/semantics)).
+- TalkBack: the field's label is "Search songs and players"; scope segments expose on/off toggle state; section headers are headings; the players progress row is `liveRegion = Polite`; after a settled query, a polite announcement "{n} songs, {m} players" via a status text with `liveRegion = LiveRegionMode.Polite` (not `announceForAccessibility`, which is deprecated). Traversal: close → field → clear → chips → results; `isTraversalGroup` on the surface so focus doesn't leak to the page underneath; order with `traversalIndex` as the Compose search sample does ([semantics](https://developer.android.com/develop/ui/compose/accessibility/semantics)).
 - Focus restoration: collapsing returns accessibility focus to the search action / bar.
 - Respect font scale (field and rows grow; chips wrap), system animation scale (no custom stagger), dark/high-contrast text.
 
