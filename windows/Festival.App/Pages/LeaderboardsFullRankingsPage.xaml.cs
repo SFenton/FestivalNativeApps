@@ -39,7 +39,10 @@ public sealed partial class LeaderboardsFullRankingsPage : Page
         base.OnNavigatedFrom(e);
     }
 
-    /// <summary>Scrolls to the top when a new page of rows arrives.</summary>
+    /// <summary>
+    /// When a new page of rows arrives, brings the selected player's row into view (after "Jump to your page"),
+    /// otherwise scrolls to the top.
+    /// </summary>
     /// <param name="sender">View model.</param>
     /// <param name="e">Changed property.</param>
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
@@ -47,6 +50,13 @@ public sealed partial class LeaderboardsFullRankingsPage : Page
         if (e.PropertyName != nameof(FullRankingsViewModel.Rows) || ViewModel.Page == shownPage) return;
         shownPage = ViewModel.Page;
         Scroller.ChangeView(null, 0, null, true);
+        var selected = ViewModel.Rows.FindIndex(r => r.IsSelected);
+        if (selected < 0) return;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (RowsRepeater.GetOrCreateElement(selected) is Microsoft.UI.Xaml.UIElement row)
+                row.StartBringIntoView(new Microsoft.UI.Xaml.BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = false });
+        });
     }
 
     /// <summary>Builds instrument radio items (Settings-visible charts plus the current one).</summary>

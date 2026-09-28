@@ -57,6 +57,15 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
         {
             shownPage = ViewModel.Page;
             Scroller.ChangeView(null, 0, null, true);
+            var selected = ViewModel.Rows.FindIndex(r => r.IsSelected);
+            if (selected >= 0)
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (RowsRepeater.GetOrCreateElement(selected) is Microsoft.UI.Xaml.UIElement row)
+                        row.StartBringIntoView(new Microsoft.UI.Xaml.BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = false });
+                });
+            }
         }
     }
 
