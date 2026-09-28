@@ -709,6 +709,17 @@ class FixtureHandler(BaseHTTPRequestHandler):
             raise RuntimeError("FixtureHandler requires a FixtureServer")
         return self.server
 
+    def end_headers(self) -> None:
+        """Advertise ``Connection: close`` on every response.
+
+        The stdlib server speaks HTTP/1.0 and closes each connection; without the
+        explicit header .NET's HttpClient intermittently tries to reuse the socket
+        and fails with WSAECONNABORTED (seen by the Windows lanes).
+        """
+        self.send_header("Connection", "close")
+        self.close_connection = True
+        super().end_headers()
+
     def _json(self, status: int, payload: dict | None, *, etag: str | None = None) -> None:
         """Write a bounded JSON response and explicit publication metadata.
 

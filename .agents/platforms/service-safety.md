@@ -53,3 +53,4 @@ Clients must treat a freeze as transient, honour `Retry-After` with capped backo
 ## Wire scale notes
 
 - Player score-history `accuracy` is in **ten-thousandths of a percent** (`1000000` = 100%), like band accuracy; never a 0–1 fraction. Fixtures must use the same scale (`tools/mock_service.py` fixed 2026-09-28).
+- Rival detail `GET /api/player/{accountId}/rivals/{combo}/{rivalId}?allowLiveFallback=true` is **allowed**: the fallback only computes samples from reads (`RivalsCalculator.ComputeDirectSongSamples` → `GetCurrentStatePlayerScores*`, no writes; verified 2026-09-28). The web passes it for Find Rival / untracked accounts; natives should too.
