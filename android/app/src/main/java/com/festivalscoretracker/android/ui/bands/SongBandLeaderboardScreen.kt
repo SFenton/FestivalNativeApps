@@ -182,7 +182,7 @@ private fun SongHeader(
 @Composable
 private fun BandScoreRow(entry: SongBandLeaderboardEntry, song: Song?, onClick: () -> Unit) {
     val keyboard = song?.sig == "Keyboard"
-    val accuracy = entry.accuracy?.let { if (it > 0) ScoreFormatting.accuracy(it) else null }
+    val accuracy = entry.accuracy?.let { if (it > 0) ScoreFormatting.accuracy(it) + "%" else null }
     val announcement = buildString {
         append("Rank ${entry.rank}, ${entry.membersLabel}, ${BandFormatting.count(entry.score)}")
         if (entry.isFullCombo == true) append(", full combo")

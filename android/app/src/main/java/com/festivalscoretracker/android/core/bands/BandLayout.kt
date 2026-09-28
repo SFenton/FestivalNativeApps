@@ -29,6 +29,9 @@ object BandLayout {
     /** Gap between panes without a hinge. */
     const val PANE_GAP = 24f
 
+    /** Smallest share of the content either side of a flat fold must keep to anchor panes. */
+    const val BALANCED_SHARE = 0.4f
+
     /** Narrowest side a hinge may leave for a pane or column. */
     const val MIN_SIDE = 200f
 
@@ -81,17 +84,30 @@ object BandLayout {
      * Whether and where Band Detail splits into panes.
      *
      * @param windowWidth Window width.
+     * @param contentWidth Content width.
      * @param hinge Vertical hinge in content coordinates.
      * @return Panes.
      */
-    fun panes(windowWidth: Float, hinge: Hinge?): Panes {
+    fun panes(windowWidth: Float, contentWidth: Float, hinge: Hinge?): Panes {
         val split = windowWidth >= EXPANDED_WIDTH || hinge?.separating == true
+        // A flat fold only anchors the split when both panes keep a balanced share (tri-fold outer folds do not).
+        val anchor = hinge?.takeIf { it.separating || min(it.left, contentWidth - it.right) >= BALANCED_SHARE * contentWidth }
         return when {
             !split -> Panes(false, null, 0f)
-            hinge != null -> Panes(true, hinge.left, hinge.right - hinge.left)
+            anchor != null -> Panes(true, anchor.left, anchor.right - anchor.left)
             else -> Panes(true, null, PANE_GAP)
         }
     }
+
+    /**
+     * The vertical hinge nearest the content's centre (a tri-fold reports two).
+     *
+     * @param hinges Candidate hinges in content coordinates.
+     * @param contentWidth Content width.
+     * @return The most central hinge, or null.
+     */
+    fun central(hinges: List<Hinge>, contentWidth: Float): Hinge? =
+        hinges.minByOrNull { kotlin.math.abs((it.left + it.right) / 2 - contentWidth / 2) }
 
     /**
      * Card grid: as many ≥ [CARD_MIN] columns as fit; with a separating hinge, or a

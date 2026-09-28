@@ -221,6 +221,8 @@ class BandsUiTest {
         launch("songBandLeaderboard:s-alpha:Band_Duets")
         waitForTag("fst.song-band-leaderboard.row.band-1:1")
         rule.onNodeWithText("Duos · 30 entries").assertIsDisplayed()
+        rule.onNodeWithText("100%", useUnmergedTree = true).assertExists()
+        assertTrue(rule.onAllNodesWithText("97.5%", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         waitForTag("fst.song-band-leaderboard.song")
         scrollTo("fst.song-band-leaderboard.list", "fst.song-band-leaderboard.page-last")
         click("fst.song-band-leaderboard.page-last")

@@ -19,7 +19,7 @@
 - Band Summary (Type, Appearances, Members) and Band Statistics tiles (2–4 columns by width). Rank By is an outlined button + dropdown menu (four long labels do not fit a phone segmented row); default Total Score. The rank tile links to `BandRankingsRoute`, Best Song Rank to Song Detail once the best song resolves.
 - Band Rank History: static Canvas line (best rank at the top, redrawn only when data or metric change) plus the 10 newest snapshots (date, rank, metric value); `No band rank history yet.` when empty.
 - Five Best / Five Worst Songs: 40 dp art, title, `artist · year`, `Top N%` pill, `#rank of total`.
-- Adaptive (`core/bands/BandLayout.panes`, unit-tested): one centered column (≤840 dp) in compact/medium windows; **two independently scrolling panes** (members/summary/statistics | history/songs) when the **window** is expanded (≥840 dp, e.g. book fold open: 851 dp) or a vertical hinge is separating (half-open). When WindowManager reports a vertical fold/hinge (`windowPosture.hingeList`, flat or half-open), the split sits exactly on it and the hinge width is the gap; otherwise equal panes 24 dp apart.
+- Adaptive (`core/bands/BandLayout.panes`, unit-tested): one centered column (≤840 dp) in compact/medium windows; **two independently scrolling panes** (members/summary/statistics | history/songs) when the **window** is expanded (≥840 dp, e.g. book fold open: 851 dp) or a vertical hinge is separating (half-open). The split sits exactly on the most central vertical fold/hinge (`windowPosture.hingeList`) when it is separating, or when it is flat but leaves each pane ≥40% of the width (book fold open); the hinge width is the gap. Otherwise (no fold, or a tri-fold's off-centre flat folds) the panes are equal, 24 dp apart.
 
 ## IDs
 

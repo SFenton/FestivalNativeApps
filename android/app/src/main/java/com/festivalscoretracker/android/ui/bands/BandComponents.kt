@@ -56,7 +56,7 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
 internal val BAND_CONTENT_MAX = 840.dp
 
 /**
- * The first vertical fold/hinge from Jetpack WindowManager, in content coordinates.
+ * The most central vertical fold/hinge from Jetpack WindowManager, in content coordinates.
  *
  * @param contentLeftPx Content box's leading edge in the window (px).
  * @param contentWidth Content width.
@@ -65,16 +65,18 @@ internal val BAND_CONTENT_MAX = 840.dp
 @Composable
 internal fun rememberBandHinge(contentLeftPx: Float, contentWidth: Dp): BandLayout.Hinge? {
     val density = LocalDensity.current
-    val hinge = currentWindowAdaptiveInfo().windowPosture.hingeList.firstOrNull { it.isVertical } ?: return null
-    return with(density) {
-        BandLayout.hingeInContent(
-            hinge.bounds.left.toDp().value,
-            hinge.bounds.right.toDp().value,
-            contentLeftPx.toDp().value,
-            contentWidth.value,
-            hinge.isSeparating,
-        )
+    val hinges = currentWindowAdaptiveInfo().windowPosture.hingeList.filter { it.isVertical }.mapNotNull { hinge ->
+        with(density) {
+            BandLayout.hingeInContent(
+                hinge.bounds.left.toDp().value,
+                hinge.bounds.right.toDp().value,
+                contentLeftPx.toDp().value,
+                contentWidth.value,
+                hinge.isSeparating,
+            )
+        }
     }
+    return BandLayout.central(hinges, contentWidth.value)
 }
 
 /**
