@@ -206,6 +206,7 @@ struct RivalCommonSection: View {
                 }
             }
             .quickLinkSection(id: "common", title: "Common Rivals", symbol: "person.2.fill")
+            .festivalFadeIn(isLoaded: true)
         }
     }
 
@@ -293,6 +294,7 @@ struct RivalComboSection: View {
                 }
             }
             .quickLinkSection(id: "combo", title: "\(scope.label) Rivals", symbol: "music.note")
+            .festivalFadeIn(isLoaded: true)
         }
     }
 
@@ -384,6 +386,7 @@ struct RivalInstrumentSongSection: View {
                     RivalViewAllRow(title: "View All Rivals")
                 }
             }
+            .festivalFadeIn(isLoaded: true)
         }
     }
 
@@ -474,6 +477,7 @@ struct RivalInstrumentLeaderboardSection: View {
             .quickLinkSection(QuickLinkSection(
                 id: instrument.rawValue, title: "\(instrument.label) Rivals", icon: .instrument(instrument)
             ))
+            .festivalFadeIn(isLoaded: true)
         }
     }
 

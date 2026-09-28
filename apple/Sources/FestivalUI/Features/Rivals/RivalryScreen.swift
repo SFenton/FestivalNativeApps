@@ -102,6 +102,7 @@ struct RivalryScreen: View {
                         }
                     }
                     .padding(16)
+                    .festivalFadeIn(isLoaded: true)
                 }
                 .quickLinks(quickLinks, title: "Quick Links")
             } else {

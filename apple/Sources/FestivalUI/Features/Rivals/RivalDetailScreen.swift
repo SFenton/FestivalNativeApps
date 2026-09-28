@@ -88,7 +88,7 @@ struct RivalDetailScreen: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
-                        ForEach(categories) { category in
+                        ForEach(Array(categories.enumerated()), id: \.element.id) { index, category in
                             FestivalGlassSection(category.title, subtitle: category.subtitle) {
                                 ForEach(category.songs.prefix(5)) { song in
                                     songRow(song, rivalName: detail.rival.displayName ?? name ?? "Rival")
@@ -106,6 +106,7 @@ struct RivalDetailScreen: View {
                             .quickLinkSection(
                                 id: "rival-category:\(category.key)", title: category.title
                             )
+                            .festivalFadeIn(isLoaded: true, index: index)
                         }
                     }
                     .padding(.vertical, 12)

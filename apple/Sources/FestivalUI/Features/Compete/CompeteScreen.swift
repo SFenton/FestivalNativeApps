@@ -170,11 +170,13 @@ struct CompeteInstrumentLeaderboardSection: View {
                         AccountRankingRow(entry: entry, metric: .totalscore)
                     }
                 }
+                .festivalFadeIn(isLoaded: true)
                 NavigationLink(
                     value: AppRoute.fullRankings(instrument: instrument, rankBy: "totalscore")
                 ) {
                     RivalViewAllRow(title: "View Full Leaderboard")
                 }
+                .festivalFadeIn(isLoaded: true)
             }
         }
         .padding(16)

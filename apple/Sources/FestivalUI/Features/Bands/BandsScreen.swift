@@ -43,6 +43,7 @@ struct BandsScreen: View {
                         }
                         .accessibilityIdentifier("fst.bands.your-bands")
                     }
+                    .festivalFadeIn(isLoaded: true, index: 0)
                 }
                 FestivalGlassSection(
                     "Band Rankings",
@@ -61,6 +62,7 @@ struct BandsScreen: View {
                         .accessibilityIdentifier("fst.bands.rankings.\(bandType.rawValue)")
                     }
                 }
+                .festivalFadeIn(isLoaded: true, index: 1)
                 FestivalFootnote(
                     "Band lookup by name isn't available yet: the service's search "
                         + "endpoint can register band data as a side effect of a search "
@@ -68,6 +70,7 @@ struct BandsScreen: View {
                         + "selected player's own bands instead."
                 )
                 .padding(.horizontal, 4)
+                .festivalFadeIn(isLoaded: true, index: 2)
             }
             .padding(16)
         }

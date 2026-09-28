@@ -4,6 +4,7 @@ import CoreGraphics
 import Foundation
 import SwiftUI
 import Testing
+import FestivalUI
 
 // MARK: - Hosting
 
@@ -24,11 +25,15 @@ struct NativeHostedRoot<Content: View>: View {
     let forceGlassFallback: Bool
 
     var body: some View {
-        if forceGlassFallback {
-            content.environment(\._accessibilityReduceTransparency, true)
-        } else {
-            content
+        // Captures are synchronous: never let `festivalFadeIn` leave content mid-fade.
+        Group {
+            if forceGlassFallback {
+                content.environment(\._accessibilityReduceTransparency, true)
+            } else {
+                content
+            }
         }
+        .environment(\.festivalFadeInEnabled, false)
     }
 }
 

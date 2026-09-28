@@ -85,7 +85,7 @@ struct NotificationsSheet: View {
 
     @ViewBuilder
     private func rows(_ notifications: [AppNotification]) -> some View {
-        ForEach(notifications) { notification in
+        ForEach(Array(notifications.enumerated()), id: \.element.id) { index, notification in
             Button {
                 Task { await open(notification) }
             } label: {
@@ -94,6 +94,7 @@ struct NotificationsSheet: View {
                 )
             }
             .buttonStyle(.plain)
+            .festivalFadeIn(isLoaded: true, index: index)
             .listRowBackground(Color.clear)
             .accessibilityIdentifier("fst.notifications.row.\(notification.id)")
         }

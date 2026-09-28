@@ -245,26 +245,35 @@ struct PlayerProfileContent: View {
 
     private func profileScroll(_ payload: PlayerProfilePayload) -> some View {
         ScrollView {
+            // New content fades in as it loads: sections stagger like the web's
+            // `PlayerPage` `useStagger` (`Common/FadeInOnLoad.swift`).
             VStack(alignment: .leading, spacing: 20) {
                 header(payload)
+                    .festivalFadeIn(isLoaded: true, index: 0)
                 overallSection(payload)
+                    .festivalFadeIn(isLoaded: true, index: 1)
                 if layout.widthClass == .regular {
                     // Two flexible columns on a regular-width window (Duo unfolded,
                     // iPad): each instrument's stats card and charts read as one
                     // dashboard tile instead of stretching full width
                     // (`.agents/design/apple/duo.md`).
                     LazyVGrid(columns: instrumentGridColumns, alignment: .leading, spacing: 20) {
-                        ForEach(visibleInstruments) { instrument in
+                        ForEach(Array(visibleInstruments.enumerated()), id: \.element) { index, instrument in
                             instrumentTile(payload, instrument: instrument)
+                                .festivalFadeIn(isLoaded: true, index: index + 2)
                         }
                     }
                 } else {
-                    ForEach(visibleInstruments) { instrument in
-                        instrumentSection(payload, instrument: instrument)
-                        instrumentCharts(payload, instrument: instrument)
+                    ForEach(Array(visibleInstruments.enumerated()), id: \.element) { index, instrument in
+                        VStack(alignment: .leading, spacing: 20) {
+                            instrumentSection(payload, instrument: instrument)
+                            instrumentCharts(payload, instrument: instrument)
+                        }
+                        .festivalFadeIn(isLoaded: true, index: index + 2)
                     }
                 }
                 bandsLink
+                    .festivalFadeIn(isLoaded: true, index: visibleInstruments.count + 2)
             }
             .padding(16)
         }
@@ -583,6 +592,7 @@ private struct InstrumentGlobalRankView: View {
                 ),
                 percentileTile(ranking),
             ])
+            .festivalFadeIn(isLoaded: true)
             .accessibilityIdentifier("fst.player.global-rank.\(instrument.rawValue).available")
         }
     }

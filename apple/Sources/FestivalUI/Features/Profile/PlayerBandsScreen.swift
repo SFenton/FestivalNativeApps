@@ -74,8 +74,9 @@ struct PlayerBandsScreen: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
                         List {
-                            ForEach(payload.list.entries) { entry in
+                            ForEach(Array(payload.list.entries.enumerated()), id: \.element.id) { index, entry in
                                 PlayerBandRow(entry: entry)
+                                    .festivalFadeIn(isLoaded: true, index: index)
                                     .listRowBackground(BrandTokens.cardBackground)
                             }
                         }

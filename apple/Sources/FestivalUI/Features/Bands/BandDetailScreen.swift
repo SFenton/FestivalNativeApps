@@ -109,11 +109,12 @@ struct BandDetailScreen: View {
         case let .loaded(detail):
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    membersSection(detail)
-                    summarySection(detail)
-                    statisticsSection(detail)
-                    rankHistorySection(detail)
-                    songsSection(detail)
+                    // New content fades in as it loads (`Common/FadeInOnLoad.swift`).
+                    membersSection(detail).festivalFadeIn(isLoaded: true, index: 0)
+                    summarySection(detail).festivalFadeIn(isLoaded: true, index: 1)
+                    statisticsSection(detail).festivalFadeIn(isLoaded: true, index: 2)
+                    rankHistorySection(detail).festivalFadeIn(isLoaded: true, index: 3)
+                    songsSection(detail).festivalFadeIn(isLoaded: true, index: 4)
                 }
                 .padding(16)
             }
@@ -267,6 +268,7 @@ struct BandDetailScreen: View {
                                 .foregroundStyle(BrandTokens.textPrimary)
                         }
                         .accessibilityIdentifier("fst.band.history-row.\(snapshot.snapshotDate)")
+                        .festivalFadeIn(isLoaded: true)
                     }
                 }
             }
@@ -293,7 +295,9 @@ struct BandDetailScreen: View {
                         .foregroundStyle(FestivalText.primary)
                 } else {
                     songGroup("Best", entries: extremes.best)
+                        .festivalFadeIn(isLoaded: true)
                     songGroup("Worst", entries: extremes.worst)
+                        .festivalFadeIn(isLoaded: true)
                 }
             }
         }

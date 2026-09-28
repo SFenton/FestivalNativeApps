@@ -116,6 +116,7 @@ struct AllRivalsScreen: View {
                     }
                 }
                 .padding(.horizontal, 16)
+                .festivalFadeIn(isLoaded: true)
             }
             .padding(.vertical, 12)
         }
