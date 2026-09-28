@@ -68,3 +68,12 @@ func starRatingRendersBundledArtwork() throws {
     #expect(five.width > white.width)
     #expect(mini.width > five.width)
 }
+
+@Test("Suggestion rows show stars only in star-progress categories, like the web CategoryCard")
+func suggestionStarsOnlyInStarProgressCategories() {
+    #expect(SuggestionSongRowView.showsStars(categoryKey: "star_gains_lead"))
+    #expect(SuggestionSongRowView.showsStars(categoryKey: "band_star_progress_Band_Duets"))
+    #expect(!SuggestionSongRowView.showsStars(categoryKey: "pct_push_proBass_20s"))
+    #expect(!SuggestionSongRowView.showsStars(categoryKey: "song_rival_spotlight_x"))
+    #expect(!SuggestionSongRowView.showsStars(categoryKey: "near_fc_lead"))
+}

@@ -15,7 +15,10 @@ struct SuggestionCategoryCardView: View {
         FestivalGlassSection(category.title, subtitle: category.description) {
             ForEach(category.songs) { item in
                 NavigationLink(value: AppRoute.songDetail(item.song)) {
-                    SuggestionSongRowView(item: item, session: session)
+                    SuggestionSongRowView(
+                        item: item, session: session,
+                        showsStars: SuggestionSongRowView.showsStars(categoryKey: category.key)
+                    )
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("fst.suggestions.row.\(item.id)")
@@ -31,6 +34,17 @@ struct SuggestionCategoryCardView: View {
 struct SuggestionSongRowView: View {
     let item: SuggestionSongItem
     let session: FestivalSession
+    /// Whether this category draws the star row (web `CategoryCard.showStars`).
+    var showsStars = false
+
+    /// Web `CategoryCard` draws its star PNG row only for star-progress categories
+    /// (`star_gains*`, `band_star_progress*`); every other category hides stars.
+    ///
+    /// - Parameter categoryKey: `SuggestionCategory.key`.
+    /// - Returns: Whether rows in that category show stars.
+    nonisolated static func showsStars(categoryKey: String) -> Bool {
+        categoryKey.hasPrefix("star_gains") || categoryKey.hasPrefix("band_star_progress")
+    }
 
     private var subtitle: String {
         var parts = [item.song.artist]
@@ -61,7 +75,7 @@ struct SuggestionSongRowView: View {
             if let rivalName = item.rivalName {
                 rivalBadge(rivalName, delta: item.rivalRankDelta ?? 0)
             }
-            if let stars = item.stars, stars > 0 {
+            if showsStars, let stars = item.stars, stars > 0 {
                 starRow(stars)
             }
             HStack(spacing: 6) {
