@@ -17,6 +17,11 @@ struct SongDetailScreen: View {
     @State private var pathsPresented = false
     @State private var shopRefreshFailure: String?
     @State private var quickLinks = QuickLinksController()
+    /// Whether the hero title has scrolled under the navigation bar (gap #6). Only
+    /// the Bool changes while scrolling, so the page body is not re-evaluated every frame.
+    @State private var heroTitleHidden = false
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private struct ShopDetailTaskKey: Equatable {
         let publicationRevision: Int
@@ -35,6 +40,13 @@ struct SongDetailScreen: View {
 
     private var shopOffer: ShopSong? {
         hideShop ? nil : session.shopOffersById[song.songId]
+    }
+
+    /// Breathing status colour for the Shop action (green / gold / red), or nil.
+    private var shopTone: ShopStatusTone? {
+        ShopStatusTone.tone(
+            for: shopOffer, hidden: hideShop, highlightingDisabled: disableShopHighlighting
+        )
     }
 
     private var shopHighlight: ShopHighlight? {
@@ -90,11 +102,18 @@ struct SongDetailScreen: View {
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 8) {
                         MarqueeText(song.title, font: .title.bold())
+                            .onGeometryChange(for: Bool.self) { proxy in
+                                SongDetailPinnedTitlePolicy.isHeroHidden(
+                                    titleMaxY: proxy.frame(in: .scrollView).maxY
+                                )
+                            } action: { hidden in
+                                heroTitleHidden = hidden
+                            }
                         MarqueeText(song.artist, font: .body)
-                            .foregroundStyle(BrandTokens.textSecondary)
+                            .foregroundStyle(BrandTokens.textPrimary)
                         if let year = song.year {
                             Text(year.formatted(.number.grouping(.never)))
-                                .foregroundStyle(BrandTokens.textSecondary)
+                                .foregroundStyle(BrandTokens.textPrimary)
                         }
                         if let shopHighlight {
                             Label(
@@ -154,10 +173,9 @@ struct SongDetailScreen: View {
                 .quickLinkSection(id: "intensity", title: "Intensity", symbol: "chart.bar.fill")
 
                 VStack(alignment: .leading, spacing: 12) {
-                    FestivalSectionHeader("Leaderboards")
                     LazyVGrid(
                         columns: [GridItem(.adaptive(minimum: 360), spacing: 12)],
-                        alignment: .leading, spacing: 16
+                        alignment: .leading, spacing: 20
                     ) {
                         ForEach(charted.filter(visibleInstruments.contains)) { instrument in
                             SongScorePreview(
@@ -175,14 +193,16 @@ struct SongDetailScreen: View {
         }
         .quickLinks(quickLinks, title: "Quick Links", sections: quickLinkSections)
         .festivalBackground(.song(song.albumArt), session: session)
-        .navigationTitle("")
+        .navigationTitle(song.title)
         .toolbar {
+            #if os(iOS)
+            ToolbarItem(placement: .principal) {
+                pinnedTitle
+            }
+            #endif
             if let offer = shopOffer {
                 ToolbarItem(placement: .primaryAction) {
-                    Link(destination: offer.shopUrl) {
-                        Label("Item Shop", systemImage: "bag")
-                    }
-                    .accessibilityIdentifier("fst.song-detail.shop")
+                    shopAction(offer)
                 }
             }
             if !pathInstruments.isEmpty {
@@ -224,6 +244,75 @@ struct SongDetailScreen: View {
                 shopRefreshFailure = error.localizedDescription
             }
         }
+    }
+}
+
+// MARK: - Pinned identity and Shop action
+
+extension SongDetailScreen {
+    /// Official Item Shop action. While Shop highlighting is on, its circle breathes
+    /// in the song's Shop status colour like the web's `shopBreathe*` button.
+    ///
+    /// - Parameter offer: Validated Shop row for this song.
+    /// - Returns: Toolbar link with a spoken status.
+    @ViewBuilder
+    private func shopAction(_ offer: ShopSong) -> some View {
+        if let tone = shopTone {
+            Link(destination: offer.shopUrl) {
+                Image(systemName: "bag")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(BrandTokens.textPrimary)
+                    .frame(width: 34, height: 34)
+                    .modifier(ShopStatusBreathe(tone: tone))
+            }
+            .accessibilityLabel("Item Shop, \(tone.spokenStatus)")
+            .accessibilityIdentifier("fst.song-detail.shop")
+        } else {
+            Link(destination: offer.shopUrl) {
+                Label("Item Shop", systemImage: "bag")
+            }
+            .accessibilityIdentifier("fst.song-detail.shop")
+        }
+    }
+
+    /// Compact art + title shown in the navigation bar once the hero title scrolls
+    /// under it: the native form of the PWA's pinned song header.
+    ///
+    /// Hidden (and removed from VoiceOver) while the hero itself is visible, so the
+    /// title is never announced twice.
+    private var pinnedTitle: some View {
+        HStack(spacing: 8) {
+            ArtworkTile(raw: song.albumArt, session: session, size: 28)
+                .accessibilityHidden(true)
+            Text(song.title)
+                .font(.headline)
+                .foregroundStyle(BrandTokens.textPrimary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+        .frame(maxWidth: 240)
+        .opacity(heroTitleHidden ? 1 : 0)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: heroTitleHidden)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+        .accessibilityHidden(!heroTitleHidden)
+        .accessibilityIdentifier("fst.song-detail.pinned-title")
+    }
+}
+
+/// Decide when Song Detail's navigation bar should carry the song's identity.
+enum SongDetailPinnedTitlePolicy {
+    /// The hero counts as scrolled away once its title's bottom edge passes the top
+    /// of the scroll view.
+    ///
+    /// SwiftUI's `.scrollView` coordinate space starts at the scroll view's frame,
+    /// which sits below the navigation bar (measured on iOS 26.5: frame minY 116 =
+    /// the bar's bottom, title maxY 49 at rest), so 0 is the bar's lower edge.
+    ///
+    /// - Parameter titleMaxY: Hero title's bottom edge in `.scrollView` space.
+    /// - Returns: True when the pinned nav-bar title should be visible.
+    static func isHeroHidden(titleMaxY: CGFloat) -> Bool {
+        titleMaxY.isFinite && titleMaxY <= 0
     }
 }
 

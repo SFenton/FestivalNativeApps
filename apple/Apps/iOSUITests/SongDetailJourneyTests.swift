@@ -385,6 +385,80 @@ final class SongDetailJourneyTests: XCTestCase {
         SongsUITestSupport.record(app, name: "solo-fc-versus-graded-accuracy")
     }
 
+    /// PWA parity (gaps #6-#8): big instrument card header, the full-leaderboard action
+    /// under the rows, the Item Shop action in the toolbar, and the song identity
+    /// pinned in the navigation bar only once the hero title scrolls under it.
+    ///
+    /// - Throws: A missing header, a top-placed link, a duplicated or missing title.
+    @MainActor
+    func testSongDetailPinnedTitleAndCardLayout() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = SongsUITestSupport.fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launch()
+        let song = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(song.waitForExistence(timeout: 15))
+        song.tap()
+        SongsUITestSupport.collapseSidebarOnPad(app)
+
+        let header = app.descendants(matching: .any)
+            .matching(identifier: "fst.song-detail.card-header.Solo_Guitar").firstMatch
+        XCTAssertTrue(header.waitForExistence(timeout: 15))
+        XCTAssertEqual(header.label, "Lead")
+        XCTAssertTrue(header.isHittable)
+        let shop = app.descendants(matching: .any)
+            .matching(identifier: "fst.song-detail.shop").firstMatch
+        XCTAssertTrue(shop.waitForExistence(timeout: 10), "Item Shop action missing")
+        XCTAssertTrue(shop.isHittable)
+
+        let pinned = app.descendants(matching: .any)
+            .matching(identifier: "fst.song-detail.pinned-title").firstMatch
+        let pinnedShown = NSPredicate(format: "exists == true AND label == %@", "Fixture Pulse")
+        XCTAssertFalse(
+            pinned.exists && pinned.label == "Fixture Pulse" && pinned.isHittable,
+            "Pinned title announced while the hero title is visible"
+        )
+        SongsUITestSupport.record(app, name: "song-detail-pinned-title-hidden")
+
+        let tenth = app.staticTexts.matching(
+            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-10"
+        ).matching(NSPredicate(format: "label == %@", "#10")).firstMatch
+        XCTAssertTrue(tenth.waitForExistence(timeout: 15))
+        app.swipeUp()
+        XCTAssertEqual(
+            XCTWaiter.wait(
+                for: [expectation(for: pinnedShown, evaluatedWith: pinned)], timeout: 10
+            ),
+            .completed, "Song title did not pin to the navigation bar"
+        )
+        XCTAssertLessThan(
+            pinned.frame.minY, app.windows.firstMatch.frame.height * 0.2,
+            "Pinned title is not in the navigation bar"
+        )
+        SongsUITestSupport.record(app, name: "song-detail-pinned-title-shown")
+
+        let viewFull = app.buttons["fst.song-detail.leaderboard.Solo_Guitar"]
+        XCTAssertTrue(viewFull.waitForExistence(timeout: 10))
+        XCTAssertEqual(viewFull.label, "View full Lead leaderboard")
+        XCTAssertGreaterThan(
+            viewFull.frame.minY, tenth.frame.maxY,
+            "View full leaderboard must sit under the ten preview rows"
+        )
+
+        app.swipeDown()
+        app.swipeDown()
+        XCTAssertEqual(
+            XCTWaiter.wait(
+                for: [expectation(
+                    for: NSPredicate(format: "hittable == false OR exists == false"),
+                    evaluatedWith: pinned
+                )], timeout: 10
+            ),
+            .completed, "Pinned title stayed after the hero returned"
+        )
+    }
+
     /// Probe system accessibility scrolling to the last score in a populated preview.
     ///
     /// - Throws: A stalled offscreen score target or missing painted preview row.

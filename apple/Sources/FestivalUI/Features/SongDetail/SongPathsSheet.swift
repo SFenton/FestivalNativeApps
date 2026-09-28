@@ -186,11 +186,11 @@ struct SongPathsSheet: View {
                             .foregroundStyle(BrandTokens.textPrimary)
                             .accessibilityIdentifier("fst.paths.text-summary")
                         Text("Max score: \(payload.path.totalScore.formatted())")
-                            .foregroundStyle(BrandTokens.textSecondary)
+                            .foregroundStyle(BrandTokens.textPrimary)
                         let rows = payload.rows
                         if rows.isEmpty {
                             Text("No path activations for this chart")
-                                .foregroundStyle(BrandTokens.textSecondary)
+                                .foregroundStyle(BrandTokens.textPrimary)
                         }
                         ForEach(rows, id: \.number) { row in
                             activationCard(row)

@@ -9,6 +9,7 @@ struct SongScorePreview: View {
     let session: FestivalSession
     @AppStorage("fst.settings.filterInvalidScores") private var filterInvalidScores = false
     @AppStorage("fst.settings.leeway") private var leeway = 1.0
+    @ScaledMetric(relativeTo: .title3) private var headerIconSize: CGFloat = 48
     @State private var state: LoadState
     private let usesLiveClient: Bool
 
@@ -49,69 +50,115 @@ struct SongScorePreview: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            FestivalSectionHeader(instrument.label)
-            NavigationLink(value: AppRoute.songLeaderboard(song, instrument, 1)) {
-                Label("View full \(instrument.label) leaderboard", systemImage: "arrow.right")
-                    .font(.body)
-                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                    .padding(.horizontal, 12)
-                    .background(
-                        BrandTokens.appBackground,
-                        in: RoundedRectangle(cornerRadius: 10)
-                    )
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier(
-                "fst.song-detail.leaderboard.\(instrument.rawValue)"
-            )
-            if session.selectedPlayer != nil {
-                // Web's only route to `/history` is a "View all scores" action
-                // under the selected player's own score-history chart on this
-                // page (`ScoreHistoryChart.tsx`); that chart is not yet ported,
-                // so this is the equivalent entry point until it is.
-                NavigationLink(value: AppRoute.playerHistory(song, instrument)) {
-                    Label(
-                        "View \(instrument.label) score history",
-                        systemImage: "chart.line.uptrend.xyaxis"
-                    )
-                    .font(.body)
-                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                    .padding(.horizontal, 12)
-                    .background(
-                        BrandTokens.appBackground,
-                        in: RoundedRectangle(cornerRadius: 10)
-                    )
+        VStack(alignment: .leading, spacing: 8) {
+            instrumentHeader
+            VStack(alignment: .leading, spacing: 12) {
+                switch state {
+                case .loading:
+                    FestivalLoadingView(accessibilityLabel: "Loading \(instrument.label) scores")
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                case let .failed(message):
+                    Text("Scores unavailable: \(message)")
+                        .font(.body)
+                        .foregroundStyle(BrandTokens.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Retry \(instrument.label) scores") {
+                        Task { await load() }
+                    }
+                    .frame(minHeight: 44)
+                case let .loaded(payload):
+                    previewRows(payload)
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier(
-                    "fst.song-detail.history.\(instrument.rawValue)"
-                )
-            }
-            switch state {
-            case .loading:
-                FestivalLoadingView(accessibilityLabel: "Loading \(instrument.label) scores")
-                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            case let .failed(message):
-                Text("Scores unavailable: \(message)")
-                    .font(.body)
-                    .foregroundStyle(BrandTokens.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Button("Retry \(instrument.label) scores") {
-                    Task { await load() }
+                viewFullLink
+                if session.selectedPlayer != nil {
+                    historyLink
                 }
-                .frame(minHeight: 44)
-            case let .loaded(payload):
-                previewRows(payload)
             }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .festivalGlass(.card, cornerRadius: 16)
         }
-        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .festivalGlass(.card, cornerRadius: 16)
         .task(id: requestKey) {
             guard usesLiveClient else { return }
             await load()
         }
+    }
+
+    // MARK: - Card chrome
+
+    /// Large instrument icon and name above the card, like the web `InstrumentHeader` (MD).
+    private var instrumentHeader: some View {
+        HStack(spacing: 12) {
+            InstrumentIcon(
+                instrument,
+                keyboard: song.usesKeyboardIcon
+                    && (instrument == .lead || instrument == .proLead),
+                size: headerIconSize
+            )
+            .accessibilityHidden(true)
+            Text(instrument.label)
+                .font(.title3.bold())
+                .foregroundStyle(BrandTokens.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+        .accessibilityIdentifier("fst.song-detail.card-header.\(instrument.rawValue)")
+    }
+
+    /// Card-bottom hand-off to the paginated Solo chart (web `ViewFullLeaderboardCta`).
+    ///
+    /// Shown in every state (not only with rows) so an empty or failed preview still
+    /// reaches the full chart; the spoken label names the instrument because nine
+    /// otherwise identical actions share the page.
+    private var viewFullLink: some View {
+        NavigationLink(value: AppRoute.songLeaderboard(song, instrument, 1)) {
+            Text("View full leaderboard")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(BrandTokens.textPrimary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .padding(.horizontal, 12)
+                .background(
+                    BrandTokens.appBackground,
+                    in: RoundedRectangle(cornerRadius: 10)
+                )
+                .contentShape(RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("View full \(instrument.label) leaderboard")
+        .accessibilityIdentifier(
+            "fst.song-detail.leaderboard.\(instrument.rawValue)"
+        )
+    }
+
+    /// Selected-player entry point to `/history`.
+    ///
+    /// Web's only route to `/history` is a "View all scores" action under the
+    /// selected player's own score-history chart on this page
+    /// (`ScoreHistoryChart.tsx`); that chart is not yet ported, so this is the
+    /// equivalent entry point until it is.
+    private var historyLink: some View {
+        NavigationLink(value: AppRoute.playerHistory(song, instrument)) {
+            Label(
+                "View \(instrument.label) score history",
+                systemImage: "chart.line.uptrend.xyaxis"
+            )
+            .font(.body)
+            .foregroundStyle(BrandTokens.textPrimary)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .padding(.horizontal, 12)
+            .background(
+                BrandTokens.appBackground,
+                in: RoundedRectangle(cornerRadius: 10)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(
+            "fst.song-detail.history.\(instrument.rawValue)"
+        )
     }
 
     /// Keep every response's freshness separate from its visible score rows.
@@ -129,11 +176,11 @@ struct SongScorePreview: View {
         if payload.leaderboard.showLeaderboardEntryTotals == true {
             Text("\(payload.leaderboard.totalEntries) \(instrument.label) entries")
                 .font(.subheadline)
-                .foregroundStyle(BrandTokens.textSecondary)
+                .foregroundStyle(BrandTokens.textPrimary)
         }
         if payload.leaderboard.entries.isEmpty {
             Text("No \(instrument.label) scores yet")
-                .foregroundStyle(BrandTokens.textSecondary)
+                .foregroundStyle(BrandTokens.textPrimary)
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         } else {
             let displayed = Array(payload.leaderboard.entries.prefix(10))
