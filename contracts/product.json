@@ -157,6 +157,14 @@
       "states": ["scrape-freeze-countdown", "scrape-freeze-retrying", "unavailable", "offline", "syncing", "not-found", "other", "inline"],
       "testId": "fst.service-status.*",
       "spec": ".agents/controls/service-status/spec.md"
+    },
+    {
+      "id": "global-search",
+      "status": "pending",
+      "source": "FortniteFestivalWeb/src/components/search/SearchModal.tsx:84",
+      "states": ["closed", "open-hint", "loading", "results-all", "results-scoped", "empty", "error", "bands-unavailable", "navigated"],
+      "testId": "fst.global-search.*",
+      "spec": ".agents/controls/global-search/spec.md"
     }
   ],
   "testIds": {
@@ -164,6 +172,7 @@
     "fst.history.*": "player-history",
     "fst.notifications.*": "notifications",
     "fst.quick-links.*": "quick-links",
+    "fst.global-search.*": "global-search",
     "fst.first-run.*": "first-run",
     "fst.service-status.*": "service-status",
     "fst.songs.section-index.*": "songs-section-index",
