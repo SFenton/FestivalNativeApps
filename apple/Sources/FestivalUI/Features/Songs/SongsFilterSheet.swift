@@ -108,7 +108,7 @@ struct SongsFilterSheet: View {
         #if os(iOS)
           Text("Filter Songs")
             .font(.title2.bold())
-            .foregroundStyle(BrandTokens.textPrimary)
+            .foregroundStyle(FestivalText.primary)
             .multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, minHeight: 44)
@@ -143,7 +143,7 @@ struct SongsFilterSheet: View {
                   )
                   .accessibilityHidden(true)
                 }
-                .foregroundStyle(BrandTokens.textPrimary)
+                .foregroundStyle(FestivalText.primary)
               }
               .accessibilityValue(
                 scoreSectionsExpanded ? "Expanded" : "Collapsed"
@@ -158,19 +158,19 @@ struct SongsFilterSheet: View {
                   + "selected checks on one chart apply together."
               )
               .font(.footnote)
-              .foregroundStyle(BrandTokens.textSecondary)
+              .foregroundStyle(FestivalText.primary)
               if invalidScoreFilteringEnabled {
                 Text(
                   "Score filters are paused while Filter Invalid Scores "
                     + "is enabled in Settings."
                 )
-                .foregroundStyle(BrandTokens.textSecondary)
+                .foregroundStyle(FestivalText.primary)
               } else if !scoreAvailable {
                 Text(
                   "Score filters need published player scores from "
                     + "the current Songs catalogue."
                 )
-                .foregroundStyle(BrandTokens.textSecondary)
+                .foregroundStyle(FestivalText.primary)
               }
             }
             Section("All enabled charts") {
@@ -216,13 +216,13 @@ struct SongsFilterSheet: View {
               .accessibilityIdentifier("fst.songs.filter.leaving")
             if !showShop {
               Text("Item Shop is hidden in Settings. Saved filters can be reset.")
-                .foregroundStyle(BrandTokens.textSecondary)
+                .foregroundStyle(FestivalText.primary)
             } else if !profileAvailable {
               Text("Select a player with available scores to edit song filters.")
-                .foregroundStyle(BrandTokens.textSecondary)
+                .foregroundStyle(FestivalText.primary)
             } else if !shopAvailable {
               Text("Item Shop filters need matching public Songs and Shop data.")
-                .foregroundStyle(BrandTokens.textSecondary)
+                .foregroundStyle(FestivalText.primary)
             }
           }
           Section {
@@ -232,7 +232,7 @@ struct SongsFilterSheet: View {
               draftPlayerFilter = SongPlayerScoreFilter()
               draftInstrument = nil
             }
-            .tint(BrandTokens.textPrimary)
+            .tint(FestivalText.primary)
             .accessibilityIdentifier("fst.songs.filter.reset")
           }
           if let applyError {
@@ -257,7 +257,7 @@ struct SongsFilterSheet: View {
           } label: {
             Text("Cancel")
               .font(.body)
-              .foregroundStyle(BrandTokens.textPrimary)
+              .foregroundStyle(FestivalText.primary)
               .frame(maxWidth: .infinity, minHeight: 44)
               .background(
                 BrandTokens.cardBackground,
@@ -278,7 +278,7 @@ struct SongsFilterSheet: View {
               .font(.body.bold())
               .foregroundStyle(
                 canApply
-                  ? BrandTokens.textPrimary : BrandTokens.textSecondary
+                  ? FestivalText.primary : FestivalText.disabled
               )
               .frame(maxWidth: .infinity, minHeight: 44)
               .background(

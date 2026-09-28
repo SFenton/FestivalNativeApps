@@ -64,12 +64,12 @@ struct SongsSortSheet: View {
                     if showShop && !shopAvailable {
                         Text("Item Shop sorting requires matching public Songs and Shop data.")
                             .font(.footnote)
-                            .foregroundStyle(BrandTokens.textSecondary)
+                            .foregroundStyle(FestivalText.primary)
                     } else if !showShop && mode == .shop {
                         Text("Item Shop sort is saved but hidden. Reset to Title A-Z "
                             + "to choose another mode.")
                             .font(.footnote)
-                            .foregroundStyle(BrandTokens.textSecondary)
+                            .foregroundStyle(FestivalText.primary)
                     }
                 }
                 Section("Direction") {
@@ -86,7 +86,7 @@ struct SongsSortSheet: View {
                         draftAscending = true
                     }
                     .font(.body)
-                    .tint(BrandTokens.textPrimary)
+                    .tint(FestivalText.primary)
                     .accessibilityIdentifier("fst.songs.sort.reset")
                 }
             }
@@ -99,7 +99,7 @@ struct SongsSortSheet: View {
                     } label: {
                         Text("Cancel")
                             .font(.body)
-                            .foregroundStyle(BrandTokens.textPrimary)
+                            .foregroundStyle(FestivalText.primary)
                             .frame(maxWidth: .infinity, minHeight: 44)
                             .background(
                                 BrandTokens.cardBackground,
@@ -116,7 +116,7 @@ struct SongsSortSheet: View {
                             .font(.body.bold())
                             .foregroundStyle(
                                 hasChanges
-                                    ? BrandTokens.textPrimary : BrandTokens.textSecondary
+                                    ? FestivalText.primary : FestivalText.disabled
                             )
                             .frame(maxWidth: .infinity, minHeight: 44)
                             .background(

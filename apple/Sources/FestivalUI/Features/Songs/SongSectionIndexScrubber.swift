@@ -46,7 +46,7 @@ struct SongSectionIndexScrubber: View {
                     .frame(maxWidth: .infinity)
                     .foregroundStyle(
                         isActive && index == activeIndex
-                            ? BrandTokens.gold : BrandTokens.textSecondary
+                            ? BrandTokens.gold : FestivalText.primary
                     )
             }
         }

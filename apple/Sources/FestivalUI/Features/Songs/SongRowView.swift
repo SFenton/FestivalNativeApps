@@ -130,9 +130,9 @@ struct SongRowView: View {
     private var songInfo: some View {
         VStack(alignment: .leading, spacing: 4) {
             MarqueeText(song.title, font: .headline)
-                .foregroundStyle(BrandTokens.textPrimary)
+                .foregroundStyle(FestivalText.primary)
             MarqueeText(songSubtitle, font: .subheadline)
-                .foregroundStyle(BrandTokens.textSecondary)
+                .foregroundStyle(FestivalText.primary)
         }
     }
 
@@ -142,7 +142,7 @@ struct SongRowView: View {
             if let chart = structuredScore?.chart, chart != .lead {
                 Text("\(chart.label) chart")
                     .font(.caption)
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
                     .accessibilityIdentifier("fst.songs.metadata.chart.\(song.songId)")
             }
         }
@@ -185,7 +185,7 @@ struct SongRowView: View {
                 .font(.subheadline)
                 .foregroundStyle(
                     shopHighlight == .leavingTomorrow
-                        ? BrandTokens.textPrimary : BrandTokens.gold
+                        ? FestivalText.primary : BrandTokens.gold
                 )
                 .frame(minWidth: 30, minHeight: 30)
                 .background(
@@ -284,7 +284,7 @@ struct SongRowView: View {
                     .stroke(
                         shopHighlight == .leavingTomorrow ? BrandTokens.statusRed
                             : shopHighlight == .new ? BrandTokens.gold
-                            : BrandTokens.textPrimary,
+                            : FestivalText.primary,
                         lineWidth: 2
                     )
             }

@@ -183,7 +183,7 @@ struct SongMetadataFieldView: View {
             Text(value.formatted())
                 .font(.title3.bold())
                 .monospacedDigit()
-                .foregroundStyle(BrandTokens.textPrimary)
+                .foregroundStyle(FestivalText.primary)
                 .fixedSize(horizontal: false, vertical: true)
         case let .accuracy(value, combo, percentageVisible, tint):
             let label = accuracyLabel(
@@ -193,7 +193,7 @@ struct SongMetadataFieldView: View {
             let text: Text = combo ? Text(label).italic() : Text(label)
             text
                 .font(.callout.bold())
-                .foregroundStyle(combo ? BrandTokens.gold : BrandTokens.textPrimary)
+                .foregroundStyle(combo ? BrandTokens.gold : FestivalText.primary)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, horizontalInset)
                 .frame(
@@ -217,7 +217,7 @@ struct SongMetadataFieldView: View {
             text
                 .font(.callout.bold())
                 .foregroundStyle(
-                    highlighted ? BrandTokens.gold : BrandTokens.textSecondary
+                    highlighted ? BrandTokens.gold : FestivalText.primary
                 )
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, horizontalInset)
@@ -235,39 +235,36 @@ struct SongMetadataFieldView: View {
         case let .stars(count, gold):
             if dynamicTypeSize.isAccessibilitySize {
                 HStack(spacing: 4) {
-                    Image(systemName: "star.fill")
-                        .font(.callout)
-                        .foregroundStyle(gold ? BrandTokens.gold : BrandTokens.textPrimary)
+                    // One web star image (white or gold) beside the spelled-out count.
+                    Image(StarRating.assetName(gold: gold), bundle: .module)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 18, height: 18)
                         .accessibilityHidden(true)
                     Text(gold ? "\(count) gold stars" : "\(count) stars")
                         .font(.callout.bold())
-                        .foregroundStyle(gold ? BrandTokens.gold : BrandTokens.textPrimary)
+                        .foregroundStyle(gold ? BrandTokens.gold : FestivalText.primary)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityHidden(true)
                 }
                 .padding(.horizontal, horizontalInset)
                 .frame(minHeight: badgeHeight)
             } else {
-                HStack(spacing: 2) {
-                    ForEach(0..<count, id: \.self) { _ in
-                        Image(systemName: "star.fill")
-                            .font(.callout)
-                            .foregroundStyle(gold ? BrandTokens.gold : BrandTokens.textPrimary)
-                            .accessibilityHidden(true)
-                    }
-                }
-                .frame(minHeight: badgeHeight)
+                // The web's star images (`GoldStars`), not SF Symbols.
+                StarRating(stars: count, gold: gold, size: 16)
+                    .accessibilityHidden(true)
+                    .frame(minHeight: badgeHeight)
             }
         case let .season(number, current):
             Text("S\(number)")
                 .font(.callout.bold())
                 .foregroundStyle(
-                    current ? BrandTokens.surfaceSubtle : BrandTokens.textSecondary
+                    current ? BrandTokens.surfaceSubtle : FestivalText.primary
                 )
                 .padding(.horizontal, horizontalInset)
                 .frame(minWidth: 42, minHeight: badgeHeight)
                 .background(
-                    current ? BrandTokens.textSecondary : BrandTokens.surfaceSubtle,
+                    current ? BrandTokens.textSecondary : BrandTokens.surfaceSubtle, // chip fill, not text
                     in: RoundedRectangle(cornerRadius: 6)
                 )
         case let .intensity(raw):
@@ -289,7 +286,7 @@ struct SongMetadataFieldView: View {
         case let .lastPlayed(value):
             Text(value)
                 .font(.footnote)
-                .foregroundStyle(BrandTokens.textSecondary)
+                .foregroundStyle(FestivalText.primary)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, horizontalInset)
                 .frame(minWidth: 108, minHeight: badgeHeight)
@@ -356,7 +353,7 @@ struct SongMetadataFieldView: View {
     private func difficultyForeground(_ number: Int) -> Color {
         switch number {
         case 0, 2: BrandTokens.cardBackground
-        case 1, 3: BrandTokens.textPrimary
+        case 1, 3: FestivalText.primary
         default: BrandTokens.gold
         }
     }

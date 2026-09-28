@@ -348,7 +348,7 @@ struct SongsScreen: View {
                                 .multilineTextAlignment(.center)
                                 .fixedSize(horizontal: false, vertical: true)
                             }
-                            .foregroundStyle(BrandTokens.textPrimary)
+                            .foregroundStyle(FestivalText.primary)
                         } description: {
                             Text(
                                 settledSearch.isEmpty
@@ -360,7 +360,7 @@ struct SongsScreen: View {
                                         ? "Try a different search or filter."
                                         : "Try a different search.")
                             )
-                            .foregroundStyle(BrandTokens.textSecondary)
+                            .foregroundStyle(FestivalText.primary)
                             .multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)
                         }
@@ -714,7 +714,7 @@ struct SongsScreen: View {
             .accessibilityIdentifier("fst.songs.shop-error")
             Button("Retry Item Shop status") { shopRetryRevision += 1 }
                 .font(.body)
-                .foregroundStyle(BrandTokens.textPrimary)
+                .foregroundStyle(FestivalText.primary)
                 .frame(minHeight: 44)
                 .padding(.horizontal, 12)
                 .background(
@@ -743,17 +743,17 @@ struct SongsScreen: View {
             VStack(spacing: 16) {
                 Text("Saved song filters unavailable")
                     .font(.title2.bold())
-                    .foregroundStyle(BrandTokens.textPrimary)
+                    .foregroundStyle(FestivalText.primary)
                     .accessibilityAddTraits(.isHeader)
                 Text(message)
                     .font(.body)
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
                 Button {
                     playerScoreFilterData = Data()
                 } label: {
                     Text("Reset saved score filters")
                         .font(.body)
-                        .foregroundStyle(BrandTokens.textPrimary)
+                        .foregroundStyle(FestivalText.primary)
                         .frame(minHeight: 44)
                         .padding(.horizontal, 12)
                         .background(
@@ -926,7 +926,7 @@ struct SongsScreen: View {
     private func shopSectionHeader(_ section: SongShopSection) -> some View {
         Text(section.kind.label.uppercased())
             .font(.caption.bold())
-            .foregroundStyle(BrandTokens.textSecondary)
+            .foregroundStyle(FestivalText.primary)
             .accessibilityLabel(section.kind.label)
             .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier("fst.songs.shop-section." + section.kind.rawValue)
@@ -940,7 +940,7 @@ struct SongsScreen: View {
     private func durationSectionHeader(_ section: SongDurationSection) -> some View {
         Text(section.bucket.label.uppercased())
             .font(.caption.bold())
-            .foregroundStyle(BrandTokens.textSecondary)
+            .foregroundStyle(FestivalText.primary)
             .accessibilityLabel(section.bucket.label)
             .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier("fst.songs.duration-section.\(section.bucket.rawValue)")
@@ -1006,7 +1006,7 @@ struct SongsScreen: View {
     private func sectionIndexHeader(_ section: SongSection) -> some View {
         Text(section.label)
             .font(.caption.bold())
-            .foregroundStyle(BrandTokens.textSecondary)
+            .foregroundStyle(FestivalText.primary)
             .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier("fst.songs.section.\(section.id)")
     }
