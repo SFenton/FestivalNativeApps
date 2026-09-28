@@ -202,9 +202,7 @@ struct SettingsScreen: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .background(ArtworkBackground(
-            mode: .carousel, session: session, visible: isVisible
-        ))
+        .festivalBackground(.carousel, session: session, visible: isVisible)
         .navigationTitle("Settings")
         .confirmationDialog(
             "Reset app settings only?",

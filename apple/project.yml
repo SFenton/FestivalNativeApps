@@ -8,7 +8,7 @@ targets:
   FestivalMobile:
     type: application
     platform: iOS
-    deploymentTarget: "18.0"
+    deploymentTarget: "17.0"
     sources:
       - path: Apps/iOS
     dependencies:
@@ -43,7 +43,7 @@ targets:
   FestivalDesktop:
     type: application
     platform: macOS
-    deploymentTarget: "15.0"
+    deploymentTarget: "14.0"
     sources:
       - path: Apps/macOS
     dependencies:
@@ -65,7 +65,7 @@ targets:
   FestivalMobileUITests:
     type: bundle.ui-testing
     platform: iOS
-    deploymentTarget: "18.0"
+    deploymentTarget: "17.0"
     sources:
       - path: Apps/iOSUITests
     dependencies:
@@ -80,7 +80,7 @@ targets:
   FestivalDesktopUITests:
     type: bundle.ui-testing
     platform: macOS
-    deploymentTarget: "15.0"
+    deploymentTarget: "14.0"
     sources:
       - path: Apps/macOSUITests
     dependencies:

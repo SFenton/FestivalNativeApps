@@ -78,9 +78,7 @@ struct ShopScreen: View {
                 shopContent(snapshot)
             }
         }
-        .background(ArtworkBackground(
-            mode: .carousel, session: session, visible: isVisible
-        ))
+        .festivalBackground(.carousel, session: session, visible: isVisible)
         .navigationTitle("Item Shop")
         .toolbar {
             if sizeClass != .compact && !dynamicTypeSize.isAccessibilitySize {
@@ -259,7 +257,7 @@ struct ShopScreen: View {
     private func listOffer(_ offer: ShopSong, snapshot: ShopSnapshot) -> some View {
         offerActionsLayout {
             if let song = snapshot.songsById[offer.songId] {
-                NavigationLink(value: SongRoute.detail(song)) {
+                NavigationLink(value: AppRoute.songDetail(song)) {
                     listSummary(offer)
                 }
                 .buttonStyle(.plain)
@@ -354,7 +352,7 @@ struct ShopScreen: View {
             }
             .aspectRatio(1, contentMode: .fit)
             if let song = snapshot.songsById[offer.songId] {
-                NavigationLink(value: SongRoute.detail(song)) {
+                NavigationLink(value: AppRoute.songDetail(song)) {
                     Label("View Song Details", systemImage: "music.note")
                 }
                 .accessibilityIdentifier("fst.shop.song.\(offer.songId)")

@@ -400,7 +400,7 @@ func soloLeaderboardVisualStates(_ scenario: ScoreScenario) throws {
     _ = try render(NavigationStack {
         SoloLeaderboardScreen(
             song: song, instrument: .lead, session: offlineSession(),
-            initialPage: 1, path: .constant([.detail(song), .leaderboard(song, .lead, 1)]),
+            initialPage: 1, path: .constant([.songDetail(song), .songLeaderboard(song, .lead, 1)]),
             initialState: state
         )
     })
@@ -471,7 +471,7 @@ func soloLeaderboardVisualStates(_ scenario: ScoreScenario) throws {
 @MainActor
 @Test func nestedSongRoutesRenderDifferentDestinations() async throws {
     let song = try fixtureSong()
-    func snapshot(_ path: [SongRoute]) async throws -> Data {
+    func snapshot(_ path: [AppRoute]) async throws -> Data {
         let host = NSHostingView(rootView: SongNavigationRoot(
             session: offlineSession(), path: .constant(path),
             searchText: .constant(""), settledSearch: .constant("")
@@ -486,7 +486,7 @@ func soloLeaderboardVisualStates(_ scenario: ScoreScenario) throws {
         host.cacheDisplay(in: host.bounds, to: bitmap)
         return try #require(bitmap.representation(using: .png, properties: [:]))
     }
-    let detailPNG = try await snapshot([.detail(song)])
-    let scoresPNG = try await snapshot([.detail(song), .leaderboard(song, .lead, 1)])
+    let detailPNG = try await snapshot([.songDetail(song)])
+    let scoresPNG = try await snapshot([.songDetail(song), .songLeaderboard(song, .lead, 1)])
     #expect(detailPNG != scoresPNG)
 }

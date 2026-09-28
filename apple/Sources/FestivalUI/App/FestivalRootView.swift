@@ -9,7 +9,9 @@ import UIKit
 /// Platform-owned tab and sidebar navigation with a shared Songs path.
 public struct FestivalRootView: View {
     @State private var selected: FestivalSection
-    @State private var songsPath: [SongRoute] = []
+    @State private var songsPath: [AppRoute] = []
+    @State private var leaderboardsPath: [AppRoute] = []
+    @State private var settingsPath: [AppRoute] = []
     @State private var songsSearchText = ""
     @State private var songsSettledSearch = ""
     @State private var songsInstrument: Instrument?
@@ -270,19 +272,18 @@ public struct FestivalRootView: View {
                 isVisible: selected == .songs
             )
         case .leaderboards:
-            NavigationStack {
-                ContentUnavailableView(
-                    "Leaderboards overview migration in progress", systemImage: "list.number"
-                )
-                .navigationTitle("Leaderboards")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(ArtworkBackground(
-                    mode: .carousel, session: session, visible: selected == .leaderboards
-                ))
-                .toolbar { rootProfileToolbar }
+            FestivalTabStack(
+                session: session, visibleInstruments: visibleInstruments,
+                path: $leaderboardsPath, isVisible: selected == .leaderboards
+            ) {
+                LeaderboardsScreen(session: session)
+                    .toolbar { rootProfileToolbar }
             }
         case .settings:
-            NavigationStack {
+            FestivalTabStack(
+                session: session, visibleInstruments: visibleInstruments,
+                path: $settingsPath, isVisible: selected == .settings
+            ) {
                 SettingsScreen(session: session, isVisible: selected == .settings)
                     .toolbar { rootProfileToolbar }
             }

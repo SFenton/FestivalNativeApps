@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "FestivalApple",
-    platforms: [.iOS(.v18), .macOS(.v15)],
+    platforms: [.iOS(.v17), .macOS(.v14)],
     products: [
         .library(name: "FestivalCore", targets: ["FestivalCore"]),
         .library(name: "FestivalDesign", targets: ["FestivalDesign"]),
@@ -12,7 +12,11 @@ let package = Package(
     targets: [
         .target(name: "FestivalCore"),
         .target(name: "FestivalDesign"),
-        .target(name: "FestivalUI", dependencies: ["FestivalCore", "FestivalDesign"]),
+        .target(
+            name: "FestivalUI",
+            dependencies: ["FestivalCore", "FestivalDesign"],
+            resources: [.process("Resources")]
+        ),
         .testTarget(name: "FestivalCoreTests", dependencies: ["FestivalCore"]),
         .testTarget(name: "FestivalDesignTests", dependencies: ["FestivalDesign"]),
         .testTarget(
