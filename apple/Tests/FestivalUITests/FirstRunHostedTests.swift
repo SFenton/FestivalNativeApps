@@ -110,11 +110,11 @@ import Testing
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
     let image = try await nativeHostedSettle(
-        host, untilText: ["First-Run Guides", "Songs, Show", "Item Shop, Show"]
+        host, untilText: ["First Run Guides", "Songs, Show", "Item Shop, Show"]
     )
     _ = try nativeHostedPNG(image, filename: "first-run-settings.png", environment: "FST_FIRST_RUN_RENDER_OUT")
     assertRendersContent(
-        host, image: image, containing: ["First-Run Guides", "Songs, Show", "Item Shop, Show"]
+        host, image: image, containing: ["First Run Guides", "Songs, Show", "Item Shop, Show"]
     )
     #expect(FirstRunCenter.registeredPages.count == FirstRunPageKey.allCases.count)
 }

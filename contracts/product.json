@@ -165,6 +165,14 @@
       "states": ["closed", "open-hint", "loading", "results-all", "results-scoped", "empty", "error", "bands-unavailable", "navigated"],
       "testId": "fst.global-search.*",
       "spec": ".agents/controls/global-search/spec.md"
+    },
+    {
+      "id": "whats-new",
+      "status": "pending",
+      "source": "FortniteFestivalWeb/src/components/modals/ChangelogModal.tsx:20",
+      "states": ["hidden-seen", "waiting-for-first-run", "presented", "dismissed", "replay"],
+      "testId": "fst.whats-new.*",
+      "spec": ".agents/controls/whats-new/spec.md"
     }
   ],
   "testIds": {
@@ -175,6 +183,7 @@
     "fst.global-search.*": "global-search",
     "fst.first-run.*": "first-run",
     "fst.service-status.*": "service-status",
+    "fst.whats-new.*": "whats-new",
     "fst.songs.section-index.*": "songs-section-index",
     "fst.placeholder.*": "app-navigation",
     "fst.coming-soon": "app-navigation",

@@ -48,8 +48,9 @@
     the Next/Done transition are skipped under `accessibilityReduceMotion` — there is no
     web-style per-line stagger animation to gate in the first place.
   - `FirstRunDemoContent.swift` / `Demo/FirstRunSongsDemos.swift` — see the parity table below.
-  - `FirstRunSettingsSection.swift` — the Settings "First-Run Guides" section: one "Show" row per
-    `FirstRunPageKey`, opening a carousel over `FirstRunSlideEvaluator.allSlides(...)` (gates and
+  - `FirstRunSettingsSection.swift` — the Settings "First Run Guides" section (web title): one
+    "Show" row per `FirstRunPageKey` in the web's order (`settingsOrder`; Player History labelled
+    "Score History" like the web's `history.title`), opening a carousel over `FirstRunSlideEvaluator.allSlides(...)` (gates and
     seen-state both ignored, matching `getAllSlides`), resetting that page's seen-state first
     (matching `useFirstRunReplay.open`'s `resetPage` call) and re-marking everything seen on
     dismiss. No "reset all" control — the web doesn't have one either.
@@ -59,6 +60,12 @@
   behavior in DEBUG. Release always behaves as `.normal` (real behavior), ignoring the env var
   entirely. No `FST_DEBUG_FIRST_RUN` handling existed anywhere on `master` at the time this landed
   (checked via `git log`/`grep` before starting), so there was nothing to reconcile with Lane X.
+
+- **Slot sharing:** the launch What's New sheet claims `FirstRunCenter` slot `whats-new`, so a
+  carousel and the changelog never present together ([whats-new](../whats-new/ios.md)).
+- **Stars:** demos use the web's `star_white`/`star_gold` images (`Resources/Stars.xcassets`,
+  `Demo/FirstRunStar.swift`), never SF Symbol stars. Text is primary white; position is announced
+  only through VoiceOver's `accessibilityValue` beside the page dots (no visible "Slide x of y").
 
 ## Seam edits (narrow, additive)
 

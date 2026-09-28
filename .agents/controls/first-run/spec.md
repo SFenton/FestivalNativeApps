@@ -2,7 +2,7 @@
 
 > **What:** platform-neutral behavior for the onboarding slide carousels shown the first time a
 > user visits a page, and their Settings "view again" replay. **Read when:** touching any page's
-> onboarding, the seen-state store, or the Settings "First-Run Guides" section, on any platform.
+> onboarding, the seen-state store, or the Settings "First Run Guides" section, on any platform.
 > Platform notes: [ios.md](ios.md).
 
 Source: `FortniteFestivalWeb/src/firstRun/types.ts`, `contexts/FirstRunContext.tsx`,
@@ -33,7 +33,7 @@ per-page `pages/<page>/firstRun/**`, `pages/settings/SettingsPage.tsx` (replay U
   *displayed* slide seen at once, not just the current one.
 - Only one carousel may be visible at a time app-wide (`activeCarouselKey`); a second page whose
   slides also became eligible waits until the first is dismissed.
-- Settings "First-Run Guides" section: one row per registered page with a "Show" button. Opening
+- Settings "First Run Guides" section: one row per registered page with a "Show" button. Opening
   it (`useFirstRunReplay.open`) resets that page's seen-state and shows **every** slide for the
   page (`getAllSlides`), ignoring both gates and seen-state — so replay never hides content behind
   a gate the user doesn't currently satisfy (e.g. no player selected) or behind already-seen

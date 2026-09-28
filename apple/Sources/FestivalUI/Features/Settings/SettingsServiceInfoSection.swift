@@ -1,0 +1,252 @@
+import SwiftUI
+import FestivalCore
+import FestivalDesign
+
+// MARK: - Model
+
+/// Polls `GET /api/service-info` while Settings is visible and reduces each read through the
+/// web's monotonic progress rules, the native form of `useServiceInfo('settings')` +
+/// `SettingsServiceProgressCard`.
+@MainActor
+@Observable
+final class SettingsServiceInfoModel {
+    /// Load phase of the latest poll.
+    enum Phase: Equatable {
+        case loading
+        case loaded(ServiceInfoSnapshot, ServiceProgressDisplay)
+        case failed
+    }
+
+    /// Web cadence (`SERVICE_INFO_SETTINGS_POLL_MS` / `…_UNAVAILABLE_RETRY_MS`): 5 s either way.
+    static let pollInterval: Duration = .seconds(5)
+
+    private(set) var phase: Phase
+    @ObservationIgnored private var memory: ServiceProgressMemory?
+
+    /// Create a model.
+    ///
+    /// - Parameter phase: Starting phase; `.loading` in the app, a fixed state in hosted tests.
+    init(phase: Phase = .loading) {
+        self.phase = phase
+    }
+
+    /// Fold one read (or failure) into the displayed state. A failure after a success keeps
+    /// the failure visible rather than silently showing old progress.
+    ///
+    /// - Parameter result: Latest read.
+    func apply(_ result: Result<ServiceInfoSnapshot, Error>) {
+        switch result {
+        case let .success(snapshot):
+            let reduced = ServiceProgressReducer.reduce(memory, snapshot.info)
+            memory = reduced.memory
+            phase = .loaded(snapshot, reduced.display)
+        case .failure:
+            phase = .failed
+        }
+    }
+
+    /// Poll until cancelled (the view's `.task(id:)` cancels when Settings hides).
+    ///
+    /// - Parameter read: One service-info read.
+    func poll(_ read: @escaping @Sendable () async throws -> ServiceInfoSnapshot) async {
+        while !Task.isCancelled {
+            do {
+                let snapshot = try await read()
+                try Task.checkCancellation()
+                apply(.success(snapshot))
+            } catch is CancellationError {
+                return
+            } catch let error as URLError where error.code == .cancelled {
+                return
+            } catch {
+                apply(.failure(error))
+            }
+            try? await Task.sleep(for: Self.pollInterval)
+        }
+    }
+}
+
+// MARK: - Rows
+
+/// Everything the card shows for one state, derived without SwiftUI so it can be unit-tested.
+struct ServiceInfoRows: Equatable {
+    /// Leading row: "Leaderboard Service State" with description and trailing process state.
+    var stateDescription: String
+    var processState: ServiceProcessState
+    /// Phase row title, or nil when there is no phase to show.
+    var phaseTitle: String?
+    /// Bar: nil = no bar; `.some(nil)` = indeterminate; `.some(x)` = 0–100.
+    var barPercent: Double??
+    var progressText: String?
+    var unitsText: String?
+    var lastPublished: String
+    /// Public-read freeze explanation (native addition), nil when reads are live.
+    var freezeNotice: String?
+
+    /// Build rows for a load phase.
+    ///
+    /// - Parameters:
+    ///   - phase: Model phase.
+    ///   - timeZone: Display time zone.
+    ///   - locale: Display locale.
+    /// - Returns: Row content.
+    static func make(
+        _ phase: SettingsServiceInfoModel.Phase, timeZone: TimeZone = .current, locale: Locale = .current
+    ) -> ServiceInfoRows {
+        switch phase {
+        case .loading:
+            return ServiceInfoRows(stateDescription: "Loading", processState: .loading,
+                                   lastPublished: "Loading")
+        case .failed:
+            return ServiceInfoRows(stateDescription: "Failed to load", processState: .stopped,
+                                   lastPublished: "Unavailable")
+        case let .loaded(snapshot, display):
+            let info = snapshot.info
+            let updating = info.currentUpdate.status == "updating"
+            let state = ServiceInfoText.processState(info)
+            let phaseLabel = ServiceInfoText.phaseLabel(info, display: display)
+            let showPhase = updating || display.phaseId != nil || info.currentUpdate.phase != nil
+            let bar = display.barProgress
+            let showBar = updating && bar?.kind != .notApplicable
+            let determinate = bar?.kind == .exact && bar?.percent != nil
+            return ServiceInfoRows(
+                stateDescription: updating ? phaseLabel : ServiceInfoText.serviceState(info, state: state),
+                processState: state,
+                phaseTitle: showPhase
+                    ? ServiceInfoText.phaseTitle(
+                        phase: phaseLabel, subphase: ServiceInfoText.subphaseLabel(info, display: display))
+                    : nil,
+                barPercent: showBar ? .some(determinate ? bar?.percent : nil) : nil,
+                progressText: showBar ? ServiceInfoText.progressText(bar) : nil,
+                unitsText: showBar ? ServiceInfoText.unitsText(bar) : nil,
+                lastPublished: ServiceInfoText.lastPublished(info, timeZone: timeZone, locale: locale),
+                freezeNotice: ServiceInfoText.freezeNotice(snapshot)
+            )
+        }
+    }
+}
+
+// MARK: - Section
+
+/// Settings "Service Info" card: live leaderboard update state, phase progress and last
+/// publication, plus the pre-existing on-demand publication check.
+///
+/// Reads only the keyless operational `/api/service-info` (documented in
+/// `.agents/platforms/service-safety.md`); polls every 5 s only while `isVisible`.
+struct SettingsServiceInfoSection<Footer: View>: View {
+    let session: FestivalSession
+    let isVisible: Bool
+    let footer: () -> Footer
+    @State private var model: SettingsServiceInfoModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Create the section.
+    ///
+    /// - Parameters:
+    ///   - session: Shared session whose client performs the keyless reads.
+    ///   - isVisible: Poll only while true (Settings tab selected).
+    ///   - initialPhase: Starting state; hosted tests pass a fixed snapshot with `isVisible` false.
+    ///   - footer: Trailing rows (the publication check).
+    init(
+        session: FestivalSession, isVisible: Bool,
+        initialPhase: SettingsServiceInfoModel.Phase = .loading,
+        @ViewBuilder footer: @escaping () -> Footer
+    ) {
+        self.session = session
+        self.isVisible = isVisible
+        self.footer = footer
+        _model = State(initialValue: SettingsServiceInfoModel(phase: initialPhase))
+    }
+
+    var body: some View {
+        let rows = ServiceInfoRows.make(model.phase)
+        FestivalGlassSection(ServiceInfoText.title, subtitle: ServiceInfoText.hint) {
+            stateRow(rows)
+            if let title = rows.phaseTitle {
+                phaseRow(title: title, rows: rows)
+            }
+            if let notice = rows.freezeNotice {
+                SettingLabel("Public Reads", detail: notice)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("fst.settings.service-info.freeze")
+            }
+            SettingLabel(ServiceInfoText.lastPublishedTitle, detail: rows.lastPublished)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("fst.settings.service-info.last-published")
+            footer()
+        }
+        .task(id: isVisible) {
+            guard isVisible else { return }
+            let session = session
+            await model.poll { try await session.client().serviceInfo() }
+        }
+    }
+
+    private func stateRow(_ rows: ServiceInfoRows) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            SettingLabel(ServiceInfoText.serviceStateTitle, detail: rows.stateDescription)
+            Spacer(minLength: 8)
+            HStack(spacing: 8) {
+                Text(rows.processState.label)
+                    .font(.headline)
+                    .foregroundStyle(BrandTokens.textPrimary)
+                if rows.processState == .loading || rows.processState == .updating {
+                    ProgressView()
+                        .controlSize(.small)
+                        .accessibilityHidden(true)
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("fst.settings.service-info.state")
+    }
+
+    private func phaseRow(title: String, rows: ServiceInfoRows) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .foregroundStyle(BrandTokens.textPrimary)
+            if let barPercent = rows.barPercent {
+                ServiceProgressBar(percent: barPercent, reduceMotion: reduceMotion)
+                Text(rows.progressText ?? "")
+                    .font(.footnote)
+                    .foregroundStyle(BrandTokens.textSecondary)
+                if let units = rows.unitsText {
+                    Text(units)
+                        .font(.footnote)
+                        .foregroundStyle(BrandTokens.textSecondary)
+                }
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue([rows.progressText, rows.unitsText].compactMap { $0 }.joined(separator: ". "))
+        .accessibilityIdentifier("fst.settings.service-info.phase")
+    }
+}
+
+// MARK: - Bar
+
+/// Web-style capsule progress bar (purple fill on a muted track). An unknown total shows the
+/// empty track with the "total not yet known" caption instead of the web's looping shimmer:
+/// a `repeatForever` animation keeps XCUITest from idling and adds motion without information.
+private struct ServiceProgressBar: View {
+    /// 0–100, or nil for an unknown total.
+    let percent: Double?
+    let reduceMotion: Bool
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule().fill(BrandTokens.surfaceMuted)
+                if let percent {
+                    Capsule()
+                        .fill(BrandTokens.accentPurple)
+                        .frame(width: max(8, proxy.size.width * percent / 100))
+                }
+            }
+        }
+        .frame(height: 8)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.3), value: percent)
+        .accessibilityHidden(true)
+    }
+}

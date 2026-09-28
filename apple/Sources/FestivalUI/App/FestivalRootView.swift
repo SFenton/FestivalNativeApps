@@ -241,6 +241,7 @@ public struct FestivalRootView: View {
             }
             .festivalSheet()
         }
+        .whatsNew(session: session)
         .onChange(of: visibleSections) { _, visible in
             let adapted = FestivalTabPolicy.adapt(selected: selected, paths: paths, to: visible)
             if adapted.paths != paths { paths = adapted.paths }

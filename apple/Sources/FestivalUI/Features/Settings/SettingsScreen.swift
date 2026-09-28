@@ -72,6 +72,9 @@ struct SettingsScreen: View {
 
     @State private var resetPending = false
     @State private var serviceStatus: String?
+    @State private var serviceVersion: String?
+    @State private var serviceVersionFailed = false
+    @State private var showingWhatsNew = false
     @State private var showingVisualOrderSheet = false
     @State private var showingPathColumnSheet = false
     @State private var quickLinks = QuickLinksController()
@@ -104,9 +107,11 @@ struct SettingsScreen: View {
                     id: "show-metadata", title: "Show Instrument Metadata", symbol: "list.bullet"
                 )
                 version.quickLinkSection(id: "version", title: "Version", symbol: "info.circle")
+                service.quickLinkSection(
+                    id: "service-info", title: ServiceInfoText.title, symbol: "server.rack"
+                )
                 FirstRunSettingsSection(session: session)
-                    .quickLinkSection(id: "first-run", title: "First-Run Experience", symbol: "sparkles")
-                service.quickLinkSection(id: "service-info", title: "Service", symbol: "server.rack")
+                    .quickLinkSection(id: "first-run", title: "First Run Guides", symbol: "sparkles")
                 about.quickLinkSection(id: "licenses", title: "Licenses", symbol: "doc.text")
                 reset.quickLinkSection(id: "reset", title: "Reset Settings", symbol: "trash")
             }
@@ -141,6 +146,18 @@ struct SettingsScreen: View {
                 items: songRowVisualOrder,
                 label: \.label
             )
+        }
+        .sheet(isPresented: $showingWhatsNew) {
+            WhatsNewSheet(
+                version: WhatsNewGate.appVersion(), entries: Changelog.displayEntries()
+            ) {
+                ChangelogSeenStore().markSeen(version: WhatsNewGate.appVersion())
+                showingWhatsNew = false
+            }
+        }
+        .task(id: isVisible) {
+            guard isVisible, serviceVersion == nil else { return }
+            await loadServiceVersion()
         }
         .sheet(isPresented: $showingPathColumnSheet) {
             SettingsReorderSheet(
@@ -208,18 +225,13 @@ struct SettingsScreen: View {
                     .accessibilityIdentifier("fst.settings.leeway")
                 }
             }
-            LabeledContent {
-                Picker("CHOpt Path Default View", selection: $pathDefaultView) {
-                    Text("Image").tag(PathDisplayMode.image)
-                    Text("Text").tag(PathDisplayMode.text)
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .accessibilityValue(pathDefaultView.label)
-                .accessibilityIdentifier("fst.settings.path-default-view")
-            } label: {
-                SettingLabel("CHOpt Path Default View")
-            }
+            SettingsChoiceRow(
+                title: "CHOpt Path Default View",
+                options: PathDisplayMode.allCases,
+                label: \.label,
+                selection: $pathDefaultView,
+                identifier: "fst.settings.path-default-view"
+            )
             reorderRow(
                 "CHOpt Path Column Order",
                 detail: pathColumnOrder.wrappedValue.map(\.label).joined(separator: " · "),
@@ -362,6 +374,19 @@ struct SettingsScreen: View {
             versionRow("App Version", value: appVersionText)
             versionRow("Build Configuration", value: buildConfigurationText)
             versionRow("Service Version", value: serviceVersionText)
+            Button { showingWhatsNew = true } label: {
+                HStack {
+                    SettingLabel("What's New", detail: "Recent changes to Festival Score Tracker.")
+                    Spacer(minLength: 8)
+                    Text("Show")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(BrandTokens.accentBlue)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("fst.settings.whats-new")
+            .accessibilityHint("Shows the latest changelog")
         }
     }
 
@@ -374,15 +399,19 @@ struct SettingsScreen: View {
         }
     }
 
+    /// Live Service Info card; the on-demand publication check (used by Songs journeys to
+    /// force a catalogue re-read) stays as its last row.
     private var service: some View {
-        FestivalGlassSection("Service", subtitle: "Check the live score publication.") {
-            Button("Check Publication") { Task { await refreshService() } }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            if let serviceStatus {
-                Text(serviceStatus)
-                    .font(.subheadline)
-                    .foregroundStyle(BrandTokens.textSecondary)
-                    .accessibilityIdentifier("fst.settings.publication-status")
+        SettingsServiceInfoSection(session: session, isVisible: isVisible) {
+            VStack(alignment: .leading, spacing: 4) {
+                Button("Check Publication") { Task { await refreshService() } }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if let serviceStatus {
+                    Text(serviceStatus)
+                        .font(.subheadline)
+                        .foregroundStyle(BrandTokens.textSecondary)
+                        .accessibilityIdentifier("fst.settings.publication-status")
+                }
             }
         }
     }
@@ -501,10 +530,24 @@ struct SettingsScreen: View {
         #endif
     }
 
-    /// The live service's `/api/version` is not yet on the verified-read allowlist
-    /// (`.agents/platforms/service-safety.md`), so this stays a disclosed placeholder
-    /// rather than an unvetted network call.
-    private var serviceVersionText: String { "Not yet available" }
+    /// The live service build from keyless `GET /api/version` (pure read; see
+    /// `.agents/platforms/service-safety.md`), "Loading" until it answers.
+    private var serviceVersionText: String {
+        serviceVersion ?? (serviceVersionFailed ? "Unavailable" : "Loading")
+    }
+
+    /// Read the service version once per visible Settings session.
+    func loadServiceVersion() async {
+        do {
+            let value = try await session.client().serviceVersion()
+            serviceVersion = value
+            serviceVersionFailed = false
+        } catch {
+            if error is CancellationError { return }
+            if let urlError = error as? URLError, urlError.code == .cancelled { return }
+            serviceVersionFailed = true
+        }
+    }
 
     // MARK: - Instrument and metadata policies
 
@@ -690,12 +733,12 @@ struct SettingLabel: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .foregroundStyle(BrandTokens.textPrimary)
             if let detail {
                 Text(detail)
-                    .font(.footnote)
+                    .font(.subheadline)
                     .foregroundStyle(BrandTokens.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }

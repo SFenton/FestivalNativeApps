@@ -4,7 +4,7 @@ import FestivalDesign
 
 // MARK: - Settings section
 
-/// The Settings "First-Run Guides" section: one "Show" row per registered page that replays its
+/// The Settings "First Run Guides" section: one "Show" row per registered page that replays its
 /// *entire* slide catalog, ignoring gates and seen-state — ported from the web's
 /// `useFirstRunReplay`/`getAllSlides` pair used by `SettingsPage.tsx`.
 ///
@@ -23,12 +23,12 @@ struct FirstRunSettingsSection: View {
 
     var body: some View {
         FestivalGlassSection(
-            "First-Run Guides", subtitle: "Re-visit the first run experience for each page."
+            "First Run Guides", subtitle: "Re-visit the first run experience for each page."
         ) {
-            ForEach(FirstRunPageKey.allCases) { page in
+            ForEach(Self.settingsOrder) { page in
                 Button { openReplay(page) } label: {
                     HStack {
-                        SettingLabel(page.label)
+                        SettingLabel(Self.rowLabel(page))
                         Spacer(minLength: 8)
                         Text("Show")
                             .font(.subheadline.weight(.semibold))
@@ -38,7 +38,7 @@ struct FirstRunSettingsSection: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("fst.settings.first-run.\(page.rawValue)")
-                .accessibilityHint("Shows every first-run guide slide for \(page.label)")
+                .accessibilityHint("Shows every first-run guide slide for \(Self.rowLabel(page))")
             }
         }
         .sheet(item: $replayPage) { page in
@@ -48,6 +48,22 @@ struct FirstRunSettingsSection: View {
                 replayPage = nil
             }
         }
+    }
+
+    /// Row order of the web Settings page (`SettingsPage.tsx:756-810`), which lists Statistics
+    /// and Suggestions before Score History.
+    static let settingsOrder: [FirstRunPageKey] = [
+        .songs, .songInfo, .statistics, .suggestions, .playerHistory,
+        .leaderboards, .compete, .rivals, .shop,
+    ]
+
+    /// Row label: the web's nav titles, where Player History is titled "Score History"
+    /// (`history.title`).
+    ///
+    /// - Parameter page: Registered page.
+    /// - Returns: Title Case row label.
+    static func rowLabel(_ page: FirstRunPageKey) -> String {
+        page == .playerHistory ? "Score History" : page.label
     }
 
     /// Reset the page's seen-state (matching the web's `open()` calling `resetPage` first) and

@@ -80,6 +80,17 @@ class MockServiceTests(unittest.TestCase):
         with urlopen(self.base + "/api/songs?scenario=empty") as response:
             self.assertEqual(json.load(response)["count"], 0)
 
+    def test_service_info_and_version_are_idle_operational_reads(self):
+        """Settings Service Info reads an idle, unfrozen contract-2 body and a version."""
+        with urlopen(self.base + "/api/service-info") as response:
+            info = json.load(response)
+        self.assertEqual(info["contractVersion"], 2)
+        self.assertEqual(info["currentUpdate"]["status"], "idle")
+        self.assertFalse(info["publication"]["publicReadsFrozen"])
+        self.assertEqual(info["workerStatus"]["status"], "online")
+        with urlopen(self.base + "/api/version") as response:
+            self.assertEqual(json.load(response), {"version": "fixture"})
+
     def test_ranking_and_band_accuracy_use_the_live_ten_thousandths_scale(self):
         """Accuracy fields match production (`1000000` = 100%), never a 0–1 fraction or per-mille."""
         rows = [

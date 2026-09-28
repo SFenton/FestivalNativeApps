@@ -398,6 +398,26 @@ def _leaderboard_rival_detail_body(
     }
 
 
+#: Synthetic ``GET /api/service-info`` (contract 2 subset, idle worker, not frozen) for the
+#: Settings Service Info card; shape follows ``FSTService/Api/HealthEndpoints.cs``.
+SERVICE_INFO_IDLE = {
+    "contractVersion": 2,
+    "lastCompletedUpdate": {
+        "scrapeId": 1, "startedAt": "2026-01-01T11:30:00Z", "completedAt": "2026-01-01T11:55:00Z",
+        "publishedAt": "2026-01-01T12:00:00.0000000Z",
+    },
+    "currentUpdate": {"status": "idle", "startedAt": None, "phase": None, "subOperation": None},
+    "activeScrapeId": None,
+    "publishedScrapeId": 1,
+    "publication": {
+        "publishedScrapeId": 1, "publishedAt": "2026-01-01T12:00:00.0000000Z",
+        "publicReadsFrozen": False, "frozenAt": None, "frozenScrapeId": None, "freezeReason": None,
+    },
+    "workerStatus": {"workerKey": "fixture-worker", "status": "online", "rawStatus": "idle"},
+    "nextScheduledUpdateAt": None,
+}
+
+
 class FixtureServer(ThreadingHTTPServer):
     """Isolate mock publication and query evidence within one loopback listener."""
 
@@ -846,6 +866,10 @@ class FixtureHandler(BaseHTTPRequestHandler):
             self._json(200, self.fixture.publication())
         elif path == "/api/features":
             self._json(200, {"appManual": False})
+        elif path == "/api/service-info":
+            self._json(200, SERVICE_INFO_IDLE)
+        elif path == "/api/version":
+            self._json(200, {"version": "fixture"})
         elif path == "/api/account/search":
             terms = query.get("q", [])
             limits = query.get("limit", [])
