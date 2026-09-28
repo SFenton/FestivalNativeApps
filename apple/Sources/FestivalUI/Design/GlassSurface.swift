@@ -27,13 +27,14 @@ struct FestivalGlassModifier<S: Shape>: ViewModifier {
     let interactive: Bool
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
+    @AppStorage("fst.accessibility.lessTransparency") private var lessTransparency = false
 
     /// Pick system glass when available and allowed, otherwise an opaque-enough fallback.
     ///
     /// - Parameter content: Surface content to decorate.
     /// - Returns: Content with a glass or frosted background clipped to `shape`.
     func body(content: Content) -> some View {
-        if reduceTransparency || moreContrast {
+        if reduceTransparency || lessTransparency || moreContrast {
             content.background(BrandTokens.cardBackground, in: shape)
                 .overlay(shape.stroke(BrandTokens.borderSubtle, lineWidth: 1))
         } else if #available(iOS 26.0, macOS 26.0, *) {
