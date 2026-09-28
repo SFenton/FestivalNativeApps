@@ -73,7 +73,7 @@ def remote(command: str, check: bool = True, capture: bool = False) -> subproces
     """
     print(f"+ [win] {command}", file=sys.stderr)
     return subprocess.run(
-        ["ssh", "-o", "BatchMode=yes", HOST, command],
+        ["ssh", "-o", "BatchMode=yes", "-o", "ServerAliveInterval=30", "-o", "ServerAliveCountMax=10", HOST, command],
         check=check, text=True,
         capture_output=capture,
     )
