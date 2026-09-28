@@ -116,6 +116,21 @@ struct DeviceLayout: Sendable, Equatable {
     let overlayInsets: EdgeInsets
     /// The active fold region, if the inner display is partially folded.
     let foldFrame: CGRect?
+    /// Window safe-area insets (on iPhone Duo they already include the vertical bar).
+    var safeAreaInsets = EdgeInsets()
+
+    /// The part of ``overlayInsets`` that the safe area does not already cover: only
+    /// hardware occlusions (the outer camera). Use it for controls laid out *inside*
+    /// the safe area (a scrubber in a page's content), where ``overlayInsets`` would
+    /// count the vertical bar twice and leave dead space beside it.
+    var cutoutInsets: EdgeInsets {
+        EdgeInsets(
+            top: max(0, overlayInsets.top - safeAreaInsets.top),
+            leading: max(0, overlayInsets.leading - safeAreaInsets.leading),
+            bottom: max(0, overlayInsets.bottom - safeAreaInsets.bottom),
+            trailing: max(0, overlayInsets.trailing - safeAreaInsets.trailing)
+        )
+    }
 
     /// Whether `FestivalTabPolicy` should use its regular-width section set
     /// (Leaderboards and Rivals as separate sections, like the web at ≥ 600 px).
@@ -155,7 +170,8 @@ struct DeviceLayout: Sendable, Equatable {
             overlayInsets: overlayInsets(
                 safeArea: signals.safeAreaInsets, occlusions: signals.occlusions, bounds: bounds
             ),
-            foldFrame: fold
+            foldFrame: fold,
+            safeAreaInsets: signals.safeAreaInsets
         )
     }
 

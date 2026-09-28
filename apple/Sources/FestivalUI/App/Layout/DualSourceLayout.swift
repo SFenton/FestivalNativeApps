@@ -63,6 +63,7 @@ struct DualSourceLayout<Primary: View, Secondary: View>: View {
 
     var body: some View {
         let regions = regions
+        let split = split
         VStack(spacing: 0) {
             primary
                 .frame(height: regions?.primary)
@@ -88,7 +89,7 @@ struct DualSourceLayout<Primary: View, Secondary: View>: View {
         .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: regions)
         // Only the vertical extent matters, and only while split: horizontal motion
         // (push transitions) and every other pose never re-render the page.
-        .onGeometryChange(for: CGRect.self, of: { proxy in
+        .onGeometryChange(for: CGRect.self, of: { [split] proxy in
             guard split else { return .zero }
             let frame = proxy.frame(in: .global)
             return CGRect(x: 0, y: frame.minY.rounded(), width: 0, height: frame.height.rounded())

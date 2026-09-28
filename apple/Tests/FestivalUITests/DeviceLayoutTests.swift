@@ -219,3 +219,19 @@ func verticalBarFallbackPose(widthClass: WidthClass, expected: DeviceLayout.Pose
 @Test func environmentDefaultsToStandardPhone() {
     #expect(EnvironmentValues().deviceLayout == .standardPhone)
 }
+
+// MARK: - Insets inside the safe area
+
+/// Content laid out inside the safe area already clears the vertical bar; only the
+/// camera occlusion beyond it remains (no double rail inset beside a scrubber).
+@Test func cutoutInsetsExcludeTheSafeArea() {
+    let folded = DeviceLayout.resolve(LayoutSignals(
+        size: Duo.outerPortrait, widthClass: .compact,
+        safeAreaInsets: EdgeInsets(top: 0, leading: 0, bottom: 34, trailing: 84),
+        verticalBarEdge: .trailing, hinge: .closed, occlusions: [Duo.cameraTopTrailing]
+    ))
+    #expect(folded.overlayInsets.trailing == 84)
+    #expect(folded.cutoutInsets.trailing == 0)
+    #expect(folded.cutoutInsets.top == Duo.cameraTopTrailing.maxY)
+    #expect(DeviceLayout.standardPhone.cutoutInsets == EdgeInsets())
+}
