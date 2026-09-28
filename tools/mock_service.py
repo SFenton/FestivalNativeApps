@@ -397,6 +397,11 @@ def _leaderboard_rival_detail_body(
 class FixtureServer(ThreadingHTTPServer):
     """Isolate mock publication and query evidence within one loopback listener."""
 
+    # socketserver's default listen backlog is 5; pages that fan out many parallel
+    # reads (Leaderboards/Rivals cards) overflowed it on Windows and saw resets.
+    request_queue_size = 128
+    daemon_threads = True
+
     def __init__(
         self, address: tuple[str, int], handler: type[BaseHTTPRequestHandler],
         *, unpinned: bool = False, rollover_on_read: int | None = None,

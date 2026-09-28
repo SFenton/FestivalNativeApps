@@ -318,7 +318,9 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
   - ✅ `win-profile` (`71d09bc`…`46648e8`): profile flyout, player page = Statistics (select/switch/deselect in place, rank history + percentiles), score history, persisted selection; 830 tests; 7 journeys pass (Debug).
   - ✅ `win-rivals` (`3789228`…`6bd8cd3`): hub (Common/combo/family), All, Detail, Rivalry, Find Rival, typed scope; 7/7 journeys on AOT; idle 0.01% CPU.
   - ⬜ **Rivals live fallback (all platforms):** pass `allowLiveFallback=true` on rival detail **only when opened from Find Rival** (web: `RivalsPage.tsx:263` route state → `client.ts:490`; verified read-only, `c873ce1`) — carry the flag in the typed `RivalScope`/route.
+  - ✅ `win-shell` (`3881458`…`2d46afe`): NavigationView Auto (LeftMinimal <641, rail 641–1007, expanded ≥1008; 9 pages × 7 configs), occlusion pause (covered 0.3–2.2% core), per-worktree Debug data dir, AppStateFiles reset registry, UIA foreground/--isolate; 848 tests.
   - ⬜ **Windows infra backlog** (next shell/infra lane): Release/AOT UI automation — first-run dialog has no test-launch opt-out (`--first-run=off` for automation) and UIA tree walk fails while it's open; plus:
+  - ⬜ Wire `tools/windows/tests` + `tools/android/tests` into CI (windows-latest runner).
   - ⬜ Windows coverage gate: async-only Rivals/Notifications client partials report uncovered (compiler-generated exclusion) — fix in next shell/infra pass.
   - 🟨 `win-shell` (`FST-win-shell`): compact NavigationView, occlusion pause, per-lane Debug data dir, UI-automation foreground robustness, reset registry.
   - **Original Windows foundation brief:** port Copilot foundation → **C# vs C++/WinRT measured decision** → tooling → MVVM + request gate → NavigationView shell (Mica, split Leaderboards/Rivals) + composition-thread background → Songs + Song Detail live → tests
@@ -454,3 +456,4 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Windows lanes | win-rivals landed; mock Connection: close; rivals live fallback verified safe |
 | 2026-09-28 | Android | Foundation landed from Windows (`e16ad03`, docs conflict resolved); launched 8 Android feature lanes as Remote Control sessions |
 | 2026-09-28 | Lane A2 | Tab-bar accessory: global Search on every iPhone page (iOS 26.1+) + profile Select/Deselect; system search tab rejected (5 tabs → "More"); Apple global search (sheet, ⌘K/⌘F, toolbar fallback incl. Duo rail/iPad/Mac, Bands blocked); Songs inline filter; Suggestions/Rivals toolbar order; journeys green |
+| 2026-09-28 | Windows | win-shell landed; mock server backlog 5→128 |
