@@ -244,6 +244,8 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 
 ## 5. Known issues / decisions
 
+- **Open operator decisions (Duo):** (1) poses other than folded-portrait can only be set via Device Hub's on-screen buttons (no `simctl`/XCTest API) — needs manual pose changes or permission for UI scripting; (2) whether large iPhones in landscape also get the split Leaderboards/Rivals tabs (web does ≥600 px). Default until decided: Duo-only.
+
 - **One simulator booted at a time (`ad76e5e`):** `ios_sim.py` shuts down other FST simulators before booting a device (Duo lane had both iPhone and Duo booted).
 - **SwiftUI sheet environment trap:** environment actions set by the presenter weren't visible inside `.sheet` content in practice; pass closures into sheets explicitly (see `.agents/controls/profile-selection/ios.md`).
 
@@ -325,3 +327,4 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Lane U | UX tests for shell/leaderboards/background/history/notifications/first-run/licenses; flaky artwork test fixed; `ios_sim.py uitest` (5-min holds); found 3 bugs |
 | 2026-09-28 | Orchestrator | Launched Lane Z (bug fixes from UX tests) |
 | 2026-09-28 | Lane W | Duo research (27.1 SDK: vertical bar, `ReservedRegion`, `onHingeChange`, `ArrangementView`), per-pose decisions, `App/Layout` model + env, pose/display tooling, folded baselines (B1–B8), W1–W4 plan |
+| 2026-09-28 | Lane W | Duo research (APIs, poses, cutouts), `DeviceLayout` model + env, `ios_sim.py pose/--pose/shutdown`, folded baseline breakages, W1–W4 lane plan |
