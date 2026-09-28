@@ -46,6 +46,39 @@ public sealed partial class SongDetailViewModel : ObservableObject
     [ObservableProperty]
     private List<LeaderboardPreviewViewModel> leaderboards = [];
 
+    /// <summary>Validated offer for this song (none while the Shop is hidden).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasShopLink), nameof(ShopHighlight), nameof(ShopBadgeText), nameof(HasShopBadge))]
+    private ShopSong? shopOffer;
+
+    /// <summary>Why Shop status is unavailable, or <see langword="null"/>.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasShopIssue))]
+    private string? shopIssueText;
+
+    /// <summary>Visible, charted, path-capable instruments (Karaoke has no paths).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPaths))]
+    private List<Instrument> pathInstruments = [];
+
+    /// <summary>Whether the official Item Shop action shows.</summary>
+    public bool HasShopLink => ShopOffer?.ShopUri is not null;
+
+    /// <summary>Effective Shop accent.</summary>
+    public ShopHighlight? ShopHighlight => ShopPresentationPolicy.Highlight(ShopOffer, session.Settings.HideShop, session.Settings.DisableShopHighlighting);
+
+    /// <summary>Whether the availability badge shows.</summary>
+    public bool HasShopBadge => ShopHighlight is not null;
+
+    /// <summary>"Item Shop: Leaving Tomorrow".</summary>
+    public string ShopBadgeText => ShopHighlight is { } h ? "Item Shop: " + h.Label() : "";
+
+    /// <summary>Whether the Shop-status error shows.</summary>
+    public bool HasShopIssue => ShopIssueText is not null;
+
+    /// <summary>Whether the Paths action shows.</summary>
+    public bool HasPaths => PathInstruments.Count > 0;
+
     /// <summary>Whether content is shown.</summary>
     public bool ShowContent => State == LoadState.Loaded;
 
@@ -73,11 +106,15 @@ public sealed partial class SongDetailViewModel : ObservableObject
                 .Select(i => new IntensityRow(i, found.Difficulty!.ChartedValue(i)!.Value, found.UsesKeyboardIcon))
                 .ToList();
             var visible = session.Settings.VisibleInstruments;
+            await SongScoreSource.LoadAsync(session);
+            var scores = SongScoreSource.For(session);
             Leaderboards = InstrumentInfo.All
                 .Where(i => visible.Contains(i) && found.Supports(i))
-                .Select(i => new LeaderboardPreviewViewModel(session, found, i))
+                .Select(i => new LeaderboardPreviewViewModel(session, found, i, scores))
                 .ToList();
+            PathInstruments = [.. InstrumentInfo.All.Where(i => i.HasPaths() && visible.Contains(i) && found.Supports(i))];
             State = LoadState.Loaded;
+            await LoadShopAsync();
         }
         catch (FestivalApiException error)
         {
@@ -85,6 +122,26 @@ public sealed partial class SongDetailViewModel : ObservableObject
             State = LoadState.Failed;
         }
     }
+
+    /// <summary>Resolves this song's offer from the session feed (loading it once), recording failures.</summary>
+    /// <returns>Load task.</returns>
+    public async Task LoadShopAsync()
+    {
+        if (session.Settings.HideShop || Song is not { } song)
+        {
+            ShopOffer = null;
+            ShopIssueText = null;
+            return;
+        }
+        await session.TryLoadShopAsync();
+        ShopOffer = session.FindOffer(song.SongId);
+        ShopIssueText = session.Shop is null && session.ShopIssue is { } issue ? "Item Shop status unavailable: " + issue.Message : null;
+    }
+
+    /// <summary>Opens a Paths session for this song.</summary>
+    /// <returns>Paths model, or <see langword="null"/> when no chart has paths.</returns>
+    public SongPathsViewModel? CreatePaths() =>
+        Song is { } song && HasPaths ? new SongPathsViewModel(session, song, PathInstruments) : null;
 }
 
 /// <summary>One Intensity row: icon, meter and spoken level.</summary>
@@ -121,11 +178,27 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
     /// <param name="session">Shared session.</param>
     /// <param name="song">Song.</param>
     /// <param name="instrument">Chart.</param>
-    public LeaderboardPreviewViewModel(FestivalSession session, Song song, Instrument instrument)
+    /// <param name="scores">Selected-player score source at page load.</param>
+    public LeaderboardPreviewViewModel(FestivalSession session, Song song, Instrument instrument, SongScoreSource? scores = null)
     {
         this.session = session;
         Song = song;
         Instrument = instrument;
+        HasPlayer = session.HasPlayer;
+        PlayerAccountId = session.SelectedPlayer?.AccountId;
+        if (scores?.Detail?.Invoke(song.SongId, instrument) is { Score: > 0 } detail)
+        {
+            var parts = new List<string> { ScoreFormatting.Score(detail.Score) };
+            if (ScoreFormatting.Accuracy(detail.Accuracy) is { Length: > 0 } accuracy) parts.Add(accuracy);
+            if (detail.IsFullCombo == true) parts.Add("FC");
+            if (SongMetadataPolicy.PercentileBucket(detail.Rank, detail.TotalEntries) is { } bucket) parts.Add(bucket);
+            if (detail.Rank is > 0 and { } rank) parts.Add(ScoreFormatting.Rank(rank));
+            PlayerSummary = "Your score: " + string.Join(" · ", parts);
+        }
+        else if (scores is { HasPlayer: true })
+        {
+            PlayerSummary = scores.Available ? "Your score: no score yet" : scores.RowState;
+        }
         Status = new ServiceStatusViewModel($"preview:{song.SongId}:{instrument.ServiceId()}", $"{instrument.Label()} unavailable", LoadAsync, session.Time);
     }
 
@@ -143,6 +216,24 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
 
     /// <summary>Route for the full 25-row leaderboard.</summary>
     public AppRoute FullRoute => new AppRoute.SongLeaderboard(Song.SongId, Instrument);
+
+    /// <summary>Whether a player is selected (adds the score history link).</summary>
+    public bool HasPlayer { get; }
+
+    /// <summary>Selected player's account, for row highlighting.</summary>
+    public string? PlayerAccountId { get; }
+
+    /// <summary>Selected player's score summary for this chart, or an explicit state.</summary>
+    public string? PlayerSummary { get; }
+
+    /// <summary>Whether <see cref="PlayerSummary"/> shows.</summary>
+    public bool HasPlayerSummary => PlayerSummary is not null;
+
+    /// <summary>Route to the selected player's score history on this chart.</summary>
+    public AppRoute HistoryRoute => new AppRoute.PlayerHistory(Song.SongId, Instrument);
+
+    /// <summary>"View Lead Score History".</summary>
+    public string HistoryLabel => $"View {Instrument.Label()} Score History";
 
     /// <summary>Inline failed-read presentation.</summary>
     public ServiceStatusViewModel Status { get; }
@@ -185,8 +276,12 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
         State = LoadState.Loading;
         try
         {
-            var board = await session.Api.GetLeaderboardAsync(Song.SongId, Instrument, 1, PreviewSize);
-            Rows = board.Entries.Select(e => new LeaderboardRow(e)).ToList();
+            double? leeway = session.Settings.FilterInvalidScores ? session.Settings.Leeway : null;
+            var board = await session.Api.GetLeaderboardAsync(Song.SongId, Instrument, 1, PreviewSize, leeway);
+            Rows = board.Entries.Select(e => new LeaderboardRow(e)
+            {
+                IsSelectedPlayer = PlayerAccountId is { } id && string.Equals(e.AccountId, id, StringComparison.OrdinalIgnoreCase),
+            }).ToList();
             Status.Clear();
             State = Rows.Count == 0 ? LoadState.Empty : LoadState.Loaded;
         }
@@ -220,8 +315,11 @@ public sealed record LeaderboardRow(LeaderboardEntry Entry)
     /// <summary>Whether the explicit FC flag is set.</summary>
     public bool IsFullCombo => Entry.IsFullCombo == true;
 
+    /// <summary>Whether this row is the selected player (highlighted).</summary>
+    public bool IsSelectedPlayer { get; init; }
+
     /// <summary>Screen-reader summary.</summary>
     public string Announcement => $"Rank {Entry.Rank}, {Name}, {Score} points" +
-                                  (Accuracy.Length > 0 ? $", {Accuracy} accuracy" : "") + (IsFullCombo ? ", full combo" : "");
+                                  (Accuracy.Length > 0 ? $", {Accuracy} accuracy" : "") + (IsFullCombo ? ", full combo" : "") + (IsSelectedPlayer ? ", you" : "");
 }
 #endregion

@@ -133,6 +133,17 @@ public sealed record AppSettings
     /// <summary>In-app additive override: opaque surfaces.</summary>
     [JsonPropertyName("lessTransparency")] public bool LessTransparency { get; init; }
 
+    #region Songs-owned state (kept by Reset)
+    /// <summary>Applied Songs Item Shop filter.</summary>
+    [JsonPropertyName("songShopFilter")] public SongShopFilter ShopFilter { get; init; } = SongShopFilter.None;
+
+    /// <summary>Applied selected-player score/FC filter (cleared on confirmed deselection).</summary>
+    [JsonPropertyName("songPlayerScoreFilter")] public SongPlayerScoreFilter PlayerScoreFilter { get; init; } = SongPlayerScoreFilter.None;
+
+    /// <summary>Item Shop grid/list preference.</summary>
+    [JsonPropertyName("shopViewMode")] public ShopViewMode ShopViewMode { get; init; } = ShopViewMode.Grid;
+    #endregion
+
     /// <summary>Whether Shop songs are highlighted (Shop visible and highlighting on).</summary>
     [JsonIgnore] public bool ShopHighlightEnabled => !HideShop && !DisableShopHighlighting;
 
@@ -230,6 +241,9 @@ public sealed record AppSettings
             ExperimentalRanks = false,
             TapTelemetry = TapTelemetry && TapDiagnostics,
             LeaderboardRankBy = RankingMetrics.Contains(LeaderboardRankBy) ? LeaderboardRankBy : "totalscore",
+            ShopFilter = ShopFilter ?? SongShopFilter.None,
+            PlayerScoreFilter = PlayerScoreFilter ?? SongPlayerScoreFilter.None,
+            ShopViewMode = Enum.IsDefined(ShopViewMode) ? ShopViewMode : ShopViewMode.Grid,
         };
     }
 
@@ -253,7 +267,8 @@ public sealed record AppSettings
         MetadataIntensity == other.MetadataIntensity && MetadataDifficulty == other.MetadataDifficulty &&
         MetadataStars == other.MetadataStars && MetadataLastPlayed == other.MetadataLastPlayed &&
         MoreContrast == other.MoreContrast && LessTransparency == other.LessTransparency &&
-        LeaderboardRankBy == other.LeaderboardRankBy;
+        LeaderboardRankBy == other.LeaderboardRankBy &&
+        ShopFilter == other.ShopFilter && Equals(PlayerScoreFilter, other.PlayerScoreFilter) && ShopViewMode == other.ShopViewMode;
 
     /// <summary>Hash consistent with <see cref="Equals(AppSettings?)"/>.</summary>
     /// <returns>Hash code.</returns>

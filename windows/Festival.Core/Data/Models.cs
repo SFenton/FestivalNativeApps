@@ -103,6 +103,8 @@ public sealed record Song
     [JsonPropertyName("difficulty")] public SongDifficulty? Difficulty { get; init; }
     /// <summary>Lead controller signature (<c>Guitar</c> or <c>Keyboard</c>).</summary>
     [JsonPropertyName("sig")] public string? Sig { get; init; }
+    /// <summary>CHOpt path artifact revision (sent as <c>generationId</c> on path reads).</summary>
+    [JsonPropertyName("pathArtifactGenerationId")] public string? PathArtifactGenerationId { get; init; }
     /// <summary>Per-chart engine maximum score keyed by service instrument ID.</summary>
     [JsonPropertyName("maxScores")] public IReadOnlyDictionary<string, int>? MaxScores { get; init; }
 

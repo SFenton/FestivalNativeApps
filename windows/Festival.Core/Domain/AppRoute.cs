@@ -18,6 +18,8 @@ public enum AppSection
     Statistics,
     /// <summary>Settings (footer).</summary>
     Settings,
+    /// <summary>Item Shop (hidden while Hide Item Shop is on).</summary>
+    Shop,
 }
 
 /// <summary>Section visibility and labels (app-navigation spec).</summary>
@@ -25,10 +27,17 @@ public static class AppSections
 {
     /// <summary>Sections shown for the current selection, in pane order (Settings last).</summary>
     /// <param name="hasPlayer">Whether a player is selected.</param>
-    /// <returns>Visible sections.</returns>
-    public static IReadOnlyList<AppSection> Visible(bool hasPlayer) => hasPlayer
-        ? [AppSection.Songs, AppSection.Suggestions, AppSection.Leaderboards, AppSection.Rivals, AppSection.Statistics, AppSection.Settings]
-        : [AppSection.Songs, AppSection.Leaderboards, AppSection.Settings];
+    /// <param name="hideShop">Whether the Item Shop is hidden in Settings.</param>
+    /// <returns>Visible sections (Item Shop last before Settings, as in the web sidebar).</returns>
+    public static IReadOnlyList<AppSection> Visible(bool hasPlayer, bool hideShop = false)
+    {
+        List<AppSection> sections = hasPlayer
+            ? [AppSection.Songs, AppSection.Suggestions, AppSection.Leaderboards, AppSection.Rivals, AppSection.Statistics]
+            : [AppSection.Songs, AppSection.Leaderboards];
+        if (!hideShop) sections.Add(AppSection.Shop);
+        sections.Add(AppSection.Settings);
+        return sections;
+    }
 
     /// <summary>Whether a section requires a selected player.</summary>
     /// <param name="section">Section.</param>
@@ -39,7 +48,7 @@ public static class AppSections
     /// <summary>Pane label.</summary>
     /// <param name="section">Section.</param>
     /// <returns>Title Case label.</returns>
-    public static string Label(this AppSection section) => section.ToString();
+    public static string Label(this AppSection section) => section == AppSection.Shop ? "Item Shop" : section.ToString();
 
     /// <summary>Stable automation ID (<c>fst.nav.*</c>).</summary>
     /// <param name="section">Section.</param>
@@ -264,7 +273,7 @@ public abstract record AppRoute
     public sealed record Shop : AppRoute
     {
         /// <inheritdoc />
-        public override AppSection Section => AppSection.Songs;
+        public override AppSection Section => AppSection.Shop;
         /// <inheritdoc />
         public override string ToPath() => "/shop";
     }

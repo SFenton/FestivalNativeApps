@@ -26,7 +26,7 @@ public sealed partial class ShellViewModel : ObservableObject
     public ShellViewModel(FestivalSession session)
     {
         this.session = session;
-        foreach (var section in AppSections.Visible(session.HasPlayer)) Sections.Add(section);
+        foreach (var section in AppSections.Visible(session.HasPlayer, session.Settings.HideShop)) Sections.Add(section);
         selectedAccount = session.SelectedPlayer?.AccountId;
         session.PropertyChanged += OnSessionChanged;
         if (session.HasPlayer) _ = session.LoadSelectedProfileAsync();
@@ -190,7 +190,7 @@ public sealed partial class ShellViewModel : ObservableObject
     private void OnSessionChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName != nameof(FestivalSession.Settings)) return;
-        var wanted = AppSections.Visible(session.HasPlayer);
+        var wanted = AppSections.Visible(session.HasPlayer, session.Settings.HideShop);
         if (!wanted.SequenceEqual(Sections))
         {
             // Diff in place: a Clear() would briefly empty the set and send the shell back to Songs even when the

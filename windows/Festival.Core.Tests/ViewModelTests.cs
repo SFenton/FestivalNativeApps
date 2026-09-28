@@ -235,7 +235,7 @@ public class SongsViewModelTests
         vm.FilterDraft.InstrumentIndex = 1 + InstrumentInfo.All.ToList().IndexOf(Instrument.Karaoke);
         Assert.True(vm.FilterDraft.CanApply);
         vm.ApplyFilterCommand.Execute(null);
-        Assert.Equal(["s3"], vm.Sections.SelectMany(s => s.Songs).Select(s => s.SongId));
+        Assert.Equal(["s3"], vm.Sections.SelectMany(s => s.Rows).Select(r => r.Song.SongId));
         Assert.True(vm.IsFilterActive);
         vm.FilterDraft.Begin();
         Assert.Equal(Instrument.Karaoke, vm.FilterDraft.ToFilter().Instrument);
@@ -340,17 +340,20 @@ public class ShellViewModelTests
     {
         var session = new FakeService().Session();
         var shell = new ShellViewModel(session);
-        Assert.Equal(3, shell.Sections.Count);
+        Assert.Equal(4, shell.Sections.Count);
         Assert.False(shell.HasPlayer);
         Assert.Equal(("Select Player", "", "Select a player profile"), (shell.ProfileName, shell.ProfileInitials, shell.ProfileButtonName));
         session.SelectPlayer(new PlayerSearchResult("acc", "Jane Doe"));
-        Assert.Equal(6, shell.Sections.Count);
+        Assert.Equal(7, shell.Sections.Count);
         Assert.Equal(("Jane Doe", "JD", "Profile: Jane Doe"), (shell.ProfileName, shell.ProfileInitials, shell.ProfileButtonName));
         session.UpdateSettings(s => s with { SaveData = true });
-        Assert.Equal(6, shell.Sections.Count);
+        Assert.Equal(7, shell.Sections.Count);
+        session.UpdateSettings(s => s with { HideShop = true });
+        Assert.DoesNotContain(AppSection.Shop, shell.Sections);
+        session.UpdateSettings(s => s with { HideShop = false });
         shell.ViewProfileCommand.Execute(null);
         shell.DeselectProfileCommand.Execute(null);
-        Assert.Equal(3, shell.Sections.Count);
+        Assert.Equal(4, shell.Sections.Count);
     }
 
     [Fact]

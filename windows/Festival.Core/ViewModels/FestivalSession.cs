@@ -75,7 +75,7 @@ public sealed partial class FestivalSession : ObservableObject
     }
 
     /// <summary>Deselects the player (score predicates are cleared; public preferences stay).</summary>
-    public void DeselectPlayer() => UpdateSettings(s => s with { SelectedPlayer = null });
+    public void DeselectPlayer() => UpdateSettings(s => s with { SelectedPlayer = null, PlayerScoreFilter = SongPlayerScoreFilter.None });
 
     /// <summary>Loads the catalogue once per publication; concurrent callers share the request.</summary>
     /// <param name="force">Re-read even when a catalogue is loaded (Retry, refresh); joins an in-flight read.</param>

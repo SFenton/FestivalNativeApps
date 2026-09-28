@@ -31,7 +31,7 @@ public class RoutingTests
         { new AppRoute.Statistics(), "/statistics", AppSection.Statistics },
         { new AppRoute.Suggestions(), "/suggestions", AppSection.Suggestions },
         { new AppRoute.Compete(), "/compete", AppSection.Rivals },
-        { new AppRoute.Shop(), "/shop", AppSection.Songs },
+        { new AppRoute.Shop(), "/shop", AppSection.Shop },
         { new AppRoute.Licenses(), "/settings/licenses", AppSection.Settings },
     };
 
@@ -92,8 +92,11 @@ public class RoutingTests
     [Fact]
     public void Sections_DependOnPlayer()
     {
-        Assert.Equal([AppSection.Songs, AppSection.Leaderboards, AppSection.Settings], AppSections.Visible(false));
-        Assert.Equal(6, AppSections.Visible(true).Count);
+        Assert.Equal([AppSection.Songs, AppSection.Leaderboards, AppSection.Shop, AppSection.Settings], AppSections.Visible(false));
+        Assert.Equal([AppSection.Songs, AppSection.Leaderboards, AppSection.Settings], AppSections.Visible(false, hideShop: true));
+        Assert.Equal(7, AppSections.Visible(true).Count);
+        Assert.Equal("Item Shop", AppSection.Shop.Label());
+        Assert.Equal("fst.nav.shop", AppSection.Shop.AutomationId());
         Assert.True(AppSection.Rivals.RequiresPlayer());
         Assert.False(AppSection.Leaderboards.RequiresPlayer());
         Assert.Equal("fst.nav.statistics", AppSection.Statistics.AutomationId());

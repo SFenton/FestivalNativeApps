@@ -15,6 +15,8 @@ public enum SongSortMode
     Year,
     /// <summary>Duration (missing sorts as zero).</summary>
     Duration,
+    /// <summary>Item Shop membership (requires a validated same-publication feed; otherwise pauses to Title).</summary>
+    Shop,
 }
 
 /// <summary>Labels for <see cref="SongSortMode"/>.</summary>
@@ -31,7 +33,8 @@ public static class SongSortModeInfo
         SongSortMode.Title => "Title",
         SongSortMode.Artist => "Artist",
         SongSortMode.Year => "Year",
-        _ => "Duration",
+        SongSortMode.Duration => "Duration",
+        _ => "Item Shop",
     };
 }
 #endregion
