@@ -64,6 +64,13 @@ final class SuggestionsViewModel {
     /// is per-screen, not automatic; `PlayerProfileContent` similarly does its own fetch
     /// rather than depending on another screen to have populated the session first).
     ///
+    /// Alongside the catalogue, also reads the player's combined `/rivals/all` (the source
+    /// for `song_rival_*`) whenever the generator itself is being (re)built — not on every
+    /// call, so an unchanged (player, publication) pair never refetches it. That read is
+    /// best-effort (`rivalsAll(session:accountId:)`): a failure only skips the rival
+    /// families, it never fails this whole page, matching every other optional annotation
+    /// this app layers onto an otherwise-successful load.
+    ///
     /// - Parameter session: Shared app session (selected player, score index, catalogue).
     func ensureLoaded(session: FestivalSession) async {
         guard let player = session.selectedPlayer else { return }
@@ -87,6 +94,9 @@ final class SuggestionsViewModel {
                 )
                 let engine = SuggestionGenerator(options: .init(currentSeason: season))
                 engine.setSource(songs: payload.catalog.songs, scoresIndex: session.selectedPlayerScores)
+                if let rivalsAll = await rivalsAll(session: session, accountId: player.accountId) {
+                    engine.setRivalData(RivalDataIndex.build(from: rivalsAll))
+                }
                 generator = engine
                 categories = []
                 hasMore = true
@@ -143,4 +153,24 @@ final class SuggestionsViewModel {
             SuggestionCategoryFilter.visible($0, effectiveInstruments: effective, filter: filter)
         }
     }
+}
+
+// MARK: - Rival data
+
+/// Best-effort combined rivals read (`GET /api/player/{accountId}/rivals/all`) for the
+/// `song_rival_*` pipelines (`RivalDataIndex.build(from:)`).
+///
+/// A pure, keyless, already-allowlisted read (`FestivalAPI.rivalsAll(accountId:)`), but never
+/// load-bearing for the page: no rivals yet, a transient network failure, or a decode issue
+/// all fall through to `nil` here, and `ensureLoaded` simply skips `setRivalData` in that
+/// case — the score-only categories still load normally.
+///
+/// - Parameters:
+///   - session: Shared app session (for its `FestivalAPI` client).
+///   - accountId: Selected player's account ID.
+/// - Returns: The decoded response, or nil if the read failed for any reason.
+@MainActor
+private func rivalsAll(session: FestivalSession, accountId: String) async -> RivalsAllResponse? {
+    guard let client = try? session.client() else { return nil }
+    return try? await client.rivalsAll(accountId: accountId)
 }

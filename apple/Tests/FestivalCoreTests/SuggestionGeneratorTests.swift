@@ -825,6 +825,397 @@ private struct AlwaysSkipRng: SuggestionRng {
     #expect(firstCategory.songs.map(\.song.songId) == secondCategory.songs.map(\.song.songId))
 }
 
+// MARK: - Rival fixture builders
+
+/// One `RivalsAllSample` wire record (`{s, i, ur, rr, us, rs}`).
+private func rivalSample(
+    songIndex: Int, _ instrument: Instrument, userRank: Int, rivalRank: Int,
+    userScore: Int? = nil, rivalScore: Int? = nil
+) -> [String: Any] {
+    var record: [String: Any] = ["s": songIndex, "i": instrument.rawValue, "ur": userRank, "rr": rivalRank]
+    if let userScore { record["us"] = userScore }
+    if let rivalScore { record["rs"] = rivalScore }
+    return record
+}
+
+/// One `RivalsAllEntry` wire record (a rival inside a combo's `above`/`below` list).
+private func rivalEntry(
+    _ accountId: String, name: String? = nil, direction: String, shared: Int = 10,
+    ahead: Int = 5, behind: Int = 5, rivalScore: Double = 100, samples: [[String: Any]] = []
+) -> [String: Any] {
+    var record: [String: Any] = [
+        "accountId": accountId, "direction": direction, "sharedSongCount": shared,
+        "aheadCount": ahead, "behindCount": behind, "rivalScore": rivalScore, "samples": samples,
+    ]
+    if let name { record["displayName"] = name }
+    return record
+}
+
+/// Decode a `RivalsAllResponse` from hand-built combo dictionaries (`rivalEntry`/`rivalSample`).
+private func rivalsAllFixture(
+    accountId: String = "player1", songs: [String],
+    combos: [(combo: String, above: [[String: Any]], below: [[String: Any]])]
+) throws -> RivalsAllResponse {
+    let dict: [String: Any] = [
+        "accountId": accountId, "songs": songs,
+        "combos": combos.map { ["combo": $0.combo, "above": $0.above, "below": $0.below] },
+    ]
+    return try JSONDecoder().decode(RivalsAllResponse.self, from: JSONSerialization.data(withJSONObject: dict))
+}
+
+// MARK: - Rival data index
+
+@Test func rivalDataIndexKeepsTopFivePerDirectionInFirstSeenOrder() throws {
+    let above = (0..<7).map { rivalEntry("above\($0)", direction: "above") }
+    let response = try rivalsAllFixture(songs: ["s0"], combos: [(combo: "01", above: above, below: [])])
+    let index = RivalDataIndex.build(from: response)
+    #expect(index.songRivals.count == 5)
+    #expect(index.songRivals.map(\.accountId) == (0..<5).map { "above\($0)" })
+}
+
+@Test func rivalDataIndexDedupsARivalAppearingInMultipleCombosAndMergesTheirMatches() throws {
+    let comboOne = rivalEntry(
+        "riv1", direction: "above", samples: [rivalSample(songIndex: 0, .lead, userRank: 5, rivalRank: 2)]
+    )
+    let comboTwo = rivalEntry(
+        "riv1", direction: "above", samples: [rivalSample(songIndex: 1, .bass, userRank: 8, rivalRank: 1)]
+    )
+    let response = try rivalsAllFixture(
+        songs: ["s0", "s1"],
+        combos: [(combo: "01", above: [comboOne], below: []), (combo: "02", above: [comboTwo], below: [])]
+    )
+    let index = RivalDataIndex.build(from: response)
+    #expect(index.songRivals.count == 1)
+    #expect(index.byRival["riv1"]?.count == 2)
+}
+
+@Test func rivalDataIndexTracksTheClosestMatchPerSongAndChart() throws {
+    let closeRival = rivalEntry(
+        "close", direction: "above", samples: [rivalSample(songIndex: 0, .lead, userRank: 5, rivalRank: 4)]
+    )
+    let farRival = rivalEntry(
+        "far", direction: "below", samples: [rivalSample(songIndex: 0, .lead, userRank: 5, rivalRank: 20)]
+    )
+    let response = try rivalsAllFixture(
+        songs: ["s0"], combos: [(combo: "01", above: [closeRival], below: [farRival])]
+    )
+    let index = RivalDataIndex.build(from: response)
+    let closest = try #require(index.closestRivalBySong[RivalDataIndex.closestKey("s0", .lead)])
+    #expect(closest.rival.accountId == "close")
+}
+
+@Test func rivalDataIndexFiltersToOneComboWhenGiven() throws {
+    let a = rivalEntry("a", direction: "above")
+    let b = rivalEntry("b", direction: "above")
+    let response = try rivalsAllFixture(
+        songs: [], combos: [(combo: "01", above: [a], below: []), (combo: "03", above: [b], below: [])]
+    )
+    let filtered = RivalDataIndex.build(from: response, combo: "03")
+    #expect(filtered.songRivals.map(\.accountId) == ["b"])
+}
+
+@Test func rivalDataIndexSkipsSamplesWithAnOutOfRangeSongIndex() throws {
+    let rival = rivalEntry(
+        "r", direction: "above", samples: [rivalSample(songIndex: 99, .lead, userRank: 1, rivalRank: 2)]
+    )
+    let response = try rivalsAllFixture(songs: ["s0"], combos: [(combo: "01", above: [rival], below: [])])
+    let index = RivalDataIndex.build(from: response)
+    #expect(index.byRival["r"]?.isEmpty == true)
+    #expect(index.closestRivalBySong.isEmpty)
+}
+
+@Test func rivalDataIndexDefaultsAMissingDisplayNameToUnknown() throws {
+    let rival = rivalEntry("anon", direction: "above")
+    let response = try rivalsAllFixture(songs: [], combos: [(combo: "01", above: [rival], below: [])])
+    let index = RivalDataIndex.build(from: response)
+    #expect(index.songRivals.first?.displayName == "Unknown")
+}
+
+// MARK: - Rival suggestions
+//
+// `song_rival_gap`/`protect`/`battleground`/`slipping`/`dominate` build their own pool
+// straight from `RivalDataIndex` matches — they don't need the catalogue score to satisfy
+// any predicate — but they still run `shouldEmit`/`selectNewFirst` against the *shared*
+// `sessionShownSongs` set like every other pipeline. A bare, all-zero-score fixture song is
+// prime "unplayed" bait: `unplayed_any`/`unplayed_<instrument>`/`first_plays_mixed` (and,
+// once any two candidates exist, `variety_pack`) will happily claim it first and zero out
+// this pipeline's own `freshCount`, exactly the redundancy problem this file's very first
+// comment describes. `inertRivalSong(s)` below is the fix: a fully "inert" six-star full
+// combo on every chart, immune to every generic predicate (unplayed, near-FC, star
+// progress, percentile, stale, near-max all require a state this never has), sharing one
+// artist so `variety_pack` can never gather 2+ distinct artists from it either.
+
+/// A single fully "inert" rival-test song (see block comment above).
+private func inertRivalSong(_ id: String) throws -> (song: Song, records: [[String: Any]]) {
+    try signalSong(id, .lead, stars: 6, accuracy: 1_000_000, fullCombo: true)
+}
+
+/// `count` fully "inert" rival-test songs, indexed `prefix0`, `prefix1`, ….
+private func inertRivalSongs(prefix: String, count: Int) throws -> (songs: [Song], records: [[String: Any]]) {
+    try signalSongs(prefix: prefix, count: count, instrument: .lead, stars: 6, accuracy: 1_000_000, fullCombo: true)
+}
+
+@Test func songRivalGapCollectsSongsWhereTheRivalBarelyLeads() throws {
+    // Eight gap-qualifying (rankDelta < 0) candidates plus one excluded (rankDelta > 0,
+    // belongs to "protect" instead); `artist_sampler_rotating` is the only pipeline that can
+    // still claim any of them (up to `take`=2), so plenty stay fresh for this one's own turn.
+    let gap = try inertRivalSongs(prefix: "rg", count: 8)
+    let excluded = try inertRivalSong("rgx")
+    let songs = gap.songs + [excluded.song]
+    let records = gap.records + excluded.records
+
+    var samples = (0..<8).map { rivalSample(songIndex: $0, .lead, userRank: 5, rivalRank: 6 + $0) } // delta -1...-8
+    samples.append(rivalSample(songIndex: 8, .lead, userRank: 2, rivalRank: 1)) // delta +1: excluded
+    let response = try rivalsAllFixture(
+        songs: songs.map(\.songId),
+        combos: [(combo: "01", above: [rivalEntry("riv", name: "Riv One", direction: "above", samples: samples)], below: [])]
+    )
+    let generator = try makeGenerator(songs: songs, records: records)
+    generator.setRivalData(RivalDataIndex.build(from: response))
+    let category = try #require(allCategories(generator).first { $0.key == "song_rival_gap_riv" })
+    #expect(category.type == .songRivals)
+    #expect(category.title == "Close the Gap vs Riv One")
+    #expect(!category.songs.contains { $0.song.songId == "rgx" })
+    #expect(category.songs.allSatisfy { $0.rivalName == "Riv One" && ($0.rivalRankDelta ?? 0) < 0 })
+}
+
+@Test func songRivalProtectCollectsSongsWhereThePlayerBarelyLeads() throws {
+    let fixture = try inertRivalSongs(prefix: "rp", count: 8)
+    let samples = (0..<8).map { rivalSample(songIndex: $0, .bass, userRank: 8 + $0, rivalRank: 5) } // delta +3...+10
+    let response = try rivalsAllFixture(
+        songs: fixture.songs.map(\.songId),
+        combos: [(combo: "01", above: [rivalEntry("riv", name: "Riv Two", direction: "above", samples: samples)], below: [])]
+    )
+    let generator = try makeGenerator(songs: fixture.songs, records: fixture.records)
+    generator.setRivalData(RivalDataIndex.build(from: response))
+    let category = try #require(allCategories(generator).first { $0.key == "song_rival_protect_riv" })
+    #expect(category.title == "Protect Your Lead vs Riv Two")
+    #expect(category.songs.allSatisfy { ($0.rivalRankDelta ?? 0) > 0 })
+}
+
+@Test func songRivalBattlegroundNeedsTwoRivalsClusteredWithinTenRanks() throws {
+    let fixture = try inertRivalSong("bg0")
+    let rivalA = rivalEntry(
+        "rA", direction: "above", samples: [rivalSample(songIndex: 0, .lead, userRank: 10, rivalRank: 12)]
+    )
+    let rivalB = rivalEntry(
+        "rB", direction: "below", samples: [rivalSample(songIndex: 0, .lead, userRank: 10, rivalRank: 8)]
+    )
+    let response = try rivalsAllFixture(songs: ["bg0"], combos: [(combo: "01", above: [rivalA], below: [rivalB])])
+    let generator = try makeGenerator(songs: [fixture.song], records: fixture.records)
+    generator.setRivalData(RivalDataIndex.build(from: response))
+    let category = try #require(allCategories(generator).first { $0.key == "song_rival_battleground" })
+    #expect(category.songs.map(\.song.songId) == ["bg0"])
+}
+
+@Test func songRivalBattlegroundIgnoresASingleNearbyRival() throws {
+    let fixture = try inertRivalSong("bg1")
+    let rival = rivalEntry(
+        "rOnly", direction: "above", samples: [rivalSample(songIndex: 0, .lead, userRank: 10, rivalRank: 12)]
+    )
+    let response = try rivalsAllFixture(songs: ["bg1"], combos: [(combo: "01", above: [rival], below: [])])
+    let generator = try makeGenerator(songs: [fixture.song], records: fixture.records)
+    generator.setRivalData(RivalDataIndex.build(from: response))
+    #expect(!allCategories(generator).contains { $0.key == "song_rival_battleground" })
+}
+
+@Test func songRivalSpotlightNeedsThreeSharedSongsAndAlwaysEmitsOnce() throws {
+    let songs = try (0..<3).map { try fixtureSong("sp\($0)") }
+    let rival = rivalEntry(
+        "riv", name: "Spotlight Rival", direction: "above",
+        samples: [
+            rivalSample(songIndex: 0, .lead, userRank: 10, rivalRank: 30), // behind
+            rivalSample(songIndex: 1, .lead, userRank: 5, rivalRank: 1), // ahead
+            rivalSample(songIndex: 2, .lead, userRank: 3, rivalRank: 2), // closest
+        ]
+    )
+    let response = try rivalsAllFixture(
+        songs: ["sp0", "sp1", "sp2"], combos: [(combo: "01", above: [rival], below: [])]
+    )
+    let generator = try makeGenerator(songs: songs, fixedDisplayCount: 3)
+    generator.setRivalData(RivalDataIndex.build(from: response))
+    let category = try #require(allCategories(generator).first { $0.key == "song_rival_spotlight_riv" })
+    #expect(category.title == "Rival Spotlight: Spotlight Rival")
+    #expect(category.songs.count == 3)
+}
+
+@Test func songRivalSpotlightNeedsAtLeastThreeMatches() throws {
+    let songs = try (0..<2).map { try fixtureSong("sp2_\($0)") }
+    let rival = rivalEntry(
+        "riv", direction: "above",
+        samples: [
+            rivalSample(songIndex: 0, .lead, userRank: 10, rivalRank: 30),
+            rivalSample(songIndex: 1, .lead, userRank: 5, rivalRank: 1),
+        ]
+    )
+    let response = try rivalsAllFixture(songs: ["sp2_0", "sp2_1"], combos: [(combo: "01", above: [rival], below: [])])
+    let generator = try makeGenerator(songs: songs)
+    generator.setRivalData(RivalDataIndex.build(from: response))
+    #expect(!allCategories(generator).contains { $0.key == "song_rival_spotlight_riv" })
+}
+
+@Test func songRivalSlippingNeedsALargeRivalLead() throws {
+    // Eight candidates with a big rival lead (rankDelta < -20); same `artist_sampler_rotating`
+    // margin reasoning as `songRivalGapCollectsSongsWhereTheRivalBarelyLeads`.
+    let fixture = try inertRivalSongs(prefix: "sl", count: 8)
+    let samples = (0..<8).map { rivalSample(songIndex: $0, .lead, userRank: 2, rivalRank: 30 + $0) } // delta -28...-35
+    let response = try rivalsAllFixture(
+        songs: fixture.songs.map(\.songId),
+        combos: [(combo: "01", above: [rivalEntry("riv", name: "Slip Rival", direction: "above", samples: samples)], below: [])]
+    )
+    let generator = try makeGenerator(songs: fixture.songs, records: fixture.records)
+    generator.setRivalData(RivalDataIndex.build(from: response))
+    let category = try #require(allCategories(generator).first { $0.key == "song_rival_slipping_riv" })
+    #expect(category.title == "Slip Rival is Pulling Ahead")
+}
+
+@Test func songRivalDominateNeedsALargePlayerLead() throws {
+    let fixture = try inertRivalSongs(prefix: "dm", count: 8)
+    let samples = (0..<8).map { rivalSample(songIndex: $0, .lead, userRank: 50 + $0, rivalRank: 5) } // delta +45...+52
+    let response = try rivalsAllFixture(
+        songs: fixture.songs.map(\.songId),
+        combos: [(combo: "01", above: [], below: [rivalEntry("riv", name: "Underdog", direction: "below", samples: samples)])]
+    )
+    let generator = try makeGenerator(songs: fixture.songs, records: fixture.records)
+    generator.setRivalData(RivalDataIndex.build(from: response))
+    let category = try #require(allCategories(generator).first { $0.key == "song_rival_dominate_riv" })
+    #expect(category.title == "Dominate Underdog")
+}
+
+@Test func songRivalNearFcAnnotatesNearFcRunsWithASharedRival() throws {
+    // Eight near-FC candidates: `near_fc_relaxed` and `unfc_Solo_Guitar` also match this
+    // shape and can each claim up to `take`=2, so eight comfortably outlasts both.
+    let fixture = try signalSongs(prefix: "nfx", count: 8, instrument: .lead, stars: 6, accuracy: 930_000)
+    let samples = (0..<8).map { rivalSample(songIndex: $0, .lead, userRank: 5, rivalRank: 2) }
+    let response = try rivalsAllFixture(
+        songs: fixture.songs.map(\.songId),
+        combos: [(combo: "01", above: [rivalEntry("riv", name: "FC Rival", direction: "above", samples: samples)], below: [])]
+    )
+    let generator = try makeGenerator(songs: fixture.songs, records: fixture.records)
+    generator.setRivalData(RivalDataIndex.build(from: response))
+    let category = try #require(allCategories(generator).first { $0.key == "song_rival_near_fc" })
+    #expect(category.type == .songRivals)
+    #expect(category.title == "FC These to Beat FC Rival!")
+    #expect(category.songs.allSatisfy { $0.rivalName == "FC Rival" })
+}
+
+@Test func songRivalStaleRequiresARivalLeadOnAStaleSeasonScore() throws {
+    // Twenty-four candidates: a season gap of 5 matches *every* `stale_global_<N>` and
+    // `stale_Solo_Guitar_<N>` bucket (N=1...5, since each uses "gap >= N"), so up to ten
+    // generic competitors can each claim `take`=2 — the same redundancy budget as the
+    // existing `staleInstrumentCoversEveryChart` test.
+    let fixture = try signalSongs(prefix: "stx", count: 24, instrument: .lead, stars: 2, accuracy: 500_000, season: 1)
+    let samples = (0..<24).map { rivalSample(songIndex: $0, .lead, userRank: 2, rivalRank: 20) } // delta -18
+    let response = try rivalsAllFixture(
+        songs: fixture.songs.map(\.songId),
+        combos: [(combo: "01", above: [rivalEntry("riv", name: "Stale Rival", direction: "above", samples: samples)], below: [])]
+    )
+    let generator = try makeGenerator(songs: fixture.songs, records: fixture.records, currentSeason: 6)
+    generator.setRivalData(RivalDataIndex.build(from: response))
+    let category = try #require(allCategories(generator).first { $0.key == "song_rival_stale" })
+    #expect(category.title == "Stale Songs Your Rivals Are Beating You On")
+    #expect(category.songs.allSatisfy { ($0.rivalRankDelta ?? 0) == -18 })
+}
+
+@Test func songRivalStaleRequiresAPositiveCurrentSeason() throws {
+    let fixture = try signalSong("stz", .lead, stars: 2, accuracy: 500_000, season: 1)
+    let response = try rivalsAllFixture(
+        songs: ["stz"],
+        combos: [(
+            combo: "01",
+            above: [rivalEntry(
+                "riv", direction: "above",
+                samples: [rivalSample(songIndex: 0, .lead, userRank: 20, rivalRank: 2)]
+            )],
+            below: []
+        )]
+    )
+    let generator = try makeGenerator(songs: [fixture.song], records: fixture.records, currentSeason: 0)
+    generator.setRivalData(RivalDataIndex.build(from: response))
+    #expect(!allCategories(generator).contains { $0.key == "song_rival_stale" })
+}
+
+@Test func songRivalStarGainsRequiresARivalLeadOnAPartialStarRun() throws {
+    // Eight candidates: the generic `star_gains` and `more_stars` families also match a
+    // four-star run and can each claim up to `take`=2.
+    let fixture = try signalSongs(prefix: "sgx", count: 8, instrument: .lead, stars: 4, accuracy: 700_000)
+    let samples = (0..<8).map { rivalSample(songIndex: $0, .lead, userRank: 2, rivalRank: 10) } // delta -8
+    let response = try rivalsAllFixture(
+        songs: fixture.songs.map(\.songId),
+        combos: [(combo: "01", above: [rivalEntry("riv", name: "Star Rival", direction: "above", samples: samples)], below: [])]
+    )
+    let generator = try makeGenerator(songs: fixture.songs, records: fixture.records)
+    generator.setRivalData(RivalDataIndex.build(from: response))
+    let category = try #require(allCategories(generator).first { $0.key == "song_rival_star_gains" })
+    #expect(category.title == "Gain Stars & Beat Star Rival")
+}
+
+@Test func songRivalPctPushRequiresARivalLeadOutsideTopOnePercent() throws {
+    // Thirty bucket-10 candidates: the generic `percentilePush`, `pct_improve_10`,
+    // `pct_improve_Solo_Guitar_10` and `artist_sampler_rotating` families all match this
+    // same-artist shape too, each claiming up to `take`=2.
+    let fixture = try signalSongs(
+        prefix: "ppx", count: 30, instrument: .lead, stars: 4, accuracy: 800_000, rankStart: 51, totalEntries: 1_000
+    )
+    let samples = (0..<30).map { rivalSample(songIndex: $0, .lead, userRank: 10, rivalRank: 51) } // delta -41
+    let response = try rivalsAllFixture(
+        songs: fixture.songs.map(\.songId),
+        combos: [(combo: "01", above: [rivalEntry("riv", name: "Push Rival", direction: "above", samples: samples)], below: [])]
+    )
+    let generator = try makeGenerator(songs: fixture.songs, records: fixture.records)
+    generator.setRivalData(RivalDataIndex.build(from: response))
+    let category = try #require(allCategories(generator).first { $0.key == "song_rival_pct_push" })
+    #expect(category.title == "Climb Past Push Rival")
+}
+
+@Test func noRivalCategoriesEmitWithoutRivalData() throws {
+    let songs = try [fixtureSong("nr0")]
+    let generator = try makeGenerator(songs: songs)
+    #expect(!allCategories(generator).contains { $0.key.hasPrefix("song_rival_") })
+}
+
+@Test func settingRivalDataAfterInitializationSplicesRivalPipelinesToTheFront() throws {
+    // Three inert candidates, not one: the ungated `variety_pack` pipeline calls its own
+    // `selectNewFirst` (marking a song "shown") *before* its final `display.count >= 2`
+    // check, so even a same-artist fixture that blocks it from ever completing still loses
+    // exactly one candidate to that failed attempt during the drain below (a pre-existing
+    // generator quirk ported from the web, not specific to rival pipelines — see this file's
+    // very first comment). One spare candidate is enough to survive it.
+    let fixture = try inertRivalSongs(prefix: "li", count: 3)
+    let rival = rivalEntry(
+        "riv", name: "Late Rival", direction: "above",
+        samples: (0..<3).map { rivalSample(songIndex: $0, .lead, userRank: 5, rivalRank: 8) } // delta -3
+    )
+    let response = try rivalsAllFixture(songs: fixture.songs.map(\.songId), combos: [(combo: "01", above: [rival], below: [])])
+    let generator = try makeGenerator(songs: fixture.songs, records: fixture.records)
+
+    // Drain the (rival-free) pipeline queue first, matching a slow `/rivals/all` fetch
+    // resolving after the first page has already rendered.
+    _ = generator.getNext(200)
+
+    generator.setRivalData(RivalDataIndex.build(from: response))
+    let category = try #require(generator.getNext(200).first { $0.key == "song_rival_gap_riv" })
+    #expect(fixture.songs.map(\.songId).contains(category.songs.first?.song.songId ?? ""))
+}
+
+/// Same seed + same source + same rival data ⇒ identical category contents, the same
+/// practical determinism bar as `nearMaxScoreIsDeterministicForAFixedSeed`.
+@Test func songRivalGapIsDeterministicForAFixedSeed() throws {
+    let fixture = try inertRivalSongs(prefix: "rgd", count: 6)
+    let samples = (0..<6).map { rivalSample(songIndex: $0, .lead, userRank: 5, rivalRank: 6 + $0) }
+    let response = try rivalsAllFixture(
+        songs: fixture.songs.map(\.songId),
+        combos: [(combo: "01", above: [rivalEntry("riv", name: "Seed Rival", direction: "above", samples: samples)], below: [])]
+    )
+    let first = try makeGenerator(songs: fixture.songs, records: fixture.records, fixedDisplayCount: 3, seed: 999)
+    first.setRivalData(RivalDataIndex.build(from: response))
+    let second = try makeGenerator(songs: fixture.songs, records: fixture.records, fixedDisplayCount: 3, seed: 999)
+    second.setRivalData(RivalDataIndex.build(from: response))
+    let firstCategory = try #require(allCategories(first).first { $0.key == "song_rival_gap_riv" })
+    let secondCategory = try #require(allCategories(second).first { $0.key == "song_rival_gap_riv" })
+    #expect(firstCategory.songs.map(\.song.songId) == secondCategory.songs.map(\.song.songId))
+}
+
 // MARK: - Season fallback
 
 @Test func suggestionSeasonFallsBackToHighestPlayerScoreSeason() throws {

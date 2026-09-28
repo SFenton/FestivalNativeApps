@@ -3,9 +3,10 @@ import Foundation
 // MARK: - Suggestion category type
 
 /// Broad family a generated `SuggestionCategory` belongs to, used only for the
-/// Suggestions filter sheet (web `SuggestionTypeId`). Rival- and band-driven
-/// families (`SongRivals`, `LeaderboardRivals`, `band_*`) are not ported in this
-/// wave (no rival/band data source yet).
+/// Suggestions filter sheet (web `SuggestionTypeId`). Band-driven families (`band_*`)
+/// are not ported (no selected-band context yet). The web also reserves a
+/// "Leaderboard Rivals" (`lb_rival_*`) type, but no web pipeline ever produces that key
+/// — see `RivalDataIndex`'s doc comment — so it has no case here either.
 public enum SuggestionCategoryType: String, CaseIterable, Codable, Sendable, Identifiable {
     case nearFC
     case starProgress
@@ -19,6 +20,7 @@ public enum SuggestionCategoryType: String, CaseIterable, Codable, Sendable, Ide
     case stale
     case pctImprove
     case nearMax
+    case songRivals
 
     public var id: String { rawValue }
 
@@ -37,6 +39,7 @@ public enum SuggestionCategoryType: String, CaseIterable, Codable, Sendable, Ide
         case .stale: "Stale Songs"
         case .pctImprove: "Percentile Improve"
         case .nearMax: "Near Max Score"
+        case .songRivals: "Song Rivals"
         }
     }
 
@@ -55,6 +58,7 @@ public enum SuggestionCategoryType: String, CaseIterable, Codable, Sendable, Ide
         case .stale: "Songs you haven't played in a while."
         case .pctImprove: "Songs with room for percentile improvement."
         case .nearMax: "Songs close to the CHOpt theoretical max score."
+        case .songRivals: "Suggestions based on per-song rivals."
         }
     }
 }
@@ -73,6 +77,14 @@ public struct SuggestionSongItem: Identifiable, Equatable, Sendable {
     public let percent: Double?
     public let fullCombo: Bool?
     public var percentileDisplay: String?
+    /// Closest rival's display name on this song/chart, when a `song_rival_*` pipeline
+    /// annotated the row (web `rivalName`; cross-pollination onto a non-rival-keyed category,
+    /// or the subject of a rival-keyed one).
+    public var rivalName: String?
+    /// That rival's account ID, for navigation to rival detail (web `rivalAccountId`).
+    public var rivalAccountId: String?
+    /// Signed rank delta vs. that rival; negative means the rival leads (web `rivalRankDelta`).
+    public var rivalRankDelta: Int?
 
     public var id: String { instrument.map { "\(song.songId)|\($0.rawValue)" } ?? song.songId }
 
@@ -85,9 +97,13 @@ public struct SuggestionSongItem: Identifiable, Equatable, Sendable {
     ///   - percent: Current accuracy percent (0–100), if scored.
     ///   - fullCombo: Whether the current score is a full combo.
     ///   - percentileDisplay: Precomputed "Top N%" label, if a rank is known.
+    ///   - rivalName: Closest rival's display name, if a `song_rival_*` pipeline annotated this row.
+    ///   - rivalAccountId: That rival's account ID.
+    ///   - rivalRankDelta: Signed rank delta vs. that rival (negative = rival leads).
     public init(
         song: Song, instrument: Instrument? = nil, stars: Int? = nil, percent: Double? = nil,
-        fullCombo: Bool? = nil, percentileDisplay: String? = nil
+        fullCombo: Bool? = nil, percentileDisplay: String? = nil, rivalName: String? = nil,
+        rivalAccountId: String? = nil, rivalRankDelta: Int? = nil
     ) {
         self.song = song
         self.instrument = instrument
@@ -95,6 +111,9 @@ public struct SuggestionSongItem: Identifiable, Equatable, Sendable {
         self.percent = percent
         self.fullCombo = fullCombo
         self.percentileDisplay = percentileDisplay
+        self.rivalName = rivalName
+        self.rivalAccountId = rivalAccountId
+        self.rivalRankDelta = rivalRankDelta
     }
 }
 

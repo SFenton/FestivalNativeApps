@@ -37,11 +37,15 @@ public struct SeededSuggestionRng: SuggestionRng, Sendable {
 /// player's score index, ported from the web `SuggestionGenerator`
 /// (`packages/core/src/suggestions/suggestionGenerator.ts`).
 ///
-/// Rival- and band-driven pipelines are not included: this app has no rival data source
-/// yet, and Suggestions here is solo-profile only. Everything else the web generates from
-/// `songs` + `scoresIndex` alone is ported, including the endless-scroll session state
-/// (recently shown songs, per-category history, skip-streak smoothing) so repeated
-/// `getNext` calls behave like the web's infinite scroll rather than repeating themselves.
+/// Band-driven pipelines are not included: Suggestions here is solo-profile only (band mode
+/// needs a selected-band context this app doesn't have). Rival-driven `song_rival_*`
+/// pipelines *are* included once `setRivalData(_:)` supplies a `RivalDataIndex` (built from
+/// `GET /rivals/all` — see `FestivalSession+Suggestions.swift`); with no rival data they
+/// simply never run, same as the web with `rivalData: null`. Everything else the web
+/// generates from `songs` + `scoresIndex` alone is ported, including the endless-scroll
+/// session state (recently shown songs, per-category history, skip-streak smoothing) so
+/// repeated `getNext` calls behave like the web's infinite scroll rather than repeating
+/// themselves.
 ///
 /// Not thread-safe; use from one isolation context (the app calls it from `@MainActor`).
 public final class SuggestionGenerator {
@@ -82,7 +86,14 @@ public final class SuggestionGenerator {
     private let currentSeason: Int
 
     private var songs: [Song] = []
+    /// `songs` indexed by `Song.songId`, built alongside `songs` in `setSource` so the
+    /// rival pipelines (which look songs up by ID from `RivalSongMatch`, not by scanning
+    /// the catalogue) don't pay an O(songs) scan per match (web `findSong` does scan its
+    /// array, but its arrays are much smaller in practice; this is a native-only optimization
+    /// with no behavioral difference).
+    private var songsById: [String: Song] = [:]
     private var scoresIndex: [String: [Instrument: PlayerScore]] = [:]
+    private var rivalData: RivalDataIndex?
 
     private var emitted = Set<String>()
     private var pipelines: [() -> [SuggestionCategory]] = []
@@ -123,7 +134,33 @@ public final class SuggestionGenerator {
     public func setSource(songs: [Song], scoresIndex: [String: [Instrument: PlayerScore]]) {
         self.songs = songs
         self.scoresIndex = scoresIndex
+        songsById = songs.reduce(into: [:]) { dict, song in
+            if dict[song.songId] == nil { dict[song.songId] = song }
+        }
     }
+
+    /// Inject rival data for the `song_rival_*` pipelines. Pass nil to disable them.
+    ///
+    /// Ported from the web `SuggestionGenerator.setRivalData`: called *before* the pipeline
+    /// list is built (the native `ensureLoaded` flow — rivals load alongside the catalogue
+    /// before the generator's first `getNext`), the rival pipelines simply join the one
+    /// startup shuffle in `ensurePipelines()` like every other family. Called *after*
+    /// (a slower rivals fetch resolving once a page is already showing), it builds the rival
+    /// pipelines fresh, shuffles only those, and splices them in at the front of the
+    /// remaining queue — so they still show up soon, not only after every already-queued
+    /// pipeline has had a turn.
+    ///
+    /// - Parameter data: Index built by `RivalDataIndex.build(from:)`, or nil to clear it.
+    public func setRivalData(_ data: RivalDataIndex?) {
+        rivalData = data
+        guard let data, initialized else { return }
+        var additions = rivalPipelines(data)
+        shuffleInPlace(&additions)
+        pipelines = additions + pipelines
+    }
+
+    /// A catalogue row by ID, or nil if it's left the catalogue (web `findSong`).
+    private func findSong(_ songId: String) -> Song? { songsById[songId] }
 
     /// Produce up to `count` more categories, continuing from where the last call left off.
     ///
@@ -219,11 +256,41 @@ public final class SuggestionGenerator {
             list.append({ [unowned self] in self.nearMaxScoreDecade(minGap: tier.minGap, maxGap: tier.maxGap, tierLabel: tier.label) })
         }
 
-        // Rival-driven pipelines (`song_rival_*`, `lb_rival_*`) are not ported: this app has
-        // no rival data source wired into the generator yet.
+        // Rival-driven pipelines join the same startup shuffle as everything else when rival
+        // data is already available (matches the web: `...(this.rivalData ? this.rivalPipelines(...) : [])`
+        // appended right before its own `shuffleInPlace(list)`). A later `setRivalData(_:)`
+        // call (after this method has already run once) instead splices them in separately —
+        // see that method's doc comment.
+        if let rivalData {
+            list.append(contentsOf: rivalPipelines(rivalData))
+        }
 
         shuffleInPlace(&list)
         pipelines = list
+    }
+
+    /// The `song_rival_*` pipeline closures: one call per generic (non-rival-keyed) family,
+    /// plus five per kept rival (`RivalDataIndex.songRivals`). Ported from the web
+    /// `rivalPipelines`.
+    ///
+    /// - Parameter data: Rival data to close over (same instance as `self.rivalData`).
+    /// - Returns: Unshuffled closures, in the same order the web builds them.
+    private func rivalPipelines(_ data: RivalDataIndex) -> [() -> [SuggestionCategory]] {
+        var list: [() -> [SuggestionCategory]] = [
+            { [unowned self] in self.songRivalBattleground() },
+            { [unowned self] in self.songRivalNearFc() },
+            { [unowned self] in self.songRivalStale() },
+            { [unowned self] in self.songRivalStarGains() },
+            { [unowned self] in self.songRivalPctPush() },
+        ]
+        for rival in data.songRivals {
+            list.append({ [unowned self] in self.songRivalGap(rivalId: rival.accountId) })
+            list.append({ [unowned self] in self.songRivalProtect(rivalId: rival.accountId) })
+            list.append({ [unowned self] in self.songRivalSpotlight(rivalId: rival.accountId) })
+            list.append({ [unowned self] in self.songRivalSlipping(rivalId: rival.accountId) })
+            list.append({ [unowned self] in self.songRivalDominate(rivalId: rival.accountId) })
+        }
+        return list
     }
 
     // MARK: - Shared helpers
@@ -1252,5 +1319,345 @@ public final class SuggestionGenerator {
             baseDescription: Self.nearMaxDescriptions[tierLabel] ?? "Scores within \(tierLabel) of the CHOpt theoretical max.",
             type: .nearMax, instrument: nil, includeInstrumentInItems: true, pool: pool
         )
+    }
+
+    // MARK: - Rival strategies
+
+    /// Look up a rival match by song/chart from one rival's own match list, mirroring the
+    /// web's re-`find` after `selectNewFirst` reorders the pool (rather than threading a
+    /// parallel tuple array through shuffle/selection).
+    private func matchLookup(_ matches: [RivalSongMatch]) -> [String: RivalSongMatch] {
+        var out: [String: RivalSongMatch] = [:]
+        for match in matches { out[RivalDataIndex.closestKey(match.songId, match.instrument)] = match }
+        return out
+    }
+
+    private func matchKey(_ candidate: Candidate) -> String? {
+        guard let instrument = candidate.instrument else { return nil }
+        return RivalDataIndex.closestKey(candidate.song.songId, instrument)
+    }
+
+    /// Web `mapRivalSong`: a rival-keyed category's own item, always instrument-included.
+    private func mapRivalItem(_ candidate: Candidate, rival: RivalInfo, rankDelta: Int) -> SuggestionSongItem {
+        var item = finalizeOne(candidate, includeInstrument: true)
+        item.rivalName = rival.displayName
+        item.rivalAccountId = rival.accountId
+        item.rivalRankDelta = rankDelta
+        return item
+    }
+
+    /// Web `annotateWithRival` + a non-rival-keyed category's own `mapUniqueSongWithInstrument`
+    /// spread: attach the closest rival match, if any, without requiring one to exist.
+    private func mapWithClosestRival(_ candidate: Candidate) -> SuggestionSongItem {
+        var item = finalizeOne(candidate, includeInstrument: true)
+        if let instrument = candidate.instrument,
+           let match = rivalData?.closestRivalBySong[RivalDataIndex.closestKey(candidate.song.songId, instrument)] {
+            item.rivalName = match.rival.displayName
+            item.rivalAccountId = match.rival.accountId
+            item.rivalRankDelta = match.rankDelta
+        }
+        return item
+    }
+
+    /// The closest rival's display name on the first selected candidate's song/chart, or a
+    /// generic fallback — used by the cross-pollination titles (web falls back to `'a rival'`).
+    private func closestRivalName(_ candidate: Candidate) -> String {
+        guard let instrument = candidate.instrument,
+              let match = rivalData?.closestRivalBySong[RivalDataIndex.closestKey(candidate.song.songId, instrument)]
+        else { return "a rival" }
+        return match.rival.displayName
+    }
+
+    /// Close the Gap vs {rival}: songs where the rival barely leads (`rankDelta < 0`),
+    /// closest gaps first.
+    private func songRivalGap(rivalId: String) -> [SuggestionCategory] {
+        guard let matches = rivalData?.byRival[rivalId], !matches.isEmpty else { return [] }
+        let rival = matches[0].rival
+        let lookup = matchLookup(matches)
+        var pool: [Candidate] = []
+        for match in matches where match.rankDelta < 0 {
+            guard let song = findSong(match.songId) else { continue }
+            pool.append(Candidate(song: song, score: scoresIndex[match.songId]?[match.instrument], instrument: match.instrument))
+        }
+        guard !pool.isEmpty else { return [] }
+        pool.sort { abs(lookup[matchKey($0) ?? ""]?.rankDelta ?? 999) < abs(lookup[matchKey($1) ?? ""]?.rankDelta ?? 999) }
+
+        let key = "song_rival_gap_\(rivalId)"
+        guard shouldEmit(key: key, candidateCount: freshCount(pool)) else { return [] }
+        let final = selectNewFirst(categoryKey: key, pool: pool, take: displayCount())
+        guard !final.isEmpty else { return [] }
+        return [SuggestionCategory(
+            key: key, title: "Close the Gap vs \(rival.displayName)",
+            description: "Songs where \(rival.displayName) barely leads you. One good run could overtake them.",
+            type: .songRivals, instrument: nil,
+            songs: final.map { mapRivalItem($0, rival: rival, rankDelta: lookup[matchKey($0) ?? ""]?.rankDelta ?? 0) }
+        )]
+    }
+
+    /// Protect Your Lead vs {rival}: songs where the player barely leads (`rankDelta > 0`),
+    /// closest leads first.
+    private func songRivalProtect(rivalId: String) -> [SuggestionCategory] {
+        guard let matches = rivalData?.byRival[rivalId], !matches.isEmpty else { return [] }
+        let rival = matches[0].rival
+        let lookup = matchLookup(matches)
+        var pool: [Candidate] = []
+        for match in matches where match.rankDelta > 0 {
+            guard let song = findSong(match.songId) else { continue }
+            pool.append(Candidate(song: song, score: scoresIndex[match.songId]?[match.instrument], instrument: match.instrument))
+        }
+        guard !pool.isEmpty else { return [] }
+        pool.sort { (lookup[matchKey($0) ?? ""]?.rankDelta ?? 999) < (lookup[matchKey($1) ?? ""]?.rankDelta ?? 999) }
+
+        let key = "song_rival_protect_\(rivalId)"
+        guard shouldEmit(key: key, candidateCount: freshCount(pool)) else { return [] }
+        let final = selectNewFirst(categoryKey: key, pool: pool, take: displayCount())
+        guard !final.isEmpty else { return [] }
+        return [SuggestionCategory(
+            key: key, title: "Protect Your Lead vs \(rival.displayName)",
+            description: "You're barely ahead of \(rival.displayName) on these. Don't let them pass you.",
+            type: .songRivals, instrument: nil,
+            songs: final.map { mapRivalItem($0, rival: rival, rankDelta: lookup[matchKey($0) ?? ""]?.rankDelta ?? 0) }
+        )]
+    }
+
+    /// Battleground Songs: song/chart pairings where 2+ rivals cluster within 10 ranks of
+    /// the player, across every rival (not scoped to one). Dictionary iteration is sorted by
+    /// key for run-to-run determinism (Swift's hash seed is randomized per process, unlike
+    /// the web's Map insertion order — see `ios.md` for why literal cross-language byte
+    /// parity isn't the bar here, same caveat as `near_max_*`).
+    private func songRivalBattleground() -> [SuggestionCategory] {
+        guard let rivalData else { return [] }
+        var rivalCountBySong: [String: Int] = [:]
+        for matches in rivalData.byRival.values {
+            for match in matches where abs(match.rankDelta) <= 10 {
+                rivalCountBySong[RivalDataIndex.closestKey(match.songId, match.instrument), default: 0] += 1
+            }
+        }
+        var pool: [Candidate] = []
+        for key in rivalCountBySong.keys.sorted() where (rivalCountBySong[key] ?? 0) >= 2 {
+            guard let separator = key.lastIndex(of: ":") else { continue }
+            let songId = String(key[key.startIndex..<separator])
+            let instrumentRaw = String(key[key.index(after: separator)...])
+            guard let instrument = Instrument(rawValue: instrumentRaw), let song = findSong(songId) else { continue }
+            pool.append(Candidate(song: song, score: scoresIndex[songId]?[instrument], instrument: instrument))
+        }
+        guard !pool.isEmpty else { return [] }
+        shuffleInPlace(&pool)
+
+        let key = "song_rival_battleground"
+        guard shouldEmit(key: key, candidateCount: freshCount(pool)) else { return [] }
+        let final = selectNewFirst(categoryKey: key, pool: pool, take: displayCount())
+        guard !final.isEmpty else { return [] }
+        return [SuggestionCategory(
+            key: key, title: "Battleground Songs",
+            description: "Multiple rivals are clustered around your rank on these songs. Every position matters.",
+            type: .songRivals, instrument: nil, songs: final.map { mapWithClosestRival($0) }
+        )]
+    }
+
+    /// Rival Spotlight: a curated mix (1-2 catch-up, 1-2 protect, 1 closest overall) for one
+    /// rival. Unlike every other rival family, the web gates this only on "already emitted
+    /// this session" — no `shouldEmit` probability roll — so it always shows once a rival
+    /// has 3+ shared songs.
+    private func songRivalSpotlight(rivalId: String) -> [SuggestionCategory] {
+        guard let matches = rivalData?.byRival[rivalId], matches.count >= 3 else { return [] }
+        let rival = matches[0].rival
+
+        let behind = matches.filter { $0.rankDelta < 0 }.sorted { abs($0.rankDelta) < abs($1.rankDelta) }
+        let ahead = matches.filter { $0.rankDelta > 0 }.sorted { $0.rankDelta < $1.rankDelta }
+        let closest = matches.sorted { abs($0.rankDelta) < abs($1.rankDelta) }
+
+        var picks: [RivalSongMatch] = []
+        if behind.count > 0 { picks.append(behind[0]) }
+        if behind.count > 1 { picks.append(behind[1]) }
+        if ahead.count > 0 { picks.append(ahead[0]) }
+        if ahead.count > 1 { picks.append(ahead[1]) }
+        if let closestNew = closest.first(where: { candidate in !picks.contains { $0.songId == candidate.songId } }) {
+            picks.append(closestNew)
+        }
+
+        var pool: [Candidate] = []
+        for match in picks {
+            guard let song = findSong(match.songId) else { continue }
+            pool.append(Candidate(song: song, score: scoresIndex[match.songId]?[match.instrument], instrument: match.instrument))
+        }
+        guard pool.count >= 3 else { return [] }
+
+        let key = "song_rival_spotlight_\(rivalId)"
+        guard !emitted.contains(key) else { return [] }
+        let lookup = matchLookup(matches)
+        return [SuggestionCategory(
+            key: key, title: "Rival Spotlight: \(rival.displayName)",
+            description: "A curated mix of your rivalry with \(rival.displayName) — catches, defenses, and closest battles.",
+            type: .songRivals, instrument: nil,
+            songs: pool.map { mapRivalItem($0, rival: rival, rankDelta: lookup[matchKey($0) ?? ""]?.rankDelta ?? 0) }
+        )]
+    }
+
+    /// {rival} is Pulling Ahead: large rival leads (`rankDelta < -20`).
+    private func songRivalSlipping(rivalId: String) -> [SuggestionCategory] {
+        guard let matches = rivalData?.byRival[rivalId], !matches.isEmpty else { return [] }
+        let rival = matches[0].rival
+        let lookup = matchLookup(matches)
+        var pool: [Candidate] = []
+        for match in matches where match.rankDelta < -20 {
+            guard let song = findSong(match.songId) else { continue }
+            pool.append(Candidate(song: song, score: scoresIndex[match.songId]?[match.instrument], instrument: match.instrument))
+        }
+        guard !pool.isEmpty else { return [] }
+        shuffleInPlace(&pool)
+
+        let key = "song_rival_slipping_\(rivalId)"
+        guard shouldEmit(key: key, candidateCount: freshCount(pool)) else { return [] }
+        let final = selectNewFirst(categoryKey: key, pool: pool, take: displayCount())
+        guard !final.isEmpty else { return [] }
+        return [SuggestionCategory(
+            key: key, title: "\(rival.displayName) is Pulling Ahead",
+            description: "\(rival.displayName) has a big lead on these songs. Time to close the gap.",
+            type: .songRivals, instrument: nil,
+            songs: final.map { mapRivalItem($0, rival: rival, rankDelta: lookup[matchKey($0) ?? ""]?.rankDelta ?? 0) }
+        )]
+    }
+
+    /// Dominate {rival}: large player leads (`rankDelta > 30`).
+    private func songRivalDominate(rivalId: String) -> [SuggestionCategory] {
+        guard let matches = rivalData?.byRival[rivalId], !matches.isEmpty else { return [] }
+        let rival = matches[0].rival
+        let lookup = matchLookup(matches)
+        var pool: [Candidate] = []
+        for match in matches where match.rankDelta > 30 {
+            guard let song = findSong(match.songId) else { continue }
+            pool.append(Candidate(song: song, score: scoresIndex[match.songId]?[match.instrument], instrument: match.instrument))
+        }
+        guard !pool.isEmpty else { return [] }
+        shuffleInPlace(&pool)
+
+        let key = "song_rival_dominate_\(rivalId)"
+        guard shouldEmit(key: key, candidateCount: freshCount(pool)) else { return [] }
+        let final = selectNewFirst(categoryKey: key, pool: pool, take: displayCount())
+        guard !final.isEmpty else { return [] }
+        return [SuggestionCategory(
+            key: key, title: "Dominate \(rival.displayName)",
+            description: "You're crushing \(rival.displayName) on these. Keep up the dominance.",
+            type: .songRivals, instrument: nil,
+            songs: final.map { mapRivalItem($0, rival: rival, rankDelta: lookup[matchKey($0) ?? ""]?.rankDelta ?? 0) }
+        )]
+    }
+
+    /// FC These to Beat {rival}!: near-FC runs (web `nearFcRelaxed`'s own predicate) where a
+    /// rival also has a score on that song/chart, regardless of who currently leads.
+    private func songRivalNearFc() -> [SuggestionCategory] {
+        guard let rivalData else { return [] }
+        var pool: [Candidate] = []
+        for candidate in candidates(matching: { score, _ in
+            (score.stars ?? 0) >= 5 && (score.accuracy ?? 0) >= 920_000 && score.isFullCombo != true
+        }) {
+            guard let instrument = candidate.instrument,
+                  rivalData.closestRivalBySong[RivalDataIndex.closestKey(candidate.song.songId, instrument)] != nil
+            else { continue }
+            pool.append(candidate)
+        }
+        guard !pool.isEmpty else { return [] }
+        shuffleInPlace(&pool)
+
+        let key = "song_rival_near_fc"
+        guard shouldEmit(key: key, candidateCount: freshCount(pool)) else { return [] }
+        let final = selectNewFirst(categoryKey: key, pool: pool, take: displayCount())
+        guard !final.isEmpty else { return [] }
+        let rivalName = closestRivalName(final[0])
+        return [SuggestionCategory(
+            key: key, title: "FC These to Beat \(rivalName)!",
+            description: "Almost FC songs where your rival also competes. Nail the combo to pull ahead.",
+            type: .songRivals, instrument: nil, songs: final.map { mapWithClosestRival($0) }
+        )]
+    }
+
+    /// Stale songs where a rival is beating the player (`rankDelta < 0`) and the player's own
+    /// run is at least two seasons old.
+    private func songRivalStale() -> [SuggestionCategory] {
+        guard let rivalData, currentSeason != 0 else { return [] }
+        var pool: [Candidate] = []
+        for candidate in candidates(matching: { score, _ in
+            guard let season = score.season, season != 0 else { return false }
+            return self.currentSeason - season >= 2
+        }) {
+            guard let instrument = candidate.instrument,
+                  let match = rivalData.closestRivalBySong[RivalDataIndex.closestKey(candidate.song.songId, instrument)],
+                  match.rankDelta < 0
+            else { continue }
+            pool.append(candidate)
+        }
+        guard !pool.isEmpty else { return [] }
+        shuffleInPlace(&pool)
+
+        let key = "song_rival_stale"
+        guard shouldEmit(key: key, candidateCount: freshCount(pool)) else { return [] }
+        let final = selectNewFirst(categoryKey: key, pool: pool, take: displayCount())
+        guard !final.isEmpty else { return [] }
+        return [SuggestionCategory(
+            key: key, title: "Stale Songs Your Rivals Are Beating You On",
+            description: "Songs you haven't touched in a while where rivals have pulled ahead.",
+            type: .songRivals, instrument: nil, songs: final.map { mapWithClosestRival($0) }
+        )]
+    }
+
+    /// Star-gain songs (3–5 stars) where a rival is ahead (`rankDelta < 0`) — improving would
+    /// also pass them.
+    private func songRivalStarGains() -> [SuggestionCategory] {
+        guard let rivalData else { return [] }
+        var pool: [Candidate] = []
+        for candidate in candidates(matching: { score, _ in
+            let stars = score.stars ?? 0
+            return stars >= 3 && stars <= 5
+        }) {
+            guard let instrument = candidate.instrument,
+                  let match = rivalData.closestRivalBySong[RivalDataIndex.closestKey(candidate.song.songId, instrument)],
+                  match.rankDelta < 0
+            else { continue }
+            pool.append(candidate)
+        }
+        guard !pool.isEmpty else { return [] }
+        shuffleInPlace(&pool)
+
+        let key = "song_rival_star_gains"
+        guard shouldEmit(key: key, candidateCount: freshCount(pool)) else { return [] }
+        let final = selectNewFirst(categoryKey: key, pool: pool, take: displayCount())
+        guard !final.isEmpty else { return [] }
+        let rivalName = closestRivalName(final[0])
+        return [SuggestionCategory(
+            key: key, title: "Gain Stars & Beat \(rivalName)",
+            description: "Improving your star count on these would also overtake a rival.",
+            type: .songRivals, instrument: nil, songs: final.map { mapWithClosestRival($0) }
+        )]
+    }
+
+    /// Percentile-push songs (not already top 1%) where a rival is ahead (`rankDelta < 0`) —
+    /// climbing would also pass them.
+    private func songRivalPctPush() -> [SuggestionCategory] {
+        guard let rivalData else { return [] }
+        var pool: [Candidate] = []
+        for candidate in candidates(matching: { score, _ in
+            guard let raw = self.rawPercentile(score), let bucket = Self.percentileBucket(raw) else { return false }
+            return bucket > 1
+        }) {
+            guard let instrument = candidate.instrument,
+                  let match = rivalData.closestRivalBySong[RivalDataIndex.closestKey(candidate.song.songId, instrument)],
+                  match.rankDelta < 0
+            else { continue }
+            pool.append(candidate)
+        }
+        guard !pool.isEmpty else { return [] }
+        shuffleInPlace(&pool)
+
+        let key = "song_rival_pct_push"
+        guard shouldEmit(key: key, candidateCount: freshCount(pool)) else { return [] }
+        let final = selectNewFirst(categoryKey: key, pool: pool, take: displayCount())
+        guard !final.isEmpty else { return [] }
+        let rivalName = closestRivalName(final[0])
+        return [SuggestionCategory(
+            key: key, title: "Climb Past \(rivalName)",
+            description: "A percentile push on these would also move you past a rival.",
+            type: .songRivals, instrument: nil, songs: final.map { mapWithClosestRival($0) }
+        )]
     }
 }

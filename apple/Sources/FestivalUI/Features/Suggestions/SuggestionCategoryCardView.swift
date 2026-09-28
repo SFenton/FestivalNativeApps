@@ -62,6 +62,9 @@ struct SuggestionSongRowView: View {
 
     @ViewBuilder private var trailing: some View {
         VStack(alignment: .trailing, spacing: 2) {
+            if let rivalName = item.rivalName {
+                rivalBadge(rivalName, delta: item.rivalRankDelta ?? 0)
+            }
             if let stars = item.stars, stars > 0 {
                 starRow(stars)
             }
@@ -85,6 +88,28 @@ struct SuggestionSongRowView: View {
             }
         }
         .accessibilityHidden(true)
+    }
+
+    /// A `song_rival_*` category's rival annotation (web `CategoryCard`'s `layout: 'rival'`
+    /// `RightContent`): the rival's name in a tinted capsule plus a colored signed rank delta.
+    /// Always the "song rival" color (blue) here — every rival family this app ports comes
+    /// from `/rivals/all`'s per-song data; there is no leaderboard-rival source yet to need
+    /// the web's second (gold) color.
+    private func rivalBadge(_ name: String, delta: Int) -> some View {
+        HStack(spacing: 6) {
+            Text(name.count > 12 ? "\(name.prefix(11))\u{2026}" : name)
+                .font(.caption2.weight(.semibold))
+                .lineLimit(1)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(BrandTokens.accentBlue.opacity(0.2)))
+                .foregroundStyle(BrandTokens.accentBlue)
+            if delta != 0 {
+                Text(delta > 0 ? "+\(delta)" : "\(delta)")
+                    .font(.caption2.bold())
+                    .foregroundStyle(delta > 0 ? BrandTokens.statusGreen : BrandTokens.statusRed)
+            }
+        }
     }
 
     private func starRow(_ stars: Int) -> some View {
