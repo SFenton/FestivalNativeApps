@@ -33,6 +33,7 @@ struct ShopScreen: View {
     @AppStorage("fst.settings.disableShopHighlighting") private var disableHighlights = false
     @State private var state = LoadState.loading
     @State private var retryRevision = 0
+    @State private var loadedKey: RequestKey?
 
     private enum LoadState {
         case loading
@@ -98,6 +99,9 @@ struct ShopScreen: View {
         }
         .task(id: requestKey) {
             guard isVisible else { return }
+            // Returning from Song Detail re-runs `.task`; keep the loaded list instead
+            // of flashing the spinner and re-priming art (jitter on Back).
+            if case .loaded = state, loadedKey == requestKey { return }
             await load()
         }
     }
@@ -114,6 +118,7 @@ struct ShopScreen: View {
                 state = .loaded(ShopSnapshot(
                     payload: feed, songsById: [:], songDetailsError: nil
                 ))
+                loadedKey = requested
                 return
             }
             // Warm the first screen's covers while the catalogue loads, so rows
@@ -142,6 +147,7 @@ struct ShopScreen: View {
             state = .loaded(ShopSnapshot(
                 payload: feed, songsById: songsById, songDetailsError: detailsError
             ))
+            loadedKey = requested
         } catch is CancellationError {
             return
         } catch let error as URLError where error.code == .cancelled {

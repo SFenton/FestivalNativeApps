@@ -184,3 +184,25 @@ private func playerScore(rank: Int?, score: Int = 500) throws -> PlayerScore {
         selected: me, score: try playerScore(rank: 42, score: 0), displayed: top
     ) == nil)
 }
+
+/// The Shop action's breathe really cycles (0 → 1 → 0 over 3 s) and holds a static
+/// tint whenever motion is off.
+@Test func shopBreatheAnimatesUnlessMotionIsOff() {
+    let low = ShopStatusBreathe.intensity(at: 0, animating: true)
+    let peak = ShopStatusBreathe.intensity(at: 1.5, animating: true)
+    let back = ShopStatusBreathe.intensity(at: 3, animating: true)
+    let quarter = ShopStatusBreathe.intensity(at: 0.75, animating: true)
+    #expect(abs(low) < 0.0001 && abs(peak - 1) < 0.0001 && abs(back) < 0.0001)
+    #expect(abs(quarter - 0.5) < 0.0001)
+    // The level toggles over time rather than sitting still.
+    let samples = stride(from: 0.0, to: 3.0, by: 0.25).map {
+        ShopStatusBreathe.intensity(at: $0, animating: true)
+    }
+    #expect(Set(samples.map { ($0 * 100).rounded() }).count > 5)
+    // Static tint (full status colour) when not animating.
+    #expect(ShopStatusBreathe.intensity(at: 0.4, animating: false) == 1)
+    #expect(ShopStatusBreathe.animates(reduceMotion: false, sceneActive: true, still: false))
+    #expect(!ShopStatusBreathe.animates(reduceMotion: true, sceneActive: true, still: false))
+    #expect(!ShopStatusBreathe.animates(reduceMotion: false, sceneActive: false, still: false))
+    #expect(!ShopStatusBreathe.animates(reduceMotion: false, sceneActive: true, still: true))
+}

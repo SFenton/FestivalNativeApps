@@ -109,12 +109,22 @@ struct SoloLeaderboardScreen: View {
                     .listStyle(.plain)
                     .scrollContentBackground(.hidden)
                     .rankingsListRailClearance(layout)
-                    selectedPlayerFooter(payload)
-                    RankingsPagerView(
-                        page: page, totalPages: payload.leaderboard.pageCount,
-                        idPrefix: "fst.song-leaderboard"
-                    ) { destination in
-                        move(to: destination)
+                    // Pinned below the rows as a bottom safe-area inset, not a VStack
+                    // sibling: the tab bar minimizes on scroll down, and a sibling made
+                    // the List's own frame grow and shrink at the end of the page, which
+                    // read as a bounce. As an inset the List keeps its frame and only
+                    // its content inset changes, so reaching the end rubber-bands normally.
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        VStack(spacing: 0) {
+                            selectedPlayerFooter(payload)
+                            RankingsPagerView(
+                                page: page, totalPages: payload.leaderboard.pageCount,
+                                idPrefix: "fst.song-leaderboard"
+                            ) { destination in
+                                move(to: destination)
+                            }
+                        }
+                        .background(BrandTokens.appBackground.opacity(0.92))
                     }
                 }
             }

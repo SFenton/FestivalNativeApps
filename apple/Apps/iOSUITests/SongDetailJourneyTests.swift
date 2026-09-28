@@ -497,37 +497,41 @@ final class SongDetailJourneyTests: XCTestCase {
         SongsUITestSupport.record(app, name: "song-detail-offscreen-score-revealed")
     }
 
-    /// Probe an offscreen empty-chart action without inventing a successful score.
+    /// A chart with no scores says so in its header and offers no View full action
+    /// (operator batch 3; web shows View All only with rows), without inventing a score.
     ///
-    /// - Throws: A stalled native scroll or missing genuinely empty Bass chart.
+    /// - Throws: A missing empty header, a leftover View full action or an unreachable card.
     @MainActor
-    func testOffscreenEmptyChartActionRemainsReachable() async throws {
+    func testEmptyChartShowsNoScoresHeaderWithoutViewFull() throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
         let app = SongsUITestSupport.fixtureApp()
-        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8775"
-        app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launch()
         let song = app.buttons["fst.songs.row.fixture-pulse"]
         XCTAssertTrue(song.waitForExistence(timeout: 15))
         song.tap()
-        let first = app.staticTexts.matching(
-            identifier: "fst.song-detail.preview-row.Solo_Guitar.fixture-player-1"
-        ).matching(NSPredicate(format: "label == %@", "#1")).firstMatch
-        XCTAssertTrue(first.waitForExistence(timeout: 15))
-        let bass = app.buttons["fst.song-detail.leaderboard.Solo_Bass"]
-        XCTAssertTrue(bass.waitForExistence(timeout: 15))
-        if UIDevice.current.userInterfaceIdiom == .phone {
-            XCTAssertFalse(bass.isHittable, "Bass action did not start offscreen")
+        let lead = app.buttons["fst.song-detail.leaderboard.Solo_Guitar"]
+        XCTAssertTrue(lead.waitForExistence(timeout: 15), "Lead has rows and keeps View full")
+        let bassHeader = app.descendants(matching: .any)
+            .matching(identifier: "fst.song-detail.card-header.Solo_Bass").firstMatch
+        XCTAssertTrue(bassHeader.waitForExistence(timeout: 15))
+        for _ in 0..<6 where !bassHeader.isHittable {
+            app.swipeUp()
         }
-        bass.tap()
-        XCTAssertTrue(app.staticTexts["0 Bass entries"].waitForExistence(timeout: 10))
-        XCTAssertTrue(
-            app.buttons["fst.song-leaderboard.page-next"].waitForExistence(timeout: 10),
-            "Bass full chart did not finish loading"
+        XCTAssertTrue(bassHeader.isHittable)
+        let emptyHeader = NSPredicate(format: "label CONTAINS %@", "No scores recorded yet")
+        XCTAssertEqual(
+            XCTWaiter.wait(
+                for: [expectation(for: emptyHeader, evaluatedWith: bassHeader)], timeout: 10
+            ),
+            .completed, "Empty Bass header: \(bassHeader.label)"
         )
-        try await SongsUITestSupport.awaitClosedFixture(port: 8775)
-        SongsUITestSupport.record(app, name: "song-detail-offscreen-bass-opened")
+        XCTAssertFalse(
+            app.buttons["fst.song-detail.leaderboard.Solo_Bass"].exists,
+            "An empty chart must not offer View full leaderboard"
+        )
+        SongsUITestSupport.record(app, name: "song-detail-empty-bass-header")
     }
 
     /// Traverse Songs, Detail and page two, then verify landscape layout survives.

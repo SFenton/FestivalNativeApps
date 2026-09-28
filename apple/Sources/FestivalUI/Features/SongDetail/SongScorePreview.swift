@@ -11,6 +11,7 @@ struct SongScorePreview: View {
     @AppStorage("fst.settings.leeway") private var leeway = 1.0
     @ScaledMetric(relativeTo: .title3) private var headerIconSize: CGFloat = 48
     @State private var state: LoadState
+    @State private var loadedKey: RequestKey?
     private let usesLiveClient: Bool
 
     private struct RequestKey: Equatable {
@@ -69,7 +70,9 @@ struct SongScorePreview: View {
                 case let .loaded(payload):
                     previewRows(payload)
                 }
-                viewFullLink
+                if showsViewFull {
+                    viewFullLink
+                }
                 if session.selectedPlayer != nil {
                     historyLink
                 }
@@ -81,6 +84,10 @@ struct SongScorePreview: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .task(id: requestKey) {
             guard usesLiveClient else { return }
+            // `.task` re-runs every time the card reappears (e.g. popping back from the
+            // full chart). Reloading then flashed a spinner and collapsed the card,
+            // which read as jitter on Back; keep rows already loaded for this key.
+            if case .loaded = state, loadedKey == requestKey { return }
             await load()
         }
     }
@@ -90,10 +97,24 @@ struct SongScorePreview: View {
     /// Total entries for the loaded chart, shown as the header subtitle when the
     /// service asks for totals (`showLeaderboardEntryTotals`).
     private var entriesSubtitle: String? {
-        guard case let .loaded(payload) = state,
-              payload.leaderboard.showLeaderboardEntryTotals == true else { return nil }
+        guard case let .loaded(payload) = state else { return nil }
+        if payload.leaderboard.entries.isEmpty {
+            return "No scores recorded yet"
+        }
+        guard payload.leaderboard.showLeaderboardEntryTotals == true else { return nil }
         let total = payload.leaderboard.totalEntries
         return "\(total.formatted()) \(total == 1 ? "entry" : "entries")"
+    }
+
+    /// Whether the card offers View full leaderboard: not while loading and not for a
+    /// chart with no scores (web shows View All only with rows); kept on failure so the
+    /// full chart stays reachable.
+    private var showsViewFull: Bool {
+        switch state {
+        case .loading: false
+        case .failed: true
+        case let .loaded(payload): !payload.leaderboard.entries.isEmpty
+        }
     }
 
     /// Large instrument icon, name and optional total-entries subtitle above the card,
@@ -196,9 +217,16 @@ struct SongScorePreview: View {
             displayed: displayed
         )
         if displayed.isEmpty && spotlight == nil {
-            Text("No \(instrument.label) scores yet")
-                .foregroundStyle(FestivalText.primary)
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            // Web `InstrumentEmptyState` subtitle (`songDetail.noScoresSubtitle`); the
+            // header subtitle already says "No scores recorded yet".
+            Text(
+                "When scores are submitted for \(instrument.label), they will show up here "
+                    + "on the next leaderboard update."
+            )
+            .foregroundStyle(FestivalText.primary)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .festivalFadeInOnAppear()
         } else {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(displayed.enumerated()), id: \.offset) { index, entry in
@@ -268,6 +296,7 @@ struct SongScorePreview: View {
             try Task.checkCancellation()
             guard requested == requestKey else { return }
             state = .loaded(payload)
+            loadedKey = requested
         } catch is CancellationError {
             return
         } catch let error as URLError where error.code == .cancelled {
