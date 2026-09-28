@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Explore
+import androidx.compose.material.icons.outlined.PersonSearch
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -94,7 +95,7 @@ fun RivalsScreen(viewModel: RivalsHubViewModel?, isRoot: Boolean, visibleCount: 
         actions = {
             if (viewModel != null) {
                 IconButton(onClick = { findOpen = true }, modifier = Modifier.testTag("fst.rivals.findRival")) {
-                    Icon(Icons.Filled.Search, contentDescription = RivalText.FIND_RIVAL)
+                    Icon(Icons.Outlined.PersonSearch, contentDescription = RivalText.FIND_RIVAL)
                 }
                 if (jumpTargets.size >= 2) {
                     Box {
