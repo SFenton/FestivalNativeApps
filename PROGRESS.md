@@ -49,7 +49,10 @@ tools/**                      → orchestrator
 
 ---
 
-## 2. Priorities (from operator, 2026-09-27)
+## 2. Priorities (from operator, 2026-09-27; updated 2026-09-28)
+
+- **Android + Windows (2026-09-28):** same rules as Apple — platform-native design researched per platform, Fluent second, multiple form factors (Android: phone, book foldable, passport foldable, tri-fold, tablet; Windows: desktop/tablet across window-size configurations), and the same dev → unit → UX tests → accessibility → screen reader flow. The Windows host is far more powerful: run **many parallel lanes on both Android and Windows**, while this Mac continues Apple lanes and oversees. Both machines commit/push when work is ready (Windows via Mac relay until GitHub auth on Windows is set up by the operator).
+
 
 1. **Liquid Glass & native navigation components**, plus docs/agent updates.
 2. **Instrument features and missing pages** — UX match to web, Apple HIG first, Fluent second.
@@ -274,6 +277,7 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 - ⬜ iPadOS · ⬜ macOS · ⬜ iPhone iOS 17 classic tab bar
 - 🟨 Android / Windows — Windows host resumed 2026-09-28; lanes run there via `tools/win_relay.py` (headless Claude Code on `sfenton-primary`)
   - **Lane AND — Android** (remote): port Copilot foundation → tooling (build/emulator/screenshot, one emulator at a time) → Compose architecture + request gate + typed routes → adaptive shell (bar/rail/list-detail) → Songs + Song Detail live → JUnit ≥95% logic
+  - **Lane LAB — Device lab** (remote): SDK/tool updates; `FST_` AVD matrix (phone, book fold, passport fold, tri-fold, tablet, resizable); `tools/android/device.py` + `tools/windows/uiwin.py` with global locks (one emulator / one desktop driver at a time, ≤5 min holds), window-size presets for Windows desktop/tablet
   - **Lane WIN — Windows** (remote): port Copilot foundation → **C# vs C++/WinRT measured decision** → tooling → MVVM + request gate → NavigationView shell (Mica, split Leaderboards/Rivals) + composition-thread background → Songs + Song Detail live → tests
 
 ---
@@ -378,3 +382,4 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Lane L2 | Leaderboards selected-player spotlight + song leaderboard "You" footer |
 | 2026-09-28 | Orchestrator | Launched Lane H: hosted snapshots render full pages nearly blank (coverage may overstate visual evidence) |
 | 2026-09-28 | Orchestrator | Windows host online: SSH verified, toolchains inventoried, `tools/win_relay.py` bundle relay (no GitHub creds on Windows) |
+| 2026-09-28 | Orchestrator | Operator: parallelize Android + Windows heavily on the Windows host; launched remote Lane LAB (device lab); GitHub auth on Windows pending operator (`gh auth login --insecure-storage`) |
