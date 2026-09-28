@@ -143,6 +143,16 @@ struct PlayerProfileContent: View {
                 Text("Scores and profile-only content will be hidden; app Settings stay saved.")
             }
             .toolbar {
+                // iPhone Duo: Select/Switch also sits in the vertical-bar rail (Lane W1).
+                if canSelect {
+                    VerticalBarActionItem(
+                        title: session.selectedPlayer == nil ? "Select Profile" : "Switch To This Profile",
+                        systemImage: session.selectedPlayer == nil
+                            ? "person.crop.circle.badge.plus" : "arrow.left.arrow.right",
+                        identifier: "fst.player.select.rail",
+                        action: requestSelect
+                    )
+                }
                 QuickLinksToolbarItem(quickLinks)
                 if showsRootTrailingItems {
                     FestivalRootTrailingItems(session: session)
@@ -240,15 +250,26 @@ struct PlayerProfileContent: View {
                 .accessibilityIdentifier("fst.player.preview-changed")
         } else {
             Button(session.selectedPlayer == nil ? "Select Profile" : "Switch To This Profile") {
-                if session.selectedPlayer == nil {
-                    select()
-                } else {
-                    switchPending = true
-                }
+                requestSelect()
             }
             .buttonStyle(.borderedProminent)
             .tint(BrandTokens.accentBlue)
             .accessibilityIdentifier("fst.player.select")
+        }
+    }
+
+    /// Whether the Select/Switch action is offered (same rule as ``identityAction(_:)``).
+    private var canSelect: Bool {
+        guard case let .available(payload) = phase, !isSelected else { return false }
+        return payload.publicationId != nil && payload.publicationId == session.publicationId
+    }
+
+    /// Select directly when anonymous; confirm before switching away from another profile.
+    private func requestSelect() {
+        if session.selectedPlayer == nil {
+            select()
+        } else {
+            switchPending = true
         }
     }
 

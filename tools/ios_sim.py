@@ -49,6 +49,7 @@ import signal
 import hashlib
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -1076,6 +1077,7 @@ def cmd_drive(args: argparse.Namespace) -> int:
                 "-only-testing:FestivalMobileUITests/DriverTests/testDrive",
                 "test-without-building", "-quiet",
             ]
+            recorder = start_recording(udid, args.record, args.display) if args.record else None
             print("+", " ".join(cmd), file=sys.stderr)
             with open(log_path, "w") as log, ScreenRecording(udid, args.record):
                 try:
@@ -1090,6 +1092,8 @@ def cmd_drive(args: argparse.Namespace) -> int:
                          check=False, capture_output=True)
                     process = subprocess.CompletedProcess(cmd, 124)
                     log.write(f"\nTIMEOUT after {args.timeout}s; killed.\n")
+                finally:
+                    stop_recording(recorder)
     finally:
         steps_path.unlink(missing_ok=True)
     elapsed = time.time() - start
@@ -1107,6 +1111,46 @@ def cmd_drive(args: argparse.Namespace) -> int:
     for out in outputs:
         print(f"{'ok' if Path(out).exists() else 'MISSING'}: {out}")
     return 0
+
+
+def start_recording(udid: str, out: str, display: str | None) -> subprocess.Popen:
+    """Start ``simctl io recordVideo`` for a drive run. Call under the simulator lock.
+
+    Transitions (push/pop, toolbar churn) finish before XCUITest's next step runs, so
+    ``shot:`` steps cannot see them; a recording can.
+
+    Args:
+        udid: Booted simulator.
+        out: Output ``.mov``/``.mp4`` path.
+        display: ``outer``/``inner`` Duo panel, or None for the first display.
+
+    Returns:
+        The recorder process (stop it with ``stop_recording``).
+    """
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    cmd = ["xcrun", "simctl", "io", udid, "recordVideo", "--codec=h264", "--force"]
+    if display in DUO_PANELS:
+        cmd.append(f"--display={DUO_PANELS[display]}")
+    print("+", " ".join([*cmd, out]), file=sys.stderr)
+    recorder = subprocess.Popen([*cmd, out], env=_env(), stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL)
+    time.sleep(1.5)
+    return recorder
+
+
+def stop_recording(recorder: subprocess.Popen | None) -> None:
+    """Finish a recording cleanly (SIGINT lets simctl write the movie trailer).
+
+    Args:
+        recorder: Process from ``start_recording``, or None.
+    """
+    if recorder is None:
+        return
+    recorder.send_signal(signal.SIGINT)
+    try:
+        recorder.wait(timeout=15)
+    except subprocess.TimeoutExpired:
+        recorder.kill()
 
 
 def cmd_uitest(args: argparse.Namespace) -> int:
@@ -1402,6 +1446,9 @@ def main(argv: list[str] | None = None) -> int:
                        help="iPhone Duo: fail (exit 3) unless the device is in this pose (set it in Device Hub)")
     drive.add_argument("--set-pose", action="store_true",
                        help="with --pose: press Device Hub's pose control if needed (UI scripting, Accessibility)")
+    drive.add_argument("--record", help="record the run to this .mov (simctl recordVideo; sees transitions)")
+    drive.add_argument("--display", choices=sorted(DUO_PANELS),
+                       help="iPhone Duo panel to record with --record (default: simctl's first display)")
     drive.add_argument("--env", action="append", help="extra KEY=VALUE app launch environment")
     drive.add_argument("--steps", help="';'-separated step script, e.g. 'tap:x; shot:/tmp/a.png'")
     drive.add_argument("--steps-file", help="path to a newline-separated step script")

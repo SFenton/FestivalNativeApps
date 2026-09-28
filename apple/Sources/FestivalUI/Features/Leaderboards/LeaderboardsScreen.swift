@@ -29,6 +29,8 @@ struct LeaderboardsScreen: View {
     /// `.agents/pages/leaderboards/ios.md`.
     @State private var spotlightStates: [Instrument: RankLoadState<PlayerInstrumentRankingPayload>] = [:]
     @State private var quickLinks = QuickLinksController()
+    /// `reloadKey` whose cards finished loading; a reappearance with the same key keeps them.
+    @State private var loadedKey: String?
 
     /// Create the screen.
     ///
@@ -39,9 +41,12 @@ struct LeaderboardsScreen: View {
 
     private var rankBy: RankingMetric { RankingMetric(rawValue: rankByRaw) ?? .totalscore }
 
-    private var rankByBinding: Binding<RankingMetric> {
-        Binding(get: { rankBy }, set: { rankByRaw = $0.rawValue })
-    }
+    /// Rank-by selection projected from the stored raw value by key path.
+    ///
+    /// A key-path projection of the `@AppStorage` binding compares equal across body
+    /// passes; a `Binding(get:set:)` never does, so the toolbar `Menu` was rebuilt on every
+    /// parent update (each rebuild animates in the iPhone Duo rail).
+    private var rankByBinding: Binding<RankingMetric> { $rankByRaw.rankingMetricSelection }
 
     /// Mirror the tab root's Filter menu without depending on its own state.
     private var visibleInstruments: [Instrument] {
@@ -119,7 +124,16 @@ struct LeaderboardsScreen: View {
             FestivalRootTrailingItems(session: session)
         }
         .festivalProvidesRootTrailingItems()
-        .task(id: reloadKey) { await loadAll() }
+        .task(id: reloadKey) {
+            // `.task` restarts on every reappearance (e.g. Back from a player). Reloading
+            // then reset all cards to skeletons and re-rendered the page and its toolbar
+            // for ~0.5 s, which the iPhone Duo rail showed as jitter (Lane W1). Pull to
+            // refresh still reloads.
+            guard loadedKey != reloadKey else { return }
+            let key = reloadKey
+            await loadAll()
+            if !Task.isCancelled && allCardsLoaded { loadedKey = key }
+        }
     }
 
     // MARK: Instrument cards
@@ -297,6 +311,22 @@ struct LeaderboardsScreen: View {
     // MARK: Loading
 
     /// Refresh every visible instrument card and every band card.
+    /// True when every instrument and band card holds data (a failed card retries on return).
+    private var allCardsLoaded: Bool {
+        let cards = visibleInstruments.map { instrumentStates[$0].map(Self.isLoaded) ?? false }
+            + BandType.allCases.map { bandStates[$0].map(Self.isLoaded) ?? false }
+        return !cards.contains(false)
+    }
+
+    /// Whether a card state holds data.
+    ///
+    /// - Parameter state: Card load state.
+    /// - Returns: True for `.loaded`.
+    private static func isLoaded<Payload>(_ state: RankLoadState<Payload>) -> Bool {
+        if case .loaded = state { return true }
+        return false
+    }
+
     private func loadAll() async {
         for instrument in visibleInstruments {
             await loadInstrument(instrument, rankBy: rankBy)
@@ -367,5 +397,16 @@ struct LeaderboardsScreen: View {
         } catch {
             bandStates[bandType] = .failed(ServiceIssue(error))
         }
+    }
+}
+
+// MARK: - Rank-by storage projection
+
+private extension String {
+    /// This raw value as a `RankingMetric` (Total Score when unrecognised); writing stores
+    /// the metric's raw value. Used as a key path so the binding stays comparable.
+    var rankingMetricSelection: RankingMetric {
+        get { RankingMetric(rawValue: self) ?? .totalscore }
+        set { self = newValue.rawValue }
     }
 }

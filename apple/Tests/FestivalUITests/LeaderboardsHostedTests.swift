@@ -502,4 +502,55 @@ private func hostedRankingsSessionWithSelection(
     controller.jump(to: "not-a-real-section")
     #expect(controller.jumpSerial == 1)
 }
+
+/// Tearing a page down (every section reports `nil` as it leaves) must not republish the
+/// active section: that re-rendered the popped page's toolbar mid-pop (Lane W1 rail jitter).
+@MainActor
+@Test func quickLinksTeardownKeepsActiveSection() {
+    let controller = QuickLinksController()
+    let sections = Instrument.allCases.prefix(3).map { LeaderboardsScreen.quickLink(for: $0) }
+    controller.configure(title: "Leaderboards Quick Links", explicit: Array(sections))
+    controller.reportViewport(height: 600)
+    for (index, section) in sections.enumerated() {
+        let top = Double(index) * 400 - 500
+        controller.report(section.id, frame: QuickLinkFrame(minY: top, maxY: top + 400))
+    }
+    let active = controller.activeID
+    #expect(active == sections[1].id)
+    for section in sections { controller.report(section.id, frame: nil) }
+    #expect(controller.activeID == active)
+    // A collapsing viewport is teardown too.
+    controller.reportViewport(height: 0)
+    #expect(controller.activeID == active)
+    // The next real geometry report still recomputes the active section.
+    controller.report(sections[0].id, frame: QuickLinkFrame(minY: 0, maxY: 400))
+    #expect(controller.activeID == sections[0].id)
+}
+
+/// Discovered sections survive the all-at-once disappearance of a page teardown, so the
+/// toolbar menu is not removed mid-pop; a real replacement applies at once and a real
+/// emptying applies after `emptyDiscoveryDelay`.
+@MainActor
+@Test func quickLinksDiscoveryDefersTeardown() async {
+    let controller = QuickLinksController()
+    controller.configure(title: "Quick Links", explicit: nil)
+    let first = [
+        QuickLinkSection(id: "a", title: "A", icon: nil), QuickLinkSection(id: "b", title: "B", icon: nil),
+    ]
+    controller.discover(first)
+    #expect(controller.isAvailable)
+    controller.discover([])
+    #expect(controller.sections == first)
+    let second = [first[1], QuickLinkSection(id: "c", title: "C", icon: nil)]
+    controller.discover(second)
+    #expect(controller.sections.map(\.id) == ["b", "c"])
+    // The cancelled empty discovery never fires.
+    await controller.settleDeferredDiscovery()
+    #expect(controller.sections.map(\.id) == ["b", "c"])
+    controller.discover([])
+    #expect(controller.sections.map(\.id) == ["b", "c"])
+    await controller.settleDeferredDiscovery()
+    #expect(controller.sections.isEmpty)
+    #expect(!controller.isAvailable)
+}
 #endif

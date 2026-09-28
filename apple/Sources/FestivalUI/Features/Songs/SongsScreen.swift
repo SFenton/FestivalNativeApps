@@ -385,7 +385,7 @@ struct SongsScreen: View {
             FestivalRootTrailingItems(session: session)
         }
         .festivalProvidesRootTrailingItems()
-        .festivalRootChrome(session: session)
+        .festivalRootChrome(session: session, providesTrailingItems: true)
         .sheet(isPresented: $sortPresented) {
             SongsSortSheet(
                 mode: sortMode, ascending: sortAscending,

@@ -16,7 +16,7 @@
 | Folded portrait (466×678, compact) | `TabView`, placed by the system in the trailing vertical bar | iPhone layouts, one column, push navigation | Drawer stays (leading). Compact section set (Compete) |
 | Folded landscape, either rotation (678×466, compact) | Same, on the camera's edge; the tab bar kept, toolbar items overflow (`.automatic` compression) | One column, wider rows. No custom 3-tab trim | Short height: pinned footers become toolbar items (see Leaderboards) |
 | Folded upside down (466×678, bar leading) | Vertical bar on leading edge | As portrait | Drawer must start after `overlayInsets.leading`; camera bottom-left |
-| Unfolded landscape (951×669, regular) | `TabView` stays in the trailing vertical bar, as folded (continuity) | **List/detail** `NavigationSplitView` pages (below); dashboards use 2-column grids | Regular section set: Leaderboards + Rivals replace Compete (web ≥ 600 px) |
+| Unfolded landscape (951×669, regular) | `TabView` stays in the trailing vertical bar, as folded (continuity) | **List/detail** `NavigationSplitView` pages (below); dashboards use 2-column grids | Regular section set: Leaderboards + Rivals replace Compete (web ≥ 600 px). Operator 2026-09-28: only the Duo inner display and iPad get it; large iPhones in landscape keep portrait tabs |
 | Unfolded portrait (669×951, regular) | System horizontal tab bar | List/detail. The system may overlay the list column in portrait; accept it | Horizontal bars allowed by HIG here |
 | Partially folded (inner, active division) | As unfolded | `NavigationSplitView` equalises columns at the fold itself; custom grids use an even column count; nothing interactive in `foldFrame` | Laptop pose (horizontal fold): no custom arrangement; system containers adapt |
 
@@ -37,7 +37,10 @@ Why `TabView` rather than a sections sidebar when unfolded: HIG asks that contro
 ## Toolbar rules (all Duo poses)
 
 - Every toolbar item is a `Label(title, systemImage:)`: vertical placement needs the icon and overflow needs the title. Custom-view items stay horizontal and force a top bar, so avoid them.
-- Profile avatar: when `deviceLayout.sectionChrome` is `.verticalBar`, show the symbol `person.crop.circle`/`.fill` titled "Profile: <name>". Keep the monogram avatar in horizontal bars. Give the bell `visibilityPriority(.high)`: it carries an unread badge.
+- Profile avatar: when `deviceLayout.sectionChrome` is `.verticalBar`, show the symbol `person.crop.circle`/`.fill` titled "Profile: <name>". Keep the monogram avatar in horizontal bars. Bell and profile both carry `visibilityPriority(.high)` (iOS 27+), so page actions overflow first (✅ W1: `RootProfileButton.Presentation`).
+- Page actions that belong in the rail (Player profile "Select Profile"/"Switch To This Profile") add `VerticalBarActionItem` (`App/Shell/RootChrome.swift`): a titled symbol item in its own group right after Back, only while the chrome is a vertical bar; horizontal bars keep the in-content button (in-page design: Lane A2).
+- Every toolbar change animates in the rail, so a page must not re-render its toolbar while it is being pushed or popped. Leaderboards › Player › Back (operator bug) was bisected with `drive --record` (`.visual-output/duo-w1/jitter/`): Full Rankings › Back and Settings › Licenses › Back are clean. The popped Player page churned because its Quick Links controller republished as every section left (`report(nil)` → new active section; discovery → empty → `Menu` removed). W1 fixes: `QuickLinksController` ignores teardown (nil frames and zero viewport don't republish; an empty discovery is deferred 0.7 s). Leaderboards no longer reloads all 12 cards when `.task` restarts on reappear. The rail Select item has its own group after Back. **Residual:** an intermittent 2–3 frame dim/collapse of the hamburger and Rank By after some pops (it was ~7 frames, every pop). With a single trailing item on the popped page it was not seen; not yet isolated (W3/W4: re-check on a newer 27.x runtime before more work).
+- Also removed in W1 as churn sources: tab roots declare `FestivalRootTrailingItems` synchronously (`festivalRootChrome(providesTrailingItems:)`, per section in `FestivalRootView.rootProvidesTrailingItems`) instead of via the late preference; `OpenProfileAction`/`OpenDrawerAction` are `Equatable`; toolbar `Menu`s bind through comparable bindings (`$storage.keyPath`), never `Binding(get:set:)`.
 - Instrument/sort pickers become `Menu`s with a `Label`, not custom capsules.
 - Pagination (Full Rankings, band/song leaderboards): with a vertical bar, move First/Previous/Next/Last into `.bottomBar` symbol items with the page label in the overflow title. Otherwise keep the footer, because on iPhone a bottom toolbar collides with the floating tab bar ([iphone.md](iphone.md)).
 
@@ -47,13 +50,16 @@ Why `TabView` rather than a sections sidebar when unfolded: HIG asks that contro
 
 | File | Contents |
 |---|---|
-| `DeviceLayout.swift` | Pure `LayoutSignals` → `DeviceLayout` (`pose`, `orientation`, `widthClass`, `sectionChrome` = `.tabBar` / `.verticalBar(edge)` / `.sidebar`, `contentArrangement` = `.stack` / `.listDetail`, `overlayInsets`, `foldFrame`, `usesRegularSectionSet`) |
+| `DeviceLayout.swift` | Pure `LayoutSignals` → `DeviceLayout` (`pose`, `orientation`, `widthClass`, `sectionChrome` = `.tabBar` / `.verticalBar(edge)` / `.sidebar`, `contentArrangement` = `.stack` / `.listDetail`, `overlayInsets`, `foldFrame`, `usesRegularSectionSet` = sidebar, or regular width with a non-standard pose) |
 | `DeviceLayoutEnvironment.swift` | `\.deviceLayout` (default `.standardPhone`) and `.publishesDeviceLayout(usesSidebarShell:)`: a full-window probe reading size, safe area and (iOS 27.1) `reservedRegions`, `toolbarVerticalEdge` and `onHingeChange` |
 | `Tests/FestivalUITests/DeviceLayoutTests.swift` | Every pose, fallbacks without hinge, sidebar precedence, cutout insets |
+| `Shell/ShellPresentation.swift` (W1) | Pure `ShellPresentation.resolve(layout:usesSidebarShell:)` → navigation (`.tabs` / `.sidebar`, from the idiom so it never flips on the first geometry pass) + section set; `FestivalShellContent` reads `\.deviceLayout` inside the publisher |
+| `Shell/FestivalDrawer.swift` `DrawerPlacement` (W1) | Pure drawer geometry: iPhone keeps its exact original placement; Duo insets the panel by `overlayInsets` and pads the scrim off the vertical bar |
+| `Tests/FestivalUITests/ShellPresentationTests.swift` (W1) | Section set per pose (iPhone, large iPhone landscape, 4 folded rotations, inner display, iPad), drawer placement clear of bar/camera in all 4 rotations, profile item per chrome |
 
 `FestivalRootView` already calls `.publishesDeviceLayout(usesSidebarShell: !usesDrawer)`. It is behavior-neutral: nothing reads the value yet. Hosted snapshots can inject `.environment(\.deviceLayout, …)` to render any pose without the device.
 
-## Root integration plan (Lane W1; after the UX-test lanes finish)
+## Root integration plan (Lane W1; steps 1, 2, 4, 5 ✅ landed)
 
 Exact edits, in order, to `App/FestivalRootView.swift` unless noted:
 

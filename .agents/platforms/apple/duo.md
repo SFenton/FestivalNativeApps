@@ -51,14 +51,15 @@ The project wraps all of these in `App/Layout` ([design/apple/duo.md](../../desi
 
 | Control | How | Scriptable? |
 |---|---|---|
-| Open / close / partially fold / rotate | Device Hub (Xcode ▸ Open Developer Tool ▸ Device Hub, or `Xcode.app/Contents/Applications/DeviceHub.app`): pose buttons under the device; ⌥-click shows a hinge-angle slider. An older Device Hub lacks the pose widget | **No.** No `simctl` subcommand, no `XCUIDevice` API; Device Hub sends private vendor HID events. UI-scripting Device Hub needs an Accessibility grant (not given; do not request it) |
+| Open / close / partially fold / rotate | Device Hub (Xcode ▸ Open Developer Tool ▸ Device Hub, or `Xcode.app/Contents/Applications/DeviceHub.app`): pose buttons under the device; ⌥-click shows a hinge-angle slider. An older Device Hub lacks the pose widget | **Only by UI scripting** (operator-approved 2026-09-28): `ios_sim.py pose --set folded\|unfolded\|half\|rotate-left\|rotate-right`, `shot --set-pose/--rotate`. No `simctl` subcommand or `XCUIDevice` API; Device Hub sends private vendor HID events. Needs the operator's Accessibility grant for the responsible app ([simulator-driver.md](../../workflow/simulator-driver.md#accessibility-permission-ui-scripting)); agents never change it |
 | `XCUIDevice.shared.orientation` / driver `rotate:` | Ignored on the outer display: window stays 466×678 portrait in all four orientations (re-measured 2026-09-28) | Not a rotation |
 | `simctl io … screenConfig power off` | Blanks a panel; **not** a pose | — |
 | Which panel is lit | `python3 tools/ios_sim.py pose` (screenshots both panels, unlit = black) | Yes (read-only) |
-| Capture a panel | `shot --device duo --display outer|inner|auto`; `--pose folded|unfolded` fails with exit 3 and instructions if Device Hub is in another pose | Yes |
+| Capture a panel | `shot --device duo --display outer\|inner\|auto`; `--pose folded\|unfolded\|half` fails with exit 3 and instructions if Device Hub is in another pose (`--set-pose` fixes it by scripting) | Yes |
+| Record a transition | `drive --record file.mov --display outer\|inner` (`simctl io recordVideo` for the run) | Yes |
 | After a Duo session | `python3 tools/ios_sim.py shutdown --device duo` (one product simulator at a time) | Yes |
 
-- The Duo boots **closed** (outer display lit, inner black). TODO(orchestrator): confirm whether a Device Hub pose survives app relaunch and `boot_exclusive` shutdowns (other lanes' iPhone runs shut the Duo down).
+- The Duo boots **closed** (outer display lit, inner black), so a pose set in Device Hub is lost whenever another lane's `boot_exclusive` shuts the Duo down; `--set-pose` re-applies it inside the capture's own lock hold. TODO(orchestrator): confirm a pose survives an app relaunch alone.
 - The driver's `back` step taps the system `BackButton` first: on Duo it lives in the vertical bar, not a navigation bar.
 - Camera transitions between displays cannot be tested in Simulator (Apple).
 

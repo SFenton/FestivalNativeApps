@@ -86,6 +86,12 @@ struct DeviceLayout: Sendable, Equatable {
         case verticalBar(HorizontalEdge)
         /// `NavigationSplitView` sidebar (iPad/macOS shell).
         case sidebar
+
+        /// True for the system vertical bar on either edge.
+        var isVerticalBar: Bool {
+            if case .verticalBar = self { return true }
+            return false
+        }
     }
 
     /// How a page with a list and a detail (Songs → Song Detail, …) is presented.

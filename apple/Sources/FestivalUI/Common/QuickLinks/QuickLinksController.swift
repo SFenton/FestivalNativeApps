@@ -34,6 +34,8 @@ public final class QuickLinksController {
     @ObservationIgnored var activationOffset: Double = QuickLinks.defaultActivationOffset
     @ObservationIgnored private var explicitSections: [QuickLinkSection]?
     @ObservationIgnored private var discoveredSections: [QuickLinkSection] = []
+    /// Deferred application of an empty discovery (see ``discover(_:)``).
+    @ObservationIgnored private var pendingEmptyDiscovery: Task<Void, Never>?
 
     /// Create an empty controller; the `.quickLinks` modifier fills it in.
     public init() {}
@@ -88,11 +90,42 @@ public final class QuickLinksController {
     ///
     /// - Parameter discovered: Discovered sections.
     func discover(_ discovered: [QuickLinkSection]) {
+        pendingEmptyDiscovery?.cancel()
+        pendingEmptyDiscovery = nil
+        // Every section vanishing at once is usually the page being torn down (its scroll
+        // view left the tree, e.g. a pop). Publishing that immediately emptied the toolbar
+        // menu mid-transition, a structural toolbar change the iPhone Duo rail animated.
+        // Defer it: a popped page is gone before it applies; a page whose sections really
+        // disappeared still loses its menu a moment later.
+        if discovered.isEmpty && !discoveredSections.isEmpty {
+            pendingEmptyDiscovery = Task { [weak self] in
+                try? await Task.sleep(for: Self.emptyDiscoveryDelay)
+                guard !Task.isCancelled, let self else { return }
+                self.pendingEmptyDiscovery = nil
+                self.discoveredSections = []
+                self.resolveSections()
+            }
+            return
+        }
         discoveredSections = discovered
         resolveSections()
     }
 
+    /// How long an all-sections-gone discovery waits (longer than a push/pop transition).
+    static let emptyDiscoveryDelay: Duration = .milliseconds(700)
+
+    /// Wait for a deferred empty discovery to apply or be cancelled (tests).
+    func settleDeferredDiscovery() async {
+        await pendingEmptyDiscovery?.value
+    }
+
     /// Record one section's viewport-relative frame, or `nil` when it leaves the tree.
+    ///
+    /// Forgetting a frame does not republish the active section by itself: when a page
+    /// is popped every section leaves at once, and republishing then re-rendered the
+    /// page's Quick Links toolbar item mid-transition, which made the iPhone Duo rail
+    /// re-insert the destination's items (Leaderboards › Player › Back jitter). While
+    /// scrolling, the remaining sections' next frame reports refresh the state anyway.
     ///
     /// - Parameters:
     ///   - id: Section id.
@@ -100,6 +133,7 @@ public final class QuickLinksController {
     func report(_ id: String, frame: QuickLinkFrame?) {
         guard frames[id] != frame else { return }
         frames[id] = frame
+        guard frame != nil else { return }
         refresh()
     }
 
@@ -107,7 +141,8 @@ public final class QuickLinksController {
     ///
     /// - Parameter height: Visible height in points.
     func reportViewport(height: Double) {
-        guard viewportHeight != height else { return }
+        // A collapsing (zero) viewport is teardown, not a real layout; ignore it.
+        guard height > 0, viewportHeight != height else { return }
         viewportHeight = height
         refresh()
     }

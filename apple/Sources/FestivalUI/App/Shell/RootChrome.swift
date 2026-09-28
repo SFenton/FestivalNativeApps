@@ -9,19 +9,30 @@ import FestivalDesign
 ///
 /// `FestivalRootView` installs the real handler; the default is a no-op so hosted
 /// previews and tests can render screens without the shell.
-struct OpenProfileAction {
+///
+/// Always equal: the root re-creates the closure on every body pass (for example when
+/// a pop writes the path back) and closures never compare equal, so without this every
+/// view reading the action is invalidated after each navigation. The handler only
+/// flips root-owned `@State`, so any instance behaves identically.
+struct OpenProfileAction: Equatable {
     let handler: @MainActor () -> Void
 
     /// Present profile selection.
     @MainActor func callAsFunction() { handler() }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { true }
 }
 
 /// Environment action that opens the leading navigation drawer.
-struct OpenDrawerAction {
+///
+/// Equatable for the same reason as ``OpenProfileAction``.
+struct OpenDrawerAction: Equatable {
     let handler: @MainActor () -> Void
 
     /// Slide the drawer in.
     @MainActor func callAsFunction() { handler() }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { true }
 }
 
 extension EnvironmentValues {
@@ -46,9 +57,19 @@ extension View {
     /// - Parameters:
     ///   - session: Shared app session (drives the profile avatar).
     ///   - showsNotifications: Show the notifications bell beside the profile button.
+    ///   - providesTrailingItems: Whether the page ends its own toolbar with
+    ///     `FestivalRootTrailingItems`. Pass it whenever the caller knows: the fallback
+    ///     (nil) reads `FestivalRootTrailingProvidedKey`, which arrives one update late,
+    ///     so the first pass briefly adds a second bell/avatar and re-lays out the toolbar
+    ///     (costly in the iPhone Duo rail, where every item change animates).
     /// - Returns: The page with shared chrome attached.
-    func festivalRootChrome(session: FestivalSession, showsNotifications: Bool = true) -> some View {
-        modifier(FestivalRootChrome(session: session, showsNotifications: showsNotifications))
+    func festivalRootChrome(
+        session: FestivalSession, showsNotifications: Bool = true, providesTrailingItems: Bool? = nil
+    ) -> some View {
+        modifier(FestivalRootChrome(
+            session: session, showsNotifications: showsNotifications,
+            declaredProvidesTrailing: providesTrailingItems
+        ))
     }
 }
 
@@ -62,13 +83,20 @@ extension View {
 struct FestivalRootChrome: ViewModifier {
     let session: FestivalSession
     let showsNotifications: Bool
+    /// Synchronous declaration from the caller; nil falls back to the preference.
+    var declaredProvidesTrailing: Bool?
     @Environment(\.openDrawer) private var openDrawer
-    @State private var pageProvidesTrailing = false
+    @State private var reportedProvidesTrailing = false
+
+    /// Whether the page supplies the bell/avatar itself. A declared value never changes
+    /// between updates, so the toolbar's structure stays stable across push and pop.
+    private var pageProvidesTrailing: Bool { declaredProvidesTrailing ?? reportedProvidesTrailing }
 
     func body(content: Content) -> some View {
         content
             .onPreferenceChange(FestivalRootTrailingProvidedKey.self) { provided in
-                pageProvidesTrailing = provided
+                guard declaredProvidesTrailing == nil else { return }
+                reportedProvidesTrailing = provided
             }
             .toolbar {
                 #if os(iOS)
@@ -93,8 +121,9 @@ struct FestivalRootChrome: ViewModifier {
 /// and apply `.festivalProvidesRootTrailingItems()`, so the avatar stays rightmost.
 ///
 /// In the iPhone Duo vertical bar both items stay symbol items (see ``RootProfileButton``)
-/// and the bell carries `visibilityPriority(.high)` (iOS 27+) so it is the last page item
-/// to overflow into the system `…` menu: it carries the unread badge.
+/// and carry `visibilityPriority(.high)` (iOS 27+), so page actions overflow into the
+/// system `…` menu before them: the bell carries the unread badge and the profile item
+/// is the only visible identity on every root.
 struct FestivalRootTrailingItems: ToolbarContent {
     let session: FestivalSession
     var showsNotifications: Bool = true
@@ -113,8 +142,15 @@ struct FestivalRootTrailingItems: ToolbarContent {
                 ToolbarItem(placement: .topBarTrailing) { NotificationsButton(session: session) }
             }
         }
-        ToolbarItem(placement: .topBarTrailing) {
-            RootProfileButton(session: session) { openProfile() }
+        if #available(iOS 27.0, *) {
+            ToolbarItem(placement: .topBarTrailing) {
+                RootProfileButton(session: session) { openProfile() }
+            }
+            .visibilityPriority(.high)
+        } else {
+            ToolbarItem(placement: .topBarTrailing) {
+                RootProfileButton(session: session) { openProfile() }
+            }
         }
         #else
         ToolbarItem(placement: .primaryAction) {
@@ -140,6 +176,50 @@ extension View {
     /// - Returns: The view, tagged so `festivalRootChrome` skips its own trailing items.
     func festivalProvidesRootTrailingItems() -> some View {
         preference(key: FestivalRootTrailingProvidedKey.self, value: true)
+    }
+}
+
+// MARK: - Vertical-bar page actions
+
+/// A page action mirrored into the system vertical bar (the iPhone Duo "rail").
+///
+/// In horizontal bars this adds nothing: the page keeps its in-content button. In a
+/// vertical bar the action also becomes a titled symbol item, so it sits in the rail
+/// beside Back instead of only deep in the content (operator, 2026-09-28: Duo "Select
+/// Profile" belongs in the rail). The in-page design stays with the page's lane; this
+/// only owns rail placement.
+struct VerticalBarActionItem: ToolbarContent {
+    /// Title (overflow menu and VoiceOver).
+    let title: String
+    /// SF Symbol shown in the rail.
+    let systemImage: String
+    /// Accessibility identifier for UI tests.
+    let identifier: String
+    /// Performs the page's action.
+    let action: () -> Void
+    @Environment(\.deviceLayout) private var layout
+
+    /// Leading group on iOS (after Back); primary action elsewhere.
+    private static var placement: ToolbarItemPlacement {
+        #if os(iOS)
+        .topBarLeading
+        #else
+        .primaryAction
+        #endif
+    }
+
+    var body: some ToolbarContent {
+        if layout.sectionChrome.isVerticalBar {
+            // Its own group right after Back: sharing the trailing group with Quick Links
+            // made the rail re-lay out the destination's items after a pop.
+            ToolbarItem(placement: Self.placement) {
+                Button(action: action) {
+                    Label(title, systemImage: systemImage)
+                }
+                .tint(BrandTokens.textPrimary)
+                .accessibilityIdentifier(identifier)
+            }
+        }
     }
 }
 
