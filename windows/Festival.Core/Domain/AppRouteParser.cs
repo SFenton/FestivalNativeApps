@@ -57,6 +57,7 @@ public static class AppRouteParser
             ["compete"] => new AppRoute.Compete(),
             ["shop"] => new AppRoute.Shop(),
             ["settings", "licenses"] => new AppRoute.Licenses(),
+            ["search"] => new AppRoute.Search(query.GetValueOrDefault("q") ?? "", SearchScopes.Parse(query.GetValueOrDefault("scope"))),
             _ => Invalid,
         };
         if (ReferenceEquals(parsed, Invalid)) return false;

@@ -278,6 +278,18 @@ public abstract record AppRoute
         public override string ToPath() => "/shop";
     }
 
+    /// <summary><c>/search?q=&amp;scope=</c>: global search results (pushed on the current section's stack).</summary>
+    /// <param name="Text">Initial query.</param>
+    /// <param name="Scope">Initial scope.</param>
+    public sealed record Search(string Text = "", SearchScope Scope = SearchScope.All) : AppRoute
+    {
+        /// <inheritdoc />
+        public override AppSection Section => AppSection.Songs;
+        /// <inheritdoc />
+        public override string ToPath() =>
+            "/search" + Query(("q", Text.Length > 0 ? Text : null), ("scope", Scope == SearchScope.All ? null : Scope.Token()));
+    }
+
     /// <summary><c>/settings/licenses</c>.</summary>
     public sealed record Licenses : AppRoute
     {
