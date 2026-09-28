@@ -304,6 +304,25 @@ def write_driver_hash(derived: Path, value: str) -> None:
     derived.mkdir(parents=True, exist_ok=True)
     (derived / ".driver-source-hash").write_text(value, encoding="utf-8")
 
+
+
+def boot_exclusive(udid: str) -> None:
+    """Boot ``udid`` after shutting down every *other* FST product simulator.
+
+    The operator rule is one product simulator running at a time. Only devices in
+    ``DEVICES`` are ever shut down; other projects' simulators are never touched.
+    Call this only while holding the simulator lock.
+
+    Args:
+        udid: Simulator to boot.
+    """
+    for other in set(DEVICES.values()) - {udid}:
+        state = _run(["xcrun", "simctl", "list", "devices", other], check=False,
+                     capture_output=True, text=True)
+        if "(Booted)" in (state.stdout or ""):
+            _run(["xcrun", "simctl", "shutdown", other], check=False, capture_output=True)
+    _run(["xcrun", "simctl", "boot", udid], check=False, capture_output=True)
+
 # endregion
 
 # region Commands
@@ -350,7 +369,7 @@ def cmd_shot(args: argparse.Namespace) -> int:
         fcntl.flock(lock, fcntl.LOCK_EX)
         lock.write(f"{os.getpid()} {REPO_ROOT}\n")
         lock.flush()
-        _run(["xcrun", "simctl", "boot", udid], check=False, capture_output=True)
+        boot_exclusive(udid)
         _run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True)
         _run(["xcrun", "simctl", "install", udid, str(app)])
         _run(["xcrun", "simctl", "terminate", udid, BUNDLE_ID], check=False, capture_output=True)
@@ -446,7 +465,7 @@ def cmd_drive(args: argparse.Namespace) -> int:
             fcntl.flock(lock, fcntl.LOCK_EX)
             lock.write(f"{os.getpid()} {REPO_ROOT}\n")
             lock.flush()
-            _run(["xcrun", "simctl", "boot", udid], check=False, capture_output=True)
+            boot_exclusive(udid)
             _run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True)
             cmd = [
                 "xcodebuild", "-project", "FestivalNativeApple.xcodeproj", "-scheme", "FestivalMobile",
@@ -617,7 +636,7 @@ def _run_uitest_batch(
         fcntl.flock(lock, fcntl.LOCK_EX)
         lock.write(f"{os.getpid()} {REPO_ROOT}\n")
         lock.flush()
-        _run(["xcrun", "simctl", "boot", udid], check=False, capture_output=True)
+        boot_exclusive(udid)
         _run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True)
         cmd = [
             "xcodebuild", "-project", "FestivalNativeApple.xcodeproj", "-scheme", "FestivalMobile",
