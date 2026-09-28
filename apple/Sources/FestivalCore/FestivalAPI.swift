@@ -11,6 +11,12 @@ public enum PublicEndpoint: Sendable {
         songId: String, instrument: String, top: Int = 25, offset: Int = 0, leeway: Double? = nil
     )
     case rankings(instrument: String, rankBy: String, page: Int, pageSize: Int)
+    /// One account's own row on the per-instrument rankings board
+    /// (`GET /api/rankings/{instrument}/{accountId}`) — the pure-read fallback the
+    /// web client uses when its player-stats read hasn't embedded canonical ranks
+    /// yet (see `PlayerInstrumentRanking.swift`); never the player-stats GET itself,
+    /// which can compute and store missing tiers.
+    case playerInstrumentRanking(instrument: String, accountId: String)
     case bandRankings(bandType: String, rankBy: String, page: Int, pageSize: Int)
     case playerBands(accountId: String, group: String, page: Int, pageSize: Int)
     case playerBandsByType(accountId: String, bandType: String, combo: String?)
@@ -92,6 +98,12 @@ public enum PublicEndpoint: Sendable {
                 URLQueryItem(name: "page", value: String(page)),
                 URLQueryItem(name: "pageSize", value: String(pageSize)),
             ]
+        case let .playerInstrumentRanking(instrument, accountId):
+            guard !instrument.isEmpty, !instrument.contains("/"),
+                  ProfileSearchText.isValidAccountId(accountId) else {
+                throw FestivalAPIError.invalidResource
+            }
+            segments = ["api", "rankings", instrument, accountId]
         case let .bandRankings(bandType, rankBy, page, pageSize):
             guard !bandType.isEmpty, !bandType.contains("/"),
                   !rankBy.isEmpty, !rankBy.contains("/"),
@@ -211,7 +223,9 @@ public enum PublicEndpoint: Sendable {
     ///   and for a player's own bands list (also account-scoped).
     var allowsSnapshotCache: Bool {
         switch self {
-        case .player, .playerHistory, .playerNotifications, .playerBands, .playerBandsByType: false
+        case .player, .playerHistory, .playerNotifications, .playerBands, .playerBandsByType,
+             .playerInstrumentRanking:
+            false
         default: true
         }
     }
