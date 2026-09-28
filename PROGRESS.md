@@ -272,7 +272,9 @@ Not yet assigned:
 Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in Device Hub (unfold, partial fold, 3 outer rotations).
 
 - ⬜ iPadOS · ⬜ macOS · ⬜ iPhone iOS 17 classic tab bar
-- 🟨 Android / Windows — Windows host resumed 2026-09-28; lanes run there via `tools/win_relay.py` (see below)
+- 🟨 Android / Windows — Windows host resumed 2026-09-28; lanes run there via `tools/win_relay.py` (headless Claude Code on `sfenton-primary`)
+  - **Lane AND — Android** (remote): port Copilot foundation → tooling (build/emulator/screenshot, one emulator at a time) → Compose architecture + request gate + typed routes → adaptive shell (bar/rail/list-detail) → Songs + Song Detail live → JUnit ≥95% logic
+  - **Lane WIN — Windows** (remote): port Copilot foundation → **C# vs C++/WinRT measured decision** → tooling → MVVM + request gate → NavigationView shell (Mica, split Leaderboards/Rivals) + composition-thread background → Songs + Song Detail live → tests
 
 ---
 
