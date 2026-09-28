@@ -191,7 +191,7 @@ class RivalsCoreTest {
     fun rowNamesAndNavigability() {
         assertEquals(RivalText.UNKNOWN_USER, summary("", 1.0).shownName)
         assertFalse(summary("", 1.0).isNavigable)
-        assertEquals(RivalText.UNKNOWN_USER, summary("bad", 1.0).shownName)
+        assertEquals(RivalText.UNKNOWN_USER, summary("bad id", 1.0).shownName)
         assertEquals(RivalText.UNKNOWN_PLAYER, summary(ids[0], 1.0, name = " ").shownName)
         assertEquals("Name", summary(ids[0], 1.0, name = " Name ").shownName)
         val entries = rivalEntries(listOf(summary(ids[0], 1.0), summary(ids[1], 1.0)), listOf(summary("", 1.0)), limit = 1)
@@ -344,7 +344,7 @@ class RivalsCoreTest {
         assertEquals(RivalDetailRoute(ids[0]), DebugLaunch.parseRoute("rivalDetail:${ids[0]}"))
         assertEquals(RivalryRoute(ids[0], "closest_battles", scope = "combo:03"), DebugLaunch.parseRoute("rivalry:${ids[0]}:closest_battles:combo:03"))
         assertEquals(RivalryRoute(ids[0], "closest_battles"), DebugLaunch.parseRoute("rivalry:${ids[0]}:closest_battles"))
-        listOf("allRivals", "allRivals:song:Nope", "rivalDetail:bad", "rivalDetail:${ids[0]}:song:Nope", "rivalry:${ids[0]}", "rivalry:bad:x", "rivalry:${ids[0]}:x:nope").forEach {
+        listOf("allRivals", "allRivals:song:Nope", "rivalDetail:bad id", "rivalDetail:${ids[0]}:song:Nope", "rivalry:${ids[0]}", "rivalry:bad id:x", "rivalry:${ids[0]}:x:nope").forEach {
             assertNull(it, DebugLaunch.parseRoute(it))
         }
         assertNull(RivalRoutes.parseDebug("other", "x"))

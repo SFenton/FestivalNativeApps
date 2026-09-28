@@ -55,9 +55,9 @@ class RivalsDataTest {
         val board = client.leaderboardRivals(player, Instrument.Lead, RivalRankMetric.TotalScore)
         assertEquals(42, board.userRank)
         assertTrue(transport.sent("/api/player/$player/leaderboard-rivals/Solo_Guitar").single().url.endsWith("?rankBy=totalscore"))
-        assertThrowsSuspend<FestivalApiException.InvalidResource> { client.rivalsList("bad", "Solo_Guitar") }
+        assertThrowsSuspend<FestivalApiException.InvalidResource> { client.rivalsList("bad id", "Solo_Guitar") }
         assertThrowsSuspend<FestivalApiException.InvalidResource> { client.rivalsList(player, "../x") }
-        assertThrowsSuspend<FestivalApiException.InvalidResource> { client.leaderboardRivals("bad", Instrument.Lead, RivalRankMetric.TotalScore) }
+        assertThrowsSuspend<FestivalApiException.InvalidResource> { client.leaderboardRivals("bad id", Instrument.Lead, RivalRankMetric.TotalScore) }
         assertTrue(isValidRivalScope("pro_drums"))
         assertFalse(isValidRivalScope("recompute"))
     }
@@ -93,7 +93,7 @@ class RivalsDataTest {
         client.leaderboardRivalDetail(player, Instrument.Lead, rival, RivalRankMetric.TotalScore)
         assertEquals("rankBy=totalscore&sort=closest", transport.sent("/api/player/$player/leaderboard-rivals/Solo_Guitar/$rival").single().url.substringAfter('?'))
         assertThrowsSuspend<FestivalApiException.InvalidResource> { client.rivalDetail(player, "Solo_Guitar", rival, sort = "random") }
-        assertThrowsSuspend<FestivalApiException.InvalidResource> { client.rivalDetail(player, "Solo_Guitar", "bad") }
+        assertThrowsSuspend<FestivalApiException.InvalidResource> { client.rivalDetail(player, "Solo_Guitar", "bad id") }
         assertThrowsSuspend<FestivalApiException.InvalidResource> { client.leaderboardRivalDetail(player, Instrument.Lead, rival, RivalRankMetric.TotalScore, sort = "x") }
         transport.on("/api/player/$player/rivals/Solo_Guitar/$rival") { RivalsFixtures.detail(RivalsFixtures.RIVALS[1]) }
         assertThrowsSuspend<FestivalApiException.InvalidResponse> { client.rivalDetail(player, "Solo_Guitar", rival) }
