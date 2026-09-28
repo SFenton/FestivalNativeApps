@@ -82,9 +82,15 @@ try { & { $Script } *>&1 | Out-File -FilePath '$out' -Encoding utf8 } catch { `$
 }
 
 function Stop-App {
-    <# .SYNOPSIS Stops running instances of this app only. #>
-    Get-Process -Name $AppProcessName -ErrorAction SilentlyContinue | Stop-Process -Force
-    for ($i = 0; $i -lt 20 -and (Get-Process -Name $AppProcessName -ErrorAction SilentlyContinue); $i++) { Start-Sleep -Milliseconds 250 }
+    <#
+    .SYNOPSIS Stops running instances built from this worktree only.
+    .NOTES Parallel lanes run their own builds on the same desktop; stopping every process with the app's name
+          closed other lanes' windows mid-capture.
+    #>
+    $mine = { Get-Process -Name $AppProcessName -ErrorAction SilentlyContinue |
+        Where-Object { $_.Path -and $_.Path.StartsWith($WindowsRoot, [StringComparison]::OrdinalIgnoreCase) } }
+    & $mine | Stop-Process -Force
+    for ($i = 0; $i -lt 20 -and (& $mine); $i++) { Start-Sleep -Milliseconds 250 }
 }
 
 function Get-AppProcess {
@@ -93,7 +99,9 @@ function Get-AppProcess {
     .NOTES From session 0 MainWindowHandle is always 0 (EnumWindows only sees its own desktop), so window
           handles are resolved inside the desktop session by the scripts that need them.
     #>
-    Get-Process -Name $AppProcessName -ErrorAction SilentlyContinue | Select-Object -First 1
+    Get-Process -Name $AppProcessName -ErrorAction SilentlyContinue |
+        Where-Object { $_.Path -and $_.Path.StartsWith($WindowsRoot, [StringComparison]::OrdinalIgnoreCase) } |
+        Select-Object -First 1
 }
 
 # Desktop-session snippet: waits for the app's main window and sets $hwnd/$proc ($env:FST_CAPTURE_PROCESS overrides the name).
