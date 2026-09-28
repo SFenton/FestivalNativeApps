@@ -84,6 +84,6 @@ Record anything Narrator skips or misreads in [windows-accessibility.md](windows
 
 | Item | Value |
 |---|---|
-| Core tests | 876 passing |
-| Core coverage (all folders, async bodies and lambdas measured) | 98.98% lines, 94.0% branches (logic 99.40%, UX 98.43%; 876 tests, 2026-09-28) |
+| Core tests | 905 passing |
+| Core coverage (all folders, async bodies and lambdas measured) | 98.92% lines, 94.0% branches (logic 99.41%, UX 98.30%; 905 tests, 2026-09-28) |
 | Screenshots | committed only from fixture mode ([strategy](strategy.md) keeps live screenshots out of the repo) |
