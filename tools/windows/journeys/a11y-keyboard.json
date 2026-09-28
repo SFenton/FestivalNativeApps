@@ -1,0 +1,114 @@
+[
+  {
+    "name": "kb-songs-order",
+    "tab": "songs",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "key:ctrl+f",
+      "assertfocus:name=Search songs",
+      "key:tab",
+      "assertfocus:id=fst.songs.sort",
+      "key:tab",
+      "assertfocus:id=fst.songs.filter",
+      "key:tab",
+      "assertfocus:id=fst.songs.section-index-button",
+      "key:tab",
+      "assertfocus:id=fst.songs.row.fixture-orbit",
+      "key:down",
+      "assertfocus:id=fst.songs.row.fixture-pulse",
+      "key:shift+tab",
+      "assertfocus:id=fst.songs.section-index-button"
+    ]
+  },
+  {
+    "name": "kb-songs-sort-esc",
+    "tab": "songs",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "key:ctrl+f",
+      "key:tab",
+      "assertfocus:id=fst.songs.sort",
+      "key:enter",
+      "waitfor:id=fst.songs.sort.apply@5",
+      "key:esc",
+      "assertfocus:id=fst.songs.sort@3",
+      "key:tab",
+      "key:enter",
+      "waitfor:id=fst.songs.filter.apply@5",
+      "key:esc",
+      "assertfocus:id=fst.songs.filter@3"
+    ]
+  },
+  {
+    "name": "kb-section-accelerators",
+    "tab": "songs",
+    "profile": "fixture-player-1:Demo Player",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "key:ctrl+3",
+      "waitfor:id=fst.leaderboards.card.Solo_Guitar@20",
+      "key:ctrl+2",
+      "waitfor:id=fst.suggestions.list@25",
+      "key:ctrl+5",
+      "waitfor:id=fst.player.name@20",
+      "key:ctrl+comma",
+      "waitfor:id=fst.settings.show-instrument-icons@15",
+      "key:ctrl+1",
+      "waitfor:id=fst.songs.row.fixture-pulse@15"
+    ]
+  },
+  {
+    "name": "kb-profile-flyout-esc",
+    "tab": "songs",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.shell.profile",
+      "key:enter",
+      "waitfor:id=fst.profile.search@5",
+      "assertfocus:id=fst.profile.search@3",
+      "key:esc",
+      "assertfocus:id=fst.shell.profile@3"
+    ]
+  },
+  {
+    "name": "kb-global-search",
+    "tab": "songs",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "key:ctrl+e",
+      "assertfocus:name=Search songs and players@3",
+      "type:Fixture",
+      "key:enter",
+      "waitfor:id=fst.global-search.section.songs@15",
+      "key:alt+left",
+      "waitfor:id=fst.songs.row.fixture-pulse@10"
+    ]
+  },
+  {
+    "name": "kb-detail-back",
+    "route": "/songs/fixture-pulse",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20"
+    ],
+    "after_ready": [
+      "key:alt+left",
+      "waitfor:id=fst.songs.row.fixture-pulse@15"
+    ]
+  }
+]

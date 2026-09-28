@@ -29,6 +29,10 @@ Examples::
     python tools/windows/uiwin.py tree out/win.tree.txt
     python tools/windows/uiwin.py drive --steps "invoke:id=fst.songs.refresh; waitfor:id=fst.songs.list@10; shot:out/s.png"
 
+    # Axe.Windows scan of the current page, and a keyboard Tab walk.
+    python tools/windows/uiwin.py scan out/axe --scan-id songs-compact
+    python tools/windows/uiwin.py focus-order --count 20 --out out/songs-tab.json
+
     # CPU/GPU/working-set sampling (and optional PresentMon frame timing).
     python tools/windows/uiwin.py perf-sample --seconds 10 --presentmon --out out/perf.json
 """
@@ -85,6 +89,7 @@ VK = {
     "space": 0x20, "backspace": 0x08, "delete": 0x2E, "insert": 0x2D,
     "left": 0x25, "up": 0x26, "right": 0x27, "down": 0x28,
     "home": 0x24, "end": 0x23, "pageup": 0x21, "pagedown": 0x22, "apps": 0x5D,
+    "comma": 0xBC, "period": 0xBE, "minus": 0xBD, "plus": 0xBB,
     **{f"f{n}": 0x6F + n for n in range(1, 13)},
 }
 
@@ -95,6 +100,7 @@ STEP_VERBS = {
     "collapse": "selector", "focus": "selector", "waitfor": "selector",
     "type": "text", "key": "keys", "scroll": "scroll", "wait": "seconds",
     "shot": "path", "tree": "path", "resize": "preset",
+    "tabwalk": "tabwalk", "assertfocus": "selector", "scan": "path",
 }
 
 # endregion
@@ -156,7 +162,10 @@ def parse_step(step: str) -> dict:
     Selector steps accept an ``@<seconds>`` wait suffix (``waitfor:id=x@10``);
     ``scroll`` takes ``up``/``down``/``<wheel clicks>``, optionally prefixed by a
     selector and a comma (``scroll:id=fst.songs.list,down``); ``shot`` accepts
-    ``@screen`` to capture composited screen pixels instead of ``PrintWindow``.
+    ``@screen`` to capture composited screen pixels instead of ``PrintWindow``;
+    ``tabwalk`` takes ``<count>`` or ``<count>,shift`` (Tab/Shift+Tab presses, each
+    focused element recorded); ``assertfocus`` fails unless focus matches the selector;
+    ``scan:<dir>/<scan-id>`` runs an Axe.Windows scan (results in the ``scans`` output).
 
     Args:
         step: A step string.
@@ -200,6 +209,11 @@ def parse_step(step: str) -> dict:
         result["arg"], result["mode"] = arg[: -len("@screen")], "screen"
     elif shape == "preset":
         result["op"] = preset_op(arg)
+    elif shape == "tabwalk":
+        count, _, direction = arg.partition(",")
+        if not re.fullmatch(r"\d+", count.strip()) or direction.strip() not in ("", "shift"):
+            raise ValueError(f"bad tabwalk {arg!r}; use <count> or <count>,shift")
+        result["count"], result["reverse"] = int(count), direction.strip() == "shift"
     if shape == "path":
         result["arg"] = str(Path(native_path(result["arg"])).resolve())
     return result
@@ -666,6 +680,55 @@ def cmd_drive(args: argparse.Namespace) -> int:
     return 0
 
 
+def summarize_scan(result: dict) -> list[str]:
+    """One line per Axe.Windows finding, grouped by rule.
+
+    Args:
+        result: ``FstUia`` ``scan`` result (``errors``, ``findings``).
+
+    Returns:
+        Human-readable lines (empty when there are no findings).
+    """
+    lines = []
+    for finding in result.get("findings") or []:
+        element = finding.get("element") or {}
+        parent = (finding.get("parents") or [""])[0]
+        known = " [framework issue]" if finding.get("framework_issue") else ""
+        lines.append(f"{finding.get('rule')}{known}: {element.get('ControlType', '?')} "
+                     f"\"{element.get('Name', '')}\" id={element.get('AutomationId', '')} "
+                     f"class={element.get('ClassName', '')} (in {parent})")
+    return sorted(lines)
+
+
+def cmd_scan(args: argparse.Namespace) -> int:
+    """Run an Axe.Windows scan of the target window; exit 1 when it finds errors."""
+    out = Path(native_path(args.out)).resolve()
+    out.mkdir(parents=True, exist_ok=True)
+    with _lock(args, f"scan {args.scan_id}") as lock:
+        result = run_driver({"command": "scan", **_target(args), "out": str(out),
+                             "scanid": args.scan_id}, lock)
+    (out / f"{args.scan_id}.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+    for line in summarize_scan(result):
+        print(line)
+    print(f"{args.scan_id}: {result.get('errors', 0)} Axe.Windows error(s); details in "
+          f"{out / (args.scan_id + '.json')}")
+    return 1 if result.get("errors") else 0
+
+
+def cmd_focus_order(args: argparse.Namespace) -> int:
+    """Press Tab (or Shift+Tab) N times and print/save the focused element after each."""
+    step = parse_step(f"tabwalk:{args.count}" + (",shift" if args.reverse else ""))
+    with _lock(args, "focus-order") as lock:
+        result = run_driver({"command": "drive", **_target(args), "steps": [step]}, lock)
+    focus = result.get("focus") or []
+    for entry in focus:
+        print(f"{entry['index']:>3}{' (repeat)' if entry.get('repeat') else ''}"
+              f"{'' if entry.get('in_window') else ' (outside app)'}: {entry['line']}")
+    if args.out:
+        Path(args.out).write_text(json.dumps(focus, indent=2), encoding="utf-8")
+    return 0
+
+
 def cmd_front(args: argparse.Namespace) -> int:
     """Bring the target to the foreground and report anything still covering it."""
     with _lock(args, "front") as lock:
@@ -810,6 +873,15 @@ def build_parser() -> argparse.ArgumentParser:
     perf.add_argument("--presentmon", action="store_true", help="also record frame timing")
     perf.add_argument("--out")
     perf.set_defaults(func=cmd_perf)
+    scan = sub.add_parser("scan", parents=[target], help="Axe.Windows rule scan (exit 1 on errors)")
+    scan.add_argument("out", help="output directory (.json summary, .a11ytest on errors)")
+    scan.add_argument("--scan-id", default="scan")
+    scan.set_defaults(func=cmd_scan)
+    focus = sub.add_parser("focus-order", parents=[target], help="Tab walk: focused element per press")
+    focus.add_argument("--count", type=int, default=25)
+    focus.add_argument("--reverse", action="store_true", help="Shift+Tab")
+    focus.add_argument("--out", help="save the walk as JSON")
+    focus.set_defaults(func=cmd_focus_order)
     sub.add_parser("status", help="lock and session state").set_defaults(func=cmd_status)
     return parser
 

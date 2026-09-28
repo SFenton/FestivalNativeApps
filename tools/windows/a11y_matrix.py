@@ -1,0 +1,312 @@
+#!/usr/bin/env python3
+"""Windows accessibility matrix: Axe.Windows scans, Tab walks and screenshots per page, size and mode.
+
+Pages come from ``tools/windows/journeys/a11y.json`` (route/tab, optional fixture player, readiness
+``waitfor`` steps, optional setup steps such as opening a flyout). For every page the runner holds the
+shared ``desktop`` lock once (≤300 s), optionally applies a system accessibility mode, launches this
+worktree's build against the anonymized loopback fixture (``rivals_fixture.py``) with isolated settings
+and app data, then for each window size: resize → setup → ready → screenshot → Axe.Windows scan → Tab
+walk. System modes change the operator's real desktop, so they are applied inside the lock and the
+previous values are always restored before it is released.
+
+Modes: ``normal``; ``hc-aquatic``, ``hc-desert``, ``hc-dusk``, ``hc-night-sky`` (contrast themes);
+``text-150``, ``text-225`` (text size); ``no-animations`` (Animation effects off); ``no-transparency``;
+``app-reduced`` (in-app Reduce Motion + Disable Animated Artwork + Save Data).
+
+Outputs in ``--out``: ``<page>-<size>[-<mode>].png``, ``results.json`` and ``summary.md`` (page × size:
+Axe errors, tab stops, stops outside the app, repeated stops). Exit code 1 when any page failed to load
+or (with ``--scan``) any scan reported errors.
+
+Usage::
+
+    python tools/windows/a11y_matrix.py --out out/a11y --scan --tabs 30
+    python tools/windows/a11y_matrix.py --only songs,settings --sizes compact --mode hc-desert --out out/hc
+    python tools/windows/a11y_matrix.py --pages tools/windows/journeys/a11y-keyboard.json --sizes medium --out out/kb
+"""
+
+from __future__ import annotations
+
+import argparse
+import contextlib
+import json
+import re
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import uiwin  # noqa: E402  (sibling tool; provides the lock, driver and step parser)
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+PAGES = REPO_ROOT / "tools" / "windows" / "journeys" / "a11y.json"
+FIXTURE = REPO_ROOT / "tools" / "windows" / "rivals_fixture.py"
+DEBUG_EXE = (REPO_ROOT / "windows" / "Festival.App" / "bin" / "x64" / "Debug" /
+             "net9.0-windows10.0.26100.0" / "win-x64" / "FestivalScoreTracker.exe")
+
+# region Modes (pure, unit-tested)
+
+#: Mode → system settings (``FstUia sysset``) and in-app settings seeded into settings.json.
+MODES: dict[str, dict] = {
+    "normal": {},
+    "hc-aquatic": {"system": {"high_contrast": "aquatic"}},
+    "hc-desert": {"system": {"high_contrast": "desert"}},
+    "hc-dusk": {"system": {"high_contrast": "dusk"}},
+    "hc-night-sky": {"system": {"high_contrast": "night-sky"}},
+    "text-150": {"system": {"text_scale": 150}},
+    "text-225": {"system": {"text_scale": 225}},
+    "no-animations": {"system": {"animations": False}},
+    "no-transparency": {"system": {"transparency": False}},
+    "app-reduced": {"app": {"reduceMotion": True, "disableAnimatedArtwork": True, "saveData": True}},
+}
+
+
+def restore_values(previous: dict, applied: dict) -> dict:
+    """The subset of ``previous`` settings that ``applied`` changed (what to restore).
+
+    Args:
+        previous: ``sysset`` ``previous`` values.
+        applied: Settings that were set.
+
+    Returns:
+        ``{key: previous value}`` for every applied key.
+    """
+    return {key: previous[key] for key in applied if key in previous}
+
+
+def page_steps(page: dict, size: str, out: Path, suffix: str, scan: bool, tabs: int) -> list[str]:
+    """Drive steps for one page at one size.
+
+    Args:
+        page: Page definition: ``ready`` steps, optional ``setup`` (before ready), ``after_ready``
+            (e.g. open a flyout), ``teardown`` (e.g. Esc) and ``tabs``.
+        size: Window preset.
+        out: Output directory.
+        suffix: File-name suffix for the mode (``""`` for normal).
+        scan: Run an Axe.Windows scan.
+        tabs: Default Tab presses (page ``tabs`` overrides; 0 skips the walk).
+
+    Returns:
+        Step strings for ``uiwin.parse_step``.
+    """
+    stem = f"{page['name']}-{size}{suffix}"
+    steps = [f"resize:{size}", "wait:1.5", *page.get("setup", []), *page.get("ready", []),
+             *page.get("after_ready", []), "wait:0.5",
+             f"shot:{out / (stem + '.png')}"]
+    if scan:
+        steps.append(f"scan:{out / 'axe' / stem}")
+    count = page.get("tabs", tabs)
+    if count:
+        steps.append(f"tabwalk:{count}")
+    steps.extend(page.get("teardown", []))
+    return steps
+
+
+def summarize_focus(focus: list[dict]) -> dict:
+    """Tab-walk statistics for one size.
+
+    Args:
+        focus: ``tabwalk`` entries.
+
+    Returns:
+        Unique in-app stops, stops outside the app, consecutive repeats (possible traps) and the order.
+    """
+    order: list[str] = []
+    for entry in focus:
+        label = entry.get("id") or entry.get("name") or entry.get("type") or "?"
+        if entry.get("in_window") and label not in order:
+            order.append(label)
+    return {"stops": len(order), "outside": sum(1 for e in focus if not e.get("in_window")),
+            "repeats": sum(1 for e in focus if e.get("repeat")), "order": order}
+
+
+def summary_table(results: list[dict]) -> str:
+    """Markdown summary of a run.
+
+    Args:
+        results: Per page × size records.
+
+    Returns:
+        Markdown table text.
+    """
+    lines = ["| Page | Size | Mode | Loaded | Axe errors | Tab stops | Outside app | Repeats |",
+             "|---|---|---|---|---|---|---|---|"]
+    for r in results:
+        focus = r.get("focus") or {}
+        axe = "–" if r.get("axe_errors") is None else str(r["axe_errors"])
+        lines.append(f"| {r['page']} | {r['size']} | {r['mode']} | {'yes' if r['ok'] else 'NO: ' + r.get('error', '')[:60]} "
+                     f"| {axe} | {focus.get('stops', '–')} | {focus.get('outside', '–')} | {focus.get('repeats', '–')} |")
+    return "\n".join(lines) + "\n"
+
+# endregion
+
+# region Runner
+
+
+def start_fixture(log: Path) -> tuple[subprocess.Popen, int]:
+    """Start the anonymized fixture service on a free loopback port.
+
+    Args:
+        log: Service output file.
+
+    Returns:
+        Process and port.
+
+    Raises:
+        RuntimeError: No port reported within 20 s.
+    """
+    handle = log.open("w", encoding="utf-8")
+    proc = subprocess.Popen([sys.executable, "-u", str(FIXTURE), "--port", "0"], stdout=handle, stderr=subprocess.STDOUT)
+    for _ in range(200):
+        match = re.search(r"127\.0\.0\.1:(\d+)", log.read_text(encoding="utf-8", errors="replace"))
+        if match:
+            return proc, int(match.group(1))
+        time.sleep(0.1)
+    proc.kill()
+    raise RuntimeError(f"fixture service did not start; see {log}")
+
+
+def run_page(page: dict, mode: str, sizes: list[str], exe: Path, port: int, out: Path, scan: bool,
+             tabs: int, hold: float) -> list[dict]:
+    """Run one page at every size; each size is a fresh launch under its own desktop-lock hold.
+
+    A fresh launch per size keeps sizes independent (a Tab walk scrolls content and moves focus).
+
+    Args:
+        page: Page definition.
+        mode: Mode name (``MODES``).
+        sizes: Window presets.
+        exe: App executable.
+        port: Fixture port.
+        out: Output directory.
+        scan: Run Axe.Windows scans.
+        tabs: Default Tab presses.
+        hold: Lock hold seconds.
+
+    Returns:
+        One record per size.
+    """
+    return [run_size(page, mode, size, exe, port, out, scan, tabs, hold) for size in sizes]
+
+
+def run_size(page: dict, mode: str, size: str, exe: Path, port: int, out: Path, scan: bool, tabs: int,
+             hold: float) -> dict:
+    """Launch, check and close one page at one size (see :func:`run_page`)."""
+    spec = MODES[mode]
+    suffix = "" if mode == "normal" else f"-{mode}"
+    state = Path(tempfile.mkdtemp(prefix=f"fst-a11y-{page['name']}-"))
+    settings = state / "settings.json"
+    if spec.get("app") or page.get("settings"):
+        settings.write_text(json.dumps({**page.get("settings", {}), **spec.get("app", {})}), encoding="utf-8")
+    env = {"FST_DEBUG_DATA_DIR": str(state / "data")}
+    if page.get("profile"):
+        env["FST_DEBUG_PROFILE"] = page["profile"]
+    else:
+        env["FST_DEBUG_ANONYMOUS"] = "1"
+    env.update(uiwin.launch_env(page.get("tab"), page.get("route"), None))
+    args = ["--base-url", f"http://127.0.0.1:{port}/", f"--first-run={page.get('first_run', 'off')}",
+            f"--settings-path={settings}"]
+    record: dict = {"page": page["name"], "size": size, "mode": mode, "ok": False}
+    lock = uiwin.HostLock("desktop", purpose=f"a11y {page['name']} {size} {mode} [{REPO_ROOT.name}]",
+                          hold_seconds=hold, wait_seconds=1800)
+    with lock:
+        applied = spec.get("system") or {}
+        previous: dict = {}
+        pid = None
+        try:
+            if applied:
+                previous = restore_values(uiwin.run_driver({"command": "sysset", "set": applied}, lock)["previous"],
+                                          applied)
+            launched = uiwin.run_driver({"command": "launch", "exe": str(exe), "args": args, "env": env,
+                                         "timeout": 30}, lock)
+            pid = launched["pid"]
+            steps = [uiwin.parse_step(s) for s in page_steps(page, size, out, suffix, scan, tabs)]
+            result = uiwin.run_driver({"command": "drive", "pid": pid, "steps": steps}, lock,
+                                      budget=lock.remaining())
+            record["ok"] = True
+            scans = result.get("scans") or []
+            if scans:
+                record["axe_errors"] = scans[0]["errors"]
+                record["axe_findings"] = scans[0]["findings"]
+            if "focus" in result:
+                record["focus"] = summarize_focus(result["focus"])
+                record["focus_raw"] = [e["line"] for e in result["focus"]]
+            record["window"] = {k: result.get(k) for k in ("bounds_epx", "scale")}
+        except RuntimeError as error:
+            record["error"] = str(error)
+            if pid:
+                try:
+                    uiwin.run_driver({"command": "shot", "pid": pid,
+                                      "out": str(out / f"{page['name']}-{size}{suffix}-failure.png")}, lock)
+                except RuntimeError:
+                    pass
+        finally:
+            if pid:
+                try:
+                    uiwin.run_driver({"command": "close", "pid": pid}, lock)
+                except RuntimeError as error:
+                    print(f"warning: close failed: {error}", file=sys.stderr)
+            if previous:
+                uiwin.run_driver({"command": "sysset", "set": previous}, lock)
+    print(f"{'PASS' if record['ok'] else 'FAIL'} {page['name']} {size} {mode}"
+          + (f" axe={record.get('axe_errors')}" if scan and record["ok"] else "")
+          + (f": {record.get('error')}" if not record["ok"] else ""), flush=True)
+    return record
+
+
+def main(argv: list[str] | None = None) -> int:
+    """CLI entry point.
+
+    Args:
+        argv: Arguments (default ``sys.argv[1:]``).
+
+    Returns:
+        0 when every page loaded (and scans were clean with ``--scan``), 1 otherwise.
+    """
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--only", help="comma-separated page names")
+    parser.add_argument("--sizes", default="compact,medium,wide")
+    parser.add_argument("--mode", default="normal", choices=sorted(MODES))
+    parser.add_argument("--scan", action="store_true", help="run Axe.Windows at every page/size")
+    parser.add_argument("--tabs", type=int, default=0, help="Tab presses per page/size (0: no walk)")
+    parser.add_argument("--exe", type=Path, default=DEBUG_EXE)
+    parser.add_argument("--hold", type=float, default=300.0)
+    parser.add_argument("--pages", type=Path, default=PAGES,
+                        help="page list (e.g. journeys/a11y-keyboard.json: assertfocus journeys, run without --scan)")
+    args = parser.parse_args(argv)
+    if not args.exe.is_file():
+        print(f"error: build first (tools/windows/build.ps1); no {args.exe}", file=sys.stderr)
+        return 1
+    out = args.out.resolve()
+    (out / "axe").mkdir(parents=True, exist_ok=True)
+    pages = json.loads(args.pages.read_text(encoding="utf-8"))
+    if args.only:
+        wanted = set(args.only.split(","))
+        pages = [p for p in pages if p["name"] in wanted]
+    sizes = [s for s in args.sizes.split(",") if s]
+    fixture, port = start_fixture(out / "fixture-service.log")
+    results: list[dict] = []
+    try:
+        # Driver step logs (every focus stop) go to a file; the console gets one line per page and size.
+        with (out / "driver.log").open("a", encoding="utf-8") as log, contextlib.redirect_stderr(log):
+            for page in pages:
+                page_sizes = [s for s in sizes if s in page.get("sizes", sizes)]
+                results.extend(run_page(page, args.mode, page_sizes, args.exe.resolve(), port, out, args.scan,
+                                        args.tabs, args.hold))
+    finally:
+        fixture.kill()
+    name = "results.json" if args.mode == "normal" else f"results-{args.mode}.json"
+    (out / name).write_text(json.dumps(results, indent=2), encoding="utf-8")
+    (out / name.replace(".json", ".md").replace("results", "summary")).write_text(summary_table(results),
+                                                                                 encoding="utf-8")
+    print(summary_table(results))
+    failed = [r for r in results if not r["ok"] or (args.scan and r.get("axe_errors"))]
+    return 1 if failed else 0
+
+# endregion
+
+
+if __name__ == "__main__":
+    sys.exit(main())

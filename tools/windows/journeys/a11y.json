@@ -1,0 +1,199 @@
+[
+  {
+    "name": "songs",
+    "tab": "songs",
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ]
+  },
+  {
+    "name": "songs-selected",
+    "tab": "songs",
+    "profile": "fixture-player-1:Demo Player",
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ]
+  },
+  {
+    "name": "song-detail",
+    "route": "/songs/fixture-pulse",
+    "profile": "fixture-player-1:Demo Player",
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20"
+    ]
+  },
+  {
+    "name": "song-leaderboard",
+    "route": "/songs/fixture-pulse/Solo_Guitar",
+    "ready": [
+      "waitfor:id=fst.song-leaderboard.list@20"
+    ]
+  },
+  {
+    "name": "player-history",
+    "route": "/songs/fixture-pulse/Solo_Guitar/history",
+    "profile": "fixture-player-1:Demo Player",
+    "ready": [
+      "waitfor:id=fst.history.subtitle@20"
+    ]
+  },
+  {
+    "name": "song-band-leaderboard",
+    "route": "/songs/fixture-pulse/bands/Band_Duets",
+    "ready": [
+      "waitfor:id=fst.song-band-leaderboard.list@20"
+    ]
+  },
+  {
+    "name": "shop",
+    "route": "/shop",
+    "ready": [
+      "waitfor:id=fst.shop.list@20"
+    ]
+  },
+  {
+    "name": "suggestions",
+    "route": "/suggestions",
+    "profile": "fixture-player-1:Demo Player",
+    "ready": [
+      "waitfor:id=fst.suggestions.list@25"
+    ]
+  },
+  {
+    "name": "leaderboards",
+    "route": "/leaderboards",
+    "ready": [
+      "waitfor:id=fst.leaderboards.card.Solo_Guitar@20"
+    ]
+  },
+  {
+    "name": "full-rankings",
+    "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "ready": [
+      "waitfor:id=fst.full-rankings.page-info@20"
+    ]
+  },
+  {
+    "name": "band-rankings",
+    "route": "/leaderboards/bands/Band_Duets",
+    "ready": [
+      "waitfor:id=fst.band-rankings.page-info@20"
+    ]
+  },
+  {
+    "name": "compete",
+    "route": "/compete",
+    "profile": "fixture-player-1:Demo Player",
+    "ready": [
+      "wait:4"
+    ]
+  },
+  {
+    "name": "rivals",
+    "route": "/rivals",
+    "profile": "fixture-player-1:Demo Player",
+    "ready": [
+      "waitfor:id=fst.rivals.section.common@20"
+    ]
+  },
+  {
+    "name": "all-rivals",
+    "route": "/rivals/all",
+    "profile": "fixture-player-1:Demo Player",
+    "ready": [
+      "waitfor:id=fst.all-rivals.list@20"
+    ]
+  },
+  {
+    "name": "rival-detail",
+    "route": "/rivals/408abb67d81446f0ac714506950ce178",
+    "profile": "fixture-player-1:Demo Player",
+    "ready": [
+      "waitfor:id=fst.rival-detail.title@20"
+    ]
+  },
+  {
+    "name": "rivalry",
+    "route": "/rivals/408abb67d81446f0ac714506950ce178/rivalry",
+    "profile": "fixture-player-1:Demo Player",
+    "ready": [
+      "waitfor:id=fst.rivalry.list@20"
+    ]
+  },
+  {
+    "name": "statistics",
+    "route": "/statistics",
+    "profile": "fixture-player-1:Demo Player",
+    "ready": [
+      "waitfor:id=fst.player.name@20"
+    ]
+  },
+  {
+    "name": "player",
+    "route": "/player/fixture-player-2",
+    "profile": "fixture-player-1:Demo Player",
+    "ready": [
+      "waitfor:id=fst.player.name@20"
+    ]
+  },
+  {
+    "name": "bands",
+    "route": "/bands",
+    "profile": "fixture-player-1:Demo Player",
+    "ready": [
+      "waitfor:id=fst.bands.title@20"
+    ]
+  },
+  {
+    "name": "player-bands",
+    "route": "/bands/player/fixture-player-1",
+    "ready": [
+      "waitfor:id=fst.player-bands.row.fixture-band-1@20"
+    ]
+  },
+  {
+    "name": "band-detail",
+    "route": "/bands/fixture-band-1?bandType=Band_Duets&teamKey=fixture-team-1",
+    "ready": [
+      "waitfor:id=fst.band.title@20"
+    ]
+  },
+  {
+    "name": "search",
+    "route": "/search?q=Fixture",
+    "ready": [
+      "waitfor:id=fst.global-search.section.songs@20"
+    ]
+  },
+  {
+    "name": "settings",
+    "tab": "settings",
+    "profile": "fixture-player-1:Demo Player",
+    "ready": [
+      "waitfor:id=fst.settings.show-instrument-icons@20"
+    ]
+  },
+  {
+    "name": "licenses",
+    "route": "/settings/licenses",
+    "ready": [
+      "waitfor:id=fst.licenses.packages@20"
+    ]
+  },
+  {
+    "name": "profile-flyout",
+    "tab": "songs",
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "setup": [],
+    "after_ready": [
+      "invoke:id=fst.shell.profile",
+      "waitfor:id=fst.profile.search@5"
+    ],
+    "teardown": [
+      "key:esc",
+      "wait:0.5"
+    ]
+  }
+]

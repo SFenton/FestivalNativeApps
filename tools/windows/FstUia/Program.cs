@@ -83,7 +83,7 @@ public static class Program
 /// <summary>Executes launch/window/resize/shot/tree/drive/front/close requests.</summary>
 /// <param name="automation">Shared UIA3 automation instance.</param>
 /// <param name="response">Response object (steps append to <c>log</c>).</param>
-internal sealed class Driver(UIA3Automation automation, JsonObject response)
+internal sealed partial class Driver(UIA3Automation automation, JsonObject response)
 {
     #region Dispatch
 
@@ -112,6 +112,8 @@ internal sealed class Driver(UIA3Automation automation, JsonObject response)
                 "drive" => Drive(FindWindow(request), request["steps"]!.AsArray()),
                 "front" => Front(FindWindow(request)),
                 "close" => Close(request),
+                "sysset" => SysSet(request),
+                "scan" => Scan(FindWindow(request), (string)request["out"]!, (string?)request["scanid"] ?? "scan"),
                 _ => throw new ArgumentException($"unknown command {command}"),
             };
         }
@@ -405,7 +407,7 @@ internal sealed class Driver(UIA3Automation automation, JsonObject response)
         return new JsonObject { ["nodes"] = count, ["out"] = output, ["text"] = output is null ? text.ToString() : null };
     }
 
-    private static string Line(AutomationElement e)
+    internal static string Line(AutomationElement e)
     {
         var p = e.Properties;
         var r = p.BoundingRectangle.ValueOrDefault;
@@ -425,6 +427,7 @@ internal sealed class Driver(UIA3Automation automation, JsonObject response)
         return $"{p.ControlType.ValueOrDefault} \"{p.Name.ValueOrDefault}\" id={p.AutomationId.ValueOrDefault} " +
                $"class={p.ClassName.ValueOrDefault} rect={r.X},{r.Y},{r.Width},{r.Height}" +
                (p.HelpText.ValueOrDefault is { Length: > 0 } help ? $" help=\"{help}\"" : "") +
+               A11yFlags(e) +
                (flags.Count > 0 ? $" [{string.Join(",", flags)}]" : "") +
                (patterns.Count > 0 ? $" patterns={string.Join(",", patterns)}" : "");
     }
@@ -434,7 +437,7 @@ internal sealed class Driver(UIA3Automation automation, JsonObject response)
     #region Drive
 
     /// <summary>Steps that send real mouse/keyboard input and so need the target in front.</summary>
-    private static readonly HashSet<string> InputVerbs = ["click", "rightclick", "type", "key", "scroll"];
+    private static readonly HashSet<string> InputVerbs = ["click", "rightclick", "type", "key", "scroll", "tabwalk"];
 
     private JsonNode Drive(Window window, JsonArray steps)
     {
@@ -448,7 +451,14 @@ internal sealed class Driver(UIA3Automation automation, JsonObject response)
             RunStep(window, verb, arg, step);
             Log($"ok {verb}:{arg}");
         }
-        return Describe(window);
+        var result = Describe(window).AsObject();
+        foreach (var key in new[] { "focus", "scans" })
+        {
+            if (response[key] is not JsonArray collected) continue;
+            response.Remove(key);
+            result[key] = collected;
+        }
+        return result;
     }
 
     private void RunStep(Window window, string verb, string arg, JsonObject step)
@@ -508,6 +518,15 @@ internal sealed class Driver(UIA3Automation automation, JsonObject response)
             case "resize":
                 Resize(window, step["op"]!.AsObject());
                 break;
+            case "tabwalk":
+                TabWalk(window, step);
+                break;
+            case "assertfocus":
+                AssertFocus(window, step);
+                break;
+            case "scan":
+                ScanStep(window, arg);
+                break;
             default:
                 throw new ArgumentException($"unknown step {verb}");
         }
@@ -530,7 +549,7 @@ internal sealed class Driver(UIA3Automation automation, JsonObject response)
         Mouse.Click(point, button);
     }
 
-    private AutomationElement Find(Window window, JsonObject step)
+    internal AutomationElement Find(Window window, JsonObject step)
     {
         var selector = step["selector"]!.AsObject();
         var kind = (string)selector["kind"]!;

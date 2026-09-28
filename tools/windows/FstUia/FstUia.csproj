@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <PackageReference Include="FlaUI.UIA3" Version="5.0.0" />
+    <PackageReference Include="Axe.Windows" Version="2.4.2" />
   </ItemGroup>
 
 </Project>
