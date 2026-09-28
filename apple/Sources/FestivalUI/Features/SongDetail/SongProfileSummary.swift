@@ -34,10 +34,10 @@ struct SongProfileSummary: View {
                     .foregroundStyle(BrandTokens.gold)
             case .loading:
                 Label("Loading \(player.displayName)'s scores", systemImage: "hourglass")
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
             case .syncing:
                 Label("Player scores are syncing", systemImage: "arrow.triangle.2.circlepath")
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
             case .failed:
                 Label("Player scores unavailable", systemImage: "exclamationmark.triangle")
                     .foregroundStyle(BrandTokens.gold)
@@ -47,7 +47,7 @@ struct SongProfileSummary: View {
                         .foregroundStyle(BrandTokens.gold)
                 } else if let chart, !chartAvailable {
                     Text("\(chart.label) is not charted for this song")
-                        .foregroundStyle(BrandTokens.textSecondary)
+                        .foregroundStyle(FestivalText.primary)
                 } else if let chart, let score, score.score > 0 {
                     let labels = Result {
                         try SongProfileCardPolicy.labels(
@@ -57,7 +57,7 @@ struct SongProfileSummary: View {
                     switch labels {
                     case let .success(values):
                         Text(values.joined(separator: " · "))
-                            .foregroundStyle(BrandTokens.textPrimary)
+                            .foregroundStyle(FestivalText.primary)
                             .fixedSize(horizontal: false, vertical: true)
                     case let .failure(error):
                         Text("Player score metadata unavailable: \(error.localizedDescription)")
@@ -65,7 +65,7 @@ struct SongProfileSummary: View {
                     }
                 } else if let chart {
                     Text("No \(chart.label) score for \(player.displayName)")
-                        .foregroundStyle(BrandTokens.textSecondary)
+                        .foregroundStyle(FestivalText.primary)
                 } else {
                     Text("No visible instrument in Settings")
                         .foregroundStyle(BrandTokens.gold)

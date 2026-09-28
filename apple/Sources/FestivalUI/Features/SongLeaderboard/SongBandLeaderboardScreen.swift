@@ -52,7 +52,7 @@ struct SongBandLeaderboardScreen: View {
                     List {
                         if payload.leaderboard.entries.isEmpty {
                             Text("No \(bandType.label.lowercased()) scores yet.")
-                                .foregroundStyle(BrandTokens.textSecondary)
+                                .foregroundStyle(FestivalText.primary)
                                 .listRowBackground(Color.clear)
                         }
                         ForEach(payload.leaderboard.entries) { entry in
@@ -152,17 +152,17 @@ struct SongBandLeaderboardRow: View {
                     Text("#\(entry.rank.formatted())")
                         .font(.body)
                         .monospacedDigit()
-                        .foregroundStyle(BrandTokens.textSecondary)
+                        .foregroundStyle(FestivalText.primary)
                         .frame(minWidth: 32, alignment: .trailing)
                     Text(entry.membersLabel)
                         .font(.body)
-                        .foregroundStyle(BrandTokens.textPrimary)
+                        .foregroundStyle(FestivalText.primary)
                         .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Text(entry.score.formatted())
                         .font(.body.weight(.semibold))
                         .monospacedDigit()
-                        .foregroundStyle(BrandTokens.textPrimary)
+                        .foregroundStyle(FestivalText.primary)
                 }
                 HStack(spacing: 12) {
                     ForEach(entry.members) { member in
@@ -176,7 +176,7 @@ struct SongBandLeaderboardRow: View {
                     if entry.isFullCombo {
                         Text("FC")
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(BrandTokens.textPrimary)
+                            .foregroundStyle(FestivalText.primary)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .overlay(
@@ -184,9 +184,7 @@ struct SongBandLeaderboardRow: View {
                             )
                     }
                     if entry.stars > 0 {
-                        Label("\(entry.stars)", systemImage: "star.fill")
-                            .font(.caption)
-                            .foregroundStyle(BrandTokens.textSecondary)
+                        StarRating(stars: entry.stars)
                     }
                 }
             }

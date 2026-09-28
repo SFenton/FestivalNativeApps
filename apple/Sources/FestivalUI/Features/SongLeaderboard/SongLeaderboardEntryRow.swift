@@ -14,7 +14,7 @@ struct SongLeaderboardEntryRow: View {
         let rank = Text("#\(entry.rank.formatted())")
             .font(.body)
             .monospacedDigit()
-            .foregroundStyle(BrandTokens.textPrimary)
+            .foregroundStyle(FestivalText.primary)
         let name = Text(
             entry.displayName.flatMap { $0.isEmpty ? nil : $0 } ?? "Unknown User"
         )
@@ -45,7 +45,7 @@ struct SongLeaderboardEntryRow: View {
                     case let .failure(error):
                         Text("Accuracy unavailable: \(error.localizedDescription)")
                             .font(.body)
-                            .foregroundStyle(BrandTokens.textPrimary)
+                            .foregroundStyle(FestivalText.primary)
                             .accessibilityIdentifier("fst.score.accuracy.\(entry.accountId)")
                     case let .success(tint):
                         let fullCombo = entry.isFullCombo == true
@@ -106,7 +106,7 @@ struct SongLeaderboardEntryRow: View {
         let compact = !dynamicTypeSize.isAccessibilitySize
         let pill = Text(text)
             .font(fullCombo ? .body.bold().italic() : .body)
-            .foregroundStyle(fullCombo ? BrandTokens.gold : BrandTokens.textPrimary)
+            .foregroundStyle(fullCombo ? BrandTokens.gold : FestivalText.primary)
             .lineLimit(compact ? 1 : nil)
             .minimumScaleFactor(0.8)
             .fixedSize(horizontal: false, vertical: !compact)
@@ -124,12 +124,15 @@ struct SongLeaderboardEntryRow: View {
         if fullCombo && compact {
             // Skew only the drawing: the accessibility frame stays the unskewed
             // column slot, so FC and graded badges keep one aligned column.
+            // The skewed drawing is hidden from accessibility entirely, because a
+            // container's accessibility frame unions its children's drawn bounds.
             Color.clear
                 .frame(width: accuracyTextWidth + 16, height: accuracyPillHeight)
                 .overlay {
                     pill.transformEffect(Self.goldSkew(height: accuracyPillHeight))
+                        .accessibilityHidden(true)
                 }
-                .accessibilityElement(children: .ignore)
+                .accessibilityElement()
                 .accessibilityAddTraits(.isStaticText)
                 .accessibilityLabel(spoken)
                 .accessibilityIdentifier("fst.score.accuracy.\(entry.accountId)")

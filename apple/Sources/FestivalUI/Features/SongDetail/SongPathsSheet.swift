@@ -79,7 +79,7 @@ struct SongPathsSheet: View {
             HStack(spacing: 12) {
                 Text("Paths")
                     .font(.title2.bold())
-                    .foregroundStyle(BrandTokens.textPrimary)
+                    .foregroundStyle(FestivalText.primary)
                     .accessibilityAddTraits(.isHeader)
                 Spacer()
                 Button {
@@ -87,7 +87,7 @@ struct SongPathsSheet: View {
                 } label: {
                     Label("Close", systemImage: "xmark")
                         .font(.body)
-                        .foregroundStyle(BrandTokens.textPrimary)
+                        .foregroundStyle(FestivalText.primary)
                         .padding(.horizontal, 12)
                         .frame(minHeight: 44)
                         .background(
@@ -183,14 +183,14 @@ struct SongPathsSheet: View {
                         Text(payload.path.pathSummary.isEmpty
                             ? "No path summary provided" : payload.path.pathSummary)
                             .font(.headline)
-                            .foregroundStyle(BrandTokens.textPrimary)
+                            .foregroundStyle(FestivalText.primary)
                             .accessibilityIdentifier("fst.paths.text-summary")
                         Text("Max score: \(payload.path.totalScore.formatted())")
-                            .foregroundStyle(BrandTokens.textPrimary)
+                            .foregroundStyle(FestivalText.primary)
                         let rows = payload.rows
                         if rows.isEmpty {
                             Text("No path activations for this chart")
-                                .foregroundStyle(BrandTokens.textPrimary)
+                                .foregroundStyle(FestivalText.primary)
                         }
                         ForEach(rows, id: \.number) { row in
                             activationCard(row)
@@ -219,7 +219,7 @@ struct SongPathsSheet: View {
             Label(title, systemImage: symbol)
                 .font(.body)
                 .foregroundStyle(
-                    enabled ? BrandTokens.textPrimary : BrandTokens.textSecondary
+                    enabled ? FestivalText.primary : FestivalText.disabled
                 )
                 .padding(.horizontal, 10)
                 .frame(minHeight: 44)
@@ -287,7 +287,7 @@ struct SongPathsSheet: View {
             }
         }
         .font(.subheadline)
-        .foregroundStyle(BrandTokens.textPrimary)
+        .foregroundStyle(FestivalText.primary)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
         .background(
@@ -311,7 +311,7 @@ struct SongPathsSheet: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(key.label)
                     .font(.caption)
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
                 HStack(spacing: 4) {
                     ForEach(["green", "red", "yellow", "blue", "orange"], id: \.self) { fret in
                         RoundedRectangle(cornerRadius: 5)
@@ -341,7 +341,7 @@ struct SongPathsSheet: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(key.label)
                     .font(.caption)
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
                 Text(row.beat.formatted(.number.precision(.fractionLength(2))))
                     .monospacedDigit()
             }
@@ -350,7 +350,7 @@ struct SongPathsSheet: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(key.label)
                     .font(.caption)
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
                 Text(Self.time(row.seconds))
                     .monospacedDigit()
             }
@@ -359,7 +359,7 @@ struct SongPathsSheet: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Overdrive %")
                     .font(.caption)
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
                 if let amount = row.odPercent {
                     HStack(spacing: 6) {
                         ProgressView(value: amount, total: 100)
@@ -378,7 +378,7 @@ struct SongPathsSheet: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(key.label)
                     .font(.caption)
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
                 Text(row.scoreBeforeActivation.map { $0.formatted() } ?? "Unavailable")
                     .monospacedDigit()
             }

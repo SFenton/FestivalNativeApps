@@ -60,7 +60,7 @@ struct SongScorePreview: View {
                 case let .failed(message):
                     Text("Scores unavailable: \(message)")
                         .font(.body)
-                        .foregroundStyle(BrandTokens.textPrimary)
+                        .foregroundStyle(FestivalText.primary)
                         .fixedSize(horizontal: false, vertical: true)
                     Button("Retry \(instrument.label) scores") {
                         Task { await load() }
@@ -99,7 +99,7 @@ struct SongScorePreview: View {
             .accessibilityHidden(true)
             Text(instrument.label)
                 .font(.title3.bold())
-                .foregroundStyle(BrandTokens.textPrimary)
+                .foregroundStyle(FestivalText.primary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -117,7 +117,7 @@ struct SongScorePreview: View {
         NavigationLink(value: AppRoute.songLeaderboard(song, instrument, 1)) {
             Text("View full leaderboard")
                 .font(.body.weight(.semibold))
-                .foregroundStyle(BrandTokens.textPrimary)
+                .foregroundStyle(FestivalText.primary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .padding(.horizontal, 12)
@@ -147,7 +147,7 @@ struct SongScorePreview: View {
                 systemImage: "chart.line.uptrend.xyaxis"
             )
             .font(.body)
-            .foregroundStyle(BrandTokens.textPrimary)
+            .foregroundStyle(FestivalText.primary)
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .padding(.horizontal, 12)
             .background(
@@ -176,11 +176,11 @@ struct SongScorePreview: View {
         if payload.leaderboard.showLeaderboardEntryTotals == true {
             Text("\(payload.leaderboard.totalEntries) \(instrument.label) entries")
                 .font(.subheadline)
-                .foregroundStyle(BrandTokens.textPrimary)
+                .foregroundStyle(FestivalText.primary)
         }
         if payload.leaderboard.entries.isEmpty {
             Text("No \(instrument.label) scores yet")
-                .foregroundStyle(BrandTokens.textPrimary)
+                .foregroundStyle(FestivalText.primary)
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         } else {
             let displayed = Array(payload.leaderboard.entries.prefix(10))

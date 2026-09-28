@@ -201,7 +201,7 @@ struct ShopScreen: View {
                     .font(.body)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .foregroundStyle(BrandTokens.textPrimary)
+            .foregroundStyle(FestivalText.primary)
             .padding(24)
             .background(
                 BrandTokens.cardBackground,
@@ -308,7 +308,7 @@ struct ShopScreen: View {
                 Link(destination: offer.shopUrl) {
                     Label("Open Official Item Shop", systemImage: "bag")
                         .font(.body)
-                        .foregroundStyle(BrandTokens.textPrimary)
+                        .foregroundStyle(FestivalText.primary)
                         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                         .padding(.horizontal, 12)
                 }
@@ -341,7 +341,7 @@ struct ShopScreen: View {
         Link(destination: offer.shopUrl) {
             Image(systemName: "bag")
                 .font(.body)
-                .foregroundStyle(BrandTokens.textPrimary)
+                .foregroundStyle(FestivalText.primary)
                 .frame(width: ShopRowMetrics.bagSlot, height: ShopRowMetrics.bagSlot)
                 .contentShape(Rectangle())
         }
@@ -367,12 +367,12 @@ struct ShopScreen: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(offer.title)
                     .font(.headline)
-                    .foregroundStyle(BrandTokens.textPrimary)
+                    .foregroundStyle(FestivalText.primary)
                     .lineLimit(large ? nil : 1)
                     .fixedSize(horizontal: false, vertical: large)
                 Text(offer.year.map { "\(offer.artist) · \($0)" } ?? offer.artist)
                     .font(.subheadline)
-                    .foregroundStyle(BrandTokens.textPrimary)
+                    .foregroundStyle(FestivalText.primary)
                     .lineLimit(large ? nil : 1)
                     .fixedSize(horizontal: false, vertical: large)
             }
@@ -386,7 +386,7 @@ struct ShopScreen: View {
             if navigable {
                 Image(systemName: "chevron.right")
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(BrandTokens.textMuted)
+                    .foregroundStyle(FestivalText.deemphasized)
                     .frame(width: ShopRowMetrics.chevronWidth)
                     .accessibilityHidden(true)
             }
@@ -423,7 +423,7 @@ struct ShopScreen: View {
                                 Text(offer.title).font(.headline)
                                 Text(offer.artist).font(.subheadline)
                             }
-                            .foregroundStyle(BrandTokens.textPrimary)
+                            .foregroundStyle(FestivalText.primary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(12)
                         }
@@ -488,7 +488,7 @@ struct ShopScreen: View {
                 if !compact { Text(title) }
             }
             .font(.caption.bold())
-            .foregroundStyle(leaving ? BrandTokens.textPrimary : BrandTokens.gold)
+            .foregroundStyle(leaving ? FestivalText.primary : BrandTokens.gold)
             .padding(6)
             .background(
                 leaving ? BrandTokens.statusRed : BrandTokens.appBackground,

@@ -110,10 +110,10 @@ struct SongDetailScreen: View {
                                 heroTitleHidden = hidden
                             }
                         MarqueeText(song.artist, font: .body)
-                            .foregroundStyle(BrandTokens.textPrimary)
+                            .foregroundStyle(FestivalText.primary)
                         if let year = song.year {
                             Text(year.formatted(.number.grouping(.never)))
-                                .foregroundStyle(BrandTokens.textPrimary)
+                                .foregroundStyle(FestivalText.primary)
                         }
                         if let shopHighlight {
                             Label(
@@ -124,7 +124,7 @@ struct SongDetailScreen: View {
                             .font(.caption.bold())
                             .foregroundStyle(
                                 shopHighlight == .leavingTomorrow
-                                    ? BrandTokens.textPrimary : BrandTokens.gold
+                                    ? FestivalText.primary : BrandTokens.gold
                             )
                             .padding(8)
                             .background(
@@ -261,7 +261,7 @@ extension SongDetailScreen {
             Link(destination: offer.shopUrl) {
                 Image(systemName: "bag")
                     .font(.body.weight(.semibold))
-                    .foregroundStyle(BrandTokens.textPrimary)
+                    .foregroundStyle(FestivalText.primary)
                     .frame(width: 34, height: 34)
                     .modifier(ShopStatusBreathe(tone: tone))
             }
@@ -286,7 +286,7 @@ extension SongDetailScreen {
                 .accessibilityHidden(true)
             Text(song.title)
                 .font(.headline)
-                .foregroundStyle(BrandTokens.textPrimary)
+                .foregroundStyle(FestivalText.primary)
                 .lineLimit(1)
                 .truncationMode(.tail)
         }
