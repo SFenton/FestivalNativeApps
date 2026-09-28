@@ -57,7 +57,7 @@ tools/**                      → orchestrator
 4. **Shared animated background & seamless transitions.**
 5. Testing phases: unit tests as we go → UX tests when a *feature* is complete → accessibility tests when the *app* is complete → VoiceOver testing after that.
 
-Platform order: **iPhone (iOS 26.5) → iPhone Duo → iPadOS → macOS → iPhone on iOS 17 (no Liquid Glass)**. Android/Windows remain in scope; the Windows host is paused by the operator — do not reconnect.
+Platform order: **iPhone (iOS 26.5) → iPhone Duo → iPadOS → macOS → iPhone on iOS 17 (no Liquid Glass)**. Android/Windows run in parallel on the Windows host (resumed 2026-09-28) via `tools/win_relay.py`.
 
 ---
 
@@ -272,7 +272,7 @@ Not yet assigned:
 Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in Device Hub (unfold, partial fold, 3 outer rotations).
 
 - ⬜ iPadOS · ⬜ macOS · ⬜ iPhone iOS 17 classic tab bar
-- ⛔ Android / Windows (Windows host paused by operator)
+- 🟨 Android / Windows — Windows host resumed 2026-09-28; lanes run there via `tools/win_relay.py` (see below)
 
 ---
 
@@ -375,3 +375,4 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Lane L2 | Selected-profile spotlight on Leaderboards overview cards, Full Rankings (+ native jump-to-page footer) and Solo leaderboard (highlight + footer, no extra network read); `RankingSpotlight` pure decision logic + tests; band spotlight skipped (no native selected-band identity); found macOS hosted-snapshot harness renders full-screen pages blank (flagged, not fixed) |
 | 2026-09-28 | Lane L2 | Leaderboards selected-player spotlight + song leaderboard "You" footer |
 | 2026-09-28 | Orchestrator | Launched Lane H: hosted snapshots render full pages nearly blank (coverage may overstate visual evidence) |
+| 2026-09-28 | Orchestrator | Windows host online: SSH verified, toolchains inventoried, `tools/win_relay.py` bundle relay (no GitHub creds on Windows) |
