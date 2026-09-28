@@ -29,4 +29,8 @@
     <None Include="..\..\contracts\fixtures\rivals-all-demo.json" Link="fixtures\rivals-all-demo.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\contracts\fixtures\*band*-demo.json" Link="fixtures\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Suggestions parity fixture + Apple reference output (tools/windows/suggestion_parity). -->
+    <None Include="Fixtures\suggestions-parity*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
