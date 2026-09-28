@@ -31,6 +31,7 @@
 | `/api/player/{accountId}` | allowed (probed live 2026-09-28: 200) | 202 = syncing; 200 ≠ registered/published (`FSTService/Api/PlayerEndpoints.cs:31-51,85-103`, `FSTService/Scraping/ScrapeTimePrecomputer.cs:911-953,2442-2476`) |
 | `/api/player/{accountId}/rivals/{instrument\|combo}[/{rivalId}]`, `/leaderboard-rivals/{instrument}[/{rivalId}]` | allowed (200) | Pure reads (`FSTService/Api/RivalsEndpoints.cs`, `LeaderboardRivalsEndpoints.cs`); 404 = no rivals yet (normalized to empty). `POST …/rivals/recompute` is never called |
 | `/api/player/{accountId}/rivals/all` | allowed (200, probed 2026-09-28) | Pure read (`FSTService/Api/RivalsEndpoints.cs:207-273`): precomputed `rivals-all:{id}` → process cache → `SELECT`s from `user_rivals`/`account_names`; stores bytes only in the in-memory response cache. Precomputed shape has `songs[]` + per-rival `direction`/`samples`; the live fallback omits them and adds `avgSignedDelta` |
+| `/api/rankings/combo?combo=&rankBy=&page=&pageSize=`, `/api/rankings/combo/{accountId}?combo=&rankBy=` | allowed (pure read) | `FSTService/Api/RankingsEndpoints.cs:528-613`: `MetaDatabase.GetComboLeaderboard`/`GetComboRank`/`GetComboTotalAccounts` + display-name `SELECT`s; frozen-miss 503 like other reads. 400 without two instruments; 404 for cross-group combos or an unranked account (treat as empty board/no rank) |
 | band search, band detail (`/api/bands/{bandId}`), bare band team ranking (`/api/rankings/bands/{type}/{teamKey}`), player stats, band sync-status | **blocked** | See hard rules |
 
 ## Public-read freeze
