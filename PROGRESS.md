@@ -111,15 +111,15 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 - ⬜ Player profile page `/player/:accountId` — viewed (unselected) and selected states, select/deselect action
 - ⬜ Profile selection sheet redesign: native, dark glass, "Find Player"/"Find Band", centered "Enter at least…" hint, Title Case headers
 
-**Lane L — Leaderboards** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/leaderboards`
+**Lane L — Leaderboards** (Sonnet) — ✅ landed `f50dce9`…`65e8607`
 - ⬜ Leaderboards overview: top-10 cards per visible instrument (+ band types), metric picker
-- ⬜ Full rankings (paginated) and band rankings
-- ⬜ Song leaderboard page native navigation pass; rows navigate to player profile
+- ✅ Full rankings (paginated) and band rankings
+- ✅ Song leaderboard page native navigation pass; rows navigate to player profile
 
-**Lane B — Shared background & transitions** (Opus) — 🟨 running in `~/repos/FestivalNativeApps-lanes/background`
+**Lane B — Shared background & transitions** (Opus) — ✅ landed `8cd7f00`…`47345fa`
 - ⬜ One animated background hosted by the shell — no restart/jitter across tabs or pushes; Item Shop uses the same one
-- ⬜ Song Detail: animate from the carousel to that song's album art, hold still; animate back on pop/tab change
-- ⬜ Carousel loads independently of the Songs tab
+- ✅ Song Detail: animate from the carousel to that song's album art, hold still; animate back on pop/tab change
+- ✅ Carousel loads independently of the Songs tab
 
 **Lane D — Agent docs architecture** (Opus) — ✅ landed `7c8b6eb`…`0b01884`
 - ✅ Split every multi-platform doc by platform, then form factor (`.agents/<area>/<topic>/{spec,ios,ipados,duo,macos,android,windows}.md`)
@@ -137,10 +137,16 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 **Lane G — Suggestions** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/suggestions`
 - ⬜ Port suggestion algorithms to Core (unit-tested) · ⬜ Suggestions screen + filter sheet
 
+**Lane N — Bands** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/bands`
+- ⬜ Band detail · ⬜ Player bands · ⬜ Bands landing (no band search — it writes) · ⬜ Per-song band leaderboard
+
+**Lane M — Settings completion, Manual, Licenses** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/settings`
+- ⬜ Every web Settings section · ⬜ Licenses · ⬜ Manual (text; screenshots deferred)
+
 Not yet assigned:
 - ⬜ Statistics = selected player's profile page (assigned to Lane P)
-- ⬜ Bands (lookup, detail, player bands, song band leaderboard) · ⬜ Player history
-- ⬜ Settings completion (all web sections) · ⬜ Manual · ⬜ Licenses · ⬜ First-run carousels · ⬜ Notifications
+- ⬜ Player history
+- ⬜ First-run carousels · ⬜ Notifications
 
 ### Wave 3 — quality gates (iPhone)
 - ⬜ UX tests per completed feature (XCUITest + hosted snapshots, ≥90% UX coverage)
@@ -154,6 +160,9 @@ Not yet assigned:
 ---
 
 ## 5. Known issues / decisions
+
+- **Leaderboards follow-ups:** no "your rank" spotlight row, no rank-history chart, no band-combo filter on the overview; per-card loads are sequential.
+- **Background follow-ups:** the brief's plan of drawing once behind transparent pages failed (the iPhone TabView keeps an opaque layer over anything drawn behind it), so each page draws a synced mirror of one shared state. Open issues: a cancelled swipe-back on pages without a `visible` flag briefly fades; going back fades rather than shrinking the art into its tile; the tap-and-push flow is unverified.
 
 - **Build contention:** 7 lanes on a 10-core Mac hit load 169; SwiftPM builds are serialized via `~/.fst-build.lock` (Lane T adding it to `ios_sim.py build`). Keep ≤7 concurrent lanes.
 - **Test-ID families** are registered per page in `contracts/product.json` (`fst.<page>.*`), so new controls don't need registry edits.
@@ -174,3 +183,6 @@ Not yet assigned:
 | 2026-09-27 | Orchestrator | Launched Lanes T (sim driver), R (Rivals/Compete), G (Suggestions); Statistics folded into Lane P |
 | 2026-09-27 | Lane D | `.agents` split by platform/form factor, routers, `check_docs.py` (CI-enforced), single `service-safety.md` |
 | 2026-09-27 | Orchestrator | Unblocked public reads (`b17eac2`), per-page test-ID families, serialized builds (`c972417`) |
+| 2026-09-27 | Lane L | Leaderboards overview, full/band rankings, native song leaderboard with rows → player |
+| 2026-09-27 | Lane B | Shared synced background, song-art zoom transitions, ~4.4% CPU animating / 0% held |
+| 2026-09-27 | Orchestrator | Launched Lanes N (Bands), M (Settings/Manual/Licenses); Remote Control enabled for this session |
