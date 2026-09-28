@@ -8,6 +8,7 @@
 - **Never send selected-profile headers.** The web client adds them to every GET (`FortniteFestivalWeb/src/api/client.ts:73-112`); service middleware touches registrations after responses, and cached responses repeat that path (`FSTService/Api/SelectedProfileActivityMiddleware.cs:47-103`, `FSTService/Api/PublicApiResponseCacheMiddleware.cs:635-653`).
 - **Side-effecting GETs are blocked** until the service owner grants a mutation-free policy. Do not infer safety from the HTTP method, a cache hit or the website's usage:
   - band search: when its projection is absent it deletes/rebuilds/upserts membership state (`FSTService/Persistence/GlobalLeaderboardPersistence.cs:3954-3971,4433-4453`, `FSTService/Persistence/BandLeaderboardPersistence.cs:905-947`);
+  - band detail `GET /api/bands/{bandId}`: `GetBandConfigurations` → `EnsureBandTeamConfigurations` rebuilds band team configuration rows on a cache miss (`FSTService/Persistence/GlobalLeaderboardPersistence.cs:4160,4192`). Natives resolve band detail through `GET /api/rankings/bands/{bandType}?teamKey=` instead;
   - player stats GET can compute and store tiers; band sync-status GET registers bands (`FSTService/Api/PlayerEndpoints.cs:508-546,815-830`, `FSTService/Api/BandSyncEndpoints.cs:10-43`).
   These are source-backed potential effects, not proof they fired in production.
 - Never run profile tracking, name refresh, scrape, maintenance, export or load tests against production. POSTs are fixture-only.
@@ -26,7 +27,7 @@
 | `/api/rankings/*` | allowed (200, re-probed 2026-09-27) | Earlier Cloudflare 1010 denial no longer applies |
 | `/api/account/search?q=&limit=10` | allowed | Re-probed 2026-09-27: 200 keyless. Publication-bound (`FSTService/Api/ApiPublicationClassification.cs:78-84`). An empty envelope is also returned after a logged DB timeout (`FSTService/Persistence/MetaDatabase.cs:3495-3517,3523-3537`) — never proof of no match |
 | `/api/player/{accountId}` | allowed, not yet probed live | 202 = syncing; 200 ≠ registered/published (`FSTService/Api/PlayerEndpoints.cs:31-51,85-103`, `FSTService/Scraping/ScrapeTimePrecomputer.cs:911-953,2442-2476`) |
-| band search, player stats, band sync-status | **blocked** | See hard rules |
+| band search, band detail (`/api/bands/{bandId}`), player stats, band sync-status | **blocked** | See hard rules |
 
 ## Live probes
 
