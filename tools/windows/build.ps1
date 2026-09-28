@@ -22,6 +22,7 @@ if ($Clean) {
     Get-ChildItem $WindowsRoot -Directory -Recurse -Include bin, obj | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 }
 
+Stop-App  # a running instance locks its output folder
 $started = Get-Date
 if ($Configuration -eq 'Debug') {
     if ($Aot) { throw '-Aot requires -Configuration Release.' }

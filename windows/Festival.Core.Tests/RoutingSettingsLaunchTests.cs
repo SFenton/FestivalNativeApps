@@ -228,7 +228,7 @@ public class LaunchAndBackgroundTests
     public void Launch_ParsesFlagsOverEnvironment()
     {
         var options = LaunchOptions.Parse(
-            ["--tab", "settings", "--route=/songs/s1/Solo_Bass?page=2", "--width", "1280", "--height", "9999", "--reduce-motion", "--no-art", "--auto-scroll", "--drift-fps", "30", "stray", "--perf-log", "C:/x.log"],
+            ["--tab", "settings", "--route=/songs/s1/Solo_Bass?page=2", "--width", "1280", "--height", "9999", "--reduce-motion", "--no-art", "--auto-scroll", "--frame-stats", "--drift-fps", "30", "stray", "--perf-log", "C:/x.log"],
             Env(("FST_DEBUG_TAB", "songs"), ("FST_BASE_URL", "http://127.0.0.1:8765/")));
         Assert.Equal(AppSection.Settings, options.Tab);
         Assert.Equal(new AppRoute.SongLeaderboard("s1", Instrument.Bass, 2), options.Route);
@@ -237,6 +237,7 @@ public class LaunchAndBackgroundTests
         Assert.True(options.ReduceMotion);
         Assert.True(options.NoArt);
         Assert.True(options.AutoScroll);
+        Assert.True(options.FrameStats);
         Assert.Equal(30, options.DriftFps);
         Assert.Null(LaunchOptions.Parse(["--drift-fps", "999"], Env()).DriftFps);
         Assert.Equal("C:/x.log", options.PerfLogPath);

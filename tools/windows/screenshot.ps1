@@ -8,6 +8,7 @@
 .PARAMETER Out Output PNG path.
 .PARAMETER MaxKB Size budget; the image is downscaled in 10% steps until it fits (default 300 KB).
 .PARAMETER Delay Seconds to wait after launch before capturing.
+.NOTES Set FST_CAPTURE_PROCESS to capture another process's window (e.g. BenchCpp).
 .PARAMETER Launch Launch first with -Tab/-Route/-Configuration/-Aot/-Fixture/-ExtraArgs.
 .EXAMPLE
     pwsh tools/windows/screenshot.ps1 -Launch -Tab songs -Out windows/reports/screenshots/songs.png
@@ -32,7 +33,7 @@ if ($Launch) {
     & (Join-Path $PSScriptRoot 'launch.ps1') -Configuration $Configuration -Aot:$Aot -Tab $Tab -Route $Route -Fixture:$Fixture -Width $Width -Height $Height -ExtraArgs $ExtraArgs | Out-Host
     Start-Sleep -Seconds $Delay
 }
-if (-not (Get-AppProcess)) { throw 'The app is not running; pass -Launch.' }
+if (-not $env:FST_CAPTURE_PROCESS -and -not (Get-AppProcess)) { throw 'The app is not running; pass -Launch.' }
 $target = [IO.Path]::GetFullPath($Out)
 New-Item -ItemType Directory -Force (Split-Path $target) | Out-Null
 

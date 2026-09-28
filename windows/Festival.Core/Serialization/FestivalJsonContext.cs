@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 
 namespace Festival.Core.Data;
+// Declaration-only: the source generator emits the code, so this lives outside the coverage-gated Data/ folder.
 
 #region Source-generated JSON
 /// <summary>Reflection-free System.Text.Json metadata so the app stays trim- and NativeAOT-safe.</summary>

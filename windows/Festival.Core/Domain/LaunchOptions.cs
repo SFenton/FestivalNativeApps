@@ -8,7 +8,8 @@ namespace Festival.Core.Domain;
 /// Command-line flags win over environment variables:
 /// <c>--tab songs</c>, <c>--route /songs/{id}</c>, <c>--base-url http://127.0.0.1:8765/</c> (loopback only),
 /// <c>--perf-log path</c>, <c>--width 1280 --height 800</c>, <c>--reduce-motion</c>, <c>--no-art</c>,
-/// <c>--auto-scroll</c> (perf scenario: scroll the Songs list continuously), <c>--drift-fps N</c> (background drift steps/s).
+/// <c>--auto-scroll</c> (perf scenario: scroll the Songs list continuously), <c>--drift-fps N</c> (background drift steps/s),
+/// <c>--frame-stats</c> (UI-thread frame intervals in the perf log).
 /// </summary>
 public sealed record LaunchOptions
 {
@@ -38,6 +39,9 @@ public sealed record LaunchOptions
 
     /// <summary>Scrolls the Songs list continuously (frame-delivery perf scenario).</summary>
     public bool AutoScroll { get; init; }
+
+    /// <summary>Logs UI-thread frame intervals to the perf log (measurement only; keeps XAML rendering every frame).</summary>
+    public bool FrameStats { get; init; }
 
     /// <summary>Background drift update rate override (steps per second, 0 = every compositor frame).</summary>
     public int? DriftFps { get; init; }
@@ -72,7 +76,7 @@ public sealed record LaunchOptions
             var equals = name.IndexOf('=');
             if (equals > 0)
                 values[name[..equals]] = name[(equals + 1)..];
-            else if (name is "reduce-motion" or "no-art" or "auto-scroll")
+            else if (name is "reduce-motion" or "no-art" or "auto-scroll" or "frame-stats")
                 flags.Add(name);
             else if (i + 1 < args.Count)
                 values[name] = args[++i];
@@ -118,6 +122,7 @@ public sealed record LaunchOptions
             ReduceMotion = flags.Contains("reduce-motion"),
             NoArt = flags.Contains("no-art"),
             AutoScroll = flags.Contains("auto-scroll"),
+            FrameStats = flags.Contains("frame-stats"),
             DriftFps = int.TryParse(values.GetValueOrDefault("drift-fps"), NumberStyles.None, CultureInfo.InvariantCulture, out var fps) && fps <= 240 ? fps : null,
             Warnings = warnings,
         };

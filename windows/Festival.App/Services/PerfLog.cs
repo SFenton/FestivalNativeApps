@@ -43,6 +43,18 @@ internal static class PerfLog
         }
     }
 
+    /// <summary>Appends a free-form line (repeatable, e.g. periodic frame statistics).</summary>
+    /// <param name="line">Line text.</param>
+    public static void Write(string line)
+    {
+        lock (Gate)
+        {
+            if (path is null) return;
+            Pending.Add(line);
+            Flush();
+        }
+    }
+
     /// <summary>Appends buffered lines (caller holds the lock).</summary>
     private static void Flush()
     {

@@ -7,6 +7,7 @@
       * app CPU % of the whole machine (TotalProcessorTime delta / wall / logical cores) and dwm.exe CPU;
       * private and total working set (average and peak);
       * app GPU 3D engine utilization (\GPU Engine(pid_*_engtype_3D)\Utilization Percentage);
+      * scroll scenario: UI-thread frame intervals from the app's --frame-stats (first 5 s window skipped);
       * with -PresentMon: frames presented, FPS and frame-interval p50/p95/p99 (PresentMon 2.x CSV).
     Writes windows\.artifacts\perf\<label>.json and prints one summary line. Uses only this app's process.
 .PARAMETER Scenario animated (Songs + carousel), scroll (animated + list auto-scroll), static (reduced motion),
@@ -45,7 +46,7 @@ $extra = @('--perf-log', $log) + $ExtraArgs
 $tab = 'songs'
 $route = $null
 switch ($Scenario) {
-    'scroll' { $extra += '--auto-scroll' }
+    'scroll' { $extra += @('--auto-scroll', '--frame-stats') }
     'static' { $extra += '--reduce-motion' }
     'noart' { $extra += '--no-art' }
     'detail' { $route = $DetailRoute }
@@ -56,7 +57,7 @@ switch ($Scenario) {
 function Read-Markers {
     $markers = @{}
     if (Test-Path $log) {
-        foreach ($line in Get-Content $log) {
+        foreach ($line in Get-Content $log | Where-Object { $_ -notlike 'ui-frames *' }) {
             $name, $value = $line -split '=', 2
             $markers[$name] = [double]::Parse($value, [Globalization.CultureInfo]::InvariantCulture)
         }
@@ -134,6 +135,21 @@ if ($pmJob) {
     }
 }
 
+$uiFrames = $null
+$statLines = @(Get-Content $log -ErrorAction SilentlyContinue | Where-Object { $_ -like 'ui-frames *' } | Select-Object -Skip 1)
+if ($statLines) {
+    $parsed = $statLines | ForEach-Object {
+        $h = @{}; foreach ($pair in ($_ -split ' ' | Select-Object -Skip 1)) { $k, $v = $pair -split '='; $h[$k] = [double]::Parse($v, [Globalization.CultureInfo]::InvariantCulture) }; $h
+    }
+    $uiFrames = [ordered]@{
+        fps = [math]::Round(($parsed | ForEach-Object { $_.count } | Measure-Object -Sum).Sum / (5 * $parsed.Count), 1)
+        p50Ms = ($parsed | ForEach-Object { $_.p50 } | Measure-Object -Average).Average
+        p95Ms = ($parsed | ForEach-Object { $_.p95 } | Measure-Object -Maximum).Maximum
+        p99Ms = ($parsed | ForEach-Object { $_.p99 } | Measure-Object -Maximum).Maximum
+        over33 = ($parsed | ForEach-Object { $_.over33 } | Measure-Object -Sum).Sum
+    }
+}
+
 $summary = [ordered]@{
     label = $Label; scenario = $Scenario; variant = $variant; seconds = $Seconds; cores = $cores
     startup = [ordered]@{ windowActivatedMs = $markers['window-activated']; shellLoadedMs = $markers['shell-loaded']; readyMs = $markers[$ready] }
@@ -144,10 +160,11 @@ $summary = [ordered]@{
     workingSetMBAvg = [math]::Round(($working | Measure-Object -Average).Average / 1MB, 1)
     gpu3DPercentAvg = [math]::Round(($gpu | Measure-Object -Average).Average, 2)
     frames = $frames
+    uiFrames = $uiFrames
     capturedAt = (Get-Date).ToString('o')
 }
 $summary | ConvertTo-Json -Depth 4 | Set-Content (Join-Path $outDir "$Label.json")
 Stop-App
 '{0,-22} ready {1,6:N0} ms | CPU {2,5:N2}% machine ({3,5:N1}% core) | DWM {4,5:N2}% | private {5,6:N1} MB | WS {6,6:N1} MB | GPU3D {7,5:N2}% {8}' -f `
     $Label, $markers[$ready], $cpu, $cpuOneCore, $dwmCpu, $summary.privateMBAvg, $summary.workingSetMBAvg, $summary.gpu3DPercentAvg,
-    $(if ($frames) { "| {0} fps p50 {1} p95 {2} p99 {3} >33ms {4}" -f $frames.fps, $frames.intervalP50Ms, $frames.intervalP95Ms, $frames.intervalP99Ms, $frames.over33Ms } else { '' })
+    $(if ($uiFrames) { "| UI {0} fps p50 {1:N1} p95 {2:N1} p99 {3:N1} ms >33ms {4}" -f $uiFrames.fps, $uiFrames.p50Ms, $uiFrames.p95Ms, $uiFrames.p99Ms, $uiFrames.over33 } elseif ($frames) { "| {0} fps p50 {1} p95 {2} p99 {3} >33ms {4}" -f $frames.fps, $frames.intervalP50Ms, $frames.intervalP95Ms, $frames.intervalP99Ms, $frames.over33Ms } else { '' })

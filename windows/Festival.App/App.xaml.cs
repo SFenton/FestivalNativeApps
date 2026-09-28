@@ -45,6 +45,7 @@ public partial class App : Application
         window = new MainWindow(Session, Options);
         window.Activate();
         PerfLog.Mark("window-activated");
+        if (Options.FrameStats && Options.PerfLogPath is not null) FrameStats.Start();
     }
 }
 #endregion
