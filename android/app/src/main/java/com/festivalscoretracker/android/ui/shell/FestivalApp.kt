@@ -144,7 +144,13 @@ import com.festivalscoretracker.android.core.search.PxRect
 import com.festivalscoretracker.android.core.search.SearchDestination
 import com.festivalscoretracker.android.core.search.ShellShortcut
 import com.festivalscoretracker.android.presentation.search.GlobalSearchViewModel
+import com.festivalscoretracker.android.ui.common.FLOATING_TOOLBAR_HEIGHT_DP
+import com.festivalscoretracker.android.ui.common.FLOATING_TOOLBAR_MARGIN_DP
+import com.festivalscoretracker.android.ui.common.FloatingToolbar
+import com.festivalscoretracker.android.ui.common.FloatingToolbarHost
 import com.festivalscoretracker.android.ui.common.SearchChrome
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.offset
 import com.festivalscoretracker.android.ui.search.GlobalSearchHost
 
 // region Root
@@ -346,9 +352,17 @@ private fun FestivalShell(
     val safeEnd = WindowInsets.safeDrawing.asPaddingValues().calculateEndPadding(LocalLayoutDirection.current)
     // Bars sit below the content (they pad the gesture area themselves); rails and the
     // drawer leave the content edge-to-edge, so it clears the system navigation itself.
+    // Compact windows float screen actions + search over the bottom bar (M3 Expressive
+    // floating toolbar, web bottom dock); wider windows keep them in the top app bar.
+    val floatingToolbar = remember { FloatingToolbarHost() }
+    val usesFloatingToolbar = !AdaptiveLayoutPolicy.isRegularWidth(widthDp)
     val bottomPadding = PaddingValues(
         end = safeEnd,
-        bottom = if (layout == NavigationLayout.BottomBar) 0.dp else navBars.calculateBottomPadding(),
+        bottom = when {
+            usesFloatingToolbar -> (FLOATING_TOOLBAR_HEIGHT_DP + 2 * FLOATING_TOOLBAR_MARGIN_DP).dp
+            layout == NavigationLayout.BottomBar -> 0.dp
+            else -> navBars.calculateBottomPadding()
+        },
     )
     // Only the phone top bar shows a hamburger; the rail header owns it on medium widths.
     val openDrawer: (() -> Unit)? = if (layout == NavigationLayout.BottomBar) ({ scope.launch { drawerState.open() } }) else null
@@ -366,6 +380,7 @@ private fun FestivalShell(
         bottomPadding = bottomPadding,
         search = SearchChrome(presentation = presentation, open = openSearch, report = { requester = it }),
         notifications = { NotificationsBell(notificationsViewModel) { showNotifications = true } },
+        floatingToolbar = if (usesFloatingToolbar) floatingToolbar else null,
     )
     val openDestination: (SearchDestination) -> Unit = { destination ->
         when (destination) {
@@ -389,11 +404,20 @@ private fun FestivalShell(
             ),
             primaryActionContent = {
                 if (layout == NavigationLayout.Rail) {
-                    IconButton(onClick = { scope.launch { drawerState.open() } }, modifier = Modifier.testTag("fst.nav.drawer")) {
-                        Icon(Icons.Filled.Menu, contentDescription = "Open menu")
+                    // Centred in the collapsed rail column and lifted from the rail's 44 dp top
+                    // space onto the top app bar row (64 dp bar: 8 dp above a 48 dp button).
+                    Box(
+                        Modifier.width(RAIL_COLLAPSED_WIDTH_DP.dp).offset(y = -RAIL_HEADER_LIFT_DP.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }, modifier = Modifier.testTag("fst.nav.drawer")) {
+                            Icon(Icons.Filled.Menu, contentDescription = "Open menu", tint = BrandTokens.textPrimary)
+                        }
                     }
                 }
             },
+            // Material rails may centre their destinations; the group sits mid-height.
+            verticalArrangement = if (layout == NavigationLayout.Rail) Arrangement.Center else Arrangement.Top,
             modifier = when (layout) {
                 NavigationLayout.BottomBar -> Modifier.testTag("fst.nav.bar")
                 NavigationLayout.Rail -> Modifier.testTag("fst.nav.rail")
@@ -445,6 +469,12 @@ private fun FestivalShell(
                             verticalHinge?.let { with(density) { (it.bounds.left - contentLeftPx).toDp().value.toInt() } },
                         ),
                     )
+                    if (usesFloatingToolbar) {
+                        FloatingToolbar(
+                            floatingToolbar,
+                            Modifier.align(Alignment.BottomCenter).padding(bottom = FLOATING_TOOLBAR_MARGIN_DP.dp),
+                        )
+                    }
                 }
             }
         }
@@ -494,6 +524,12 @@ private fun FestivalShell(
         blocked = showProfile || showNotifications,
     )
 }
+
+/** Material collapsed wide-rail width (`NavigationRailCollapsedTokens.ContainerWidth`). */
+private const val RAIL_COLLAPSED_WIDTH_DP = 96
+
+/** Rail top space (44 dp) minus the top app bar's button inset (8 dp). */
+private const val RAIL_HEADER_LIFT_DP = 36
 
 /** Permanent drawer width on large windows. */
 private const val PERMANENT_DRAWER_WIDTH_DP = 280

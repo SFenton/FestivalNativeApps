@@ -27,18 +27,12 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
@@ -66,6 +60,8 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
  * @property bottomPadding Space reserved by the bottom bar / system navigation.
  * @property search Global search entry point (`.agents/controls/global-search/android.md`).
  * @property notifications Bell slot between search and the avatar, when notifications exist.
+ * @property floatingToolbar Compact windows: the floating toolbar that takes screen actions and
+ *   search ([FloatingToolbar]); null when actions belong in the top app bar.
  */
 @Immutable
 data class ShellActions(
@@ -77,6 +73,7 @@ data class ShellActions(
     val bottomPadding: PaddingValues = PaddingValues(),
     val search: SearchChrome = SearchChrome(),
     val notifications: (@Composable () -> Unit)? = null,
+    val floatingToolbar: FloatingToolbarHost? = null,
 )
 
 /**
@@ -103,7 +100,7 @@ val LocalShellActions = staticCompositionLocalOf { ShellActions() }
 /**
  * Standard screen chrome: transparent top app bar over the shared backdrop, the
  * drawer button on tab roots, back on pushed screens, then screen actions, global
- * search (icon, or a persistent bar on wide panes), the notifications slot and the
+ * search (in the floating toolbar on compact windows), the notifications slot and the
  * profile avatar as the rightmost action on tab roots.
  *
  * @param title Title Case title.
@@ -126,11 +123,15 @@ fun FestivalScreen(
 ) {
     val shell = LocalShellActions.current
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
-    val density = LocalDensity.current
-    var paneWidthDp by remember { mutableIntStateOf(0) }
+    // Compact windows: screen actions + search float over the bottom bar (web bottom dock).
+    if (shell.floatingToolbar != null) {
+        FloatingToolbarContent {
+            actions()
+            GlobalSearchEntry(shell.search)
+        }
+    }
     Scaffold(
         modifier = modifier
-            .onSizeChanged { paneWidthDp = with(density) { it.width.toDp().value.toInt() } }
             .nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0),
@@ -149,8 +150,10 @@ fun FestivalScreen(
                     }
                 },
                 actions = {
-                    actions()
-                    GlobalSearchEntry(shell.search, paneWidthDp)
+                    if (shell.floatingToolbar == null) {
+                        actions()
+                        GlobalSearchEntry(shell.search)
+                    }
                     shell.notifications?.invoke()
                     if (isRoot) ProfileAvatarButton(shell.selectedPlayer, shell.openProfile)
                 },

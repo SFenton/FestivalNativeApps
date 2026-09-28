@@ -241,11 +241,11 @@ enum class SearchPresentation {
     /** Compact (< 600 dp): action → `ExpandedFullScreenSearchBar`. */
     FullScreen,
 
-    /** Medium (600–839 dp): action → `ExpandedDockedSearchBar` under the top bar at the end edge. */
+    /**
+     * Medium and wider (≥ 600 dp): action → `ExpandedDockedSearchBar` under the top bar at the end
+     * edge. (No persistent search field: operator decision 2026-09-28, it read as a website.)
+     */
     Docked,
-
-    /** Expanded and wider (≥ 840 dp): persistent collapsed bar in the top bar → docked panel. */
-    Persistent,
 }
 
 /**
@@ -280,14 +280,8 @@ object GlobalSearchLayout {
     /** Material compact/medium boundary. */
     const val MEDIUM_WIDTH_DP = 600
 
-    /** Material medium/expanded boundary. */
-    const val EXPANDED_WIDTH_DP = 840
-
     /** Widest docked panel. */
     const val MAX_PANEL_WIDTH_DP = 720
-
-    /** Narrowest docked panel (Material's search bar minimum). */
-    const val MIN_PANEL_WIDTH_DP = 360
 
     /** Collapsed bar / input field height. */
     const val FIELD_HEIGHT_DP = 56
@@ -299,13 +293,10 @@ object GlobalSearchLayout {
      * Presentation for a window width.
      *
      * @param windowWidthDp Window width in dp.
-     * @return Full screen, docked from an action, or a persistent bar.
+     * @return Full screen on compact windows, else docked from the action.
      */
-    fun presentation(windowWidthDp: Int): SearchPresentation = when {
-        windowWidthDp < MEDIUM_WIDTH_DP -> SearchPresentation.FullScreen
-        windowWidthDp < EXPANDED_WIDTH_DP -> SearchPresentation.Docked
-        else -> SearchPresentation.Persistent
-    }
+    fun presentation(windowWidthDp: Int): SearchPresentation =
+        if (windowWidthDp < MEDIUM_WIDTH_DP) SearchPresentation.FullScreen else SearchPresentation.Docked
 
     /**
      * Anchor for the expanded surface.
@@ -313,8 +304,7 @@ object GlobalSearchLayout {
      * Full screen grows from the requester (the action icon), at the field's 56 dp height:
      * Material measures the expanded input field at the collapsed height. Docked opens under the top
      * bar, end-aligned to the requester, at most 720 dp wide and never across a separating
-     * vertical hinge (clamped to the side that holds the requester). A persistent bar docks
-     * over itself. A separating horizontal (tabletop) hinge below the anchor caps the panel
+     * vertical hinge (clamped to the side that holds the requester). A separating horizontal (tabletop) hinge below the anchor caps the panel
      * height so no results sit under the fold.
      *
      * @param presentation Current presentation.
@@ -343,7 +333,7 @@ object GlobalSearchLayout {
                 val top = ((requester.top + requester.bottom - fieldHeight) / 2).coerceAtLeast(0)
                 PxRect(requester.left, top, requester.right, top + fieldHeight)
             }
-            SearchPresentation.Docked, SearchPresentation.Persistent -> {
+            SearchPresentation.Docked -> {
                 // The pane holding the requester: the whole window, or one side of a vertical hinge.
                 val center = (requester.left + requester.right) / 2
                 val (paneLeft, paneRight) = when {
@@ -352,12 +342,7 @@ object GlobalSearchLayout {
                     else -> verticalHinge.right to windowWidth
                 }
                 val maxWidth = (paneRight - paneLeft - 2 * gap).coerceAtLeast(0)
-                val wanted = if (presentation == SearchPresentation.Persistent) {
-                    requester.width.coerceAtLeast(px(MIN_PANEL_WIDTH_DP))
-                } else {
-                    px(MAX_PANEL_WIDTH_DP)
-                }
-                val width = wanted.coerceAtMost(px(MAX_PANEL_WIDTH_DP)).coerceAtMost(maxWidth)
+                val width = px(MAX_PANEL_WIDTH_DP).coerceAtMost(maxWidth)
                 val right = requester.right.coerceIn(paneLeft + gap + width, paneRight - gap)
                 val top = (requester.top + requester.bottom - fieldHeight) / 2
                 PxRect(right - width, top.coerceAtLeast(0), right, top.coerceAtLeast(0) + fieldHeight)

@@ -161,56 +161,28 @@ object GlobalSearchTags {
 
 // region Entry point
 
-/** Narrowest pane that shows the persistent bar instead of the icon. */
-private const val PILL_MIN_PANE_DP = 400
-
 /**
- * The one Search entry in a screen's top bar: a magnifier action on compact/medium windows
- * (and narrow panes), or a persistent collapsed search bar on expanded windows.
+ * The one Search entry: a magnifier action in the top app bar (medium and wider windows) or in
+ * the floating toolbar (compact windows). No persistent search field at any width.
  *
  * @param chrome Shell search hooks.
- * @param paneWidthDp Width of the screen that hosts the top bar.
  */
 @Composable
-fun GlobalSearchEntry(chrome: SearchChrome, paneWidthDp: Int) {
+fun GlobalSearchEntry(chrome: SearchChrome) {
     val holder = remember { BoundsHolder() }
-    val track = Modifier
-        .testTag(GlobalSearchTags.OPEN)
-        .onGloballyPositioned { coordinates ->
-            val r = coordinates.boundsInWindow()
-            PxRect(r.left.toInt(), r.top.toInt(), r.right.toInt(), r.bottom.toInt()).also {
-                holder.bounds = it
-                chrome.report(it)
-            }
-        }
-    if (chrome.presentation == SearchPresentation.Persistent && paneWidthDp >= PILL_MIN_PANE_DP) {
-        val width = if (paneWidthDp >= 600) (paneWidthDp * 2 / 5).coerceIn(240, 360) else 200
-        Surface(
-            onClick = { chrome.open(holder.bounds) },
-            shape = CircleShape,
-            color = BrandTokens.surfaceMuted.copy(alpha = 0.85f),
-            contentColor = BrandTokens.textSecondary,
-            modifier = track
-                .padding(horizontal = 4.dp)
-                .width(width.dp)
-                .heightIn(min = 48.dp)
-                .semantics { contentDescription = GlobalSearchResults.FIELD_NAME; role = Role.Button },
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                Icon(Icons.Filled.Search, contentDescription = null)
-                Text(
-                    if (width >= 240) GlobalSearchResults.PLACEHOLDER else "Search",
-                    style = MaterialTheme.typography.bodyLarge,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(start = 12.dp),
-                )
-            }
-        }
-    } else {
-        IconButton(onClick = { chrome.open(holder.bounds) }, modifier = track) {
-            Icon(Icons.Filled.Search, contentDescription = "Search")
-        }
+    IconButton(
+        onClick = { chrome.open(holder.bounds) },
+        modifier = Modifier
+            .testTag(GlobalSearchTags.OPEN)
+            .onGloballyPositioned { coordinates ->
+                val r = coordinates.boundsInWindow()
+                PxRect(r.left.toInt(), r.top.toInt(), r.right.toInt(), r.bottom.toInt()).also {
+                    holder.bounds = it
+                    chrome.report(it)
+                }
+            },
+    ) {
+        Icon(Icons.Filled.Search, contentDescription = "Search")
     }
 }
 
@@ -315,7 +287,7 @@ fun GlobalSearchHost(
             colors = colors,
             modifier = surfaceModifier,
         ) { content() }
-        SearchPresentation.Docked, SearchPresentation.Persistent -> with(density) {
+        SearchPresentation.Docked -> with(density) {
             ExpandedDockedSearchBar(
                 state = searchState,
                 inputField = inputField,

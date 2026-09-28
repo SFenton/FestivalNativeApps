@@ -100,8 +100,8 @@ class GlobalSearchCoreTest {
         assertEquals(SearchPresentation.FullScreen, GlobalSearchLayout.presentation(599))
         assertEquals(SearchPresentation.Docked, GlobalSearchLayout.presentation(600))
         assertEquals(SearchPresentation.Docked, GlobalSearchLayout.presentation(839))
-        assertEquals(SearchPresentation.Persistent, GlobalSearchLayout.presentation(840))
-        assertEquals(SearchPresentation.Persistent, GlobalSearchLayout.presentation(1600))
+        assertEquals(SearchPresentation.Docked, GlobalSearchLayout.presentation(840))
+        assertEquals(SearchPresentation.Docked, GlobalSearchLayout.presentation(1600))
     }
 
     @Test
@@ -130,20 +130,10 @@ class GlobalSearchCoreTest {
     }
 
     @Test
-    fun persistentKeepsTheBarWidthButNeverBelowTheMinimum() {
-        val bar = PxRect(1200, 20, 1600, 76)
-        val anchor = GlobalSearchLayout.anchor(SearchPresentation.Persistent, bar, 2560, 1600, 1f)
-        assertEquals(bar, anchor.anchor)
-        val narrow = GlobalSearchLayout.anchor(SearchPresentation.Persistent, PxRect(1400, 20, 1600, 76), 2560, 1600, 1f)
-        assertEquals(360, narrow.anchor.width)
-        assertEquals(1600, narrow.anchor.right)
-    }
-
-    @Test
     fun dockedPanelStaysOnTheRequestersSideOfAVerticalHinge() {
         val hinge = PxRect(1038, 0, 1038, 2152)
         // Requester in the left pane: panel clamped to the left pane.
-        val left = GlobalSearchLayout.anchor(SearchPresentation.Persistent, PxRect(600, 20, 1000, 76), 2076, 2152, 1f, verticalHinge = hinge)
+        val left = GlobalSearchLayout.anchor(SearchPresentation.Docked, PxRect(900, 20, 996, 116), 2076, 2152, 1f, verticalHinge = hinge)
         assertTrue(left.anchor.right <= 1038 - 8)
         assertTrue(left.anchor.left >= 8)
         // Requester in the right pane: panel never crosses back over the hinge.

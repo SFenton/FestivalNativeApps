@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
@@ -98,6 +99,11 @@ class GlobalSearchUiTest {
         h.launch()
         h.waitForTag("fst.songs.row.s-alpha")
         assertEquals(1, rule.onAllNodesWithTag(GlobalSearchTags.OPEN).fetchSemanticsNodes().size)
+        // Phone: search and page actions float over the bottom bar, not in the top app bar.
+        val inToolbar = hasAnyAncestor(hasTestTag("fst.nav.floating-toolbar"))
+        rule.onNode(hasTestTag(GlobalSearchTags.OPEN) and inToolbar).assertIsDisplayed()
+        rule.onNode(hasTestTag("fst.songs.sort.open") and inToolbar).assertIsDisplayed()
+        assertEquals(0, rule.onAllNodes(hasTestTag("fst.songs.sort.open") and hasAnyAncestor(hasTestTag("fst.nav.top-bar"))).fetchSemanticsNodes().size)
         rule.onNodeWithTag(GlobalSearchTags.OPEN).performClick()
         h.waitForTag(GlobalSearchTags.SURFACE)
         rule.onNodeWithTag(GlobalSearchTags.HINT).assert(hasText(GlobalSearchResults.ENTER_QUERY_HINT))
@@ -246,11 +252,13 @@ class ExpandedGlobalSearchUiTest {
     val rule = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun persistentBarOpensDockedPanel() {
+    fun searchActionOpensDockedPanel() {
         val h = SearchHarness(rule)
         h.launch(DebugLaunch(section = com.festivalscoretracker.android.core.nav.FestivalSection.Settings, stillBackground = true))
         h.waitForTag("fst.settings.list")
-        rule.onNodeWithTag(GlobalSearchTags.OPEN).assert(hasText(GlobalSearchResults.PLACEHOLDER))
+        // An icon action at every width (no persistent search field), in the top app bar here.
+        rule.onNodeWithTag(GlobalSearchTags.OPEN).assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Search")))
+        assertEquals(0, rule.onAllNodesWithTag("fst.nav.floating-toolbar").fetchSemanticsNodes().size)
         rule.onNodeWithTag(GlobalSearchTags.OPEN).performClick()
         h.waitForTag(GlobalSearchTags.FIELD)
         rule.onNodeWithTag(GlobalSearchTags.FIELD).performTextInput("alpha")
@@ -287,6 +295,13 @@ class MediumGlobalSearchUiTest {
         h.launch()
         h.waitForTag("fst.songs.row.s-alpha")
         rule.onNodeWithTag("fst.nav.rail").assertIsDisplayed()
+        // Rail menu button: centred in the rail and on the top app bar's row.
+        val menu = rule.onNodeWithTag("fst.nav.drawer").fetchSemanticsNode().boundsInRoot
+        val rail = rule.onNodeWithTag("fst.nav.rail").fetchSemanticsNode().boundsInRoot
+        val bar = rule.onNodeWithTag("fst.nav.top-bar").fetchSemanticsNode().boundsInRoot
+        assertEquals(rail.center.x, menu.center.x, 1.5f)
+        assertEquals(bar.center.y, menu.center.y, 1.5f)
+        assertEquals(0, rule.onAllNodesWithTag("fst.nav.floating-toolbar").fetchSemanticsNodes().size)
         rule.onNodeWithTag(GlobalSearchTags.OPEN).assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Search")))
         rule.onNodeWithTag(GlobalSearchTags.OPEN).performClick()
         h.waitForTag(GlobalSearchTags.FIELD)
