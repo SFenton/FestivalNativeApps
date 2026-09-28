@@ -7,7 +7,11 @@
     "sourceRoots": ["apple/Sources/**/*.swift"],
     "logic": ["apple/Sources/FestivalCore/**/*.swift"],
     "ux": ["apple/Sources/FestivalDesign/**/*.swift", "apple/Sources/FestivalUI/**/*.swift"],
-    "exclude": ["apple/Sources/FestivalDesign/BrandTokens.swift"]
+    "exclude": [
+      "apple/Sources/FestivalDesign/BrandTokens.swift",
+      "apple/Sources/FestivalUI/App/AppRoute.swift",
+      "apple/Sources/FestivalUI/Features/Settings/LicenseManifest.swift"
+    ]
   },
   "kotlin": {
     "logic": ["android/**/src/main/**/data/*.kt", "android/**/src/main/**/domain/*.kt"],
