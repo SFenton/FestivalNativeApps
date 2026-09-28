@@ -131,8 +131,8 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 **Lane T — Simulator driver tooling** (Sonnet) — ✅ landed `8d8a6ac`
 - ✅ `ios_sim.py drive`: scripted tap/swipe/type/scroll/screenshot/accessibility-tree via an XCUITest driver, under the simulator lock
 
-**Lane R — Rivals & Compete** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/rivals`
-- ⬜ Compete hub · ⬜ Rivals hub · ⬜ All rivals · ⬜ Rival detail · ⬜ Rivalry
+**Lane R — Rivals & Compete** (Sonnet) — ✅ landed `6bfa5da`…`8a3ab84`
+- ✅ Compete hub · ✅ Rivals hub · ✅ All rivals · ✅ Rival detail · ✅ Rivalry (read-only endpoints verified)
 
 **Lane G — Suggestions** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/suggestions`
 - ⬜ Port suggestion algorithms to Core (unit-tested) · ⬜ Suggestions screen + filter sheet
@@ -157,6 +157,10 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 - ⬜ Feasibility + native design decision (HIG + Fluent) → `.agents/controls/quick-links/` · ⬜ Reusable `Common/QuickLinks` API (toolbar jump menu, active section, VoiceOver rotor) · ⬜ Adopt on Leaderboards
 - ⬜ Adoption on Songs, Song Detail, Player/Statistics, Band, Compete, Rivals, Rivalry, Rival Detail, Settings — handed to owning lanes as they finish
 
+Queued (start when load allows):
+- ⬜ **Rivals follow-up:** replace `RivalNavigationBridge` global singleton with scope carried in `AppRoute` payloads (deep-link/state-restoration safe); cross-instrument combo / common rivals; Find Rival search
+- ⬜ **Wave 3 UX tests** for completed features (shell/drawer/tabs, leaderboards, background, history, notifications, rivals) — hosted snapshots first, XCUITest journeys batched to limit simulator contention
+
 Not yet assigned:
 - ⬜ Statistics = selected player's profile page (assigned to Lane P)
 - (none — Wave 2 fully assigned)
@@ -173,6 +177,9 @@ Not yet assigned:
 ---
 
 ## 5. Known issues / decisions
+
+- **Rivals detail endpoints** (`/rivals/{combo}/{rivalId}`, `/leaderboard-rivals/{instrument}/{rivalId}`) returned 503 "not yet published" for the sample account during development; the app shows an explicit unavailable state. Re-check later.
+- **Load ceiling:** ~9 concurrent lanes pushed load to 170+ on the 10-core Mac; don't add lanes above ~100 load.
 
 - **Simulator queue stall (fixed `c3b55f3`):** XCUITest waits for app idle before each action; the always-animating carousel never idles, so a 10-step `drive` held the sim lock 8+ min with 7 jobs queued. `drive` now sets `FST_DEBUG_STILL_BACKGROUND=1` by default (`--animate` opts out) and enforces `--timeout` (180 s).
 
@@ -211,3 +218,4 @@ Not yet assigned:
 | 2026-09-27 | Orchestrator | Unstuck simulator queue: frozen carousel for drives + drive timeout (`c3b55f3`) |
 | 2026-09-28 | Lane S | Native toolbar search/sort/filter, glass rows, instrument-icon chips, A–Z scrubber, instrument filter moved to Filter, icon intensity card, offline banners removed |
 | 2026-09-28 | Lane X | Player history + notifications (read-only endpoints verified); FirstRun types handed to Lane F |
+| 2026-09-28 | Lane R | Compete hub, Rivals hub/all/detail/rivalry; 18 tests; combos + Find Rival deferred |
