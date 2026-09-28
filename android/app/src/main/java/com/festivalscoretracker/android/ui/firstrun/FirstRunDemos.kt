@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.EmojiEvents
 import androidx.compose.material.icons.outlined.LibraryMusic
+import androidx.compose.material.icons.outlined.PersonAdd
 import androidx.compose.material.icons.outlined.Route
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.ShoppingBag
@@ -100,7 +101,7 @@ fun FirstRunDemo(id: String, active: Boolean) {
         "songinfo-new-in-shop" -> Pill("Item Shop", BrandTokens.gold, pulse)
         "songinfo-leaving-tomorrow" -> Pill("Item Shop", BrandTokens.statusRed, pulse)
         "playerhistory-sort" -> SortList(listOf("Date", "Score", "Accuracy", "Season"), "Date")
-        "statistics-select-profile" -> Pill("Select Player Profile", BrandTokens.accentPurple, pulse)
+        "statistics-select-profile" -> Pill("Select Player Profile", BrandTokens.accentPurple, pulse, Icons.Outlined.PersonAdd)
         "statistics-drill-down", "statistics-overview", "statistics-instrument-breakdown" -> StatGrid(chevrons = id == "statistics-drill-down")
         "statistics-percentiles" -> PercentileTable()
         "statistics-top-songs", "rivals-detail" -> SongRows(3, badges = true)
@@ -382,7 +383,7 @@ private fun ShopGrid() {
 }
 
 @Composable
-private fun Pill(label: String, color: Color, pulse: Boolean) {
+private fun Pill(label: String, color: Color, pulse: Boolean, icon: ImageVector = Icons.Outlined.ShoppingBag) {
     val alpha = pulseAlpha(pulse)
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -391,7 +392,7 @@ private fun Pill(label: String, color: Color, pulse: Boolean) {
             .border(2.dp, color.copy(alpha = alpha), RoundedCornerShape(50))
             .padding(horizontal = 20.dp, vertical = 10.dp),
     ) {
-        Icon(Icons.Outlined.ShoppingBag, contentDescription = null, tint = BrandTokens.textPrimary)
+        Icon(icon, contentDescription = null, tint = BrandTokens.textPrimary)
         Text(label, color = BrandTokens.textPrimary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
     }
 }
