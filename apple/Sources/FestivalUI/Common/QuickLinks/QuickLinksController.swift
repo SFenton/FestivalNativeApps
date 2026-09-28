@@ -112,6 +112,16 @@ public final class QuickLinksController {
         refresh()
     }
 
+    /// The most recently reported frame for a section, if any.
+    ///
+    /// Used by `QuickLinksContainerModifier.correctAndSettle` to poll a jump
+    /// target's geometry until it stops changing before calling
+    /// `jumpDidSettle()`, instead of guessing a fixed delay.
+    ///
+    /// - Parameter id: Section id.
+    /// - Returns: The last frame `report(_:frame:)` recorded, or `nil`.
+    func currentFrame(for id: String) -> QuickLinkFrame? { frames[id] }
+
     // MARK: Private
 
     private func resolveSections() {

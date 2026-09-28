@@ -95,17 +95,18 @@ final class LeaderboardsJourneyTests: XCTestCase {
         XCTAssertTrue(app.buttons["fst.quick-links.item.band:Band_Quad"].exists)
     }
 
-    /// **Real bug found:** jumping to any section other than the immediately
-    /// adjacent one lands on an *earlier* section than requested, not the one
-    /// tapped — confirmed for both a near jump (tapping "Drums", the third
-    /// instrument, lands on "Bass", the second) and a far jump (tapping "Quads",
-    /// the last of 12 cards, lands on "Duos", two cards earlier); see
-    /// `testQuickLinksJumpToNeverVisibleFarSectionReachesTarget` below. Likely
-    /// cause: `QuickLinkTracker.settle`'s fallback to `QuickLinks.naturalActive`
-    /// (current post-scroll geometry) rather than trusting the jump's own target
-    /// once the scroll animation completes. Tracked with `XCTExpectFailure`
-    /// rather than silently masking it; not fixed in this lane (shared
-    /// `Common/QuickLinks` scrolling logic, not a trivial change).
+    /// **Fixed bug:** jumping used to land on an *earlier* section than requested
+    /// — confirmed for both a near jump (tapping "Drums", the third instrument,
+    /// landed on "Bass", the second) and a far jump (tapping "Quads", the last of
+    /// 12 cards, landed on "Duos", two cards earlier); see
+    /// `testQuickLinksJumpToNeverVisibleFarSectionReachesTarget` below. Root cause:
+    /// `QuickLinksContainerModifier.scroll`'s `withAnimation(...) { proxy.scrollTo }`
+    /// completion handler ran `QuickLinksController.jumpDidSettle()` immediately,
+    /// before the target section's `onGeometryChange` had republished its real,
+    /// post-scroll frame — so `QuickLinkTracker.settle` read stale geometry and
+    /// fell back to `QuickLinks.naturalActive` one section short. Fixed by
+    /// `correctAndSettle`: a second, corrective `scrollTo` plus a couple of
+    /// run-loop turns for the real frame to publish before calling `settle`.
     @MainActor
     func testQuickLinksJumpToNearbySectionReachesExactTarget() throws {
         continueAfterFailure = false
@@ -119,25 +120,16 @@ final class LeaderboardsJourneyTests: XCTestCase {
         XCTAssertTrue(drumsItem.waitForExistence(timeout: 10))
         drumsItem.tap()
         XCTAssertTrue(quickLinks.waitForExistence(timeout: 10))
-        XCTExpectFailure(
-            "Quick Links jump lands one section before the tapped target; see doc comment above."
-        ) {
-            XCTAssertEqual(quickLinks.value as? String, "Drums")
-        }
+        XCTAssertEqual(quickLinks.value as? String, "Drums")
     }
 
-    /// **Real bug found:** the same "lands before the target" bug from
+    /// **Fixed bug:** the same "lands before the target" bug from
     /// `testQuickLinksJumpToNearbySectionReachesExactTarget`, magnified for a far,
     /// never-before-visible target: jumping straight from the top of the page to
     /// "Quads" (the last of 12 cards, its `LazyVStack` frame never previously
-    /// measured) leaves both the scroll position and the Quick Links button's
-    /// reported active section on "Duos" (two cards earlier), confirmed via
-    /// `tools/ios_sim.py drive`'s `tree:` dump. Likely cause: `QuickLinkTracker.settle`
-    /// falls back to `QuickLinks.naturalActive` (current geometry) when the jump
-    /// target's frame isn't in `frames` yet, rather than the scroll itself reaching
-    /// the correct offset for an unmeasured target. Tracked here with
-    /// `XCTExpectFailure` rather than silently masking it; not fixed in this lane
-    /// (shared `Common/QuickLinks` scrolling logic, not a trivial change).
+    /// measured) used to leave both the scroll position and the Quick Links
+    /// button's reported active section on "Duos" (two cards earlier). See the fix
+    /// description above (`QuickLinksContainerModifier.correctAndSettle`).
     @MainActor
     func testQuickLinksJumpToNeverVisibleFarSectionReachesTarget() throws {
         continueAfterFailure = false
@@ -151,11 +143,6 @@ final class LeaderboardsJourneyTests: XCTestCase {
         XCTAssertTrue(bandItem.waitForExistence(timeout: 10))
         bandItem.tap()
         XCTAssertTrue(quickLinks.waitForExistence(timeout: 10))
-        XCTExpectFailure(
-            "Quick Links jump-to-section doesn't reach a section whose LazyVStack "
-                + "frame was never previously measured; see doc comment above."
-        ) {
-            XCTAssertEqual(quickLinks.value as? String, "Quads")
-        }
+        XCTAssertEqual(quickLinks.value as? String, "Quads")
     }
 }

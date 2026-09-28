@@ -133,20 +133,75 @@ struct QuickLinksContainerModifier: ViewModifier {
 
     /// Scroll to the latest jump target, then report arrival.
     ///
+    /// Two distinct sources of lag can make `jumpDidSettle()` read stale
+    /// geometry if called straight from the animation's completion handler:
+    /// `withAnimation(...completionCriteria: .logicallyComplete)` can fire once
+    /// SwiftUI's transaction commits, which is not guaranteed to be after the
+    /// scroll has visually finished moving — under device/simulator load, the
+    /// real motion can keep going well past the declared duration while the
+    /// completion handler fires on schedule. Separately, a target inside a
+    /// `LazyVStack`/`List` that has never been built yet is first scrolled to
+    /// using an *estimated* position; once the real view is realized, its true
+    /// frame can differ, and the scroll settles short of it. Both show up the
+    /// same way: `QuickLinkTracker.settle` reads a frame that hasn't reached its
+    /// final position yet and falls back to `QuickLinks.naturalActive` one
+    /// section short of the real target. `correctAndSettle` re-targets the
+    /// scroll once, then *polls* the target's reported frame until it stops
+    /// moving (rather than guessing a fixed delay) before calling
+    /// `jumpDidSettle()`, so it is correct at any device speed.
+    ///
     /// - Parameter proxy: Reader proxy for the wrapped scroll view.
     private func scroll(_ proxy: ScrollViewProxy) {
         guard let target = controller.jumpTarget else { return }
         if reduceMotion {
             proxy.scrollTo(target, anchor: .top)
-            // Let layout publish the new frames before settling.
-            Task { @MainActor in controller.jumpDidSettle() }
+            Task { @MainActor in await correctAndSettle(proxy, target: target, initialFloor: .zero) }
         } else {
             withAnimation(.smooth(duration: 0.45), completionCriteria: .logicallyComplete) {
                 proxy.scrollTo(target, anchor: .top)
             } completion: {
-                controller.jumpDidSettle()
+                Task { @MainActor in
+                    await correctAndSettle(proxy, target: target, initialFloor: .milliseconds(450))
+                }
             }
         }
+    }
+
+    /// Re-target the scroll once past `initialFloor`, then poll until the
+    /// target's real, now-realized frame stops changing before handing off to
+    /// `jumpDidSettle()`.
+    ///
+    /// - Parameters:
+    ///   - proxy: Reader proxy for the wrapped scroll view.
+    ///   - target: The jump's target section id.
+    ///   - initialFloor: Time to wait out before the corrective re-scroll — the
+    ///     declared animation duration (its completion can otherwise fire before
+    ///     the real motion finishes), or zero when the caller already scrolled
+    ///     synchronously (Reduce Motion).
+    private func correctAndSettle(
+        _ proxy: ScrollViewProxy, target: String, initialFloor: Duration
+    ) async {
+        if initialFloor > .zero {
+            try? await Task.sleep(for: initialFloor)
+        }
+        proxy.scrollTo(target, anchor: .top)
+        var lastFrame = controller.currentFrame(for: target)
+        var stableStreak = 0
+        // Bounded so a target that can never stabilize (e.g. removed mid-poll)
+        // can't stall the UI indefinitely.
+        let deadline = ContinuousClock.now + .seconds(3)
+        while ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(50))
+            let frame = controller.currentFrame(for: target)
+            if frame == lastFrame {
+                stableStreak += 1
+                if stableStreak >= 2 { break }
+            } else {
+                stableStreak = 0
+                lastFrame = frame
+            }
+        }
+        controller.jumpDidSettle()
     }
 }
 
