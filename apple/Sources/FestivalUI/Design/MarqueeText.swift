@@ -20,6 +20,16 @@ import SwiftUI
 /// inactive, this keeps no timer running for offscreen or backgrounded instances.
 /// VoiceOver reads the full, untruncated `text` as one element regardless of
 /// whether the visual form is scrolling or static.
+///
+/// Also stops under `DebugAnimationOverride.stillBackground`
+/// (`FST_DEBUG_STILL_BACKGROUND=1`), the same override the shared artwork
+/// background and `FirstRunPulse` honor: a continuously-ticking
+/// `TimelineView(.animation)` never lets XCUITest's app-idle wait settle
+/// (`.agents/workflow/simulator-driver.md`'s "Simulator queue stall"), and any
+/// row whose title/artist/year overflows (e.g. Songs rows, ported 2026-09-28)
+/// would otherwise hang every subsequent synthetic action for the rest of the
+/// journey — found while investigating `SongsJourneyTests`/`SuggestionsJourneyTests`
+/// hangs against the shared simulator.
 public struct MarqueeText: View {
     private let text: String
     private let font: Font
@@ -55,6 +65,7 @@ public struct MarqueeText: View {
 
     private var scrolls: Bool {
         overflows && !reduceMotion && isOnScreen && scenePhase == .active
+            && !DebugAnimationOverride.stillBackground
     }
 
     public var body: some View {
