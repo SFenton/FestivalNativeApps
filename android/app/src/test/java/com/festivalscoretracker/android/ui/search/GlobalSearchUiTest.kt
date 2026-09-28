@@ -16,6 +16,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
@@ -136,8 +137,7 @@ class GlobalSearchUiTest {
         assertTrue(h.bandSearches().isEmpty())
         rule.onNodeWithTag(GlobalSearchTags.BANDS_RANKINGS).performClick()
         h.waitForGone(GlobalSearchTags.SURFACE)
-        h.waitForTag("fst.coming-soon")
-        rule.onNodeWithText("Band Rankings is coming to Android soon").assertExists()
+        rule.waitUntil(10_000) { h.settle(100); rule.onAllNodesWithText("Duos Rankings").fetchSemanticsNodes().isNotEmpty() }
         assertTrue(h.bandSearches().isEmpty())
     }
 
