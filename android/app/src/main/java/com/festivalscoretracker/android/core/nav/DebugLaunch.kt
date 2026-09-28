@@ -12,7 +12,8 @@ import com.festivalscoretracker.android.core.search.SearchScope
  * builds honour it (`MainActivity` checks `BuildConfig.DEBUG`).
  *
  * Route syntax (`FST_DEBUG_ROUTE`): `song:<songId-or-title>`,
- * `songLeaderboard:<songId>:<Instrument wire ID>[:<page>]`, `player:<accountId>`,
+ * `songLeaderboard:<songId>:<Instrument wire ID>[:<page>]`,
+ * `playerHistory:<songId>:<Instrument wire ID>`, `player:<accountId>`,
  * `playerBands:<accountId>`, `leaderboards`, `fullRankings:<Instrument wire ID>`,
  * `bandRankings:<bandType>`, `shop`, `rivals`, `statistics`, `suggestions`,
  * `compete`, `bands`, `band:<bandId>`, `licenses`.
@@ -90,6 +91,10 @@ data class DebugLaunch(
                 "songLeaderboard" -> arg?.split(":")?.let { pieces ->
                     val instrument = Instrument.fromWireId(pieces.getOrNull(1)) ?: return null
                     SongLeaderboardRoute(pieces[0], instrument.wireId, pieces.getOrNull(2)?.toIntOrNull()?.coerceAtLeast(1) ?: 1)
+                }
+                "playerHistory" -> arg?.split(":")?.let { pieces ->
+                    val instrument = Instrument.fromWireId(pieces.getOrNull(1)) ?: return null
+                    PlayerHistoryRoute(pieces[0], instrument.wireId)
                 }
                 "player" -> arg?.let { PlayerRoute(it) }
                 "playerBands" -> arg?.let { PlayerBandsRoute(it) }

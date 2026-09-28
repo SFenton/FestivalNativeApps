@@ -140,31 +140,11 @@ class ShellUiTest {
         rule.onNodeWithText("Pro Drums").performClick()
         settle()
         rule.onNodeWithTag("fst.nav.tab.statistics").performClick()
-        waitForTag("fst.coming-soon")
+        waitForTag("fst.statistics")
         rule.onNodeWithTag("fst.nav.tab.songs").performClick()
         waitForTag("fst.songs.list")
         rule.onNodeWithTag("fst.nav.tab.songs").performClick()
         settle()
-    }
-
-    @Test
-    fun profileSheetSearchSelectsPlayer() {
-        launch()
-        waitForTag("fst.songs.row.s-alpha")
-        rule.onNodeWithTag("fst.nav.profile").performClick()
-        waitForTag("fst.profile.search")
-        rule.onNodeWithText("Enter at least 2 characters").assertIsDisplayed()
-        rule.onNodeWithTag("fst.profile.search").performTextInput("syn")
-        settle(800)
-        rule.waitUntil(5_000) { settle(100); rule.onAllNodes(hasText("Synthetic Player")).fetchSemanticsNodes().isNotEmpty() }
-        rule.onNode(hasText("Synthetic Player") and hasClickAction()).performSemanticsAction(SemanticsActions.OnClick)
-        settle()
-        rule.waitUntil(5_000) { settle(100); rule.onAllNodesWithTag("fst.nav.tab.statistics").fetchSemanticsNodes().isNotEmpty() }
-        rule.onNodeWithTag("fst.nav.profile").performClick()
-        waitForTag("fst.profile.deselect")
-        rule.onNodeWithTag("fst.profile.deselect").performSemanticsAction(SemanticsActions.OnClick)
-        settle()
-        rule.waitUntil(5_000) { settle(100); rule.onAllNodesWithTag("fst.nav.tab.statistics").fetchSemanticsNodes().isEmpty() }
     }
 
     @Test

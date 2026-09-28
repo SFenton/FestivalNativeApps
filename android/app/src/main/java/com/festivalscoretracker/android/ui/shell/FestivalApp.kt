@@ -104,6 +104,12 @@ import com.festivalscoretracker.android.ui.common.ComingSoonScreen
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ShellActions
 import com.festivalscoretracker.android.ui.leaderboards.leaderboardsGraph
+import com.festivalscoretracker.android.ui.profile.PlayerHistoryScreen
+import com.festivalscoretracker.android.ui.profile.PlayerProfileScreen
+import com.festivalscoretracker.android.ui.profile.ProfileSheet
+import com.festivalscoretracker.android.ui.profile.StatisticsScreen
+import com.festivalscoretracker.android.ui.profile.playerHistoryViewModel
+import com.festivalscoretracker.android.ui.profile.profileViewModel
 import com.festivalscoretracker.android.ui.settings.SettingsScreen
 import com.festivalscoretracker.android.ui.songdetail.SongDetailScreen
 import com.festivalscoretracker.android.ui.songdetail.SongLeaderboardScreen
@@ -453,9 +459,8 @@ private fun FestivalShell(
         ProfileSheet(
             player = settings.selectedPlayer,
             searchViewModel = searchViewModel,
-            onSelect = shellViewModel::selectPlayer,
+            onViewPlayer = { accountId, name -> actions.navigate(PlayerRoute(accountId, name)) },
             onDeselect = shellViewModel::deselectPlayer,
-            onViewProfile = { player -> actions.navigate(PlayerRoute(player.accountId, player.displayName)) },
             onDismiss = { showProfile = false },
         )
     }
@@ -551,15 +556,25 @@ private fun FestivalNavHost(
         placeholder<SuggestionsTab>("Suggestions", isRoot = true)
         placeholder<CompeteTab>("Compete", isRoot = true)
         placeholder<RivalsTab>("Rivals", isRoot = true)
-        placeholder<StatisticsTab>("Statistics", isRoot = true)
+        composable<StatisticsTab> {
+            StatisticsScreen(profileViewModel(container, shellViewModel, accountId = null, name = null))
+        }
+        composable<StatisticsRoute> {
+            StatisticsScreen(profileViewModel(container, shellViewModel, accountId = null, name = null), isRoot = false)
+        }
+        composable<PlayerRoute> { entry ->
+            val route = entry.toRoute<PlayerRoute>()
+            PlayerProfileScreen(profileViewModel(container, shellViewModel, route.accountId, route.displayName))
+        }
+        composable<PlayerHistoryRoute> { entry ->
+            val route = entry.toRoute<PlayerHistoryRoute>()
+            PlayerHistoryScreen(playerHistoryViewModel(container, shellViewModel, route))
+        }
         bandsDestinations(container)
-        placeholder<PlayerHistoryRoute>("Score History")
-        placeholder<PlayerRoute>("Player")
         placeholder<RivalsRoute>("Rivals")
         placeholder<AllRivalsRoute>("All Rivals")
         placeholder<RivalDetailRoute>("Rival")
         placeholder<RivalryRoute>("Rivalry")
-        placeholder<StatisticsRoute>("Statistics")
         placeholder<SuggestionsRoute>("Suggestions")
         placeholder<CompeteRoute>("Compete")
         placeholder<ShopRoute>("Item Shop")
