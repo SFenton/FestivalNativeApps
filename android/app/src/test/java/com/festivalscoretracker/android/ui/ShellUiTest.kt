@@ -215,10 +215,15 @@ class ExpandedShellUiTest {
         fun settle() = repeat(4) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100)); rule.waitForIdle() }
         rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.songs.row.s-gamma").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("fst.nav.drawer-sheet").assertIsDisplayed()
-        rule.onNodeWithText("Select a song").assertIsDisplayed()
+        // Nothing selected: the list takes the full width, no empty detail pane.
+        rule.onNodeWithTag("fst.songs.detail-pane").assertDoesNotExist()
         rule.onNodeWithTag("fst.songs.row.s-gamma").performClick()
         rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.song-detail.intensity").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("fst.songs.detail-pane").assertIsDisplayed()
+        // Back closes the detail and returns the list to full width.
+        rule.runOnIdle { rule.activity.onBackPressedDispatcher.onBackPressed() }
+        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.songs.detail-pane").fetchSemanticsNodes().isEmpty() }
+        rule.onNodeWithTag("fst.songs.row.s-gamma").assertIsDisplayed()
         rule.onNodeWithTag("fst.nav.tab.settings").performClick()
         rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.settings.list").fetchSemanticsNodes().isNotEmpty() }
     }

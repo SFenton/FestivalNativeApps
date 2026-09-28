@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.shell
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -123,7 +124,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.WideNavigationRailDefaults
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuite
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteItem
@@ -149,8 +149,6 @@ import com.festivalscoretracker.android.ui.common.FLOATING_TOOLBAR_MARGIN_DP
 import com.festivalscoretracker.android.ui.common.FloatingToolbar
 import com.festivalscoretracker.android.ui.common.FloatingToolbarHost
 import com.festivalscoretracker.android.ui.common.SearchChrome
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.offset
 import com.festivalscoretracker.android.ui.search.GlobalSearchHost
 
 // region Root
@@ -393,56 +391,63 @@ private fun FestivalShell(
     var contentLeftPx by remember { mutableIntStateOf(0) }
     var contentWidthPx by remember { mutableIntStateOf(windowSize.width) }
     val contentWidthDp = with(density) { contentWidthPx.toDp().value.toInt() }
+    val profileKind = shellViewModel.profileKind(settings)
+    val drawer = @Composable { tabTags: Boolean ->
+        DrawerContent(
+            visible = sections,
+            selected = selected,
+            profile = profileKind,
+            player = settings.selectedPlayer,
+            onSection = {
+                scope.launch { drawerState.close() }
+                navController.selectSection(it, selected)
+            },
+            onRoute = actions.navigate,
+            onOpenProfile = {
+                scope.launch { drawerState.close() }
+                showProfile = true
+            },
+            onDeselect = shellViewModel::deselectPlayer,
+            showShop = !settings.hideShop,
+            tabTags = tabTags,
+        )
+    }
     val navigationSuite = @Composable {
-        NavigationSuite(
-            navigationSuiteType = navigationType,
-            colors = NavigationSuiteDefaults.colors(
-                shortNavigationBarContainerColor = BrandTokens.cardBackground.copy(alpha = 0.96f),
-                shortNavigationBarContentColor = BrandTokens.textSecondary,
-                wideNavigationRailColors = WideNavigationRailDefaults.colors(containerColor = BrandTokens.surfaceFrosted),
-                navigationDrawerContainerColor = BrandTokens.surfaceFrosted,
-            ),
-            primaryActionContent = {
-                if (layout == NavigationLayout.Rail) {
-                    // Centred in the collapsed rail column and lifted from the rail's 44 dp top
-                    // space onto the top app bar row (64 dp bar: 8 dp above a 48 dp button).
-                    Box(
-                        Modifier.width(RAIL_COLLAPSED_WIDTH_DP.dp).offset(y = -RAIL_HEADER_LIFT_DP.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }, modifier = Modifier.testTag("fst.nav.drawer")) {
-                            Icon(Icons.Filled.Menu, contentDescription = "Open menu", tint = BrandTokens.textPrimary)
-                        }
+        if (layout == NavigationLayout.Rail) {
+            FestivalRail(
+                sections = sections,
+                selected = selected,
+                player = settings.selectedPlayer,
+                onSection = { navController.selectSection(it, selected) },
+                onOpenDrawer = { scope.launch { drawerState.open() } },
+                onOpenProfile = { showProfile = true },
+            )
+        } else {
+            NavigationSuite(
+                navigationSuiteType = navigationType,
+                colors = NavigationSuiteDefaults.colors(
+                    shortNavigationBarContainerColor = BrandTokens.cardBackground.copy(alpha = 0.96f),
+                    shortNavigationBarContentColor = BrandTokens.textSecondary,
+                    navigationDrawerContainerColor = BrandTokens.surfaceFrosted,
+                ),
+                modifier = when (layout) {
+                    NavigationLayout.PermanentDrawer -> Modifier.width(PERMANENT_DRAWER_WIDTH_DP.dp).testTag("fst.nav.permanent-drawer")
+                    else -> Modifier.testTag("fst.nav.bar")
+                },
+            ) {
+                if (layout == NavigationLayout.PermanentDrawer) {
+                    drawer(true)
+                } else {
+                    sections.forEach { section ->
+                        NavigationSuiteItem(
+                            selected = section == selected,
+                            onClick = { navController.selectSection(section, selected) },
+                            icon = { Icon(section.icon(), contentDescription = null) },
+                            label = { Text(section.title, maxLines = 1) },
+                            navigationSuiteType = navigationType,
+                            modifier = Modifier.testTag("fst.nav.tab.${section.name.lowercase()}"),
+                        )
                     }
-                }
-            },
-            // Material rails may centre their destinations; the group sits mid-height.
-            verticalArrangement = if (layout == NavigationLayout.Rail) Arrangement.Center else Arrangement.Top,
-            modifier = when (layout) {
-                NavigationLayout.BottomBar -> Modifier.testTag("fst.nav.bar")
-                NavigationLayout.Rail -> Modifier.testTag("fst.nav.rail")
-                NavigationLayout.PermanentDrawer -> Modifier.width(PERMANENT_DRAWER_WIDTH_DP.dp).testTag("fst.nav.permanent-drawer")
-            },
-        ) {
-            if (layout == NavigationLayout.PermanentDrawer) {
-                DrawerContent(
-                    sections = sections,
-                    selected = selected,
-                    player = settings.selectedPlayer,
-                    onSection = { navController.selectSection(it, selected) },
-                    onRoute = actions.navigate,
-                    showShop = !settings.hideShop,
-                )
-            } else {
-                sections.forEach { section ->
-                    NavigationSuiteItem(
-                        selected = section == selected,
-                        onClick = { navController.selectSection(section, selected) },
-                        icon = { Icon(section.icon(), contentDescription = null) },
-                        label = { Text(section.title, maxLines = 1) },
-                        navigationSuiteType = navigationType,
-                        modifier = Modifier.testTag("fst.nav.tab.${section.name.lowercase()}"),
-                    )
                 }
             }
         }
@@ -464,15 +469,20 @@ private fun FestivalShell(
                         shellViewModel = shellViewModel,
                         settings = settings,
                         twoPane = AdaptiveLayoutPolicy.showsTwoPanes(widthDp, verticalHinge != null),
+                        hingeSplit = verticalHinge != null,
                         listPaneWidth = AdaptiveLayoutPolicy.listPaneWidth(
                             contentWidthDp,
                             verticalHinge?.let { with(density) { (it.bounds.left - contentLeftPx).toDp().value.toInt() } },
                         ),
                     )
                     if (usesFloatingToolbar) {
+                        // End-aligned (M3 Expressive floating toolbars may sit at the edge), where
+                        // the web's mobile FAB dock sits; one shared toolbar per screen.
                         FloatingToolbar(
                             floatingToolbar,
-                            Modifier.align(Alignment.BottomCenter).padding(bottom = FLOATING_TOOLBAR_MARGIN_DP.dp),
+                            Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(end = FLOATING_TOOLBAR_MARGIN_DP.dp, bottom = FLOATING_TOOLBAR_MARGIN_DP.dp),
                         )
                     }
                 }
@@ -486,7 +496,7 @@ private fun FestivalShell(
             drawerState = drawerState,
             // Edge swipes belong to system back; the drawer opens from the menu button only.
             gesturesEnabled = drawerState.isOpen,
-            drawerContent = { ModalDrawerSheet(drawerContainerColor = BrandTokens.cardBackground) { DrawerContent(emptyList(), selected, settings.selectedPlayer, { navController.selectSection(it, selected) }, actions.navigate, showShop = !settings.hideShop) } },
+            drawerContent = { ModalDrawerSheet(drawerContainerColor = BrandTokens.cardBackground) { drawer(false) } },
         ) { content() }
     }
     GlobalSearchHost(
@@ -525,12 +535,6 @@ private fun FestivalShell(
     )
 }
 
-/** Material collapsed wide-rail width (`NavigationRailCollapsedTokens.ContainerWidth`). */
-private const val RAIL_COLLAPSED_WIDTH_DP = 96
-
-/** Rail top space (44 dp) minus the top app bar's button inset (8 dp). */
-private const val RAIL_HEADER_LIFT_DP = 36
-
 /** Permanent drawer width on large windows. */
 private const val PERMANENT_DRAWER_WIDTH_DP = 280
 
@@ -545,29 +549,38 @@ private fun FestivalNavHost(
     shellViewModel: ShellViewModel,
     settings: AppSettings,
     twoPane: Boolean,
+    hingeSplit: Boolean,
     listPaneWidth: Int,
 ) {
     val api = container.api
     NavHost(navController = navController, startDestination = SongsTab, modifier = Modifier.fillMaxSize()) {
         composable<SongsTab> {
+            var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
+            // M3 list-detail: an expanded window without a separating fold keeps the list full
+            // width until a song is picked (no big empty detail pane); a book-posture fold always
+            // splits at the hinge, with a slim prompt in the empty end pane. Back closes the detail.
+            val showDetail = twoPane && (selectedId != null || hingeSplit)
+            BackHandler(enabled = twoPane && selectedId != null) { selectedId = null }
             if (twoPane) {
-                var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
+                // One call site for the list in both states, so its scroll position survives a pick.
                 Row(Modifier.fillMaxSize()) {
-                    Box(Modifier.width(listPaneWidth.dp)) {
+                    Box(if (showDetail) Modifier.width(listPaneWidth.dp) else Modifier.weight(1f)) {
                         SongsRoute(container, shellViewModel, settings, onSongClick = { selectedId = it.songId }, selectedSongId = selectedId)
                     }
-                    VerticalDivider(color = BrandTokens.glassBorder)
-                    Box(Modifier.weight(1f).fillMaxHeight().testTag("fst.songs.detail-pane")) {
-                        val id = selectedId
-                        if (id == null) {
-                            Text(
-                                "Select a song",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = BrandTokens.textSecondary,
-                                modifier = Modifier.align(Alignment.Center),
-                            )
-                        } else {
-                            SongDetailRouteScreen(container, shellViewModel, settings, id, embedded = true)
+                    if (showDetail) {
+                        VerticalDivider(color = BrandTokens.glassBorder)
+                        Box(Modifier.weight(1f).fillMaxHeight().testTag("fst.songs.detail-pane")) {
+                            val id = selectedId
+                            if (id == null) {
+                                Text(
+                                    "Select a song",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = BrandTokens.textSecondary,
+                                    modifier = Modifier.align(Alignment.Center).testTag("fst.songs.detail-placeholder"),
+                                )
+                            } else {
+                                SongDetailRouteScreen(container, shellViewModel, settings, id, embedded = true)
+                            }
                         }
                     }
                 }

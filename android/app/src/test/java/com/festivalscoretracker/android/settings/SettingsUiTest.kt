@@ -280,11 +280,13 @@ class ExpandedSettingsUiTest {
         rule.onNodeWithTag("fst.quick-links.item.licenses").performSemanticsAction(SemanticsActions.OnClick)
         rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.settings.licenses").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("fst.settings.licenses").performSemanticsAction(SemanticsActions.OnClick)
-        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.licenses.detail-pane").fetchSemanticsNodes().isNotEmpty() }
-        rule.onNodeWithText("Select a package to read its license.").assertExists()
+        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.licenses.list").fetchSemanticsNodes().isNotEmpty() }
+        // Nothing open: full-width list, no empty detail pane.
+        assertTrue(rule.onAllNodesWithTag("fst.licenses.detail-pane").fetchSemanticsNodes().isEmpty())
         rule.onNodeWithTag("fst.licenses.list").performScrollToNode(hasTestTag("fst.licenses.row.com.squareup.okhttp3:okhttp"))
         rule.onNodeWithTag("fst.licenses.row.com.squareup.okhttp3:okhttp").performSemanticsAction(SemanticsActions.OnClick)
         rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.licenses.text").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("fst.licenses.detail-pane").assertExists()
         assertTrue(rule.onAllNodesWithTag("fst.licenses.detail").fetchSemanticsNodes().isEmpty())
     }
 }

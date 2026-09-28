@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.settings
 
+import androidx.activity.compose.BackHandler
 import com.festivalscoretracker.android.ui.design.popupTestTags
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -92,8 +93,11 @@ fun LicensesScreen(loadManifest: (suspend () -> LicenseManifest)? = null) {
     val density = LocalDensity.current
     BoxWithConstraints(Modifier.fillMaxSize().then(split.modifier)) {
         val hinge = split.value
-        // List-detail on a book-posture hinge or a wide page; a sheet otherwise.
-        val detailPane = hinge != null || maxWidth >= LICENSE_DETAIL_PANE_MIN_WIDTH
+        // List-detail on a book-posture hinge, or on a wide page once a package is open (the
+        // list stays full width until then); a sheet otherwise. Back closes the open pane.
+        val wide = hinge != null || maxWidth >= LICENSE_DETAIL_PANE_MIN_WIDTH
+        val detailPane = hinge != null || (wide && openId != null)
+        BackHandler(enabled = wide && openId != null) { openId = null }
         FestivalScreen(title = "Licenses", isRoot = false, scrolled = scrolled) { padding ->
             val current = manifest
             if (current == null) {
@@ -143,14 +147,14 @@ fun LicensesScreen(loadManifest: (suspend () -> LicenseManifest)? = null) {
                             .testTag("fst.licenses.detail-pane"),
                     ) {
                         if (open == null) {
-                            Text("Select a package to read its license.", color = BrandTokens.textSecondary, modifier = Modifier.align(Alignment.Center))
+                            Text("Select a package to read its license.", color = BrandTokens.textSecondary, modifier = Modifier.align(Alignment.Center).testTag("fst.licenses.detail-placeholder"))
                         } else {
                             LicenseDetail(open, current.text(open), Modifier.fillMaxSize().verticalScroll(rememberScrollState()))
                         }
                     }
                 }
             }
-            if (!detailPane && open != null) LicenseSheet(open, current.text(open)) { openId = null }
+            if (!wide && open != null) LicenseSheet(open, current.text(open)) { openId = null }
         }
     }
 }
