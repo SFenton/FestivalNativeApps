@@ -82,11 +82,11 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 - ✅ Split `SongScreens.swift` into feature folders; add `AppRoute` for all 24 web routes, `AppRouteDestination`, `FestivalTabStack`, placeholder screens (`9a5754a`)
 - ✅ Shared design primitives: `festivalGlass` (Liquid Glass + pre-26 fallback), `FestivalSectionHeader`, `InstrumentIcon` + bundled icons
 - ✅ Deployment targets iOS 17 / macOS 14
-- ✅ `tools/ios_sim.py` (serialized sim + deep links), `tools/lane_integrate.sh`, `FestivalBackgroundHost` seam
+- ✅ `tools/ios_sim.py` (serialized sim + deep links), `tools/lane_integrate.sh`, `FestivalBackgroundHost` seam (`2ff8338`), `festivalRootChrome` seam (`915fde4`)
 
 ### Wave 1 — parallel lanes (iPhone, iOS 26.5)
 
-**Lane A — Shell & Liquid Glass chrome** (Opus)
+**Lane A — Shell & Liquid Glass chrome** (Opus) — 🟨 running in `~/repos/FestivalNativeApps-lanes/shell`
 - ⬜ Conditional tabs mirroring web `BottomNav`: Songs · Suggestions* · Leaderboards / Compete* · Statistics* · Settings (*when a profile is selected)
 - ⬜ Profile button **top-right** on every tab root (notifications slot reserved beside it)
 - ⬜ Apple-style hamburger drawer (leading) with expanded options — Item Shop, Bands, Rivals, Manual, Licenses, profile-specific actions
@@ -94,7 +94,7 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 - ⬜ Modals: dark glass backgrounds, native sheet detents, Title Case white section headers (`festivalSheet` style)
 - ⬜ Settings persist across cold starts (verify every setting)
 
-**Lane S — Songs, Song Detail, Shop** (Sonnet)
+**Lane S — Songs, Song Detail, Shop** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/songs`
 - ⬜ Native toolbar controls on Liquid Glass nav bar: search, sort, filter (Item Shop button removed → drawer)
 - ⬜ Song rows as Liquid Glass; tighten row spacing to match web
 - ⬜ Instrument icons inside the instrument status circles
@@ -104,22 +104,22 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 - ⬜ Song Detail: intensity card uses instrument icons instead of text
 - ⬜ Remove offline/warm-cache disclosure UI (online-only)
 
-**Lane P — Profile** (Sonnet)
+**Lane P — Profile** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/profile`
 - ⬜ Fix: selected profile survives app close / cold start
 - ⬜ Player profile page `/player/:accountId` — viewed (unselected) and selected states, select/deselect action
 - ⬜ Profile selection sheet redesign: native, dark glass, "Find Player"/"Find Band", centered "Enter at least…" hint, Title Case headers
 
-**Lane L — Leaderboards** (Sonnet)
+**Lane L — Leaderboards** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/leaderboards`
 - ⬜ Leaderboards overview: top-10 cards per visible instrument (+ band types), metric picker
 - ⬜ Full rankings (paginated) and band rankings
 - ⬜ Song leaderboard page native navigation pass; rows navigate to player profile
 
-**Lane B — Shared background & transitions** (Opus)
+**Lane B — Shared background & transitions** (Opus) — 🟨 running in `~/repos/FestivalNativeApps-lanes/background`
 - ⬜ One animated background hosted by the shell — no restart/jitter across tabs or pushes; Item Shop uses the same one
 - ⬜ Song Detail: animate from the carousel to that song's album art, hold still; animate back on pop/tab change
 - ⬜ Carousel loads independently of the Songs tab
 
-**Lane D — Agent docs architecture** (Opus)
+**Lane D — Agent docs architecture** (Opus) — 🟨 running in `~/repos/FestivalNativeApps-lanes/docs`
 - ⬜ Split every multi-platform doc by platform, then form factor (`.agents/<area>/<topic>/{spec,ios,ipados,duo,macos,android,windows}.md`)
 - ⬜ Router tables with direct pointers at every level; workflow docs for the lane model
 - ⬜ Remove tandem-research requirements; encode testing phases
@@ -153,3 +153,4 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 | When (PT) | Lane | Change |
 |---|---|---|
 | 2026-09-27 | Orchestrator | Read Copilot history (11 checkpoints, 7 operator messages); designed lane model; landed foundation `9a5754a` |
+| 2026-09-27 | Orchestrator | Launched Wave 1 lanes A, S, P, L, B, D in parallel worktrees |
