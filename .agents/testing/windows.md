@@ -4,6 +4,7 @@
 
 - Separate logic tests (testable view models) from XAML/UI automation; **95% / 90%** line coverage via Cobertura XML, which `tools/coverage_gate.py` parses and merges.
 - Compare app/game impact in Release builds with representative workloads.
+- Installed-PWA reference (Edge app, same window presets, video + measured animations): `tools/windows/pwa.py`; findings and gaps in [pwa-reference/](pwa-reference/README.md).
 
 ## Layers
 

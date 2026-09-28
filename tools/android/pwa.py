@@ -92,6 +92,22 @@ CONFIRM_INSTALL_STEPS = ["tap:text=Install", "wait:10", "tap:text=Add to home sc
 #: Chrome Settings row whose switch controls usage/crash reporting.
 USAGE_ROW = "Help improve Chrome"
 
+#: Native-app counterparts of the page sweep: page name -> (FST_DEBUG_TAB, FST_DEBUG_ROUTE),
+#: in the syntax of ``android/.../core/nav/DebugLaunch.kt``. ``{song}`` is the sweep's song.
+NATIVE_PAGES = {
+    "songs": ("songs", None), "song-detail": (None, "song:{song}"),
+    "song-leaderboard": (None, "songLeaderboard:{song}:Solo_Guitar"),
+    "player-history": (None, "playerHistory:{song}:Solo_Guitar"),
+    "leaderboards": (None, "leaderboards"), "full-rankings": (None, "fullRankings:Solo_Guitar"),
+    "band-rankings": (None, "bandRankings:Band_Duets"), "bands": (None, "bands"),
+    "rivals": (None, "rivals"), "statistics": (None, "statistics"),
+    "suggestions": (None, "suggestions"), "compete": (None, "compete"), "shop": (None, "shop"),
+    "settings": ("settings", None), "licenses": (None, "licenses"),
+}
+
+#: Song used by the sweeps (``pwa_journeys/pages.steps``).
+SWEEP_SONG = "75d14ea0-99b6-41a6-8c68-bca89bddded7"
+
 #: Platform-specific drive verbs (on top of :data:`cdp.WEB_VERBS`).
 PLATFORM_VERBS = {"shot": "path", "back": "none", "home": "none", "posture": "text",
                   "rotate": "text", "relaunch": "none", "record": "record"}
@@ -529,6 +545,37 @@ def cmd_drive(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_native(args: argparse.Namespace) -> int:
+    """Install the native app and screenshot its counterparts of the PWA pages (one hold).
+
+    Launches are anonymous (``FST_DEBUG_ANONYMOUS=1``) with first run off, against
+    the app's default keyless public origin, like the PWA sweep.
+    """
+    pages = args.pages.split(",") if args.pages else list(NATIVE_PAGES)
+    out = Path(args.out_dir)
+    with _lock(args, "native") as lock:
+        lab = AndroidLab(lock, args.avd)
+        try:
+            dv._install(lab.device, args.apk)
+            if args.posture:
+                dv.apply_pose(lab.device, lab.avd, args.posture)
+            component = dv.resolve_launcher(lab.device, dv.DEFAULT_PACKAGE)
+            done = []
+            for name in pages:
+                tab, route = NATIVE_PAGES[name]
+                extras = dv.launch_extras(tab, route.format(song=SWEEP_SONG) if route else None,
+                                          [("FST_DEBUG_ANONYMOUS", "1"),
+                                           ("FST_DEBUG_FIRST_RUN", "off")])
+                lab.device.shell(dv.am_start_command(component, extras), cap=60)
+                time.sleep(args.wait)
+                lab.shot(out / f"{name}.png")
+                done.append(name)
+        finally:
+            lab.close()
+    print(json.dumps({"avd": args.avd, "posture": args.posture, "pages": done}))
+    return 0
+
+
 def cmd_motion(args: argparse.Namespace) -> int:
     """Frame-step a recording and print bursts of change."""
     print(json.dumps(cdp.analyze_motion(Path(args.clip), args.crop, args.threshold, args.gap),
@@ -566,6 +613,14 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("--steps-file")
             p.add_argument("--out-dir")
             p.add_argument("--log")
+    p = with_avd(sub.add_parser("native"))
+    p.add_argument("--apk", default=str(REPO_ROOT / "android" / "app" / "build" / "outputs" /
+                                        "apk" / "debug" / "app-debug.apk"))
+    p.add_argument("--out-dir", required=True)
+    p.add_argument("--pages", help="comma-separated subset of NATIVE_PAGES")
+    p.add_argument("--posture")
+    p.add_argument("--wait", type=float, default=6.0)
+    p.set_defaults(func=cmd_native)
     p = sub.add_parser("motion")
     p.add_argument("clip")
     p.add_argument("--crop")

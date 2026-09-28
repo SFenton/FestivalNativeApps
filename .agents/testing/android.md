@@ -4,6 +4,7 @@
 
 - Host (JVM) + instrumented tests together must reach **95% logic / 90% UI lines**; Android Gradle [coverage reports](https://developer.android.com/studio/test/coverage-report) include instrumented results. `tools/coverage_gate.py` parses JaCoCo XML and merges per-line hits across host and instrumented reports.
 - Control-state snapshots and navigation coverage are separate evidence from line coverage.
+- Installed-PWA reference (Chrome install on every FST AVD, video + measured animations): `tools/android/pwa.py`; findings and gaps in [pwa-reference/](pwa-reference/README.md).
 - Use the [mock service](fixtures.md); no production POSTs. From the emulator, the host loopback is `10.0.2.2`.
 - No Android coverage has been measured yet.
 
