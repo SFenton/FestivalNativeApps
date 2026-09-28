@@ -160,3 +160,80 @@ real `URLSession` requests straight at `FestivalAPI.baseURL`, so an in-memory
 loopback process (extended by this lane — see its own header comment and the
 XCUITest section below) on an OS-assigned port (`--port 0`, also newly
 accepted by `mock_service.py`) for the test binary's lifetime.
+
+## Lane U4 — Profile, Statistics, Bands, Settings, Suggestions (2026-09-28)
+
+Measured via `swift test --package-path apple --enable-code-coverage` (full
+package, all three SwiftPM bundles, 231 hosted + 3 + 360 tests, all pass) +
+`xcrun llvm-cov report`, filtered to this lane's feature files. Same caveat as
+every other lane's table: hosted/logic coverage only, not the separate iPhone
+`apple_xccov_gate.py` device path.
+
+| Feature | Files | Lines covered / total | % |
+|---|---|---|---|
+| Profile | `PlayerProfileContent.swift` (567/620), `PlayerProfileScreen.swift` (9/9), `PlayerBandsScreen.swift` (282/302) | 858/931 | 92.2% |
+| Profile selection sheet (pre-existing, Lane P2) | `ProfileSelectionSheet.swift` | 489/511 | 95.7% |
+| Statistics | `StatisticsScreen.swift` | 55/56 | 98.2% |
+| Bands | `BandsScreen.swift` (220/220), `BandDetailScreen.swift` (553/575), `SongLeaderboard/SongBandLeaderboardScreen.swift` (362/385) | 1135/1180 | 96.2% |
+| Settings | `SettingsScreen.swift` (975/1030), `SettingsReorderSheet.swift` (89/93), `SettingsRegistry.swift` (20/22) | 1084/1145 | 94.7% |
+| Suggestions | `SuggestionsScreen.swift` (226/287), `SuggestionsFilterSheet.swift` (574/588), `SuggestionCategoryCardView.swift` (202/203) | 1002/1078 | **93.0%** |
+| **Total (this lane's new files)** | | **4134/4390** | **94.2%** |
+
+All five features are above the 90% UX target, including Suggestions (the
+lane's explicit ≥90% requirement, up from 8.3% before this lane — see Lane
+U2's note). `SuggestionsScreen.swift` itself is the one file below 90%
+(78.75%): its own uncovered lines are the `openProfile()` button action (no
+device to tap it), the `viewModel.loadState == .failed` branch (needs
+`session.catalog()` itself to fail, not just the player load — not forced by
+this lane's fixture), `maybeLoadMore`'s scroll-triggered `onAppear`, and
+`refreshable`/`Start New Mix` — all only reachable via a live scroll gesture or
+pull-to-refresh on-device. The Suggestions **feature total** (including the
+card/filter views, which are pure presentation and fully exercised by directly
+constructed `SuggestionCategory`/`SuggestionSongItem` fixtures rather than
+depending on `SuggestionGenerator` picking a specific pipeline out of the
+shared catalogue's two songs) clears 90%.
+
+Hosted snapshot tests added: `PlayerProfileRenderTests.swift` (9: viewed/
+selected identity, syncing, denied/error, global-rank available/unranked/
+failed, `PlayerProfileScreen` wrapper), `StatisticsRenderTests.swift` (2:
+no-profile guard, selected-player content), `BandsRenderTests.swift` (12:
+landing with/without a selected player, Band Detail unresolved/loaded-with-
+history-and-catalog-linked-songs/loaded-with-empty-history-and-songs/failed-
+503, Player Bands loaded-with-pager/empty, Song Band Leaderboard loaded/empty/
+band-type-switch), `SettingsRenderTests.swift` (10: anonymous/selected-player
+defaults, expanded leeway+visual-order row, Item Shop hidden, single-visible-
+instrument disables its toggle, diagnostics on, accessibility overrides on,
+both `SettingsReorderSheet` item lists, `SettingsServiceSummary`'s four
+publication-message branches), `SuggestionsRenderTests.swift` (10: category
+card FC/stars/percent, rival badge ±delta, multi-instrument mix, filter sheet
+default/instrument-disabled-with-per-instrument-overrides/no-visible-
+instruments, screen no-profile/syncing/failed/settled-after-selection). All 43
+new tests pass; full-package `swift test` stayed green (one pre-existing,
+unrelated `ServiceStatusViewTests.scrapeFreezeRetriesAutomaticallyWhileOtherIssuesWait`
+timing flake under concurrent-lane load, confirmed to pass in isolation both
+before and after this lane's changes).
+
+`BandsRenderTests.swift`/`PlayerProfileRenderTests.swift`/
+`SuggestionsRenderTests.swift` reuse `RivalsMockService`'s real loopback
+`tools/mock_service.py` process (a plain generic launcher despite its name)
+rather than a per-file in-memory `HTTPTransport` actor: this lane's Bands/
+Player-instrument-ranking/Player-bands reads all go through the normal
+injectable-transport path (unlike Rivals), but reusing the real process keeps
+one source of truth for the richer `BandDetail`/`PlayerBandEntry`/
+`SongBandLeaderboardEntry` fixture shapes (added to `tools/mock_service.py` by
+this lane — see `.agents/testing/fixtures.md`) instead of a second
+hand-authored JSON copy in a test-only transport actor.
+
+XCUITest journeys added (`apple/Apps/iOSUITests/{ProfileJourneyTests,
+BandsJourneyTests,SettingsJourneyTests}.swift`, 6 tests): profile search → view
+→ select → Statistics tab → deselect; Band Rankings row → Band Detail → its
+catalog-linked Best song → Song Detail; Player Bands paging past a synthetic
+30-row first page; a Settings accessibility toggle surviving a cold relaunch;
+the Song Row Order reorder sheet opening/closing; Reset App Settings restoring
+a changed toggle. Suggestions' filter-apply journey was already covered by
+Lane G/U2's `SuggestionsJourneyTests.swift` (`testSuggestionsFilterDraftApplyDiscardAndReset`),
+so this lane did not duplicate it. These three files' `FST_API_BASE_URL`
+points at a dedicated `127.0.0.1:18790` loopback instance this lane starts
+itself, not the shared default `8765`: that pre-existing process predates this
+lane's `tools/mock_service.py` changes, and "never kill a stale service you
+did not start" forbids restarting it to pick up the new Bands/ranking routes.
