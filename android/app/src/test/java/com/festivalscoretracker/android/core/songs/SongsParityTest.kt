@@ -12,6 +12,7 @@ import com.festivalscoretracker.android.core.settings.MetadataField
 import com.festivalscoretracker.android.core.shop.ShopPresentationPolicy
 import com.festivalscoretracker.android.core.shop.ShopPulse
 import com.festivalscoretracker.android.data.FestivalApi
+import com.festivalscoretracker.android.presentation.songs.effective
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.SongsFixtures
 import java.text.Collator
@@ -279,6 +280,20 @@ class SongsParityTest {
         assertNull(InvalidScorePolicy.rankAt(null, 1.0))
         assertTrue(legacy.isWellFormed)
         assertFalse(legacy.copy(validStars = 9).isWellFormed)
+    }
+
+    @Test
+    fun leaderboardSpotlightUsesTheEffectiveScore() {
+        val variant = PlayerValidScoreVariant(80_000, rawAccuracy = 950.0, isFullCombo = false, stars = 5, minLeeway = 0.5, rankTiers = listOf(PlayerRankTier(0.0, 60)))
+        val invalid = raw(99_000, minLeeway = 2.0, variants = listOf(variant))
+        val shown = invalid.effective(a, lead, 1.0)!!
+        assertEquals(80_000, shown.score)
+        assertEquals(60, shown.rank)
+        assertEquals(950_000.0, shown.accuracy!!, 0.001)
+        assertEquals(false, shown.isFullCombo)
+        val valid = raw(99_000, minLeeway = 0.5)
+        assertTrue(valid.effective(a, lead, 1.0) === valid)
+        assertNull(raw(99_000, minLeeway = 2.0).effective(a, lead, 1.0))
     }
 
     @Test

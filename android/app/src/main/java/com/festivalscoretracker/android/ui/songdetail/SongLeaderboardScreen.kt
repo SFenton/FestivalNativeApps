@@ -1,5 +1,12 @@
 package com.festivalscoretracker.android.ui.songdetail
 
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.festivalscoretracker.android.AppContainer
+import com.festivalscoretracker.android.core.model.Instrument
+import com.festivalscoretracker.android.core.nav.SongLeaderboardRoute
+import com.festivalscoretracker.android.core.settings.AppSettings
+import com.festivalscoretracker.android.data.songs.leaderboardPage
+import com.festivalscoretracker.android.presentation.songs.effective
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -54,6 +61,29 @@ import kotlinx.coroutines.flow.StateFlow
 // region Song leaderboard
 
 /**
+ * Route wiring for `/songs/:songId/:instrument`: reads pages with `leeway=` while
+ * Filter Invalid Scores is on, re-reading when it changes (web `LeaderboardPage`).
+ *
+ * @param container Process dependencies.
+ * @param settings Current settings.
+ * @param route Route.
+ */
+@Composable
+fun SongLeaderboardRouteScreen(container: AppContainer, settings: AppSettings, route: SongLeaderboardRoute) {
+    val api = container.api
+    val instrument = Instrument.fromWireId(route.instrument) ?: Instrument.Lead
+    val leeway = settings.leeway.takeIf { settings.filterInvalidScores }
+    val boardViewModel: SongLeaderboardViewModel = viewModel(key = "board:${route.songId}:${instrument.wireId}:$leeway") {
+        SongLeaderboardViewModel(
+            route.songId, instrument, route.page, { api.catalog(it) },
+            { id, chart, page, top -> api.leaderboardPage(id, chart, page, top, leeway) },
+            container.backoff,
+        )
+    }
+    SongLeaderboardScreen(boardViewModel, settings.selectedPlayer?.accountId, container.selectedProfile.state, leeway)
+}
+
+/**
  * Full 25-row song leaderboard (`/songs/:songId/:instrument`) with the shared
  * rankings pager. Rows open the player's profile (Statistics for the selected
  * player, web `LeaderboardPage.tsx`); rows without a usable account ID are shown
@@ -63,10 +93,16 @@ import kotlinx.coroutines.flow.StateFlow
  * @param viewModel Leaderboard logic.
  * @param selectedAccountId Selected player, or null.
  * @param selectedProfile Selected player's process-only scores, or null.
+ * @param leeway Filter Invalid Scores leeway (the page is read with it; the spotlight shows the next valid score), or null.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun SongLeaderboardScreen(viewModel: SongLeaderboardViewModel, selectedAccountId: String? = null, selectedProfile: StateFlow<SelectedProfileState>? = null) {
+fun SongLeaderboardScreen(
+    viewModel: SongLeaderboardViewModel,
+    selectedAccountId: String? = null,
+    selectedProfile: StateFlow<SelectedProfileState>? = null,
+    leeway: Double? = null,
+) {
     val song by viewModel.song.collectAsStateWithLifecycle()
     val board by viewModel.board.collectAsStateWithLifecycle()
     val page by viewModel.page.collectAsStateWithLifecycle()
@@ -79,7 +115,9 @@ fun SongLeaderboardScreen(viewModel: SongLeaderboardViewModel, selectedAccountId
     val footer = payload?.let {
         SongScoreSpotlight.footer(
             player = profile?.player?.takeIf { player -> RankingSpotlight.isSelected(selectedAccountId, player.accountId) },
-            score = profile?.scoreIndex?.get(it.leaderboard.songId)?.get(viewModel.instrument),
+            score = profile?.scoreIndex?.get(it.leaderboard.songId)?.get(viewModel.instrument)?.let { raw ->
+                if (leeway == null) raw else raw.effective((song as? LoadState.Loaded)?.value, viewModel.instrument, leeway)
+            },
             scorePublicationId = profile?.observedPublicationId,
             boardPublicationId = it.publicationId,
             visible = it.leaderboard.entries,

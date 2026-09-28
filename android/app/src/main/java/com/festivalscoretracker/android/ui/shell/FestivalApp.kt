@@ -65,7 +65,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.festivalscoretracker.android.AppContainer
-import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.nav.AdaptiveLayoutPolicy
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.nav.DebugLaunch
@@ -86,7 +85,6 @@ import com.festivalscoretracker.android.core.nav.StatisticsTab
 import com.festivalscoretracker.android.core.settings.AppSettings
 import com.festivalscoretracker.android.presentation.ProfileSearchViewModel
 import com.festivalscoretracker.android.presentation.ShellViewModel
-import com.festivalscoretracker.android.presentation.SongLeaderboardViewModel
 import com.festivalscoretracker.android.ui.background.ArtworkBackground
 import com.festivalscoretracker.android.ui.bands.bandsDestinations
 import com.festivalscoretracker.android.ui.common.ComingSoonScreen
@@ -111,7 +109,7 @@ import com.festivalscoretracker.android.ui.firstrun.firstRunPage
 import com.festivalscoretracker.android.ui.notifications.NotificationsBell
 import com.festivalscoretracker.android.ui.notifications.NotificationsSheet
 import com.festivalscoretracker.android.ui.songdetail.SongDetailRouteScreen
-import com.festivalscoretracker.android.ui.songdetail.SongLeaderboardScreen
+import com.festivalscoretracker.android.ui.songdetail.SongLeaderboardRouteScreen
 import com.festivalscoretracker.android.ui.suggestions.suggestionsDestinations
 import com.festivalscoretracker.android.ui.songs.SongsRoute
 import com.festivalscoretracker.android.ui.shop.ShopRouteScreen
@@ -546,12 +544,7 @@ private fun FestivalNavHost(
             SongDetailRouteScreen(container, shellViewModel, settings, route.songId, embedded = false)
         }
         composable<SongLeaderboardRoute> { entry ->
-            val route = entry.toRoute<SongLeaderboardRoute>()
-            val instrument = Instrument.fromWireId(route.instrument) ?: Instrument.Lead
-            val boardViewModel: SongLeaderboardViewModel = viewModel {
-                SongLeaderboardViewModel(route.songId, instrument, route.page, { api.catalog(it) }, api::leaderboard, container.backoff)
-            }
-            SongLeaderboardScreen(boardViewModel, settings.selectedPlayer?.accountId, container.selectedProfile.state)
+            SongLeaderboardRouteScreen(container, settings, entry.toRoute<SongLeaderboardRoute>())
         }
         leaderboardsGraph(container, shellViewModel, container.leaderboardPreferences)
         composable<SettingsTab> {

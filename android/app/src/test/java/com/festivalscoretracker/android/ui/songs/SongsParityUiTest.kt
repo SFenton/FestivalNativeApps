@@ -18,6 +18,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.AppContainer
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
+import com.festivalscoretracker.android.core.nav.SongLeaderboardRoute
 import com.festivalscoretracker.android.core.settings.SettingsRegistry
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.FakeTransport
@@ -53,7 +54,7 @@ class SongsParityUiTest {
         ]}
     """.trimIndent()
 
-    private fun transport() = FakeTransport.standard().apply {
+    private val transport = FakeTransport.standard().apply {
         on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { Fixtures.songsJson.replace("\"alpha-512.jpg\"", "null") }
         on("/api/shop", headers = mapOf("X-FST-Publication-Id" to "7")) { SongsFixtures.shopJson.replace("\"b.jpg\"", "null") }
         on("/api/player/${Fixtures.ACCOUNT_A}", headers = mapOf("X-FST-Publication-Id" to "7")) { profileJson }
@@ -62,7 +63,7 @@ class SongsParityUiTest {
     private fun prefs(vararg pairs: Preferences.Pair<*>) = InMemoryPreferences(mutablePreferencesOf(*pairs))
 
     private fun launch(debug: DebugLaunch, prefs: InMemoryPreferences = InMemoryPreferences()) {
-        val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport(), settingsStore = prefs)
+        val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = prefs)
         rule.setContent { FestivalApp(container, debug) }
         settle()
     }
@@ -196,6 +197,17 @@ class SongsParityUiTest {
         rule.onNodeWithText("Your score: 80,000", substring = true, useUnmergedTree = true).assertExists()
         rule.onNodeWithText("next valid score", substring = true, useUnmergedTree = true).assertExists()
         assertEquals(1, rule.onAllNodesWithTag("fst.song-detail.shop-breathe.LeavingTomorrow", useUnmergedTree = true).fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun songLeaderboardReadsWithLeewayAndSpotlightsTheNextValidScore() {
+        launch(
+            DebugLaunch(profile = player, route = SongLeaderboardRoute("s-alpha", "Solo_Guitar", 3), stillBackground = true),
+            prefs(booleanPreferencesKey(SettingsRegistry.FILTER_INVALID_SCORES) to true),
+        )
+        waitForTag("fst.song-leaderboard.list")
+        rule.waitUntil(10_000) { settle(100); transport.sent("/api/leaderboard/s-alpha/Solo_Guitar").isNotEmpty() }
+        assertTrue(transport.sent("/api/leaderboard/s-alpha/Solo_Guitar").all { it.url.contains("leeway=1.0") })
     }
 
     private fun androidx.compose.ui.test.SemanticsNodeInteraction.assertExistsWithText(fragment: String) {
