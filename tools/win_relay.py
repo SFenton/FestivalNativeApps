@@ -145,6 +145,9 @@ def cmd_lane(args: argparse.Namespace) -> int:
         print(f"exists: {path}")
         return 0
     remote(f"git -C {win(WIN_REPO)} worktree add -q -b lane/{args.name} {win(path)} origin/master")
+    # SSH sessions create files owned by BUILTIN\\Administrators; the lane runs as sfent in
+    # the desktop session and git refuses repositories owned by someone else.
+    remote(f"icacls {win(path)} /setowner sfent /T /C /Q", check=False)
     print(path)
     return 0
 
@@ -228,6 +231,75 @@ def cmd_integrate(args: argparse.Namespace) -> int:
         local(["git", "-C", str(REPO_ROOT), "worktree", "remove", "--force", str(tree)], check=False)
 
 
+def cmd_launch(args: argparse.Namespace) -> int:
+    """Start a lane as a named, monitorable Remote Control session on Windows.
+
+    The session runs interactively in the operator's logged-in desktop session
+    (via a one-shot scheduled task), so it has its own console window on the
+    Windows desktop and appears in claude.ai/code as ``FST-<name>`` for the
+    operator to watch and steer. The lane brief is copied to
+    ``relay/prompt-<name>.md``; the startup prompt tells the session to follow it
+    and to write ``relay/status/<name>.done`` (its final report) when finished.
+
+    Args:
+        args: ``name`` of the lane and local ``prompt`` file.
+
+    Returns:
+        Process exit code.
+    """
+    name = args.name
+    session = f"FST-{name}"
+    path = f"{WIN_LANES}/{name}"
+    prompt_remote = f"{WIN_ROOT}/relay/prompt-{name}.md"
+    done_remote = f"{WIN_ROOT}/relay/status/{name}.done"
+    remote(f"if not exist {win(WIN_ROOT + '/relay/status')} mkdir {win(WIN_ROOT + '/relay/status')}")
+    remote(f"if exist {win(done_remote)} del {win(done_remote)}", check=False)
+    scp_to(Path(args.prompt), prompt_remote)
+    startup = (
+        f"You are lane {session}. Read {prompt_remote.replace('/', chr(92))} and follow it exactly. "
+        f"When your milestone is complete (or you are blocked), write your final report to "
+        f"{done_remote.replace('/', chr(92))} and then stay idle for follow-up instructions."
+    )
+    wrapper = (
+        "@echo off\r\n"
+        f"title {session}\r\n"
+        f"cd /d {win(path)}\r\n"
+        f'claude --remote-control {session} --permission-mode bypassPermissions "{startup}"\r\n'
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        cmd_file = Path(tmp) / f"launch-{name}.cmd"
+        cmd_file.write_bytes(wrapper.encode("utf-8"))
+        scp_to(cmd_file, f"{WIN_ROOT}/relay/launch-{name}.cmd")
+    task = f"FST-Lane-{name}"
+    remote(f"schtasks /create /f /tn {task} /tr {win(WIN_ROOT + '/relay/launch-' + name + '.cmd')} "
+           f"/sc once /st 23:59 /it /rl LIMITED")
+    remote(f"schtasks /run /tn {task}")
+    print(f"launched {session} (claude.ai/code); done marker: {done_remote}")
+    return 0
+
+
+def cmd_wait(args: argparse.Namespace) -> int:
+    """Block until a launched lane writes its done marker, then print its report.
+
+    Run as a background job so the orchestrator is notified when the lane finishes.
+
+    Args:
+        args: ``name`` of the lane and ``poll`` interval in seconds.
+
+    Returns:
+        Process exit code.
+    """
+    import time
+    done_remote = f"{WIN_ROOT}/relay/status/{args.name}.done"
+    while True:
+        result = remote(f"if exist {win(done_remote)} (type {win(done_remote)}) else (echo __PENDING__)",
+                        check=False, capture=True)
+        if "__PENDING__" not in (result.stdout or "") and result.returncode == 0:
+            print(result.stdout)
+            return 0
+        time.sleep(args.poll)
+
+
 def cmd_exec(args: argparse.Namespace) -> int:
     """Run an ad-hoc cmd.exe command on Windows.
 
@@ -262,6 +334,14 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("name")
     run.add_argument("prompt", help="local prompt file")
     run.set_defaults(func=cmd_run)
+    launch = sub.add_parser("launch", help="start a monitorable Remote Control lane session")
+    launch.add_argument("name")
+    launch.add_argument("prompt", help="local lane brief (markdown)")
+    launch.set_defaults(func=cmd_launch)
+    wait = sub.add_parser("wait", help="block until a launched lane writes its done marker")
+    wait.add_argument("name")
+    wait.add_argument("--poll", type=float, default=120.0)
+    wait.set_defaults(func=cmd_wait)
     ex = sub.add_parser("exec")
     ex.add_argument("command")
     ex.set_defaults(func=cmd_exec)

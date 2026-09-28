@@ -8,7 +8,9 @@ Since 2026-09-28 the Windows host **pushes to GitHub directly** (gh token in `%A
 |---|---|
 | `python3 tools/win_relay.py sync` | Fast-forward the Windows main clone to GitHub `origin/master` (fallback: bundle relay) |
 | `python3 tools/win_relay.py lane <name>` | Create worktree `C:/Users/sfent/workspace/FestivalNativeApps-lanes/<name>` on branch `lane/<name>` |
-| `python3 tools/win_relay.py run <name> <prompt.md>` | Run a headless Claude Code session in that worktree (run it as a background job) |
+| `python3 tools/win_relay.py launch <name> <prompt.md>` | **Preferred.** Start the lane as a named Remote Control session `FST-<name>` in the operator's desktop session (own console window; visible/steerable in claude.ai/code). The lane writes `relay/status/<name>.done` when finished |
+| `python3 tools/win_relay.py wait <name>` | Block until that done marker exists and print the lane's final report (run as a background job for completion notifications) |
+| `python3 tools/win_relay.py run <name> <prompt.md>` | Legacy: headless `claude -p` run (not monitorable) |
 | `python3 tools/win_relay.py collect <name>` | Fetch `lane/<name>` back to the Mac as `win/<name>` |
 | `python3 tools/win_relay.py integrate <name>` | Collect, rebase onto `origin/master`, push, then `sync` |
 | `python3 tools/win_relay.py exec "<cmd.exe command>"` | Ad-hoc remote command |
@@ -18,3 +20,4 @@ Rules for Windows-host lanes:
 - Own only `android/**`, `windows/**`, `tools/android/**`, `tools/windows/**` and per-platform docs (`.agents/**/android*.md`, `.agents/**/windows*.md`, `.agents/pages/<page>/{android,windows}.md`). Never edit `apple/**`.
 - Run **one Android emulator at a time**; the Windows app itself isn't a simulator.
 - Build and tests must pass on Windows before asking the orchestrator to integrate.
+- Lane worktrees are created over SSH (owned by Administrators); `lane` resets ownership to `sfent` so git's safe.directory check passes in the desktop session.
