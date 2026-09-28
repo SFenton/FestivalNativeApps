@@ -17,7 +17,7 @@ public sealed class FirstRunSeenStore(IBlobStore blob)
     public const int MaxBytes = 256 * 1024;
 
     /// <summary>Default file.</summary>
-    public static string DefaultPath { get; } = Path.Combine(FileBlobStore.AppDataFolder, "first-run.json");
+    public static string DefaultPath => AppStateFiles.FirstRun.DefaultPath;
 
     private readonly Lock gate = new();
 

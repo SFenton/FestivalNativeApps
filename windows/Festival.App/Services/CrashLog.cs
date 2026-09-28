@@ -2,13 +2,12 @@ namespace Festival.App.Services;
 
 #region Crash log
 /// <summary>
-/// Appends unhandled exceptions and XAML binding/resource failures to
-/// <c>%LOCALAPPDATA%\FestivalScoreTracker\diagnostics.log</c> (local only; never uploaded).
+/// Appends unhandled exceptions and XAML binding/resource failures to <c>diagnostics.log</c> in the app data folder
+/// (<see cref="AppDataPaths"/>; local only, never uploaded).
 /// </summary>
 internal static class CrashLog
 {
-    private static readonly string Path = System.IO.Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FestivalScoreTracker", "diagnostics.log");
+    private static string Path => AppStateFiles.Diagnostics.DefaultPath;
 
     /// <summary>Appends one entry.</summary>
     /// <param name="error">Exception, if any.</param>

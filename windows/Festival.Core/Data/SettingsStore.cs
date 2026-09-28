@@ -50,9 +50,8 @@ public sealed class InMemorySettingsStore(AppSettings? initial = null) : ISettin
 /// <param name="path">Settings file path.</param>
 public sealed class JsonFileSettingsStore(string path) : ISettingsStore
 {
-    /// <summary>Default per-user settings path.</summary>
-    public static string DefaultPath { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FestivalScoreTracker", "settings.json");
+    /// <summary>Default per-user settings path (in <see cref="AppDataPaths.Folder"/>).</summary>
+    public static string DefaultPath => AppStateFiles.Settings.DefaultPath;
 
     /// <summary>File path.</summary>
     public string FilePath { get; } = path;

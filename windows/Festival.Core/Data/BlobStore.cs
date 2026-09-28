@@ -39,7 +39,7 @@ public sealed class MemoryBlobStore : IBlobStore
 public sealed class FileBlobStore(string path, int maxBytes = 256 * 1024) : IBlobStore
 {
     /// <summary>Per-user app data folder shared with <see cref="JsonFileSettingsStore"/>.</summary>
-    public static string AppDataFolder { get; } = Path.GetDirectoryName(JsonFileSettingsStore.DefaultPath)!;
+    public static string AppDataFolder => AppDataPaths.Folder;
 
     /// <summary>File path.</summary>
     public string FilePath { get; } = path;

@@ -32,10 +32,15 @@ public partial class App : Application
     {
 #if DEBUG
         Func<string, string?> environment = Environment.GetEnvironmentVariable;
+        const bool debugBuild = true;
 #else
         // FST_* environment deep links are a Debug-only automation hook; Release honours explicit flags only.
         Func<string, string?> environment = _ => null;
+        const bool debugBuild = false;
 #endif
+        // First, before any store resolves a default path: Debug lanes each get their own data folder.
+        AppDataPaths.Configure(AppDataPaths.Resolve(debugBuild, environment, AppContext.BaseDirectory,
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)));
         Options = LaunchOptions.Parse(Environment.GetCommandLineArgs().Skip(1).ToArray(), environment);
         PerfLog.Configure(Options.PerfLogPath);
         var handler = new SocketsHttpHandler
@@ -50,7 +55,7 @@ public partial class App : Application
         ISettingsStore store = new JsonFileSettingsStore(Options.SettingsPath ?? JsonFileSettingsStore.DefaultPath);
         if (Options.InMemorySettings)
             store = new InMemorySettingsStore(store.Load() with { SelectedPlayer = Options.DebugProfile });
-        Session = new FestivalSession(api, store);
+        Session = new FestivalSession(api, store) { AppStateFolder = AppDataPaths.Folder };
         window = new MainWindow(Session, Options);
         window.Activate();
         PerfLog.Mark("window-activated");

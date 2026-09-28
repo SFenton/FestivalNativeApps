@@ -17,7 +17,7 @@ public sealed class NotificationSeenStore(IBlobStore blob)
     public const int MaxAccounts = 20;
 
     /// <summary>Default file.</summary>
-    public static string DefaultPath { get; } = Path.Combine(FileBlobStore.AppDataFolder, "notifications-seen.json");
+    public static string DefaultPath => AppStateFiles.NotificationsSeen.DefaultPath;
 
     private readonly Lock gate = new();
 

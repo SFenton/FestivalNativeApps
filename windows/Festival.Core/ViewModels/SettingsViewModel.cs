@@ -322,9 +322,16 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Page Quick Links.</summary>
     public QuickLinksViewModel QuickLinks { get; }
 
-    /// <summary>Restores app settings only (profile, Songs sort/filter and navigation stay).</summary>
+    /// <summary>
+    /// Restores app settings (profile, Songs sort/filter and navigation stay) and deletes Reset-owned feature state
+    /// such as the Suggestions filter (<see cref="AppStateFiles"/>).
+    /// </summary>
     [RelayCommand]
-    private void ResetAppSettings() => session.UpdateSettings(s => s.ResetAppSettings());
+    private void ResetAppSettings()
+    {
+        session.UpdateSettings(s => s.ResetAppSettings());
+        session.ResetFeatureState();
+    }
 
     /// <summary>Settings quick-link sections in web order (Diagnostics only in Debug).</summary>
     /// <returns>Sections.</returns>

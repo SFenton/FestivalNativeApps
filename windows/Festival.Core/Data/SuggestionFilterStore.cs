@@ -44,8 +44,7 @@ public sealed class InMemorySuggestionFilterStore(SuggestionFilterSettings? init
 public sealed class JsonFileSuggestionFilterStore(string path) : ISuggestionFilterStore
 {
     /// <summary>Default per-user path, beside the settings file.</summary>
-    public static string DefaultPath { get; } = Path.Combine(
-        Path.GetDirectoryName(JsonFileSettingsStore.DefaultPath)!, "suggestions-filter.json");
+    public static string DefaultPath => AppStateFiles.SuggestionsFilter.DefaultPath;
 
     /// <summary>File path.</summary>
     public string FilePath { get; } = path;

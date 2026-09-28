@@ -58,6 +58,7 @@ public sealed partial class MainWindow : Window
         RebuildMenu();
         Shell.Sections.CollectionChanged += (_, _) => RebuildMenu();
         session.PropertyChanged += OnSessionChanged;
+        session.FeatureStateReset += (_, files) => DropCachedSections(files.Select(f => f.Owner).OfType<AppSection>());
 
         VisibilityChanged += (_, e) => { windowVisible = e.Visible; UpdateBackdropPolicy(); };
         AppWindow.Changed += OnAppWindowChanged;
@@ -155,6 +156,17 @@ public sealed partial class MainWindow : Window
         FrameHost.Children.Add(frame);
         SelectNavItem(section);
         OnFrameNavigated();
+    }
+
+    /// <summary>Drops cached section stacks whose pages hold reset state, so they reload from defaults on next visit.</summary>
+    /// <param name="sections">Owning sections (the visible one is kept: Reset runs from Settings).</param>
+    private void DropCachedSections(IEnumerable<AppSection> sections)
+    {
+        foreach (var section in sections.Distinct())
+        {
+            if (section == current || !frames.Remove(section, out var frame)) continue;
+            routeStacks.Remove(frame);
+        }
     }
 
     /// <summary>Root page type for a section.</summary>
