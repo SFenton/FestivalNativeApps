@@ -53,7 +53,7 @@ struct BandRankingsScreen: View {
                                 .listRowBackground(Color.clear)
                         }
                         ForEach(payload.rankings.entries) { entry in
-                            BandRankingRow(entry: entry, metric: rankBy)
+                            BandRankingRow(entry: entry, metric: rankBy, bandType: bandType)
                                 .listRowBackground(BrandTokens.cardBackground)
                         }
                     }

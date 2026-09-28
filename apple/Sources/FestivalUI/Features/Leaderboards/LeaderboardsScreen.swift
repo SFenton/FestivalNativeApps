@@ -158,7 +158,7 @@ struct LeaderboardsScreen: View {
                 } else {
                     VStack(spacing: 4) {
                         ForEach(payload.rankings.entries) { entry in
-                            BandRankingRow(entry: entry, metric: metric)
+                            BandRankingRow(entry: entry, metric: metric, bandType: bandType)
                         }
                     }
                     viewAllLink(AppRoute.bandRankings(bandType: bandType.rawValue))

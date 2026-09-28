@@ -1,0 +1,10 @@
+# Player bands — iPhone notes
+
+> **What:** iPhone implementation state and decisions for `/bands/player/:accountId`. **Read when:** changing this page on iPhone. Behavior: [spec.md](spec.md) (currently a stub — this file is the source of truth for what's actually built until spec.md is promoted).
+
+Source: `FortniteFestivalWeb/src/pages/band/PlayerBandsPage.tsx`, `.../pages/player/components/PlayerBandCard.tsx`. Service: `FSTService/Api/PlayerEndpoints.cs:647` (`/api/player/{accountId}/bands`) — pure, keyless `GET`: `GlobalLeaderboardPersistence.GetPlayerBandsList` returns an empty page when the band-search projection is missing rather than rebuilding anything (`GlobalLeaderboardPersistence.cs:3873-3896`), unlike `/api/bands/search`'s fallback.
+
+- Implemented: native segmented `Picker` (All/Duos/Trios/Quads, `PlayerBandGroup`) in place of the web's filter sheet — a fixed four-option control fits Apple HIG's segmented control better than a modal. Paginated `List` of `PlayerBandEntry` rows (member names + `InstrumentIcon`s + appearance count), reusing `RankingsPagerView`/`RankLoadState` from the Leaderboards lane's `RankingsSupport.swift` (same module, read-only reuse). Rows navigate to `AppRoute.band(bandId:name:bandType:teamKey:)`, carrying `bandType`/`teamKey` from the row so Band Detail never needs the blocked `/api/bands/{bandId}` lookup.
+- Simplified vs. web this pass: no `?name=` route-title carry-through from a prior band-search result (band search itself is blocked, so this only ever matters for a future safe entry point); no FAB "filter" registration (`useFabSearch`) — the segmented control is always visible instead.
+- IDs: `fst.player-bands.group-picker`, `fst.player-bands.row.<bandId-or-teamKey>`, `fst.player-bands.page-first/previous/page-info/next/last` (from the shared `RankingsPagerView`).
+- Tests: `BandsTests.swift` (Core) covers `PlayerBandListResponse`/`PlayerBandEntry` decoding, `membersLabel` name-fallback joining and `pageCount` math. No hosted-UI/XCUITest coverage yet.

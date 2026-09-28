@@ -30,8 +30,16 @@ enum AppRoute: Hashable {
     case playerBands(accountId: String, displayName: String?)
     /// `/bands`
     case bands
-    /// `/bands/:bandId`
-    case band(bandId: String, name: String?)
+    /// `/bands/:bandId`.
+    ///
+    /// `bandType`/`teamKey` are additive: a rankings, player-bands or
+    /// song-band-leaderboard row already knows both and passes them along so Band
+    /// Detail can call the safe `GET /api/rankings/bands/{bandType}?teamKey=` board.
+    /// A bare `bandId` (its one-way hash) cannot be resolved to either without the
+    /// side-effecting `/api/bands/{bandId}` endpoint — see `Bands.swift`'s
+    /// `BandDetail` documentation — so a link carrying only `bandId` (e.g. a debug
+    /// deep link) shows an explicit "open from a band list" state instead.
+    case band(bandId: String, name: String?, bandType: String? = nil, teamKey: String? = nil)
 
     // MARK: Competitive
     /// `/leaderboards` when pushed rather than shown as a tab (e.g. from Compete).

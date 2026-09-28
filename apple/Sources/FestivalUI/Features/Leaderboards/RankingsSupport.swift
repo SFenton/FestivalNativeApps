@@ -71,10 +71,19 @@ struct AccountRankingRow: View {
 struct BandRankingRow: View {
     let entry: BandRankingEntry
     let metric: BandRankingMetric
+    /// Carried so Band Detail can call its safe `teamKey`-filtered rankings read
+    /// instead of the side-effecting `/api/bands/{bandId}` lookup — see
+    /// `Bands.swift`'s `BandDetail` documentation (Lane Bands, 2026-09-27).
+    let bandType: BandType
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        NavigationLink(value: AppRoute.band(bandId: entry.bandId, name: nil)) {
+        NavigationLink(
+            value: AppRoute.band(
+                bandId: entry.bandId, name: nil,
+                bandType: bandType.rawValue, teamKey: entry.teamKey
+            )
+        ) {
             HStack(alignment: .top, spacing: 12) {
                 Text("#\(entry.rank(for: metric).formatted())")
                     .font(.body)

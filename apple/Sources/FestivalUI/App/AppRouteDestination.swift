@@ -49,8 +49,11 @@ struct AppRouteDestination: View {
             PlayerBandsScreen(session: session, accountId: accountId, displayName: displayName)
         case .bands:
             BandsScreen(session: session)
-        case let .band(bandId, name):
-            BandDetailScreen(session: session, bandId: bandId, name: name)
+        case let .band(bandId, name, bandType, teamKey):
+            BandDetailScreen(
+                session: session, bandId: bandId, name: name,
+                bandType: bandType, teamKey: teamKey
+            )
         case .leaderboards:
             LeaderboardsScreen(session: session)
         case let .fullRankings(instrument, rankBy):
