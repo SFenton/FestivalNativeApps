@@ -9,7 +9,9 @@
 - System.Text.Json source generation everywhere (no reflection), so Release can be trimmed or NativeAOT-published.
 - Service access: [service-safety.md](service-safety.md). The single gate is `RequestGate` (GET-only, rejects `X-API-Key`/`x-fst-selected-*`, 30 s deadline, maps 202/304/404/503 + `Retry-After` + freeze reason to `ServiceIssue`). `FestivalApiClient` bootstraps `/api/publication`, pins only when `readyForPinning && pinningEnabled`, reuses ETags within one publication, retries one `publication_changed` 409. `SocketsHttpHandler` has no disk cache; art never goes through `BitmapImage.UriSource` (which would use the WinINet cache).
 - Routes: `AppRoute` records for every web route except the deprecated Manual; `AppRouteParser` parses web paths (deep links, `--route`). Routes carry IDs, not objects.
-- Settings: `%LOCALAPPDATA%\FestivalScoreTracker\settings.json` (atomic temp-file replace, re-validated on load; corrupt → defaults). The selected player survives restarts. Online-only: no offline UX.
+- Settings: `settings.json` in the app data folder (atomic temp-file replace, re-validated on load; corrupt → defaults). The selected player survives restarts. Online-only: no offline UX.
+- App data folder (`Data/AppDataPaths.cs`): Release always `%LOCALAPPDATA%\FestivalScoreTracker`. **Debug** uses `FST_DEBUG_DATA_DIR` when set, else `%LOCALAPPDATA%\FestivalScoreTracker.Debug\<worktree>-<hash8>` derived from the build's git worktree, so parallel lanes never share settings, the selected profile, seen-state or `diagnostics.log`. `App.OnLaunched` configures it before any store resolves a path. `FST_SETTINGS_PATH` still overrides just the settings file.
+- State-file registry (`Data/AppStateFiles.cs`): every persisted file (settings, first-run, notifications-seen, suggestions-filter, diagnostics log) is listed with its Settings-Reset behaviour; a feature that persists anything adds its file there and reads `AppStateFile.DefaultPath`. Reset rewrites `settings.json` in place (profile and song filters stay) and deletes `Delete`-scoped files (today `suggestions-filter.json`); the shell then drops the owning section's cached frame (`AppStateFile.Owner`) so it reloads from defaults.
 - Don't disable background visuals just because focus moves to a game (the app may stay visible beside it); use data-saving/reduced-motion and measured occlusion policies. Don't adopt invented startup/memory limits or assume a notification-state API recognizes every game.
 
 ## Language decision: stay on C# (decided 2026-09-28)
@@ -50,10 +52,10 @@ Scroll frame delivery (UI thread, `--frame-stats`, which itself forces per-frame
 | `test.ps1 [-Coverage] [-Filter …]` | xUnit; `-Coverage` writes Cobertura and runs `tools/coverage_gate.py --language csharp` |
 | `launch.ps1 [-Tab songs] [-Route /songs/<id>] [-Fixture] [-Configuration] [-Aot] [-ExtraArgs …]` | Start the app in the signed-in desktop session (works from SSH session 0) |
 | `screenshot.ps1 -Out x.png [-Launch …] [-MaxKB 300]` | Capture the window, downscaled under the size budget |
-| `perf.ps1 -Scenario animated\|scroll\|static\|noart\|minimized\|detail\|idle-settings [-Aot] [-PresentMon]` | Startup markers, CPU (app + DWM), memory, GPU 3D, optional PresentMon → `windows/.artifacts/perf/*.json` |
+| `perf.ps1 -Scenario animated\|scroll\|static\|noart\|minimized\|occluded\|detail\|idle-settings [-Aot] [-PresentMon]` | Startup markers, CPU (app + DWM via the `Process` counter, which needs no elevation), memory, GPU 3D, optional PresentMon → `windows/.artifacts/perf/*.json`. `occluded` covers the app with an opaque, non-topmost window and samples only after the app logs `occlusion-covered` |
 | `bench.ps1 [-Runs 5]` | C++/WinRT vs C# twins (above) |
 
-App launch flags, all builds (environment equivalents in parentheses are read in **Debug builds only**, which is what `uiwin.py launch` passes): `--tab` (`FST_DEBUG_TAB`), `--route` (`FST_DEBUG_ROUTE`), `--base-url` loopback only (`FST_BASE_URL`), `--perf-log` (`FST_PERF_LOG`), `--width/--height`, `--reduce-motion`, `--no-art`, `--auto-scroll`, `--frame-stats`, `--drift-fps N`. Diagnostics (unhandled exceptions, binding and resource failures) go to `%LOCALAPPDATA%\FestivalScoreTracker\diagnostics.log`.
+App launch flags, all builds (environment equivalents in parentheses are read in **Debug builds only**, which is what `uiwin.py launch` passes): `--tab` (`FST_DEBUG_TAB`), `--route` (`FST_DEBUG_ROUTE`), `--base-url` loopback only (`FST_BASE_URL`), `--perf-log` (`FST_PERF_LOG`), `--width/--height`, `--reduce-motion`, `--no-art`, `--auto-scroll`, `--frame-stats`, `--drift-fps N`. Debug-only environment: `FST_DEBUG_DATA_DIR` (app data folder, above). Diagnostics (unhandled exceptions, binding and resource failures) go to `diagnostics.log` in the app data folder.
 
 ## Gotchas
 
@@ -95,11 +97,12 @@ Lanes run over SSH in non-interactive **session 0**, where no windows, UIA tree 
 | `shot <out.png> [--mode print\|screen]` | Window-only PNG plus a `.json` sidecar. `print` uses `PrintWindow(PW_RENDERFULLCONTENT)` and works when occluded; `screen` captures composited pixels after bringing the window to the foreground |
 | `tree [out.txt] [--depth]` | UIA control-view tree: type, name, AutomationId, class, rectangle, focus/enabled flags, supported patterns |
 | `drive --steps "…" [--steps-file]` | Scripted UIA steps (below) |
+| `front [--isolate]` | Bring the target to the foreground and report `foreground` plus `covered_by` (windows above that still overlap it) |
 | `close` | Close the window; kill it after 5 s |
 | `perf-sample [--seconds N] [--presentmon] [--out f.json]` | CPU % of the machine, private working set, GPU engine % and dedicated GPU memory (mean/max/p95 via `Process V2`/`GPU Engine` counters); with `--presentmon`, frame count, FPS and frame-time summary. Works from session 0 and takes no lock |
 | `status` | Sessions and desktop-lock state |
 
-Targets: `--pid`, `--process <name>`, or the pid last launched from this worktree.
+Targets: `--pid`, `--process <name>`, or the pid last launched from this worktree. Other lanes' app windows often sit exactly on top of yours (every launch is centred), so the driver foregrounds the target before every real-input step (`click`, `rightclick`, `type`, `key`, `scroll`) and `shot --mode screen`: a topmost/not-topmost bounce, then `SetForegroundWindow` with the foreground thread's input attached and a zero-length mouse move to lift the foreground lock, waiting until it is foreground. If it still isn't and something overlaps it, the step fails naming the covering windows instead of clicking into another lane's app. `--isolate` also minimizes overlapping windows of other same-named processes for the request and restores them (without activating) when it ends. UIA-pattern steps (`invoke`, `toggle`, `select`, `waitfor`) and `print` screenshots work while covered. Step paths in MSYS form (`shot:/c/...`) are translated to `C:/...` (Python alone resolved them to `C:\c\...`).
 
 | Preset | Result (epx sizes scale with window DPI; centred in the work area, clamped to it) |
 |---|---|
