@@ -124,6 +124,15 @@ struct QuickLinksContainerModifier: ViewModifier {
         .onAppear { configure() }
         .onChange(of: title) { configure() }
         .onChange(of: sections) { configure() }
+        // iPhone: the Quick Links menu lives in the bottom dock (operator, 2026-09-28);
+        // `QuickLinksToolbarItem` steps aside there (`.agents/design/apple/nav-accessories.md`).
+        .festivalTabAccessory(
+            token: controller.isAvailable, order: DockOrder.quickLinks,
+            isEnabled: controller.isAvailable
+        ) {
+            QuickLinksMenu(controller: controller)
+                .frame(minWidth: 44, minHeight: 44)
+        }
     }
 
     private func configure() {

@@ -20,43 +20,37 @@
 | `ToolbarItemPlacement.subtitle` / `.largeSubtitle` / `.largeTitle` | 26.0 | Text beneath/around the title. Not used yet |
 | `ToolbarItemVisibilityPriority`, `toolbarMinimizationBehavior` | **27.0** | Duo overflow priority (W1/W3 use it for bell and avatar). Not on the 26.5 iPhone |
 
-## Rules
+## Rules (operator, 2026-09-28: a bottom dock like the web's)
 
-1. **The accessory is global Search plus at most one page action.** Search is on every page (root or pushed), as a field-shaped button that opens the global search sheet. A page may add one primary, persistent action after it: today only the player page's Select/Switch/Deselect. Everything else goes in the top toolbar (HIG: toolbars hold a view's actions and navigation).
-2. **Pages own their action; the root owns the slot.** `.festivalTabAccessory(token:isEnabled:) { … }` registers while the page is visible; `.festivalTabAccessoryHost()` on the iPhone `TabView` shows Search plus the newest registration (`Common/TabAccessory/TabAccessory.swift`). The content renders in the root's environment: pass closures, not page environment actions.
-3. **Every accessory item has a fallback.** `@Environment(\.isTabAccessoryAvailable)` is false before iOS 26.1, in the Duo vertical bar and on iPad/Mac. Then Search is a toolbar button (roots and pushed pages) and page actions are `Label` toolbar items (vertical bars need the symbol, overflow needs the title).
-4. **No glass on glass.** The system draws the accessory's glass; buttons inside use flat `.borderedProminent`/`.bordered` fills.
-5. **Tab roots keep the avatar rightmost** ([app-navigation/ios.md](../../controls/app-navigation/ios.md)): page actions use `.topBarTrailing` and the page ends its toolbar with `FestivalRootTrailingItems` (declare it in `FestivalRootView.rootProvidesTrailingItems`).
-6. The tab bar does **not** minimize on scroll (`.never`): a collapsed bar hides the other tabs' labels on every page and broke 6 Songs journeys that switch tabs after scrolling. `TODO(orchestrator)`: Music minimizes (`.onScrollDown`, accessory goes inline); opt in only with the operator's go-ahead and a test helper that expands a collapsed bar.
+1. **iPhone page tools live in a bottom dock above the tab bar**, like the web app's search pill + Sort + Quick Links FAB dock: global **Search** first, then the page's controls (Songs **Filter**, **Sort**; **Quick Links** on pages that have them; profile **Select/Switch/Deselect**). Order: `DockOrder` (`filter` 10, `sort` 20, `quickLinks` 30, `pageAction` 40). Everything else stays in the top toolbar.
+2. **iOS 26.1+:** the dock is the system `tabViewBottomAccessory` (one Liquid Glass capsule; controls inside use flat fills or plain icons: no glass on glass). **iOS 17–26.0:** the same row on a `festivalGlassCapsule` in a bottom `safeAreaInset` of each tab's `FestivalTabStack` (`DockInset`), above the classic tab bar.
+3. **Duo vertical bar, iPad, Mac:** no dock (`isTabAccessoryAvailable == false`); the same controls are toolbar items (`Label`s, so the rail can show them), Search included.
+4. **Pages register, the root hosts.** `.festivalTabAccessory(token:order:isEnabled:) { … }` registers a control while its view is visible; `.quickLinks(…)` registers the Quick Links menu itself and `QuickLinksToolbarItem` steps aside in the dock. Controls render in the root's environment: pass closures, not page environment actions, and include every displayed value in `token`.
+5. **Tab roots keep the avatar rightmost** in the top bar ([app-navigation/ios.md](../../controls/app-navigation/ios.md)); declare pages that end their toolbar with `FestivalRootTrailingItems` in `FestivalRootView.rootProvidesTrailingItems`.
+6. The tab bar does **not** minimize on scroll (`.never`): a collapsed bar hides the other tabs' labels and broke 6 Songs journeys that switch tabs after scrolling. `TODO(orchestrator)`: Music minimizes (`.onScrollDown`); opt in only with the operator's go-ahead.
+7. **Page-owned bottom bars** (e.g. the Full Rankings pager, Lane PB) use the page's own `safeAreaInset(.bottom)`: it stacks above the dock in both presentations, so the two never overlap.
 
 ## Decisions per page
 
-| Page | iOS 26.1+ iPhone | iOS 17–26.0 | Duo vertical bar |
+| Page | iPhone dock (26.1+ accessory / 17–26.0 inset) | Top bar (iPhone) | Duo vertical bar, iPad, Mac |
 |---|---|---|---|
-| Every page | **Accessory:** Search (opens [global search](../../controls/global-search/ios.md)) | Toolbar Search button (roots: before bell + avatar; pushed: `.primaryAction`) | Same toolbar button, in the rail |
-| Songs (root) | Inline `.searchable` "Filter Songs" (page-local filter, HIG inline field). Top bar: Sort, Filter, Quick Links (Duration/Shop sorts), bell, avatar | Same | Same |
-| Player `/player/:id` (pushed) and Statistics (root) | **Accessory:** Search, then avatar + **Select**, **Switch** (confirms) or **Deselect** (confirms). Paused states (unverified/changed publication) offer no action and keep their header footnote. Top bar: Quick Links (+ bell, avatar on Statistics) | Toolbar item `Label("Select Profile" …)`: `.primaryAction` pushed, `.topBarTrailing` before the bell on Statistics | `VerticalBarActionItem` in the rail, its own group after Back (W1); operator: "Select Profile in the rail" |
-| Song Detail | Top: Item Shop, Paths, Quick Links | Same | Same (vertical bar) |
-| Leaderboards (root) | Top: metric menu, Quick Links, bell, avatar | Same | Same |
-| Full / Band Rankings | Top: instrument + rank-by menus. Pager stays in content (a bottom bar collides with the tab bar) | Same | `.bottomBar` pager items (W3, [duo.md](duo.md)) |
-| Compete, Settings (roots) | Top: Quick Links **before** bell + avatar | Same | Same |
-| Suggestions (root) | Top: Filter **before** bell + avatar (fixed: `.primaryAction` put it right of the avatar) | Same | Same |
-| Rivals (pushed on iPhone; tab root on iPad and Duo unfolded) | Top: Find Rival, Quick Links; as a tab root Find Rival is `.topBarTrailing` and the toolbar ends with bell + avatar (fixed: it sat right of the avatar). Find Rival is a players-only search whose result opens a rival, a different action from global search | Same | Same; the rail keeps bell + avatar, overflowing the hamburger (W3) |
-| All Rivals, Rival Detail, Rivalry | Top: Quick Links | Same | Same |
-| Bands, Band Detail, Player Bands | Top: Quick Links (Band Detail) | Same | Same |
-| Shop | Top: Grid/List toggle (regular width only) | Same | Same |
-| Player History, song leaderboards | Top: principal instrument/band-size switcher, Sort | Same | Same |
+| Every page | Search (opens [global search](../../controls/global-search/ios.md)) | — | Toolbar Search button (roots: before bell + avatar; pushed: `.primaryAction`) |
+| Songs (root) | Search · Filter · Sort · Quick Links (Duration/Shop sorts) | Inline `.searchable` "Filter Songs", bell, avatar | Sort, Filter, Quick Links as toolbar items |
+| Player `/player/:id` and Statistics | Search · Quick Links · avatar + **Select** / **Switch** / **Deselect** (confirming). Paused states offer no action | Bell + avatar (Statistics) | Rail: `VerticalBarActionItem` after Back (W1); iPad/Mac: labelled toolbar item |
+| Song Detail | Search · Quick Links | Item Shop, Paths | Toolbar |
+| Leaderboards, Compete, Settings, Rivals, Rival Detail, Rivalry, Band Detail | Search · Quick Links | Page actions (metric menu, Find Rival…), bell + avatar on roots | Toolbar |
+| Suggestions (root) | Search | Filter **before** bell + avatar (fixed: it sat right of the avatar) | Toolbar |
+| Full / Band Rankings | Search | Instrument + rank-by menus; pager in the page's own bottom inset (Lane PB) | `.bottomBar` pager (W3) |
+| Shop, Bands, Player Bands, Player History, song leaderboards | Search | Existing toolbar items | Toolbar |
 
-## Quick Links: accessory? No
+Rivals is a tab root on iPad and Duo unfolded: Find Rival is `.topBarTrailing` and the toolbar ends with bell + avatar (fixed: it sat right of the avatar).
 
-Quick Links stays a **top toolbar `Menu`** ([quick-links/ios.md](../../controls/quick-links/ios.md)):
+## Quick Links: accessory?
 
-- The accessory is one app-level slot. It already carries global Search on every page, and the player page (which has Quick Links) also puts Select/Deselect there. A third control would not fit, even less when the accessory is inline beside the minimized tab bar.
-- Quick Links is secondary, in-page navigation; HIG puts navigation controls in the toolbar and keeps the tab area for persistent chrome. A jump menu opening upward from the bottom would cover the sections it jumps to.
-- It is already rail-ready: a `Label` toolbar item moves into the Duo vertical bar automatically, and iPad/Mac get an inspector.
-- `toolbarTitleMenu` (tap the title) was also considered: HIG reserves title menus for document-level commands (rename, duplicate), not jump lists.
+**Yes, on iPhone** (operator decision, 2026-09-28, reversing this lane's first answer). The first answer kept Quick Links in the top toolbar because the accessory held only one control; with the dock holding a row of tools (the web's own FAB dock does exactly this), Quick Links belongs beside Sort. It stays a toolbar `Menu` on the Duo rail, iPad and Mac (inspector later). The menu opens upward from the dock; its checkmark still marks the active section.
 
 ## Open issues
 
-- `TODO(orchestrator)`: Duo unfolded list/detail (W2) keeps Search in the rail as a toolbar button; revisit if the accessory becomes available beside a vertical bar.
-- The accessory cannot host a real text field (focus and keyboard); re-test on each iOS release.
+- `TODO(orchestrator)`: Duo unfolded list/detail (W2) keeps Search and page tools in the rail as toolbar items.
+- The dock cannot host a real text field (focus and keyboard); Search opens the sheet. Re-test on each iOS release.
+- A dock with Search + Filter + Sort + Quick Links + Select would be crowded; no page has all of them today.

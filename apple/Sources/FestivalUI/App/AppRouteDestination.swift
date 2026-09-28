@@ -140,9 +140,11 @@ struct FestivalTabStack<Root: View>: View {
                     route: route, session: session, visibleInstruments: visibleInstruments,
                     path: $path, isVisible: isVisible
                 )
-                // Search on every pushed page where the tab accessory can't show it.
+                // Search on every pushed page where the dock can't show it.
                 .globalSearchToolbarItem()
             }
         }
+        // iOS 17–26.0 iPhone: the bottom dock as a glass bar above the tab bar.
+        .modifier(DockInset())
     }
 }

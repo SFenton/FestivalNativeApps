@@ -52,9 +52,8 @@ struct SongSectionIndexScrubber: View {
         }
         .padding(.vertical, 6)
         // Intrinsic size — as tall as its own letters, never the full list height.
-        // The caller's `ZStack(alignment: .trailing)` centers this vertically, which
-        // is what keeps it anchored to the content area and stable across a
-        // collapsing/expanding large title (neither changes this view's own size).
+        // The caller bottom-aligns it: the bottom inset (tab bar, dock) is fixed while
+        // the top inset changes as the large title and search field collapse.
         .frame(width: 22)
         .festivalGlassCapsule(.control)
         .contentShape(Rectangle())

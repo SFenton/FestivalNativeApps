@@ -38,6 +38,8 @@ struct SongsScreen: View {
     @State private var quickLinks = QuickLinksController()
     @Environment(\.openProfile) private var openProfile
     @Environment(\.deviceLayout) private var deviceLayout
+    /// True where Filter/Sort live in the iPhone bottom dock instead of the toolbar.
+    @Environment(\.isTabAccessoryAvailable) private var actionsInDock
     @AppStorage("fst.songs.sortMode") private var sortMode = SongSortMode.title
     @AppStorage("fst.songs.sortAscending") private var sortAscending = true
     @AppStorage("fst.songs.filterInShop") private var filterInShop = false
@@ -375,13 +377,23 @@ struct SongsScreen: View {
         .festivalBackground(.carousel, session: session, visible: isVisible)
         .navigationTitle("Songs")
         // Inline filter of this list (HIG "search as an inline field", like Music's
-        // Library); global search is the search tab / toolbar button.
+        // Library); global search is in the bottom dock / toolbar.
         .searchable(text: $searchText, prompt: Text("Filter Songs"))
+        // iPhone: Filter and Sort sit in the bottom dock beside Search, like the web's
+        // FAB dock (operator, 2026-09-28); toolbar items elsewhere (Duo rail, iPad, Mac).
+        .festivalTabAccessory(token: filterDockToken, order: DockOrder.filter, isEnabled: canPresentFilter) {
+            filterAction.frame(minWidth: 44, minHeight: 44)
+        }
+        .festivalTabAccessory(token: sortDockToken, order: DockOrder.sort) {
+            sortAction.frame(minWidth: 44, minHeight: 44)
+        }
         .toolbar {
-            ToolbarItemGroup(placement: Self.pageActionPlacement) {
-                sortAction
-                if canPresentFilter {
-                    filterAction
+            if !actionsInDock {
+                ToolbarItemGroup(placement: Self.pageActionPlacement) {
+                    sortAction
+                    if canPresentFilter {
+                        filterAction
+                    }
                 }
             }
             QuickLinksToolbarItem(quickLinks)
@@ -555,6 +567,17 @@ struct SongsScreen: View {
         .accessibilityIdentifier("fst.songs.filter")
         .tint(appliedShopFilter.isActive || appliedPlayerScoreFilter?.isActive == true
             ? BrandTokens.gold : BrandTokens.accentBlue)
+    }
+
+    /// Everything the dock's Sort button shows; a change re-registers it.
+    private var sortDockToken: [String] {
+        [sortMode.rawValue, String(sortAscending), sortPausedMessage ?? ""]
+    }
+
+    /// Everything the dock's Filter button shows; a change re-registers it.
+    private var filterDockToken: [String] {
+        [filterAccessibilityValue, String(appliedShopFilter.isActive),
+         String(appliedPlayerScoreFilter?.isActive == true)]
     }
 
     /// Keep a saved Shop sort visible when its source is hidden or unavailable.
@@ -850,6 +873,12 @@ struct SongsScreen: View {
                             scrollProxy.scrollTo(id, anchor: .top)
                         }
                     }
+                    // Anchored to the bottom edge (above the tab bar and dock, which never
+                    // move) rather than centered: the top inset changes as the large
+                    // title and filter field collapse on scroll, which made a centered
+                    // strip jump.
+                    .frame(maxHeight: .infinity, alignment: .bottom)
+                    .padding(.bottom, 8)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
             }

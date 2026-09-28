@@ -12,6 +12,8 @@ import FestivalDesign
 public struct QuickLinksToolbarItem: ToolbarContent {
     private let controller: QuickLinksController
     private let placement: ToolbarItemPlacement
+    /// Where the iPhone bottom dock exists the menu lives there instead.
+    @Environment(\.isTabAccessoryAvailable) private var inDock
 
     /// Create the toolbar item.
     ///
@@ -33,8 +35,10 @@ public struct QuickLinksToolbarItem: ToolbarContent {
     }
 
     public var body: some ToolbarContent {
-        ToolbarItem(placement: placement) {
-            QuickLinksMenu(controller: controller)
+        if !inDock {
+            ToolbarItem(placement: placement) {
+                QuickLinksMenu(controller: controller)
+            }
         }
     }
 }

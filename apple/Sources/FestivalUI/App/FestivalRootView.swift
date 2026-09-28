@@ -291,8 +291,8 @@ public struct FestivalRootView: View {
                     }
                 }
             }
-            // Global search + page action (profile Select/Deselect) above the tab bar;
-            // see `.agents/design/apple/nav-accessories.md`.
+            // Bottom dock above the tab bar: global Search + page controls (Songs
+            // Filter/Sort, Quick Links, profile Select); `.agents/design/apple/nav-accessories.md`.
             .festivalTabAccessoryHost()
         } else {
             TabView(selection: tabSelection) {
@@ -303,6 +303,7 @@ public struct FestivalRootView: View {
                         .accessibilityIdentifier("fst.nav.\(section.rawValue)")
                 }
             }
+            .festivalTabAccessoryHost()
         }
     }
 

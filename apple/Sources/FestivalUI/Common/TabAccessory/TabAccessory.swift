@@ -4,75 +4,106 @@ import FestivalDesign
 
 // MARK: - Registry
 
-/// The pages currently offering an action for the tab-bar bottom accessory, most
-/// recently shown last.
+/// The page controls currently offered to the bottom dock (the web app's search pill +
+/// Sort + Quick Links bar above the tab bar).
 ///
-/// SwiftUI allows one `tabViewBottomAccessory` per `TabView`, attached at the root. It
-/// always holds global Search; its trailing action belongs to whichever page is on
-/// screen (today the player page's Select/Switch/Deselect). Pages register while they are visible
-/// (`onAppear` … `onDisappear`); the host shows the newest registration. A push
-/// registers the new page before the covered page disappears, and a pop does the
-/// reverse, so "newest wins" always names the visible page.
+/// SwiftUI allows one `tabViewBottomAccessory` per `TabView`, attached at the root. The
+/// dock always starts with global Search; the rest belongs to whichever page is on
+/// screen (Songs Filter/Sort, Quick Links, profile Select/Deselect). Controls register
+/// while their page is visible (`onAppear` … `onDisappear`), so a push or tab switch
+/// swaps them; the dock shows every registered control in ``Entry/order``.
 ///
 /// Design rules: `.agents/design/apple/nav-accessories.md`.
 @MainActor @Observable
 final class TabAccessoryRegistry {
-    /// One page's accessory content.
+    /// One registered dock control.
     struct Entry {
         let id: UUID
+        /// Position within the dock after Search (lower first); see ``DockOrder``.
+        var order: Int
         var content: AnyView
     }
 
     private(set) var entries: [Entry] = []
 
-    /// The accessory to show: the most recently registered visible page's.
+    /// The page controls to show after Search, in dock order (stable for equal orders).
+    var items: [Entry] {
+        entries.enumerated()
+            .sorted { ($0.element.order, $0.offset) < ($1.element.order, $1.offset) }
+            .map(\.element)
+    }
+
+    /// The most recently registered control.
     var active: Entry? { entries.last }
 
-    /// Add or replace a page's accessory, keeping its position when replacing.
+    /// Add or replace a control, keeping its position when replacing.
     ///
     /// - Parameters:
-    ///   - id: Stable identity of the registering page instance.
-    ///   - content: Accessory content; it renders in the root's environment, so it must
+    ///   - id: Stable identity of the registering view instance.
+    ///   - order: Dock position after Search.
+    ///   - content: Control content; it renders in the root's environment, so it must
     ///     not rely on page-only environment values.
-    func upsert(id: UUID, content: AnyView) {
+    func upsert(id: UUID, order: Int = DockOrder.pageAction, content: AnyView) {
         if let index = entries.firstIndex(where: { $0.id == id }) {
             entries[index].content = content
+            entries[index].order = order
         } else {
-            entries.append(Entry(id: id, content: content))
+            entries.append(Entry(id: id, order: order, content: content))
         }
     }
 
-    /// Remove a page's accessory (page disappeared or no longer offers one).
+    /// Remove a control (its page disappeared or no longer offers it).
     ///
-    /// - Parameter id: Identity passed to ``upsert(id:content:)``.
+    /// - Parameter id: Identity passed to ``upsert(id:order:content:)``.
     func remove(id: UUID) {
         entries.removeAll { $0.id == id }
     }
 }
 
+/// Dock positions after Search, matching the web dock (search, then page tools).
+enum DockOrder {
+    /// Songs Filter.
+    static let filter = 10
+    /// Songs Sort.
+    static let sort = 20
+    /// Quick Links menu.
+    static let quickLinks = 30
+    /// A page's primary action (profile Select/Switch/Deselect).
+    static let pageAction = 40
+}
+
+/// How the bottom dock is presented, published by the host.
+enum DockPresentation: Equatable {
+    /// iOS 26.1+: the system tab-bar bottom accessory (Liquid Glass, Music's slot).
+    case accessory
+    /// iOS 17–26.0: a glass bar inset at the bottom of each tab's stack, above the tab bar.
+    case inset
+}
+
 extension EnvironmentValues {
-    /// Set only where a tab-bar bottom accessory can be shown (iOS 26.1+, horizontal tab
-    /// bar). Nil means pages must use their fallback placement (toolbar item or
-    /// classic `.searchable`).
+    /// Set only where the bottom dock exists: iPhone with a horizontal tab bar. Nil (the
+    /// iPhone Duo vertical bar, iPad, Mac) means pages keep their controls as toolbar items.
     @Entry var tabAccessoryRegistry: TabAccessoryRegistry? = nil
 
-    /// True when a page's primary control should go in the tab-bar bottom accessory.
+    /// How the dock is presented where it exists.
+    @Entry var dockPresentation: DockPresentation? = nil
+
+    /// True when page controls (Search, Filter/Sort, Quick Links, Select) go in the dock
+    /// instead of the toolbar.
     var isTabAccessoryAvailable: Bool { tabAccessoryRegistry != nil }
 }
 
 // MARK: - Host (root)
 
 extension View {
-    /// Host the tab-bar bottom accessory (Music's mini-player slot) on this `TabView`:
-    /// global Search on every page, plus the visible page's action when it offers one.
+    /// Host the bottom dock on this iPhone `TabView`: global Search on every page, then the
+    /// visible page's controls.
     ///
-    /// Apply once, directly on the iPhone `TabView`. Active only on iOS 26.1+ with a
-    /// horizontal tab bar (`DeviceLayout.sectionChrome == .tabBar`); on the iPhone Duo
-    /// vertical bar, iPad and earlier iOS it publishes no registry, so Search falls back to
-    /// a toolbar button and page actions to toolbar items. The tab bar does not minimize
-    /// (see the body), so the accessory stays expanded above it.
+    /// iOS 26.1+ uses the system `tabViewBottomAccessory`; earlier iOS publishes an
+    /// `.inset` presentation that `FestivalTabStack` draws above the tab bar. With the
+    /// iPhone Duo vertical bar it publishes nothing, so pages keep toolbar items.
     ///
-    /// - Returns: The tab view with the accessory host attached.
+    /// - Returns: The tab view with the dock host attached.
     func festivalTabAccessoryHost() -> some View {
         modifier(TabAccessoryHost())
     }
@@ -84,14 +115,18 @@ struct TabAccessoryHost: ViewModifier {
     @Environment(\.deviceLayout) private var layout
     @Environment(\.openGlobalSearch) private var openGlobalSearch
 
+    /// A horizontal tab bar inside the app shell (the dock needs the search action).
+    private var supported: Bool {
+        layout.sectionChrome == .tabBar && openGlobalSearch != nil
+    }
+
     func body(content: Content) -> some View {
         #if os(iOS)
         if #available(iOS 26.1, *) {
-            let supported = layout.sectionChrome == .tabBar && openGlobalSearch != nil
             content
                 .tabViewBottomAccessory(isEnabled: supported) {
                     if let openGlobalSearch {
-                        TabAccessoryBar(page: registry.active?.content) { openGlobalSearch() }
+                        DockBar(items: registry.items) { openGlobalSearch() }
                     }
                 }
                 // Never minimized: a collapsed bar hides the other tabs' labels on every
@@ -99,8 +134,11 @@ struct TabAccessoryHost: ViewModifier {
                 // TODO(orchestrator): opt in with `.onScrollDown` if the operator wants it.
                 .tabBarMinimizeBehavior(.never)
                 .environment(\.tabAccessoryRegistry, supported ? registry : nil)
+                .environment(\.dockPresentation, supported ? .accessory : nil)
         } else {
             content
+                .environment(\.tabAccessoryRegistry, supported ? registry : nil)
+                .environment(\.dockPresentation, supported ? .inset : nil)
         }
         #else
         content
@@ -108,14 +146,15 @@ struct TabAccessoryHost: ViewModifier {
     }
 }
 
-/// Accessory content: a field-shaped Search button, then the page's action if any.
-struct TabAccessoryBar: View {
-    /// The visible page's registered accessory (e.g. profile Select/Deselect).
-    let page: AnyView?
+// MARK: - Dock content
+
+/// The dock's row: a field-shaped Search button, then the page's controls.
+struct DockBar: View {
+    let items: [TabAccessoryRegistry.Entry]
     let openSearch: () -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 4) {
             Button(action: openSearch) {
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
@@ -125,48 +164,76 @@ struct TabAccessoryBar: View {
                     Spacer(minLength: 0)
                 }
                 .foregroundStyle(FestivalText.primary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(maxWidth: .infinity, minHeight: 44, maxHeight: .infinity)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Search")
             .accessibilityHint("Searches songs, players and bands")
             .accessibilityIdentifier("fst.global-search.open")
-            if let page {
-                page
+            ForEach(items, id: \.id) { item in
+                item.content
             }
         }
         .padding(.leading, 16)
-        .padding(.trailing, page == nil ? 16 : 6)
+        .padding(.trailing, items.isEmpty ? 16 : 6)
+        .labelStyle(.iconOnly)
+        .tint(BrandTokens.textPrimary)
+    }
+}
+
+/// Pre-26.1 presentation: the same row on a glass capsule at the bottom of a tab's
+/// stack, above the classic tab bar. Applied by `FestivalTabStack`.
+struct DockInset: ViewModifier {
+    @Environment(\.tabAccessoryRegistry) private var registry
+    @Environment(\.dockPresentation) private var presentation
+    @Environment(\.openGlobalSearch) private var openGlobalSearch
+
+    func body(content: Content) -> some View {
+        if presentation == .inset, let registry, let openGlobalSearch {
+            content.safeAreaInset(edge: .bottom, spacing: 0) {
+                DockBar(items: registry.items) { openGlobalSearch() }
+                    .frame(height: 48)
+                    .festivalGlassCapsule(.control, interactive: true)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+            }
+        } else {
+            content
+        }
     }
 }
 
 // MARK: - Registration (pages)
 
 extension View {
-    /// Offer `accessory` as the tab-bar bottom accessory while this page is visible.
+    /// Offer `accessory` to the bottom dock while this view is visible.
     ///
     /// Does nothing where ``EnvironmentValues/isTabAccessoryAvailable`` is false, so
-    /// pages pair it with a fallback placement. The content is captured when
-    /// registered; pass a `token` covering every value it displays so changes
-    /// re-register it (bindings and `@Observable` reads stay live on their own).
+    /// callers pair it with a toolbar fallback. The content is captured when registered;
+    /// pass a `token` covering every value it displays so changes re-register it
+    /// (bindings and `@Observable` reads stay live on their own).
     ///
     /// - Parameters:
-    ///   - token: Changes whenever the accessory's captured values change.
-    ///   - isEnabled: False withdraws the accessory without leaving the page.
-    ///   - accessory: Accessory content (rendered in the root's environment).
-    /// - Returns: The page, registering its accessory while visible.
+    ///   - token: Changes whenever the control's captured values change.
+    ///   - order: Dock position after Search (``DockOrder``).
+    ///   - isEnabled: False withdraws the control without leaving the page.
+    ///   - accessory: Control content (rendered in the root's environment).
+    /// - Returns: The view, registering its control while visible.
     func festivalTabAccessory<Token: Hashable, Accessory: View>(
-        token: Token, isEnabled: Bool = true,
+        token: Token, order: Int = DockOrder.pageAction, isEnabled: Bool = true,
         @ViewBuilder accessory: @escaping () -> Accessory
     ) -> some View {
-        modifier(TabAccessoryRegistration(token: token, isEnabled: isEnabled, accessory: accessory))
+        modifier(TabAccessoryRegistration(
+            token: token, order: order, isEnabled: isEnabled, accessory: accessory
+        ))
     }
 }
 
-/// Implementation of `festivalTabAccessory(token:isEnabled:accessory:)`.
+/// Implementation of `festivalTabAccessory(token:order:isEnabled:accessory:)`.
 struct TabAccessoryRegistration<Token: Hashable, Accessory: View>: ViewModifier {
     let token: Token
+    let order: Int
     let isEnabled: Bool
     let accessory: () -> Accessory
     @Environment(\.tabAccessoryRegistry) private var registry
@@ -192,7 +259,7 @@ struct TabAccessoryRegistration<Token: Hashable, Accessory: View>: ViewModifier 
     private func sync() {
         guard let registry else { return }
         if visible && isEnabled {
-            registry.upsert(id: id, content: AnyView(accessory()))
+            registry.upsert(id: id, order: order, content: AnyView(accessory()))
         } else {
             registry.remove(id: id)
         }
