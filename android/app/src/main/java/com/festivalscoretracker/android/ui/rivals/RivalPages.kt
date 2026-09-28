@@ -50,6 +50,9 @@ import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LoadingView
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
+import com.festivalscoretracker.android.ui.common.fadeInStagger
+import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlinx.coroutines.launch
@@ -91,6 +94,7 @@ fun AllRivalsScreen(viewModel: AllRivalsViewModel) {
             Box(Modifier.padding(padding)) { RivalsMessage("This rivals list could not be identified.", null, "fst.all-rivals.unresolved") }
             return@FestivalScreen
         }
+        val revealed = rememberRevealed(state is LoadState.Loaded)
         when (val current = state) {
             LoadState.Loading -> LoadingView("Loading rivals", Modifier.padding(padding))
             is LoadState.Failed -> ServiceStatusView(current.issue, "Rivals unavailable", current.countdown, viewModel::retry, contentPadding = padding)
@@ -121,8 +125,12 @@ fun AllRivalsScreen(viewModel: AllRivalsViewModel) {
                             }
                         }
                     }
-                    itemsIndexed(content.entries, key = { index, entry -> entry.key(index) }) { _, entry ->
-                        RivalRow(entry, onClick = { shell.navigate(RivalRoutes.detail(entry.rival.accountId, entry.rival.displayName, scope)) })
+                    itemsIndexed(content.entries, key = { index, entry -> entry.key(index) }) { index, entry ->
+                        RivalRow(
+                            entry,
+                            onClick = { shell.navigate(RivalRoutes.detail(entry.rival.accountId, entry.rival.displayName, scope)) },
+                            modifier = Modifier.festivalFadeIn(revealed, fadeInStagger(index + 1)),
+                        )
                     }
                 }
             }
@@ -178,6 +186,7 @@ fun RivalDetailScreen(viewModel: RivalDetailViewModel, route: RivalDetailRoute, 
             ViewProfileButton(route.rivalId, name)
         },
     ) { padding ->
+        val revealed = rememberRevealed(state is LoadState.Loaded)
         when (val current = state) {
             LoadState.Loading -> LoadingView("Loading rival", Modifier.padding(padding))
             is LoadState.Failed -> ServiceStatusView(current.issue, "Rival unavailable", current.countdown, viewModel::retry, contentPadding = padding)
@@ -206,9 +215,12 @@ fun RivalDetailScreen(viewModel: RivalDetailViewModel, route: RivalDetailRoute, 
                             RivalsMessage(RivalText.NO_SONGS, null, "fst.rival-detail.empty")
                         }
                     }
-                    content.categories.forEach { category ->
+                    content.categories.forEachIndexed { categoryIndex, category ->
                         item(key = category.key) {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("fst.rival-detail.category.${category.key}")) {
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.testTag("fst.rival-detail.category.${category.key}").festivalFadeIn(revealed, fadeInStagger(categoryIndex + 1)),
+                            ) {
                                 val openRivalry = { shell.navigate(RivalRoutes.rivalry(route, category.key, content.rivalName)) }
                                 RivalSectionHeader(
                                     title = category.title,
@@ -293,6 +305,7 @@ fun RivalryScreen(viewModel: RivalDetailViewModel, rivalId: String, mode: String
             ViewProfileButton(rivalId, name)
         },
     ) { padding ->
+        val revealed = rememberRevealed(state is LoadState.Loaded)
         when (val current = state) {
             LoadState.Loading -> LoadingView("Loading rivalry", Modifier.padding(padding))
             is LoadState.Failed -> ServiceStatusView(current.issue, "Rivalry unavailable", current.countdown, viewModel::retry, contentPadding = padding)
@@ -321,16 +334,18 @@ fun RivalryScreen(viewModel: RivalDetailViewModel, rivalId: String, mode: String
                             Text(category.description, color = BrandTokens.textSecondary)
                         }
                     }
-                    itemsIndexed(category.songs, key = { _, song -> song.key }) { _, song ->
+                    itemsIndexed(category.songs, key = { _, song -> song.key }) { index, song ->
                         val catalogSong = catalog[song.songId]
-                        RivalSongRow(
-                            song = song,
-                            catalogSong = catalogSong,
-                            artUrl = artworkUrl(catalogSong?.albumArt),
-                            playerName = player,
-                            rivalName = content.rivalName ?: name,
-                            onClick = { shell.navigate(SongDetailRoute(song.songId)) },
-                        )
+                        Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index + 1))) {
+                            RivalSongRow(
+                                song = song,
+                                catalogSong = catalogSong,
+                                artUrl = artworkUrl(catalogSong?.albumArt),
+                                playerName = player,
+                                rivalName = content.rivalName ?: name,
+                                onClick = { shell.navigate(SongDetailRoute(song.songId)) },
+                            )
+                        }
                     }
                 }
             }

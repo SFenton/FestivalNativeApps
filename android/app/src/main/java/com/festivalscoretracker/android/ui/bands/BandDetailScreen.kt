@@ -73,6 +73,9 @@ import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LoadingView
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
+import com.festivalscoretracker.android.ui.common.fadeInStagger
+import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.SectionHeader
@@ -95,6 +98,7 @@ fun BandDetailScreen(viewModel: BandDetailViewModel, routeName: String?, artwork
     val detailState by viewModel.detail.collectAsStateWithLifecycle()
     val detail = (detailState as? LoadState.Loaded)?.value
     val title = detail?.let { BandMember.joinNames(it.displayMembers) } ?: routeName?.takeIf { it.isNotBlank() } ?: "Band"
+    val revealed = rememberRevealed(detail != null)
     FestivalScreen(title = "Band", isRoot = false, modifier = Modifier.testTag("fst.band.screen")) { padding ->
         val type = viewModel.bandType
         when {
@@ -110,7 +114,7 @@ fun BandDetailScreen(viewModel: BandDetailViewModel, routeName: String?, artwork
                 val failed = detailState as LoadState.Failed
                 ServiceStatusView(failed.issue, "Band not found", failed.countdown, viewModel::retry, Modifier.testTag("fst.band.error"), padding)
             }
-            detail != null -> BandDetailContent(viewModel, detail, type, title, padding, artworkUrl, onNavigate)
+            detail != null -> BandDetailContent(viewModel, detail, type, title, padding, revealed, artworkUrl, onNavigate)
         }
     }
 }
@@ -122,6 +126,7 @@ private fun BandDetailContent(
     type: BandType,
     title: String,
     padding: PaddingValues,
+    revealed: Boolean,
     artworkUrl: (String?) -> String?,
     onNavigate: (AppRoute) -> Unit,
 ) {
@@ -160,12 +165,12 @@ private fun BandDetailContent(
             Row(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
                 val leadingModifier = panes.leadingWidth?.let { Modifier.width(it.dp) } ?: Modifier.weight(1f)
                 Column(leadingModifier.fillMaxSize().verticalScroll(rememberScrollState()).then(scrollPadding).testTag("fst.band.pane.leading")) {
-                    leading()
+                    Column(Modifier.festivalFadeIn(revealed)) { leading() }
                     Spacer(Modifier.height(bottom))
                 }
                 Spacer(Modifier.width(panes.gap.dp))
                 Column(Modifier.weight(1f).fillMaxSize().verticalScroll(rememberScrollState()).then(scrollPadding).testTag("fst.band.pane.trailing")) {
-                    trailing()
+                    Column(Modifier.festivalFadeIn(revealed, fadeInStagger(1))) { trailing() }
                     Spacer(Modifier.height(bottom))
                 }
             }
@@ -179,8 +184,9 @@ private fun BandDetailContent(
                         .then(scrollPadding)
                         .testTag("fst.band.content"),
                 ) {
-                    leading()
-                    trailing()
+                    // Web BandPage staggers its sections in as the band loads.
+                    Column(Modifier.festivalFadeIn(revealed)) { leading() }
+                    Column(Modifier.festivalFadeIn(revealed, fadeInStagger(1))) { trailing() }
                     Spacer(Modifier.height(bottom))
                 }
             }

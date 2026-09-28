@@ -53,6 +53,9 @@ import com.festivalscoretracker.android.presentation.compete.CompeteViewModel
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
+import com.festivalscoretracker.android.ui.common.fadeInStagger
+import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.leaderboards.AccountRankingRow
@@ -148,7 +151,8 @@ private fun LazyStaggeredGridScope.groupHeader(id: String, title: String) {
 private fun ScopeHeader(scope: CompeteScope, onSeeAll: (() -> Unit)?, tag: String) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            scope.instruments.forEach { InstrumentIcon(it, size = 28.dp, decorative = true) }
+            // Web `InstrumentHeader` SM: 36 dp icons above the card.
+            scope.instruments.forEach { InstrumentIcon(it, size = 36.dp, decorative = true) }
         }
         Text(
             scope.label,
@@ -184,6 +188,8 @@ private fun BoardCard(section: CompeteSection, selected: String?, viewModel: Com
     val fullBoard: (() -> Unit)? = (scope as? CompeteScope.Single)?.takeIf { board?.hasNavigation == true }?.let {
         { navigate(FullRankingsRoute(it.instrument.wireId, RankingMetric.TotalScore.wireId)) }
     }
+    // The card item stays composed through loading, so a fresh board fades in (web stagger).
+    val revealed = rememberRevealed(section.board is LoadState.Loaded)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("fst.compete.leaderboard-card.${scope.key}")) {
         ScopeHeader(scope, fullBoard, "fst.compete.board.see-all.${scope.key}")
         when (val state = section.board) {
@@ -196,15 +202,17 @@ private fun BoardCard(section: CompeteSection, selected: String?, viewModel: Com
                 } else {
                     GlassCard(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(vertical = 6.dp)) {
-                            value.entries.forEach { entry ->
-                                AccountRankingRow(
-                                    entry = entry,
-                                    metric = RankingMetric.TotalScore,
-                                    isSelected = RankingSpotlight.isSelected(selected, entry.accountId),
-                                    route = RankingNavigation.playerRoute(entry.accountId, entry.displayName, selected),
-                                    onOpen = navigate,
-                                    tag = "fst.compete.rank.${scope.key}.${entry.key}",
-                                )
+                            value.entries.forEachIndexed { index, entry ->
+                                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index + 1))) {
+                                    AccountRankingRow(
+                                        entry = entry,
+                                        metric = RankingMetric.TotalScore,
+                                        isSelected = RankingSpotlight.isSelected(selected, entry.accountId),
+                                        route = RankingNavigation.playerRoute(entry.accountId, entry.displayName, selected),
+                                        onOpen = navigate,
+                                        tag = "fst.compete.rank.${scope.key}.${entry.key}",
+                                    )
+                                }
                             }
                             value.spotlight?.let { own ->
                                 HorizontalDivider(color = BrandTokens.glassBorder, modifier = Modifier.padding(vertical = 4.dp))
@@ -220,7 +228,10 @@ private fun BoardCard(section: CompeteSection, selected: String?, viewModel: Com
                         }
                     }
                     if (fullBoard != null) {
-                        OutlinedButton(onClick = fullBoard, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(CompeteText.VIEW_FULL_LEADERBOARDS) }
+                        OutlinedButton(
+                            onClick = fullBoard,
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).festivalFadeIn(revealed, fadeInStagger(value.entries.size + 1)),
+                        ) { Text(CompeteText.VIEW_FULL_LEADERBOARDS) }
                     }
                 }
             }
@@ -233,6 +244,7 @@ private fun RivalsCard(section: CompeteSection, viewModel: CompeteViewModel, nav
     val scope = section.scope
     val rows = (section.rivals as? LoadState.Loaded)?.value
     val seeAll: (() -> Unit)? = rows?.takeIf { it.isNotEmpty() }?.let { { navigate(RivalRoutes.allRivals(scope.rivalScope)) } }
+    val revealed = rememberRevealed(section.rivals is LoadState.Loaded)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("fst.compete.rivals-card.${scope.key}")) {
         ScopeHeader(scope, seeAll, "fst.compete.rivals.see-all.${scope.key}")
         when (val state = section.rivals) {
@@ -247,6 +259,7 @@ private fun RivalsCard(section: CompeteSection, viewModel: CompeteViewModel, nav
                     onRival = { entry -> navigate(RivalRoutes.detail(entry.rival.accountId, entry.rival.displayName, scope.rivalScope)) },
                     onViewAll = seeAll,
                     viewAllLabel = CompeteText.VIEW_ALL_RIVALS,
+                    revealed = revealed,
                 )
             }
         }

@@ -55,6 +55,8 @@ import com.festivalscoretracker.android.core.rivals.RivalText
 import com.festivalscoretracker.android.core.service.ServiceIssue
 import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
+import com.festivalscoretracker.android.ui.common.fadeInStagger
+import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.theme.BrandTokens
@@ -194,7 +196,7 @@ fun RivalSectionHeader(
     seeAllTag: String? = null,
 ) {
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (instrument != null) InstrumentIcon(instrument, size = 32.dp, decorative = true)
+        if (instrument != null) InstrumentIcon(instrument, size = 36.dp, decorative = true)
         Column(Modifier.weight(1f)) {
             Text(
                 title,
@@ -225,15 +227,27 @@ fun RivalSectionHeader(
  * @param onRival Row tap.
  * @param onViewAll "View all rivals".
  * @param viewAllLabel Button text.
+ * @param revealed Whether the rows have finished loading ([festivalFadeIn]: web `nextStagger`).
  */
 @Composable
-fun RivalPreviewRows(rows: List<RivalEntry>, onRival: (RivalEntry) -> Unit, onViewAll: (() -> Unit)?, viewAllLabel: String = RivalText.VIEW_ALL_RIVALS) {
+fun RivalPreviewRows(
+    rows: List<RivalEntry>,
+    onRival: (RivalEntry) -> Unit,
+    onViewAll: (() -> Unit)?,
+    viewAllLabel: String = RivalText.VIEW_ALL_RIVALS,
+    revealed: Boolean = true,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         rows.forEachIndexed { index, entry ->
-            androidx.compose.runtime.key(entry.key(index)) { RivalRow(entry, onClick = { onRival(entry) }) }
+            androidx.compose.runtime.key(entry.key(index)) {
+                RivalRow(entry, onClick = { onRival(entry) }, modifier = Modifier.festivalFadeIn(revealed, fadeInStagger(index + 1)))
+            }
         }
         if (onViewAll != null) {
-            OutlinedButton(onClick = onViewAll, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(viewAllLabel) }
+            OutlinedButton(
+                onClick = onViewAll,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).festivalFadeIn(revealed, fadeInStagger(rows.size + 1)),
+            ) { Text(viewAllLabel) }
         }
     }
 }

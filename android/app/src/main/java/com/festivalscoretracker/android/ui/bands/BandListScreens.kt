@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Info
@@ -29,13 +30,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInWindow
-import com.festivalscoretracker.android.core.bands.BandLayout
-import com.festivalscoretracker.android.core.bands.PlayerBandListResponse
-import kotlinx.coroutines.flow.MutableStateFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -43,9 +41,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.core.bands.BandFormatting
+import com.festivalscoretracker.android.core.bands.BandLayout
 import com.festivalscoretracker.android.core.bands.BandType
 import com.festivalscoretracker.android.core.bands.PlayerBandEntry
 import com.festivalscoretracker.android.core.bands.PlayerBandGroup
+import com.festivalscoretracker.android.core.bands.PlayerBandListResponse
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.nav.BandRankingsRoute
@@ -58,9 +58,13 @@ import com.festivalscoretracker.android.ui.common.LoadingView
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
+import com.festivalscoretracker.android.ui.common.fadeInStagger
+import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import kotlinx.coroutines.flow.MutableStateFlow
 
 // region Shared grid
 
@@ -129,13 +133,14 @@ fun BandsLandingScreen(player: SelectedPlayer?, preview: PlayerBandsViewModel?, 
     val shell = LocalShellActions.current
     val idle = remember { MutableStateFlow<LoadState<PlayerBandListResponse>>(LoadState.Loading) }
     val previewState by (preview?.bands ?: idle).collectAsStateWithLifecycle()
+    val revealed = rememberRevealed(previewState is LoadState.Loaded)
     FestivalScreen(title = "Bands", isRoot = false, modifier = Modifier.testTag("fst.bands.screen")) { padding ->
         BandGrid(padding, "fst.bands.list") {
             fullRow("header") {
                 BandPageHeader(null, "Band lineups, rankings and band scores", "fst.bands")
             }
             if (player != null && preview != null) {
-                yourBands(player, previewState, preview::retry, onNavigate)
+                yourBands(player, previewState, revealed, preview::retry, onNavigate)
             } else {
                 fullRow("no-player") {
                     GlassCard(Modifier.fillMaxWidth().testTag("fst.bands.select-player")) {
@@ -198,6 +203,7 @@ internal fun rankingsDescription(type: BandType): String = "${type.memberCount}-
 private fun LazyGridScope.yourBands(
     player: SelectedPlayer,
     state: LoadState<PlayerBandListResponse>,
+    revealed: Boolean,
     onRetry: () -> Unit,
     onNavigate: (AppRoute) -> Unit,
 ) {
@@ -218,7 +224,9 @@ private fun LazyGridScope.yourBands(
                     BandEmptyState("No bands found", "No bands have been recorded for this player yet.", "fst.bands.your-bands-empty")
                 }
             } else {
-                items(list.entries, key = { "your-${it.key}" }) { entry -> PlayerBandCard(entry, { onNavigate(bandRouteFor(entry)) }) }
+                itemsIndexed(list.entries, key = { _, entry -> "your-${entry.key}" }) { index, entry ->
+                    PlayerBandCard(entry, { onNavigate(bandRouteFor(entry)) }, Modifier.festivalFadeIn(revealed, fadeInStagger(index + 1)))
+                }
                 fullRow("your-more") {
                     BandTextLink("View All ${BandFormatting.count(list.totalCount.toLong())} Bands", "fst.bands.your-bands") {
                         onNavigate(PlayerBandsRoute(player.accountId, player.displayName))
@@ -252,6 +260,8 @@ fun PlayerBandsScreen(viewModel: PlayerBandsViewModel, title: String, onNavigate
             return@FestivalScreen
         }
         val loaded = (state as? LoadState.Loaded)?.value
+        // Each page load fades its cards in (web stagger); a return visit shows them at once.
+        val revealed = rememberRevealed(loaded != null)
         BandGrid(padding, "fst.player-bands.list") {
             fullRow("header") {
                 val subtitle = loaded?.let { "${group.label} · ${BandFormatting.count(it.totalCount.toLong())} ${if (it.totalCount == 1) "band" else "bands"}" }
@@ -280,7 +290,9 @@ fun PlayerBandsScreen(viewModel: PlayerBandsViewModel, title: String, onNavigate
                             BandEmptyState("No bands found", "No $noun have been recorded for this player yet.", "fst.player-bands.empty")
                         }
                     }
-                    items(list.entries, key = { it.key }) { entry -> PlayerBandCard(entry, { onNavigate(bandRouteFor(entry)) }) }
+                    itemsIndexed(list.entries, key = { _, entry -> entry.key }) { index, entry ->
+                        PlayerBandCard(entry, { onNavigate(bandRouteFor(entry)) }, Modifier.festivalFadeIn(revealed, fadeInStagger(index)))
+                    }
                     fullRow("pager") { BandPager(page, list.pageCount(viewModel.pageSize), "fst.player-bands", viewModel::goTo) }
                 }
             }

@@ -61,6 +61,7 @@ import com.festivalscoretracker.android.ui.common.LoadingView
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
+import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlinx.coroutines.launch
@@ -176,6 +177,9 @@ private fun HubBody(
     navigate: (AppRoute) -> Unit,
 ) {
     val issue = content.fullPageIssue
+    // Stays composed through the full-page spinner, so a first load fades in while a
+    // return visit (already settled) shows at once.
+    val pageRevealed = rememberRevealed(content.settled && issue == null)
     when {
         !content.settled && issue == null -> LoadingView("Loading rivals", Modifier.testTag("fst.rivals.loading"))
         issue != null -> ServiceStatusView(issue, "Rivals unavailable", content.countdown, viewModel::retryFailed)
@@ -194,6 +198,7 @@ private fun HubBody(
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("fst.rivals.section.${section.id}")) {
                         val seeAll = { navigate(RivalRoutes.allRivals(section.seeAll)) }
                         val loaded = section.state as? LoadState.Loaded
+                        val sectionRevealed = rememberRevealed(loaded != null)
                         RivalSectionHeader(
                             title = section.title,
                             instrument = section.instrument,
@@ -207,6 +212,7 @@ private fun HubBody(
                                 rows = state.value,
                                 onRival = { entry -> navigate(RivalRoutes.detail(entry.rival.accountId, entry.rival.displayName, section.rowScope)) },
                                 onViewAll = seeAll,
+                                revealed = pageRevealed && sectionRevealed,
                             )
                         }
                     }

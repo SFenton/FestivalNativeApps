@@ -1,6 +1,5 @@
 package com.festivalscoretracker.android.ui.notifications
 
-import com.festivalscoretracker.android.ui.design.popupTestTags
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -13,7 +12,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -55,6 +54,10 @@ import com.festivalscoretracker.android.presentation.notifications.NotificationR
 import com.festivalscoretracker.android.presentation.notifications.NotificationsState
 import com.festivalscoretracker.android.presentation.notifications.NotificationsViewModel
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
+import com.festivalscoretracker.android.ui.common.fadeInStagger
+import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.rememberRevealed
+import com.festivalscoretracker.android.ui.design.popupTestTags
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 
 // region Routing
@@ -117,6 +120,8 @@ fun NotificationsSheet(viewModel: NotificationsViewModel, onDismiss: () -> Unit,
         onDismiss()
     }
     androidx.compose.runtime.LaunchedEffect(Unit) { viewModel.refresh() }
+    // Rows fade in once the refresh lands (web fadeInUp stagger).
+    val revealed = rememberRevealed(state is NotificationsState.Loaded)
     ModalBottomSheet(
         onDismissRequest = close,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -142,13 +147,18 @@ fun NotificationsSheet(viewModel: NotificationsViewModel, onDismiss: () -> Unit,
             )
             is NotificationsState.Empty -> Message(current.body, "fst.notifications.empty", title = "No notifications available")
             is NotificationsState.Loaded -> LazyColumn(Modifier.fillMaxWidth().testTag("fst.notifications.list"), contentPadding = PaddingValues(bottom = 24.dp)) {
+                val olderOffset = if (current.newRows.isNotEmpty()) current.newRows.size + 1 else 0
                 if (current.newRows.isNotEmpty()) {
-                    item(key = "new") { SectionTitle("New") }
-                    items(current.newRows, key = { it.id }) { row -> NotificationItem(row) { activate(viewModel, row, onDismiss, onNavigate) } }
+                    item(key = "new") { Box(Modifier.festivalFadeIn(revealed)) { SectionTitle("New") } }
+                    itemsIndexed(current.newRows, key = { _, row -> row.id }) { index, row ->
+                        Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index + 1))) { NotificationItem(row) { activate(viewModel, row, onDismiss, onNavigate) } }
+                    }
                 }
                 if (current.olderRows.isNotEmpty()) {
-                    item(key = "older") { SectionTitle("Older") }
-                    items(current.olderRows, key = { it.id }) { row -> NotificationItem(row) { activate(viewModel, row, onDismiss, onNavigate) } }
+                    item(key = "older") { Box(Modifier.festivalFadeIn(revealed, fadeInStagger(olderOffset))) { SectionTitle("Older") } }
+                    itemsIndexed(current.olderRows, key = { _, row -> row.id }) { index, row ->
+                        Box(Modifier.festivalFadeIn(revealed, fadeInStagger(olderOffset + index + 1))) { NotificationItem(row) { activate(viewModel, row, onDismiss, onNavigate) } }
+                    }
                 }
             }
         }
