@@ -264,6 +264,14 @@ Not yet assigned:
 
 **Lane C — Apple cleanup + gates** (Opus) — ✅ landed `19c8f8f`…`1ccd78d`: coverage gate recursive-glob fix (UX gate was silently classifying ~1 of 104 FestivalUI files) · logic coverage 93.90%→95.81% · Rivals Common Rivals 503 fix · Compete honest empty state · Songs scrubber card inset · MarqueeText in Song Detail/Suggestions · Suggestions/PlayerHistory sheets to semantic toolbar placements · shared `FestivalApp` UITest launch helper (migrated 14 call sites) + found/fixed `MarqueeText` not honoring `FST_DEBUG_STILL_BACKGROUND` (root cause of Songs/Suggestions journey hangs) · retired `tools/apple_native_matrix.py` (stale single-file assumption, unused) · fixed `test_contrast_gate` for the color-only chip design · un-skipped all 3 `SettingsJourneyTests` (confirmed simulator contention, not a bug)
 
+### Global search (operator, 2026-09-28) — all platforms, all layouts
+
+Web: search is its own button on every page (songs, players, bands). Native apps need a **global** search entry point on every page and layout.
+- 🟨 **R-search** (Opus, docs only): web behavior spec → `.agents/controls/global-search/spec.md`; Android + Windows per-layout designs (`android.md`, `windows.md`); contract entry `global-search` (`fst.global-search.*`); per-platform implementation plan.
+- 🟨 **Apple** — folded into Lane A2 (nav accessories): design + implement for iPhone (26 / pre-26), Duo folded/unfolded, iPad, macOS; `ios.md`/`ipados.md`/`macos.md`.
+- ⬜ **Windows** `win-search` and ⬜ **Android** `and-search` implementation lanes — launch after the spec lands (Android after its foundation).
+- Safety: players via `GET /api/account/search` (allowed); **band search writes → blocked, shown with explanation**; songs are local catalog search.
+
 ### Wave 4+ — other form factors
 
 **Lane W — iPhone Duo research + adaptive layout architecture** (Opus) — ✅ landed
@@ -420,3 +428,4 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Lane W3 | Duo page polish landed (`e0e887f`): rail overflow decision (Bell+Profile visible, hamburger overflows, `RootChromeRailItem`), B2 pagination → `.bottomBar` items, B6 row accessibility clearance, regular-width 2-column dashboard grids (Leaderboards/Profile), Settings readable-width; found and fixed reappear-reload jitter in Statistics/Player Profile and Suggestions (`.task(id:)` restarting on `NavigationStack` reappearance even with an unchanged id) |
 | 2026-09-28 | Lane W3 | Duo rail/page polish landed; orchestrator fixed last non-standard spinners (`e5c41a4`) |
 | 2026-09-28 | Windows lanes | win-bands landed; new blocked endpoint recorded (`1536971`) |
+| 2026-09-28 | Orchestrator | Operator: global search on every page/platform/layout → R-search research lane + A2 Apple scope |
