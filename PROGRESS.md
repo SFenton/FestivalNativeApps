@@ -314,6 +314,8 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
   - ✅ `win-songs` (`549b9ea`…`5e9422e`): Songs parity, Song Detail (Shop, Paths dialog, your-score, history), Item Shop page; 829 tests; idle 0.01% CPU; `AppSettings` init→set fix.
   - 🟨 `win-search` (`FST-win-search`): global search (title-bar AutoSuggestBox, Search page, compact button, Ctrl+E, Narrator).
   - ✅ `win-profile` (`71d09bc`…`46648e8`): profile flyout, player page = Statistics (select/switch/deselect in place, rank history + percentiles), score history, persisted selection; 830 tests; 7 journeys pass (Debug).
+  - ✅ `win-rivals` (`3789228`…`6bd8cd3`): hub (Common/combo/family), All, Detail, Rivalry, Find Rival, typed scope; 7/7 journeys on AOT; idle 0.01% CPU.
+  - ⬜ **Rivals live fallback (all platforms):** pass `allowLiveFallback=true` on rival detail like the web (verified read-only, `c873ce1`) so Find Rival works for untracked accounts.
   - ⬜ **Windows infra backlog** (next shell/infra lane): Release/AOT UI automation — first-run dialog has no test-launch opt-out (`--first-run=off` for automation) and UIA tree walk fails while it's open; plus:
   - ⬜ Windows coverage gate: async-only Rivals/Notifications client partials report uncovered (compiler-generated exclusion) — fix in next shell/infra pass.
   - 🟨 `win-shell` (`FST-win-shell`): compact NavigationView, occlusion pause, per-lane Debug data dir, UI-automation foreground robustness, reset registry.
@@ -447,3 +449,4 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Orchestrator | Global search spec landed + operator decisions; win-songs landed; launched win-search; verify_product root-ID rule (`78736f3`) |
 | 2026-09-28 | Windows lanes | win-profile landed; mock history accuracy scale fixed (`72b147e`) |
 | 2026-09-28 | Orchestrator | Operator: repro the installed PWA on all platforms → launched PWA-Apple (Mac) + FST-pwa-winandroid (Windows); AGENTS.md change-loop rule |
+| 2026-09-28 | Windows lanes | win-rivals landed; mock Connection: close; rivals live fallback verified safe |
