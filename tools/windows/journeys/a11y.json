@@ -48,7 +48,7 @@
     "name": "shop",
     "route": "/shop",
     "ready": [
-      "waitfor:id=fst.shop.view-toggle@20",
+      "waitfor:id=fst.shop.count@20",
       "wait:2"
     ]
   },
