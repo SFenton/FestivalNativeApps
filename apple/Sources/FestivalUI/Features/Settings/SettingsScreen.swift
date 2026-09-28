@@ -95,7 +95,7 @@ struct SettingsScreen: View {
                 metadata
                 version
                 service
-                help
+                about
                 reset
             }
             .padding(.horizontal, 16)
@@ -366,9 +366,8 @@ struct SettingsScreen: View {
         }
     }
 
-    private var help: some View {
-        FestivalGlassSection("Help", subtitle: "Guides and open source package licenses.") {
-            navigationRow("App Manual", route: .manual, identifier: "fst.settings.manual")
+    private var about: some View {
+        FestivalGlassSection("Licenses", subtitle: "Open source package license details.") {
             navigationRow("View Licenses", route: .licenses, identifier: "fst.settings.licenses")
         }
     }
