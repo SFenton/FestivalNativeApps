@@ -11,3 +11,7 @@
 
 - Web refs (files under `FortniteFestivalWeb/src/pages/**`): `FullRankingsPage.tsx:169-244`
 - Native acceptance: Full-scope paginated rankings with selection spotlight and metrics.
+
+## Live data quirk (2026-09-28)
+
+Production rankings can include an **anonymous row**: empty `accountId`, no `displayName` (seen at Lead total-score rank 15). Every platform must decode it, show "Unknown User", make it non-interactive, and give it a unique list identity — never reject the page.
