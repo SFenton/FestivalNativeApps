@@ -177,7 +177,12 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 **Lane G2 — Suggestions follow-ups** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/suggestions2`
 - ⬜ `near_max_*` families (seed-parity test) · ⬜ `visibleInstruments` from root · ⬜ Rival-driven families if a pure-read source exists · band suggestions deferred (needs band identity)
 
+**Lane K — Service client consolidation + scrape-freeze UX** (Opus) — 🟨 running in `~/repos/FestivalNativeApps-lanes/client`
+- ⬜ One typed request path for every public GET (Rivals/Bands/History/Notifications/Rankings migrated) · ⬜ One error vocabulary · ⬜ Shared `ServiceStatusView` with scrape-freeze auto-retry (`Retry-After`) adopted across screens · ⬜ `add-endpoint` skill + architecture rules
+
 ### Wave 3 — UX tests (started for completed features)
+
+**Lane U3 — UX tests: Rivals & Compete** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/uxrivals`
 
 **Lane U2 — UX tests: Songs, Song Detail, Paths, Shop, Suggestions** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/uxsongs`
 - ⬜ Triage/migrate legacy monolith tests into per-feature files · ⬜ Hosted snapshots per control state · ⬜ XCUITest journeys (batched) · ⬜ Per-feature coverage
@@ -264,3 +269,5 @@ Not yet assigned:
 | 2026-09-28 | Lane D2 | Live demos for all 42 FRE slides (coverage test enforces no fallback) |
 | 2026-09-28 | Orchestrator | Fixed empty FRE carousel on non-default launch tab (`.sheet(item:)`, `95d799e`); native FRE copy; demo slot clipping |
 | 2026-09-28 | Lane R2 | Rivals follow-up: removed `RivalNavigationBridge`, typed `RivalScope` on `AppRoute`; Common Rivals + Combo/Pro-Drums scope ported to Core; Find Rival search; Quick Links on Compete/Rivals/Rivalry/Rival Detail; re-verified rival detail endpoints live (200 outside an active scrape freeze; new `freeze-reason: scrape` header explains the earlier 503) |
+| 2026-09-28 | Lane R2 | Typed `RivalScope` on AppRoute (singleton removed), Common/combo rivals (22 tests), Find Rival, Quick Links on Compete/Rivals; 503s explained (scrape freeze) |
+| 2026-09-28 | Orchestrator | Launched Lane K (client consolidation + freeze UX) and Lane U3 (Rivals/Compete UX tests) |
