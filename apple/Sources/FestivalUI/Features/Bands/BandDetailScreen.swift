@@ -202,12 +202,32 @@ struct BandDetailScreen: View {
                 "\(detail.fullComboCount.formatted()) / \(detail.totalChartedSongs.formatted())"
             )
             statRow("Average Accuracy", "\(ScoreFormatting.accuracy(detail.avgAccuracy))%")
-            statRow("Average Stars", detail.avgStars.formatted(.number.precision(.fractionLength(1))))
+            averageStarsRow(detail.avgStars)
             statRow("Best Rank", "#\(detail.bestRank.formatted())")
             statRow("Average Rank", "#\(detail.avgRank.formatted(.number.precision(.fractionLength(1))))")
         }
         .accessibilityIdentifier("fst.band.statistics-section")
         .quickLinkSection(id: "statistics", title: "Statistics", symbol: "chart.bar.fill")
+    }
+
+    /// Average stars, drawn as five gold stars at exactly six like the web's
+    /// `BandPage.formatStars` (`GoldStars`), otherwise one decimal or an em dash.
+    ///
+    /// - Parameter average: Band's mean stars across played songs.
+    /// - Returns: The labelled statistics row.
+    @ViewBuilder
+    private func averageStarsRow(_ average: Double) -> some View {
+        if average >= 6 {
+            HStack {
+                Text("Average Stars").foregroundStyle(BrandTokens.textSecondary)
+                Spacer()
+                StarRating(stars: 6, size: 20)
+            }
+            .font(.body)
+            .accessibilityElement(children: .combine)
+        } else {
+            statRow("Average Stars", average > 0 ? average.formatted(.number.precision(.fractionLength(1))) : "—")
+        }
     }
 
     private func statRow(_ label: String, _ value: String) -> some View {

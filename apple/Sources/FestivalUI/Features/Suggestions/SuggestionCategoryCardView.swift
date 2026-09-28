@@ -108,13 +108,12 @@ struct SuggestionSongRowView: View {
         }
     }
 
+    /// The web's star PNG row (`CategoryCard.RightContent`): that many white stars, or
+    /// five gold stars for a six-star score.
+    ///
+    /// - Parameter stars: Raw service star count (1...6).
+    /// - Returns: The bundled-artwork star row.
     private func starRow(_ stars: Int) -> some View {
-        HStack(spacing: 1) {
-            ForEach(0..<6, id: \.self) { index in
-                Image(systemName: index < stars ? "star.fill" : "star")
-                    .font(.caption2)
-                    .foregroundStyle(index < stars ? BrandTokens.gold : BrandTokens.textDisabled)
-            }
-        }
+        StarRating(stars: stars, size: 20)
     }
 }
