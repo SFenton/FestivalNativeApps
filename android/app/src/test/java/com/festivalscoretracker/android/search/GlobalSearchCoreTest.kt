@@ -106,9 +106,10 @@ class GlobalSearchCoreTest {
 
     @Test
     fun fullScreenGrowsFromTheRequester() {
-        val icon = PxRect(900, 100, 1000, 200)
-        val anchor = GlobalSearchLayout.anchor(SearchPresentation.FullScreen, icon, 1080, 2400, 2.625f)
-        assertEquals(icon, anchor.anchor)
+        // A 48 dp icon at density 2 grows into a 56 dp field centred on it.
+        val icon = PxRect(900, 100, 996, 196)
+        val anchor = GlobalSearchLayout.anchor(SearchPresentation.FullScreen, icon, 1080, 2400, 2f)
+        assertEquals(PxRect(900, 92, 996, 204), anchor.anchor)
         assertNull(anchor.maxPanelHeight)
     }
 

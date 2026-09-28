@@ -310,7 +310,8 @@ object GlobalSearchLayout {
     /**
      * Anchor for the expanded surface.
      *
-     * Full screen grows from the requester (the action icon). Docked opens under the top
+     * Full screen grows from the requester (the action icon), at the field's 56 dp height:
+     * Material measures the expanded input field at the collapsed height. Docked opens under the top
      * bar, end-aligned to the requester, at most 720 dp wide and never across a separating
      * vertical hinge (clamped to the side that holds the requester). A persistent bar docks
      * over itself. A separating horizontal (tabletop) hinge below the anchor caps the panel
@@ -338,7 +339,10 @@ object GlobalSearchLayout {
         val gap = px(EDGE_GAP_DP)
         val fieldHeight = px(FIELD_HEIGHT_DP)
         val anchor = when (presentation) {
-            SearchPresentation.FullScreen -> requester
+            SearchPresentation.FullScreen -> {
+                val top = ((requester.top + requester.bottom - fieldHeight) / 2).coerceAtLeast(0)
+                PxRect(requester.left, top, requester.right, top + fieldHeight)
+            }
             SearchPresentation.Docked, SearchPresentation.Persistent -> {
                 // The pane holding the requester: the whole window, or one side of a vertical hinge.
                 val center = (requester.left + requester.right) / 2

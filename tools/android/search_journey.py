@@ -73,7 +73,8 @@ JOURNEYS = [
         tap:id=fst.global-search.scope.bands; wait:1
         tap:id=fst.global-search.result.song; waitfor:id=fst.song-detail.intensity@20; wait:1; shot:{{out}}-song-detail.png
         {OPEN}; type:busy; wait:3; shot:{{out}}-search-players-error.png
-        back; wait:1; back; wait:1; shot:{{out}}-back.png
+        back; wait:1; back; wait:1; shot:{{out}}-detail-after-search.png
+        back; wait:1; shot:{{out}}-back.png
         tap:id=fst.nav.drawer; wait:1; shot:{{out}}-drawer.png
     """),
     Journey("book-fold", "FST_Book_Fold", f"""
