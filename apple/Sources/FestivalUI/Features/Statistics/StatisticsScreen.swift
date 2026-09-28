@@ -4,25 +4,45 @@ import FestivalDesign
 
 // MARK: - StatisticsScreen
 
-/// `/statistics` — selected profile statistics hub.
+/// `/statistics` — the selected player's own profile statistics hub.
 ///
-/// Placeholder until its feature lane lands; see `PROGRESS.md`.
+/// The web renders this route by pointing `PlayerPage` at the tracked/selected
+/// account (`App.tsx:95-105`); this tab is only reachable once a player is
+/// selected (`FestivalTabPolicy.sections(profile:)`), so this screen reuses the
+/// same `PlayerProfileContent` the pushed `/player/:accountId` route uses, always
+/// in its "This Is Me" state. The defensive empty state below only appears for the
+/// brief moment between an explicit deselect and the tab bar hiding Statistics.
 struct StatisticsScreen: View {
     let session: FestivalSession
-
+    @Environment(\.openProfile) private var openProfile
 
     /// Create the screen.
     ///
-    /// - Parameters:
-    ///   - session: Shared app session (API client, selected profile, caches).
-
+    /// - Parameter session: Shared app session (API client, selected profile, caches).
     init(session: FestivalSession) {
         self.session = session
-
     }
 
     var body: some View {
-        ComingSoonView("Statistics", symbol: "chart.bar")
-            .festivalBackground(.carousel, session: session)
+        Group {
+            if let selected = session.selectedPlayer {
+                PlayerProfileContent(
+                    session: session, accountId: selected.accountId,
+                    routeDisplayName: selected.displayName
+                )
+            } else {
+                ContentUnavailableView {
+                    Label("No Profile Selected", systemImage: "chart.bar")
+                } description: {
+                    Text("Select a player to see their statistics.")
+                } actions: {
+                    Button("Choose Profile") { openProfile() }
+                        .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("fst.statistics.choose-profile")
+                }
+                .accessibilityIdentifier("fst.statistics.empty")
+            }
+        }
+        .festivalBackground(.carousel, session: session)
     }
 }

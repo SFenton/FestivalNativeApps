@@ -305,6 +305,11 @@ private actor HostedAccountSearchTransport: HTTPTransport {
 }
 
 /// Switching to Bands cannot make the native client issue its write-capable GET.
+///
+/// The search field itself now stays visible in Bands scope (its prompt switches to
+/// "Find Band", matching the Players/Bands scope-aware search pill requirement) but
+/// is disabled, with an honest gating explanation below it — it no longer disappears
+/// outright the way the old Bands `Text` placeholder implied.
 @MainActor
 @Test func profileBandScopeKeepsUnsafeSearchBlocked() async throws {
     let transport = HostedAccountSearchTransport(outcome: .results)
@@ -320,17 +325,19 @@ private actor HostedAccountSearchTransport: HTTPTransport {
         nativeHostedImage(host), filename: "profile-players-scope.png",
         environment: "FST_PROFILE_RENDER_OUT"
     )
-    #expect(!profileTextFields(in: host).isEmpty)
+    let playersField = try #require(profileTextFields(in: host).first)
+    #expect(playersField.isEnabled)
     let picker = try #require(profileScopePickers(in: host).first)
     #expect(picker.segmentCount == 2)
     picker.selectedSegment = 1
     picker.sendAction(picker.action, to: picker.target)
     for _ in 0..<20 {
-        if profileTextFields(in: host).isEmpty { break }
+        if profileTextFields(in: host).first?.isEnabled == false { break }
         host.layoutSubtreeIfNeeded()
         try await Task.sleep(for: .milliseconds(50))
     }
-    #expect(profileTextFields(in: host).isEmpty)
+    let bandsField = try #require(profileTextFields(in: host).first)
+    #expect(!bandsField.isEnabled)
     #expect((await transport.recordedPaths()).isEmpty)
     let image = try nativeHostedImage(host)
     #expect(nativeHostedStatusPixels(image).gold == 0)
@@ -342,11 +349,11 @@ private actor HostedAccountSearchTransport: HTTPTransport {
     picker.selectedSegment = 0
     picker.sendAction(picker.action, to: picker.target)
     for _ in 0..<20 {
-        if !profileTextFields(in: host).isEmpty { break }
+        if profileTextFields(in: host).first?.isEnabled == true { break }
         host.layoutSubtreeIfNeeded()
         try await Task.sleep(for: .milliseconds(50))
     }
-    #expect(!profileTextFields(in: host).isEmpty)
+    #expect(try #require(profileTextFields(in: host).first).isEnabled)
     #expect((await transport.recordedPaths()).isEmpty)
     let restored = try nativeHostedPNG(
         nativeHostedImage(host), filename: "profile-players-restored.png",

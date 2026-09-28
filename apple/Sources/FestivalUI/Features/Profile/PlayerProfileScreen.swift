@@ -4,9 +4,12 @@ import FestivalDesign
 
 // MARK: - PlayerProfileScreen
 
-/// `/player/:accountId` — viewed player's profile (distinct from the selected profile).
+/// `/player/:accountId` — a viewed player's profile (distinct from the selected
+/// profile; ported from the web `PlayerPage` in "viewed" mode).
 ///
-/// Placeholder until its feature lane lands; see `PROGRESS.md`.
+/// Shows the same content whether or not `accountId` is the currently selected
+/// player: `PlayerProfileContent` renders "This Is Me"/Deselect when it is, and a
+/// Select/Switch action (or an honest unverified/changed notice) otherwise.
 struct PlayerProfileScreen: View {
     let session: FestivalSession
     let accountId: String
@@ -25,7 +28,7 @@ struct PlayerProfileScreen: View {
     }
 
     var body: some View {
-        ComingSoonView("Player", symbol: "person.crop.circle")
+        PlayerProfileContent(session: session, accountId: accountId, routeDisplayName: displayName)
             .festivalBackground(.carousel, session: session)
     }
 }

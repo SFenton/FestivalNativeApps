@@ -31,19 +31,3 @@ public struct SelectedPlayerIdentity: Codable, Equatable, Sendable, Identifiable
         }
     }
 }
-
-#if DEBUG
-extension SelectedPlayerIdentity {
-    /// Construct directly from known values for Debug screenshot/launch fixtures only.
-    ///
-    /// - Parameters:
-    ///   - accountId: Public account key, e.g. from `FST_DEBUG_SELECT_PLAYER`.
-    ///   - displayName: Player name to show while pre-selected.
-    /// - Throws: `FestivalAPIError.invalidSelectedProfile` for unsafe fixture inputs.
-    public init(debugAccountId accountId: String, displayName: String) throws {
-        self.accountId = accountId
-        self.displayName = displayName
-        try validate()
-    }
-}
-#endif

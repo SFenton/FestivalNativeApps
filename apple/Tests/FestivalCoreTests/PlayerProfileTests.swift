@@ -444,3 +444,79 @@ private func profileReply(
         try await client.playerProfile(accountId: "fixture-player-1")
     }
 }
+
+// MARK: - Client-side player-page aggregation
+
+private let statsPlayerWire = """
+{"accountId":"fixture-player-1","displayName":"Fixture Player 1","totalScores":5,
+ "scores":[
+   {"si":"song-a","ins":"01","sc":99900,"acc":979,"fc":true,"st":6,"rk":1,"te":26},
+   {"si":"song-b","ins":"01","sc":95000,"acc":900,"fc":false,"st":5,"rk":5,"te":26},
+   {"si":"song-c","ins":"01","sc":80000,"acc":700,"fc":false,"st":3,"rk":20,"te":26},
+   {"si":"song-a","ins":"02","sc":91000,"acc":905,"fc":true,"st":6,"rk":2,"te":26},
+   {"si":"song-d","ins":"04","sc":50000}
+ ]}
+"""
+
+/// Overall totals count unique songs across instruments and pick the single best rank.
+@Test func overallStatsAggregatesAcrossVisibleInstrumentsOnly() throws {
+    let response = try player(statsPlayerWire)
+    #expect(try response.validate(requestedAccountId: "fixture-player-1") == .available)
+    let stats = response.overallStats(visibleInstruments: [.lead, .bass])
+    // song-a is charted on both Lead and Bass, so it counts once.
+    #expect(stats.songsPlayed == 3)
+    #expect(stats.fullComboCount == 2)
+    #expect(stats.fullComboPercent == 50.0)
+    #expect(stats.goldStarCount == 2)
+    #expect(stats.bestRank == 1)
+    #expect(stats.bestRankSongId == "song-a")
+    #expect(stats.bestRankInstrument == .lead)
+    let avg = try #require(stats.averageAccuracy)
+    #expect(abs(avg - (979 + 900 + 700 + 905) * 1_000 / 4) < 0.01)
+
+    // Drums is not in the visible set, so its unrated, unranked row never counts.
+    let leadOnly = response.overallStats(visibleInstruments: [.lead])
+    #expect(leadOnly.songsPlayed == 3)
+    #expect(leadOnly.fullComboCount == 1)
+    #expect(leadOnly.bestRank == 1)
+
+    // An empty visible set (all Settings instruments hidden) zeroes every total.
+    let none = response.overallStats(visibleInstruments: [])
+    #expect(none.songsPlayed == 0)
+    #expect(none.fullComboCount == 0)
+    #expect(none.fullComboPercent == 0)
+    #expect(none.goldStarCount == 0)
+    #expect(none.averageAccuracy == nil)
+    #expect(none.bestRank == nil)
+    #expect(none.bestRankSongId == nil)
+    #expect(none.bestRankInstrument == nil)
+}
+
+/// Per-instrument totals only ever look at that one instrument's rows.
+@Test func instrumentStatsIsolatesOneChartAndReportsAnEmptyState() throws {
+    let response = try player(statsPlayerWire)
+    let lead = response.instrumentStats(.lead)
+    #expect(lead.songsPlayed == 3)
+    #expect(lead.fullComboCount == 1)
+    // floor(1/3 * 1000) / 10 == 33.3, not a rounded 33.3333...
+    #expect(lead.fullComboPercent == 33.3)
+    #expect(lead.goldStarCount == 1)
+    #expect(lead.fiveStarCount == 1)
+    #expect(lead.bestRank == 1)
+    #expect(lead.bestRankSongId == "song-a")
+
+    let drums = response.instrumentStats(.drums)
+    #expect(drums.songsPlayed == 1)
+    #expect(drums.fullComboCount == 0)
+    #expect(drums.fullComboPercent == 0)
+    #expect(drums.goldStarCount == 0)
+    #expect(drums.averageAccuracy == nil)
+    #expect(drums.bestRank == nil)
+    #expect(drums.bestRankSongId == nil)
+
+    let vocals = response.instrumentStats(.vocals)
+    #expect(vocals.songsPlayed == 0)
+    #expect(vocals.fullComboCount == 0)
+    #expect(vocals.goldStarCount == 0)
+    #expect(vocals.fiveStarCount == 0)
+}

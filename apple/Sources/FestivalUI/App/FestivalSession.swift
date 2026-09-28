@@ -89,22 +89,6 @@ final class FestivalSession {
                 Self.log.error("Invalid stored profile identity was discarded")
             }
         }
-        #if DEBUG
-        if selectedPlayer == nil,
-           let raw = ProcessInfo.processInfo.environment["FST_DEBUG_SELECT_PLAYER"] {
-            let parts = raw.split(separator: ":", maxSplits: 1).map(String.init)
-            if parts.count == 2,
-               let identity = try? SelectedPlayerIdentity(
-                   debugAccountId: parts[0], displayName: parts[1]
-               ) {
-                if let encoded = try? JSONEncoder().encode(identity) {
-                    selectionStorage?.set(encoded, forKey: SelectedPlayerIdentity.storageKey)
-                }
-                selectedPlayer = identity
-                playerLoadState = .loading
-            }
-        }
-        #endif
     }
 
     /// Reuse the same client while the process remains alive.
