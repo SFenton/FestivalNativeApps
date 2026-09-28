@@ -26,22 +26,34 @@ public partial class App : Application
     /// <summary>Parsed launch/debug options.</summary>
     public static LaunchOptions Options { get; private set; } = new();
 
+    /// <summary>Whether this launch runs in test automation mode (<see cref="AutomationLaunch"/>).</summary>
+    public static bool Automation { get; private set; }
+
+    /// <summary>Whether the <c>FST_*</c> environment hooks are honoured (Debug builds and automation launches).</summary>
+    public static bool HooksEnabled { get; private set; }
+
+    /// <summary>Environment lookup for launch hooks: the process environment when <see cref="HooksEnabled"/>, else empty.</summary>
+    public static Func<string, string?> LaunchEnvironment { get; private set; } = _ => null;
+
     /// <summary>Builds services and shows the main window. Never calls a side-effecting endpoint.</summary>
     /// <param name="args">Launch details.</param>
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
 #if DEBUG
-        Func<string, string?> environment = Environment.GetEnvironmentVariable;
         const bool debugBuild = true;
 #else
-        // FST_* environment deep links are a Debug-only automation hook; Release honours explicit flags only.
-        Func<string, string?> environment = _ => null;
         const bool debugBuild = false;
 #endif
-        // First, before any store resolves a default path: Debug lanes each get their own data folder.
-        AppDataPaths.Configure(AppDataPaths.Resolve(debugBuild, environment, AppContext.BaseDirectory,
+        var arguments = Environment.GetCommandLineArgs().Skip(1).ToArray();
+        // FST_* environment hooks are Debug-only; a Release launch honours them only in marker-gated automation mode.
+        Automation = AutomationLaunch.Resolve(debugBuild, arguments, Environment.GetEnvironmentVariable, AppContext.BaseDirectory, File.Exists);
+        HooksEnabled = debugBuild || Automation;
+        LaunchEnvironment = HooksEnabled ? Environment.GetEnvironmentVariable : _ => null;
+        var environment = LaunchEnvironment;
+        // First, before any store resolves a default path: Debug and automation launches each get their own data folder.
+        AppDataPaths.Configure(AppDataPaths.Resolve(HooksEnabled, environment, AppContext.BaseDirectory,
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)));
-        Options = LaunchOptions.Parse(Environment.GetCommandLineArgs().Skip(1).ToArray(), environment);
+        Options = LaunchOptions.Parse(arguments, environment);
         PerfLog.Configure(Options.PerfLogPath);
         var handler = new SocketsHttpHandler
         {

@@ -11,6 +11,7 @@ namespace Festival.Core.Domain;
 /// <c>--auto-scroll</c> (perf scenario: scroll the Songs list continuously), <c>--drift-fps N</c> (background drift steps/s),
 /// <c>--frame-stats</c> (UI-thread frame intervals in the perf log), <c>--profile accountId:Name</c> (select a player in memory
 /// only, never persisted), <c>--anonymous</c> (no player, in memory only), <c>--settings-path file</c> (isolated settings file).
+/// <c>--automation</c> is resolved separately by <see cref="AutomationLaunch"/> and only accepted here as a flag.
 /// </summary>
 public sealed record LaunchOptions
 {
@@ -92,7 +93,7 @@ public sealed record LaunchOptions
             var equals = name.IndexOf('=');
             if (equals > 0)
                 values[name[..equals]] = name[(equals + 1)..];
-            else if (name is "reduce-motion" or "no-art" or "auto-scroll" or "frame-stats" or "anonymous")
+            else if (name is "reduce-motion" or "no-art" or "auto-scroll" or "frame-stats" or "anonymous" or "automation")
                 flags.Add(name);
             else if (i + 1 < args.Count)
                 values[name] = args[++i];

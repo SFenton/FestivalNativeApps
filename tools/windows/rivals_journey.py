@@ -20,9 +20,12 @@ import time
 import urllib.request
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import journey_exe  # noqa: E402  (sibling module)
+
 ROOT = Path(__file__).resolve().parents[2]
 UIWIN = ROOT / "tools" / "windows" / "uiwin.py"
-EXE = ROOT / "windows" / "Festival.App" / "bin" / "x64" / "Debug" / "net9.0-windows10.0.26100.0" / "win-x64" / "FestivalScoreTracker.exe"
+EXE = journey_exe.DEBUG_EXE
 RIVAL = "408abb67d81446f0ac714506950ce178"
 
 # name -> (environment, route, steps). {shot:NAME} placeholders become screenshots when --shots is given.
@@ -174,7 +177,7 @@ def main() -> int:
     parser.add_argument("--shots", type=Path)
     parser.add_argument("--only", choices=sorted(SCENARIOS))
     parser.add_argument("--sizes", default="medium", help="comma-separated presets for the populated journey")
-    parser.add_argument("--exe", type=Path, default=EXE, help="app executable (e.g. windows/.artifacts/app/Release-aot/FestivalScoreTracker.exe)")
+    journey_exe.add_argument(parser)
     options = parser.parse_args()
     server = subprocess.Popen([sys.executable, str(ROOT / "tools" / "windows" / "rivals_fixture.py"), "--port", str(options.port)],
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

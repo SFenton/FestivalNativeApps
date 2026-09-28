@@ -112,6 +112,30 @@ class LaunchEnvTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             u.launch_env(None, None, ["broken"])
 
+    def test_automation_marks_only_repo_publishes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            publish = root / "artifacts" / "app" / "Release-aot"
+            publish.mkdir(parents=True)
+            exe = publish / "FestivalScoreTracker.exe"
+            original = u.ARTIFACTS_ROOT
+            u.ARTIFACTS_ROOT = root / "artifacts"
+            try:
+                env: dict[str, str] = {}
+                self.assertIsNone(u.prepare_automation(exe, env))
+                self.assertEqual(env["FST_AUTOMATION"], "1")
+                self.assertTrue((publish / u.AUTOMATION_MARKER).exists())
+                elsewhere = root / "installed" / "FestivalScoreTracker.exe"
+                self.assertIn("no fst-automation.marker", u.prepare_automation(elsewhere, {}))
+                self.assertFalse((elsewhere.parent / u.AUTOMATION_MARKER).exists())
+                debug = root / "bin" / "x64" / "Debug" / "FestivalScoreTracker.exe"
+                self.assertIsNone(u.prepare_automation(debug, {}))
+                opted_out = {"FST_AUTOMATION": "0"}
+                self.assertIsNone(u.prepare_automation(elsewhere, opted_out))
+                self.assertEqual(opted_out, {"FST_AUTOMATION": "0"})
+            finally:
+                u.ARTIFACTS_ROOT = original
+
 
 class PerfTests(unittest.TestCase):
     """Counter paths, aggregation and PresentMon summaries."""

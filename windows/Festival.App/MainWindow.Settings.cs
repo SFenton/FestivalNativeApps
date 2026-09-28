@@ -29,14 +29,8 @@ public sealed partial class MainWindow
     /// <summary>Creates first-run and notification services and the bell (called once from the constructor).</summary>
     private void InitializeSettingsFeatures()
     {
-#if DEBUG
-        Func<string, string?> environment = Environment.GetEnvironmentVariable;
-        const bool debugBuild = true;
-#else
-        Func<string, string?> environment = _ => null;
-        const bool debugBuild = false;
-#endif
-        var mode = FirstRunModeParser.Parse(Environment.GetCommandLineArgs().Skip(1).ToArray(), environment, debugBuild);
+        // Debug and automation launches default to no first-run carousels; an explicit --first-run still wins.
+        var mode = FirstRunModeParser.Parse(Environment.GetCommandLineArgs().Skip(1).ToArray(), App.LaunchEnvironment, App.HooksEnabled);
         firstRun = new FirstRunCenter(new FirstRunSeenStore(new FileBlobStore(FirstRunSeenStore.DefaultPath)), mode);
         Notifications = new NotificationsViewModel(session, new NotificationSeenStore(new FileBlobStore(NotificationSeenStore.DefaultPath)));
         NotificationsHost.Content = new NotificationsBell(Notifications, OpenNotification);

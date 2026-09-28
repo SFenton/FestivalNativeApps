@@ -25,6 +25,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import journey_exe  # noqa: E402  (sibling module)
 import ui_journey  # noqa: E402  (sibling module)
 
 JOURNEYS = Path(__file__).resolve().parent / "journeys" / "search.json"
@@ -181,10 +182,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--shots", type=Path, default=Path(tempfile.gettempdir()) / "fst-search-journeys")
     parser.add_argument("--retries", type=int, default=1)
     parser.add_argument("--axe", action="store_true", help="also run an Axe.Windows scan of the Search page")
-    parser.add_argument("--exe", type=Path, help="app executable (default: this worktree's Debug build)")
+    journey_exe.add_argument(parser)
     args = parser.parse_args(argv)
     global EXE
-    EXE = (args.exe or EXE).resolve()
+    EXE = args.exe
     if not EXE.is_file():
         print(f"error: build first (tools/windows/build.ps1); no {EXE}", file=sys.stderr)
         return 1

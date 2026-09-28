@@ -311,6 +311,40 @@ def launch_env(tab: str | None, route: str | None, extras: list[str] | None) -> 
     return env
 
 
+#: Automation marker (``Festival.Core.Domain.AutomationLaunch.MarkerFileName``): a Release build honours
+#: ``FST_AUTOMATION=1`` only when this file sits next to its executable.
+AUTOMATION_MARKER = "fst-automation.marker"
+
+#: Publish folders this tool may mark for automation (never an installed build).
+ARTIFACTS_ROOT = REPO_ROOT / "windows" / ".artifacts"
+
+
+def prepare_automation(exe: Path, env: dict[str, str]) -> str | None:
+    """Turn on test automation for a launch (first run off, ``FST_*`` hooks honoured in Release).
+
+    Sets ``FST_AUTOMATION=1`` unless the caller set it, and writes the marker next to a publish
+    under ``windows/.artifacts``. Debug builds need no marker.
+
+    Args:
+        exe: Resolved executable.
+        env: Launch environment, updated in place.
+
+    Returns:
+        A warning when a non-Debug build outside ``windows/.artifacts`` has no marker, else ``None``.
+    """
+    env.setdefault("FST_AUTOMATION", "1")
+    if env["FST_AUTOMATION"] != "1":
+        return None
+    marker = exe.parent / AUTOMATION_MARKER
+    if marker.exists() or any(part.lower() == "debug" for part in exe.parts):
+        return None
+    if ARTIFACTS_ROOT.resolve() in exe.resolve().parents:
+        marker.write_text("Test automation marker written by tools/windows/uiwin.py; not part of a shipped build.\n",
+                          encoding="utf-8")
+        return None
+    return f"{exe} has no {AUTOMATION_MARKER}; FST_* hooks and first-run defaults stay in release mode"
+
+
 def clamp_warning(op: dict, result: dict) -> str | None:
     """Explain when a size preset could not be honoured exactly.
 
@@ -603,12 +637,16 @@ def _report(result: dict) -> None:
 
 
 def cmd_launch(args: argparse.Namespace) -> int:
-    """Launch the app with debug environment, optionally resize and screenshot."""
+    """Launch the app in automation mode with debug environment, optionally resize and screenshot."""
     exe = Path(native_path(args.exe)).resolve()
     if not exe.is_file():
         raise ValueError(f"no executable at {exe}")
-    request = {"command": "launch", "exe": str(exe), "args": args.arg or [],
-               "env": launch_env(args.tab, args.route, args.extra), "timeout": args.timeout}
+    env = launch_env(args.tab, args.route, args.extra)
+    if not args.no_automation:
+        warning = prepare_automation(exe, env)
+        if warning:
+            print(f"warning: {warning}", file=sys.stderr)
+    request = {"command": "launch", "exe": str(exe), "args": args.arg or [], "env": env, "timeout": args.timeout}
     with _lock(args, f"launch {exe.name}") as lock:
         result = run_driver(request, lock)
         EXCHANGE_DIR.mkdir(parents=True, exist_ok=True)
@@ -848,6 +886,8 @@ def build_parser() -> argparse.ArgumentParser:
     launch.add_argument("--shot", help="screenshot after launch/resize")
     launch.add_argument("--wait", type=float, default=2.0, help="settle seconds before --shot")
     launch.add_argument("--timeout", type=float, default=30.0, help="seconds to wait for a window")
+    launch.add_argument("--no-automation", action="store_true",
+                        help="launch without FST_AUTOMATION (first-run and release defaults as a user sees them)")
     launch.set_defaults(func=cmd_launch)
     sub.add_parser("window", parents=[target], help="describe window").set_defaults(func=cmd_window)
     resize = sub.add_parser("resize", parents=[target], help="apply a window preset")

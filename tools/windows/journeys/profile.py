@@ -27,10 +27,11 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import journey_exe  # noqa: E402  (tools/windows module)
+
 REPO = Path(__file__).resolve().parents[3]
 UIWIN = REPO / "tools" / "windows" / "uiwin.py"
-DEFAULT_EXE = (REPO / "windows" / "Festival.App" / "bin" / "x64" / "Debug" / "net9.0-windows10.0.26100.0"
-               / "win-x64" / "FestivalScoreTracker.exe")
 
 # region Model
 
@@ -234,7 +235,7 @@ def main(argv: list[str] | None = None) -> int:
     """
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("names", nargs="*", help="journeys to run (default: all)")
-    parser.add_argument("--exe", type=Path, default=DEFAULT_EXE)
+    journey_exe.add_argument(parser)
     parser.add_argument("--shots", type=Path, help="directory for per-phase screenshots")
     args = parser.parse_args(argv)
     selected = [j for j in JOURNEYS if not args.names or j.name in args.names]

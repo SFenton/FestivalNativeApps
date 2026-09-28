@@ -21,9 +21,12 @@ import time
 import urllib.request
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import journey_exe  # noqa: E402  (sibling module)
+
 ROOT = Path(__file__).resolve().parents[2]
 UIWIN = ROOT / "tools" / "windows" / "uiwin.py"
-EXE = ROOT / "windows" / "Festival.App" / "bin" / "x64" / "Debug" / "net9.0-windows10.0.26100.0" / "win-x64" / "FestivalScoreTracker.exe"
+EXE = journey_exe.DEBUG_EXE
 PLAYER = {"FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1"}
 
 # name -> (environment, route, settings overrides, steps). {shot:NAME} placeholders become screenshots with --shots.
@@ -211,7 +214,10 @@ def main() -> int:
     parser.add_argument("--shots", type=Path)
     parser.add_argument("--only", choices=sorted(SCENARIOS))
     parser.add_argument("--sizes", default="medium", help="comma-separated presets for every scenario")
+    journey_exe.add_argument(parser)
     options = parser.parse_args()
+    global EXE
+    EXE = options.exe
     server = subprocess.Popen([sys.executable, str(ROOT / "tools" / "mock_service.py"), "--port", str(options.port)],
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     failures = 0

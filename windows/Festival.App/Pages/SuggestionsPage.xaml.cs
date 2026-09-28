@@ -39,14 +39,12 @@ public sealed partial class SuggestionsPage : Page
         await ViewModel.AppearCommand.ExecuteAsync(null);
     }
 
-    /// <summary>Fixed mix seed for deterministic Debug screenshots (<c>FST_DEBUG_SUGGESTIONS_SEED</c>).</summary>
+    /// <summary>Fixed mix seed for deterministic Debug/automation screenshots (<c>FST_DEBUG_SUGGESTIONS_SEED</c>).</summary>
     /// <returns>Seed source, or <see langword="null"/> for a random seed per mix.</returns>
     private static Func<uint>? DebugSeed()
     {
-#if DEBUG
-        if (uint.TryParse(Environment.GetEnvironmentVariable("FST_DEBUG_SUGGESTIONS_SEED"), NumberStyles.None, CultureInfo.InvariantCulture, out var seed))
+        if (uint.TryParse(App.LaunchEnvironment("FST_DEBUG_SUGGESTIONS_SEED"), NumberStyles.None, CultureInfo.InvariantCulture, out var seed))
             return () => seed;
-#endif
         return null;
     }
 

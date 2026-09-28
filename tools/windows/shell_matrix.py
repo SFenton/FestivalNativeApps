@@ -25,10 +25,12 @@ import time
 import urllib.request
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import journey_exe  # noqa: E402  (sibling module)
+
 ROOT = Path(__file__).resolve().parents[2]
 UIWIN = ROOT / "tools" / "windows" / "uiwin.py"
-EXE = ROOT / "windows" / "Festival.App" / "bin" / "x64" / "Debug" / "net9.0-windows10.0.26100.0" / "win-x64" / \
-    "FestivalScoreTracker.exe"
+EXE = journey_exe.DEBUG_EXE
 PROFILE = "fixture-player-1:Demo Player"
 
 #: page -> (tab, route, AutomationId that proves it rendered).
@@ -112,7 +114,10 @@ def main() -> int:
     parser.add_argument("--presets", default=",".join(PRESETS))
     parser.add_argument("--prefix", default="")
     parser.add_argument("--max-kb", type=int, default=300)
+    journey_exe.add_argument(parser)
     args = parser.parse_args()
+    global EXE
+    EXE = args.exe
     out = Path(args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
     presets = [p for p in args.presets.split(",") if p]

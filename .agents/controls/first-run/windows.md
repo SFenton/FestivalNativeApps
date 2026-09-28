@@ -19,7 +19,7 @@
 
 ## Debug
 
-`FST_DEBUG_FIRST_RUN` (Debug env) or `--first-run off|on|force`: Debug default **off** (automation is never blocked), Release default normal. `force` shows every gate-passing slide on each evaluation. Settings replay works in every mode.
+`FST_DEBUG_FIRST_RUN` (Debug/automation env) or `--first-run off|on|force`: Debug and [automation](../../platforms/windows.md) launches default **off** (automation is never blocked), Release default normal. `force` shows every gate-passing slide on each evaluation. Settings replay works in every mode.
 
 ## Open
 

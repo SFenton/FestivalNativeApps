@@ -16,7 +16,7 @@ Journey file shape::
 
 Usage::
 
-    python tools/windows/ui_journey.py tools/windows/journeys/bands.json [--only NAME] [--shots DIR]
+    python tools/windows/ui_journey.py tools/windows/journeys/bands.json [--only NAME] [--shots DIR] [--exe aot]
 """
 
 from __future__ import annotations
@@ -30,11 +30,14 @@ import tempfile
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import journey_exe  # noqa: E402  (sibling module)
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 UIWIN = REPO_ROOT / "tools" / "windows" / "uiwin.py"
 MOCK = REPO_ROOT / "tools" / "mock_service.py"
-EXE = (REPO_ROOT / "windows" / "Festival.App" / "bin" / "x64" / "Debug" /
-       "net9.0-windows10.0.26100.0" / "win-x64" / "FestivalScoreTracker.exe")
+#: App under test (``--exe``: debug, release, aot or a path).
+EXE = journey_exe.DEBUG_EXE
 
 # region Fixture service
 
@@ -128,9 +131,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("journeys", type=Path)
     parser.add_argument("--only", action="append", help="run only these journey names")
     parser.add_argument("--shots", type=Path, default=Path(tempfile.gettempdir()) / "fst-journeys")
+    journey_exe.add_argument(parser)
     parser.add_argument("--retries", type=int, default=1,
                         help="re-run a failed journey this many times; a later pass is reported as FLAKY")
     args = parser.parse_args(argv)
+    global EXE
+    EXE = args.exe
     if not EXE.is_file():
         print(f"error: build first (tools/windows/build.ps1); no {EXE}", file=sys.stderr)
         return 1
