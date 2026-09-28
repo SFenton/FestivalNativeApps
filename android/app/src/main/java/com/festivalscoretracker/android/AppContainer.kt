@@ -1,0 +1,46 @@
+package com.festivalscoretracker.android
+
+import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.preferencesDataStore
+import com.festivalscoretracker.android.core.nav.DebugLaunch
+import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
+import com.festivalscoretracker.android.data.FestivalApi
+import com.festivalscoretracker.android.data.ForcedFreezeTransport
+import com.festivalscoretracker.android.data.OkHttpTransport
+import com.festivalscoretracker.android.data.SettingsRepository
+import com.festivalscoretracker.android.presentation.BackgroundController
+import okhttp3.OkHttpClient
+
+// region Container
+
+/** Process-wide preferences store for [SettingsRepository]. */
+private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "fst_settings")
+
+/**
+ * Manual dependency graph for the single activity (process lifetime).
+ *
+ * @param context Application context.
+ * @param httpClient Shared cache-less OkHttp client (also used for artwork).
+ * @param launch Debug launch extras; only debug builds pass anything but [DebugLaunch.NONE].
+ */
+class AppContainer(context: Context, httpClient: OkHttpClient, launch: DebugLaunch) {
+    /** Keyless public API client. */
+    val api: FestivalApi = run {
+        val base = OkHttpTransport(httpClient)
+        val transport = if (launch.forceFreeze) ForcedFreezeTransport(base) else base
+        FestivalApi(launch.origin ?: BuildConfig.SERVICE_ORIGIN, transport)
+    }
+
+    /** Persisted settings. */
+    val settings = SettingsRepository(context.applicationContext.settingsDataStore)
+
+    /** Shared automatic-retry backoff. */
+    val backoff = ServiceRetryBackoff()
+
+    /** Shared animated backdrop state. */
+    val background = BackgroundController(loadCatalog = { api.catalog() }, artworkUrl = api::artworkUrl)
+}
+
+// endregion
