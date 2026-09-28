@@ -38,12 +38,23 @@ class ArtworkContrastTests(unittest.TestCase):
             check_on_art(self.colors, dim_opacity=float("nan"))
         self.assertEqual(ratio((255, 255, 255), (0, 0, 0)), 21.0)
 
-    def test_native_chip_statuses_need_readable_marks_and_outlines(self):
-        """The solid-card baseline gates glyphs at 4.5 and status edges at 3.0."""
+    def test_native_chip_statuses_need_readable_fills_and_outlines(self):
+        """The solid-card baseline gates every status fill/outline at 3.0.
+
+        Chip corner glyphs were removed (2026-09-28, color-only status); each
+        fill now doubles as the WCAG 1.4.11 non-text boundary against the card
+        *and* the icon-legibility proxy (see `check_song_chip_contrast`'s
+        docstring for why the same pair covers both).
+        """
         self.assertEqual(check_song_chip_contrast(self.colors), [])
+        # Each fill is now checked directly against cardBackground (not a fixed
+        # glyph color), so a failing substitute must be *close to
+        # cardBackground itself* — unlike the pre-2026-09-28 glyph-on-fill
+        # check, a bright substitute like the old "#FFD700" would raise this
+        # contrast, not lower it.
         for name, value, failing in (
-            ("gold", "#0B1220", "full combo glyph"),
-            ("statusRed", "#FFD700", "no-score glyph"),
+            ("gold", "#0B1220", "full combo fill"),
+            ("statusRed", "#0B1220", "no-score fill"),
             ("textDisabled", "#223047", "unavailable outline"),
         ):
             with self.subTest(name=name):

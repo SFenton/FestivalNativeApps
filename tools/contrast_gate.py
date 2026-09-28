@@ -115,7 +115,31 @@ def check_semantic_pairs(
 
 
 def check_song_chip_contrast(colors: dict[str, str]) -> list[str]:
-    """Require readable native chip glyphs and discernible muted/red boundaries.
+    """Require discernible chip boundaries and legible instrument icons.
+
+    No corner glyph (star/check/minus/exclamation) renders on the chip any
+    more (2026-09-28): color alone conveys status, so each status's *fill*
+    is what must read as a distinct, visible boundary against the Songs
+    card (`SongInstrumentStatusChips.chip(_:)`'s `.background(status.fillColor,
+    in: Circle())`) — this is the non-text "outline vs background" contrast
+    WCAG 1.4.11 requires for a UI component conveying meaning by color.
+
+    The same fill/card pair also stands in for the bundled instrument icon's
+    contrast *inside* the chip: `Design/InstrumentIcon.swift`'s artwork
+    (`Resources/Instruments.xcassets/instrument_*.imageset`) is near-black
+    line art, close in luminance to `cardBackground`, so a fill passing
+    3:1 against `cardBackground` also reads clearly under that icon (WCAG
+    contrast is symmetric: `ratio(fill, cardBackground) == ratio(cardBackground,
+    fill)`). A literal per-pixel icon check isn't possible here — this module
+    only compares named token colors, never rendered images.
+
+    `unavailable`'s own stroke color (`textDisabled`, used directly as its
+    ring since that status has no separate fill/stroke pair) is checked the
+    same way. The four colored statuses' darker `*Stroke` tokens
+    (`goldStroke`, `statusGreenStroke`, `statusRedStroke`, `statusAmberStroke`)
+    are a subtle same-hue inner bezel, not the accessibility-load-bearing
+    boundary (the fill is) — WCAG 1.4.11 does not require them individually
+    to clear 3:1 on their own, so they are intentionally not gated here.
 
     Args:
         colors: Opaque semantic colors rendered inside native Songs cards.
@@ -123,9 +147,6 @@ def check_song_chip_contrast(colors: dict[str, str]) -> list[str]:
     Returns:
         Missing, translucent or low-contrast chip token pairs.
     """
-    # No corner glyph renders on the chip fill any more (2026-09-28): color alone
-    # now conveys status, so each fill/stroke pair only needs a visible boundary
-    # against the card, not a 4.5:1 text-style glyph ratio.
     return check_semantic_pairs(colors, (
         ("full combo fill", "gold", "cardBackground", 3.0),
         ("scored fill", "statusGreen", "cardBackground", 3.0),
