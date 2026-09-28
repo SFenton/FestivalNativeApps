@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 
 namespace Festival.App.Controls;
@@ -19,12 +20,24 @@ public sealed partial class PlayerProfileView : UserControl
     /// <summary>Page model; set before <see cref="Bind"/>.</summary>
     public PlayerProfileViewModel ViewModel { get; private set; } = null!;
 
+    /// <summary>Exposes the view as a UIA group so its page-root AutomationId (<c>fst.player</c>/<c>fst.statistics</c>) is findable.</summary>
+    /// <returns>Group peer.</returns>
+    protected override AutomationPeer OnCreateAutomationPeer() => new GroupPeer(this);
+
     /// <summary>Attaches a model and refreshes bindings.</summary>
     /// <param name="model">Page model.</param>
     public void Bind(PlayerProfileViewModel model)
     {
         ViewModel = model;
         Bindings.Update();
+    }
+
+    /// <summary>UIA group peer for the view root.</summary>
+    /// <param name="owner">View.</param>
+    private sealed partial class GroupPeer(FrameworkElement owner) : FrameworkElementAutomationPeer(owner)
+    {
+        /// <inheritdoc />
+        protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.Group;
     }
 
     #region x:Bind helpers

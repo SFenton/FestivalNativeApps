@@ -9,7 +9,7 @@
         /songs/:songId/:instrument/history: the selected player's score changes. Sort applies immediately from a
         DropDownButton menu (Fluent command menu), the personal best follows the sort, and the chart is a native addition.
     -->
-    <Grid Padding="24,12,24,16" RowSpacing="12" MaxWidth="1100" AutomationProperties.AutomationId="fst.history">
+    <Grid Padding="24,12,24,16" RowSpacing="12" MaxWidth="1100">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -28,7 +28,8 @@
                                      Width="36" Height="36" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                 <TextBlock Text="{x:Bind ViewModel.Title}" Style="{StaticResource FSTPageTitleStyle}" TextWrapping="NoWrap"
-                           TextTrimming="CharacterEllipsis" AutomationProperties.HeadingLevel="Level1" />
+                           TextTrimming="CharacterEllipsis" AutomationProperties.HeadingLevel="Level1"
+                           AutomationProperties.AutomationId="fst.history" />
                 <TextBlock Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}"
                            AutomationProperties.AutomationId="fst.history.subtitle" />
             </StackPanel>
@@ -111,10 +112,10 @@
                       AutomationProperties.Name="Loading score history" />
 
         <Border Grid.Row="1" Style="{StaticResource FSTCardStyle}" MaxWidth="480" HorizontalAlignment="Center" VerticalAlignment="Center"
-                Visibility="{x:Bind ViewModel.ShowMessage, Mode=OneWay}" AutomationProperties.AutomationId="fst.history.message">
+                Visibility="{x:Bind ViewModel.ShowMessage, Mode=OneWay}">
             <StackPanel Spacing="12">
                 <TextBlock Text="{x:Bind ViewModel.MessageTitle, Mode=OneWay}" Style="{StaticResource SubtitleTextBlockStyle}"
-                           AutomationProperties.HeadingLevel="Level2" />
+                           AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.history.message" />
                 <TextBlock Text="{x:Bind ViewModel.Message, Mode=OneWay}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
                 <Button Content="Retry" Command="{x:Bind ViewModel.LoadCommand}" Visibility="{x:Bind ViewModel.CanRetryMessage, Mode=OneWay}" />
             </StackPanel>

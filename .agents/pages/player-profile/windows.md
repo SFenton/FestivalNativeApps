@@ -33,7 +33,9 @@ Never player-stats: overview/instrument stats and percentile buckets are compute
 
 ## IDs
 
-`fst.player` (page root), `fst.player.{available,loading,syncing,error,no-profile,header,name,subtitle,select,deselect,identity-notice,action-error,overview,bands-link}`, `fst.player.instrument.<ServiceId>`, `fst.player.instrument-empty.<ServiceId>`, `fst.player.rank-history.<ServiceId>`, `fst.player.percentiles.<ServiceId>`.
+`fst.player` (page root), `fst.player.{available,loading,syncing,no-profile,name,subtitle,select,deselect,identity-notice,action-error,overview,bands-link}` (failures use the shared `fst.service-status.*`), `fst.player.instrument.<ServiceId>` (the section heading), `fst.player.instrument-empty.<ServiceId>`, `fst.player.rank-history.<ServiceId>`, `fst.player.percentiles.<ServiceId>`.
+
+UIA gotcha: `Border`, `StackPanel`, `ItemsRepeater` and `UserControl` are not in the control view, so an AutomationId set on them never reaches the tree. IDs live on headings, repeaters, buttons and text; `PlayerProfileView` supplies its own group peer so the page roots `fst.player`/`fst.statistics` are findable.
 
 ## Tests
 
