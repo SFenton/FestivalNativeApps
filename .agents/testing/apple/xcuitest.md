@@ -2,20 +2,42 @@
 
 > **What:** running device UI tests and the XCUITest pitfalls already paid for. **Read when:** the UX-test phase of a feature (UITests are frozen during Wave 1), or debugging a flaky journey.
 
-## Serial matrix runner
+## Running journeys
 
 ```bash
-python3 -m tools.apple_native_matrix --iphone-udid <FST-iPhone> --iphone-os 26.5 \
-  --ipad-udid <FST-iPad> --ipad-os 26.5 --evidence-dir <new-private-dir>
-# focused: add --device iphone --only-test <testMethod> --no-coverage-gate
+python3 tools/ios_sim.py uitest --only ShellJourneyTests --only LeaderboardsJourneyTests/testOne
 ```
 
-- OS arguments are required and checked before anything starts (an iOS 27 device once entered a "26.5" run).
-- Takes a host-wide lock, verifies FST device names/families, refuses other booted simulators, switches product devices one at a time, and starts fresh [fixture listeners](../fixtures.md) per suite (stopping only its own).
-- Passes an explicit `-only-testing` selector for every discovered method (except the failing Duo pose test): Xcode once reported green while silently skipping a new test. Verifies the **exact executed test-name set**, counts and device identity, then runs the [line gate](coverage.md) unless `--no-coverage-gate`.
-- Snapshots compiled Swift, UITest source, project/scheme, fixtures and gate inputs before the run and fails closed on drift. Records a SHA-256 of `FestivalMobileUITests.swift` per product DerivedData only after a verified pass; on drift it invalidates the marker **before** `xcodebuild clean` of that product's build output (never simulator data).
-- Budget: 20 min minimum, 120 s per selected method, 90 min maximum. Incomplete `.xcresult` bundles (no `Info.plist`) are never aggregated.
-- Xcode build logs are raw local evidence; do not share or commit them.
+Builds once (skipping if the compiled product's source hash is already current),
+then runs the given `Class`/`Class/testMethod` selectors in bounded batches
+(default 3 selectors per `xcodebuild test-without-building` call, `--timeout`
+seconds each, 300 default), fully releasing `~/.fst-sim.lock` between batches
+so other lanes queued on the shared simulator aren't starved by one long run
+(the 5-minute lock-hold rule). Any journey file placed under
+`apple/Apps/iOSUITests/` is picked up by the next build with no tool changes —
+see `cmd_uitest`'s docstring in `tools/ios_sim.py` for the full contract.
+`tools/ios_sim.py drive` runs one scripted `DriverTests/testDrive` step
+sequence instead of a written `XCTestCase`, useful for ad hoc exploration
+before writing a real journey.
+
+### Retired: `tools/apple_native_matrix.py` (removed 2026-09-28)
+
+The old serial two-device (iPhone+iPad) matrix runner assumed exactly one
+canonical UI test source file (`FestivalMobileUITests.swift`) to discover,
+count and hash every test method from. Lane U2's Wave 3 triage split that
+monolith into per-feature journey files (`SongsJourneyTests.swift`,
+`RivalsJourneyTests.swift`, …) under the same `apple/Apps/iOSUITests/`
+directory, which the matrix runner never scanned — so by the time this was
+noticed, its own tests were asserting stale counts/content against a file
+that had shrunk from ~54 methods to ~13, and running it for real would have
+silently omitted every migrated test from a "paired" coverage measurement.
+No lane's actual work (see `PROGRESS.md`'s log) had called it since; only this
+doc mentioned it. Confirmed unused elsewhere (`grep -rl apple_native_matrix`
+matched only the tool, its test and this file) and deleted rather than
+generalized to multi-file discovery, since `tools/ios_sim.py uitest` already
+covers its real job today. A genuine iPhone+iPad **paired** `apple_xccov_gate.py`
+measurement now means running `uitest`/`drive` once per device and feeding
+both `.xcresult` bundles to the gate — no single combined command yet.
 
 ## Pitfalls
 
