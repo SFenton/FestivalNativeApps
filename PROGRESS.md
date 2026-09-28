@@ -473,3 +473,5 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Android | and-profile landed (selection persists across cold starts) |
 | 2026-09-28 | Android | Launched and-profile2 (player-page Quick Links, top songs, tap-to-filter tiles, hinge padding, chart coverage, device journeys) |
 | 2026-09-28 | Android | and-settings landed; notifications endpoint recorded as pure read; `licenses --check` in CI |
+| 2026-09-28 | Lane PWA-Apple | Installed-PWA lab landed (`caaf562`, `4407d0d`): iPhone/iPad/Duo PWA captures, 22-row gap table (`.agents/testing/pwa-reference/apple-gaps.md`). Incident: one off-screen tap opened a public player page on production (blocked stats + sync-status GETs, no POST/headers); driver now refuses off-screen taps, rule in service-safety. macOS PWA blocked on Screen Recording/Accessibility permission |
+| 2026-09-28 | Orchestrator | Launched Apple gap lanes PD (Song Detail pinned header/cards, Item Shop rows), PB (Leaderboards density, Full Rankings floating pager), PS (Settings First Run Guides + Service Info, What's New). Songs gaps (#3–5), drawer highlight (#11), background art (#12/#20) queued behind A2 |
