@@ -4,7 +4,8 @@ import Foundation
 
 /// Broad family a generated `SuggestionCategory` belongs to, used only for the
 /// Suggestions filter sheet (web `SuggestionTypeId`). Rival- and band-driven
-/// families are not ported in this wave (no rival/band data source yet).
+/// families (`SongRivals`, `LeaderboardRivals`, `band_*`) are not ported in this
+/// wave (no rival/band data source yet).
 public enum SuggestionCategoryType: String, CaseIterable, Codable, Sendable, Identifiable {
     case nearFC
     case starProgress
@@ -17,6 +18,7 @@ public enum SuggestionCategoryType: String, CaseIterable, Codable, Sendable, Ide
     case percentilePush
     case stale
     case pctImprove
+    case nearMax
 
     public var id: String { rawValue }
 
@@ -34,6 +36,7 @@ public enum SuggestionCategoryType: String, CaseIterable, Codable, Sendable, Ide
         case .percentilePush: "Percentile Push"
         case .stale: "Stale Songs"
         case .pctImprove: "Percentile Improve"
+        case .nearMax: "Near Max Score"
         }
     }
 
@@ -51,6 +54,7 @@ public enum SuggestionCategoryType: String, CaseIterable, Codable, Sendable, Ide
         case .percentilePush: "Close to the next percentile bracket."
         case .stale: "Songs you haven't played in a while."
         case .pctImprove: "Songs with room for percentile improvement."
+        case .nearMax: "Songs close to the CHOpt theoretical max score."
         }
     }
 }

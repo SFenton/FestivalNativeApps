@@ -114,6 +114,37 @@ private func combine(_ built: [(song: Song, records: [[String: Any]])]) -> (song
     (built.map(\.song), built.flatMap(\.records))
 }
 
+/// `signalSongs`-style fixture for `near_max_*`: `count` songs sharing one instrument,
+/// each carrying a catalogue `maxScores` entry (CHOpt theoretical max) for that chart and
+/// a fixed player `score` value on it. The target chart's other predicate fields (stars,
+/// full combo, accuracy) are set "inert" (six-star full combo) — `near_max_*` is the only
+/// ported family that reads raw score vs. CHOpt max rather than stars/accuracy/rank — and
+/// every other chart is filled with `fillerScore`, exactly like `signalSongs`.
+private func nearMaxSongs(
+    prefix: String, count: Int, instrument: Instrument, score: Int, choptMax: Int, year: Int? = nil
+) throws -> (songs: [Song], records: [[String: Any]]) {
+    var songs: [Song] = []
+    var records: [[String: Any]] = []
+    for offset in 0..<count {
+        let id = "\(prefix)\(offset)"
+        var record: [String: Any] = [
+            "songId": id, "title": "Signal \(id)", "artist": "Signal Artist",
+            "difficulty": [
+                "guitar": 0, "bass": 0, "drums": 0, "vocals": 0, "proGuitar": 0,
+                "proBass": 0, "proVocals": 0, "proCymbals": 0, "proDrums": 0,
+            ],
+            "maxScores": [instrument.rawValue: choptMax],
+        ]
+        if let year { record["year"] = year }
+        songs.append(try JSONDecoder().decode(Song.self, from: JSONSerialization.data(withJSONObject: record)))
+        records.append(["si": id, "ins": hexCode(instrument), "sc": score, "st": 6, "fc": true, "acc": 1_000.0])
+        for other in Instrument.allCases where other != instrument {
+            records.append(fillerScore(id, other))
+        }
+    }
+    return (songs, records)
+}
+
 /// Decode a batch of `fixtureScore` records into the session's `[songId: [Instrument: PlayerScore]]` shape.
 private func scoreIndex(_ records: [[String: Any]]) throws -> [String: [Instrument: PlayerScore]] {
     guard !records.isEmpty else { return [:] }
@@ -706,6 +737,92 @@ private struct AlwaysSkipRng: SuggestionRng {
     // it rather than coming up empty a second time.
     let second = generator.getNext(1_000).first { $0.key == "unfc_Solo_Guitar" }
     #expect(second?.songs.count == 2)
+}
+
+// MARK: - Near max score
+
+@Test func nearMaxFirstTierCollectsGapsWithinFiveThousand() throws {
+    // 4,000 below the CHOpt max — inside the (0, 5k] tier. Eight candidates on one chart
+    // so the catalogue-wide `variety_pack` pipeline (no `shouldEmit` gate on its own
+    // eventual `selectNewFirst` call — see `signalSong`'s doc comment) can silently
+    // mark at most one song "shown" without starving `near_max_5k`'s own fresh pool.
+    let fixture = try nearMaxSongs(prefix: "nm5", count: 8, instrument: .lead, score: 96_000, choptMax: 100_000)
+    let generator = try makeGenerator(songs: fixture.songs, records: fixture.records)
+    let category = try #require(allCategories(generator).first { $0.key == "near_max_5k" })
+    #expect(category.type == .nearMax)
+    #expect(category.instrument == nil)
+    #expect(category.title == "Almost Perfect (Within 5k)")
+    #expect(category.description.contains("5,000"))
+    #expect(category.songs.first?.instrument == .lead)
+}
+
+@Test func nearMaxTiersAreExclusiveGapRanges() throws {
+    // Boundary gaps: 5,000 → 5k tier, 5,001 → 10k tier, 15,000 → 15k tier, and 15,001 →
+    // no tier at all (beyond every ported gap range), ported from the web's three
+    // exclusive `(minGap, maxGap]` calls to `nearMaxScore`. Eight candidates per tier for
+    // the same `variety_pack` redundancy reason as the test above.
+    let atFiveK = try nearMaxSongs(prefix: "b5_", count: 8, instrument: .lead, score: 95_000, choptMax: 100_000)
+    let justOverFiveK = try nearMaxSongs(prefix: "b10_", count: 8, instrument: .bass, score: 94_999, choptMax: 100_000)
+    let atFifteenK = try nearMaxSongs(prefix: "b15_", count: 8, instrument: .drums, score: 85_000, choptMax: 100_000)
+    let overFifteenK = try nearMaxSongs(prefix: "b16_", count: 8, instrument: .vocals, score: 84_999, choptMax: 100_000)
+    let generator = try makeGenerator(
+        songs: atFiveK.songs + justOverFiveK.songs + atFifteenK.songs + overFifteenK.songs,
+        records: atFiveK.records + justOverFiveK.records + atFifteenK.records + overFifteenK.records
+    )
+    let categories = allCategories(generator)
+    let fiveK = try #require(categories.first { $0.key == "near_max_5k" })
+    let tenK = try #require(categories.first { $0.key == "near_max_10k" })
+    let fifteenK = try #require(categories.first { $0.key == "near_max_15k" })
+    #expect(fiveK.songs.allSatisfy { $0.song.songId.hasPrefix("b5_") })
+    #expect(tenK.songs.allSatisfy { $0.song.songId.hasPrefix("b10_") })
+    #expect(fifteenK.songs.allSatisfy { $0.song.songId.hasPrefix("b15_") })
+    #expect(!categories.contains { $0.songs.contains { $0.song.songId.hasPrefix("b16_") } })
+}
+
+@Test func nearMaxRequiresCatalogueMaxScores() throws {
+    // No `maxScores` on the catalogue row at all: even an inert six-star score never
+    // qualifies for any near-max tier.
+    let fixture = try signalSong("nmx1", .lead, stars: 6, accuracy: 1_000_000, fullCombo: true)
+    let generator = try makeGenerator(songs: [fixture.song], records: fixture.records)
+    #expect(!allCategories(generator).contains { $0.key.hasPrefix("near_max_") })
+}
+
+@Test func nearMaxRequiresAPositivePlayerScore() throws {
+    // A zero player score would otherwise land in the 5k tier (gap == choptMax == 3,000);
+    // the ported predicate excludes it exactly like the web's `t.maxScore <= 0` guard.
+    let fixture = try nearMaxSongs(prefix: "nz", count: 1, instrument: .lead, score: 0, choptMax: 3_000)
+    let generator = try makeGenerator(songs: fixture.songs, records: fixture.records)
+    #expect(!allCategories(generator).contains { $0.key.hasPrefix("near_max_") })
+}
+
+@Test func nearMaxDecadeVariantRetitlesForThatDecade() throws {
+    let eighties = try nearMaxSongs(
+        prefix: "nmd8", count: 24, instrument: .lead, score: 96_000, choptMax: 100_000, year: 1985
+    )
+    let nineties = try nearMaxSongs(
+        prefix: "nmd9", count: 1, instrument: .lead, score: 96_000, choptMax: 100_000, year: 1995
+    )
+    let generator = try makeGenerator(songs: eighties.songs + nineties.songs, records: eighties.records + nineties.records)
+    let categories = allCategories(generator)
+    let decade = try #require(categories.first { $0.key == "near_max_5k_decade_80" })
+    #expect(decade.title == "Almost Perfect (Within 5k) (80's)")
+    #expect(Set(decade.songs.map { $0.song.year }) == [1985])
+}
+
+/// Same seed + same source ⇒ identical category contents, the practical form of "PRNG
+/// parity" verifiable from Swift alone (the web generator makes the same guarantee: a
+/// fixed Mulberry32 seed reproduces a fixed shuffle order for a fixed source).
+@Test func nearMaxScoreIsDeterministicForAFixedSeed() throws {
+    let fixture = try nearMaxSongs(prefix: "nmseed", count: 12, instrument: .lead, score: 96_000, choptMax: 100_000)
+    let first = try makeGenerator(
+        songs: fixture.songs, records: fixture.records, fixedDisplayCount: 3, seed: 12_345
+    )
+    let second = try makeGenerator(
+        songs: fixture.songs, records: fixture.records, fixedDisplayCount: 3, seed: 12_345
+    )
+    let firstCategory = try #require(allCategories(first).first { $0.key == "near_max_5k" })
+    let secondCategory = try #require(allCategories(second).first { $0.key == "near_max_5k" })
+    #expect(firstCategory.songs.map(\.song.songId) == secondCategory.songs.map(\.song.songId))
 }
 
 // MARK: - Season fallback

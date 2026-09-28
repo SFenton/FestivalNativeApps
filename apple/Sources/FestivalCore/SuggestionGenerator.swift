@@ -214,6 +214,13 @@ public final class SuggestionGenerator {
             list.append({ [unowned self] in self.samePercentileBucketSpecific(bucket) })
             list.append({ [unowned self] in self.percentileImproveBucket(bucket) })
         }
+        for tier in Self.nearMaxTiers {
+            list.append({ [unowned self] in self.nearMaxScore(minGap: tier.minGap, maxGap: tier.maxGap, tierLabel: tier.label) })
+            list.append({ [unowned self] in self.nearMaxScoreDecade(minGap: tier.minGap, maxGap: tier.maxGap, tierLabel: tier.label) })
+        }
+
+        // Rival-driven pipelines (`song_rival_*`, `lb_rival_*`) are not ported: this app has
+        // no rival data source wired into the generator yet.
 
         shuffleInPlace(&list)
         pipelines = list
@@ -1182,5 +1189,68 @@ public final class SuggestionGenerator {
             description: "A varied mix of \(instrument.label) songs across different percentile brackets — all with room to grow.",
             type: .pctImprove, instrument: instrument, songs: finalize(final, includeInstrument: false)
         )]
+    }
+
+    // MARK: - Near max score
+
+    /// One exclusive CHOpt-max-score gap tier, ported from the web's three `nearMaxScore`
+    /// call sites (`(0, 5k]`, `(5k, 10k]`, `(10k, 15k]`).
+    private struct NearMaxTier { let minGap: Int; let maxGap: Int; let label: String }
+
+    private static let nearMaxTiers: [NearMaxTier] = [
+        NearMaxTier(minGap: 0, maxGap: 5_000, label: "5k"),
+        NearMaxTier(minGap: 5_000, maxGap: 10_000, label: "10k"),
+        NearMaxTier(minGap: 10_000, maxGap: 15_000, label: "15k"),
+    ]
+
+    private static let nearMaxTitles: [String: String] = [
+        "5k": "Almost Perfect (Within 5k)",
+        "10k": "Close to Max (Within 10k)",
+        "15k": "Approaching Max (Within 15k)",
+    ]
+
+    private static let nearMaxDescriptions: [String: String] = [
+        "5k": "Scores within 5,000 of the theoretical max. You're almost there!",
+        "10k": "Scores within 10,000 of the theoretical max. A great run could close the gap.",
+        "15k": "Scores within 15,000 of the theoretical max. Keep pushing!",
+    ]
+
+    /// Every (song, chart) pair where the player has a positive score, the catalogue
+    /// reports a positive CHOpt theoretical max for that chart, and the gap between them
+    /// falls in `(minGap, maxGap]` — ported from the web's `nearMaxScore`/`eachTracker`.
+    private func nearMaxCandidates(minGap: Int, maxGap: Int) -> [Candidate] {
+        var out: [Candidate] = []
+        for song in songs {
+            guard song.maxScores != nil, let scores = scoresIndex[song.songId] else { continue }
+            for instrument in Instrument.allCases {
+                guard let score = scores[instrument], score.score > 0,
+                      let choptMax = song.maxScore(for: instrument) else { continue }
+                let gap = choptMax - score.score
+                guard gap > minGap, gap <= maxGap else { continue }
+                out.append(Candidate(song: song, score: score, instrument: instrument))
+            }
+        }
+        return out
+    }
+
+    private func nearMaxScore(minGap: Int, maxGap: Int, tierLabel: String) -> [SuggestionCategory] {
+        let pool = nearMaxCandidates(minGap: minGap, maxGap: maxGap)
+        let key = "near_max_\(tierLabel)"
+        return emit(
+            key: key, title: Self.nearMaxTitles[tierLabel] ?? "Near Max Score (\(tierLabel))",
+            description: Self.nearMaxDescriptions[tierLabel] ?? "Scores within \(tierLabel) of the CHOpt theoretical max.",
+            type: .nearMax, instrument: nil, pool: pool, includeInstrumentInItems: true
+        )
+    }
+
+    private func nearMaxScoreDecade(minGap: Int, maxGap: Int, tierLabel: String) -> [SuggestionCategory] {
+        let pool = nearMaxCandidates(minGap: minGap, maxGap: maxGap)
+        let key = "near_max_\(tierLabel)"
+        guard shouldEmit(key: "\(key)_decade_wrap", candidateCount: freshCount(pool)) else { return [] }
+        return buildDecadeVariant(
+            baseKey: key, baseTitle: Self.nearMaxTitles[tierLabel] ?? "Near Max Score (\(tierLabel))",
+            baseDescription: Self.nearMaxDescriptions[tierLabel] ?? "Scores within \(tierLabel) of the CHOpt theoretical max.",
+            type: .nearMax, instrument: nil, includeInstrumentInItems: true, pool: pool
+        )
     }
 }
