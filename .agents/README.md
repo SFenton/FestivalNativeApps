@@ -19,7 +19,7 @@
 
 | Platform / form factor | Design | Architecture & runtime | Testing |
 |---|---|---|---|
-| iPhone (iOS 26 Liquid Glass; iOS 17 classic) | [design/apple/iphone.md](design/apple/iphone.md) | [platforms/apple/architecture.md](platforms/apple/architecture.md), [build-and-run](platforms/apple/build-and-run.md), [simulators](platforms/apple/simulators.md) | [testing/apple/](testing/apple/README.md) |
+| iPhone (iOS 26 Liquid Glass; iOS 17 classic) | [design/apple/iphone.md](design/apple/iphone.md), [liquid-glass.md](design/apple/liquid-glass.md) | [platforms/apple/architecture.md](platforms/apple/architecture.md), [build-and-run](platforms/apple/build-and-run.md), [simulators](platforms/apple/simulators.md) | [testing/apple/](testing/apple/README.md) |
 | iPhone Duo | [design/apple/duo.md](design/apple/duo.md) | [platforms/apple/duo.md](platforms/apple/duo.md) | [testing/apple/](testing/apple/README.md) |
 | iPadOS | [design/apple/ipados.md](design/apple/ipados.md) | [platforms/apple/architecture.md](platforms/apple/architecture.md) | [testing/apple/](testing/apple/README.md) |
 | macOS | [design/apple/macos.md](design/apple/macos.md) | [platforms/apple/macos.md](platforms/apple/macos.md) | [testing/apple/hosted-snapshots.md](testing/apple/hosted-snapshots.md) |

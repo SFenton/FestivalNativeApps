@@ -20,7 +20,7 @@
 - Section headers use `textSecondary` (not system gray) over translucent artwork gaps; three visible headers pass rendered-pixel ≥4.5:1 on `art-white`.
 - Last Played switch still shows a date under Title (temporary native deviation until Last Played sort); experimental ranks stay disabled.
 - The Form keeps its scroll position across tab switches: UI tests must try the reverse swipe for an earlier toggle.
-- Settings must persist across cold starts — verify every setting (Wave 1, Lane A).
+- Every persisted setting is registered and has cold-start round-trip and reset coverage (Lane A, 2026-09-27). Groups render as `FestivalGlassSection` cards ([liquid-glass.md](../../design/apple/liquid-glass.md)).
 
 ## Open (iPhone)
 

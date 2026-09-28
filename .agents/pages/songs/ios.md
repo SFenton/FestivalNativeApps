@@ -16,7 +16,6 @@
 | Web | iPhone | Why |
 |---|---|---|
 | Lower Search/Sort dock, bottom sheets | Large-title search, top toolbar Sort/Filter/Shop, full-height system sheets | Bottom toolbar collided with the Liquid Glass tab |
-| Conditional player tabs | Three tabs for now | Profile tabs pending (Lane A) |
 | Icons-off fallback to Lead even if hidden | First **visible/filtered** chart | Respect Settings |
 | Last Played hidden under Title | Toggle-controlled date under Title | Until Last Played sort ships |
 | Long title marquee | Wraps full title | Legibility at large text |
@@ -37,4 +36,4 @@ Warm-offline "last seen songs (publication unverified)" banners and snapshot fal
 
 ## Open (iPhone)
 
-Grouped-Songs full audit (intermittent nil-element Dynamic Type) and saved-Shop-sort + failed-Shop contrast ([accessibility](../../testing/apple/accessibility.md)); landscape and largest type across modes; quick links; selected-profile sorting; band rows; invalid-score action; conditional tabs.
+Grouped-Songs full audit (intermittent nil-element Dynamic Type) and saved-Shop-sort + failed-Shop contrast ([accessibility](../../testing/apple/accessibility.md)); landscape and largest type across modes; quick links; selected-profile sorting; band rows; invalid-score action.

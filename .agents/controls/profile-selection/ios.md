@@ -7,7 +7,7 @@
 - `FestivalSession` persists only a validated player ID + display name; corrupt stored identity is removed with a visible error. The score index records its observed publication; `hasCurrentPlayerScores(forCatalogue:)` reuses `SongRelatedPublicationPolicy`, so retained older Songs rows show an accessible **paused** state (`fst.songs.profile-paused`, `fst.songs.profile-paused-row.*`).
 - `ProfileSelectionSheet` keeps search, viewed and selected player distinct; real loading/empty/403/202 states; confirms switch/deselect; disables selection when publication cannot be verified. The Bands scope shows a read-policy blocker and makes **no** band GET.
 - Selected Songs disclosure offers manual Retry for 202 and errors, clearing old score bytes first.
-- Compact icon-only toolbar profile action on Songs, Settings and the Leaderboards root.
+- Profile avatar top-right on every tab root via `festivalRootChrome`; present the sheet through `@Environment(\.openProfile)`, never your own sheet.
 - Provisional 16 MB post-transport body cap for player responses — measure real p99 payload size and decode latency before certifying large profiles.
 
 ## Native decisions

@@ -1,5 +1,7 @@
 # Liquid Glass on Apple platforms (iOS/iPadOS/macOS 26+)
 
+> **What:** Lane A's decision record for which surfaces are Liquid Glass and the shared glass components. **Read when:** adding any container, toolbar item, sheet or floating control on an Apple platform.
+
 Decision record for **which surfaces are Liquid Glass**, owned by Lane A (Shell), 2026-09-27. Every Apple lane follows this table; propose changes to the orchestrator rather than diverging per page.
 
 ## Principle

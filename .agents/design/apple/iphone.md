@@ -4,10 +4,10 @@
 
 ## Chrome
 
-- System `TabView` + `NavigationStack`. iOS 26+: Liquid Glass tab bar and navigation accessories behind availability checks; iOS 17–25 keeps the system classic tab bar. `festivalGlass` supplies Liquid Glass with a pre-26 fallback.
+- System `TabView` + `NavigationStack`. iOS 26+: Liquid Glass tab bar and navigation accessories behind availability checks; iOS 17–25 keeps the system classic tab bar. Which surfaces are glass, and the shared components to use: [liquid-glass.md](liquid-glass.md).
 - Put page actions (Sort, Filter, Item Shop, profile) in the **top** toolbar: a bottom-toolbar Sort overlapped the floating Liquid Glass tab and activated Leaderboards instead.
-- Compact profile action is icon-only with an accessible name (mirrors the web mobile header).
-- Wave 1 targets (from [PROGRESS.md](../../../PROGRESS.md)): conditional tabs mirroring web `BottomNav`, profile button top-right on every tab root, leading hamburger drawer (Item Shop, Bands, Rivals, Manual, Licenses), dark-glass sheets with native detents and Title Case white section headers.
+- Profile avatar (trailing) and hamburger (leading) come from `festivalRootChrome` on tab roots; the avatar has an accessible name (mirrors the web mobile header).
+- Shell (Lane A, landed 2026-09-27): conditional tabs mirroring web `BottomNav`, `festivalRootChrome` on every tab root (leading hamburger drawer, trailing profile), `festivalSheet` dark sheets with detents, white Title Case section headers ([liquid-glass.md](liquid-glass.md)).
 
 ## Layout rules learned on iOS 26.5
 
