@@ -194,6 +194,8 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 
 ### Wave 3 — UX tests (started for completed features)
 
+Queued: **UX tests for Profile / Statistics / Bands / Settings** (worktree `uxprofile` ready; start when load allows)
+
 **Lane U3 — UX tests: Rivals & Compete** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/uxrivals`
 
 **Lane U2 — UX tests: Songs, Song Detail, Paths, Shop, Suggestions** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/uxsongs`
@@ -221,6 +223,9 @@ Not yet assigned:
 ---
 
 ## 5. Known issues / decisions
+
+- **One simulator booted at a time (`ad76e5e`):** `ios_sim.py` shuts down other FST simulators before booting a device (Duo lane had both iPhone and Duo booted).
+- **SwiftUI sheet environment trap:** environment actions set by the presenter weren't visible inside `.sheet` content in practice; pass closures into sheets explicitly (see `.agents/controls/profile-selection/ios.md`).
 
 - **Simulator lock budget:** UX lanes' XCUITest batches held the lock 10+ min and starved feature lanes. Rule: ≤5 min per lock hold with a hard timeout, batches split; `ios_sim.py uitest` (Lane U) enforces it.
 
@@ -295,3 +300,5 @@ Not yet assigned:
 | 2026-09-28 | Lane K | One keyless request path (Rivals off its own URLSession), `ServiceIssue` + `ServiceStatusView` scrape-freeze countdown on all service screens, `rivals/all` exposed, add-endpoint skill |
 | 2026-09-28 | Lane K | One request gate + `ServiceIssue` across 20+ screens; scrape-freeze countdown UX; `rivalsAll`; Rivals API coverage 71%→96.7% |
 | 2026-09-28 | Orchestrator | Launched Lane G3 (rival suggestions) and Lane W (Duo research + layout architecture) |
+| 2026-09-28 | Lane P2 | Global ranks via per-account rankings (live #1 / Top 0.01%), sheet dismiss→push on active tab, in-memory debug profile, Quick Links on Player/Band/Settings, band song titles; Suggestions filter in reset registry |
+| 2026-09-28 | Orchestrator | Enforced one booted simulator at a time (`ad76e5e`) |
