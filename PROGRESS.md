@@ -143,8 +143,13 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 **Lane M — Settings completion, Licenses** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/settings`
 - ⬜ Every web Settings section · ⬜ Licenses
 
-**Lane X — Player history, first-run carousels, notifications** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/extras`
-- ⬜ Player history · ⬜ First-run carousels (+ replay API) · ⬜ Notifications sheet + bell
+**Lane X — Player history, notifications** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/extras`
+- ⬜ Player history · ⬜ Notifications sheet + bell
+
+**Lane F — First-run experiences (FREs)** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/firstrun`
+- ⬜ Core seen-state store: per-slide `{version, hash, seenAt}`; show **only unseen, gate-passing slides** (new info without replaying old)
+- ⬜ Native glass carousel + per-page slides/demos (songs, suggestions, player, song info, compete, rivals, shop, leaderboards)
+- ⬜ Settings: view again per page (all slides), reset, enable toggle · ⬜ Applied app-wide via one route/tab seam
 
 Not yet assigned:
 - ⬜ Statistics = selected player's profile page (assigned to Lane P)
@@ -193,3 +198,4 @@ Not yet assigned:
 | 2026-09-27 | Lane T | `ios_sim.py drive` — scripted tap/swipe/type/tree/screenshot via XCUITest driver (~11–24 s/run); build lock |
 | 2026-09-27 | Orchestrator | Launched Lane X (history, first-run, notifications) |
 | 2026-09-27 | Orchestrator | Dropped deprecated Manual (route, drawer item, contracts, docs) per operator |
+| 2026-09-27 | Orchestrator | Split FREs into dedicated Lane F per operator (versioned/hashed seen state, replay settings) |
