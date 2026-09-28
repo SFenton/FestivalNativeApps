@@ -144,7 +144,7 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 - Simplified vs. web: no instrument-combo filter/picker, no rank-history chart (list of recent snapshots instead), best/worst songs show raw `songId` (no catalog title cross-reference).
 - `service-safety.md`'s endpoint table needs a `/api/bands/{bandId}` blocked row (Lane D/orchestrator; this lane only adds new `.agents/pages/*` files per lane rules).
 
-**Lane M — Settings completion, Licenses** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/settings`
+**Lane M — Settings completion, Licenses** (Sonnet) — ✅ landed `169f9f3`…`30bf405`
 - ⬜ Every web Settings section · ⬜ Licenses
 
 **Lane X — Player history, notifications** (Sonnet) — ✅ landed `1f31d52`, `01c0aca`, `8bfc96a`
@@ -157,14 +157,20 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 - ⬜ Native glass carousel + per-page slides/demos (songs, suggestions, player, song info, compete, rivals, shop, leaderboards)
 - ⬜ Settings: view again per page (all slides), reset, enable toggle · ⬜ Applied app-wide via one route/tab seam
 
-**Lane Q — Quick Links** (Opus) — 🟨 running in `~/repos/FestivalNativeApps-lanes/quicklinks`
+**Lane Q — Quick Links** (Opus) — ✅ landed `b68af1d`…`4fa8bd3`
 - ⬜ Feasibility + native design decision (HIG + Fluent) → `.agents/controls/quick-links/` · ⬜ Reusable `Common/QuickLinks` API (toolbar jump menu, active section, VoiceOver rotor) · ⬜ Adopt on Leaderboards
-- ⬜ Adoption on Songs, Song Detail, Player/Statistics, Band, Compete, Rivals, Rivalry, Rival Detail, Settings — handed to owning lanes as they finish
+- 🟨 Adoption: Songs/Song Detail (Lane S), Player/Statistics/Band/Settings (Lane P2), Compete/Rivals/Rivalry/Rival Detail (Lane R2)
 
-Queued (start when load allows):
-- ⬜ **Profile follow-up:** global ranks/percentiles on the profile page via `GET /api/rankings/{instrument}/{accountId}` (pure read, verified) instead of the forbidden player-stats GET; profile sheet should dismiss and push on the presenting tab rather than push inside the sheet; `FST_DEBUG_PROFILE` should not persist selection (lanes clobber each other on the shared simulator)
-- ⬜ **Rivals follow-up:** replace `RivalNavigationBridge` global singleton with scope carried in `AppRoute` payloads (deep-link/state-restoration safe); cross-instrument combo / common rivals; Find Rival search
-- ⬜ **Wave 3 UX tests** for completed features (shell/drawer/tabs, leaderboards, background, history, notifications, rivals) — hosted snapshots first, XCUITest journeys batched to limit simulator contention
+**Lane R2 — Rivals follow-ups** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/rivals2`
+- ⬜ Replace `RivalNavigationBridge` singleton with typed `AppRoute` scope · ⬜ Common/combo rivals · ⬜ Find Rival · ⬜ Quick Links on Compete/Rivals/Rivalry/Rival Detail · ⬜ Re-check rival detail 503s
+
+**Lane P2 — Profile / Statistics / Band / Settings follow-ups** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/profile2`
+- ⬜ Global ranks via `/api/rankings/{instrument}/{accountId}` · ⬜ Profile sheet dismiss → push on active tab · ⬜ `FST_DEBUG_PROFILE` in-memory only · ⬜ Quick Links on Player/Statistics/Band/Settings · ⬜ Band song rows show catalog titles
+
+**Lane S follow-ups** — 🟨 toolbar order rule on Songs, Quick Links on Songs/Song Detail, Settings consumers (row visual order, path column order)
+
+Queued:
+- ⬜ **Wave 3 UX tests** for completed features — hosted snapshots first, XCUITest journeys batched
 
 Not yet assigned:
 - ⬜ Statistics = selected player's profile page (assigned to Lane P)
@@ -182,6 +188,11 @@ Not yet assigned:
 ---
 
 ## 5. Known issues / decisions
+
+- **Toolbar order rule (`c53b5cb`):** profile avatar is rightmost on tab roots, with the bell in one capsule. Tab roots with their own actions compose `FestivalRootTrailingItems` last and use `.topBarTrailing` (see `.agents/controls/app-navigation/ios.md`).
+- **Band detail GET writes:** `GET /api/bands/{bandId}` rebuilds band team configs on cache miss → blocked; band detail resolves via `/api/rankings/bands/{bandType}?teamKey=`.
+- **Test-ID families are implicit:** `verify_product.py` accepts `fst.<page-or-control-id>.*` for every declared page/control.
+- **Not ported (by design / blocked):** Settings Export ZIP + profile-name refresh (POST-only); live Service Progress and `/api/version` (not on the verified-read allowlist); "select as band profile" (needs session band identity).
 
 - **Rivals detail endpoints** (`/rivals/{combo}/{rivalId}`, `/leaderboard-rivals/{instrument}/{rivalId}`) returned 503 "not yet published" for the sample account during development; the app shows an explicit unavailable state. Re-check later.
 - **Load ceiling:** ~9 concurrent lanes pushed load to 170+ on the 10-core Mac; don't add lanes above ~100 load.
@@ -226,3 +237,8 @@ Not yet assigned:
 | 2026-09-28 | Lane R | Compete hub, Rivals hub/all/detail/rivalry; 18 tests; combos + Find Rival deferred |
 | 2026-09-28 | Lane P | Fixed profile persistence (tautological publication check after relaunch); player profile page shared with Statistics tab; native profile sheet |
 | 2026-09-28 | Lane N | Bands landing, Band Detail, Player Bands, Song Band Leaderboard; found `/api/bands/{bandId}` also writes on a GET (treated as blocked, band detail reads the rankings board by `teamKey` instead); `AppRoute.band` gained additive `bandType`/`teamKey` |
+| 2026-09-28 | Lane N | Bands: detail, player bands, landing, per-song band leaderboard; found `/api/bands/{bandId}` GET writes |
+| 2026-09-28 | Lane M | Settings: visual/path column reorder, diagnostics, version; Licenses; Manual reverted (deprecated) |
+| 2026-09-28 | Lane Q | Quick Links: feasible; toolbar Menu + VoiceOver rotor (iPhone), inspector later (iPad/Mac); adopted on Leaderboards |
+| 2026-09-28 | Lane S | Scrubber `#` labels, keyboard icons (`Song.sig`), Player History links from Song Detail |
+| 2026-09-28 | Orchestrator | Avatar-rightmost toolbar rule, implicit test-ID families, app versioning; launched Lanes R2, P2 |
