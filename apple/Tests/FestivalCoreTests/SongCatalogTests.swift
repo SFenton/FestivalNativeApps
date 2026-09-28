@@ -56,6 +56,24 @@ func chartedInstrumentsMatchWireFields(_ instrument: Instrument) throws {
     #expect(try song(sig: nil).usesKeyboardIcon == false)
 }
 
+/// The real `/api/songs` payload's `maxScores` is keyed by the same service
+/// instrument IDs as `Instrument.rawValue`; not every chart has an entry.
+@Test func maxScoresDecodeByServiceInstrumentKey() throws {
+    let record: [String: Any] = [
+        "songId": "fixture-max", "title": "Fixture", "artist": "Test",
+        "maxScores": ["Solo_Guitar": 95_190, "Solo_Bass": 0],
+    ]
+    let song = try JSONDecoder().decode(Song.self, from: JSONSerialization.data(withJSONObject: record))
+    #expect(song.maxScore(for: .lead) == 95_190)
+    #expect(song.maxScore(for: .bass) == nil, "a zero max score is not a valid maximum")
+    #expect(song.maxScore(for: .drums) == nil, "an absent chart has no maximum")
+    let noScores = try JSONDecoder().decode(
+        Song.self,
+        from: JSONSerialization.data(withJSONObject: ["songId": "fixture-none", "title": "F", "artist": "T"])
+    )
+    #expect(noScores.maxScore(for: .lead) == nil)
+}
+
 /// Mirror the PWA's positive-duration labels without inventing missing metadata.
 @Test func songDurationMatchesSourceFormatting() throws {
     let cases: [(Int?, String?)] = [

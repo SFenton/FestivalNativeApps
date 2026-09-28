@@ -82,11 +82,25 @@ public struct Song: Decodable, Sendable, Identifiable, Equatable, Hashable {
     /// Lead/Pro Lead controller signature from the service (`"Guitar"` or
     /// `"Keyboard"`); selects the matching `InstrumentIcon` variant.
     public let sig: String?
+    /// Per-chart engine-maximum score, keyed by the same service instrument ID as
+    /// `Instrument.rawValue` (e.g. `"Solo_Guitar"`). Not every chart is present
+    /// (observed: no `Solo_PeripheralVocals`/Karaoke entry). Exposed for a future
+    /// "near max score" suggestion family; unused elsewhere in this lane.
+    public let maxScores: [String: Int]?
 
     public var id: String { songId }
 
     /// Whether Lead/Pro Lead should use the keys icon variant instead of guitar.
     public var usesKeyboardIcon: Bool { sig == "Keyboard" }
+
+    /// This chart's engine-maximum score, if the service reported one.
+    ///
+    /// - Parameter instrument: Chart to look up.
+    /// - Returns: The positive max score, or nil if absent or invalid.
+    public func maxScore(for instrument: Instrument) -> Int? {
+        guard let value = maxScores?[instrument.rawValue], value > 0 else { return nil }
+        return value
+    }
 
     /// Format a positive catalogue duration like the source Song info block.
     ///
