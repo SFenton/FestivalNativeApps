@@ -45,6 +45,7 @@ class MockServiceTests(unittest.TestCase):
             "stopAfterFirstShop": False,
             "metadataEdge": False,
             "largeRankings": False,
+            "largeCatalogue": False,
         })
         self.assertEqual(set(identity["sourceHashes"]), {
             "tools/mock_service.py",
@@ -126,6 +127,30 @@ class MockServiceTests(unittest.TestCase):
                 bands = json.load(response)
             self.assertEqual(bands["totalTeams"], 600)
             self.assertEqual(len(bands["entries"]), 25)
+        finally:
+            large.shutdown()
+            large.server_close()
+            thread.join(timeout=2)
+
+    def test_large_catalogue_mode_adds_every_section_and_serves_their_charts(self):
+        """`--large-catalogue` appends synthetic songs across #, A–Z; default stays two songs."""
+        with urlopen(self.base + "/api/songs") as response:
+            self.assertEqual(json.load(response)["count"], 2)
+        large = FixtureServer(("127.0.0.1", 0), FixtureHandler, large_catalogue=True)
+        thread = threading.Thread(target=large.serve_forever, daemon=True)
+        thread.start()
+        base = f"http://127.0.0.1:{large.server_port}"
+        try:
+            with urlopen(base + "/api/songs") as response:
+                body = json.load(response)
+            self.assertEqual(body["count"], len(body["songs"]))
+            self.assertGreaterEqual(body["count"], 100)
+            initials = {song["title"][0] for song in body["songs"]}
+            self.assertTrue(set("ABCDEFGHIJKLMNOPQRSTUVWXYZ") <= {c.upper() for c in initials})
+            self.assertTrue(any(c.isdigit() for c in initials))
+            self.assertEqual(len({song["songId"] for song in body["songs"]}), body["count"])
+            with urlopen(base + "/api/leaderboard/fixture-song-5/Solo_Guitar?top=10") as response:
+                self.assertEqual(len(json.load(response)["entries"]), 10)
         finally:
             large.shutdown()
             large.server_close()

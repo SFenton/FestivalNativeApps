@@ -109,8 +109,8 @@ SOURCE_HASHES = {
 SONGS_ETAG = '"fst-fixture-songs-v1"'
 EMPTY_ETAG = '"fst-fixture-empty-v1"'
 SHOP_ETAG = '"fst-fixture-shop-v1"'
-LEADERBOARD = re.compile(r"^/api/leaderboard/(fixture-[a-z]+)/([A-Za-z_]+)$")
-SONG_BAND_LEADERBOARD = re.compile(r"^/api/leaderboard/(fixture-[a-z]+)/bands/([A-Za-z_]+)$")
+LEADERBOARD = re.compile(r"^/api/leaderboard/(fixture-[a-z0-9-]+)/([A-Za-z_]+)$")
+SONG_BAND_LEADERBOARD = re.compile(r"^/api/leaderboard/(fixture-[a-z0-9-]+)/bands/([A-Za-z_]+)$")
 PLAYER = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)$")
 PLAYER_HISTORY = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)/history$")
 PLAYER_NOTIFICATIONS = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)/notifications$")
@@ -122,7 +122,7 @@ BAND_RANKINGS = re.compile(r"^/api/rankings/bands/([A-Za-z_]+)$")
 BAND_HISTORY = re.compile(r"^/api/rankings/bands/([A-Za-z_]+)/(fixture-[a-z0-9-]+)/history$")
 BAND_SONGS = re.compile(r"^/api/rankings/bands/([A-Za-z_]+)/(fixture-[a-z0-9-]+)/songs$")
 PATH_ARTIFACT = re.compile(
-    r"^/api/paths/(fixture-[a-z]+)/([A-Za-z_]+)/([a-z]+)(/data)?$"
+    r"^/api/paths/(fixture-[a-z0-9-]+)/([A-Za-z_]+)/([a-z]+)(/data)?$"
 )
 INSTRUMENTS = frozenset({
     "Solo_Guitar", "Solo_Bass", "Solo_Drums", "Solo_Vocals",
@@ -133,6 +133,41 @@ BAND_TYPES = frozenset({"Band_Duets", "Band_Trios", "Band_Quad"})
 # `--large-rankings`: enough synthetic rows for multi-page pagers (48 pages of 25).
 LARGE_RANKINGS_ACCOUNTS = 1_200
 LARGE_RANKINGS_TEAMS = 600
+# `--large-catalogue`: synthetic songs spread over #, A–Z so lists scroll and the section
+# index has every bucket; artwork reuses the generated fixture motifs.
+_CATALOGUE_WORDS = (
+    "Anthem", "Ballad", "Cascade", "Drift", "Echo", "Flare", "Glow", "Horizon", "Ignite",
+    "Jubilee", "Kinetic", "Lumen", "Mirage", "Nova", "Orbit", "Prism", "Quartz", "Rhythm",
+    "Signal", "Tempo", "Uplift", "Vortex", "Wave", "Xenon", "Yonder", "Zenith",
+)
+
+
+def _large_catalogue_songs() -> list[dict]:
+    """Synthetic catalogue rows for `--large-catalogue` (original names and generated art).
+
+    Returns:
+        Four songs per letter A–Z plus four digit-leading titles, each with a stable
+        `fixture-song-{n}` id, a varied year/difficulty spread and generated artwork.
+    """
+    titles = [f"{n} {word}" for n, word in zip((1, 7, 24, 99), ("Beat", "Nights", "Hours", "Lights"))]
+    for word in _CATALOGUE_WORDS:
+        titles += [f"{word} {suffix}" for suffix in ("Theory", "Run", "Signal", "Garden")]
+    return [
+        {
+            "songId": f"fixture-song-{index}", "title": title,
+            "artist": f"Synthetic Artist {index % 17 + 1}", "year": 2000 + index % 27,
+            "pathArtifactGenerationId": "fixture-path-generation",
+            "albumArt": f"/__fixture__/art/{'pulse' if index % 2 else 'orbit'}.png",
+            "difficulty": {
+                "guitar": index % 7, "bass": (index + 2) % 7,
+                "drums": (index + 4) % 7, "vocals": (index + 1) % 7,
+            },
+        }
+        for index, title in enumerate(titles, start=1)
+    ]
+
+
+LARGE_CATALOGUE_SONGS = _large_catalogue_songs()
 
 
 def _ranking_entry(rank: int, account_id: str, display_name: str) -> dict:
@@ -437,6 +472,7 @@ class FixtureServer(ThreadingHTTPServer):
         stop_after_first_shop: bool = False,
         metadata_edge: bool = False,
         large_rankings: bool = False,
+        large_catalogue: bool = False,
     ) -> None:
         """Create a deterministic, bounded service fixture.
 
@@ -454,6 +490,8 @@ class FixtureServer(ThreadingHTTPServer):
             metadata_edge: Publish one isolated long-title, score and Shop contract.
             large_rankings: Pad account/band rankings with synthetic `fixture-rank-{n}` /
                 `fixture-team-{n}` rows so pagers have many pages; ranks 1–3 are unchanged.
+            large_catalogue: Append 108 synthetic `fixture-song-{n}` songs (#, A–Z) to the
+                demo catalogue; their Lead charts serve the generic fixture leaderboard.
         """
         if metadata_edge and (
             unpinned or rollover_on_read is not None or rollover_on_command
@@ -473,6 +511,7 @@ class FixtureServer(ThreadingHTTPServer):
         self.unpinned = unpinned
         self.metadata_edge = metadata_edge
         self.large_rankings = large_rankings
+        self.large_catalogue = large_catalogue
         self.rollover_on_read = rollover_on_read
         self.rollover_on_command = rollover_on_command
         self.mismatched_shop_rollover = mismatched_shop_rollover
@@ -488,6 +527,7 @@ class FixtureServer(ThreadingHTTPServer):
             "stopAfterFirstShop": stop_after_first_shop,
             "metadataEdge": metadata_edge,
             "largeRankings": large_rankings,
+            "largeCatalogue": large_catalogue,
         }
         self._publication_reads = 0
         self._publication_id = 7
@@ -1458,6 +1498,10 @@ class FixtureHandler(BaseHTTPRequestHandler):
                     }],
                 }
                 etag = '"fst-fixture-art-white-v1"'
+            elif self.fixture.large_catalogue:
+                rows = DEMO_SONGS["songs"] + LARGE_CATALOGUE_SONGS
+                songs = {**DEMO_SONGS, "count": len(rows), "songs": rows}
+                etag = '"fst-fixture-large-catalogue-v1"'
             else:
                 songs, etag = DEMO_SONGS, SONGS_ETAG
             pin = self.headers.get("X-FST-Publication-Id")
@@ -1543,7 +1587,9 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 return
             if (instrument not in INSTRUMENTS
                     or (song_id != EDGE_SONG_ID if self.fixture.metadata_edge
-                        else song_id not in ("fixture-pulse", "fixture-orbit"))):
+                        else song_id not in ("fixture-pulse", "fixture-orbit")
+                        and not (self.fixture.large_catalogue
+                                 and song_id in {row["songId"] for row in LARGE_CATALOGUE_SONGS}))):
                 self._json(404, {"status": "unknown_chart"})
                 return
             if any(len(query.get(key, [""])) != 1 for key in ("top", "offset", "leeway")):
@@ -1736,6 +1782,10 @@ def main() -> None:
         "--large-rankings", action="store_true",
         help="pad rankings to 1,200 accounts / 600 teams for multi-page pager captures",
     )
+    parser.add_argument(
+        "--large-catalogue", action="store_true",
+        help="append 108 synthetic songs (#, A-Z) for scrolling/section-index captures",
+    )
     args = parser.parse_args()
     if not 0 <= args.port <= 65535:
         parser.error("port must be between 0 (OS-assigned) and 65535")
@@ -1768,7 +1818,8 @@ def main() -> None:
         stop_after_first_score=args.stop_after_first_score,
         stop_after_first_shop=args.stop_after_first_shop,
         metadata_edge=args.metadata_edge,
-        large_rankings=args.large_rankings
+        large_rankings=args.large_rankings,
+        large_catalogue=args.large_catalogue,
     ) as server:
         print(f"Local test fixture service on 127.0.0.1:{server.server_port}", flush=True)
         server.serve_forever()
