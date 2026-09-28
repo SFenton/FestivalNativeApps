@@ -167,15 +167,18 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 **Lane P2 — Profile / Statistics / Band / Settings follow-ups** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/profile2`
 - ⬜ Global ranks via `/api/rankings/{instrument}/{accountId}` · ⬜ Profile sheet dismiss → push on active tab · ⬜ `FST_DEBUG_PROFILE` in-memory only · ⬜ Quick Links on Player/Statistics/Band/Settings · ⬜ Band song rows show catalog titles
 
-**Lane S follow-ups** — 🟨 toolbar order rule on Songs, Quick Links on Songs/Song Detail, Settings consumers (row visual order, path column order)
+**Lane S follow-ups** — ✅ landed …`bb77ed4`: avatar-rightmost toolbar on Songs, Quick Links on Songs (Duration/Shop sorts) + Song Detail, row visual order + path column order consumers, `Song.maxScores`
 
 **Lane D2 — FRE live demos** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/fredemos`
 - ⬜ Live mini-demos for the 31 non-Songs slides (Song Info, History, Statistics, Suggestions, Leaderboards, Compete, Rivals, Shop)
 
-Queued:
-- ⬜ **Suggestions follow-up:** `near_max_*` families (needs `Song.maxScores` — Lane S exposing it), rival-driven suggestions (after Lane R2), band suggestions (needs band identity); pass `visibleInstruments` from root instead of re-reading `@AppStorage`
+**Lane G2 — Suggestions follow-ups** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/suggestions2`
+- ⬜ `near_max_*` families (seed-parity test) · ⬜ `visibleInstruments` from root · ⬜ Rival-driven families if a pure-read source exists · band suggestions deferred (needs band identity)
 
 ### Wave 3 — UX tests (started for completed features)
+
+**Lane U2 — UX tests: Songs, Song Detail, Paths, Shop, Suggestions** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/uxsongs`
+- ⬜ Triage/migrate legacy monolith tests into per-feature files · ⬜ Hosted snapshots per control state · ⬜ XCUITest journeys (batched) · ⬜ Per-feature coverage
 
 **Lane U — UX tests: shell, leaderboards, background, history, notifications, first-run, licenses** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/uxtests`
 - ⬜ Hosted snapshot per declared control state · ⬜ Per-feature XCUITest journeys against the loopback mock (batched on the shared simulator) · ⬜ Per-feature UX coverage → `.agents/testing/apple/coverage.md`
@@ -254,3 +257,5 @@ Not yet assigned:
 | 2026-09-28 | Lane F | FREs: 44 slides / 9 pages, versioned+hashed seen state (only new slides show), gates, Settings replay; 36 Core tests |
 | 2026-09-28 | Orchestrator | Launched Lane D2 (FRE demos) and Lane U (Wave 3 UX tests for completed features) |
 | 2026-09-28 | Lane G | Suggestions: full generator port (seeded PRNG, 11 families + decades, 61 tests, ~96% Core coverage), filter sheet, incremental loading; fixed direct-landing load hang |
+| 2026-09-28 | Lane S | Toolbar order, Quick Links (Songs/Detail), settings consumers, `Song.maxScores` — lane complete |
+| 2026-09-28 | Orchestrator | Launched Lane G2 (Suggestions follow-ups) and Lane U2 (UX tests for Songs/Detail/Paths/Shop/Suggestions) |
