@@ -244,7 +244,7 @@ final class DriverTests: XCTestCase {
     /// - Throws: ``DriverError/elementNotFound(_:)`` when a targeted element
     ///   never appears (or never becomes hittable, for `scrollTo`).
     @MainActor
-    private static func perform(_ step: DriverStep, app: XCUIApplication) throws {
+    static func perform(_ step: DriverStep, app: XCUIApplication) throws {
         switch step {
         case let .tap(target):
             let candidate = try element(identifierOrLabel: target, in: app)
@@ -329,7 +329,7 @@ final class DriverTests: XCTestCase {
     /// - Returns: The first matching, existing element.
     /// - Throws: ``DriverError/elementNotFound(_:)`` if neither matches in time.
     @MainActor
-    private static func element(identifierOrLabel target: String, in app: XCUIApplication) throws -> XCUIElement {
+    static func element(identifierOrLabel target: String, in app: XCUIApplication) throws -> XCUIElement {
         // Prefer the concrete `XCUIElementTypeSwitch` over a generic descendant match: a
         // `Form` `Toggle` row's identifier can resolve to a non-hittable container node via
         // `.any`, which silently no-ops on tap (see `.tap`'s trailing-edge-coordinate handling).
@@ -358,7 +358,8 @@ final class DriverTests: XCTestCase {
     /// Write a full-screen PNG to an absolute host path.
     ///
     /// - Parameter path: Destination file path (the simulator shares the host filesystem).
-    private static func writeScreenshot(to path: String) throws {
+    @MainActor
+    static func writeScreenshot(to path: String) throws {
         let data = XCUIScreen.main.screenshot().pngRepresentation
         try data.write(to: URL(fileURLWithPath: path))
     }
@@ -368,6 +369,7 @@ final class DriverTests: XCTestCase {
     /// - Parameters:
     ///   - app: The running application under test.
     ///   - stepIndex: 1-based index of the failing step, used to name the files.
+    @MainActor
     private static func captureFailure(app: XCUIApplication, stepIndex: Int) {
         let base = "/tmp/fst-driver-failure-\(stepIndex)"
         try? writeScreenshot(to: base + ".png")
