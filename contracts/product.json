@@ -131,6 +131,7 @@
     "fst.shell.*": "app-navigation",
     "fst.history.*": "player-history",
     "fst.notifications.*": "notifications",
+    "fst.quick-links.*": "app-navigation",
     "fst.placeholder.*": "app-navigation",
     "fst.settings.*": "settings",
     "fst.leaderboards.*": "leaderboards",
