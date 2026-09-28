@@ -207,7 +207,12 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 
 Coverage so far (SwiftPM hosted+logic): Shell 71.8%, Leaderboards+QL 83.6%, Background 81.0%, History+Notifications 72.7%, First-run 78.8%, Licenses 67.7% — gap is mostly device-only branches; iOS app-target `xccov` measurement still to run.
 
-**Lane U4 — UX tests: Profile, Statistics, Bands, Settings + Suggestions hosted** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/uxprofile`
+**Lane U4 — UX tests: Profile, Statistics, Bands, Settings + Suggestions hosted** (Sonnet) — ✅ landed `ee9dcef`…`8d59248`
+- ✅ 43 hosted snapshot tests (`PlayerProfileRenderTests`, `StatisticsRenderTests`, `BandsRenderTests`, `SettingsRenderTests`, `SuggestionsRenderTests`): every declared control state for these five features, all passing; combined SwiftPM UX coverage 94.2% across the 13 new files (Suggestions specifically 93.0%, up from 8.3%)
+- ✅ `tools/mock_service.py` extended with `/api/rankings/{instrument}/{accountId}`, `/api/player/{accountId}/bands`, teamKey-filtered `/api/rankings/bands/{bandType}` (`selectedBandEntry`), band rank history/songs and per-song band leaderboard routes (none existed before)
+- ✅ XCUITest journeys: `ProfileStatisticsJourneyTests` (search→view→select→Statistics→deselect) and `BandsJourneyTests` (2: Band Rankings row→Band Detail→song; Player Bands paging) pass on-device; `SettingsJourneyTests` (3: relaunch persistence, reorder sheet, reset) `XCTSkip`'d — consistently hung the shared simulator's 300s lock budget under heavy concurrent-lane load, root cause inconclusive (not the carousel-idle issue the other two files needed fixing)
+- **Found (fixed independently by Lane Z2 during this lane's work, confirmed via rebase):** `SongsUITestSupport.selectViewedPlayer`/`viewFixturePlayer` were stale against `ProfileSelectionSheet`'s dismiss-then-push navigation — selecting a different profile from Songs pops back to the Songs tab root itself, not the pushed player page
+- Named the Profile journey file `ProfileStatisticsJourneyTests` (not `ProfileJourneyTests`) to avoid colliding with Lane Z2's own class of that name
 
 **Lane Z2 — Wrong-account profile bug** (Opus) — 🟨 running in `~/repos/FestivalNativeApps-lanes/wrongacct` (viewing a searched player could show another account's data; client-side)
 
@@ -394,3 +399,4 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Lanes S2, Z2 | Songs polish landed; wrong-account bug root-caused (single Form row) + profile graphs |
 | 2026-09-28 | Lane H | Hosted harness renders real content; content assertions on 65 full-page tests |
 | 2026-09-28 | Orchestrator | `win_relay launch/wait`: Windows lanes as monitorable Remote Control sessions (probe verified); launched Lane C (cleanup + gates) |
+| 2026-09-28 | Lane U4 | UX tests for Profile/Statistics/Bands/Settings/Suggestions: 43 hosted tests (94.2% combined coverage, Suggestions 8.3%→93.0%), `mock_service.py` Bands/ranking fixtures, 3 XCUITest journeys passing (2 files) + 3 skipped (Settings, simulator-load hang); confirmed Lane Z2's independent fix for stale dismiss-then-push assumptions in `SongsUITestSupport.swift` |
