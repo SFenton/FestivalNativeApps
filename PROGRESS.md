@@ -459,3 +459,4 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Windows | win-shell landed; mock server backlog 5→128 |
 | 2026-09-28 | Lane W2 | Duo list/detail landed; SongsJourneyTests regression (19/21 failing on master) sent to A2 |
 | 2026-09-28 | Orchestrator | Windows Remote Control lanes now appear as peer sessions → orchestrator can message them mid-run |
+| 2026-09-28 | Windows | win-search landed (global search on Windows) |
