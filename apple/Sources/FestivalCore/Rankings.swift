@@ -104,7 +104,15 @@ public struct AccountRankingEntry: Decodable, Sendable, Identifiable, Equatable 
     public let rawMaxScorePercent: Double?
     public let rawWeightedRating: Double?
 
-    public var id: String { accountId }
+    /// Stable list identity. Production rankings can contain a row with an empty
+    /// `accountId` and no name (e.g. Lead total-score rank 15 on 2026-09-28), so an
+    /// anonymous row falls back to its ranks rather than colliding on `""`.
+    public var id: String {
+        accountId.isEmpty ? "anonymous-\(totalScoreRank)-\(adjustedSkillRank)-\(weightedRank)" : accountId
+    }
+
+    /// False for anonymous rows that have no public profile to open.
+    public var hasAccount: Bool { !accountId.isEmpty }
 
     /// Rank column for the currently selected metric.
     ///

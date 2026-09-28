@@ -143,3 +143,19 @@ private func fixtureURL(_ name: String) -> URL {
     #expect(RankingFormatting.rating(0.973, metric: .fcrate) == "97.3%")
     #expect(RankingFormatting.rating(1_234_567, metric: .totalscore) == "1,234,567")
 }
+
+/// Production rankings can contain an anonymous row (empty `accountId`, no name);
+/// it must decode, keep a unique identity and expose no profile link.
+@Test func anonymousRankingRowDecodesWithUniqueIdentity() throws {
+    let json = """
+    {"accountId":"","displayName":null,"songsPlayed":700,"totalChartedSongs":729,
+     "coverage":0.96,"rawSkillRating":0.01,"adjustedSkillRating":0.02,"adjustedSkillRank":900,
+     "weightedRating":0.03,"weightedRank":800,"fcRate":0.5,"fcRateRank":700,
+     "totalScore":100000000,"totalScoreRank":15,"maxScorePercent":0.9,"maxScorePercentRank":600,
+     "avgAccuracy":0.99,"fullComboCount":300,"avgStars":5.8,"bestRank":1,"avgRank":20.5}
+    """
+    let entry = try JSONDecoder().decode(AccountRankingEntry.self, from: Data(json.utf8))
+    #expect(!entry.hasAccount)
+    #expect(entry.id == "anonymous-15-900-800")
+    #expect(entry.id != "")
+}

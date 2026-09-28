@@ -33,9 +33,27 @@ struct AccountRankingRow: View {
     }
 
     var body: some View {
-        NavigationLink(
-            value: AppRoute.player(accountId: entry.accountId, displayName: entry.displayName)
-        ) {
+        Group {
+            if entry.hasAccount {
+                NavigationLink(
+                    value: AppRoute.player(accountId: entry.accountId, displayName: entry.displayName)
+                ) {
+                    rowContent
+                }
+            } else {
+                // Anonymous production rows have no profile to open.
+                rowContent
+                    .accessibilityHint("Profile unavailable")
+            }
+        }
+        .accessibilityIdentifier("fst.rankings.row.\(entry.id)")
+        .modifier(SelectedRankAccessibilityLabel(
+            isSelected: isSelected, rank: entry.rank(for: metric), name: displayName
+        ))
+    }
+
+    /// The rank, name, songs and rating columns shared by linked and anonymous rows.
+    private var rowContent: some View {
             HStack(alignment: .top, spacing: 12) {
                 Text("#\(entry.rank(for: metric).formatted())")
                     .font(.body)
@@ -77,11 +95,6 @@ struct AccountRankingRow: View {
                         .stroke(BrandTokens.accentPurple, lineWidth: 1)
                 }
             }
-        }
-        .accessibilityIdentifier("fst.rankings.row.\(entry.accountId)")
-        .modifier(SelectedRankAccessibilityLabel(
-            isSelected: isSelected, rank: entry.rank(for: metric), name: displayName
-        ))
     }
 }
 
