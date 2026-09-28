@@ -8,6 +8,8 @@ public enum PublicEndpoint: Sendable {
     case leaderboard(
         songId: String, instrument: String, top: Int = 25, offset: Int = 0, leeway: Double? = nil
     )
+    case rankings(instrument: String, rankBy: String, page: Int, pageSize: Int)
+    case bandRankings(bandType: String, rankBy: String, page: Int, pageSize: Int)
     case path(
         songId: String, instrument: Instrument, difficulty: PathDifficulty,
         display: PathDisplayMode, generationId: String? = nil
@@ -48,6 +50,30 @@ public enum PublicEndpoint: Sendable {
             if let leeway {
                 query.append(URLQueryItem(name: "leeway", value: String(leeway)))
             }
+        case let .rankings(instrument, rankBy, page, pageSize):
+            guard !instrument.isEmpty, !instrument.contains("/"),
+                  !rankBy.isEmpty, !rankBy.contains("/"),
+                  page > 0, (1...200).contains(pageSize) else {
+                throw FestivalAPIError.invalidResource
+            }
+            segments = ["api", "rankings", instrument]
+            query = [
+                URLQueryItem(name: "rankBy", value: rankBy),
+                URLQueryItem(name: "page", value: String(page)),
+                URLQueryItem(name: "pageSize", value: String(pageSize)),
+            ]
+        case let .bandRankings(bandType, rankBy, page, pageSize):
+            guard !bandType.isEmpty, !bandType.contains("/"),
+                  !rankBy.isEmpty, !rankBy.contains("/"),
+                  page > 0, (1...200).contains(pageSize) else {
+                throw FestivalAPIError.invalidResource
+            }
+            segments = ["api", "rankings", "bands", bandType]
+            query = [
+                URLQueryItem(name: "rankBy", value: rankBy),
+                URLQueryItem(name: "page", value: String(page)),
+                URLQueryItem(name: "pageSize", value: String(pageSize)),
+            ]
         case let .path(songId, instrument, difficulty, display, generationId):
             guard !songId.isEmpty, !songId.contains("/"), !songId.contains(".."),
                   instrument != .karaoke,

@@ -1,0 +1,61 @@
+{
+  "bandType": "Band_Duets",
+  "rankBy": "totalscore",
+  "page": 1,
+  "pageSize": 2,
+  "totalTeams": 12,
+  "entries": [
+    {
+      "bandId": "fixture-band-1",
+      "teamKey": "fixture-rank-1:fixture-rank-2",
+      "teamMembers": [
+        { "accountId": "fixture-rank-1", "displayName": "Fixture Rank One" },
+        { "accountId": "fixture-rank-2", "displayName": null }
+      ],
+      "songsPlayed": 40,
+      "totalChartedSongs": 40,
+      "coverage": 1.0,
+      "rawSkillRating": 0.004,
+      "adjustedSkillRating": 0.0041,
+      "adjustedSkillRank": 1,
+      "weightedRating": 0.91,
+      "weightedRank": 1,
+      "fcRate": 0.9,
+      "fcRateRank": 2,
+      "totalScore": 222222222,
+      "totalScoreRank": 1,
+      "avgAccuracy": 98.2,
+      "fullComboCount": 36,
+      "avgStars": 4.9,
+      "bestRank": 1,
+      "avgRank": 1.5,
+      "rawWeightedRating": 0.9
+    },
+    {
+      "bandId": "fixture-band-2",
+      "teamKey": "fixture-rank-3:fixture-rank-4",
+      "teamMembers": [
+        { "accountId": "fixture-rank-3", "displayName": "Fixture Rank Three" },
+        { "accountId": "fixture-rank-4", "displayName": "" }
+      ],
+      "songsPlayed": 10,
+      "totalChartedSongs": 40,
+      "coverage": 0.25,
+      "rawSkillRating": 0.3,
+      "adjustedSkillRating": 0.31,
+      "adjustedSkillRank": 2,
+      "weightedRating": 0.4,
+      "weightedRank": 4,
+      "fcRate": 0.1,
+      "fcRateRank": 8,
+      "totalScore": 3000000,
+      "totalScoreRank": 2,
+      "avgAccuracy": 88.4,
+      "fullComboCount": 1,
+      "avgStars": 3.1,
+      "bestRank": 5,
+      "avgRank": 10.0,
+      "rawWeightedRating": null
+    }
+  ]
+}
