@@ -55,16 +55,17 @@ public struct QuickLinksMenu: View {
     public var body: some View {
         if controller.isAvailable {
             Menu {
-                Picker(selection: selection) {
-                    ForEach(controller.sections) { section in
-                        QuickLinkLabel(section: section)
-                            .tag(Optional(section.id))
-                            .accessibilityIdentifier("fst.quick-links.item.\(section.id)")
+                Section(controller.title) {
+                    Picker(controller.title, selection: selection) {
+                        ForEach(controller.sections) { section in
+                            QuickLinkLabel(section: section)
+                                .tag(Optional(section.id))
+                                .accessibilityIdentifier("fst.quick-links.item.\(section.id)")
+                        }
                     }
-                } label: {
-                    Text(controller.title)
+                    .pickerStyle(.inline)
+                    .labelsHidden()
                 }
-                .pickerStyle(.inline)
             } label: {
                 Label("Quick Links", systemImage: "list.bullet.indent")
             }
@@ -101,7 +102,7 @@ struct QuickLinkLabel: View {
                 Image(systemName: name)
             case let .instrument(instrument):
                 Image(InstrumentIcon.assetName(for: instrument, keyboard: false), bundle: .module)
-                    .renderingMode(.template)
+                    .renderingMode(.original)
             case nil:
                 EmptyView()
             }

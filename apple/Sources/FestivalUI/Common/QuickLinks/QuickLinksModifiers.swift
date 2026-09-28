@@ -61,12 +61,15 @@ public extension View {
     ///
     /// Gives the view a scroll identity, reports its frame for active-section
     /// tracking, registers it for discovery and as a VoiceOver rotor entry.
-    /// Outside a container it only sets `.id(section.id)`.
+    /// Outside a container it only sets `.id(section.id)`. Apply it to the element
+    /// view a `ForEach` returns so lazy containers can scroll to unbuilt sections.
     ///
     /// - Parameter section: The section this view starts.
     /// - Returns: The tagged view.
     func quickLinkSection(_ section: QuickLinkSection) -> some View {
-        modifier(QuickLinkSectionModifier(section: section))
+        // `.id` must be the outermost modifier so lazy stacks can resolve a
+        // not-yet-built section from its ForEach element when asked to scroll to it.
+        modifier(QuickLinkSectionModifier(section: section)).id(section.id)
     }
 
     /// Mark this view as a quick-link anchor with an SF Symbol glyph.
@@ -157,7 +160,6 @@ struct QuickLinkSectionModifier: ViewModifier {
     func body(content: Content) -> some View {
         if let context {
             content
-                .id(section.id)
                 .preference(key: QuickLinkSectionsKey.self, value: [section])
                 .accessibilityRotorEntry(id: section.id, in: context.rotorNamespace)
                 .onGeometryChange(for: QuickLinkFrame.self) { geometry in
@@ -168,7 +170,7 @@ struct QuickLinkSectionModifier: ViewModifier {
                 }
                 .onDisappear { context.controller.report(section.id, frame: nil) }
         } else {
-            content.id(section.id)
+            content
         }
     }
 }
