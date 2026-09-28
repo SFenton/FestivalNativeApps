@@ -136,3 +136,9 @@ Open from a tab root and from a detail page in every layout · <2 chars · debou
 
 - Recent searches: web has none. Add a per-device, clearable recent list (songs and players) or keep parity? Default: parity (none).
 - Should native global search also include pages/settings entries ("Go to Rivals")? Default: no, web scopes only.
+
+## Operator decisions (2026-09-28)
+
+- **No recent searches** — web parity; nothing about queries is persisted.
+- **Content only** — songs, players, bands (bands shown but blocked with explanation); no pages/settings in results.
+- **Android shortcut:** Ctrl+K and the Search key open global search; Ctrl+F remains find-in-page. (Windows: Ctrl+E; Apple iPad/Mac: ⌘F/⌘K per the Apple design.)
