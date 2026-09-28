@@ -10,7 +10,7 @@ with results and runs an Axe.Windows scan (``tools/windows/axe_scan.ps1``) into 
 
 Usage::
 
-    python tools/windows/search_journey.py [--only NAME] [--shots DIR] [--retries N] [--axe]
+    python tools/windows/search_journey.py [--only NAME] [--shots DIR] [--retries N] [--axe] [--exe PATH]
 """
 
 from __future__ import annotations
@@ -29,6 +29,9 @@ import ui_journey  # noqa: E402  (sibling module)
 
 JOURNEYS = Path(__file__).resolve().parent / "journeys" / "search.json"
 BAND_SEARCH = "/api/bands/search"
+#: App under test; ``--exe`` replaces it (e.g. the NativeAOT Release build). Routes go as app arguments,
+#: which Release builds honour (they ignore ``FST_DEBUG_*``).
+EXE = ui_journey.EXE
 ACCOUNT_SEARCH = "/api/account/search"
 
 # region Fixture service
@@ -84,9 +87,11 @@ def run_journey(journey: dict, port: int, shots: Path) -> tuple[bool, str]:
     """
     settings = Path(tempfile.gettempdir()) / f"fst-search-settings-{journey['name']}.json"
     settings.unlink(missing_ok=True)
-    launch = ui_journey.uiwin("launch", str(ui_journey.EXE), "--route", journey["route"],
+    launch = ui_journey.uiwin("launch", str(EXE), f"--arg=--route={journey['route']}",
                               "--arg=--base-url", f"--arg=http://127.0.0.1:{port}/",
                               "--arg=--settings-path", f"--arg={settings}",
+                              # The first-run carousel is modal and would swallow the scripted input.
+                              "--arg=--first-run=off",
                               "--preset", journey.get("preset", "medium"))
     if launch.returncode != 0:
         return False, "launch: " + launch.stderr.strip()
@@ -118,8 +123,8 @@ def axe_scan(port: int, shots: Path) -> bool:
     Returns:
         Whether the scan reported no errors.
     """
-    launch = ui_journey.uiwin("launch", str(ui_journey.EXE), "--route", "/search?q=fixture",
-                              "--arg=--base-url", f"--arg=http://127.0.0.1:{port}/", "--preset", "medium")
+    launch = ui_journey.uiwin("launch", str(EXE), "--arg=--route=/search?q=fixture",
+                              "--arg=--base-url", f"--arg=http://127.0.0.1:{port}/", "--arg=--first-run=off", "--preset", "medium")
     if launch.returncode != 0:
         print("axe: launch failed: " + launch.stderr.strip())
         return False
@@ -176,9 +181,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--shots", type=Path, default=Path(tempfile.gettempdir()) / "fst-search-journeys")
     parser.add_argument("--retries", type=int, default=1)
     parser.add_argument("--axe", action="store_true", help="also run an Axe.Windows scan of the Search page")
+    parser.add_argument("--exe", type=Path, help="app executable (default: this worktree's Debug build)")
     args = parser.parse_args(argv)
-    if not ui_journey.EXE.is_file():
-        print(f"error: build first (tools/windows/build.ps1); no {ui_journey.EXE}", file=sys.stderr)
+    global EXE
+    EXE = (args.exe or EXE).resolve()
+    if not EXE.is_file():
+        print(f"error: build first (tools/windows/build.ps1); no {EXE}", file=sys.stderr)
         return 1
     args.shots.mkdir(parents=True, exist_ok=True)
     shots = args.shots.resolve()

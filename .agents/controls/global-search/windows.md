@@ -97,7 +97,7 @@ Order: model + tests → title-bar box + suggestions → Search page + scopes �
 | Page | `Pages/SearchPage.xaml(.cs)` |
 | Unit tests | `Festival.Core.Tests/GlobalSearchTests.cs` |
 | Journeys | `python tools/windows/search_journey.py [--axe]`: `journeys/search.json` at wide, medium (from a detail page; select a player, then its suggestion opens Statistics), compact (button, hint, empty + Retry, player → Back), snap-left (players 503 + Retry) and 683×768. The fixture logs request paths and the run fails on any `/api/bands/search`; each journey uses an isolated settings file. `--axe` scans the Search page (`tools/windows/axe_scan.ps1`) |
-| Last measured | 5/5 journeys; 0 band searches; Axe.Windows 0 errors; model/results 100% / ViewModel ≥95% lines |
+| Last measured | 5/5 journeys on Debug and NativeAOT Release (`--exe windows/.artifacts/app/Release-aot/FestivalScoreTracker.exe`); 0 band searches; Axe.Windows 0 errors; model/results 100% / ViewModel ≥95% lines |
 
 ## Open
 
