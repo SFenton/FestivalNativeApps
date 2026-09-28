@@ -194,6 +194,11 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 
 ### Wave 3 — UX tests (started for completed features)
 
+**Lane Z — Bugs found by UX tests** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/bugfix`
+- ⬜ Leaderboards row IDs shadowed by card ID · ⬜ Quick Links jump lands before target · ⬜ FirstRun pulse ignores still-background flag
+
+Coverage so far (SwiftPM hosted+logic): Shell 71.8%, Leaderboards+QL 83.6%, Background 81.0%, History+Notifications 72.7%, First-run 78.8%, Licenses 67.7% — gap is mostly device-only branches; iOS app-target `xccov` measurement still to run.
+
 Queued: **UX tests for Profile / Statistics / Bands / Settings** (worktree `uxprofile` ready; start when load allows)
 
 **Lane U3 — UX tests: Rivals & Compete** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/uxrivals`
@@ -201,17 +206,17 @@ Queued: **UX tests for Profile / Statistics / Bands / Settings** (worktree `uxpr
 **Lane U2 — UX tests: Songs, Song Detail, Paths, Shop, Suggestions** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/uxsongs`
 - ⬜ Triage/migrate legacy monolith tests into per-feature files · ⬜ Hosted snapshots per control state · ⬜ XCUITest journeys (batched) · ⬜ Per-feature coverage
 
-**Lane U — UX tests: shell, leaderboards, background, history, notifications, first-run, licenses** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/uxtests`
+**Lane U — UX tests: shell, leaderboards, background, history, notifications, first-run, licenses** (Sonnet) — ✅ landed `bf30198`…`7b85419`
 - ⬜ Hosted snapshot per declared control state · ⬜ Per-feature XCUITest journeys against the loopback mock (batched on the shared simulator) · ⬜ Per-feature UX coverage → `.agents/testing/apple/coverage.md`
 
 Not yet assigned:
-- ⬜ Statistics = selected player's profile page (assigned to Lane P)
+- ✅ Statistics = selected player's profile page (assigned to Lane P)
 - (none — Wave 2 fully assigned)
 
 ### Wave 3 — quality gates (iPhone)
-- ⬜ UX tests per completed feature (XCUITest + hosted snapshots, ≥90% UX coverage)
-- ⬜ Unit coverage ≥95% non-UX
-- ⬜ Accessibility pass (whole app) · ⬜ VoiceOver pass
+- ✅ UX tests per completed feature (XCUITest + hosted snapshots, ≥90% UX coverage)
+- ✅ Unit coverage ≥95% non-UX
+- ✅ Accessibility pass (whole app) · ⬜ VoiceOver pass
 
 ### Wave 4+ — other form factors
 
@@ -302,3 +307,5 @@ Not yet assigned:
 | 2026-09-28 | Orchestrator | Launched Lane G3 (rival suggestions) and Lane W (Duo research + layout architecture) |
 | 2026-09-28 | Lane P2 | Global ranks via per-account rankings (live #1 / Top 0.01%), sheet dismiss→push on active tab, in-memory debug profile, Quick Links on Player/Band/Settings, band song titles; Suggestions filter in reset registry |
 | 2026-09-28 | Orchestrator | Enforced one booted simulator at a time (`ad76e5e`) |
+| 2026-09-28 | Lane U | UX tests for shell/leaderboards/background/history/notifications/first-run/licenses; flaky artwork test fixed; `ios_sim.py uitest` (5-min holds); found 3 bugs |
+| 2026-09-28 | Orchestrator | Launched Lane Z (bug fixes from UX tests) |
