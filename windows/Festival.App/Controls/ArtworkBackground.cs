@@ -221,7 +221,7 @@ public sealed partial class ArtworkBackground : Grid
         {
             var fade = compositor!.CreateScalarKeyFrameAnimation();
             fade.InsertKeyFrame(0, 0);
-            fade.InsertKeyFrame(1, 1);
+            fade.InsertKeyFrame(1, 1, compositor.CreateStepEasingFunction((int)(ArtworkCarousel.Crossfade.TotalSeconds * CrossfadeStepsPerSecond)));
             fade.Duration = ArtworkCarousel.Crossfade;
             var batch = compositor.CreateScopedBatch(CompositionBatchTypes.Animation);
             incoming.StartAnimation("Opacity", fade);
@@ -233,13 +233,13 @@ public sealed partial class ArtworkBackground : Grid
 
             var scale = compositor.CreateVector3KeyFrameAnimation();
             scale.InsertKeyFrame(0, new Vector3((float)preset.FromScale, (float)preset.FromScale, 1));
-            scale.InsertKeyFrame(1, new Vector3((float)preset.ToScale, (float)preset.ToScale, 1), compositor.CreateLinearEasingFunction());
+            scale.InsertKeyFrame(1, new Vector3((float)preset.ToScale, (float)preset.ToScale, 1), DriftEasing());
             scale.Duration = ArtworkCarousel.Drift;
             incoming.StartAnimation("Scale", scale);
 
             var offset = compositor.CreateVector3KeyFrameAnimation();
             offset.InsertKeyFrame(0, baseOffset + new Vector3((float)preset.FromX, (float)preset.FromY, 0));
-            offset.InsertKeyFrame(1, baseOffset + new Vector3((float)preset.ToX, (float)preset.ToY, 0), compositor.CreateLinearEasingFunction());
+            offset.InsertKeyFrame(1, baseOffset + new Vector3((float)preset.ToX, (float)preset.ToY, 0), DriftEasing());
             offset.Duration = ArtworkCarousel.Drift;
             incoming.StartAnimation("Offset", offset);
         }
@@ -254,6 +254,29 @@ public sealed partial class ArtworkBackground : Grid
         hasFrontImage = true;
         SwapCount++;
     }
+
+    /// <summary>
+    /// Easing for the slow drift. A step easing quantizes the 6 s zoom/pan to <see cref="DriftStepsPerSecond"/>
+    /// updates so the compositor only redraws when the value changes, instead of every display refresh.
+    /// </summary>
+    /// <returns>Easing function.</returns>
+    private CompositionEasingFunction DriftEasing()
+    {
+        var steps = DriftStepsPerSecond;
+        if (steps <= 0) return compositor!.CreateLinearEasingFunction();
+        var easing = compositor!.CreateStepEasingFunction((int)(ArtworkCarousel.Drift.TotalSeconds * steps));
+        easing.IsFinalStepSingleFrame = false;
+        return easing;
+    }
+
+    /// <summary>
+    /// Drift updates per second (0 = every compositor frame). Measured on a 240 Hz display: continuous drift
+    /// cost ~15% of one core and 8.4% GPU; 30 steps/s cost ~6.7% and 2.4% (see platforms/windows.md).
+    /// </summary>
+    private static int DriftStepsPerSecond => App.Options.DriftFps ?? 30;
+
+    /// <summary>Crossfade updates per second: 60 opacity steps are indistinguishable from continuous.</summary>
+    private const int CrossfadeStepsPerSecond = 60;
 
     /// <summary>Hides a slot and releases its surface.</summary>
     /// <param name="slot">Outgoing slot.</param>

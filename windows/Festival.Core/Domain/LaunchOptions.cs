@@ -8,7 +8,7 @@ namespace Festival.Core.Domain;
 /// Command-line flags win over environment variables:
 /// <c>--tab songs</c>, <c>--route /songs/{id}</c>, <c>--base-url http://127.0.0.1:8765/</c> (loopback only),
 /// <c>--perf-log path</c>, <c>--width 1280 --height 800</c>, <c>--reduce-motion</c>, <c>--no-art</c>,
-/// <c>--auto-scroll</c> (perf scenario: scroll the Songs list continuously).
+/// <c>--auto-scroll</c> (perf scenario: scroll the Songs list continuously), <c>--drift-fps N</c> (background drift steps/s).
 /// </summary>
 public sealed record LaunchOptions
 {
@@ -38,6 +38,9 @@ public sealed record LaunchOptions
 
     /// <summary>Scrolls the Songs list continuously (frame-delivery perf scenario).</summary>
     public bool AutoScroll { get; init; }
+
+    /// <summary>Background drift update rate override (steps per second, 0 = every compositor frame).</summary>
+    public int? DriftFps { get; init; }
 
     /// <summary>Problems found while parsing (unknown flags, rejected values).</summary>
     public IReadOnlyList<string> Warnings { get; init; } = [];
@@ -115,6 +118,7 @@ public sealed record LaunchOptions
             ReduceMotion = flags.Contains("reduce-motion"),
             NoArt = flags.Contains("no-art"),
             AutoScroll = flags.Contains("auto-scroll"),
+            DriftFps = int.TryParse(values.GetValueOrDefault("drift-fps"), NumberStyles.None, CultureInfo.InvariantCulture, out var fps) && fps <= 240 ? fps : null,
             Warnings = warnings,
         };
     }

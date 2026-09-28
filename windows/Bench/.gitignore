@@ -1,0 +1,5 @@
+# MSBuild/C++/WinRT outputs of the benchmark twins.
+Cpp/x64/
+Cpp/BenchCpp/
+Cpp/Generated Files/
+*.user

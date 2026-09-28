@@ -422,3 +422,57 @@ public class ShellViewModelTests
         Assert.Null(shell.ProfileError);
     }
 }
+
+public class SettingsViewModelTests
+{
+    [Fact]
+    public void InstrumentToggles_KeepLastChartAndPersist()
+    {
+        var store = new InMemorySettingsStore(new AppSettings { VisibleInstruments = [Instrument.Lead, Instrument.Bass] });
+        var session = new FestivalSession(new FakeService().Client(), store);
+        var vm = new SettingsViewModel(session);
+        var lead = vm.Instruments[0];
+        var bass = vm.Instruments[1];
+        var drums = vm.Instruments[2];
+        Assert.Equal(("Lead", "instrument_guitar.png", "fst.settings.instrument.Solo_Guitar"), (lead.Label, lead.IconFile, lead.AutomationId));
+        Assert.Equal(Instrument.Lead, lead.Instrument);
+        Assert.True(lead.IsOn && lead.IsEnabled);
+        Assert.False(drums.IsOn);
+        var changes = new List<string?>();
+        bass.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
+        lead.IsOn = false;
+        Assert.Equal([Instrument.Bass], store.Current.VisibleInstruments);
+        Assert.False(bass.IsEnabled);
+        Assert.Equal("At least one instrument must stay visible.", bass.Description);
+        Assert.Contains(nameof(InstrumentToggle.IsEnabled), changes);
+        bass.IsOn = false;
+        Assert.Equal([Instrument.Bass], store.Current.VisibleInstruments);
+        var saves = store.SaveCount;
+        bass.IsOn = true;
+        Assert.Equal(saves, store.SaveCount);
+        drums.IsOn = true;
+        Assert.True(bass.IsEnabled);
+        Assert.Equal("", bass.Description);
+    }
+
+    [Fact]
+    public void AccessibilityProfileAndAbout()
+    {
+        var store = new InMemorySettingsStore(new AppSettings { SelectedPlayer = new SelectedPlayer("acc", "Jane") });
+        var session = new FestivalSession(new FakeService().Client(), store);
+        var vm = new SettingsViewModel(session);
+        Assert.Equal(("Jane", true), (vm.ProfileText, vm.HasPlayer));
+        Assert.Equal("https://festivalscoretracker.com", vm.ServiceOrigin);
+        var changes = new List<string?>();
+        vm.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
+        vm.ReduceMotion = true;
+        vm.DisableAnimatedArtwork = true;
+        vm.SaveData = true;
+        Assert.True(vm.ReduceMotion && vm.DisableAnimatedArtwork && vm.SaveData);
+        Assert.True(store.Current.ReduceMotion && store.Current.DisableAnimatedArtwork && store.Current.SaveData);
+        Assert.Contains(nameof(SettingsViewModel.SaveData), changes);
+        vm.DeselectPlayerCommand.Execute(null);
+        Assert.Equal(("No player selected", false), (vm.ProfileText, vm.HasPlayer));
+        session.Catalog = null;
+    }
+}
