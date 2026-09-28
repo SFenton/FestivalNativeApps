@@ -77,7 +77,7 @@ struct SuggestionsFilterSheet: View {
                                     Text(type.label)
                                     Text(type.filterDescription)
                                         .font(.caption)
-                                        .foregroundStyle(BrandTokens.textSecondary)
+                                        .foregroundStyle(FestivalText.primary)
                                 }
                             }
                             .accessibilityIdentifier("fst.suggestions.filter.type.\(type.rawValue)")

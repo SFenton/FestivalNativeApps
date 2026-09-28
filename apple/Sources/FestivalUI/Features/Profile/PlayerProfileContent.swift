@@ -441,7 +441,7 @@ struct PlayerProfileContent: View {
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right")
                     .font(.footnote)
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.deemphasized)
                     .accessibilityHidden(true)
             }
             .frame(minHeight: 44)
@@ -556,7 +556,7 @@ private struct InstrumentGlobalRankView: View {
             HStack(spacing: 8) {
                 Text("Global rank unavailable: \(message)")
                     .font(.caption)
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
                 Button("Retry") { retryRevision += 1 }
                     .font(.caption.weight(.semibold))
             }
@@ -641,7 +641,7 @@ private func statGrid(items: [(label: String, value: String, tint: Color?)]) -> 
                     .minimumScaleFactor(0.7)
                 Text(tile.label)
                     .font(.caption2)
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
                     .textCase(.uppercase)
                     .multilineTextAlignment(.center)
             }

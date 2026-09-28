@@ -165,7 +165,7 @@ struct NotificationRow: View {
                     .lineLimit(1)
                 Text(notification.summary)
                     .font(.subheadline)
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
                     .fixedSize(horizontal: false, vertical: true)
                 if let badge = notification.badge {
                     Text(badge.uppercased())
@@ -186,7 +186,7 @@ struct NotificationRow: View {
             if notification.destination != nil {
                 Image(systemName: "chevron.right")
                     .font(.caption)
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.deemphasized)
                     .accessibilityHidden(true)
             }
         }

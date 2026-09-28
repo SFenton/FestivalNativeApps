@@ -46,7 +46,7 @@ struct SuggestionSongRowView: View {
                 MarqueeText(item.song.title, font: .subheadline.weight(.semibold))
                     .foregroundStyle(BrandTokens.textPrimary)
                 MarqueeText(subtitle, font: .caption)
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
             }
             Spacer(minLength: 8)
             trailing
@@ -74,13 +74,13 @@ struct SuggestionSongRowView: View {
                 if let percent = item.percent {
                     Text(percent.formatted(.number.precision(.fractionLength(0...1))) + "%")
                         .font(.caption2)
-                        .foregroundStyle(BrandTokens.textSecondary)
+                        .foregroundStyle(FestivalText.primary)
                 }
             }
             if let percentileDisplay = item.percentileDisplay {
                 Text(percentileDisplay)
                     .font(.caption2)
-                    .foregroundStyle(BrandTokens.textMuted)
+                    .foregroundStyle(FestivalText.primary)
             }
         }
         .accessibilityHidden(true)

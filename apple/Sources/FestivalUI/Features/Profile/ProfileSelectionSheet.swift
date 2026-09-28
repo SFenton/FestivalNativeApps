@@ -187,11 +187,11 @@ struct ProfileSelectionSheet: View {
     private var searchField: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
-                .foregroundStyle(BrandTokens.textSecondary)
+                .foregroundStyle(FestivalText.deemphasized)
                 .accessibilityHidden(true)
             TextField(
                 "", text: $query,
-                prompt: Text(scope.searchPrompt).foregroundStyle(BrandTokens.textSecondary)
+                prompt: Text(scope.searchPrompt).foregroundStyle(FestivalText.deemphasized)
             )
             .textFieldStyle(.plain)
             .focused($searchFocused)
@@ -205,7 +205,7 @@ struct ProfileSelectionSheet: View {
                     query = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(BrandTokens.textSecondary)
+                        .foregroundStyle(FestivalText.deemphasized)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Clear Search")
@@ -255,7 +255,7 @@ struct ProfileSelectionSheet: View {
                     + "so this app never sends that request.")
                     .accessibilityIdentifier("fst.profile.bands-unavailable")
             }
-            .foregroundStyle(BrandTokens.textSecondary)
+            .foregroundStyle(FestivalText.primary)
             .fixedSize(horizontal: false, vertical: true)
             .padding(16)
         case .players:
@@ -264,7 +264,7 @@ struct ProfileSelectionSheet: View {
                 VStack {
                     Spacer(minLength: 0)
                     Text("Enter at least two characters to search for players.")
-                        .foregroundStyle(BrandTokens.textSecondary)
+                        .foregroundStyle(FestivalText.primary)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity)
                     Spacer(minLength: 0)
@@ -283,7 +283,7 @@ struct ProfileSelectionSheet: View {
                 if results.isEmpty {
                     VStack(spacing: 12) {
                         Text("No player results were returned. Try another search or Retry.")
-                            .foregroundStyle(BrandTokens.textSecondary)
+                            .foregroundStyle(FestivalText.primary)
                             .multilineTextAlignment(.center)
                             .accessibilityIdentifier("fst.profile.search-empty")
                         Button("Retry Player Search") { searchRetry += 1 }

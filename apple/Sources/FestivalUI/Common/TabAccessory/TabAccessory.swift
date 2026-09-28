@@ -121,7 +121,7 @@ struct TabAccessoryBar: View {
                         .lineLimit(1)
                     Spacer(minLength: 0)
                 }
-                .foregroundStyle(BrandTokens.textSecondary)
+                .foregroundStyle(FestivalText.primary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
             }

@@ -102,11 +102,11 @@ struct RivalRowContent<Rival: RivalRowDisplayable>: View {
                     .foregroundStyle(BrandTokens.textPrimary)
                 Text("shared")
                     .font(.caption2)
-                    .foregroundStyle(BrandTokens.textMuted)
+                    .foregroundStyle(FestivalText.primary)
             }
             Image(systemName: "chevron.right")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(BrandTokens.textMuted)
+                .foregroundStyle(FestivalText.deemphasized)
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
@@ -169,17 +169,17 @@ struct RivalSongRowContent: View {
                 if let artist = song.artist {
                     Text(artist)
                         .font(.caption)
-                        .foregroundStyle(BrandTokens.textMuted)
+                        .foregroundStyle(FestivalText.primary)
                         .lineLimit(1)
                 }
                 HStack(spacing: 4) {
                     Text("#\(song.userRank) \(playerName)")
                     Text("vs")
-                        .foregroundStyle(BrandTokens.textMuted)
+                        .foregroundStyle(FestivalText.primary)
                     Text("#\(song.rivalRank) \(rivalName)")
                 }
                 .font(.caption2)
-                .foregroundStyle(BrandTokens.textSecondary)
+                .foregroundStyle(FestivalText.primary)
                 .lineLimit(1)
             }
             Spacer(minLength: 8)
@@ -196,7 +196,7 @@ struct RivalSongRowContent: View {
     @ViewBuilder private var deltaBadge: some View {
         let magnitude = abs(song.rankDelta)
         let color: Color = song.rankDelta == 0
-            ? BrandTokens.textMuted
+            ? FestivalText.primary
             : (song.rankDelta > 0 ? BrandTokens.statusGreen : BrandTokens.statusRed)
         VStack(spacing: 0) {
             Image(systemName: song.rankDelta == 0 ? "equal" : (song.rankDelta > 0 ? "arrow.up" : "arrow.down"))

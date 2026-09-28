@@ -16,7 +16,7 @@ public struct FestivalSectionHeader: View {
     ///
     /// - Parameters:
     ///   - title: Title Case heading text.
-    ///   - subtitle: Optional muted supporting line.
+    ///   - subtitle: Optional supporting line (white: headers can sit over artwork).
     public init(_ title: String, subtitle: String? = nil) {
         self.title = title
         self.subtitle = subtitle
@@ -31,7 +31,7 @@ public struct FestivalSectionHeader: View {
             if let subtitle {
                 Text(subtitle)
                     .font(.subheadline)
-                    .foregroundStyle(BrandTokens.textMuted)
+                    .foregroundStyle(FestivalText.primary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

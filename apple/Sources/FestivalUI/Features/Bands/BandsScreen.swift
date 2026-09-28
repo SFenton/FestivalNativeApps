@@ -38,7 +38,7 @@ struct BandsScreen: View {
                                     .foregroundStyle(BrandTokens.textPrimary)
                                 Spacer()
                                 Image(systemName: "chevron.right")
-                                    .foregroundStyle(BrandTokens.textSecondary)
+                                    .foregroundStyle(FestivalText.deemphasized)
                             }
                         }
                         .accessibilityIdentifier("fst.bands.your-bands")
@@ -55,7 +55,7 @@ struct BandsScreen: View {
                                     .foregroundStyle(BrandTokens.textPrimary)
                                 Spacer()
                                 Image(systemName: "chevron.right")
-                                    .foregroundStyle(BrandTokens.textSecondary)
+                                    .foregroundStyle(FestivalText.deemphasized)
                             }
                         }
                         .accessibilityIdentifier("fst.bands.rankings.\(bandType.rawValue)")

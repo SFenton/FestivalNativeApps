@@ -72,7 +72,7 @@ struct CompeteScreen: View {
                     Spacer()
                     Image(systemName: "chevron.right")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(BrandTokens.textMuted)
+                        .foregroundStyle(FestivalText.deemphasized)
                 }
                 .contentShape(Rectangle())
                 .padding(16)

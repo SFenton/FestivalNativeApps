@@ -124,7 +124,7 @@ struct ServiceStatusView: View {
                         .accessibilityIdentifier("fst.service-status.title")
                     Text(issue.message)
                         .font(.body)
-                        .foregroundStyle(BrandTokens.textSecondary)
+                        .foregroundStyle(FestivalText.primary)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                     if let remaining {
@@ -147,7 +147,7 @@ struct ServiceStatusView: View {
     private var symbol: some View {
         let image = Image(systemName: Self.symbolName(for: issue))
             .font(.largeTitle)
-            .foregroundStyle(issue.retriesAutomatically ? BrandTokens.gold : BrandTokens.textSecondary)
+            .foregroundStyle(issue.retriesAutomatically ? BrandTokens.gold : FestivalText.primary)
             .accessibilityHidden(true)
         if issue.retriesAutomatically && !reduceMotion {
             image.symbolEffect(.pulse, options: .repeating)
@@ -159,7 +159,7 @@ struct ServiceStatusView: View {
     private func countdown(_ seconds: Int) -> some View {
         Text("Trying again in \(Self.clock(seconds))")
             .font(.body.monospacedDigit())
-            .foregroundStyle(BrandTokens.textSecondary)
+            .foregroundStyle(FestivalText.primary)
             .contentTransition(reduceMotion ? .identity : .numericText(countsDown: true))
             .animation(reduceMotion ? nil : .default, value: seconds)
             .accessibilityLabel("Trying again automatically in \(seconds) seconds")
@@ -248,12 +248,12 @@ struct ServiceStatusInline: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(issue.title ?? issue.message)
                     .font(.footnote)
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
                     .fixedSize(horizontal: false, vertical: true)
                 if let remaining {
                     Text("Trying again in \(ServiceStatusView.clock(remaining))")
                         .font(.footnote.monospacedDigit())
-                        .foregroundStyle(BrandTokens.textMuted)
+                        .foregroundStyle(FestivalText.primary)
                         .accessibilityLabel("Trying again automatically in \(remaining) seconds")
                 }
             }

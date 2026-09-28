@@ -87,7 +87,7 @@ struct GlobalSearchResults: View {
                                     .lineLimit(1)
                                 Text(song.artist)
                                     .font(.subheadline)
-                                    .foregroundStyle(BrandTokens.textSecondary)
+                                    .foregroundStyle(FestivalText.primary)
                                     .lineLimit(1)
                             }
                             Spacer(minLength: 0)
@@ -127,7 +127,7 @@ struct GlobalSearchResults: View {
                 } label: {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("No players found.")
-                            .foregroundStyle(BrandTokens.textSecondary)
+                            .foregroundStyle(FestivalText.primary)
                         Text("Retry")
                             .foregroundStyle(BrandTokens.accentBlue)
                     }
@@ -177,7 +177,7 @@ struct GlobalSearchResults: View {
                         + "Rankings, or from a player's Bands.")
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .foregroundStyle(BrandTokens.textSecondary)
+                .foregroundStyle(FestivalText.primary)
                 Button("Band Rankings") {
                     open(.bandRankings(bandType: "Band_Duets"))
                 }
@@ -211,7 +211,7 @@ struct GlobalSearchResults: View {
     private func messageSection(_ text: String) -> some View {
         Section {
             Text(text)
-                .foregroundStyle(BrandTokens.textSecondary)
+                .foregroundStyle(FestivalText.primary)
                 .frame(maxWidth: .infinity)
                 .multilineTextAlignment(.center)
                 .accessibilityIdentifier("fst.global-search.hint")

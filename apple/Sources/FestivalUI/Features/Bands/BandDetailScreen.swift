@@ -139,7 +139,7 @@ struct BandDetailScreen: View {
                     if member.chartedInstruments.isEmpty {
                         Text("No observed instrument")
                             .font(.footnote)
-                            .foregroundStyle(BrandTokens.textSecondary)
+                            .foregroundStyle(FestivalText.primary)
                     } else {
                         HStack(spacing: 6) {
                             ForEach(member.chartedInstruments) { instrument in
@@ -180,7 +180,7 @@ struct BandDetailScreen: View {
     private func summaryRow(_ label: String, _ value: String) -> some View {
         HStack {
             Text(label)
-                .foregroundStyle(BrandTokens.textSecondary)
+                .foregroundStyle(FestivalText.primary)
             Spacer()
             Text(value)
                 .foregroundStyle(BrandTokens.textPrimary)
@@ -219,7 +219,7 @@ struct BandDetailScreen: View {
     private func averageStarsRow(_ average: Double) -> some View {
         if average >= 6 {
             HStack {
-                Text("Average Stars").foregroundStyle(BrandTokens.textSecondary)
+                Text("Average Stars").foregroundStyle(FestivalText.primary)
                 Spacer()
                 StarRating(stars: 6, size: 20)
             }
@@ -232,7 +232,7 @@ struct BandDetailScreen: View {
 
     private func statRow(_ label: String, _ value: String) -> some View {
         HStack {
-            Text(label).foregroundStyle(BrandTokens.textSecondary)
+            Text(label).foregroundStyle(FestivalText.primary)
             Spacer()
             Text(value).foregroundStyle(BrandTokens.textPrimary).monospacedDigit()
         }
@@ -253,13 +253,13 @@ struct BandDetailScreen: View {
                 if history.history.isEmpty {
                     Text("No rank history yet.")
                         .font(.footnote)
-                        .foregroundStyle(BrandTokens.textSecondary)
+                        .foregroundStyle(FestivalText.primary)
                 } else {
                     ForEach(history.history.prefix(14)) { snapshot in
                         HStack {
                             Text(snapshot.snapshotDate)
                                 .font(.footnote)
-                                .foregroundStyle(BrandTokens.textSecondary)
+                                .foregroundStyle(FestivalText.deemphasized)
                             Spacer()
                             Text("#\(snapshot.rank(for: rankBy).formatted())")
                                 .font(.body.weight(.semibold))
@@ -290,7 +290,7 @@ struct BandDetailScreen: View {
                 if extremes.best.isEmpty && extremes.worst.isEmpty {
                     Text("No scored songs yet.")
                         .font(.footnote)
-                        .foregroundStyle(BrandTokens.textSecondary)
+                        .foregroundStyle(FestivalText.primary)
                 } else {
                     songGroup("Best", entries: extremes.best)
                     songGroup("Worst", entries: extremes.worst)
@@ -306,7 +306,7 @@ struct BandDetailScreen: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(BrandTokens.textSecondary)
+                .foregroundStyle(FestivalText.primary)
             ForEach(entries) { entry in
                 songRow(entry)
             }
@@ -339,7 +339,7 @@ struct BandDetailScreen: View {
                         .lineLimit(1)
                     Text(song.artist)
                         .font(.caption2)
-                        .foregroundStyle(BrandTokens.textSecondary)
+                        .foregroundStyle(FestivalText.primary)
                         .lineLimit(1)
                 }
             } else {
@@ -353,7 +353,7 @@ struct BandDetailScreen: View {
             Text(entry.score.formatted())
                 .font(.footnote)
                 .monospacedDigit()
-                .foregroundStyle(BrandTokens.textSecondary)
+                .foregroundStyle(FestivalText.primary)
         }
         .frame(minHeight: 44)
         .accessibilityIdentifier("fst.band.song-row.\(entry.songId)")

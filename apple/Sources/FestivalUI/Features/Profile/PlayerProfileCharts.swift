@@ -165,7 +165,7 @@ struct RankHistoryCharts: View {
                     AxisValueLabel {
                         if let negated = value.as(Int.self) {
                             Text("#\((-negated).formatted())")
-                                .foregroundStyle(BrandTokens.textSecondary)
+                                .foregroundStyle(FestivalText.deemphasized)
                         }
                     }
                 }
@@ -192,7 +192,7 @@ struct RankHistoryCharts: View {
                         AxisValueLabel {
                             if let score = value.as(Int.self) {
                                 Text(RankingFormatting.wholeNumber(Double(score)))
-                                    .foregroundStyle(BrandTokens.textSecondary)
+                                    .foregroundStyle(FestivalText.deemphasized)
                             }
                         }
                     }
@@ -200,7 +200,7 @@ struct RankHistoryCharts: View {
                 .chartXAxis {
                     AxisMarks(values: .automatic(desiredCount: 4)) { _ in
                         AxisValueLabel(format: .dateTime.month(.abbreviated).day(), centered: true)
-                            .foregroundStyle(BrandTokens.textSecondary)
+                            .foregroundStyle(FestivalText.deemphasized)
                     }
                 }
                 .frame(height: 110)
@@ -240,7 +240,7 @@ struct RankHistoryCharts: View {
             if let totalScore = latest.totalScore {
                 Text("Total Score \(RankingFormatting.wholeNumber(Double(totalScore)))")
                     .font(.footnote)
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
             }
         }
         .accessibilityElement(children: .combine)
@@ -313,7 +313,7 @@ struct PercentileBandsChart: View {
         .chartYAxis {
             AxisMarks { _ in
                 AxisValueLabel()
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.deemphasized)
             }
         }
         .frame(height: CGFloat(buckets.count) * 28 + 8)

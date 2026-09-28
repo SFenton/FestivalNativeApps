@@ -89,11 +89,11 @@ struct FindRivalSheet: View {
     private var searchField: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
-                .foregroundStyle(BrandTokens.textSecondary)
+                .foregroundStyle(FestivalText.deemphasized)
                 .accessibilityHidden(true)
             TextField(
                 "", text: $query,
-                prompt: Text("Find Rival").foregroundStyle(BrandTokens.textSecondary)
+                prompt: Text("Find Rival").foregroundStyle(FestivalText.deemphasized)
             )
             .textFieldStyle(.plain)
             .focused($searchFocused)
@@ -106,7 +106,7 @@ struct FindRivalSheet: View {
                     query = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(BrandTokens.textSecondary)
+                        .foregroundStyle(FestivalText.deemphasized)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Clear Search")
@@ -123,7 +123,7 @@ struct FindRivalSheet: View {
             VStack {
                 Spacer(minLength: 0)
                 Text("Enter at least two characters to search for a rival.")
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                 Spacer(minLength: 0)
@@ -140,7 +140,7 @@ struct FindRivalSheet: View {
             if results.isEmpty {
                 VStack(spacing: 12) {
                     Text("No player results were returned. Try another search or Retry.")
-                        .foregroundStyle(BrandTokens.textSecondary)
+                        .foregroundStyle(FestivalText.primary)
                         .multilineTextAlignment(.center)
                     Button("Retry Search") { retry += 1 }
                         .tint(BrandTokens.textPrimary)

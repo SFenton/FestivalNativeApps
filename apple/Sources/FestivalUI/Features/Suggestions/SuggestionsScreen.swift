@@ -200,7 +200,7 @@ struct SuggestionsScreen: View {
             VStack(spacing: 12) {
                 Text("You've seen every current suggestion.")
                     .font(.subheadline)
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
                 Button("Start New Mix") { viewModel.startNewMix() }
                     .buttonStyle(.borderedProminent)
                     .accessibilityIdentifier("fst.suggestions.start-new-mix")

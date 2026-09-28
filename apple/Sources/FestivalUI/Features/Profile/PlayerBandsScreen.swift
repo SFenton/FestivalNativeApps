@@ -171,7 +171,7 @@ struct PlayerBandRow: View {
                 }
                 Text("\(entry.appearanceCount.formatted()) songs together")
                     .font(.caption)
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
             }
             .padding(.vertical, 4)
             .contentShape(Rectangle())

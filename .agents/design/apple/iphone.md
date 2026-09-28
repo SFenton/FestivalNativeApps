@@ -13,7 +13,7 @@
 ## Layout rules learned on iOS 26.5
 
 - **Nothing readable under the floating tab.** Accessibility audits flag rows behind it. Grouped Lists: remove only the unused vertical row insets, keep 16pt horizontal gutters, so final cards clear the tab.
-- Text over artwork sits on opaque Fluent cards; section headers use `textSecondary`, not system gray.
+- Text over artwork sits on opaque Fluent cards; text is white (`FestivalText.primary`), never system gray — see the [text colour rule](../../platforms/apple/architecture.md#text-colour-rule-operator-rule-2026-09-28).
 - Sheets: full-height system sheet, pinned Cancel/Apply footer, Reset inside the scrolling Form, interactive dismissal disabled while a draft is changed.
 - Accessibility text sizes: wrap and stack (full-width title, then art, then content) rather than clip; scroll the nested scroller that owns the content. At AX5, a modal needs an opaque header and a separately clipped Form viewport so text never scrolls behind system glass.
 - Do not use device-name breakpoints; use size classes, safe areas and measured widths.

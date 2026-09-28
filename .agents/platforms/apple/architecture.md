@@ -7,7 +7,7 @@
 | Path | Contents |
 |---|---|
 | `apple/Sources/FestivalCore` | URLSession wire models, publication consistency (pin / 409 retry / 304 ETag), session cache, policies (`SongShopFilter`, `SongPlayerScoreFilter`, `SongInstrumentStatusPolicy`, …). New domains go in `FestivalAPI+<Domain>.swift` |
-| `apple/Sources/FestivalDesign` | Generated `BrandTokens.swift` ([tokens](../../design/fluent.md)), branded controls (difficulty meter) |
+| `apple/Sources/FestivalDesign` | Generated `BrandTokens.swift` ([tokens](../../design/fluent.md)), `FestivalText` (text colour rule), branded controls (difficulty meter) |
 | `apple/Sources/FestivalUI/App` | `AppRoute`, `AppRouteDestination`, `FestivalTabStack` (orchestrator); `FestivalRootView`, `Shell/*`; `FestivalSession` (+ `FestivalSession+<Feature>.swift`) |
 | `apple/Sources/FestivalUI/{Background,Common,Design}` | Animated background host; status views; `festivalGlass`, `FestivalSectionHeader`, `InstrumentIcon`, `StarRating` |
 | `apple/Sources/FestivalUI/Features/<Feature>` | One folder per page family (Songs, SongDetail, Shop, Profile, Leaderboards, SongLeaderboard, Settings, Rivals, …) |
@@ -51,6 +51,12 @@ Never put several default-style `Button`s or `NavigationLink`s in **one** `List`
 | Accessibility IDs from the `product.json` registry | Ad-hoc IDs | `tools/verify_product.py` checks the registry |
 
 Code style: DocC `///` with parameters/returns, `// MARK: -` regions, clarifying comments only.
+
+## Text colour rule (operator rule, 2026-09-28)
+
+**Text is white everywhere.** Use `FestivalText.primary` (`FestivalDesign/FestivalText.swift`) for titles, values, stat-tile captions, row subtitles (artist names, "N songs together"), descriptions, and empty-state or status messages. Only HIG de-emphasis uses `FestivalText.deemphasized` (muted blue-grey, ≥4.5:1 on app and card backgrounds but **fails over bright artwork** ([fluent.md](../../design/fluent.md)), so only inside opaque cards, sheets or lists): timestamps and dates, chart axis labels, text-field placeholders, and decorative glyphs (disclosure chevrons, search magnifier, clear buttons). `FestivalText.disabled` is for inactive controls. Do not use `.secondary`/`.tertiary`/`.gray` or raw `BrandTokens.textSecondary`/`textMuted` for text in feature code. Semantic colours (gold, status green/red, accent blue) are unaffected. `FestivalTextTests` pins white and the de-emphasis contrast.
+
+Status countdowns, `FestivalSectionHeader` subtitles and the tab-accessory Search button stay primary because they can sit over artwork. Status (2026-09-28, Lane AP): applied to Profile, Statistics, Rivals, Compete (foreground only), Suggestions, Bands, Notifications, Search, `Common` and `Design`. Songs, Song Detail, Shop, Leaderboards/Song Leaderboard, Settings, First Run and What's New still use raw `BrandTokens.text*` and need the same sweep by their owning lanes.
 
 ## Loading indicators (operator rule)
 

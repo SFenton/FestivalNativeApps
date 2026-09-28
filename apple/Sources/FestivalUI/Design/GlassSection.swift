@@ -96,7 +96,7 @@ public struct FestivalFootnote: View {
     public var body: some View {
         Text(text)
             .font(.footnote)
-            .foregroundStyle(BrandTokens.textSecondary)
+            .foregroundStyle(FestivalText.primary)
             .fixedSize(horizontal: false, vertical: true)
     }
 }
