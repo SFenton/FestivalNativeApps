@@ -372,3 +372,22 @@ private func repoFixture(_ name: String) throws -> Data {
     #expect(try await get("/api/songs").status == 200)
     #expect(try await get("/art/cover.png").status == 200)
 }
+
+/// Every Rivals wrapper builds its route through the shared helper and turns a
+/// documented "none yet" 404 into an empty result.
+@Test func everyRivalsWrapperNormalizesNotFoundThroughTheSharedHelper() async throws {
+    let base = "/api/player/\(accountA)"
+    let transport = RoutedTransport([
+        "\(base)/rivals/0f": [status(404)],
+        "\(base)/rivals/Solo_Guitar/\(rivalB)": [status(404)],
+        "\(base)/rivals/pro_drums/\(rivalB)": [status(404)],
+        "\(base)/leaderboard-rivals/Solo_Guitar/\(rivalB)": [status(404)],
+    ])
+    let client = try FestivalAPI(transport: transport)
+    #expect(try await client.rivalsComboList(accountId: accountA, token: "0f").isEmpty)
+    #expect(try await client.rivalDetail(accountId: accountA, instrument: .lead, rivalId: rivalB).songs.isEmpty)
+    #expect(try await client.rivalComboDetail(accountId: accountA, token: "pro_drums", rivalId: rivalB).songs.isEmpty)
+    #expect(try await client.leaderboardRivalDetail(accountId: accountA, instrument: .lead, rivalId: rivalB).songs.isEmpty)
+    let queries = await transport.requests.compactMap { $0.url?.query }
+    #expect(queries == ["sort=closest&limit=0&offset=0", "sort=closest&limit=0&offset=0", "rankBy=totalscore&sort=closest"])
+}
