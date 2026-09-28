@@ -229,9 +229,11 @@ def validate_product(manifest: Any, *, root: Path, strict: bool = False) -> list
             errors.append(f"testIds: unknown owner {owner}")
     # Every declared page/control implicitly owns the `fst.<id>.*` family, so lanes
     # can add controls under their own page prefix without editing the registry.
-    implicit = {f"fst.{item['id']}.*": item["id"]
-                for item in [*pages, *controls]
-                if isinstance(item, dict) and isinstance(item.get("id"), str)}
+    implicit: dict[str, str] = {}
+    for item in [*pages, *controls]:
+        if isinstance(item, dict) and isinstance(item.get("id"), str):
+            implicit[f"fst.{item['id']}.*"] = item["id"]
+            implicit[f"fst.{item['id']}"] = item["id"]  # page/control root element
     errors.extend(unregistered_native_ids(root, {**implicit, **ids}))
     return errors
 
