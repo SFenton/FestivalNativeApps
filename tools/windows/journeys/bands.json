@@ -1,0 +1,79 @@
+[
+  {
+    "name": "player-bands-groups-paging-detail",
+    "route": "/bands/player/fixture-player-1",
+    "preset": "medium",
+    "steps": [
+      "waitfor:id=fst.player-bands.title@15",
+      "waitfor:id=fst.player-bands.row.fixture-band-1@10",
+      "waitfor:id=fst.player-bands.page-next@5",
+      "invoke:id=fst.player-bands.page-next",
+      "waitfor:id=fst.player-bands.row.fixture-pband-quad-1@10",
+      "shot:{shots}\\player-bands-page2.png",
+      "click:name=Trios",
+      "waitfor:id=fst.player-bands.row.fixture-pband-trio-1@10",
+      "click:name=Duos",
+      "waitfor:id=fst.player-bands.row.fixture-band-1@10",
+      "invoke:id=fst.player-bands.row.fixture-band-1",
+      "waitfor:id=fst.band.title@10",
+      "waitfor:id=fst.band.member.fixture-band-1-a@10",
+      "waitfor:id=fst.band.stat.rank@10",
+      "invoke:id=fst.band.quick-link.songs",
+      "waitfor:id=fst.band.song-row.fixture-pulse@15",
+      "shot:{shots}\\band-detail-songs.png",
+      "invoke:id=fst.band.song-row.fixture-pulse",
+      "waitfor:id=fst.song-detail.title@10",
+      "key:alt+left",
+      "waitfor:id=fst.band.title@10",
+      "invoke:id=fst.band.member.fixture-band-1-a",
+      "wait:2",
+      "key:alt+left",
+      "waitfor:id=fst.band.title@10",
+      "key:alt+left",
+      "waitfor:id=fst.player-bands.title@10"
+    ]
+  },
+  {
+    "name": "song-band-leaderboard-switch-and-detail",
+    "route": "/songs/fixture-pulse/bands/Band_Duets",
+    "preset": "wide",
+    "steps": [
+      "waitfor:id=fst.song-band-leaderboard.title@15",
+      "waitfor:id=fst.song-band-leaderboard.row.fixture-band-1:1@10",
+      "click:name=Trios",
+      "waitfor:name=No band scores found@10",
+      "click:name=Duos",
+      "waitfor:id=fst.song-band-leaderboard.row.fixture-band-2:2@10",
+      "click:id=fst.song-band-leaderboard.row.fixture-band-2:2",
+      "waitfor:id=fst.band.title@10",
+      "waitfor:id=fst.band.member.fixture-band-2-b@10",
+      "shot:{shots}\\band-detail-from-song.png",
+      "key:alt+left",
+      "waitfor:id=fst.song-band-leaderboard.song@10",
+      "invoke:id=fst.song-band-leaderboard.song",
+      "waitfor:id=fst.song-detail.title@10"
+    ]
+  },
+  {
+    "name": "band-detail-unresolved",
+    "route": "/bands/some-band-id",
+    "preset": "compact",
+    "steps": [
+      "waitfor:name=Band Not Available@15",
+      "shot:{shots}\\band-detail-unresolved.png"
+    ]
+  },
+  {
+    "name": "bands-landing",
+    "route": "/bands",
+    "preset": "medium",
+    "steps": [
+      "waitfor:id=fst.bands.title@15",
+      "waitfor:id=fst.bands.rankings.Band_Trios@10",
+      "invoke:id=fst.bands.rankings.Band_Trios",
+      "wait:2",
+      "key:alt+left",
+      "waitfor:id=fst.bands.footnote@10"
+    ]
+  }
+]
