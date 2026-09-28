@@ -128,8 +128,8 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 
 ### Wave 2 — remaining pages
 
-**Lane T — Simulator driver tooling** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/tooling`
-- ⬜ `ios_sim.py drive`: scripted tap/swipe/type/scroll/screenshot/accessibility-tree via an XCUITest driver, under the simulator lock
+**Lane T — Simulator driver tooling** (Sonnet) — ✅ landed `8d8a6ac`
+- ✅ `ios_sim.py drive`: scripted tap/swipe/type/scroll/screenshot/accessibility-tree via an XCUITest driver, under the simulator lock
 
 **Lane R — Rivals & Compete** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/rivals`
 - ⬜ Compete hub · ⬜ Rivals hub · ⬜ All rivals · ⬜ Rival detail · ⬜ Rivalry
@@ -143,10 +143,12 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 **Lane M — Settings completion, Manual, Licenses** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/settings`
 - ⬜ Every web Settings section · ⬜ Licenses · ⬜ Manual (text; screenshots deferred)
 
+**Lane X — Player history, first-run carousels, notifications** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/extras`
+- ⬜ Player history · ⬜ First-run carousels (+ replay API) · ⬜ Notifications sheet + bell
+
 Not yet assigned:
 - ⬜ Statistics = selected player's profile page (assigned to Lane P)
-- ⬜ Player history
-- ⬜ First-run carousels · ⬜ Notifications
+- (none — Wave 2 fully assigned)
 
 ### Wave 3 — quality gates (iPhone)
 - ⬜ UX tests per completed feature (XCUITest + hosted snapshots, ≥90% UX coverage)
@@ -186,3 +188,5 @@ Not yet assigned:
 | 2026-09-27 | Lane L | Leaderboards overview, full/band rankings, native song leaderboard with rows → player |
 | 2026-09-27 | Lane B | Shared synced background, song-art zoom transitions, ~4.4% CPU animating / 0% held |
 | 2026-09-27 | Orchestrator | Launched Lanes N (Bands), M (Settings/Manual/Licenses); Remote Control enabled for this session |
+| 2026-09-27 | Lane T | `ios_sim.py drive` — scripted tap/swipe/type/tree/screenshot via XCUITest driver (~11–24 s/run); build lock |
+| 2026-09-27 | Orchestrator | Launched Lane X (history, first-run, notifications) |
