@@ -1,0 +1,13 @@
+{
+  "avd": "FST_Phone",
+  "api": "37",
+  "release": "17",
+  "model": "sdk_gphone16k_x86_64",
+  "wm_size": "Physical size: 1080x2424",
+  "wm_density": "Physical density: 420",
+  "rotation": "0",
+  "device_state": "mCommittedState=Optional[DeviceState{identifier=0, name='DEFAULT', app_accessible=true, cancel_when_requester_not_on_top=false}]",
+  "display_features": "",
+  "hinges": [],
+  "captured": "2026-09-28T14:49:41"
+}

@@ -1,0 +1,13 @@
+{
+  "avd": "FST_Resizable",
+  "api": "37",
+  "release": "17",
+  "model": "sdk_gphone16k_x86_64",
+  "wm_size": "Physical size: 1080x2400\nOverride size: 1920x1080",
+  "wm_density": "Physical density: 420\nOverride density: 160",
+  "rotation": "0",
+  "device_state": "mCommittedState=Optional[DeviceState{identifier=2, name='OPENED', app_accessible=true, cancel_when_requester_not_on_top=false}]",
+  "display_features": "fold-[1104,0,1104,1848]",
+  "hinges": [],
+  "captured": "2026-09-28T14:33:54"
+}

@@ -12,10 +12,11 @@
 - Sheets: `ModalBottomSheet` on the card color with Title Case headers (Sort Songs, Instrument, Find Player).
 - In-app accessibility overrides follow the OS by default and can only make the app more accessible.
 
-| Form factor | Decisions so far |
+| Form factor | Verified on the FST AVDs (`tools/android/search_journey.py`, screenshots `android/reports/screenshots/search-*.png`, `shell-*.png`) |
 |---|---|
-| Phone | Bottom bar; Songs list only, Detail pushed |
-| Passport fold | Folded = phone; open inner (≥ 600 dp) = rail. TODO(orchestrator): verify with `device.py features` |
-| Book fold | Unfolded ≥ 840 dp = rail + Songs list-detail; folded = phone |
-| Tablet | Rail (portrait) / permanent drawer (≥ 1200 dp) + list-detail |
-| Tri-fold | Natural landscape orientation and **no** half-open tabletop posture ([guide](https://developer.android.com/develop/adaptive-apps/guides/foldables/trifolds-and-landscape-foldables)); FST_TriFold reports FLAT folds only, so list-detail uses width rules |
+| Phone | Short bar; Songs list only, Detail pushed; search = full-screen view from the top-bar icon |
+| Passport fold | Folded (cover) = phone. Unfolded (≈ 840 dp) = rail + Songs list-detail at the hinge; the list pane is < 400 dp so search is the icon, and its docked panel stays left of the fold |
+| Book fold | Folded = phone. Unfolded / book posture = rail + list-detail at the hinge, docked search left of the fold. **Tabletop** (half-open, rotated) = docked panel capped above the fold (verified); bottom bar per policy (hidden by the IME in the capture). Search text/scope/results survive every posture change (docked ↔ full screen) |
+| Tablet | Landscape = permanent drawer + list-detail, persistent search pill (or icon on a narrow pane); portrait = rail, docked search re-anchored on rotation |
+| Tri-fold | Folded (360 dp) = phone; partial (720 dp) = rail + docked search; unfolded (1080 dp) = rail + list-detail. FLAT folds only (no tabletop) |
+| Resizable | Presets phone → tablet → desktop switch bar → rail → permanent drawer live with search open |

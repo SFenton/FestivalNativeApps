@@ -1,0 +1,15 @@
+{
+  "avd": "FST_Book_Fold",
+  "api": "37",
+  "release": "17",
+  "model": "sdk_gphone16k_x86_64",
+  "wm_size": "Physical size: 2076x2152",
+  "wm_density": "Physical density: 390",
+  "rotation": "0",
+  "device_state": "mCommittedState=Optional[DeviceState{identifier=2, name='OPENED', app_accessible=true, cancel_when_requester_not_on_top=false}]",
+  "display_features": "fold-[1038,0,1038,2152]",
+  "hinges": [
+    "hinge-angle0 = 180"
+  ],
+  "captured": "2026-09-28T13:34:46"
+}
