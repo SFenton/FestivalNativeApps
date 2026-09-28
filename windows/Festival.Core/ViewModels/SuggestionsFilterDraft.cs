@@ -1,0 +1,169 @@
+using System.Collections.ObjectModel;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+
+namespace Festival.Core.ViewModels;
+
+#region Toggle row
+/// <summary>One switch in the Suggestions filter flyout; writes through to the owning draft.</summary>
+public sealed partial class SuggestionFilterToggle : ObservableObject
+{
+    private readonly Action<bool> write;
+    private bool syncing;
+
+    /// <summary>Creates a switch.</summary>
+    /// <param name="label">Title Case label.</param>
+    /// <param name="description">Secondary line (types only).</param>
+    /// <param name="iconFile">Instrument icon file (instruments only).</param>
+    /// <param name="automationId">Automation ID.</param>
+    /// <param name="value">Initial value.</param>
+    /// <param name="write">Applies a user change to the draft.</param>
+    internal SuggestionFilterToggle(string label, string description, string iconFile, string automationId, bool value, Action<bool> write)
+    {
+        Label = label;
+        Description = description;
+        IconFile = iconFile;
+        AutomationId = automationId;
+        this.write = write;
+        isOn = value;
+    }
+
+    /// <summary>Label.</summary>
+    public string Label { get; }
+
+    /// <summary>Secondary text.</summary>
+    public string Description { get; }
+
+    /// <summary>Icon file, or empty.</summary>
+    public string IconFile { get; }
+
+    /// <summary>Whether an icon is shown.</summary>
+    public bool HasIcon => IconFile.Length > 0;
+
+    /// <summary>Automation ID.</summary>
+    public string AutomationId { get; }
+
+    /// <summary>Switch value.</summary>
+    [ObservableProperty]
+    private bool isOn;
+
+    /// <summary>Updates the value from the draft without writing back.</summary>
+    /// <param name="value">Value.</param>
+    internal void Sync(bool value)
+    {
+        syncing = true;
+        IsOn = value;
+        syncing = false;
+    }
+
+    partial void OnIsOnChanged(bool value)
+    {
+        if (!syncing) write(value);
+    }
+}
+#endregion
+
+#region Filter draft
+/// <summary>
+/// Staged Suggestions filter (web <c>SuggestionsFilterModal</c>): Instruments, General types, per-instrument types
+/// with an instrument picker, Reset, Cancel and Apply. Nothing changes until Apply.
+/// </summary>
+public sealed partial class SuggestionsFilterDraft : ObservableObject
+{
+    private readonly SuggestionsViewModel owner;
+    private IReadOnlyList<Instrument> instruments = [];
+
+    /// <summary>Creates the draft.</summary>
+    /// <param name="owner">Page model that applies it.</param>
+    internal SuggestionsFilterDraft(SuggestionsViewModel owner)
+    {
+        this.owner = owner;
+        draft = owner.Filter;
+    }
+
+    /// <summary>Staged value.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanApply))]
+    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
+    private SuggestionFilterSettings draft;
+
+    /// <summary>Index of the instrument whose per-type switches are shown.</summary>
+    [ObservableProperty]
+    private int selectedInstrumentIndex;
+
+    /// <summary>Instrument visibility switches (Settings-visible charts).</summary>
+    public ObservableCollection<SuggestionFilterToggle> InstrumentToggles { get; } = [];
+
+    /// <summary>General per-type switches.</summary>
+    public ObservableCollection<SuggestionFilterToggle> TypeToggles { get; } = [];
+
+    /// <summary>Per-type switches for <see cref="SelectedInstrument"/>.</summary>
+    public ObservableCollection<SuggestionFilterToggle> InstrumentTypeToggles { get; } = [];
+
+    /// <summary>Labels for the instrument picker.</summary>
+    public IReadOnlyList<string> InstrumentChoices => instruments.Select(i => i.Label()).ToList();
+
+    /// <summary>Instrument for the per-type section, if any is visible.</summary>
+    public Instrument? SelectedInstrument =>
+        SelectedInstrumentIndex >= 0 && SelectedInstrumentIndex < instruments.Count ? instruments[SelectedInstrumentIndex] : null;
+
+    /// <summary>Whether any instrument is visible in Settings.</summary>
+    public bool HasInstruments => instruments.Count > 0;
+
+    /// <summary>Whether Apply would change anything.</summary>
+    public bool CanApply => !Draft.Equals(owner.Filter);
+
+    /// <summary>Starts editing from the applied filter (flyout opening).</summary>
+    public void Begin()
+    {
+        instruments = owner.VisibleInstruments;
+        OnPropertyChanged(nameof(InstrumentChoices));
+        OnPropertyChanged(nameof(HasInstruments));
+        Draft = owner.Filter;
+        InstrumentToggles.Clear();
+        foreach (var instrument in instruments)
+            InstrumentToggles.Add(new SuggestionFilterToggle(instrument.Label(), "", instrument.IconFile(),
+                $"fst.suggestions.filter.instrument.{instrument.ServiceId()}", Draft.IsInstrumentEnabled(instrument),
+                on => Draft = Draft.WithInstrument(instrument, on)));
+        TypeToggles.Clear();
+        foreach (var type in SuggestionCategoryTypeInfo.All)
+            TypeToggles.Add(new SuggestionFilterToggle(type.Label(), type.FilterDescription(), "",
+                $"fst.suggestions.filter.type.{type.Key()}", Draft.IsGlobalEnabled(type),
+                on => Draft = Draft.WithGlobalType(type, on, instruments)));
+        SelectedInstrumentIndex = instruments.Count > 0 ? Math.Clamp(SelectedInstrumentIndex, 0, instruments.Count - 1) : -1;
+        RebuildInstrumentTypes();
+    }
+
+    /// <summary>Applies the draft to the page.</summary>
+    [RelayCommand]
+    private void Apply() => owner.ApplyFilter(Draft);
+
+    /// <summary>Restores every switch to its default (still staged).</summary>
+    [RelayCommand(CanExecute = nameof(CanReset))]
+    private void Reset() => Draft = SuggestionFilterSettings.Default;
+
+    private bool CanReset() => Draft.IsActive;
+
+    partial void OnDraftChanged(SuggestionFilterSettings value)
+    {
+        for (var i = 0; i < InstrumentToggles.Count && i < instruments.Count; i++) InstrumentToggles[i].Sync(value.IsInstrumentEnabled(instruments[i]));
+        for (var i = 0; i < TypeToggles.Count; i++) TypeToggles[i].Sync(value.IsGlobalEnabled(SuggestionCategoryTypeInfo.All[i]));
+        if (SelectedInstrument is { } instrument)
+            for (var i = 0; i < InstrumentTypeToggles.Count; i++)
+                InstrumentTypeToggles[i].Sync(value.IsTypeEnabled(SuggestionCategoryTypeInfo.All[i], instrument));
+    }
+
+    partial void OnSelectedInstrumentIndexChanged(int value) => RebuildInstrumentTypes();
+
+    private void RebuildInstrumentTypes()
+    {
+        InstrumentTypeToggles.Clear();
+        OnPropertyChanged(nameof(SelectedInstrument));
+        if (SelectedInstrument is not { } instrument) return;
+        foreach (var type in SuggestionCategoryTypeInfo.All)
+            InstrumentTypeToggles.Add(new SuggestionFilterToggle(type.Label(), type.FilterDescription(), "",
+                $"fst.suggestions.filter.type.{instrument.ServiceId()}.{type.Key()}", Draft.IsTypeEnabled(type, instrument),
+                on => Draft = Draft.WithInstrumentType(type, instrument, on, instruments)));
+    }
+}
+#endregion
