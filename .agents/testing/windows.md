@@ -41,13 +41,37 @@ SSH runs in session 0 (no desktop). `_common.ps1` runs GUI work through a one-sh
 - At compact widths (<641 epx) the pane is LeftMinimal: open it with `invoke:id=PART_PaneToggleButton` before `invoke:id=fst.nav.*`.
 ## Accessibility
 
+Per-page results (page × check × status) and open gaps: [windows-accessibility.md](windows-accessibility.md).
+
 | Tool | Use |
 |---|---|
-| Axe.Windows CLI 2.4.2 | Automated rule scan of a running app: `AxeWindowsCLI.exe --processid <pid> --outputdirectory <dir>`. It must run in the console session: `pwsh tools/windows/axe_scan.ps1 -ProcessId <pid> -OutputDirectory <dir>` hops through the desktop lock |
-| `Axe.Windows` NuGet 2.4.2 | The same rules inside UI tests |
-| Accessibility Insights for Windows 1.1.2924.01 | Interactive inspection and tab-stop/contrast checks by an operator |
-| `uiwin.py tree` | Name/AutomationId/pattern/focusability audit and reading order (control-view order) |
-| Narrator | No scripted driver; screen-reader flows need an interactive operator pass (TODO(orchestrator)) |
+| `python tools/windows/a11y_matrix.py --out DIR --scan --tabs 30 [--sizes …] [--only …]` | Every page in `tools/windows/journeys/a11y.json` (fixture service, isolated settings/app data, `--first-run=off`) at each size: screenshot, in-process Axe.Windows scan, Tab walk; `summary.md` + `results.json`. Exit 1 on any Axe error or load failure |
+| `… --mode hc-aquatic\|hc-desert\|hc-dusk\|hc-night-sky\|text-150\|text-225\|no-animations\|no-transparency\|app-reduced\|app-contrast` | Applies a system contrast theme / text size / Animation effects / transparency setting (or the in-app Reduce Motion + Disable Animated Artwork + Save Data, or More Contrast + Less Transparency) for each launch and restores the previous value before releasing the desktop lock |
+| `… --pages tools/windows/journeys/a11y-keyboard.json` | Keyboard journeys: `assertfocus:` order (Songs toolbar → rows), Esc returns focus to the Sort/Filter/Profile buttons, Ctrl+1…7 / Ctrl+comma sections, Ctrl+E, Alt+Left from a text field |
+| `uiwin.py scan` / `focus-order` / `tree` | One-off scan, Tab walk or tree (tree lines show heading/landmark/live/accelerator/access-key annotations) |
+| Axe.Windows CLI 2.4.2 | `pwsh tools/windows/axe_scan.ps1 -ProcessId <pid> -OutputDirectory <dir>` (older path; the matrix uses the NuGet in `FstUia`) |
+| Accessibility Insights for Windows 1.1.2924.01 | Interactive inspection and contrast checks by an operator |
+
+- Axe scans every top-level window of the process (`_N_of_M.a11ytest` per window); `.a11ytest` files are zips whose `el.snapshot` holds per-element `ScanResults` (Status 3 = fail), readable in Accessibility Insights.
+- "Focusable sibling elements must not have the same Name" fires wherever cards repeat rows (the same player atop several charts): wrap each card in `Controls/AccessibleGroup` (a named UIA `Group`), which also makes Narrator announce the card on entry.
+- Buttons whose content is a panel (icon + `TextBlock`) get no UIA name: set `AutomationProperties.Name` (Axe "Name must not be null").
+- Text size is read by apps at launch; `text-*` modes set it before launching, so the running operator desktop only changes for new windows.
+
+### Narrator manual script (operator)
+
+Start Narrator (Ctrl+Win+Enter), launch a fixture build (`python tools/windows/a11y_matrix.py` launch flags, or `uiwin.py launch … --arg=--base-url --arg=http://127.0.0.1:<port>/`), then:
+
+1. **Shell**: Tab from the page into the title bar. Expect "Search songs and players, edit" (search landmark), "Notifications, button", "Select a player profile, button". Caps+F7 → Landmarks lists "Page content" (main) and "Search". Ctrl+1…7 / Ctrl+comma switch sections; pane items read "Songs, Ctrl+1".
+2. **Songs**: Ctrl+F → "Search songs, edit". Type "fix": after a pause Narrator says "2 songs". Tab → "Sort Songs, button, collapsed"; Enter opens the flyout, Esc closes it and focus returns to Sort. Down into rows: each row reads title, artist · year, shop state, chart statuses.
+3. **Slow load**: with a throttled or stopped fixture, open Leaderboards → "Loading …" after ~1 s, then "<Title>, page 1 of N" on completion; stop the fixture and Retry → the service-status heading and message are announced once.
+4. **Leaderboards / Rivals / Rival Detail**: Narrator enters each card as "<Lead>, group"; H / Shift+H move between Level 1/2 headings.
+5. **Song Detail**: Paths opens a dialog; Esc closes it and focus returns to Paths. Alt+Left goes back (also from inside a text field).
+6. **Profile flyout**: Enter on the profile button → focus in "Find Player"; results list reads each player; Esc returns to the button.
+7. **Settings**: every toggle reads its label and state; "Reset" confirmation dialog traps focus until closed.
+8. **First run** (`--first-run=force`): the dialog reads its page title; Esc closes it.
+
+Record anything Narrator skips or misreads in [windows-accessibility.md](windows-accessibility.md) under Open issues.
+
 ## Performance
 
 - `uiwin.py perf-sample --pid <app> --seconds N --presentmon` measures CPU (% of all logical CPUs), private working set, GPU engine utilization and dedicated GPU memory (mean/max/p95), plus PresentMon 2.6 frame timing. Sample the app and the game separately with the same window, workload and duration.

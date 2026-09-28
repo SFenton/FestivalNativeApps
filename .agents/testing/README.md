@@ -10,3 +10,4 @@
 | [apple/](apple/README.md) | SwiftPM, hosted snapshots, XCUITest, coverage, accessibility, VoiceOver |
 | [android.md](android.md) | Android coverage and emulator rules |
 | [windows.md](windows.md) | Windows coverage and UI-automation rules |
+| [windows-accessibility.md](windows-accessibility.md) | Windows per-page accessibility results and open gaps |
