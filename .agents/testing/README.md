@@ -7,6 +7,7 @@
 | [strategy.md](strategy.md) | Which tests at which phase; what certification requires |
 | [fixtures.md](fixtures.md) | Mock service ports, scenarios and fixture data (all platforms) |
 | [web-reference.md](web-reference.md) | Capturing the real PWA for visual comparison |
+| [pwa-reference/](pwa-reference/README.md) | How the installed PWA really looks and moves per platform; native gap tables |
 | [apple/](apple/README.md) | SwiftPM, hosted snapshots, XCUITest, coverage, accessibility, VoiceOver |
 | [android.md](android.md) | Android coverage and emulator rules |
 | [windows.md](windows.md) | Windows coverage and UI-automation rules |

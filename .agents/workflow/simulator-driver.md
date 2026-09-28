@@ -8,6 +8,9 @@
 
 ## Command
 
+To drive the installed **web** app (Safari, Add to Home Screen, SpringBoard, standalone PWA) instead of ours, use `python3 tools/pwa_ios.py` (same locks and build; see [pwa-reference/apple.md](../testing/pwa-reference/apple.md#tooling)).
+
+
 ```
 python3 tools/ios_sim.py drive [--device iphone|ipad|duo|<UDID>] \
     [--tab <FST_DEBUG_TAB>] [--route <FST_DEBUG_ROUTE>] [--env KEY=VALUE ...] \

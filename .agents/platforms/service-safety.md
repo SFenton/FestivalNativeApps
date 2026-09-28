@@ -49,6 +49,7 @@ Clients must treat a freeze as transient, honour `Retry-After` with capped backo
 ## Live probes
 
 - `bash tools/apple_live_service_smoke.sh --read-public-live` — opt-in, three public GETs (publication, Songs, ten Lead rows) through the real Swift client; prints aggregate counts and provenance only. Never run in automated fixture/coverage suites.
+- Driving the **production PWA** (`tools/pwa_ios.py`, [pwa-reference](../testing/pwa-reference/apple.md)) is browse-only: never select a profile, never type into global/profile search (the web queries band search on every keystroke, `FortniteFestivalWeb/src/hooks/data/useUnifiedSearch.ts:120-175`), never open a player page (it GETs `/api/player/{id}/stats`, `FortniteFestivalWeb/src/pages/player/PlayerPage.tsx:132-138`) or a band page. 2026-09-28: an off-screen XCUITest tap opened one public player page once (stats + sync-status GETs, no track POST, no selected-profile headers); the driver now refuses off-screen taps.
 - Record live observations with a date; counts and pinning state change. Automated UI tests use [fixtures](../testing/fixtures.md), not production.
 
 ## Wire scale notes

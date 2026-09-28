@@ -8,3 +8,4 @@
 - Add a case per new page/control state; filter with `--grep '<test name>'`.
 - Captures are structural references, **not** pixel parity; they stay in private evidence (never commit third-party art). A browser viewport is not Duo hardware, and the "tablet" project is still a WebKit phone descriptor at tablet width.
 - Web first-run carousels (e.g. Filter Songs) may overlay pages; dismiss them before comparing unobstructed content.
+- For the installed PWA on real simulators (standalone chrome, transitions, sheets, first launch) see [pwa-reference/](pwa-reference/README.md) and `tools/pwa_ios.py`.
