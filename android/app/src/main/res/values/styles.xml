@@ -1,7 +1,8 @@
 <resources>
     <style name="Theme.Festival" parent="android:style/Theme.Material.NoActionBar">
-        <item name="android:statusBarColor">#111318</item>
-        <item name="android:navigationBarColor">#111318</item>
+        <item name="android:windowBackground">@color/festival_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>
