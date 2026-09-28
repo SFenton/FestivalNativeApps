@@ -22,8 +22,8 @@ Status of record: [contracts/parity-backlog.json](../../contracts/parity-backlog
 | suggestions | `/suggestions` | selection | absent | [spec (stub)](suggestions/spec.md) | — |
 | shop | `/shop` | none | partial | [spec](shop/spec.md) | [ios](shop/ios.md) · [ipados](shop/ipados.md) |
 | manual | `/manual` | feature | absent | [spec (stub)](manual/spec.md) | — |
-| leaderboards | `/leaderboards` | none | placeholder | [spec (stub)](leaderboards/spec.md) | — |
-| full-rankings | `/leaderboards/all` | none | absent | [spec (stub)](full-rankings/spec.md) | — |
+| leaderboards | `/leaderboards` | none | placeholder | [spec (stub)](leaderboards/spec.md) | [ios](leaderboards/ios.md) |
+| full-rankings | `/leaderboards/all` | none | absent | [spec (stub)](full-rankings/spec.md) | [ios](full-rankings/ios.md) |
 | band-rankings | `/leaderboards/bands/:bandType` | none | absent | [spec (stub)](band-rankings/spec.md) | — |
 | player-bands | `/bands/player/:accountId` | none | absent | [spec (stub)](player-bands/spec.md) | — |
 | bands | `/bands` | none | absent | [spec (stub)](bands/spec.md) | — |
