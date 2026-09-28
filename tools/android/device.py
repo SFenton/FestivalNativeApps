@@ -1447,7 +1447,10 @@ def cmd_test(args: argparse.Namespace) -> int:
     """Run connected instrumentation tests on one AVD within the lock hold."""
     project = Path(args.project).resolve()
     with _lock(args, f"test {args.filter or 'all'} {args.avd}") as lock:
-        _booted(args, lock)
+        device = _booted(args, lock)
+        if args.posture:
+            # Fold/tri-fold posture or resizable preset for posture-dependent layouts.
+            apply_pose(device, args.avd, args.posture)
         cmd = find_gradle(project) + gradle_test_args(args.filter, args.task)
         env = dict(os.environ, ANDROID_SERIAL=FST_SERIAL)
         print("+", " ".join(cmd), file=sys.stderr)
@@ -1619,6 +1622,7 @@ def build_parser() -> argparse.ArgumentParser:
                       help="pkg.Class, pkg.Class#method or package:pkg (default: all)")
     test.add_argument("--project", default=str(REPO_ROOT / "android"))
     test.add_argument("--task", default=":app:connectedDebugAndroidTest")
+    test.add_argument("--posture", help="apply a posture (or resizable preset) before the tests run")
     test.set_defaults(func=cmd_test)
     return parser
 

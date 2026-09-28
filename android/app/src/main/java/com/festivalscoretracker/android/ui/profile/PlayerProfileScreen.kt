@@ -302,7 +302,7 @@ private fun BandsLink(state: PlayerProfileUiState, onClick: () -> Unit) {
 
 @Composable
 private fun Header(state: PlayerProfileUiState, onSelect: () -> Unit, onDeselect: () -> Unit) {
-    GlassCard(Modifier.fillMaxWidth()) {
+    GlassCard(Modifier.fillMaxWidth().testTag("fst.player.header")) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(

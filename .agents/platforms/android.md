@@ -64,7 +64,7 @@ No official tri-fold profile ships with emulator 37.1 or cmdline-tools 23.0. `FS
 | `shot <out.png>… [--no-launch] [launch options]` | Launch, then screenshot the physical display backing logical display 0, plus a `.json` sidecar |
 | `drive --steps "…" [--steps-file] [--launch]` | UIAutomator/`adb input` steps (below) |
 | `features [postures…]` | FoldingFeatures seen by WindowManager, per posture |
-| `test [pkg.Class[#m]\|package:pkg] [--task]` | Connected tests on one AVD with `ANDROID_SERIAL` pinned, killed at the hold limit |
+| `test [pkg.Class[#m]\|package:pkg] [--task] [--posture]` | Connected tests on one AVD with `ANDROID_SERIAL` pinned (posture applied first), killed at the hold limit |
 
 Common options: `--avd` (default `FST_Phone`), `--hold` (≤300 s), `--wait-timeout`, `--window` (only works in an interactive session), `--allow-foreign`, `--animations`. Exit codes: 3 for device/usage errors, 124 for lock timeouts.
 

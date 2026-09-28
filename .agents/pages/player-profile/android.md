@@ -29,18 +29,50 @@ None of these navigate. Selecting adds the profile tabs in place; deselecting on
 
 ## Layout
 
-- `LazyVerticalGrid(GridCells.Adaptive(340.dp))`: header, Overview and the Bands link span the full line; one glass card per Settings-visible instrument, so phones and folded covers get one column and unfolded book folds (~770 dp beside the rail) or tablets two or more. A flat (non-separating) fold may cross a card; no separating-hinge padding yet.
+- `ProfileGrid` (`ui/profile/ProfileGrid.kt`): a `LazyVerticalStaggeredGrid` whose columns come from `ProfileColumns` (`core/profile/ProfileLayout.kt`, reusing the Rivals lane's `HingeColumns`): one column per 340 dp (max 3), or one column per panel with the gaps on every separating vertical hinge (book fold half-open; a partly folded tri-fold). When split at a fold, the full-width rows (header, Overview, Top Songs heading, Bands) become single-lane so nothing straddles the hinge; flat folds (unfolded book, FST_TriFold) are not separating and use width rules.
+- Rows (`ProfileSections.rows`, web `PlayerContent.tsx` order): header, Overview, one card per Settings-visible chart, "Top Songs Per Instrument", one top-songs card per chart, Bands link.
 - Instrument card: stat tiles (`FlowRow`), Global Rank, Rank History (Canvas rank line over Total Score bars, #1 on top), Percentiles (horizontal bars, top 5% gold). Rank and history reads start in the card's `LaunchedEffect`, so unrealized cards read nothing; unplayed charts show a footnote and read nothing.
-- Charts draw precomputed geometry (`core/profile/PlayerCharts.kt`) with no per-frame work; each chart is one accessibility element carrying the trend summary, and tiles merge into one "Label: value" node.
+- Charts draw `ChartGeometry` output (`core/profile/PlayerCharts.kt`: bar widths/rects, point and label positions) with no logic in the draw lambdas and no per-frame work; each chart is one accessibility element carrying the trend summary.
+
+## Quick Links
+
+Web `PlayerContent` quick links: `global` "Global Statistics" (jumps to Overview), `instrument:<wire>` (instrument label, instrument icon), `top-songs` "Top Songs", `bands` "Bands" (the web shows Bands only with player-stats data; here it jumps to the Bands link). Shared controller ([quick-links/android.md](../../controls/quick-links/android.md)) over the staggered grid: top-bar action (sheet < 600 dp, menu otherwise); persistent 240 dp pane when the page is ≥ 960 dp **and** no separating hinge exists (with a hinge the two content panels are more useful than a navigation panel).
+
+## Top songs
+
+`PlayerTopSongs.build` (web `buildTopSongsItems`): scores with `rank > 0 && te > 0`, stable-sorted by `rank / te`; top five, and when more than five are ranked the last five reversed ("Bottom Five Songs", which may overlap the top list, as on the web). Titles/art from the in-process catalogue (`FestivalApi.catalog`); a missing song shows the first eight ID characters. Pill: `ScoreFormatting.percentileBucket` ("Top 5%", gold ≤ 5%). No ranked score: "No scores yet" empty state. Rows open Song Detail.
+
+## Tap-to-filter tiles
+
+Tiles carry `PlayerTileAction` (web `StatBox.onClick`); `PlayerProfileViewModel.run` implements `withProfileSwitch`: on a viewed page it selects the player first (Switch asks "Switch to {name}?" with the web's message), then:
+
+| Tile | Action (web source) |
+|---|---|
+| Overview Songs Played / Full Combos | Reset Songs filters, Title ascending, Has Scores / Has FCs on every visible chart (`songsPlayedUpdater`, `fullCombosUpdater`) |
+| Chart Songs Played / Full Combos (FCs > 0) | That chart only, its checks and difficulty cleared, then Has Scores / Has FCs; other charts' checks, Shop filter and sort kept (`cleanFilters` + `instSongsPlayedUpdater`/`instFCsUpdater`; the web's score sort has no Android mode) |
+| Best Rank (overview and chart) | Song Detail (`navigateToSongDetail`) |
+| Global Rank (Total Score) | Full Rankings, Total Score (`navigateToLeaderboard`; no page jump yet) |
+| Gold/5 Stars, Avg Accuracy, Percentile | Flat: star, percentile and CHOpt-threshold Songs filters/sorts are not ported (Songs lane) |
+
+Presets are written through the Songs lane's stores (`data/profile/ProfileSongsPresets.kt`: `SongsPreferences.setFilters` + `SettingsRepository.setSongSort`), then the shell switches to the Songs tab (a tab-root route now selects the tab instead of pushing a copy). While selection is paused (unverified/changed publication) Songs tiles are flat; song/rankings tiles still navigate without selecting. The web also clears the Songs search text; Android's search text lives in the Songs view model and is kept.
+
+## Experimental metrics (decision)
+
+Not shown. The web adds Adjusted/Weighted/FC Rate/Max Score rank tiles only when the user turns on Settings → Experimental Ranks (`InstrumentStatsSection.tsx`, `DEFAULT_METRICS` + `EXPERIMENTAL_METRICS`; default off). Android's Settings sanitizes that toggle off ("Not available on Android yet"), so the page shows the default Total Score rank only. When Settings enables it, add the four tiles from the same pure-read rankings row (`adjustedSkillRank`, `weightedRank`, `fcRateRank`, `maxScorePercentRank`) gated on `AppSettings.experimentalRanks`.
 
 ## IDs
 
-`fst.player`, `fst.player.{loading,syncing,no-profile,retry,available,name,subtitle,select,deselect,identity-notice,action-error,overview,bands-link}`, `fst.player.switch-confirm[.ok|.cancel]`, `fst.player.deselect-confirm[.ok|.cancel]`, `fst.player.instrument.<wire>`, `fst.player.instrument-empty.<wire>`, `fst.player.global-rank.<wire>.{loading,unranked,available,error}`, `fst.player.rank-history.<wire>`, `fst.player.percentiles.<wire>`.
+`fst.player`, `fst.player.{loading,syncing,no-profile,retry,available,header,name,subtitle,select,deselect,identity-notice,action-error,overview,bands-link,top-songs}`, `fst.player.switch-confirm[.ok|.cancel]`, `fst.player.deselect-confirm[.ok|.cancel]`, `fst.player.action-switch-confirm[.ok|.cancel]`, `fst.player.instrument.<wire>`, `fst.player.instrument-empty.<wire>`, `fst.player.global-rank.<wire>.{loading,unranked,available,error}`, `fst.player.rank-history.<wire>`, `fst.player.percentiles.<wire>`, `fst.player.tile.<overview|wire|rank.wire>.<label-slug>`, `fst.player.top-songs.<wire>`, `fst.player.top-songs-empty.<wire>`, `fst.player.{top,bottom}-song.<wire>.<songId>`.
 
 ## Tests
 
-`core/profile/PlayerProfileCoreTest`, `data/profile/FestivalApiProfileTest`, `presentation/profile/{SelectedProfileStoreTest,ProfileViewModelsTest}`, Robolectric `ui/profile/ProfileUiTest` (search → view → select → Statistics → deselect, switch confirmation, cold-start persistence, history) and `ProfileExpandedUiTest` (1280 dp).
+- JVM: `core/profile/{PlayerProfileCoreTest,ProfileParityCoreTest}` (top songs, presets, fold columns, sections, chart geometry), `data/profile/{FestivalApiProfileTest,ProfileSongsPresetsTest}`, `presentation/profile/{SelectedProfileStoreTest,ProfileViewModelsTest,ProfileActionsTest}`.
+- Robolectric: `ui/profile/ProfileUiTest` (search → view → select → Statistics → deselect, switch, cold start, history), `ProfileParityUiTest` (Quick Links sheet, top songs, tile → Songs filter, confirmed switch before a tile, paused selection, Global Rank → Full Rankings), `ProfileChartsDrawTest` (`@GraphicsMode(NATIVE)`, draws the window so the Canvas code runs), `ProfileParityExpandedUiTest` (pane at 1280 dp).
+- Device: `androidTest/.../profile/ProfileDeviceJourneyTest` (select/deselect and switch stay on the page, tile → Songs filter, top song → Song Detail, history sort; asserts no card crosses a separating hinge). Run `python tools/android/device.py test com.festivalscoretracker.android.profile.ProfileDeviceJourneyTest --avd FST_Phone` and `--avd FST_Book_Fold --posture half`. `androidTest` shares the JVM tests' synthetic `testing/` fixtures.
 
 ## Gaps
 
-Same simplifications as Windows and iPhone: no Quick Links, no experimental rank metrics, no top-songs section, no tap-to-filter tiles, no chart scrubbing. Robolectric does not run Canvas draw code; check charts with device screenshots.
+- Star, percentile and CHOpt-threshold tiles stay flat until Songs has those filters/sorts; Global Rank opens rankings page 1 (Full Rankings has no page argument); Song Detail opens without the web's `?instrument=` focus (Songs lane route).
+- No family (pad/pro strings/pro drums) Global Statistics cards or embedded player bands: both need player-stats (blocked, [service-safety](../../platforms/service-safety.md)).
+- No chart scrubbing; stats ignore the invalid-score leeway filter (as before).
+- Web behaviour was taken from source: the production web player page itself calls player-stats and sync-status, so it is not captured from the installed PWA.

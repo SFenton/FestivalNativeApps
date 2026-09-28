@@ -23,7 +23,8 @@ if (pane) QuickLinksPane(quickLinks)   // beside the list, when QuickLinks.usesP
 ```
 
 - `QuickLinkSection(id, title, icon token | instrument, depth, spokenTitle)`; reuse the web IDs.
-- Tracking: `QuickLinkTracker` (pure; Apple/Windows port) fed from `snapshotFlow { listState.layoutInfo }`. Items above the first visible one count as "far above"; items below are unknown. `activeId` only changes when the active section changes, so scrolling does not recompose the page.
+- Grid pages: `rememberQuickLinks(gridState: LazyStaggeredGridState, …)` drives a masonry grid the same way (item tops from `layoutInfo`, several items may share a row); the player page uses it.
+- Tracking: `QuickLinkTracker` (pure; Apple/Windows port) fed from `snapshotFlow` of the lazy layout info. Items above the first visible one count as "far above"; items below are unknown. `activeId` only changes when the active section changes, so scrolling does not recompose the page.
 - Jump: target active immediately, `animateScrollToItem` (instant under reduce motion), then `settle` (ownership; near-end targets stay active while visible).
 - Programmatic jumps do not reach the top bar's nested-scroll state, so pass `FestivalScreen(scrolled = listState.canScrollBackward)` or content shows through the transparent bar.
 - TalkBack: entry label includes the current section; items expose `selected` + "Current section" state; the pane has a pane title. Test IDs `fst.quick-links.open`, `.sheet`, `.menu`, `.pane`, `.list`, `.item.<id>`.
@@ -33,8 +34,9 @@ if (pane) QuickLinksPane(quickLinks)   // beside the list, when QuickLinks.usesP
 | Page | Status |
 |---|---|
 | Settings | Done: `app-settings`, `diagnostics` (debug), `item-shop`, `show-instruments`, `show-metadata`, `accessibility` (native), `version`, `service-info`, `first-run`, `licenses`, `reset` (no `refresh-profile-name`/`export` rows) |
-| Songs, Song Detail, Player/Statistics, Band, Compete, Rivals, Rivalry, Rival Detail, Leaderboards | Owning lanes: follow the spec IDs/labels with the API above. Songs keeps its section index for Title/Artist/Year and uses Quick Links for other sorts (as iPhone) |
+| Player / Statistics | Done: `global` "Global Statistics", `instrument:<wire>` per visible chart, `top-songs`, `bands` (staggered grid; with a separating hinge the grid splits at the fold and Quick Links stay in the top bar instead of taking a panel) |
+| Songs, Song Detail, Band, Compete, Rivals, Rivalry, Rival Detail, Leaderboards | Owning lanes: follow the spec IDs/labels with the API above. Songs keeps its section index for Title/Artist/Year and uses Quick Links for other sorts (as iPhone) |
 
 ## Open
 
-- Pages built on non-lazy `Column`s need a lazy list (or an adapter that reports item offsets) to use the tracker.
+- Pages built on non-lazy `Column`s need a lazy list or grid (or another `QuickLinkScroller` that reports item offsets) to use the tracker.

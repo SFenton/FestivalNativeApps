@@ -35,7 +35,7 @@
 |---|---|---|
 | JVM unit (core/data/presentation) | `android/app/src/test/.../{core,data,presentation}` | JVM (`testDebugUnitTest`) |
 | Whole-shell Compose UI | `android/app/src/test/.../ui/ShellUiTest.kt` | Robolectric (SDK 34, `robolectric.properties`), phone `w411dp-h891dp` and expanded `w1280dp-h800dp` qualifiers |
-| Instrumented | `android/app/src/androidTest` (empty) | `device.py test` on one FST AVD |
+| Instrumented | `android/app/src/androidTest` (Compose journeys on the real shell; shares `src/test/.../testing/` fixtures via the `androidTest` source set) | `device.py test <class> --avd <AVD> [--posture half]` on one FST AVD |
 
 - Fixtures are synthetic (`testing/Fixtures.kt`: made-up titles, 32-hex fake account IDs); `FakeTransport` routes by path and records requests so tests assert that no forbidden header or non-GET was sent. Never copy production payloads ([service safety](../platforms/service-safety.md)).
 - `AppContainer(transport =, settingsStore =)` injects the fake transport and an in-memory `DataStore` so the full `FestivalApp` runs offline.
