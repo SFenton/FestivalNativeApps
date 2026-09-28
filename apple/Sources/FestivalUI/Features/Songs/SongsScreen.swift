@@ -933,6 +933,12 @@ struct SongsScreen: View {
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
+        // `.combine` drops the invisible, `opacity(0)` `NavigationLink`'s own Button
+        // trait (SwiftUI excludes fully transparent children from the merge), so the
+        // row silently read as plain static text to VoiceOver and to `XCUIApplication
+        // .buttons[...]` queries. Restore it explicitly rather than relying on the
+        // link's own traits surviving the combine.
+        .accessibilityAddTraits(.isButton)
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
         .listRowInsets(songRowInsets)

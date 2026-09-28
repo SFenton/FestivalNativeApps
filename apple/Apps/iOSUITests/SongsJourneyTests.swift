@@ -21,7 +21,7 @@ final class SongsJourneyTests: XCTestCase {
         let row = app.buttons["fst.songs.row.fixture-pulse"]
         XCTAssertTrue(row.waitForExistence(timeout: 15))
         SongsUITestSupport.viewFixturePlayer("fixture-player-2", query: "Fixture Player", in: app)
-        app.buttons["fst.profile.select"].tap()
+        SongsUITestSupport.selectViewedPlayer(in: app)
         XCTAssertTrue(SongsUITestSupport.chipEntries(for: "fixture-pulse", in: app).contains("Drums, scored"))
         let normalHeight = row.frame.height
         SongsUITestSupport.record(app, name: "songs-default-chips-normal-type")
@@ -126,9 +126,7 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 15))
         SongsUITestSupport.showSelectedScoreMetadata(in: app)
         SongsUITestSupport.viewFixturePlayer("fixture-player-1", query: "Fixture Player", in: app)
-        let select = app.buttons["fst.profile.select"]
-        XCTAssertTrue(select.waitForExistence(timeout: 10))
-        select.tap()
+        SongsUITestSupport.selectViewedPlayer(in: app)
         XCTAssertTrue(row.waitForExistence(timeout: 10))
 
         SongsUITestSupport.rootControl("Settings", app: app).tap()
@@ -199,7 +197,7 @@ final class SongsJourneyTests: XCTestCase {
         app.launch()
         let restored = app.buttons["fst.songs.row.fixture-pulse"]
         XCTAssertTrue(restored.waitForExistence(timeout: 15))
-        XCTAssertTrue(app.buttons["fst.profile.open"].label.contains("Fixture Player 1"))
+        XCTAssertTrue(app.buttons["fst.shell.profile"].label.contains("Fixture Player 1"))
         let restoredScore = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "label CONTAINS %@", "Score 99,900"),
             object: restored
@@ -235,8 +233,7 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: 15))
         SongsUITestSupport.showSelectedScoreMetadata(in: app)
         SongsUITestSupport.viewFixturePlayer("fixture-edge", query: "Fixture Edge", in: app)
-        XCTAssertTrue(app.buttons["fst.profile.select"].waitForExistence(timeout: 10))
-        app.buttons["fst.profile.select"].tap()
+        SongsUITestSupport.selectViewedPlayer(in: app)
         let score = SongsUITestSupport.metadataElement("score", songId: "fixture-marathon", in: app)
         let accuracy = SongsUITestSupport.metadataElement("accuracy", songId: "fixture-marathon", in: app)
         let difficulty = SongsUITestSupport.metadataElement("difficulty", songId: "fixture-marathon", in: app)
@@ -359,7 +356,7 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertTrue(pulse.waitForExistence(timeout: 15))
         SongsUITestSupport.showSelectedScoreMetadata(in: app)
         SongsUITestSupport.viewFixturePlayer("fixture-player-2", query: "Fixture Player", in: app)
-        app.buttons["fst.profile.select"].tap()
+        SongsUITestSupport.selectViewedPlayer(in: app)
         let sort = app.buttons["fst.songs.sort"]
         XCTAssertEqual(sort.value as? String, "Item Shop, ascending")
         let leaving = app.descendants(matching: .any)
@@ -404,7 +401,7 @@ final class SongsJourneyTests: XCTestCase {
         let filter = app.buttons["fst.songs.filter"]
         XCTAssertFalse(filter.exists)
         SongsUITestSupport.viewFixturePlayer("fixture-player-2", query: "Fixture Player", in: app)
-        app.buttons["fst.profile.select"].tap()
+        SongsUITestSupport.selectViewedPlayer(in: app)
         XCTAssertTrue(filter.waitForExistence(timeout: 10))
         filter.tap()
         let scoreSections = app.buttons["fst.songs.filter.score-sections"]
@@ -482,7 +479,7 @@ final class SongsJourneyTests: XCTestCase {
         let orbit = app.buttons["fst.songs.row.fixture-orbit"]
         XCTAssertTrue(pulse.waitForExistence(timeout: 15) && orbit.exists)
         SongsUITestSupport.viewFixturePlayer("fixture-player-2", query: "Fixture Player", in: app)
-        app.buttons["fst.profile.select"].tap()
+        SongsUITestSupport.selectViewedPlayer(in: app)
         let filter = SongsUITestSupport.openFilterSheet(in: app)
         let scoreSections = app.buttons["fst.songs.filter.score-sections"]
         XCTAssertTrue(scoreSections.waitForExistence(timeout: 10))
@@ -534,7 +531,7 @@ final class SongsJourneyTests: XCTestCase {
         let orbit = app.buttons["fst.songs.row.fixture-orbit"]
         XCTAssertTrue(pulse.waitForExistence(timeout: 15) && orbit.exists)
         SongsUITestSupport.viewFixturePlayer("fixture-player-2", query: "Fixture Player", in: app)
-        app.buttons["fst.profile.select"].tap()
+        SongsUITestSupport.selectViewedPlayer(in: app)
         let filter = app.buttons["fst.songs.filter"]
         XCTAssertTrue(filter.waitForExistence(timeout: 10))
         filter.tap()
@@ -608,7 +605,7 @@ final class SongsJourneyTests: XCTestCase {
         )
         XCTAssertTrue(pulse.exists && orbit.exists)
         SongsUITestSupport.viewFixturePlayer("fixture-player-1", query: "Fixture Player", in: app)
-        app.buttons["fst.profile.select"].tap()
+        SongsUITestSupport.selectViewedPlayer(in: app)
         let activeShop = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "value == %@", "In Shop"),
             object: filter
@@ -643,7 +640,7 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertFalse(filter.exists, "Source mobile Filter requires an available player")
 
         SongsUITestSupport.viewFixturePlayer("fixture-player-1", query: "Fixture Player", in: app)
-        app.buttons["fst.profile.select"].tap()
+        SongsUITestSupport.selectViewedPlayer(in: app)
         XCTAssertTrue(filter.waitForExistence(timeout: 10))
         SongsUITestSupport.openSongsFilter(in: app)
         let inShop = app.switches["fst.songs.filter.in-shop"]
@@ -720,7 +717,7 @@ final class SongsJourneyTests: XCTestCase {
         SongsUITestSupport.setSwitch(hidden, to: "0")
         SongsUITestSupport.rootControl("Songs", app: app).tap()
         SongsUITestSupport.viewFixturePlayer("fixture-player-1", query: "Fixture Player", in: app)
-        app.buttons["fst.profile.select"].tap()
+        SongsUITestSupport.selectViewedPlayer(in: app)
         let filter = app.buttons["fst.songs.filter"]
         XCTAssertTrue(filter.waitForExistence(timeout: 10))
         SongsUITestSupport.openSongsFilter(in: app)
@@ -837,7 +834,7 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertTrue((filter.value as? String)?.contains("paused") == true)
         XCTAssertTrue(pulse.waitForExistence(timeout: 10))
         SongsUITestSupport.viewFixturePlayer("fixture-player-2", query: "Fixture Player", in: app)
-        app.buttons["fst.profile.select"].tap()
+        SongsUITestSupport.selectViewedPlayer(in: app)
         let reselected = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "value == %@", "In Shop, Leaving Tomorrow"),
             object: filter
@@ -884,7 +881,7 @@ final class SongsJourneyTests: XCTestCase {
         SongsUITestSupport.setSwitch(hidden, to: "0")
         SongsUITestSupport.rootControl("Songs", app: app).tap()
         SongsUITestSupport.viewFixturePlayer("fixture-player-1", query: "Fixture Player", in: app)
-        app.buttons["fst.profile.select"].tap()
+        SongsUITestSupport.selectViewedPlayer(in: app)
         SongsUITestSupport.openSongsFilter(in: app)
         let inShop = app.switches["fst.songs.filter.in-shop"]
         let apply = app.buttons["fst.songs.filter.apply"]
@@ -1557,7 +1554,7 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertTrue(orbit.waitForExistence(timeout: 15))
         XCTAssertTrue(pulse.exists)
         SongsUITestSupport.viewFixturePlayer("fixture-player-2", query: "Fixture Player", in: app)
-        app.buttons["fst.profile.select"].tap()
+        SongsUITestSupport.selectViewedPlayer(in: app)
         SongsUITestSupport.openSongsFilter(in: app)
         let inShop = app.switches["fst.songs.filter.in-shop"]
         let ready = XCTNSPredicateExpectation(
@@ -1717,6 +1714,61 @@ final class SongsJourneyTests: XCTestCase {
         SongsUITestSupport.setSwitch(highlights, to: originalHighlights)
         SongsUITestSupport.reveal(hidden, in: app, scrollingUp: true)
         SongsUITestSupport.setSwitch(hidden, to: originallyHidden)
+    }
+
+    /// The Item Shop sort's Quick Links menu must jump to a real Shop bucket.
+    ///
+    /// Title/Artist/Year hide Quick Links in favor of the section-index scrubber
+    /// (`songs-section-index/ios.md`), so this exercises the one sort mode where the
+    /// Songs Quick Links menu is actually visible with the shared two-song fixture:
+    /// `fixture-pulse` (New) and `fixture-orbit` (Leaving Tomorrow) give two distinct,
+    /// non-empty Shop buckets.
+    ///
+    /// - Throws: A hidden menu, a missing bucket item or a jump that doesn't scroll.
+    @MainActor
+    func testSongsItemShopSortQuickLinksJump() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = SongsUITestSupport.fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchArguments += [
+            "-fst.settings.hideShop", "NO",
+            "-fst.songs.sortMode", "shop",
+            "-fst.songs.sortAscending", "YES",
+        ]
+        app.launch()
+        let pulse = app.buttons["fst.songs.row.fixture-pulse"]
+        let orbit = app.buttons["fst.songs.row.fixture-orbit"]
+        XCTAssertTrue(pulse.waitForExistence(timeout: 15))
+        XCTAssertTrue(orbit.exists)
+
+        let quickLinks = app.buttons["fst.quick-links.open"]
+        XCTAssertTrue(
+            quickLinks.waitForExistence(timeout: 10),
+            "Item Shop sort must show Quick Links once two Shop buckets exist"
+        )
+        SongsUITestSupport.record(app, name: "songs-shop-quick-links-closed")
+        quickLinks.tap()
+
+        let leaving = app.buttons["fst.quick-links.item.shop:leaving-tomorrow"]
+        let inShop = app.buttons["fst.quick-links.item.shop:in-shop"]
+        XCTAssertTrue(leaving.waitForExistence(timeout: 10))
+        XCTAssertTrue(inShop.exists)
+        SongsUITestSupport.record(app, name: "songs-shop-quick-links-open")
+        leaving.tap()
+
+        XCTAssertTrue(orbit.waitForExistence(timeout: 10))
+        XCTAssertTrue(orbit.isHittable, "Jumping to Leaving Tomorrow must scroll it into view")
+        let activeValue = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value CONTAINS[c] %@", "Leaving"),
+            object: quickLinks
+        )
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [activeValue], timeout: 10), .completed,
+            "Quick Links did not report the jumped-to section as active: "
+                + "\(quickLinks.value as? String ?? "<missing>")"
+        )
+        SongsUITestSupport.record(app, name: "songs-shop-quick-links-jumped")
     }
 
 }

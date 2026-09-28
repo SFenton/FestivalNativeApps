@@ -69,6 +69,13 @@ enum SongsUITestSupport {
 
     /// Reach one synthetic player from a fresh profile sheet without selecting it.
     ///
+    /// Search results now push the real `AppRoute.player` destination inside the
+    /// sheet's own `NavigationStack` (`ProfileSelectionSheet.swift`'s documented
+    /// "push inside the sheet's own stack, not dismiss-then-push" choice) instead of
+    /// showing an inline preview with its own `fst.profile.*` identifiers, so this
+    /// waits for `fst.player.available`/`fst.player.name` on that pushed page. Pair
+    /// with ``selectViewedPlayer(in:)`` to select and return to the presenting tab.
+    ///
     /// - Parameters:
     ///   - accountId: Fixture search result key.
     ///   - query: Source-like player name or state to type.
@@ -77,7 +84,7 @@ enum SongsUITestSupport {
     static func viewFixturePlayer(
         _ accountId: String, query: String, in app: XCUIApplication
     ) {
-        let action = app.buttons["fst.profile.open"]
+        let action = app.buttons["fst.shell.profile"]
         XCTAssertTrue(action.waitForExistence(timeout: 10))
         action.tap()
         let search = app.textFields["fst.profile.search"]
@@ -92,12 +99,33 @@ enum SongsUITestSupport {
         }
         XCTAssertTrue(result.isHittable, "Player result stayed outside the visible sheet")
         result.tap()
-        let viewed = app.staticTexts["fst.profile.viewed"]
+        let viewed = app.staticTexts["fst.player.name"]
         XCTAssertTrue(
             viewed.waitForExistence(timeout: 10),
-            "Viewed player never replaced search results: "
+            "Pushed player page never replaced search results: "
                 + "\(app.staticTexts.allElementsBoundByIndex.prefix(14).map(\.label))"
         )
+    }
+
+    /// Select (or switch to) the player page ``viewFixturePlayer(_:query:in:)`` just
+    /// pushed, then close the sheet to return to the presenting tab, matching
+    /// `ProfileSelectionSheet.swift`'s documented flow: "the pushed screen already
+    /// offers Select/Switch/Deselect, closing the sheet from there returns straight
+    /// to the tab it was opened from".
+    ///
+    /// - Parameter app: Foreground fixture app on the pushed Player Profile page.
+    @MainActor
+    static func selectViewedPlayer(in app: XCUIApplication) {
+        let select = app.buttons["fst.player.select"]
+        XCTAssertTrue(select.waitForExistence(timeout: 10))
+        select.tap()
+        let switchConfirm = app.buttons["Switch Profile"]
+        if switchConfirm.waitForExistence(timeout: 2) {
+            switchConfirm.tap()
+        }
+        let close = app.buttons["fst.profile.close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 10))
+        close.tap()
     }
 
     /// Remove only the app's selected identity through its own confirmation action.
@@ -106,7 +134,7 @@ enum SongsUITestSupport {
     /// - Throws: Missing accessible confirmation or stale selection.
     @MainActor
     static func deselectFixturePlayer(in app: XCUIApplication) throws {
-        app.buttons["fst.profile.open"].tap()
+        app.buttons["fst.shell.profile"].tap()
         let deselect = app.buttons["fst.profile.deselect"]
         XCTAssertTrue(deselect.waitForExistence(timeout: 10))
         deselect.tap()
@@ -117,22 +145,23 @@ enum SongsUITestSupport {
         confirmed.tap()
     }
 
-    /// Open Shop from the native Songs overflow while keeping three phone tabs.
+    /// Open Shop from the leading hamburger drawer.
     ///
-    /// - Parameter app: Fixture app on the root Songs destination.
+    /// The standalone Songs toolbar Shop button (`fst.songs.shop`) was removed when
+    /// Item Shop moved into the shared drawer (`.agents/pages/shop/ios.md`: "Entry:
+    /// the leading drawer"); this opens `fst.shell.drawer.open` and taps the drawer's
+    /// `fst.shell.drawer.shop` row instead.
+    ///
+    /// - Parameter app: Fixture app on any root destination with the shared drawer.
     @MainActor
     static func openItemShop(in app: XCUIApplication) {
-        let shop = app.buttons["fst.songs.shop"]
-        if !shop.isHittable {
-            let more = app.buttons.matching(
-                NSPredicate(format: "label CONTAINS[c] %@", "more")
-            ).firstMatch
-            XCTAssertTrue(more.waitForExistence(timeout: 10))
-            more.tap()
-        }
+        let drawerOpen = app.buttons["fst.shell.drawer.open"]
+        XCTAssertTrue(drawerOpen.waitForExistence(timeout: 10))
+        drawerOpen.tap()
+        let shop = app.buttons["fst.shell.drawer.shop"]
         XCTAssertTrue(
             shop.waitForExistence(timeout: 10),
-            "Shop action missing; toolbar controls: "
+            "Shop drawer row missing; visible buttons: "
                 + "\(app.buttons.allElementsBoundByIndex.prefix(16).map(\.label))"
         )
         shop.tap()
