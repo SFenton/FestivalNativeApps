@@ -194,7 +194,7 @@ struct BandDetailScreen: View {
                 "Full Combos",
                 "\(detail.fullComboCount.formatted()) / \(detail.totalChartedSongs.formatted())"
             )
-            statRow("Average Accuracy", RankingFormatting.percentage(detail.avgAccuracy / 100))
+            statRow("Average Accuracy", "\(ScoreFormatting.accuracy(detail.avgAccuracy))%")
             statRow("Average Stars", detail.avgStars.formatted(.number.precision(.fractionLength(1))))
             statRow("Best Rank", "#\(detail.bestRank.formatted())")
             statRow("Average Rank", "#\(detail.avgRank.formatted(.number.precision(.fractionLength(1))))")
