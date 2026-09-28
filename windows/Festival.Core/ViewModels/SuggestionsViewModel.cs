@@ -35,9 +35,10 @@ public sealed record SuggestionRowItem(SuggestionRowPresentation Presentation, A
 
 /// <summary>One category card.</summary>
 /// <param name="Category">Generated (and filtered) category.</param>
-/// <param name="Rows">Rows.</param>
+/// <param name="Rows">Rows (a concrete <see cref="List{T}"/>: it is bound to <c>ItemsSource</c>, and NativeAOT's CsWinRT only
+/// generates the vtables for statically visible concrete collection types; <c>IReadOnlyList</c> threw E_INVALIDARG).</param>
 /// <param name="AutomationId">Stable automation ID (<c>fst.suggestions.category.&lt;key&gt;</c>).</param>
-public sealed record SuggestionCardItem(SuggestionCategory Category, IReadOnlyList<SuggestionRowItem> Rows, string AutomationId)
+public sealed record SuggestionCardItem(SuggestionCategory Category, List<SuggestionRowItem> Rows, string AutomationId)
 {
     /// <summary>Card title.</summary>
     public string Title => Category.Title;
