@@ -61,6 +61,9 @@ import com.festivalscoretracker.android.presentation.profile.PlayerHistoryViewMo
 import com.festivalscoretracker.android.presentation.profile.ScoreHistoryRow
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
+import com.festivalscoretracker.android.ui.common.fadeInStagger
+import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.StarRating
@@ -92,6 +95,8 @@ fun PlayerHistoryScreen(viewModel: PlayerHistoryViewModel) {
             }
         },
     ) { padding ->
+        // Rows fade in (staggered) on the frame after the history loads (web FadeIn).
+        val revealed = rememberRevealed(state.phase == HistoryPhase.Loaded)
         when (val phase = state.phase) {
             HistoryPhase.Loading -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             is HistoryPhase.Failed -> ServiceStatusView(phase.issue, "History unavailable", phase.countdown, viewModel::retry, contentPadding = padding)
@@ -112,7 +117,7 @@ fun PlayerHistoryScreen(viewModel: PlayerHistoryViewModel) {
                     modifier = Modifier.fillMaxSize().wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = MAX_LIST_WIDTH).testTag("fst.history.rows"),
                 ) {
                     item(key = "subtitle") {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.testTag("fst.history.subtitle")) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.festivalFadeIn(revealed).testTag("fst.history.subtitle")) {
                             InstrumentIcon(viewModel.instrument, keyboard = state.keyboard, size = 28.dp, decorative = true)
                             Text(
                                 listOfNotNull(state.songTitle, viewModel.instrument.label).joinToString(" · "),
@@ -124,7 +129,7 @@ fun PlayerHistoryScreen(viewModel: PlayerHistoryViewModel) {
                     }
                     state.chart?.let { chart ->
                         item(key = "chart") {
-                            GlassCard(Modifier.fillMaxWidth()) {
+                            GlassCard(Modifier.fillMaxWidth().festivalFadeIn(revealed, fadeInStagger(1))) {
                                 Column(Modifier.padding(16.dp)) {
                                     Text("Score Over Time", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = Modifier.semantics { heading() })
                                     ScoreHistoryChart(chart, Modifier.padding(top = 12.dp))
@@ -132,7 +137,9 @@ fun PlayerHistoryScreen(viewModel: PlayerHistoryViewModel) {
                             }
                         }
                     }
-                    itemsIndexed(state.rows, key = { index, row -> "${row.entry.dateKey}:$index" }) { _, row -> HistoryRow(row) }
+                    itemsIndexed(state.rows, key = { index, row -> "${row.entry.dateKey}:$index" }) { index, row ->
+                        Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index + 2))) { HistoryRow(row) }
+                    }
                 }
             }
         }

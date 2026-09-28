@@ -80,7 +80,9 @@ import com.festivalscoretracker.android.presentation.profile.ProfilePhase
 import com.festivalscoretracker.android.presentation.profile.RankHistoryLoad
 import com.festivalscoretracker.android.presentation.profile.RankLoad
 import com.festivalscoretracker.android.ui.common.FestivalScreen
+import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
@@ -166,6 +168,8 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
 @Composable
 fun PlayerProfileContent(viewModel: PlayerProfileViewModel, padding: PaddingValues, gridState: LazyStaggeredGridState, rows: List<ProfileRow>) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    // Rows fade in (staggered) on the frame after the profile finishes loading.
+    val revealed = rememberRevealed(state.phase == ProfilePhase.Loaded)
     when (val phase = state.phase) {
         ProfilePhase.NoAccount -> Message(
             "No Profile Selected",
@@ -184,12 +188,19 @@ fun PlayerProfileContent(viewModel: PlayerProfileViewModel, padding: PaddingValu
             onRetry = viewModel::retry,
         )
         is ProfilePhase.Failed -> ServiceStatusView(phase.issue, "Profile unavailable", phase.countdown, viewModel::retry, contentPadding = padding)
-        ProfilePhase.Loaded -> LoadedProfile(viewModel, state, padding, gridState, rows)
+        ProfilePhase.Loaded -> LoadedProfile(viewModel, state, padding, gridState, rows, revealed)
     }
 }
 
 @Composable
-private fun LoadedProfile(viewModel: PlayerProfileViewModel, state: PlayerProfileUiState, padding: PaddingValues, gridState: LazyStaggeredGridState, rows: List<ProfileRow>) {
+private fun LoadedProfile(
+    viewModel: PlayerProfileViewModel,
+    state: PlayerProfileUiState,
+    padding: PaddingValues,
+    gridState: LazyStaggeredGridState,
+    rows: List<ProfileRow>,
+    revealed: Boolean,
+) {
     val shell = LocalShellActions.current
     val ranks by viewModel.ranks.collectAsStateWithLifecycle()
     val histories by viewModel.rankHistories.collectAsStateWithLifecycle()
@@ -213,10 +224,10 @@ private fun LoadedProfile(viewModel: PlayerProfileViewModel, state: PlayerProfil
         contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding() + 24.dp),
         modifier = Modifier.padding(start = padding.calculateStartPadding(direction) + 16.dp, end = padding.calculateEndPadding(direction) + 16.dp),
     ) { split ->
-        rows.forEach { row ->
+        rows.forEachIndexed { index, row ->
             val span = if (row.fullWidth && !split) StaggeredGridItemSpan.FullLine else StaggeredGridItemSpan.SingleLane
             item(key = row.key, span = span) {
-                Box(Modifier.festivalFadeIn(isLoaded = true)) {
+                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
                 when (row) {
                     ProfileRow.Header -> Header(state, onSelect = {
                         if (state.identity == PlayerIdentityAction.Switch) confirm = PlayerIdentityAction.Switch else viewModel.select()
@@ -383,10 +394,11 @@ private fun InstrumentCard(
                 TileFlow(section.stats, instrument.wireId, state, onAction)
                 SubHeader("Global Rank")
                 GlobalRank(instrument, rank, state, onAction, onRetryRank)
+                val chartRevealed = rememberRevealed(history is RankHistoryLoad.Loaded)
                 when (history) {
                     is RankHistoryLoad.Loaded -> history.chart?.let { chart ->
                         SubHeader("Rank History")
-                        RankHistoryChart(chart, Modifier.festivalFadeIn(isLoaded = true).testTag("fst.player.rank-history.${instrument.wireId}"))
+                        RankHistoryChart(chart, Modifier.festivalFadeIn(chartRevealed).testTag("fst.player.rank-history.${instrument.wireId}"))
                     }
                     is RankHistoryLoad.Failed -> {
                         SubHeader("Rank History")
@@ -420,6 +432,7 @@ internal fun InstrumentHeading(instrument: Instrument, tag: String) {
 @Composable
 private fun GlobalRank(instrument: Instrument, rank: RankLoad?, state: PlayerProfileUiState, onAction: (PlayerTileAction) -> Unit, onRetry: () -> Unit) {
     val tag = "fst.player.global-rank.${instrument.wireId}"
+    val revealed = rememberRevealed(rank is RankLoad.Available)
     when (rank) {
         null, RankLoad.Loading -> CircularProgressIndicator(Modifier.size(24.dp).testTag("$tag.loading"))
         RankLoad.Unranked -> Text(
@@ -428,7 +441,7 @@ private fun GlobalRank(instrument: Instrument, rank: RankLoad?, state: PlayerPro
             color = BrandTokens.textPrimary,
             modifier = Modifier.testTag("$tag.unranked"),
         )
-        is RankLoad.Available -> Box(Modifier.festivalFadeIn(isLoaded = true).testTag("$tag.available")) { TileFlow(rank.tiles, "rank.${instrument.wireId}", state, onAction) }
+        is RankLoad.Available -> Box(Modifier.festivalFadeIn(revealed).testTag("$tag.available")) { TileFlow(rank.tiles, "rank.${instrument.wireId}", state, onAction) }
         is RankLoad.Failed -> Box(Modifier.testTag("$tag.error")) { ServiceStatusInline(rank.issue, "Global rank unavailable", null, onRetry) }
     }
 }
