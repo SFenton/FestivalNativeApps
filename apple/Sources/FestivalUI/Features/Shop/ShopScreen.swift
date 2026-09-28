@@ -115,6 +115,11 @@ struct ShopScreen: View {
                 ))
                 return
             }
+            // Warm the first screen's covers while the catalogue loads, so rows
+            // reveal with art (bounded; slow covers keep their own placeholder).
+            let primePaths = viewMode == .list
+                ? ShopArtworkPrimePolicy.paths(for: feed.sortedSongs) : []
+            async let primed: Void = primeArtwork(primePaths)
             var songsById: [String: Song] = [:]
             var detailsError: String?
             do {
@@ -131,6 +136,7 @@ struct ShopScreen: View {
             } catch {
                 detailsError = error.localizedDescription
             }
+            await primed
             guard !Task.isCancelled, requested == requestKey else { return }
             state = .loaded(ShopSnapshot(
                 payload: feed, songsById: songsById, songDetailsError: detailsError
@@ -142,6 +148,37 @@ struct ShopScreen: View {
         } catch {
             guard !Task.isCancelled, requested == requestKey else { return }
             state = .failed(ServiceIssue(error))
+        }
+    }
+
+    /// Decode up to one screen of row covers into the shared bounded thumbnail cache.
+    ///
+    /// Uses the same `maxPixels` as the row's ``ArtworkTile`` so the rows hit the
+    /// in-memory cache; returns after ``ShopArtworkPrimePolicy/timeout`` at most.
+    ///
+    /// - Parameter paths: Artwork paths from ``ShopArtworkPrimePolicy/paths(for:limit:)``.
+    private func primeArtwork(_ paths: [String]) async {
+        guard !paths.isEmpty else { return }
+        let session = session
+        let maxPixels = Int(ShopRowMetrics.art * 3)
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask {
+                await withTaskGroup(of: Void.self) { downloads in
+                    for raw in paths {
+                        downloads.addTask {
+                            _ = try? await session.preparedArtwork(
+                                raw: raw, maxPixels: maxPixels
+                            )
+                        }
+                    }
+                    await downloads.waitForAll()
+                }
+            }
+            group.addTask {
+                try? await Task.sleep(for: ShopArtworkPrimePolicy.timeout)
+            }
+            await group.next()
+            group.cancelAll()
         }
     }
 
@@ -173,16 +210,19 @@ struct ShopScreen: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .accessibilityIdentifier("fst.shop.empty")
         } else if viewMode == .list {
-            List {
-                shopDisclosures(snapshot)
-                ForEach(snapshot.payload.sortedSongs) { offer in
-                    offerCard(offer, snapshot: snapshot, grid: false)
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
+            // A plain ScrollView, not a List: each row holds two sibling actions (Detail
+            // and the official bag), and a List would add its own disclosure chevron
+            // before the bag instead of after it.
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 6) {
+                    shopDisclosures(snapshot)
+                    ForEach(snapshot.payload.sortedSongs) { offer in
+                        offerCard(offer, snapshot: snapshot, grid: false)
+                    }
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
         } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
@@ -240,34 +280,51 @@ struct ShopScreen: View {
         }
     }
 
-    /// Keep phone rows close to the source's concise artwork/title/action layout.
+    /// Compact two-line phone row matching the installed PWA: art, title, artist ·
+    /// year, then the official bag and the Detail chevron (gap #17).
+    ///
+    /// The Detail link spans the whole row; the bag is a sibling `Link` drawn over
+    /// the slot the row reserves for it, so the two actions never nest. At
+    /// accessibility sizes the bag becomes a labelled action below the row.
     ///
     /// - Parameters:
     ///   - offer: Public item with separate official outbound URL.
     ///   - snapshot: Catalogue lookup for safe native Detail navigation.
     /// - Returns: Compact native row with two independent actions.
     private func listOffer(_ offer: ShopSong, snapshot: ShopSnapshot) -> some View {
-        offerActionsLayout {
-            if let song = snapshot.songsById[offer.songId] {
+        let song = snapshot.songsById[offer.songId]
+        let large = dynamicTypeSize.isAccessibilitySize
+        return VStack(alignment: .leading, spacing: 4) {
+            if let song {
                 NavigationLink(value: AppRoute.songDetail(song)) {
-                    listSummary(offer)
+                    listSummary(offer, navigable: true, reservesBag: !large)
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("fst.shop.song.\(offer.songId)")
             } else {
-                listSummary(offer)
+                listSummary(offer, navigable: false, reservesBag: !large)
             }
-            Link(destination: offer.shopUrl) {
-                Image(systemName: "bag")
-                    .font(.title3)
-                    .foregroundStyle(BrandTokens.textPrimary)
-                    .frame(minWidth: 44, minHeight: 44)
-                    .background(BrandTokens.appBackground, in: Capsule())
+            if large {
+                Link(destination: offer.shopUrl) {
+                    Label("Open Official Item Shop", systemImage: "bag")
+                        .font(.body)
+                        .foregroundStyle(BrandTokens.textPrimary)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .padding(.horizontal, 12)
+                }
+                .accessibilityLabel("\(offer.title), Open Official Item Shop")
+                .accessibilityIdentifier("fst.shop.external.\(offer.songId)")
             }
-            .accessibilityLabel("\(offer.title), Open Official Item Shop")
-            .accessibilityIdentifier("fst.shop.external.\(offer.songId)")
         }
-        .padding(10)
+        .overlay(alignment: .trailing) {
+            if !large {
+                bagLink(offer)
+                    .padding(.trailing, song == nil
+                        ? ShopRowMetrics.rowInset
+                        : ShopRowMetrics.rowInset + ShopRowMetrics.chevronWidth
+                            + ShopRowMetrics.spacing)
+            }
+        }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(BrandTokens.cardBackground, in: RoundedRectangle(cornerRadius: 12))
         .overlay {
@@ -276,30 +333,69 @@ struct ShopScreen: View {
         }
     }
 
-    /// Show artwork and metadata on one line while exposing any shop-state badge.
+    /// The official Item Shop action as a plain bag glyph with a 44pt target.
     ///
-    /// - Parameter offer: Item available in the current public Shop feed.
+    /// - Parameter offer: Validated public offer whose official URL opens externally.
+    /// - Returns: Accessible outbound link.
+    private func bagLink(_ offer: ShopSong) -> some View {
+        Link(destination: offer.shopUrl) {
+            Image(systemName: "bag")
+                .font(.body)
+                .foregroundStyle(BrandTokens.textPrimary)
+                .frame(width: ShopRowMetrics.bagSlot, height: ShopRowMetrics.bagSlot)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel("\(offer.title), Open Official Item Shop")
+        .accessibilityIdentifier("fst.shop.external.\(offer.songId)")
+    }
+
+    /// Art, two single-line texts, badge, bag slot and chevron.
+    ///
+    /// - Parameters:
+    ///   - offer: Item available in the current public Shop feed.
+    ///   - navigable: Whether a catalogue match makes this row open Song Detail.
+    ///   - reservesBag: Leave room for the overlaid bag link (compact text sizes).
     /// - Returns: Concise source-like row label and original fixture/live art.
-    private func listSummary(_ offer: ShopSong) -> some View {
-        HStack(spacing: 12) {
-            ArtworkTile(raw: offer.albumArt, session: session, size: 56)
+    private func listSummary(
+        _ offer: ShopSong, navigable: Bool, reservesBag: Bool
+    ) -> some View {
+        let large = dynamicTypeSize.isAccessibilitySize
+        return HStack(spacing: ShopRowMetrics.spacing) {
+            ArtworkTile(raw: offer.albumArt, session: session, size: ShopRowMetrics.art)
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 4) {
+                .padding(.trailing, 4)
+            VStack(alignment: .leading, spacing: 2) {
                 Text(offer.title)
                     .font(.headline)
                     .foregroundStyle(BrandTokens.textPrimary)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(large ? nil : 1)
+                    .fixedSize(horizontal: false, vertical: large)
                 Text(offer.year.map { "\(offer.artist) · \($0)" } ?? offer.artist)
                     .font(.subheadline)
-                    .foregroundStyle(BrandTokens.textSecondary)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .foregroundStyle(BrandTokens.textPrimary)
+                    .lineLimit(large ? nil : 1)
+                    .fixedSize(horizontal: false, vertical: large)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             offerBadge(offer, compact: true)
+            if reservesBag {
+                Color.clear
+                    .frame(width: ShopRowMetrics.bagSlot, height: ShopRowMetrics.bagSlot)
+                    .accessibilityHidden(true)
+            }
+            if navigable {
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(BrandTokens.textMuted)
+                    .frame(width: ShopRowMetrics.chevronWidth)
+                    .accessibilityHidden(true)
+            }
         }
+        .padding(.leading, 10)
+        .padding(.trailing, ShopRowMetrics.rowInset)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
     }
 
     /// Let full-bleed artwork and a readable scrim drive the regular-width grid.
@@ -405,5 +501,48 @@ struct ShopScreen: View {
                     : "fst.shop.badge.new.\(offer.songId)"
             )
         }
+    }
+}
+
+// MARK: - Row metrics and first-screen artwork
+
+/// Fixed geometry shared by the compact row and its overlaid bag link.
+enum ShopRowMetrics {
+    /// Album art edge in points (the PWA's list rows use ~44pt art).
+    static let art: CGFloat = 44
+    /// Minimum hit target of the official bag action.
+    static let bagSlot: CGFloat = 44
+    /// Width reserved for the Detail chevron.
+    static let chevronWidth: CGFloat = 12
+    /// Horizontal spacing between row elements.
+    static let spacing: CGFloat = 8
+    /// Trailing inset inside the row card.
+    static let rowInset: CGFloat = 12
+}
+
+/// Which Shop covers to decode before the first reveal, so the first screen of
+/// rows paints with art instead of spinners (gap #17).
+enum ShopArtworkPrimePolicy {
+    /// Rows that fit on one phone screen, plus one partially visible.
+    static let count = 12
+    /// Never hold the reveal longer than this for slow art.
+    static let timeout: Duration = .milliseconds(900)
+
+    /// First-screen artwork paths, in display order, without blanks or repeats.
+    ///
+    /// - Parameters:
+    ///   - offers: Offers in the order the list renders them.
+    ///   - limit: Maximum number of covers to warm.
+    /// - Returns: Up to `limit` distinct non-empty `albumArt` paths.
+    static func paths(for offers: [ShopSong], limit: Int = count) -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        for offer in offers where result.count < limit {
+            guard let raw = offer.albumArt, !raw.isEmpty, seen.insert(raw).inserted else {
+                continue
+            }
+            result.append(raw)
+        }
+        return result
     }
 }

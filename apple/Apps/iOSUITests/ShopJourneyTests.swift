@@ -53,6 +53,41 @@ final class ShopJourneyTests: XCTestCase {
         XCTAssertTrue(app.buttons["fst.song-detail.paths"].exists)
     }
 
+    /// PWA parity (gap #17): compact two-line rows with the bag before the chevron,
+    /// as sibling actions of one row.
+    ///
+    /// - Throws: A tall row, a bag after the chevron slot or a nested action.
+    @MainActor
+    func testShopRowsAreCompactWithBagBeforeChevron() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = SongsUITestSupport.fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launch()
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
+        SongsUITestSupport.openItemShop(in: app)
+        let row = app.buttons["fst.shop.song.fixture-pulse"]
+        let bag = app.buttons["fst.shop.external.fixture-pulse"]
+        let badge = app.descendants(matching: .any)
+            .matching(identifier: "fst.shop.badge.new.fixture-pulse").firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 15))
+        XCTAssertTrue(bag.exists && bag.isHittable)
+        guard UIDevice.current.userInterfaceIdiom == .phone else { return }
+        XCTAssertLessThanOrEqual(row.frame.height, 72, "Shop row is not compact")
+        XCTAssertGreaterThanOrEqual(bag.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(bag.frame.height, 44)
+        XCTAssertGreaterThan(bag.frame.minX, badge.frame.maxX - 1, "Badge must precede the bag")
+        XCTAssertGreaterThan(
+            row.frame.maxX - bag.frame.maxX, 16,
+            "No chevron slot after the bag"
+        )
+        XCTAssertFalse(
+            bag.label.contains("Synthetic Quartet"),
+            "Bag must be its own action, not part of the Detail row"
+        )
+        SongsUITestSupport.record(app, name: "shop-compact-rows")
+    }
+
     /// Empty Shop and a real service failure must never look like the same state.
     ///
     /// - Throws: Hidden empty text, silent HTTP error or unreadable Retry action.

@@ -3,7 +3,10 @@
 > **What:** iPhone implementation and decisions for the Shop route. **Read when:** changing Shop on iPhone (Lane S). Behavior: [spec.md](spec.md); offers/badges: [shop-offers/ios.md](../../controls/shop-offers/ios.md).
 
 - `ShopScreen` is a pushed route (not a tab). Entry: the leading drawer (Lane A); removing the older Songs toolbar Shop button is a Lane S task ([PROGRESS.md](../../../PROGRESS.md)).
-- Compact rows: original art, title, badge, official bag action; separate in-app Detail action when the catalogue matches. Red/gold borders for Leaving/New.
+- Compact rows (installed-PWA gap #17): 44pt art, one-line title + one-line "artist · year" (wrap at accessibility sizes), shop badge, **bag, then chevron**; ~60pt tall, 6pt apart. Red/gold borders for Leaving/New.
+- Text and the bag glyph are white (`textPrimary`, operator 2026-09-28); only the chevron stays muted.
+- Row structure: the list is a `ScrollView` + `LazyVStack`, not a `List` (a `List` adds its own disclosure chevron *before* the bag). The Detail `NavigationLink` spans the row and reserves a 44pt slot; the official bag `Link` is a **sibling overlay** on that slot (never nested, per the one-action-per-row rule in [architecture](../../platforms/apple/architecture.md)). No catalogue match → no chevron, bag only. At accessibility sizes the bag becomes a labelled "Open Official Item Shop" action under the row.
+- First-screen art: `load()` warms up to 12 covers (`ShopArtworkPrimePolicy`) through `FestivalSession.preparedArtwork` at the row's `maxPixels` (132) while the catalogue loads, bounded by 900 ms, like the Songs first-paint gate. Shared bounded caches only; nothing persisted.
 - Hide Shop in Settings removes the action and returns an open Shop route to Songs with a notice.
 - Explicit empty card vs scalable unavailable/Retry for HTTP errors.
 - Structural comparison against web phone captures (390×844) only; not pixel parity.
