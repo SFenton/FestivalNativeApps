@@ -64,6 +64,12 @@ public sealed record AppSettings
     /// <summary>In-app additive override: no artwork at all (data saving).</summary>
     [JsonPropertyName("saveData")] public bool SaveData { get; init; }
 
+    /// <summary>Known Leaderboards Rank By metrics (web <c>RANKING_METRICS</c>).</summary>
+    public static readonly IReadOnlyList<string> RankingMetrics = ["totalscore", "adjusted", "weighted", "fcrate", "maxscore"];
+
+    /// <summary>Last Leaderboards Rank By metric (web <c>fst:leaderboardSettings</c>; navigation state, kept by Reset).</summary>
+    [JsonPropertyName("leaderboardRankBy")] public string LeaderboardRankBy { get; init; } = "totalscore";
+
     #region App settings (Settings page; restored by Reset)
     /// <summary>Show per-chart status icons on unfiltered Songs rows.</summary>
     [JsonPropertyName("showInstrumentIcons")] public bool ShowInstrumentIcons { get; init; } = true;
@@ -223,6 +229,7 @@ public sealed record AppSettings
             PathDefaultView = Enum.IsDefined(PathDefaultView) ? PathDefaultView : PathDisplayMode.Image,
             ExperimentalRanks = false,
             TapTelemetry = TapTelemetry && TapDiagnostics,
+            LeaderboardRankBy = RankingMetrics.Contains(LeaderboardRankBy) ? LeaderboardRankBy : "totalscore",
         };
     }
 
@@ -245,7 +252,8 @@ public sealed record AppSettings
         MetadataPercentile == other.MetadataPercentile && MetadataSeason == other.MetadataSeason &&
         MetadataIntensity == other.MetadataIntensity && MetadataDifficulty == other.MetadataDifficulty &&
         MetadataStars == other.MetadataStars && MetadataLastPlayed == other.MetadataLastPlayed &&
-        MoreContrast == other.MoreContrast && LessTransparency == other.LessTransparency;
+        MoreContrast == other.MoreContrast && LessTransparency == other.LessTransparency &&
+        LeaderboardRankBy == other.LeaderboardRankBy;
 
     /// <summary>Hash consistent with <see cref="Equals(AppSettings?)"/>.</summary>
     /// <returns>Hash code.</returns>

@@ -74,6 +74,11 @@ public class SettingsModelsTests
         Assert.Equal(8, raw.SongRowVisualOrder.Count);
         Assert.Equal(5, raw.PathColumnOrder.Count);
         Assert.True(new AppSettings { TapDiagnostics = true, TapTelemetry = true }.Sanitized().TapTelemetry);
+        Assert.Equal("totalscore", new AppSettings { LeaderboardRankBy = "bogus" }.Sanitized().LeaderboardRankBy);
+        Assert.Equal("totalscore", new AppSettings { LeaderboardRankBy = null! }.Sanitized().LeaderboardRankBy);
+        Assert.Equal("fcrate", new AppSettings { LeaderboardRankBy = "fcrate" }.Sanitized().LeaderboardRankBy);
+        Assert.NotEqual(new AppSettings(), new AppSettings { LeaderboardRankBy = "fcrate" });
+        Assert.Equal("maxscore", new AppSettings { LeaderboardRankBy = "maxscore" }.ResetAppSettings().LeaderboardRankBy);
     }
 
     [Fact]
