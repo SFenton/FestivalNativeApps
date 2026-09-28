@@ -136,7 +136,7 @@ class TransportAndSettingsTest {
         repo.setSelectedPlayer(null)
         assertNull(repo.settings.first().selectedPlayer)
         val corrupt = mutablePreferencesOf(
-            SettingsRepository.KEY_ACCOUNT_ID to "not-an-id",
+            SettingsRepository.KEY_ACCOUNT_ID to "not an id",
             SettingsRepository.KEY_DISPLAY_NAME to "Name",
         )
         assertNull(SettingsRepository.decode(corrupt).selectedPlayer)

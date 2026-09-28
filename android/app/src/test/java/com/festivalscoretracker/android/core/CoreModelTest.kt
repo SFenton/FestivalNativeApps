@@ -132,7 +132,9 @@ class CoreModelTest {
     fun profileSearchValidation() {
         assertTrue(ProfileSearchText.isValidAccountId(Fixtures.ACCOUNT_A))
         assertTrue(ProfileSearchText.isValidAccountId(Fixtures.ACCOUNT_A.uppercase()))
-        assertFalse(ProfileSearchText.isValidAccountId("xyz"))
+        assertFalse(ProfileSearchText.isValidAccountId("x/z"))
+        assertFalse(ProfileSearchText.isValidAccountId(""))
+        assertFalse(ProfileSearchText.isValidAccountId("a".repeat(129)))
         assertTrue(ProfileSearchText.isValidQuery("ab"))
         assertFalse(ProfileSearchText.isValidQuery("a"))
         assertFalse(ProfileSearchText.isValidQuery(" ab"))
@@ -149,7 +151,7 @@ class CoreModelTest {
         assertEquals("AB", SelectedPlayer(Fixtures.ACCOUNT_A, "a.b_c").initials)
         assertEquals("?", SelectedPlayer(Fixtures.ACCOUNT_A, "  ").initials)
         assertEquals("Name", SelectedPlayer.validated(Fixtures.ACCOUNT_A, " Name ")?.displayName)
-        assertNull(SelectedPlayer.validated("bad", "Name"))
+        assertNull(SelectedPlayer.validated("bad id", "Name"))
         assertNull(SelectedPlayer.validated(Fixtures.ACCOUNT_A, " "))
     }
 

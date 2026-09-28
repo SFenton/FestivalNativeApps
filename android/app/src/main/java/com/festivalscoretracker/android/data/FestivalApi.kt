@@ -143,6 +143,16 @@ data class CatalogPayload(val catalog: SongsResponse, val publicationId: Int)
  */
 data class LeaderboardPayload(val page: Int, val leaderboard: LeaderboardResponse, val publicationId: Int)
 
+/**
+ * One pinned read with its provenance.
+ *
+ * @property body Response bytes.
+ * @property status 200, or 202 for an accepted syncing envelope (never cached or publication-checked).
+ * @property responsePublicationId Header-verified `X-FST-Publication-Id`, or null when the response was headerless.
+ * @property observedPublicationId Generation the client observed for this read.
+ */
+class PinnedRead(val body: ByteArray, val status: Int, val responsePublicationId: Int?, val observedPublicationId: Int)
+
 @Serializable
 private data class Conflict(val status: String? = null)
 
@@ -234,6 +244,19 @@ class FestivalApi(origin: String, transport: HttpTransport) {
      * @return Body bytes and the generation they belong to.
      */
     internal suspend fun readPinned(endpoint: ServiceEndpoint): Pair<ByteArray, Int> {
+        val read = readPinnedResponse(endpoint)
+        return read.body to read.observedPublicationId
+    }
+
+    /**
+     * [readPinned] that also reports the status and the header-verified publication.
+     * An accepted 202 (only for [ServiceEndpoint.acceptsSyncing]) returns uncached
+     * and without publication checks.
+     *
+     * @param endpoint Pinned endpoint.
+     * @return Body, status and provenance.
+     */
+    internal suspend fun readPinnedResponse(endpoint: ServiceEndpoint): PinnedRead {
         val url = endpoint.url(base)
         var publication = publication()
         var response = gate.send(pinnedRequest(url, publication))
@@ -247,12 +270,14 @@ class FestivalApi(origin: String, transport: HttpTransport) {
             if (cached != null && cached.publicationId == publication.publicationId &&
                 (responseId == null || responseId == publication.publicationId)
             ) {
-                return cached.body to publication.publicationId
+                return PinnedRead(cached.body, 200, cached.publicationId, publication.publicationId)
             }
             response = gate.send(RequestGate.makeRequest(url, pinHeaders(publication)))
         }
-        RequestGate.mapStatus(response, endpoint.acceptsSyncing)
         val responseId = response.header(RequestGate.PUBLICATION_HEADER)?.toIntOrNull()
+        if (RequestGate.mapStatus(response, endpoint.acceptsSyncing) == ServiceStatus.Syncing) {
+            return PinnedRead(response.body, 202, responseId, publication.publicationId)
+        }
         if (responseId != null && responseId != publication.publicationId) {
             if (publication.pins || responseId < publication.publicationId) throw FestivalApiException.InvalidPublication()
             publication = publication(force = true)
@@ -266,7 +291,7 @@ class FestivalApi(origin: String, transport: HttpTransport) {
                 }
             }
         }
-        return response.body to publication.publicationId
+        return PinnedRead(response.body, 200, responseId, publication.publicationId)
     }
 
     private suspend fun pinnedRequest(url: String, publication: Publication): HttpRequest {

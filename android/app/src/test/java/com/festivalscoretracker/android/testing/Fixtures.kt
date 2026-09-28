@@ -149,7 +149,7 @@ class FakeTransport(private val routes: MutableMap<String, (HttpRequest) -> Http
                     }
                 }
             }
-            on("/api/account/search") { """{"results":[{"accountId":"${Fixtures.ACCOUNT_A}","displayName":"Synthetic Player"},{"accountId":"bad","displayName":"Invalid"}]}""" }
+            on("/api/account/search") { """{"results":[{"accountId":"${Fixtures.ACCOUNT_A}","displayName":"Synthetic Player"},{"accountId":"bad/id","displayName":"Invalid"}]}""" }
         }
     }
 }

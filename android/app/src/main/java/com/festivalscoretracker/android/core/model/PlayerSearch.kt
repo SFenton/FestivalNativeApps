@@ -14,7 +14,7 @@ data class PlayerSearchResponse(val results: List<PlayerSearchResult> = emptyLis
 
 /** Validation shared by account-scoped URLs and search queries. */
 object ProfileSearchText {
-    private val accountIdPattern = Regex("^[0-9a-fA-F]{32}$")
+    private val accountIdPattern = Regex("^[A-Za-z0-9_-]{1,128}$")
 
     /** Minimum trimmed query length the service accepts. */
     const val MIN_QUERY = 2
@@ -23,7 +23,9 @@ object ProfileSearchText {
     const val MAX_QUERY = 200
 
     /**
-     * Whether a string is a well-formed Epic account ID (32 hex digits).
+     * Whether a string is a safe account-ID path segment: 1–128 ASCII letters,
+     * digits, `_` or `-` (Apple/Windows rule; Epic IDs are 32 hex digits and the
+     * fixture service uses `fixture-…` IDs).
      *
      * @param value Candidate ID.
      * @return True for a valid ID.
@@ -47,7 +49,7 @@ object ProfileSearchText {
 /**
  * The persisted selected player.
  *
- * @property accountId Validated Epic account ID.
+ * @property accountId Validated account ID.
  * @property displayName Name shown in the shell.
  */
 @Serializable
