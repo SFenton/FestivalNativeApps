@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.selection.selectable
@@ -107,7 +108,7 @@ fun PlayerHistoryScreen(viewModel: PlayerHistoryViewModel) {
                         bottom = padding.calculateBottomPadding() + 24.dp,
                     ),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxSize().testTag("fst.history.rows"),
+                    modifier = Modifier.fillMaxSize().wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = MAX_LIST_WIDTH).testTag("fst.history.rows"),
                 ) {
                     item(key = "subtitle") {
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.testTag("fst.history.subtitle")) {
@@ -151,6 +152,9 @@ fun PlayerHistoryScreen(viewModel: PlayerHistoryViewModel) {
 // endregion
 
 // region Rows
+
+/** Readable list width on tablets and unfolded windows. */
+private val MAX_LIST_WIDTH = 840.dp
 
 @Composable
 private fun HistoryRow(row: ScoreHistoryRow) {
