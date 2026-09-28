@@ -457,3 +457,5 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Android | Foundation landed from Windows (`e16ad03`, docs conflict resolved); launched 8 Android feature lanes as Remote Control sessions |
 | 2026-09-28 | Lane A2 | Tab-bar accessory: global Search on every iPhone page (iOS 26.1+) + profile Select/Deselect; system search tab rejected (5 tabs → "More"); Apple global search (sheet, ⌘K/⌘F, toolbar fallback incl. Duo rail/iPad/Mac, Bands blocked); Songs inline filter; Suggestions/Rivals toolbar order; journeys green |
 | 2026-09-28 | Windows | win-shell landed; mock server backlog 5→128 |
+| 2026-09-28 | Lane W2 | Duo list/detail landed; SongsJourneyTests regression (19/21 failing on master) sent to A2 |
+| 2026-09-28 | Orchestrator | Windows Remote Control lanes now appear as peer sessions → orchestrator can message them mid-run |
