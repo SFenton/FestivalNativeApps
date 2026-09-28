@@ -137,7 +137,8 @@ public struct FestivalRootView: View {
                 if drawerPresented && usesDrawer {
                     FestivalDrawer(
                         session: session, visibleSections: sections(for: presentation),
-                        hideShop: hideShop, onIntent: handleDrawer, onClose: closeDrawer
+                        hideShop: hideShop, selected: selected, topRoute: paths[selected]?.last,
+                        onIntent: handleDrawer, onClose: closeDrawer
                     )
                     .transition(reduceMotion || systemReduceMotion
                         ? .opacity : .move(edge: .leading).combined(with: .opacity))

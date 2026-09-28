@@ -231,8 +231,7 @@ struct GlobalSearchResults: View {
 
 // MARK: - Sheet
 
-/// Global search as a sheet: opened from the tab-bar accessory's Search pill (iOS 26.1+
-/// iPhone), the toolbar Search button (other layouts), ⌘K or ⌘F. A result dismisses the
+/// Global search as a sheet: opened from the header Search button, ⌘K or ⌘F. A result dismisses the
 /// sheet, then pushes on the presenting section.
 struct GlobalSearchSheet: View {
     let session: FestivalSession
@@ -263,6 +262,7 @@ struct GlobalSearchSheet: View {
                 prompt: Text(GlobalSearch.prompt(for: model.scope))
             )
             #endif
+            .modifier(KeepsSheetBarWhileSearching())
             .task(id: model.runKey) { await model.search(session: session) }
             .toolbar {
                 // Dismiss-only modal: trailing (modal standard, operator 2026-09-28).
@@ -275,10 +275,21 @@ struct GlobalSearchSheet: View {
     }
 }
 
+/// Keep the sheet's title and Close visible while the search field is active
+/// (`.searchable` hides the navigation bar by default on iPhone).
+struct KeepsSheetBarWhileSearching: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 17.1, macOS 14.1, *) {
+            content.searchPresentationToolbarBehavior(.avoidHidingContent)
+        } else {
+            content
+        }
+    }
+}
+
 // MARK: - Toolbar button
 
-/// Toolbar Search button where the tab accessory is unavailable (iOS 17–26.0, iPhone Duo
-/// rail, iPad, Mac).
+/// The header Search button (every layout; operator 2026-09-28: search lives in the header).
 struct GlobalSearchButton: View {
     let action: () -> Void
 
@@ -308,10 +319,9 @@ extension EnvironmentValues {
 // MARK: - Toolbar item for pushed pages
 
 extension View {
-    /// Add the Search button to a pushed page's toolbar where the tab accessory (which
-    /// already offers Search on every page) is unavailable.
+    /// Add the header Search button to a pushed page's toolbar.
     ///
-    /// - Returns: The page with a trailing Search item when needed.
+    /// - Returns: The page with a trailing Search item.
     func globalSearchToolbarItem() -> some View {
         modifier(GlobalSearchToolbarItem())
     }
@@ -320,11 +330,10 @@ extension View {
 /// Implementation of `globalSearchToolbarItem()`.
 struct GlobalSearchToolbarItem: ViewModifier {
     @Environment(\.openGlobalSearch) private var openGlobalSearch
-    @Environment(\.isTabAccessoryAvailable) private var accessoryAvailable
 
     func body(content: Content) -> some View {
         content.toolbar {
-            if let openGlobalSearch, !accessoryAvailable {
+            if let openGlobalSearch {
                 ToolbarItem(placement: .primaryAction) {
                     GlobalSearchButton { openGlobalSearch() }
                 }

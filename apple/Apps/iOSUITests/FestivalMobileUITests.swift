@@ -973,7 +973,7 @@ final class FestivalMobileUITests: XCTestCase {
         XCTAssertTrue(filter.waitForExistence(timeout: 10))
         XCTAssertTrue(filter.isHittable)
         filter.tap()
-        XCTAssertTrue(app.buttons["fst.songs.filter.cancel"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["fst.songs.filter.done"].waitForExistence(timeout: 10))
         return filter
     }
 
@@ -999,18 +999,18 @@ final class FestivalMobileUITests: XCTestCase {
         let form = app.descendants(matching: .any).matching(
             identifier: "fst.songs.filter.form"
         ).firstMatch
-        let footer = app.buttons["fst.songs.filter.cancel"]
+        let footer = app.buttons["fst.songs.filter.done"]
         XCTAssertTrue(
             form.exists && footer.exists,
             "Missing Filter Form or pinned actions: "
                 + "\(app.collectionViews.allElementsBoundByIndex.prefix(4).map(\.identifier))"
         )
         for _ in 0..<12 {
-            if element.isHittable && element.frame.maxY <= footer.frame.minY { break }
+            if element.isHittable && element.frame.maxY <= SongsUITestSupport.sheetVisibleBottom(in: app) { break }
             form.swipeUp()
         }
         XCTAssertTrue(
-            element.isHittable && element.frame.maxY <= footer.frame.minY,
+            element.isHittable && element.frame.maxY <= SongsUITestSupport.sheetVisibleBottom(in: app),
             "\(element.identifier) is not reachable above the Filter footer"
         )
         return element
@@ -1060,7 +1060,7 @@ final class FestivalMobileUITests: XCTestCase {
     @MainActor
     private func revealSortReset(in app: XCUIApplication) -> XCUIElement {
         revealSheetReset(
-            "fst.songs.sort.reset", cancelId: "fst.songs.sort.cancel",
+            "fst.songs.sort.reset", cancelId: "fst.songs.sort.done",
             sheetName: "Sort", in: app
         )
     }
@@ -1097,11 +1097,11 @@ final class FestivalMobileUITests: XCTestCase {
         let footer = app.buttons[cancelId]
         XCTAssertTrue(list.exists && footer.exists)
         for _ in 0..<8 {
-            if reset.isHittable && reset.frame.maxY <= footer.frame.minY { break }
+            if reset.isHittable && reset.frame.maxY <= SongsUITestSupport.sheetVisibleBottom(in: app) { break }
             list.swipeUp()
         }
         XCTAssertTrue(
-            reset.isHittable && reset.frame.maxY <= footer.frame.minY,
+            reset.isHittable && reset.frame.maxY <= SongsUITestSupport.sheetVisibleBottom(in: app),
             "Reset is hidden by the \(sheetName) action footer"
         )
         return reset
@@ -1122,14 +1122,14 @@ final class FestivalMobileUITests: XCTestCase {
         let form = table.exists ? table : app.collectionViews.containing(
             .button, identifier: "fst.songs.sort.reset"
         ).firstMatch
-        let footer = app.buttons["fst.songs.sort.cancel"]
+        let footer = app.buttons["fst.songs.sort.done"]
         XCTAssertTrue(form.exists && footer.exists)
         for _ in 0..<8 {
-            if choice.isHittable && choice.frame.maxY <= footer.frame.minY { break }
+            if choice.isHittable && choice.frame.maxY <= SongsUITestSupport.sheetVisibleBottom(in: app) { break }
             form.swipeUp()
         }
         XCTAssertTrue(
-            choice.isHittable && choice.frame.maxY <= footer.frame.minY,
+            choice.isHittable && choice.frame.maxY <= SongsUITestSupport.sheetVisibleBottom(in: app),
             "Item Shop sort option is hidden by the sheet footer"
         )
         return choice

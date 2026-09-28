@@ -39,6 +39,11 @@ final class GlobalSearchJourneyTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["fst.global-search.hint"].waitForExistence(timeout: 5))
         field.tap()
         field.typeText("Fixture")
+        // Focusing the field must not hide the sheet's own Close (operator bug, 2026-09-28).
+        XCTAssertTrue(
+            app.buttons["fst.global-search.close"].isHittable,
+            "Close disappeared while searching"
+        )
         let song = app.buttons.matching(identifier: "fst.global-search.result.song").firstMatch
         XCTAssertTrue(song.waitForExistence(timeout: 10))
         let player = app.buttons.matching(identifier: "fst.global-search.result.player").firstMatch

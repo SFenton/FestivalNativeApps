@@ -6,16 +6,16 @@ import SwiftUI
   import UIKit
 #endif
 
-/// Native draft for selected-player score/FC and public Item Shop conditions.
+/// Selected-player score/FC, instrument and public Item Shop filters. Changes apply as
+/// they are made (operator, 2026-09-28: no Cancel/Apply); Done closes the standard
+/// `festivalSheet` modal.
 struct SongsFilterSheet: View {
   @Environment(\.dismiss) private var dismiss
-  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @State private var draftInShop: Bool
   @State private var draftLeavingTomorrow: Bool
   @State private var draftPlayerFilter: SongPlayerScoreFilter
   @State private var draftInstrument: Instrument?
   @State private var scoreSectionsExpanded: Bool
-  @State private var discardPending = false
   @State private var applyError: String?
   let applied: SongShopFilter
   let appliedPlayerFilter: SongPlayerScoreFilter
@@ -29,7 +29,7 @@ struct SongsFilterSheet: View {
   let invalidScoreFilteringEnabled: Bool
   let onApply: (SongShopFilter, SongPlayerScoreFilter, Instrument?) throws -> Void
 
-  /// Stage all backed toggles without changing Songs until Apply.
+  /// Start from the applied filters; every change is committed immediately.
   ///
   /// - Parameters:
   ///   - applied: Saved native public Shop filters.
@@ -43,7 +43,8 @@ struct SongsFilterSheet: View {
   ///   - selectedPlayer: Whether a player identity can show score sections.
   ///   - scoreAvailable: Whether validated scores match the current Songs catalogue.
   ///   - invalidScoreFilteringEnabled: Whether unsupported score substitution blocks raw filters.
-  ///   - onApply: Atomically commit all draft choices or throw without dismissing.
+  ///   - onApply: Commit all current choices together; called on every change and may
+  ///     throw (shown in the sheet).
   init(
     applied: SongShopFilter, showShop: Bool, shopAvailable: Bool,
     profileAvailable: Bool,
@@ -78,9 +79,15 @@ struct SongsFilterSheet: View {
     SongShopFilter(inShop: draftInShop, leavingTomorrow: draftLeavingTomorrow)
   }
 
-  private var hasChanges: Bool {
-    draft != applied || draftPlayerFilter != appliedPlayerFilter
-      || draftInstrument != appliedInstrument
+  /// Identity of the current choices, to commit on any change.
+  private struct ChoiceKey: Equatable {
+    let shop: SongShopFilter
+    let player: SongPlayerScoreFilter
+    let instrument: Instrument?
+  }
+
+  private var choiceKey: ChoiceKey {
+    ChoiceKey(shop: draft, player: draftPlayerFilter, instrument: draftInstrument)
   }
 
   private var canEnableShop: Bool {
@@ -91,31 +98,15 @@ struct SongsFilterSheet: View {
     selectedPlayer && scoreAvailable && !invalidScoreFilteringEnabled
   }
 
-  private var canApply: Bool {
-    hasChanges && (!draft.isActive || canEnableShop)
+  /// Choices the list can use right now (paused sources stay as saved, not applied).
+  private var isApplicable: Bool {
+    (!draft.isActive || canEnableShop)
       && (!draftPlayerFilter.isActive || canEnableScores)
-  }
-
-  private var actionLayout: AnyLayout {
-    dynamicTypeSize.isAccessibilitySize
-      ? AnyLayout(VStackLayout(spacing: 12))
-      : AnyLayout(HStackLayout(spacing: 12))
   }
 
   var body: some View {
     NavigationStack {
       VStack(spacing: 0) {
-        #if os(iOS)
-          Text("Filter Songs")
-            .font(.title2.bold())
-            .foregroundStyle(FestivalText.primary)
-            .multilineTextAlignment(.center)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, minHeight: 44)
-            .padding(.vertical, 8)
-            .accessibilityAddTraits(.isHeader)
-            .accessibilityIdentifier("fst.songs.filter.title")
-        #endif
         Form {
           if selectedPlayer {
             Section("Instrument") {
@@ -245,65 +236,33 @@ struct SongsFilterSheet: View {
         }
         .accessibilityIdentifier("fst.songs.filter.form")
       }
+      .navigationTitle("Filter Songs")
       #if os(iOS)
-        .toolbar(.hidden, for: .navigationBar)
-      #else
-        .navigationTitle("Filter Songs")
+        .navigationBarTitleDisplayMode(.inline)
       #endif
-      .safeAreaInset(edge: .bottom, spacing: 0) {
-        actionLayout {
-          Button {
-            if hasChanges { discardPending = true } else { dismiss() }
-          } label: {
-            Text("Cancel")
-              .font(.body)
-              .foregroundStyle(FestivalText.primary)
-              .frame(maxWidth: .infinity, minHeight: 44)
-              .background(
-                BrandTokens.cardBackground,
-                in: RoundedRectangle(cornerRadius: 10)
-              )
-          }
-          .buttonStyle(HighContrastPagerStyle())
-          .accessibilityIdentifier("fst.songs.filter.cancel")
-          Button {
-            do {
-              try onApply(draft, draftPlayerFilter, draftInstrument)
-              dismiss()
-            } catch {
-              applyError = error.localizedDescription
-            }
-          } label: {
-            Text("Apply")
-              .font(.body.bold())
-              .foregroundStyle(
-                canApply
-                  ? FestivalText.primary : FestivalText.disabled
-              )
-              .frame(maxWidth: .infinity, minHeight: 44)
-              .background(
-                BrandTokens.cardBackground,
-                in: RoundedRectangle(cornerRadius: 10)
-              )
-          }
-          .buttonStyle(HighContrastPagerStyle())
-          .disabled(!canApply)
-          .accessibilityIdentifier("fst.songs.filter.apply")
+      .toolbar {
+        // Dismiss-only modal: trailing Done (modal standard, operator 2026-09-28).
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Done") { dismiss() }
+            .accessibilityIdentifier("fst.songs.filter.done")
         }
-        .padding(12)
-        .background(BrandTokens.cardBackground)
       }
+      .onChange(of: choiceKey) { _, _ in commit() }
     }
     // Many collapsible sections (instrument, score/FC, Shop): fixed large detent
     // rather than a partial height that would clip mid-section.
     .festivalSheet(.large)
-    .alert("Discard filter changes?", isPresented: $discardPending) {
-      Button("Continue Editing", role: .cancel) {}
-      Button("Discard Changes", role: .destructive) { dismiss() }
-    } message: {
-      Text("The song list will keep its current filters.")
+  }
+
+  /// Apply the current choices immediately when the list can use them.
+  private func commit() {
+    guard isApplicable else { return }
+    do {
+      try onApply(draft, draftPlayerFilter, draftInstrument)
+      applyError = nil
+    } catch {
+      applyError = error.localizedDescription
     }
-    .interactiveDismissDisabled()
   }
 
   /// Bind a global or per-chart condition to the staged, typed filter value.
@@ -311,7 +270,7 @@ struct SongsFilterSheet: View {
   /// - Parameters:
   ///   - kind: One of four independent source score and FC checks.
   ///   - chart: Optional individual chart; nil updates all visible charts.
-  /// - Returns: Native two-way toggle binding without changing applied rows.
+  /// - Returns: Native two-way toggle binding (committed through `commit()`).
   private func scoreBinding(
     _ kind: SongScoreFilterKind, chart: Instrument? = nil
   ) -> Binding<Bool> {

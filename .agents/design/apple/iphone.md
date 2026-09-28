@@ -5,8 +5,8 @@
 ## Chrome
 
 - System `TabView` + `NavigationStack`. iOS 26+: Liquid Glass tab bar and navigation accessories behind availability checks; iOS 17–25 keeps the system classic tab bar. Which surfaces are glass, and the shared components to use: [liquid-glass.md](liquid-glass.md).
-- A bottom dock above the tab bar (iOS 26.1+ tab-bar accessory; glass inset bar before) holds global Search plus the page's tools (Filter/Sort, Quick Links, Select); everything else goes in the top toolbar ([nav-accessories.md](nav-accessories.md), [global-search](../../controls/global-search/ios.md)).
-- Other page actions (Item Shop, Paths, metric menus) stay in the **top** toolbar. Never use `.bottomBar` toolbar items with the tab bar: a bottom-toolbar Sort overlapped the floating Liquid Glass tab and activated Leaderboards instead (the dock is the supported slot).
+- Header: global Search and the profile avatar on every page; page tools (Songs Filter/Sort, Quick Links) float as separate round glass buttons above the tab bar; everything else goes in the top toolbar ([nav-accessories.md](nav-accessories.md), [global-search](../../controls/global-search/ios.md)).
+- Other page actions (Item Shop, Paths, metric menus) stay in the **top** toolbar. Never use `.bottomBar` toolbar items with the tab bar: a bottom-toolbar Sort overlapped the floating Liquid Glass tab and activated Leaderboards instead (page tools float in a safe-area inset instead).
 - Profile avatar (trailing) and hamburger (leading) come from `festivalRootChrome` on tab roots; the avatar has an accessible name (mirrors the web mobile header).
 - Shell (Lane A, landed 2026-09-27): conditional tabs mirroring web `BottomNav`, `festivalRootChrome` on every tab root (leading hamburger drawer, trailing profile), `festivalSheet` dark sheets with detents, white Title Case section headers ([liquid-glass.md](liquid-glass.md)).
 

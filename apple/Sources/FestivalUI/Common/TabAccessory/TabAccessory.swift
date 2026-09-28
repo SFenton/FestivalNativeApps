@@ -4,14 +4,13 @@ import FestivalDesign
 
 // MARK: - Registry
 
-/// The page controls currently offered to the bottom dock (the web app's search pill +
-/// Sort + Quick Links bar above the tab bar).
+/// The page controls currently floating above the iPhone tab bar (the web app's
+/// Sort / Quick Links FABs over the bottom nav).
 ///
-/// SwiftUI allows one `tabViewBottomAccessory` per `TabView`, attached at the root. The
-/// dock always starts with global Search; the rest belongs to whichever page is on
-/// screen (Songs Filter/Sort, Quick Links, profile Select/Deselect). Controls register
-/// while their page is visible (`onAppear` … `onDisappear`), so a push or tab switch
-/// swaps them; the dock shows every registered control in ``Entry/order``.
+/// Controls register while their page is visible (`onAppear` … `onDisappear`), so a
+/// push or tab switch swaps them; they float as separate glass buttons in
+/// ``Entry/order``. Global Search and the profile avatar are header buttons instead
+/// (operator, 2026-09-28).
 ///
 /// Design rules: `.agents/design/apple/nav-accessories.md`.
 @MainActor @Observable
@@ -60,7 +59,7 @@ final class TabAccessoryRegistry {
     }
 }
 
-/// Dock positions after Search, matching the web dock (search, then page tools).
+/// Floating-control positions, leading to trailing (the trailing edge is nearest the thumb).
 enum DockOrder {
     /// Songs Filter.
     static let filter = 10
@@ -68,42 +67,34 @@ enum DockOrder {
     static let sort = 20
     /// Quick Links menu.
     static let quickLinks = 30
-    /// A page's primary action (profile Select/Switch/Deselect).
+    /// Any other page control.
     static let pageAction = 40
 }
 
-/// How the bottom dock is presented, published by the host.
-enum DockPresentation: Equatable {
-    /// iOS 26.1+: the system tab-bar bottom accessory (Liquid Glass, Music's slot).
-    case accessory
-    /// iOS 17–26.0: a glass bar inset at the bottom of each tab's stack, above the tab bar.
-    case inset
-}
-
 extension EnvironmentValues {
-    /// Set only where the bottom dock exists: iPhone with a horizontal tab bar. Nil (the
-    /// iPhone Duo vertical bar, iPad, Mac) means pages keep their controls as toolbar items.
+    /// Set only where page controls float above the tab bar: iPhone with a horizontal
+    /// tab bar. Nil (the iPhone Duo vertical bar, iPad, Mac) means pages keep their
+    /// controls as toolbar items.
     @Entry var tabAccessoryRegistry: TabAccessoryRegistry? = nil
 
-    /// How the dock is presented where it exists.
-    @Entry var dockPresentation: DockPresentation? = nil
-
-    /// True when page controls (Search, Filter/Sort, Quick Links, Select) go in the dock
-    /// instead of the toolbar.
+    /// True when page controls (Filter/Sort, Quick Links) float above the tab bar instead
+    /// of sitting in the toolbar.
     var isTabAccessoryAvailable: Bool { tabAccessoryRegistry != nil }
+
+    /// Height the floating page tools take above the tab bar (0 when none), for trailing
+    /// overlays such as the Songs A–Z scrubber that must end above them.
+    @Entry var floatingControlsInset: CGFloat = 0
 }
 
 // MARK: - Host (root)
 
 extension View {
-    /// Host the bottom dock on this iPhone `TabView`: global Search on every page, then the
-    /// visible page's controls.
+    /// Publish the floating-controls registry for this iPhone `TabView`.
     ///
-    /// iOS 26.1+ uses the system `tabViewBottomAccessory`; earlier iOS publishes an
-    /// `.inset` presentation that `FestivalTabStack` draws above the tab bar. With the
-    /// iPhone Duo vertical bar it publishes nothing, so pages keep toolbar items.
+    /// Each tab's `FestivalTabStack` draws the registered controls (`FloatingPageControls`).
+    /// With the iPhone Duo vertical bar it publishes nothing, so pages keep toolbar items.
     ///
-    /// - Returns: The tab view with the dock host attached.
+    /// - Returns: The tab view with the registry attached.
     func festivalTabAccessoryHost() -> some View {
         modifier(TabAccessoryHost())
     }
@@ -113,93 +104,51 @@ extension View {
 struct TabAccessoryHost: ViewModifier {
     @State private var registry = TabAccessoryRegistry()
     @Environment(\.deviceLayout) private var layout
-    @Environment(\.openGlobalSearch) private var openGlobalSearch
-
-    /// A horizontal tab bar inside the app shell (the dock needs the search action).
-    private var supported: Bool {
-        layout.sectionChrome == .tabBar && openGlobalSearch != nil
-    }
 
     func body(content: Content) -> some View {
         #if os(iOS)
-        if #available(iOS 26.1, *) {
-            content
-                .tabViewBottomAccessory(isEnabled: supported) {
-                    if let openGlobalSearch {
-                        DockBar(items: registry.items) { openGlobalSearch() }
-                    }
-                }
-                // Never minimized: a collapsed bar hides the other tabs' labels on every
-                // scroll app-wide (and journeys then cannot find them). Music minimizes;
-                // TODO(orchestrator): opt in with `.onScrollDown` if the operator wants it.
-                .tabBarMinimizeBehavior(.never)
-                .environment(\.tabAccessoryRegistry, supported ? registry : nil)
-                .environment(\.dockPresentation, supported ? .accessory : nil)
-        } else {
-            content
-                .environment(\.tabAccessoryRegistry, supported ? registry : nil)
-                .environment(\.dockPresentation, supported ? .inset : nil)
-        }
+        content.environment(\.tabAccessoryRegistry, layout.sectionChrome == .tabBar ? registry : nil)
         #else
         content
         #endif
     }
 }
 
-// MARK: - Dock content
+// MARK: - Floating controls
 
-/// The dock's row: a field-shaped Search button, then the page's controls.
-struct DockBar: View {
-    let items: [TabAccessoryRegistry.Entry]
-    let openSearch: () -> Void
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Button(action: openSearch) {
-                HStack(spacing: 8) {
-                    Image(systemName: "magnifyingglass")
-                        .accessibilityHidden(true)
-                    Text("Search")
-                        .lineLimit(1)
-                    Spacer(minLength: 0)
-                }
-                .foregroundStyle(FestivalText.primary)
-                .frame(maxWidth: .infinity, minHeight: 44, maxHeight: .infinity)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Search")
-            .accessibilityHint("Searches songs, players and bands")
-            .accessibilityIdentifier("fst.global-search.open")
-            ForEach(items, id: \.id) { item in
-                item.content
-            }
-        }
-        .padding(.leading, 16)
-        .padding(.trailing, items.isEmpty ? 16 : 6)
-        .labelStyle(.iconOnly)
-        .tint(BrandTokens.textPrimary)
-    }
-}
-
-/// Pre-26.1 presentation: the same row on a glass capsule at the bottom of a tab's
-/// stack, above the classic tab bar. Applied by `FestivalTabStack`.
-struct DockInset: ViewModifier {
+/// The visible page's controls as separate floating glass buttons, trailing-aligned
+/// just above the tab bar (like the web's FABs). Applied by `FestivalTabStack` as a
+/// bottom `safeAreaInset`, so lists scroll clear of them and page-owned bottom bars
+/// (e.g. the Full Rankings pager) stack above them instead of overlapping.
+struct FloatingPageControls: ViewModifier {
     @Environment(\.tabAccessoryRegistry) private var registry
-    @Environment(\.dockPresentation) private var presentation
-    @Environment(\.openGlobalSearch) private var openGlobalSearch
+
+    /// Button size plus its bottom margin.
+    static let height: CGFloat = 50 + 8
 
     func body(content: Content) -> some View {
-        if presentation == .inset, let registry, let openGlobalSearch {
-            content.safeAreaInset(edge: .bottom, spacing: 0) {
-                DockBar(items: registry.items) { openGlobalSearch() }
-                    .frame(height: 48)
-                    .festivalGlassCapsule(.control, interactive: true)
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 8)
+        let hasItems = !(registry?.items.isEmpty ?? true)
+        content
+            .environment(\.floatingControlsInset, hasItems ? Self.height : 0)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+            if let registry, !registry.items.isEmpty {
+                FestivalGlassGroup(spacing: 12) {
+                    HStack(spacing: 12) {
+                        Spacer(minLength: 0)
+                        ForEach(registry.items, id: \.id) { item in
+                            item.content
+                                .labelStyle(.iconOnly)
+                                .font(.title3)
+                                .frame(width: 50, height: 50)
+                                .contentShape(Circle())
+                                .festivalGlassCapsule(.control, interactive: true)
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+                .transition(.opacity)
             }
-        } else {
-            content
         }
     }
 }

@@ -68,7 +68,6 @@ struct PlayerProfileContent: View {
     @State private var actionError: String?
     @State private var quickLinks = QuickLinksController()
     @Environment(\.deviceLayout) private var layout
-    @Environment(\.isTabAccessoryAvailable) private var accessoryAvailable
     @AppStorage("fst.settings.showLead") private var showLead = true
     @AppStorage("fst.settings.showBass") private var showBass = true
     @AppStorage("fst.settings.showDrums") private var showDrums = true
@@ -137,11 +136,6 @@ struct PlayerProfileContent: View {
         return session.selectedPlayer == nil ? .select : .switchTo
     }
 
-    /// Values the tab accessory displays; re-registers it when any changes.
-    private struct IdentityAccessoryToken: Hashable {
-        let action: ProfileIdentityAction?
-        let name: String
-    }
 
     /// `phase`, never showing another account's payload (see `PlayerProfilePhase.shown(for:)`).
     private var shownPhase: PlayerProfilePhase { phase.shown(for: accountId) }
@@ -181,16 +175,6 @@ struct PlayerProfileContent: View {
             } message: {
                 Text("Scores and profile-only content will be hidden; app Settings stay saved.")
             }
-            .festivalTabAccessory(
-                token: IdentityAccessoryToken(action: identity, name: displayName),
-                isEnabled: identity != nil
-            ) {
-                if let identity {
-                    ProfileIdentityAccessory(name: displayName, action: identity) {
-                        perform(identity)
-                    }
-                }
-            }
             .toolbar {
                 if let identity {
                     if layout.sectionChrome.isVerticalBar {
@@ -200,7 +184,8 @@ struct PlayerProfileContent: View {
                             identifier: identity.railAccessibilityIdentifier,
                             action: { perform(identity) }
                         )
-                    } else if !accessoryAvailable {
+                    } else {
+                        // Its own header button (operator: not part of a bottom bar).
                         ProfileIdentityToolbarItem(
                             action: identity, onTabRoot: showsRootTrailingItems, perform: perform
                         )

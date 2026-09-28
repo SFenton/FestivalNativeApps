@@ -179,7 +179,14 @@ struct SongRowView: View {
     }
 
     @ViewBuilder private var shopBadge: some View {
-        if let shopHighlight {
+        if shopHighlight == .new {
+            // No visible "New" chip (operator, 2026-09-28): the row's gold outline marks
+            // it. VoiceOver still hears "Item Shop: New" through the combined row.
+            Color.clear
+                .frame(width: 1, height: 1)
+                .accessibilityLabel("Item Shop: \(ShopHighlight.new.label)")
+                .accessibilityIdentifier("fst.songs.shop-badge.\(song.songId)")
+        } else if let shopHighlight {
             Image(systemName: shopHighlight == .leavingTomorrow
                 ? "clock" : "sparkles")
                 .font(.subheadline)

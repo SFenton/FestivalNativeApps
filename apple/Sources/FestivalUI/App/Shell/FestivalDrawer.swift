@@ -27,11 +27,13 @@ struct DrawerItem: Identifiable, Equatable {
 
 /// Pure drawer contents, ported from the web `Sidebar` (`components/shell/desktop/Sidebar.tsx`).
 enum DrawerMenu {
-    /// Rows for the "Browse" group.
+    /// The navigation list, in web `Sidebar` order: Songs, Suggestions*, Statistics*,
+    /// Rivals*, Leaderboards, Item Shop (*with a selected player). Bands and Licenses
+    /// are not listed (operator, 2026-09-28): Bands open from search and leaderboard
+    /// links, Licenses from Settings.
     ///
-    /// Leaderboards appears only when it is not already a tab (a selected player's
-    /// compact tab bar shows Compete instead). Rivals requires a player. Item Shop
-    /// honours Settings › Hide Item Shop.
+    /// A destination that is a visible tab switches to it; otherwise it is pushed on the
+    /// current stack. Item Shop honours Settings › Hide Item Shop.
     ///
     /// - Parameters:
     ///   - profile: Selected profile kind.
@@ -41,21 +43,25 @@ enum DrawerMenu {
     static func browse(
         profile: FestivalProfileKind, visibleSections: [FestivalSection], hideShop: Bool
     ) -> [DrawerItem] {
-        var items: [DrawerItem] = []
-        if !visibleSections.contains(.leaderboards) {
-            items.append(DrawerItem(
-                id: "leaderboards", title: "Leaderboards", symbol: "trophy",
-                intent: .push(.leaderboards)
-            ))
+        func destination(_ section: FestivalSection, route: AppRoute?) -> DrawerItem {
+            let intent: DrawerIntent = if let route, !visibleSections.contains(section) {
+                .push(route)
+            } else {
+                .select(section)
+            }
+            return DrawerItem(
+                id: section.rawValue, title: section.title, symbol: section.symbol, intent: intent
+            )
         }
-        if profile == .player && !visibleSections.contains(.rivals) {
-            items.append(DrawerItem(
-                id: "rivals", title: "Rivals", symbol: "person.2", intent: .push(.rivals)
-            ))
+        var items = [destination(.songs, route: nil)]
+        if profile != .none {
+            items.append(destination(.suggestions, route: .suggestions))
+            items.append(destination(.statistics, route: .statistics))
         }
-        items.append(DrawerItem(
-            id: "bands", title: "Bands", symbol: "person.3", intent: .push(.bands)
-        ))
+        if profile == .player {
+            items.append(destination(.rivals, route: .rivals))
+        }
+        items.append(destination(.leaderboards, route: .leaderboards))
         if !hideShop {
             items.append(DrawerItem(
                 id: "shop", title: "Item Shop", symbol: "bag", intent: .push(.shop)
@@ -64,11 +70,25 @@ enum DrawerMenu {
         return items
     }
 
-    /// Rows for the "More" group (web sidebar footer).
+    /// Rows pinned at the bottom of the drawer after the profile row (web sidebar footer).
     static let more: [DrawerItem] = [
         DrawerItem(id: "settings", title: "Settings", symbol: "gearshape", intent: .select(.settings)),
-        DrawerItem(id: "licenses", title: "Licenses", symbol: "doc.text", intent: .push(.licenses)),
     ]
+
+    /// Whether a row names the page on screen, for the current-destination highlight.
+    ///
+    /// - Parameters:
+    ///   - item: Drawer row.
+    ///   - selected: Selected root section.
+    ///   - topRoute: Route on top of the selected section's stack, if any.
+    /// - Returns: True for the section root being shown, or the pushed page it opens.
+    static func isCurrent(_ item: DrawerItem, selected: FestivalSection, topRoute: AppRoute?) -> Bool {
+        switch item.intent {
+        case let .select(section): section == selected && topRoute == nil
+        case let .push(route): route == topRoute
+        case .chooseProfile, .deselectProfile: false
+        }
+    }
 }
 
 // MARK: - Drawer placement
@@ -168,6 +188,10 @@ struct FestivalDrawer: View {
     let session: FestivalSession
     let visibleSections: [FestivalSection]
     let hideShop: Bool
+    /// Selected root section, for the current-destination highlight.
+    var selected: FestivalSection = .songs
+    /// Route on top of the selected section's stack, if any.
+    var topRoute: AppRoute?
     let onIntent: (DrawerIntent) -> Void
     let onClose: () -> Void
 
@@ -266,20 +290,23 @@ struct FestivalDrawer: View {
     ///   - bottomInset: Content padding below the last row (``DrawerPlacement/contentBottom``).
     /// - Returns: The drawer contents.
     private func panel(topInset: CGFloat, bottomInset: CGFloat) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                header
-                profileSection
-                group("Browse", items: DrawerMenu.browse(
+        VStack(alignment: .leading, spacing: 12) {
+            header
+                .padding(.top, topInset)
+            ScrollView {
+                group(DrawerMenu.browse(
                     profile: profile, visibleSections: visibleSections, hideShop: hideShop
                 ))
-                group("More", items: DrawerMenu.more)
             }
-            .padding(.horizontal, 12)
-            .padding(.top, topInset)
+            .scrollBounceBehavior(.basedOnSize)
+            // Web sidebar footer: the profile row (or Select Profile), then Settings.
+            VStack(alignment: .leading, spacing: 2) {
+                profileSection
+                group(DrawerMenu.more)
+            }
             .padding(.bottom, bottomInset)
         }
-        .scrollBounceBehavior(.basedOnSize)
+        .padding(.horizontal, 12)
         .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous))
         .accessibilityIdentifier("fst.shell.drawer")
     }
@@ -307,40 +334,39 @@ struct FestivalDrawer: View {
 
     @ViewBuilder private var profileSection: some View {
         if let player = session.selectedPlayer {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 12) {
-                    ProfileAvatar(name: player.displayName, size: 48)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(player.displayName)
-                            .font(.headline)
-                            .foregroundStyle(BrandTokens.textPrimary)
-                            .lineLimit(2)
-                        Text("Selected Player")
-                            .font(.subheadline)
-                            .foregroundStyle(BrandTokens.textMuted)
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.bottom, 6)
-                .accessibilityElement(children: .combine)
-                .accessibilityAddTraits(.isHeader)
-                DrawerRow(title: "View Profile", symbol: "person.text.rectangle") {
+            // Web: the player's name links to their profile, with Deselect beside it.
+            HStack(spacing: 8) {
+                Button {
                     onIntent(.push(.player(
                         accountId: player.accountId, displayName: player.displayName
                     )))
+                } label: {
+                    HStack(spacing: 12) {
+                        ProfileAvatar(name: player.displayName, size: 32)
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(player.displayName)
+                                .font(.headline)
+                                .foregroundStyle(FestivalText.primary)
+                                .lineLimit(1)
+                            Text("Selected Player")
+                                .font(.caption)
+                                .foregroundStyle(FestivalText.primary)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 8)
+                    .frame(minHeight: 48)
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(DrawerRowStyle())
+                .accessibilityElement(children: .combine)
+                .accessibilityHint("Opens your profile")
                 .accessibilityIdentifier("fst.shell.drawer.view-profile")
-                DrawerRow(title: "Switch Profile", symbol: "arrow.left.arrow.right") {
-                    onIntent(.chooseProfile)
-                }
-                .accessibilityIdentifier("fst.shell.drawer.switch-profile")
-                DrawerRow(
-                    title: "Deselect Profile", symbol: "person.crop.circle.badge.minus",
-                    tint: .red
-                ) {
-                    deselectPending = true
-                }
-                .accessibilityIdentifier("fst.shell.drawer.deselect-profile")
+                Button("Deselect") { deselectPending = true }
+                    .buttonStyle(.bordered)
+                    .tint(.red)
+                    .accessibilityLabel("Deselect Profile")
+                    .accessibilityIdentifier("fst.shell.drawer.deselect-profile")
             }
         } else {
             DrawerRow(title: "Select Profile", symbol: "person.crop.circle.badge.plus",
@@ -351,17 +377,14 @@ struct FestivalDrawer: View {
         }
     }
 
-    private func group(_ title: String, items: [DrawerItem]) -> some View {
+    private func group(_ items: [DrawerItem]) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(BrandTokens.textMuted)
-                .padding(.horizontal, 8)
-                .padding(.bottom, 4)
-                .accessibilityAddTraits(.isHeader)
             ForEach(items) { item in
-                DrawerRow(title: item.title, symbol: item.symbol) { onIntent(item.intent) }
-                    .accessibilityIdentifier("fst.shell.drawer.\(item.id)")
+                let current = DrawerMenu.isCurrent(item, selected: selected, topRoute: topRoute)
+                DrawerRow(title: item.title, symbol: item.symbol, isCurrent: current) {
+                    onIntent(item.intent)
+                }
+                .accessibilityIdentifier("fst.shell.drawer.\(item.id)")
             }
         }
     }
@@ -374,6 +397,8 @@ struct DrawerRow: View {
     let title: String
     let symbol: String
     var tint: Color = BrandTokens.textPrimary
+    /// Highlights the page on screen (web `sidebarLinkActive`).
+    var isCurrent = false
     let action: () -> Void
 
     var body: some View {
@@ -391,9 +416,14 @@ struct DrawerRow: View {
             }
             .padding(.horizontal, 8)
             .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+            .background(
+                isCurrent ? BrandTokens.accentBlue.opacity(0.28) : .clear,
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            )
             .contentShape(Rectangle())
         }
         .buttonStyle(DrawerRowStyle())
+        .accessibilityAddTraits(isCurrent ? .isSelected : [])
     }
 }
 

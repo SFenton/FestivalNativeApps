@@ -6,10 +6,9 @@ import FestivalDesign
 
 /// The one identity action a player page offers for the account it shows.
 ///
-/// Placement (`.agents/design/apple/nav-accessories.md`): the tab-bar bottom accessory
-/// on iOS 26.1+ iPhone, otherwise a labelled toolbar item (so the iPhone Duo puts it
-/// in its vertical bar). Paused states (unverified or changed publication) offer no
-/// action and stay as footnotes in the page header.
+/// Placement (`.agents/design/apple/nav-accessories.md`): its own header button on
+/// iPhone, iPad and Mac; the iPhone Duo rail item otherwise. Paused states (unverified
+/// or changed publication) offer no action and stay as footnotes in the page header.
 enum ProfileIdentityAction: Hashable {
     /// No profile selected: select this one.
     case select
@@ -18,7 +17,7 @@ enum ProfileIdentityAction: Hashable {
     /// This is the selected profile: deselect it (confirmed by the page).
     case deselect
 
-    /// Short title for the accessory's button.
+    /// Short title for the header button.
     var shortTitle: String {
         switch self {
         case .select: "Select"
@@ -57,60 +56,36 @@ enum ProfileIdentityAction: Hashable {
     var isProminent: Bool { self != .deselect }
 }
 
-// MARK: - Accessory
+// MARK: - Header button
 
-/// The player page's part of the tab accessory, after global Search: the account's
-/// monogram and the action button (the page title already names the player).
-struct ProfileIdentityAccessory: View {
-    let name: String
-    let action: ProfileIdentityAction
-    let perform: () -> Void
-
-    var body: some View {
-        HStack(spacing: 8) {
-            ProfileAvatar(name: name, size: 26)
-            button
-        }
-    }
-
-    /// Flat (non-glass) button inside the system's glass accessory: no glass on glass.
-    @ViewBuilder private var button: some View {
-        let base = Button(action: perform) {
-            Text(action.shortTitle)
-                .font(.subheadline.weight(.semibold))
-                .padding(.horizontal, 4)
-        }
-        .buttonBorderShape(.capsule)
-        .controlSize(.small)
-        .accessibilityLabel(action == .deselect ? "Deselect \(name)" : "\(action.title): \(name)")
-        .accessibilityIdentifier(action.accessibilityIdentifier)
-        if action.isProminent {
-            base.buttonStyle(.borderedProminent).tint(BrandTokens.accentBlue)
-        } else {
-            base.buttonStyle(.bordered).tint(BrandTokens.textPrimary)
-        }
-    }
-}
-
-// MARK: - Toolbar fallback
-
-/// The same action as a labelled toolbar item where neither the tab accessory nor the
-/// Duo rail (`VerticalBarActionItem`) applies: iOS 17–26.0 and iPad.
+/// The player page's Select / Switch / Deselect as its own header button (operator,
+/// 2026-09-28). The iPhone Duo rail uses `VerticalBarActionItem` instead.
 struct ProfileIdentityToolbarItem: ToolbarContent {
     let action: ProfileIdentityAction
-    /// True on a tab root, where page actions must precede the bell and avatar.
+    /// True on a tab root, where page actions must precede Search, the bell and avatar.
     let onTabRoot: Bool
     let perform: (ProfileIdentityAction) -> Void
 
     var body: some ToolbarContent {
         ToolbarItem(placement: placement) {
-            Button {
-                perform(action)
-            } label: {
-                Label(action.title, systemImage: action.systemImage)
-            }
-            .tint(action.isProminent ? BrandTokens.accentBlue : BrandTokens.textPrimary)
-            .accessibilityIdentifier(action.accessibilityIdentifier)
+            button
+        }
+    }
+
+    /// A short text button: prominent (accent) for Select/Switch, plain for Deselect.
+    @ViewBuilder private var button: some View {
+        let base = Button {
+            perform(action)
+        } label: {
+            Text(action.shortTitle)
+                .font(.body.weight(.semibold))
+        }
+        .accessibilityLabel(action.title)
+        .accessibilityIdentifier(action.accessibilityIdentifier)
+        if action.isProminent {
+            base.buttonStyle(.borderedProminent).tint(BrandTokens.accentBlue)
+        } else {
+            base.tint(FestivalText.primary)
         }
     }
 

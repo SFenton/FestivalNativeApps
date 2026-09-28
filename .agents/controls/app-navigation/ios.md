@@ -19,6 +19,10 @@ SwiftUI lays out items from an outer `.toolbar` modifier (the root chrome) *befo
 - Tab roots **without** their own actions do nothing; `festivalRootChrome` adds the bell + avatar itself.
 - Pushed pages never show the chrome, so `.primaryAction` is fine there.
 
-## Tab-bar bottom accessory
+## Header search and floating page tools
 
-`FestivalRootView` applies `.festivalTabAccessoryHost()` to the iPhone `TabView` (`Common/TabAccessory/TabAccessory.swift`): the iPhone bottom dock (system accessory on iOS 26.1+, `DockInset` bar before) with global Search on every page, then the visible page's tools registered with `.festivalTabAccessory(token:order:isEnabled:)` (Filter/Sort, Quick Links, Select). The tab bar does not minimize on scroll. On the Duo rail, iPad and Mac `FestivalRootTrailingItems` and pushed pages show a toolbar Search button instead. Details: [nav-accessories.md](../../design/apple/nav-accessories.md), [global-search](../global-search/ios.md).
+Every page's header has a Search button (`FestivalRootTrailingItems` on tab roots, before the bell + avatar; `.globalSearchToolbarItem()` on pushed pages). On iPhone with a horizontal tab bar, page tools (Songs Filter/Sort, Quick Links) float as separate round glass buttons above the tab bar: `.festivalTabAccessoryHost()` on the `TabView` publishes the registry, pages register with `.festivalTabAccessory(token:order:isEnabled:)`, and `FestivalTabStack` draws them (`FloatingPageControls`). Details: [nav-accessories.md](../../design/apple/nav-accessories.md), [global-search](../global-search/ios.md).
+
+## Drawer
+
+Mirrors the web sidebar: Songs, Suggestions*, Statistics*, Rivals*, Leaderboards, Item Shop (*player; a visible tab switches, otherwise pushes), current destination highlighted (`DrawerMenu.isCurrent`); footer pinned at the bottom: the profile row (name → profile, Deselect) or Select Profile, then Settings. No Bands or Licenses rows (operator, 2026-09-28).

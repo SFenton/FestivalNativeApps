@@ -1,21 +1,22 @@
 # Global search — iPhone notes
 
-> **What:** the Apple design and implementation of global search (songs, players, bands) on iPhone: the iOS 26.1+ tab-bar accessory, the toolbar button elsewhere (iOS 17–26.0, iPhone Duo rail), and the shared sheet. **Read when:** changing the search entry point, surface or results on iPhone. Behavior and test IDs: [spec.md](spec.md). iPad: [ipados.md](ipados.md); Mac: [macos.md](macos.md). Placement of every page control: [nav-accessories.md](../../design/apple/nav-accessories.md).
+> **What:** the Apple design and implementation of global search (songs, players, bands) on iPhone: a header Search button on every page (all iOS versions, iPhone Duo rail) opening one shared sheet. **Read when:** changing the search entry point, surface or results on iPhone. Behavior and test IDs: [spec.md](spec.md). iPad: [ipados.md](ipados.md); Mac: [macos.md](macos.md). Placement of every page control: [nav-accessories.md](../../design/apple/nav-accessories.md).
 
 ## Decision per layout
 
 | Layout | Entry point (every page, root or pushed) | Surface |
 |---|---|---|
-| iPhone iOS 26.1+, horizontal tab bar | **Bottom dock** = the tab-bar bottom accessory (Music's mini-player slot): a field-shaped "Search" button first, then the page's tools (Filter/Sort, Quick Links, profile Select) | `GlobalSearchSheet` |
-| iPhone iOS 17–26.0 | The same dock as a glass bar in a bottom `safeAreaInset` above the classic tab bar (`DockInset`) | `GlobalSearchSheet` |
-| iPhone Duo (vertical bar) | Toolbar **Search** button (`magnifyingglass`): before the bell + avatar on tab roots (`FestivalRootTrailingItems`), `.primaryAction` on pushed pages; the system places it in the rail | `GlobalSearchSheet` |
+| iPhone (all iOS versions) | Header **Search** button (`magnifyingglass`, `fst.global-search.open`): before the bell + avatar on tab roots (`FestivalRootTrailingItems`), `.primaryAction` on pushed pages | `GlobalSearchSheet` |
+| iPhone Duo (vertical bar) | The same toolbar button, placed in the rail by the system | `GlobalSearchSheet` |
 | Any, hardware keyboard | ⌘K or ⌘F | `GlobalSearchSheet` |
 
-`GlobalSearchSheet`: full-height sheet, inline title "Search", `.searchable` drawer field focused on open, scope bar, trailing Close. A result closes the sheet, then pushes on the presenting section (Back returns there).
+Operator (2026-09-28): "Global search button should be in header" (web: the header has search + profile). Earlier passes put Search in the tab-bar accessory; that was withdrawn.
 
-### Why not the system search tab
+`GlobalSearchSheet`: full-height sheet, inline title "Search", `.searchable` drawer field focused on open, scope bar, trailing Close. `.searchPresentationToolbarBehavior(.avoidHidingContent)` (iOS 17.1+) keeps the title and Close visible while the field is active (operator bug: they disappeared). A result closes the sheet, then pushes on the presenting section (Back returns there).
 
-`Tab(role: .search)` is Apple's first choice for app-wide search in tab apps, and it was built and tested first. On iOS 26.5 a search tab counts toward the iPhone's five-tab limit: with a player selected (five sections) the tab bar showed Songs · Suggestions · Compete · Statistics · **More**, hiding Settings and Search (screenshot evidence in the lane report). HIG: avoid overflow tabs, and don't make tabs appear and disappear with state. The dock keeps Search at the bottom on every page (the operator's Music and web-dock references) without touching the tab set. A toolbar-only design on iOS 26 was rejected because pushed pages have no shell chrome and the top bar is already full on tab roots.
+### Why not the system search tab or the accessory
+
+`Tab(role: .search)` is Apple's first choice for app-wide search in tab apps and was built first. On iOS 26.5 a search tab counts toward the iPhone's five-tab limit: with a player selected (five sections) the bar showed Songs · Suggestions · Compete · Statistics · **More**, hiding Settings and Search. A Search pill in the tab-bar accessory came next; the operator moved Search to the header to match the web.
 
 ## Songs: filter stays separate
 
@@ -29,7 +30,7 @@ Songs keeps its **inline** `.searchable` field with the prompt "Filter Songs". I
 | `GlobalSearchModel`: query, scope, per-section state, cancellation via `.task(id: runKey)`, catalogue reloaded per publication | `Features/Search/GlobalSearchModel.swift` |
 | `GlobalSearchResults`, `GlobalSearchSheet`, `GlobalSearchButton`, `.globalSearchToolbarItem()`, `\.openGlobalSearch` | `Features/Search/GlobalSearchView.swift` |
 | Sheet, ⌘K/⌘F, `openGlobalSearch` | `App/FestivalRootView.swift` |
-| Dock (accessory / inset), toolbar button on Duo/iPad/Mac roots and pushed pages | `Common/TabAccessory/TabAccessory.swift` (`DockBar`, `DockInset`), `App/Shell/RootChrome.swift`, `App/AppRouteDestination.swift` |
+| Header button on roots and pushed pages | `App/Shell/RootChrome.swift`, `App/AppRouteDestination.swift` |
 
 - **Scope bar:** a segmented `Picker` (All · Songs · Players · Bands), the HIG scope-bar form with the broadest scope first, instead of web toggle chips. The container carries `fst.global-search.scope`; segments are reached by label (a system segmented control has no per-segment identifier).
 - **Loading:** Songs render as soon as the catalogue filter runs; Players show their own progress (`fst.global-search.players-loading`) until the account search returns (the spec's native correction).
@@ -39,7 +40,7 @@ Songs keeps its **inline** `.searchable` field with the prompt "Filter Songs". I
 
 ## Test IDs (Apple)
 
-`fst.global-search.open` (dock button or toolbar button), `fst.global-search.surface`, `fst.global-search.scope`, `fst.global-search.hint`, `fst.global-search.section.{songs,players}`, `fst.global-search.result.{song,player}`, `fst.global-search.players-loading`, `fst.global-search.retry`, `fst.global-search.bands-unavailable`, `fst.global-search.close`. The system search field has no settable identifier: tests find the search field whose placeholder is the scope prompt ("Search songs or players").
+`fst.global-search.open` (header button), `fst.global-search.surface`, `fst.global-search.scope`, `fst.global-search.hint`, `fst.global-search.section.{songs,players}`, `fst.global-search.result.{song,player}`, `fst.global-search.players-loading`, `fst.global-search.retry`, `fst.global-search.bands-unavailable`, `fst.global-search.close`. The system search field has no settable identifier: tests find the search field whose placeholder is the scope prompt ("Search songs or players").
 
 ## Open
 

@@ -124,12 +124,13 @@ func sidebarShellUsesRegularSections(layout: DeviceLayout) {
     #expect(FestivalTabPolicy.resolve(.rivals, in: folded) == .compete)
 }
 
-/// The drawer stops listing Leaderboards and Rivals once they are tabs.
+/// Once Leaderboards and Rivals are tabs (Duo unfolded) their drawer rows switch tabs.
 @Test func unfoldedDrawerDropsSplitTabs() {
     let visible = ShellPresentation.resolve(layout: Layouts.duoUnfolded, usesSidebarShell: false)
         .sections(profile: .player)
-    let ids = DrawerMenu.browse(profile: .player, visibleSections: visible, hideShop: false).map(\.id)
-    #expect(ids == ["bands", "shop"])
+    let items = DrawerMenu.browse(profile: .player, visibleSections: visible, hideShop: false)
+    #expect(items.first { $0.id == "rivals" }?.intent == .select(.rivals))
+    #expect(items.first { $0.id == "leaderboards" }?.intent == .select(.leaderboards))
 }
 
 // MARK: - Drawer placement

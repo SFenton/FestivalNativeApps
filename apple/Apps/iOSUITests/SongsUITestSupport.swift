@@ -244,7 +244,7 @@ enum SongsUITestSupport {
         XCTAssertTrue(filter.waitForExistence(timeout: 10))
         XCTAssertTrue(filter.isHittable)
         filter.tap()
-        XCTAssertTrue(app.buttons["fst.songs.filter.cancel"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["fst.songs.filter.done"].waitForExistence(timeout: 10))
         return filter
     }
 
@@ -270,18 +270,18 @@ enum SongsUITestSupport {
         let form = app.descendants(matching: .any).matching(
             identifier: "fst.songs.filter.form"
         ).firstMatch
-        let footer = app.buttons["fst.songs.filter.cancel"]
+        let footer = app.buttons["fst.songs.filter.done"]
         XCTAssertTrue(
             form.exists && footer.exists,
             "Missing Filter Form or pinned actions: "
                 + "\(app.collectionViews.allElementsBoundByIndex.prefix(4).map(\.identifier))"
         )
         for _ in 0..<12 {
-            if element.isHittable && element.frame.maxY <= footer.frame.minY { break }
+            if element.isHittable && element.frame.maxY <= sheetVisibleBottom(in: app) { break }
             form.swipeUp()
         }
         XCTAssertTrue(
-            element.isHittable && element.frame.maxY <= footer.frame.minY,
+            element.isHittable && element.frame.maxY <= sheetVisibleBottom(in: app),
             "\(element.identifier) is not reachable above the Filter footer"
         )
         return element
@@ -324,14 +324,24 @@ enum SongsUITestSupport {
         XCTAssertLessThanOrEqual(element.frame.maxY, visibleBottom)
     }
 
-    /// Scroll the modal Form until Reset is above the always-visible action footer.
+    /// Bottom of the visible sheet content: the sheets have no pinned footer any more
+    /// (immediate-apply sheets with a Done button in their navigation bar).
+    ///
+    /// - Parameter app: Foreground app presenting a Songs sheet.
+    /// - Returns: The lowest y at which a control is fully visible.
+    @MainActor
+    static func sheetVisibleBottom(in app: XCUIApplication) -> CGFloat {
+        app.windows.firstMatch.frame.maxY - 8
+    }
+
+    /// Scroll the modal Form until Reset is fully visible.
     ///
     /// - Parameter app: Foreground Songs Sort sheet on phone or tablet.
     /// - Returns: Hittable Reset button within the visible scroll viewport.
     @MainActor
     static func revealSortReset(in app: XCUIApplication) -> XCUIElement {
         revealSheetReset(
-            "fst.songs.sort.reset", cancelId: "fst.songs.sort.cancel",
+            "fst.songs.sort.reset", cancelId: "fst.songs.sort.done",
             sheetName: "Sort", in: app
         )
     }
@@ -368,11 +378,11 @@ enum SongsUITestSupport {
         let footer = app.buttons[cancelId]
         XCTAssertTrue(list.exists && footer.exists)
         for _ in 0..<8 {
-            if reset.isHittable && reset.frame.maxY <= footer.frame.minY { break }
+            if reset.isHittable && reset.frame.maxY <= sheetVisibleBottom(in: app) { break }
             list.swipeUp()
         }
         XCTAssertTrue(
-            reset.isHittable && reset.frame.maxY <= footer.frame.minY,
+            reset.isHittable && reset.frame.maxY <= sheetVisibleBottom(in: app),
             "Reset is hidden by the \(sheetName) action footer"
         )
         return reset
@@ -393,14 +403,14 @@ enum SongsUITestSupport {
         let form = table.exists ? table : app.collectionViews.containing(
             .button, identifier: "fst.songs.sort.reset"
         ).firstMatch
-        let footer = app.buttons["fst.songs.sort.cancel"]
+        let footer = app.buttons["fst.songs.sort.done"]
         XCTAssertTrue(form.exists && footer.exists)
         for _ in 0..<8 {
-            if choice.isHittable && choice.frame.maxY <= footer.frame.minY { break }
+            if choice.isHittable && choice.frame.maxY <= sheetVisibleBottom(in: app) { break }
             form.swipeUp()
         }
         XCTAssertTrue(
-            choice.isHittable && choice.frame.maxY <= footer.frame.minY,
+            choice.isHittable && choice.frame.maxY <= sheetVisibleBottom(in: app),
             "Item Shop sort option is hidden by the sheet footer"
         )
         return choice

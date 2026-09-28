@@ -144,7 +144,7 @@ struct FestivalTabStack<Root: View>: View {
                 .globalSearchToolbarItem()
             }
         }
-        // iOS 17–26.0 iPhone: the bottom dock as a glass bar above the tab bar.
-        .modifier(DockInset())
+        // iPhone: the page's Filter/Sort and Quick Links float above the tab bar.
+        .modifier(FloatingPageControls())
     }
 }

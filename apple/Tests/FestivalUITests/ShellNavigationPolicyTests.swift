@@ -116,19 +116,36 @@ func selectionKeepsVisibleTabAndPaths(selected: FestivalSection) {
 
 // MARK: - Drawer menu
 
-/// Anonymous drawer: Leaderboards is already a tab and Rivals needs a player.
+/// Anonymous drawer mirrors the web sidebar: Songs, Leaderboards, Item Shop (no Bands,
+/// no Licenses); tab destinations switch tabs, Item Shop pushes.
 @Test func anonymousDrawerBrowse() {
     let visible = FestivalTabPolicy.sections(profile: .none, regularWidth: false)
-    let ids = DrawerMenu.browse(profile: .none, visibleSections: visible, hideShop: false).map(\.id)
-    #expect(ids == ["bands", "shop"])
+    let items = DrawerMenu.browse(profile: .none, visibleSections: visible, hideShop: false)
+    #expect(items.map(\.id) == ["songs", "leaderboards", "shop"])
+    #expect(items.map(\.intent) == [.select(.songs), .select(.leaderboards), .push(.shop)])
 }
 
-/// Player drawer surfaces Leaderboards (replaced by Compete) and Rivals.
+/// Player drawer adds Suggestions, Statistics and Rivals in web order; Leaderboards and
+/// Rivals are not tabs on a compact iPhone (Compete is), so they push.
 @Test func playerDrawerBrowse() {
     let visible = FestivalTabPolicy.sections(profile: .player, regularWidth: false)
     let items = DrawerMenu.browse(profile: .player, visibleSections: visible, hideShop: false)
-    #expect(items.map(\.id) == ["leaderboards", "rivals", "bands", "shop"])
-    #expect(items.first?.intent == .push(.leaderboards))
+    #expect(items.map(\.id) == ["songs", "suggestions", "statistics", "rivals", "leaderboards", "shop"])
+    #expect(items[3].intent == .push(.rivals))
+    #expect(items[4].intent == .push(.leaderboards))
+    #expect(items[1].intent == .select(.suggestions))
+}
+
+/// The highlight names the section root on screen, or the pushed page a row opens.
+@Test func drawerHighlightsCurrentDestination() {
+    let visible = FestivalTabPolicy.sections(profile: .player, regularWidth: false)
+    let items = DrawerMenu.browse(profile: .player, visibleSections: visible, hideShop: false)
+    let songs = items[0]
+    let leaderboards = items[4]
+    #expect(DrawerMenu.isCurrent(songs, selected: .songs, topRoute: nil))
+    #expect(!DrawerMenu.isCurrent(songs, selected: .songs, topRoute: .shop))
+    #expect(DrawerMenu.isCurrent(leaderboards, selected: .compete, topRoute: .leaderboards))
+    #expect(!DrawerMenu.isCurrent(leaderboards, selected: .compete, topRoute: nil))
 }
 
 /// Settings › Hide Item Shop removes the drawer entry.
@@ -137,11 +154,9 @@ func selectionKeepsVisibleTabAndPaths(selected: FestivalSection) {
     #expect(!items.contains { $0.id == "shop" })
 }
 
-/// Settings switches tabs; Licenses pushes onto the current stack.
+/// Settings is pinned at the bottom and switches tabs; Licenses lives in Settings.
 @Test func drawerMoreIntents() {
-    #expect(DrawerMenu.more.map(\.intent) == [
-        .select(.settings), .push(.licenses),
-    ])
+    #expect(DrawerMenu.more.map(\.intent) == [.select(.settings)])
 }
 
 // MARK: - Avatar and debug routing

@@ -33,8 +33,8 @@ private func selectedPlayerDrawerSession() -> FestivalSession {
 
 // MARK: - Drawer content states
 
-/// The anonymous drawer offers "Select Profile", Bands and Item Shop, but no
-/// Rivals row (requires a player) and no Leaderboards row (already a tab).
+/// The anonymous drawer offers Songs, Leaderboards and Item Shop, then "Select
+/// Profile" and Settings pinned at the bottom (web sidebar).
 @MainActor
 @Test func drawerRendersAnonymousProfileState() async throws {
     let session = anonymousDrawerSession()
@@ -56,9 +56,8 @@ private func selectedPlayerDrawerSession() -> FestivalSession {
     assertRendersContent(host, image: image, containing: ["Select Profile", "Item Shop", "Settings"])
 }
 
-/// The selected-player drawer swaps in "View Profile"/"Switch Profile"/"Deselect"
-/// and gains both Leaderboards and Rivals rows: a selected player's compact tab
-/// bar shows Compete instead of Leaderboards, so the drawer surfaces both again.
+/// The selected-player drawer shows the player row with Deselect in the footer and adds
+/// Suggestions, Statistics and Rivals to the list (web sidebar order).
 @MainActor
 @Test func drawerRendersSelectedPlayerProfileState() async throws {
     let session = selectedPlayerDrawerSession()
@@ -85,7 +84,7 @@ private func selectedPlayerDrawerSession() -> FestivalSession {
     )
     // Real content check to back the pixel evidence, matching `DrawerMenu.playerDrawerBrowse`.
     let items = DrawerMenu.browse(profile: .player, visibleSections: visible, hideShop: false)
-    #expect(items.map(\.id) == ["leaderboards", "rivals", "bands", "shop"])
+    #expect(items.map(\.id) == ["songs", "suggestions", "statistics", "rivals", "leaderboards", "shop"])
 }
 
 /// Settings › Hide Item Shop removes the drawer's Item Shop row even while rendered.

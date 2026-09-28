@@ -40,6 +40,7 @@ struct SongsScreen: View {
     @Environment(\.deviceLayout) private var deviceLayout
     /// True where Filter/Sort live in the iPhone bottom dock instead of the toolbar.
     @Environment(\.isTabAccessoryAvailable) private var actionsInDock
+    @Environment(\.floatingControlsInset) private var floatingControlsInset
     @AppStorage("fst.songs.sortMode") private var sortMode = SongSortMode.title
     @AppStorage("fst.songs.sortAscending") private var sortAscending = true
     @AppStorage("fst.songs.filterInShop") private var filterInShop = false
@@ -878,7 +879,8 @@ struct SongsScreen: View {
                     // title and filter field collapse on scroll, which made a centered
                     // strip jump.
                     .frame(maxHeight: .infinity, alignment: .bottom)
-                    .padding(.bottom, 8)
+                    // …and above the floating Filter/Sort buttons at the same edge.
+                    .padding(.bottom, 8 + floatingControlsInset)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
             }

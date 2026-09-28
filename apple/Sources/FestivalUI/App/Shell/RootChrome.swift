@@ -184,13 +184,12 @@ struct FestivalRootTrailingItems: ToolbarContent {
     let session: FestivalSession
     var showsNotifications: Bool = true
     @Environment(\.openProfile) private var openProfile
+    /// Global search: a header button on every layout (operator, 2026-09-28).
     @Environment(\.openGlobalSearch) private var openGlobalSearch
-    /// True where Search already sits in the tab-bar accessory (iOS 26.1+ iPhone).
-    @Environment(\.isTabAccessoryAvailable) private var searchInAccessory
 
     var body: some ToolbarContent {
         #if os(iOS)
-        if let openGlobalSearch, !searchInAccessory {
+        if let openGlobalSearch {
             // Global search before the bell/avatar capsule (web header order).
             ToolbarItem(placement: .topBarTrailing) {
                 GlobalSearchButton { openGlobalSearch() }
