@@ -1,5 +1,16 @@
 package com.festivalscoretracker.android.ui.songdetail
 
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.text.style.TextOverflow
+import com.festivalscoretracker.android.ui.design.popupTestTags
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -8,8 +19,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,15 +36,11 @@ import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material.icons.filled.ZoomOut
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -82,9 +87,10 @@ import kotlin.math.max
 // region Sheet
 
 /**
- * CHOpt Paths sheet: chart chips, difficulty and image/text choices, then the
- * PNG (zoom 100–300%) or the activation table in the saved column order. The
- * sheet is modal, so the page behind cannot be used and focus returns on close.
+ * CHOpt Paths sheet (web Paths modal): a one-line header, the PNG (zoom 100–300%)
+ * or activation table filling the sheet, and one compact bottom row of M3 exposed
+ * dropdown menus for chart, difficulty and view. The sheet is modal, so the page
+ * behind cannot be used and focus returns on close.
  *
  * @param viewModel Paths logic (one per opening).
  * @param songTitle Song title for the header.
@@ -93,7 +99,7 @@ import kotlin.math.max
  * @param onDontShowAgain Persist the permanent dismissal.
  * @param onDismiss Close.
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun SongPathsSheet(
     viewModel: SongPathsViewModel,
@@ -111,16 +117,21 @@ fun SongPathsSheet(
         containerColor = BrandTokens.cardBackground,
         modifier = Modifier.testTag("fst.song-detail.paths"),
     ) {
-        Column(Modifier.semantics { testTagsAsResourceId = true }.padding(horizontal = 16.dp).padding(bottom = 16.dp).verticalScroll(rememberScrollState())) {
+        Column(Modifier.fillMaxHeight().semantics { testTagsAsResourceId = true }.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Paths", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = Modifier.semantics { heading() })
-                    Text(songTitle, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary)
-                }
+                Text(
+                    "Paths · $songTitle",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = BrandTokens.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).semantics { heading() },
+                )
                 IconButton(onClick = onDismiss, modifier = Modifier.testTag("fst.paths.close")) { Icon(Icons.Filled.Close, contentDescription = "Close Paths") }
             }
             if (warning) {
-                GlassCard(Modifier.fillMaxWidth().padding(vertical = 8.dp).testTag("fst.paths.karaoke-warning")) {
+                GlassCard(Modifier.fillMaxWidth().padding(bottom = 8.dp).testTag("fst.paths.karaoke-warning")) {
                     Column(Modifier.padding(12.dp)) {
                         Text("Karaoke doesn't have CHOpt paths, so it isn't listed here.", color = BrandTokens.textPrimary)
                         Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
@@ -130,48 +141,88 @@ fun SongPathsSheet(
                     }
                 }
             }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 8.dp).testTag("fst.paths.instrument")) {
-                viewModel.instruments.forEach { chart ->
-                    FilterChip(
-                        selected = chart == state.instrument,
-                        onClick = { viewModel.selectInstrument(chart) },
-                        label = { Text(chart.label) },
-                        leadingIcon = { InstrumentIcon(chart, size = 20.dp, decorative = true) },
-                        modifier = Modifier.testTag("fst.paths.instrument.${chart.wireId}"),
-                    )
-                }
-            }
-            Segmented(PathDifficulty.entries, state.difficulty, { it.label }, "fst.paths.difficulty", viewModel::selectDifficulty)
-            Segmented(PathDisplayMode.entries, state.display, { it.label }, "fst.paths.display", viewModel::selectDisplay)
-            Box(Modifier.padding(top = 12.dp)) {
+            Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (val load = state.load) {
-                    PathLoad.Loading -> Box(Modifier.fillMaxWidth().heightIn(min = 160.dp), contentAlignment = Alignment.Center) {
+                    PathLoad.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(Modifier.size(32.dp).testTag("fst.paths.loading"))
                     }
                     PathLoad.NotGenerated -> Text(
                         "No ${state.difficulty.label} path has been generated for ${state.instrument.label} yet.",
-                        color = BrandTokens.textSecondary,
-                        modifier = Modifier.padding(vertical = 24.dp).testTag("fst.paths.not-generated"),
+                        color = BrandTokens.textPrimary,
+                        modifier = Modifier.align(Alignment.Center).padding(24.dp).testTag("fst.paths.not-generated"),
                     )
                     is PathLoad.Failed -> ServiceStatusInline(load.issue, "Path unavailable", null, viewModel::retry, Modifier.testTag("fst.paths.error"))
                     is PathLoad.Image -> PathImage(load.image, "${state.instrument.label} ${state.difficulty.label} CHOpt path")
-                    is PathLoad.Text -> PathTable(load.data, columns)
+                    is PathLoad.Text -> Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) { PathTable(load.data, columns) }
                 }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 8.dp).testTag("fst.paths.selectors")) {
+                Selector(
+                    label = "Instrument",
+                    options = viewModel.instruments,
+                    selected = state.instrument,
+                    text = { it.label },
+                    tag = "fst.paths.instrument",
+                    optionTag = { it.wireId },
+                    icon = { InstrumentIcon(it, size = 20.dp, decorative = true) },
+                    modifier = Modifier.weight(1.4f),
+                    onSelect = viewModel::selectInstrument,
+                )
+                Selector("Difficulty", PathDifficulty.entries, state.difficulty, { it.label }, "fst.paths.difficulty", { it.label.lowercase() }, null, Modifier.weight(1f), viewModel::selectDifficulty)
+                Selector("View", PathDisplayMode.entries, state.display, { it.label }, "fst.paths.display", { it.label.lowercase() }, null, Modifier.weight(1f), viewModel::selectDisplay)
             }
         }
     }
 }
 
+/**
+ * One compact M3 exposed dropdown (read-only field + menu). The anchor is tagged
+ * [tag]; each option is `$tag.<optionTag>`.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun <T> Segmented(options: List<T>, selected: T, label: (T) -> String, tag: String, onSelect: (T) -> Unit) {
-    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(top = 8.dp).testTag(tag)) {
-        options.forEachIndexed { index, option ->
-            SegmentedButton(
-                selected = option == selected,
-                onClick = { onSelect(option) },
-                shape = SegmentedButtonDefaults.itemShape(index, options.size),
-                modifier = Modifier.testTag("$tag.${label(option).lowercase()}"),
-            ) { Text(label(option), maxLines = 1) }
+private fun <T> Selector(
+    label: String,
+    options: List<T>,
+    selected: T,
+    text: (T) -> String,
+    tag: String,
+    optionTag: (T) -> String,
+    icon: (@Composable (T) -> Unit)?,
+    modifier: Modifier,
+    onSelect: (T) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }, modifier = modifier) {
+        OutlinedTextField(
+            value = text(selected),
+            onValueChange = {},
+            readOnly = true,
+            singleLine = true,
+            label = { Text(label, maxLines = 1) },
+            leadingIcon = icon?.let { draw -> { draw(selected) } },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            textStyle = MaterialTheme.typography.bodyMedium,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = BrandTokens.textPrimary,
+                unfocusedTextColor = BrandTokens.textPrimary,
+                focusedLabelColor = BrandTokens.textPrimary,
+                unfocusedLabelColor = BrandTokens.textPrimary,
+            ),
+            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth().testTag(tag),
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, modifier = Modifier.popupTestTags()) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(text(option), fontWeight = if (option == selected) FontWeight.Bold else null) },
+                    leadingIcon = icon?.let { draw -> { draw(option) } },
+                    onClick = {
+                        expanded = false
+                        onSelect(option)
+                    },
+                    modifier = Modifier.testTag("$tag.${optionTag(option)}").semantics { this.selected = option == selected },
+                )
+            }
         }
     }
 }
@@ -205,23 +256,14 @@ private fun PathImage(image: SongPathImagePayload, description: String) {
         value = withContext(Dispatchers.Default) { listOfNotNull(decodePathImage(image.bytes, image.width, image.height)) }
     }
     var zoom by remember(image) { mutableFloatStateOf(1f) }
-    Column(Modifier.testTag("fst.paths.image")) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-            IconButton(onClick = { zoom = max(1f, zoom - 0.5f) }, enabled = zoom > 1f, modifier = Modifier.testTag("fst.paths.zoom-out")) {
-                Icon(Icons.Filled.ZoomOut, contentDescription = "Zoom out")
-            }
-            Text("${(zoom * 100).toInt()}%", color = BrandTokens.textSecondary, modifier = Modifier.testTag("fst.paths.zoom"))
-            IconButton(onClick = { zoom = minOf(3f, zoom + 0.5f) }, enabled = zoom < 3f, modifier = Modifier.testTag("fst.paths.zoom-in")) {
-                Icon(Icons.Filled.ZoomIn, contentDescription = "Zoom in")
-            }
-        }
+    Box(Modifier.fillMaxSize().testTag("fst.paths.image")) {
         val decoded = bitmap?.firstOrNull()
         if (bitmap == null) {
-            Box(Modifier.fillMaxWidth().heightIn(min = 160.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(28.dp)) }
+            CircularProgressIndicator(Modifier.size(28.dp).align(Alignment.Center))
         } else if (decoded == null) {
-            Text("This path image couldn't be displayed.", color = BrandTokens.textSecondary, modifier = Modifier.padding(vertical = 24.dp).testTag("fst.paths.image-error"))
+            Text("This path image couldn't be displayed.", color = BrandTokens.textPrimary, modifier = Modifier.align(Alignment.Center).padding(24.dp).testTag("fst.paths.image-error"))
         } else {
-            BoxWithConstraints(Modifier.fillMaxWidth()) {
+            BoxWithConstraints(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                 val width = maxWidth * zoom
                 Box(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                     Image(
@@ -234,6 +276,18 @@ private fun PathImage(image: SongPathImagePayload, description: String) {
                             .background(Color.White),
                     )
                 }
+            }
+        }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).background(BrandTokens.cardBackground.copy(alpha = 0.85f), RoundedCornerShape(20.dp)),
+        ) {
+            IconButton(onClick = { zoom = max(1f, zoom - 0.5f) }, enabled = zoom > 1f, modifier = Modifier.testTag("fst.paths.zoom-out")) {
+                Icon(Icons.Filled.ZoomOut, contentDescription = "Zoom out")
+            }
+            Text("${(zoom * 100).toInt()}%", color = BrandTokens.textPrimary, modifier = Modifier.testTag("fst.paths.zoom"))
+            IconButton(onClick = { zoom = minOf(3f, zoom + 0.5f) }, enabled = zoom < 3f, modifier = Modifier.testTag("fst.paths.zoom-in")) {
+                Icon(Icons.Filled.ZoomIn, contentDescription = "Zoom in")
             }
         }
     }
