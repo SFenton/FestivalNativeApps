@@ -152,6 +152,8 @@ class CoreModelTest {
         assertEquals("?", SelectedPlayer(Fixtures.ACCOUNT_A, "  ").initials)
         assertEquals("Name", SelectedPlayer.validated(Fixtures.ACCOUNT_A, " Name ")?.displayName)
         assertNull(SelectedPlayer.validated("bad id", "Name"))
+        // Fixture-service IDs are accepted as-is (tools/android/search_journey.py needs no hex remap).
+        assertEquals("fixture-player-1", SelectedPlayer.validated("fixture-player-1", "Fixture Player 1")?.accountId)
         assertNull(SelectedPlayer.validated(Fixtures.ACCOUNT_A, " "))
     }
 

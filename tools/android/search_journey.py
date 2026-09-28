@@ -143,15 +143,6 @@ def start_logging_mock(log: Path, paths: Path) -> tuple[subprocess.Popen, int]:
         "lock = threading.Lock(); target = sys.argv[2]\n"
         "def log_request(self, code='-', size='-'):\n"
         "    with lock, open(target, 'a', encoding='utf-8') as f: f.write(self.path.split('?')[0] + '\\n')\n"
-        # The shared fixture's account IDs (`fixture-player-1`) are not 32-hex Epic IDs, which the
-        # Android client rejects; remap search rows to synthetic hex IDs for these journeys only.
-        "original_json = m.FixtureHandler._json\n"
-        "def hex_json(self, status, payload, *a, **k):\n"
-        "    if self.path.startswith('/api/account/search') and isinstance(payload, dict):\n"
-        "        for i, row in enumerate(payload.get('results', [])):\n"
-        "            row['accountId'] = format(0xf00 + i + 1, '032x')\n"
-        "    return original_json(self, status, payload, *a, **k)\n"
-        "m.FixtureHandler._json = hex_json\n"
         "m.FixtureHandler.log_request = log_request; m.FixtureServer.request_queue_size = 128; "
         "sys.argv = ['mock_service', '--port', '0']; m.main()")
     proc = subprocess.Popen([sys.executable, "-u", "-c", bootstrap, str(MOCK_DIR), str(paths)],
