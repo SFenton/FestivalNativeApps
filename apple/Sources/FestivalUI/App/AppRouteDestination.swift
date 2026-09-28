@@ -34,6 +34,7 @@ struct AppRouteDestination: View {
         switch route {
         case let .songDetail(song):
             SongDetailScreen(song: song, session: session, visibleInstruments: visibleInstruments)
+                .firstRun(.songInfo, session: session)
         case let .songLeaderboard(song, instrument, page):
             SoloLeaderboardScreen(
                 song: song, instrument: instrument, session: session,
@@ -43,6 +44,7 @@ struct AppRouteDestination: View {
             SongBandLeaderboardScreen(session: session, song: song, bandType: bandType)
         case let .playerHistory(song, instrument):
             PlayerHistoryScreen(session: session, song: song, instrument: instrument)
+                .firstRun(.playerHistory, session: session)
         case let .player(accountId, displayName):
             PlayerProfileScreen(session: session, accountId: accountId, displayName: displayName)
         case let .playerBands(accountId, displayName):
@@ -56,12 +58,14 @@ struct AppRouteDestination: View {
             )
         case .leaderboards:
             LeaderboardsScreen(session: session)
+                .firstRun(.leaderboards, session: session)
         case let .fullRankings(instrument, rankBy):
             FullRankingsScreen(session: session, instrument: instrument, rankBy: rankBy)
         case let .bandRankings(bandType):
             BandRankingsScreen(session: session, bandType: bandType)
         case .rivals:
             RivalsScreen(session: session)
+                .firstRun(.rivals, session: session)
         case let .allRivals(category):
             AllRivalsScreen(session: session, category: category)
         case let .rivalDetail(rivalId, name):
@@ -70,12 +74,16 @@ struct AppRouteDestination: View {
             RivalryScreen(session: session, rivalId: rivalId, mode: mode, name: name)
         case .statistics:
             StatisticsScreen(session: session)
+                .firstRun(.statistics, session: session)
         case .suggestions:
             SuggestionsScreen(session: session)
+                .firstRun(.suggestions, session: session)
         case .compete:
             CompeteScreen(session: session)
+                .firstRun(.compete, session: session)
         case .shop:
             ShopScreen(session: session, isVisible: isVisible && path.last == .shop)
+                .firstRun(.shop, session: session)
         case .licenses:
             LicensesScreen(session: session)
         }

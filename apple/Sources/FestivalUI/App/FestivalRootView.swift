@@ -423,16 +423,27 @@ public struct FestivalRootView: View {
                 highContrast: moreContrast || systemContrast == .increased,
                 isVisible: selected == .songs
             )
+            .firstRun(.songs, session: session)
         case .suggestions:
-            tabStack(.suggestions) { SuggestionsScreen(session: session) }
+            tabStack(.suggestions) {
+                SuggestionsScreen(session: session).firstRun(.suggestions, session: session)
+            }
         case .leaderboards:
-            tabStack(.leaderboards) { LeaderboardsScreen(session: session) }
+            tabStack(.leaderboards) {
+                LeaderboardsScreen(session: session).firstRun(.leaderboards, session: session)
+            }
         case .compete:
-            tabStack(.compete) { CompeteScreen(session: session) }
+            tabStack(.compete) {
+                CompeteScreen(session: session).firstRun(.compete, session: session)
+            }
         case .rivals:
-            tabStack(.rivals) { RivalsScreen(session: session) }
+            tabStack(.rivals) {
+                RivalsScreen(session: session).firstRun(.rivals, session: session)
+            }
         case .statistics:
-            tabStack(.statistics) { StatisticsScreen(session: session) }
+            tabStack(.statistics) {
+                StatisticsScreen(session: session).firstRun(.statistics, session: session)
+            }
         case .settings:
             tabStack(.settings) {
                 SettingsScreen(session: session, isVisible: selected == .settings)

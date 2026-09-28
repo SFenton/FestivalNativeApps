@@ -94,6 +94,7 @@ struct SettingsScreen: View {
                 instruments
                 metadata
                 version
+                FirstRunSettingsSection(session: session)
                 service
                 about
                 reset
