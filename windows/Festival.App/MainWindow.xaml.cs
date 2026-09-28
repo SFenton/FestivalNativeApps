@@ -31,6 +31,7 @@ public sealed partial class MainWindow : Window
     private bool windowVisible = true;
     private bool minimized;
     private OcclusionTracker? occlusion;
+    private bool expandedPaneCollapsed;
     #endregion
 
     /// <summary>Creates the shell.</summary>
@@ -228,7 +229,22 @@ public sealed partial class MainWindow : Window
     /// <summary>Title bar pane toggle.</summary>
     /// <param name="sender">Title bar.</param>
     /// <param name="args">Unused.</param>
-    private void OnPaneToggleRequested(TitleBar sender, object args) => Nav.IsPaneOpen = !Nav.IsPaneOpen;
+    private void OnPaneToggleRequested(TitleBar sender, object args)
+    {
+        Nav.IsPaneOpen = !Nav.IsPaneOpen;
+        if (Nav.DisplayMode == NavigationViewDisplayMode.Expanded) expandedPaneCollapsed = !Nav.IsPaneOpen;
+    }
+
+    /// <summary>
+    /// Re-applies the user's expanded-pane choice when a resize returns to Expanded: opening and closing the overlay
+    /// pane in a compact window must not leave a wide window with only the icon rail.
+    /// </summary>
+    /// <param name="sender">Navigation view.</param>
+    /// <param name="args">New mode.</param>
+    private void OnNavDisplayModeChanged(NavigationView sender, NavigationViewDisplayModeChangedEventArgs args)
+    {
+        if (args.DisplayMode == NavigationViewDisplayMode.Expanded) sender.IsPaneOpen = !expandedPaneCollapsed;
+    }
 
     /// <summary>Rebuilds pane items from the visible sections (Settings is the footer item).</summary>
     private void RebuildMenu()

@@ -137,7 +137,7 @@
 
         <NavigationView x:Name="Nav" Grid.Row="1" PaneDisplayMode="Auto" IsBackButtonVisible="Collapsed"
                         IsPaneToggleButtonVisible="False" IsSettingsVisible="True" OpenPaneLength="240"
-                        ItemInvoked="OnNavItemInvoked"
+                        ItemInvoked="OnNavItemInvoked" DisplayModeChanged="OnNavDisplayModeChanged"
                         AutomationProperties.AutomationId="fst.shell.navigation">
             <Grid>
                 <controls:ArtworkBackground x:Name="Backdrop" />

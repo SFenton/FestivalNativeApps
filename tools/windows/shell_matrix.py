@@ -65,7 +65,7 @@ def plan_steps(page: str, presets: list[str], out: Path, prefix: str) -> list[st
         shot = f"shot:{(out / f'{prefix}{page}-{preset}.png').as_posix()}"
         if preset == "compact-pane":
             steps += ["resize:compact", "wait:1.5", "invoke:id=PART_PaneToggleButton", "wait:1", shot,
-                      "key:esc", "wait:0.5"]
+                      "invoke:id=PART_PaneToggleButton", "wait:0.5"]
         else:
             steps += [f"resize:{preset}", "wait:2", shot]
     return steps
