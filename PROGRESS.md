@@ -252,7 +252,7 @@ Not yet assigned:
 
 | Lane | Items | Status |
 |---|---|---|
-| **W1** (Duo shell, running) | Never navigate away on profile/band selection (remove all `selectionRevision` path resets) · Duo: Select Profile in rail · Leaderboards → Profile → Back rail jitter | 🟨 |
+| **W1** (Duo shell) | Never navigate away on profile/band selection (remove all `selectionRevision` path resets) · Duo: Select Profile in rail · Leaderboards → Profile → Back rail jitter | ✅ (jitter reduced; intermittent 2–3 frame residual, see `.agents/design/apple/duo.md`) |
 | **Z2** (wrong-account) | Root cause: all search results in one Form row → one tap fired every row's button (also Find Rival); `.id(accountId)` resets; profile graphs (rank history + percentiles); selection updates in place | ✅ `061bba5`…`77a098f` |
 | **M2 — Modals & loading** (Sonnet) | Close/Done trailing app-wide · profile search purple bg (hardcoded `appBackground` fill) · Notifications Done · white spinner, no subtitle (`FestivalLoadingView`) · form-sized sheets on Duo unfolded/iPad | ✅ `06543ab`, `dc73e42` (follow-ups: Suggestions/PlayerHistory sheets use custom Cancel/Apply footers — harmonize to toolbar placements; Songs/Profile spinners → S2/Z2) |
 | **A2 — Nav-bar accessories** (Opus) | Research iOS 26 accessories (`tabViewBottomAccessory`, search tab/minimize, `safeAreaBar`) · Songs search as accessory (Music mini-player style) · Select Player accessory · Quick Links placement decision · sweep all pages | 🟨 `~/repos/FestivalNativeApps-lanes/accessories` |
@@ -402,3 +402,4 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Lane U4 | UX tests for Profile/Statistics/Bands/Settings/Suggestions: 43 hosted tests (94.2% combined coverage, Suggestions 8.3%→93.0%), `mock_service.py` Bands/ranking fixtures, 3 XCUITest journeys passing (2 files) + 3 skipped (Settings, simulator-load hang); confirmed Lane Z2's independent fix for stale dismiss-then-push assumptions in `SongsUITestSupport.swift` |
 | 2026-09-28 | Lane U4 | 43 hosted tests + Profile/Bands journeys; mock_service band/ranking routes; Settings journeys hand-off to Lane C |
 | 2026-09-28 | Lane LAB | Device lab landed from Windows (first direct Windows→GitHub push) |
+| 2026-09-28 | Lane W1 | Duo shell: `ShellPresentation` (split tabs only on Duo inner display/iPad), cutout-safe drawer, rail profile symbol + bell/profile priority, selection never navigates (`FestivalTabPolicy.adapt`), rail Select Profile, pop-jitter fixes, `ios_sim.py pose --set` UI scripting (awaiting operator Accessibility grant), `drive --record` |

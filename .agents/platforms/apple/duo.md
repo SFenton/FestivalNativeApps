@@ -75,3 +75,17 @@ Portrait was captured natively. The other three rows come from the web app's mea
 | Landscape, camera bottom-right | bottom-right | trailing | web detector |
 
 The top safe inset is 0 in outer portrait although the camera sits in the top-right corner. Only the vertical bar's inset protects that corner, so **any custom overlay that spans the full width (drawer, banners, scrubbers) must use `DeviceLayout.overlayInsets`, not just the safe area.**
+
+## W1 shell captures (2026-09-28)
+
+`shot --device duo --pose folded --display auto` (outer panel, 1398×2034 px). Files: `~/repos/FestivalNativeApps-lanes/duoshell/.visual-output/duo-w1/` (gitignored; not durable).
+
+| Pose | Before W1 | After W1 |
+|---|---|---|
+| Folded portrait, profile, Songs | Avatar (custom view) forced a horizontal top bar beside "Songs"; bell overflowed into `…` (B1) | No top bar: bell and `person.crop.circle.fill` "Profile: <name>" in the rail, page actions in `…` (the hamburger too: the 5-tab rail fits two root items) |
+| Folded portrait, anonymous, Songs | — | Hamburger, sort, bell, profile all in the rail |
+| Folded portrait, drawer | Scrim dimmed the vertical bar; panel ran to the bottom edge | Panel inset by `overlayInsets` (clear of the home-indicator inset), scrim off the bar |
+| Folded portrait, Player profile | Select Profile only in content | Rail: Back, Select Profile (`person.crop.circle.badge.plus`), Quick Links |
+| Folded portrait, Leaderboards › Player › Back | Rail re-laid out ~7 frames after the pop (hamburger collapsed to a dot, Rank By blanked) | Mostly clean; intermittent 2–3 frame residual ([design notes](../../design/apple/duo.md#toolbar-rules-all-duo-poses)) |
+| Folded upside down / both landscapes | Not capturable | **Not captured**: needs Device Hub rotation; UI scripting awaits the operator's Accessibility grant. Drawer clearance is covered by `ShellPresentationTests.duoDrawerAvoidsBarAndCamera` for all four rotations |
+| Unfolded / partially folded | Not capturable | **Not captured** (same blocker). Split Leaderboards + Rivals tabs are unit-tested (`duoInnerDisplayUsesRegularSections`) |
