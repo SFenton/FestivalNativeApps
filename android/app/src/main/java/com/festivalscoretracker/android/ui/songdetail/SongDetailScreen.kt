@@ -1,5 +1,14 @@
 package com.festivalscoretracker.android.ui.songdetail
 
+import com.festivalscoretracker.android.ui.common.fadeInStagger
+import com.festivalscoretracker.android.ui.common.rememberRevealed
+import androidx.compose.foundation.lazy.itemsIndexed
+import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
+import com.festivalscoretracker.android.data.LeaderboardPayload
+import java.text.NumberFormat
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,7 +30,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ShowChart
@@ -96,6 +104,7 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
  * @property summaries Per-chart "Your score" lines (empty without a player).
  * @property shopHighlight Effective Shop badge.
  * @property shopPulse Effective Shop pulse (Item Shop button breathe).
+ * @property spotlight The selected player's effective row per chart (shown after the preview when outside the top ten).
  * @property shopUrl Validated official Shop URL for this song, or null.
  * @property shopError A Shop read failed (the offer can't be confirmed).
  * @property pathInstruments Path-capable charts; empty hides Paths.
@@ -106,6 +115,7 @@ data class SongDetailExtras(
     val summaries: Map<Instrument, ChartScoreSummary> = emptyMap(),
     val shopHighlight: ShopHighlight? = null,
     val shopPulse: ShopPulse? = null,
+    val spotlight: Map<Instrument, LeaderboardEntry> = emptyMap(),
     val shopUrl: String? = null,
     val shopError: Boolean = false,
     val pathInstruments: List<Instrument> = emptyList(),
@@ -143,11 +153,12 @@ fun SongDetailScreen(
         val token = background.pushFocus(song?.albumArt)
         onDispose { background.popFocus(token) }
     }
+    val revealed = rememberRevealed(songState is LoadState.Loaded)
     val body: @Composable (PaddingValues) -> Unit = { padding ->
         when (val state = songState) {
             LoadState.Loading -> LoadingView("Loading song", Modifier.padding(padding))
             is LoadState.Failed -> ServiceStatusView(state.issue, "Song unavailable", state.countdown, viewModel::retry, contentPadding = padding)
-            is LoadState.Loaded -> SongDetailContent(state.value, viewModel, extras, artworkUrl(state.value.albumArt), padding, onOpenPaths)
+            is LoadState.Loaded -> SongDetailContent(state.value, viewModel, extras, artworkUrl(state.value.albumArt), padding, onOpenPaths, revealed)
         }
     }
     if (embedded) {
@@ -167,6 +178,7 @@ private fun SongDetailContent(
     artUrl: String?,
     padding: PaddingValues,
     onOpenPaths: (Song) -> Unit,
+    revealed: Boolean,
 ) {
     val navigate = LocalShellActions.current.navigate
     val charted = Instrument.entries.filter(song::supports)
@@ -176,24 +188,16 @@ private fun SongDetailContent(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.fillMaxSize().testTag("fst.song-detail.list"),
     ) {
-        item(key = "header") { SongHeader(song, artUrl) }
+        item(key = "header") { Box(Modifier.festivalFadeIn(revealed)) { SongHeader(song, artUrl) } }
         item(key = "actions") { HeaderActions(song, extras, onOpenPaths) }
         item(key = "intensity-header") { SectionHeader("Intensity") }
         item(key = "intensity") { IntensityCard(song, charted) }
         item(key = "bands") { BandLinks(song, navigate) }
-        items(cards, key = { it.wireId }) { instrument ->
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 12.dp, bottom = 6.dp)) {
-                    InstrumentIcon(instrument, keyboard = song.usesKeyboardIcon, size = 28.dp, decorative = true)
-                    Text(
-                        instrument.label,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = BrandTokens.textPrimary,
-                        modifier = Modifier.padding(start = 8.dp).semantics { heading() },
-                    )
-                }
-                PreviewCard(song, instrument, viewModel, extras, navigate)
+        itemsIndexed(cards, key = { _, chart -> chart.wireId }) { index, instrument ->
+            val state by viewModel.preview(song, instrument).collectAsStateWithLifecycle()
+            Column(Modifier.festivalFadeIn(revealed, fadeInStagger(index + 1))) {
+                CardHeader(song, instrument, (state as? LoadState.Loaded)?.value?.leaderboard?.totalEntries)
+                PreviewCard(song, instrument, state, viewModel, extras, navigate)
             }
         }
     }
@@ -275,13 +279,42 @@ private fun BandLinks(song: Song, navigate: (AppRoute) -> Unit) {
     }
 }
 
+/**
+ * The instrument header above its card (web `InstrumentCard` header): icon, name
+ * and the chart's total entries once the preview loads.
+ */
 @Composable
-private fun PreviewCard(song: Song, instrument: Instrument, viewModel: SongDetailViewModel, extras: SongDetailExtras, navigate: (AppRoute) -> Unit) {
-    val state by viewModel.preview(song, instrument).collectAsStateWithLifecycle()
+private fun CardHeader(song: Song, instrument: Instrument, totalEntries: Int?) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 12.dp, bottom = 6.dp).semantics(mergeDescendants = true) { heading() }) {
+        InstrumentIcon(instrument, keyboard = song.usesKeyboardIcon, size = 32.dp, decorative = true)
+        Column(Modifier.padding(start = 10.dp)) {
+            Text(instrument.label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)
+            totalEntries?.let {
+                Text(
+                    "${NumberFormat.getIntegerInstance().format(it)} total entries",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = BrandTokens.textSecondary,
+                    modifier = Modifier.testTag("fst.song-detail.total.${instrument.wireId}"),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PreviewCard(
+    song: Song,
+    instrument: Instrument,
+    state: LoadState<LeaderboardPayload>,
+    viewModel: SongDetailViewModel,
+    extras: SongDetailExtras,
+    navigate: (AppRoute) -> Unit,
+) {
     val summary = extras.summaries[instrument]
+    val rowsRevealed = rememberRevealed(state is LoadState.Loaded)
     GlassCard(Modifier.fillMaxWidth().testTag("fst.song-detail.preview.${instrument.wireId}")) {
         Column(Modifier.padding(vertical = 6.dp)) {
-            summary?.let { YourScore(it, song, instrument, navigate) }
+            summary?.let { YourScore(it, instrument) }
             when (val preview = state) {
                 LoadState.Loading -> Box(Modifier.fillMaxWidth().heightIn(min = 96.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(Modifier.size(28.dp))
@@ -291,7 +324,7 @@ private fun PreviewCard(song: Song, instrument: Instrument, viewModel: SongDetai
                     onRetry = { viewModel.retryPreview(instrument) },
                     modifier = Modifier.padding(horizontal = 12.dp),
                 )
-                is LoadState.Loaded -> {
+                is LoadState.Loaded -> Column(Modifier.festivalFadeIn(rowsRevealed)) {
                     val entries = preview.value.leaderboard.entries
                     if (entries.isEmpty()) {
                         Text("No scores yet", color = BrandTokens.textSecondary, modifier = Modifier.padding(16.dp))
@@ -305,10 +338,30 @@ private fun PreviewCard(song: Song, instrument: Instrument, viewModel: SongDetai
                                 onOpen = navigate,
                             )
                         }
-                        TextButton(
+                        // The selected player outside the top ten is row eleven (web spotlight footer); it opens their page.
+                        extras.spotlight[instrument]
+                            ?.takeIf { mine -> mine.rank > LeaderboardPaging.PREVIEW_SIZE && entries.none { RankingSpotlight.isSelected(mine.accountId, it.accountId) } }
+                            ?.let { mine ->
+                                HorizontalDivider(color = BrandTokens.glassBorder, modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+                                Box(Modifier.testTag("fst.song-detail.your-rank.${instrument.wireId}")) {
+                                    PreviewRow(
+                                        entry = mine,
+                                        isSelected = true,
+                                        route = SongLeaderboardRoute(song.songId, instrument.wireId, LeaderboardPaging.pageForRank(mine.rank)),
+                                        instrument = instrument,
+                                        onOpen = navigate,
+                                    )
+                                }
+                            }
+                        FilledTonalButton(
                             onClick = { navigate(SongLeaderboardRoute(song.songId, instrument.wireId)) },
-                            modifier = Modifier.padding(horizontal = 4.dp).heightIn(min = 48.dp).testTag("fst.song-detail.view-all.${instrument.wireId}"),
-                        ) { Text("View Full Leaderboard") }
+                            colors = ButtonDefaults.filledTonalButtonColors(containerColor = BrandTokens.accentPurple, contentColor = BrandTokens.textPrimary),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                                .heightIn(min = 48.dp)
+                                .testTag("fst.song-detail.view-all.${instrument.wireId}"),
+                        ) { Text("View full leaderboard") }
                     }
                 }
             }
@@ -325,13 +378,9 @@ private fun PreviewCard(song: Song, instrument: Instrument, viewModel: SongDetai
     }
 }
 
-/**
- * The selected player's gold summary line; a rank outside the ten-row preview
- * links to the leaderboard page that contains it.
- */
+/** The selected player's gold summary line (their row outside the top ten follows the preview). */
 @Composable
-private fun YourScore(summary: ChartScoreSummary, song: Song, instrument: Instrument, navigate: (AppRoute) -> Unit) {
-    val rank = summary.rank
+private fun YourScore(summary: ChartScoreSummary, instrument: Instrument) {
     Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp).testTag("fst.song-detail.your-score.${instrument.wireId}")) {
         Text(
             summary.text,
@@ -339,12 +388,6 @@ private fun YourScore(summary: ChartScoreSummary, song: Song, instrument: Instru
             fontWeight = if (summary.scored) FontWeight.SemiBold else FontWeight.Normal,
             color = if (summary.scored) BrandTokens.gold else BrandTokens.textSecondary,
         )
-        if (rank != null && rank > LeaderboardPaging.PREVIEW_SIZE) {
-            TextButton(
-                onClick = { navigate(SongLeaderboardRoute(song.songId, instrument.wireId, LeaderboardPaging.pageForRank(rank))) },
-                modifier = Modifier.heightIn(min = 48.dp).testTag("fst.song-detail.your-rank.${instrument.wireId}"),
-            ) { Text("Show My Rank") }
-        }
     }
 }
 

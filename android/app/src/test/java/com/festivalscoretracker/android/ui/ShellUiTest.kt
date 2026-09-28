@@ -102,7 +102,7 @@ class ShellUiTest {
         rule.onNodeWithText("Sort Songs").assertIsDisplayed()
         rule.onNodeWithTag("fst.songs.sort.artist").performClick()
         rule.onNodeWithText("Descending").performClick()
-        rule.onNodeWithTag("fst.songs.sort.apply").performClick()
+        rule.onNodeWithTag("fst.songs.sort.done").performClick()
         settle()
     }
 
@@ -139,7 +139,7 @@ class ShellUiTest {
         rule.onNodeWithTag("fst.songs.filter.open").performClick()
         settle()
         rule.onNodeWithTag("fst.songs.filter.instrument.Solo_PeripheralDrums").performClick()
-        rule.onNodeWithTag("fst.songs.filter.apply").performClick()
+        rule.onNodeWithTag("fst.songs.filter.done").performClick()
         settle()
         rule.onNodeWithTag("fst.nav.tab.statistics").performClick()
         waitForTag("fst.statistics")

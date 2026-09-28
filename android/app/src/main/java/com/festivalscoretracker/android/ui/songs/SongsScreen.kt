@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.songs
 
+import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -11,13 +12,11 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.adaptive.currentWindowSize
 import androidx.compose.ui.platform.LocalDensity
-import com.festivalscoretracker.android.core.quicklinks.QuickLinks
 import com.festivalscoretracker.android.core.songs.InvalidScoreWarning
 import com.festivalscoretracker.android.core.songs.SongSortDraft
 import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
 import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import com.festivalscoretracker.android.ui.settings.rememberHingeSplit
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -68,7 +67,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -243,7 +241,8 @@ fun InvalidScoreAlert(warning: InvalidScoreWarning, onDismiss: () -> Unit, onOpe
 
 /**
  * Bounded first-paint gate: the first reveal waits (≤ 900 ms) for the first rows'
- * artwork to decode, then fades in (instant under reduced motion). Later updates
+ * artwork to decode, then fades in like the web's `fadeInUp` (instant under reduced
+ * motion). Later updates
  * never re-block.
  *
  * @param state Songs state.
@@ -253,7 +252,6 @@ fun InvalidScoreAlert(warning: InvalidScoreWarning, onDismiss: () -> Unit, onOpe
 @Composable
 private fun FirstPaintGate(state: SongsUiState, artworkUrl: (String?) -> String?, content: @Composable () -> Unit) {
     val context = LocalContext.current
-    val still = LocalFestivalAccessibility.current.reduceMotion
     var revealed by rememberSaveable { mutableStateOf(false) }
     val hasRows = state.rows.isNotEmpty() || state.totalSongs == 0 || state.catalog !is LoadState.Loaded
     LaunchedEffect(hasRows) {
@@ -265,8 +263,7 @@ private fun FirstPaintGate(state: SongsUiState, artworkUrl: (String?) -> String?
         }
         revealed = true
     }
-    val alpha by animateFloatAsState(if (revealed) 1f else 0f, animationSpec = tween(if (still) 0 else 250), label = "firstPaint")
-    Box(Modifier.fillMaxSize().alpha(alpha).testTag(if (revealed) "fst.songs.revealed" else "fst.songs.priming")) { content() }
+    Box(Modifier.fillMaxSize().festivalFadeIn(revealed).testTag(if (revealed) "fst.songs.revealed" else "fst.songs.priming")) { content() }
 }
 
 /** Rows whose artwork the first reveal waits for. */

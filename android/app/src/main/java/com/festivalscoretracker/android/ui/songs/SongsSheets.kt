@@ -15,18 +15,15 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SheetValue
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -36,7 +33,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -58,49 +54,30 @@ import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlin.math.roundToInt
 
-// region Draft sheet frame
+// region Live sheet frame
 
 /**
- * Bottom sheet whose content is a draft: swiping away or Cancel with changes asks
- * to discard; Reset/Cancel/Apply sit at the bottom (web modal semantics).
+ * Bottom sheet whose changes apply immediately (operator rule: no Cancel/Apply and
+ * no discard confirmation). Reset restores defaults (also live); Done closes.
  *
  * @param title Title Case header.
  * @param tag Test tag root.
- * @param changed Whether the draft differs from the applied value.
- * @param canApply Whether Apply is enabled.
- * @param onReset Reset the draft.
- * @param onApply Apply and close.
- * @param onDismiss Close without applying.
+ * @param onReset Restore defaults.
+ * @param onDismiss Close.
  * @param content Form.
  */
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
-private fun DraftSheet(
+private fun LiveSheet(
     title: String,
     tag: String,
-    changed: Boolean,
-    canApply: Boolean,
     onReset: () -> Unit,
-    onApply: () -> Unit,
     onDismiss: () -> Unit,
     content: @Composable () -> Unit,
 ) {
-    var confirmDiscard by remember { mutableStateOf(false) }
-    val isChanged by rememberUpdatedState(changed)
-    val sheetState = rememberModalBottomSheetState(
-        skipPartiallyExpanded = true,
-        confirmValueChange = { value ->
-            if (value == SheetValue.Hidden && isChanged) {
-                confirmDiscard = true
-                false
-            } else {
-                true
-            }
-        },
-    )
     ModalBottomSheet(
-        onDismissRequest = { if (changed) confirmDiscard = true else onDismiss() },
-        sheetState = sheetState,
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = BrandTokens.cardBackground,
         modifier = Modifier.testTag(tag),
     ) {
@@ -110,21 +87,9 @@ private fun DraftSheet(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 12.dp)) {
                 TextButton(onClick = onReset, modifier = Modifier.testTag("$tag.reset")) { Text("Reset") }
                 Spacer(Modifier.weight(1f))
-                OutlinedButton(onClick = { if (changed) confirmDiscard = true else onDismiss() }, modifier = Modifier.testTag("$tag.cancel")) { Text("Cancel") }
-                Button(onClick = onApply, enabled = canApply, modifier = Modifier.testTag("$tag.apply")) { Text("Apply") }
+                Button(onClick = onDismiss, modifier = Modifier.testTag("$tag.done")) { Text("Done") }
             }
         }
-    }
-    if (confirmDiscard) {
-        AlertDialog(
-            onDismissRequest = { confirmDiscard = false },
-            title = { Text("Discard Changes?") },
-            text = { Text("Your changes haven't been applied.") },
-            confirmButton = {
-                TextButton(onClick = { confirmDiscard = false; onDismiss() }, modifier = Modifier.testTag("$tag.discard")) { Text("Discard") }
-            },
-            dismissButton = { TextButton(onClick = { confirmDiscard = false }) { Text("Keep Editing") } },
-        )
     }
 }
 
@@ -135,29 +100,26 @@ private fun DraftSheet(
 /**
  * Sort Songs (web `SortModal`): general modes (Has FC and Last Played with a
  * player), single-chart modes and the metadata sort priority while filtered to
- * one chart, and the direction — all a draft until Apply.
+ * one chart, and the direction. Every change applies immediately.
  *
  * @param state Songs state (saved sort, player, Shop, chart filter, visible metadata).
- * @param onApply Persist a sort draft.
+ * @param onApply Persist the sort.
  * @param onDismiss Close.
  */
 @Composable
 fun SortSheet(state: SongsUiState, onApply: (SongSortDraft) -> Unit, onDismiss: () -> Unit) {
-    var draft by remember { mutableStateOf(SongSortDraft(state.sort, state.ascending, state.prefs.metadataOrder)) }
+    var sort by remember { mutableStateOf(SongSortDraft(state.sort, state.ascending, state.prefs.metadataOrder)) }
+    val draft = sort
+    fun change(next: SongSortDraft) {
+        sort = next
+        onApply(next)
+    }
     val chartModes = SongSortDraft.chartModes(state.hasPlayer, state.sortChart, state.visibleMetadata)
     val priority = if (state.hasPlayer && state.sortChart != null) SongSortDraft.visiblePriority(draft.metadataOrder, state.visibleMetadata) else emptyList()
-    DraftSheet(
-        title = "Sort Songs",
-        tag = "fst.songs.sort",
-        changed = draft.changed,
-        canApply = draft.changed,
-        onReset = { draft = draft.reset() },
-        onApply = { onApply(draft); onDismiss() },
-        onDismiss = onDismiss,
-    ) {
+    LiveSheet(title = "Sort Songs", tag = "fst.songs.sort", onReset = { change(draft.reset()) }, onDismiss = onDismiss) {
         Column(Modifier.selectableGroup().testTag("fst.songs.sort.mode")) {
             SongSortDraft.modes(state.hideShop, state.hasPlayer).forEach { option ->
-                RadioRow(option.label, option == draft.mode, "fst.songs.sort.${option.name.lowercase()}") { draft = draft.copy(mode = option) }
+                RadioRow(option.label, option == draft.mode, "fst.songs.sort.${option.name.lowercase()}") { change(draft.copy(mode = option)) }
             }
         }
         if (chartModes.isNotEmpty()) {
@@ -165,7 +127,7 @@ fun SortSheet(state: SongsUiState, onApply: (SongSortDraft) -> Unit, onDismiss: 
             Text("Filtering to a single instrument enables more sort options.", color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodySmall)
             Column(Modifier.selectableGroup().testTag("fst.songs.sort.chart-mode")) {
                 chartModes.forEach { option ->
-                    RadioRow(option.label, option == draft.mode, "fst.songs.sort.${option.name.lowercase()}") { draft = draft.copy(mode = option) }
+                    RadioRow(option.label, option == draft.mode, "fst.songs.sort.${option.name.lowercase()}") { change(draft.copy(mode = option)) }
                 }
             }
         }
@@ -174,7 +136,7 @@ fun SortSheet(state: SongsUiState, onApply: (SongSortDraft) -> Unit, onDismiss: 
             listOf(true to "Ascending", false to "Descending").forEachIndexed { index, (value, label) ->
                 SegmentedButton(
                     selected = draft.ascending == value,
-                    onClick = { draft = draft.copy(ascending = value) },
+                    onClick = { change(draft.copy(ascending = value)) },
                     shape = SegmentedButtonDefaults.itemShape(index, 2),
                     modifier = Modifier.testTag("fst.songs.sort.${label.lowercase()}"),
                 ) { Text(label) }
@@ -188,7 +150,7 @@ fun SortSheet(state: SongsUiState, onApply: (SongSortDraft) -> Unit, onDismiss: 
                 style = MaterialTheme.typography.bodySmall,
             )
             ReorderList(priority.map { it.label }, "fst.songs.sort.priority") { index, offset ->
-                draft = draft.move(state.visibleMetadata, index, offset)
+                change(draft.move(state.visibleMetadata, index, offset))
             }
         }
     }
@@ -221,13 +183,13 @@ private fun RadioRow(label: String, selected: Boolean, tag: String, leading: (@C
 /**
  * Filter Songs: instrument and difficulty, Item Shop toggles, and the selected
  * player's per-chart score/FC checks (plus Over CHOpt Threshold while Filter
- * Invalid Scores is on) — all a draft until Apply.
+ * Invalid Scores is on). Every change applies immediately.
  *
  * @param initial Draft seeded from saved values.
  * @param hasPlayer Show the player score section.
  * @param hideShop Shop toggles disabled (still clearable by Reset).
  * @param filterInvalidScores Offer Over CHOpt Threshold checks.
- * @param onApply Persist the draft.
+ * @param onApply Persist the filters.
  * @param onDismiss Close.
  */
 @OptIn(ExperimentalLayoutApi::class)
@@ -240,26 +202,23 @@ fun FilterSheet(
     onDismiss: () -> Unit,
     filterInvalidScores: Boolean = false,
 ) {
-    var draft by remember { mutableStateOf(initial) }
+    var filters by remember { mutableStateOf(initial) }
+    val draft = filters
+    fun change(next: SongFilterDraft) {
+        filters = next
+        if (next.isValid) onApply(next)
+    }
     val kinds = SongScoreFilterKind.offered(filterInvalidScores)
     val visible = Instrument.entries.filter { it in draft.visible }
-    DraftSheet(
-        title = "Filter Songs",
-        tag = "fst.songs.filter",
-        changed = draft.changed,
-        canApply = draft.canApply,
-        onReset = { draft = draft.reset() },
-        onApply = { onApply(draft); onDismiss() },
-        onDismiss = onDismiss,
-    ) {
+    LiveSheet(title = "Filter Songs", tag = "fst.songs.filter", onReset = { change(draft.reset()) }, onDismiss = onDismiss) {
         SectionHeader("Instrument")
         Column(Modifier.selectableGroup().testTag("fst.songs.filter.instrument")) {
-            RadioRow("All Instruments", draft.filter.instrument == null, "fst.songs.filter.instrument.all") { draft = draft.withInstrument(null) }
+            RadioRow("All Instruments", draft.filter.instrument == null, "fst.songs.filter.instrument.all") { change(draft.withInstrument(null)) }
             visible.forEach { chart ->
                 RadioRow(
                     chart.label, draft.filter.instrument == chart, "fst.songs.filter.instrument.${chart.wireId}",
                     leading = { InstrumentIcon(chart, size = 28.dp, decorative = true) },
-                ) { draft = draft.withInstrument(chart) }
+                ) { change(draft.withInstrument(chart)) }
             }
         }
         SectionHeader("Difficulty")
@@ -272,7 +231,7 @@ fun FilterSheet(
         )
         RangeSlider(
             value = min.toFloat()..max.toFloat(),
-            onValueChange = { range -> draft = draft.withDifficulty(range.start.roundToInt(), range.endInclusive.roundToInt()) },
+            onValueChange = { range -> change(draft.withDifficulty(range.start.roundToInt(), range.endInclusive.roundToInt())) },
             valueRange = 1f..7f,
             steps = 5,
             modifier = Modifier.testTag("fst.songs.filter.difficulty").semantics { contentDescription = "Difficulty range" },
@@ -282,20 +241,20 @@ fun FilterSheet(
             Text("The Item Shop is hidden in Settings. Saved choices stay until you reset them.", color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodySmall)
         }
         SwitchRow("In Shop", draft.shopFilter.inShop, enabled = !hideShop, tag = "fst.songs.filter.in-shop") {
-            draft = draft.copy(shopFilter = draft.shopFilter.copy(inShop = it))
+            change(draft.copy(shopFilter = draft.shopFilter.copy(inShop = it)))
         }
         SwitchRow("Leaving Tomorrow", draft.shopFilter.leavingTomorrow, enabled = !hideShop, tag = "fst.songs.filter.leaving") {
-            draft = draft.copy(shopFilter = draft.shopFilter.copy(leavingTomorrow = it))
+            change(draft.copy(shopFilter = draft.shopFilter.copy(leavingTomorrow = it)))
         }
         if (hasPlayer) {
             Column(Modifier.testTag("fst.songs.filter.score-sections")) {
                 SectionHeader("Scores")
                 kinds.forEach { kind ->
-                    SwitchRow(kind.label, draft.allOn(kind), enabled = true, tag = "fst.songs.filter.score.global.${kind.name}") { draft = draft.withAll(kind, it) }
+                    SwitchRow(kind.label, draft.allOn(kind), enabled = true, tag = "fst.songs.filter.score.global.${kind.name}") { change(draft.withAll(kind, it)) }
                 }
                 if (draft.hasHiddenChecks) {
                     Text(
-                        "Some saved checks are for instruments hidden in Settings; they stay inactive and are removed when you apply.",
+                        "Some saved checks are for instruments hidden in Settings; they stay inactive and are removed when you change a filter.",
                         color = BrandTokens.textSecondary,
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.testTag("fst.songs.score-filter-hidden"),
@@ -311,7 +270,7 @@ fun FilterSheet(
                             val on = draft.playerFilter.contains(kind, chart)
                             FilterChip(
                                 selected = on,
-                                onClick = { draft = draft.withCheck(kind, chart, !on) },
+                                onClick = { change(draft.withCheck(kind, chart, !on)) },
                                 label = { Text(kind.label) },
                                 modifier = Modifier
                                     .testTag("fst.songs.filter.score.instrument.${chart.wireId}.${kind.name}")

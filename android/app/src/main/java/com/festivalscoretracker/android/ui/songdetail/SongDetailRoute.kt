@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.songdetail
 
+import com.festivalscoretracker.android.core.model.LeaderboardEntry
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -121,6 +122,26 @@ internal fun songDetailExtras(
             .mapNotNull { chart -> SongDetailSummary.summary(source, player.displayName, song, chart)?.let { chart to it } }
             .toMap()
     }
+    val lookup = source?.detail
+    val spotlight = if (lookup == null || player == null) {
+        emptyMap()
+    } else {
+        Instrument.entries.filter { it in settings.visibleInstruments && song.supports(it) }.mapNotNull { chart ->
+            val detail = lookup(song.songId, chart)?.takeIf { it.score > 0 } ?: return@mapNotNull null
+            val rank = detail.rank?.takeIf { it > 0 } ?: return@mapNotNull null
+            chart to LeaderboardEntry(
+                accountId = player.accountId,
+                displayName = player.displayName,
+                score = detail.score.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+                rank = rank,
+                accuracy = detail.accuracy,
+                isFullCombo = detail.isFullCombo,
+                stars = detail.stars,
+                season = detail.season,
+                difficulty = detail.difficulty,
+            )
+        }.toMap()
+    }
     val payload = shop.valueOrNull
     val offer = payload?.takeIf { SongRelatedPublicationPolicy.matches(catalogPublication, it.observedPublicationId, current) }?.offersById?.get(song.songId)
     return SongDetailExtras(
@@ -129,6 +150,7 @@ internal fun songDetailExtras(
         summaries = summaries,
         shopHighlight = if (settings.hideShop) null else ShopPresentationPolicy.highlight(offer, settings.hideShop, settings.disableShopHighlighting),
         shopPulse = ShopPresentationPolicy.pulse(offer, settings.hideShop, settings.disableShopHighlighting),
+        spotlight = spotlight,
         shopUrl = if (settings.hideShop) null else offer?.shopUrl?.takeIf(ShopResponse::isOfficialShopUrl),
         shopError = !settings.hideShop && shop is LoadState.Failed,
         pathInstruments = PathCapability.menuInstruments(settings.visibleInstruments, song::supports),

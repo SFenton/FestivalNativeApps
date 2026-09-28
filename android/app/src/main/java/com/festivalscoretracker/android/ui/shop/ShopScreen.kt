@@ -1,5 +1,10 @@
 package com.festivalscoretracker.android.ui.shop
 
+import com.festivalscoretracker.android.ui.common.fadeInStagger
+import com.festivalscoretracker.android.ui.common.rememberRevealed
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.itemsIndexed
+import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
@@ -26,8 +31,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
@@ -147,6 +150,7 @@ fun ShopScreen(
                 }
             },
         ) { padding ->
+            val revealed = rememberRevealed(state.shop is LoadState.Loaded)
             when {
                 state.hidden -> HiddenView(padding)
                 else -> when (val shop = state.shop) {
@@ -154,7 +158,7 @@ fun ShopScreen(
                     is LoadState.Failed -> Box(Modifier.testTag("fst.shop.error")) {
                         ServiceStatusView(shop.issue, "Item Shop unavailable", shop.countdown, onRetry, contentPadding = padding)
                     }
-                    is LoadState.Loaded -> ShopContent(state, effective, artworkUrl, viewModel::retryCatalog, padding)
+                    is LoadState.Loaded -> ShopContent(state, effective, artworkUrl, viewModel::retryCatalog, padding, revealed)
                 }
             }
         }
@@ -179,7 +183,14 @@ private fun HiddenView(padding: PaddingValues) {
 }
 
 @Composable
-private fun ShopContent(state: ShopUiState, mode: ShopViewMode, artworkUrl: (String?) -> String?, onRetryCatalog: () -> Unit, padding: PaddingValues) {
+private fun ShopContent(
+    state: ShopUiState,
+    mode: ShopViewMode,
+    artworkUrl: (String?) -> String?,
+    onRetryCatalog: () -> Unit,
+    padding: PaddingValues,
+    revealed: Boolean,
+) {
     val shell = LocalShellActions.current
     val uri = LocalUriHandler.current
     val openOfficial: (ShopOfferItem) -> Unit = { item -> item.officialUrl?.let(uri::openUri) }
@@ -201,8 +212,10 @@ private fun ShopContent(state: ShopUiState, mode: ShopViewMode, artworkUrl: (Str
             modifier = Modifier.fillMaxSize().testTag("fst.shop.grid"),
         ) {
             item(key = "header", span = { GridItemSpan(maxLineSpan) }) { header() }
-            items(state.offers, key = { it.offer.songId }) { item ->
-                ShopGridCard(item, artworkUrl(item.offer.albumArt), pulse, { openOfficial(item) }, { openDetail(item) })
+            itemsIndexed(state.offers, key = { _, item -> item.offer.songId }) { index, item ->
+                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
+                    ShopGridCard(item, artworkUrl(item.offer.albumArt), pulse, { openOfficial(item) }, { openDetail(item) })
+                }
             }
         }
     } else {
@@ -212,8 +225,10 @@ private fun ShopContent(state: ShopUiState, mode: ShopViewMode, artworkUrl: (Str
             modifier = Modifier.fillMaxSize().testTag("fst.shop.list"),
         ) {
             item(key = "header") { header() }
-            items(state.offers, key = { it.offer.songId }) { item ->
-                ShopListRow(item, artworkUrl(item.offer.albumArt), pulse, { openOfficial(item) }, { openDetail(item) })
+            itemsIndexed(state.offers, key = { _, item -> item.offer.songId }) { index, item ->
+                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
+                    ShopListRow(item, artworkUrl(item.offer.albumArt), pulse, { openOfficial(item) }, { openDetail(item) })
+                }
             }
         }
     }
@@ -358,7 +373,8 @@ private fun ShopListRow(item: ShopOfferItem, artUrl: String?, pulse: () -> Float
 // region Detail action
 
 /**
- * Official Shop action for Song Detail: badge plus "Open in Item Shop". With a
+ * Official Shop action for Song Detail: the "Item Shop" pill (its status is in the
+ * spoken label; no separate New / Leaving chip, operator rule). With a
  * pulse the button breathes between the dark surface and green (in Shop), gold
  * (New) or red (Leaving Tomorrow) every 3 s (web `shopBreathe*`); reduced motion
  * holds the target color. The color is read only while drawing.
@@ -374,15 +390,18 @@ fun ShopDetailAction(highlight: ShopHighlight?, url: String, songId: String, pul
     val fraction = rememberShopBreathe(active = pulse != null)
     val breathe: (() -> Color)? = pulse?.let { status -> { SongsTokens.breathe(status, fraction()) } }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("fst.song-detail.shop")) {
-        highlight?.let { ShopBadgeLabel(it, songId, Modifier.testTag("fst.song-detail.shop-badge")) }
         Button(
             onClick = { uri.openUri(url) },
             colors = if (breathe != null) ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = BrandTokens.textPrimary) else ButtonDefaults.buttonColors(),
-            modifier = if (breathe != null) {
-                Modifier.testTag("fst.song-detail.shop-breathe.${pulse!!.name}").drawBehind { drawRoundRect(breathe(), cornerRadius = CornerRadius(size.height / 2)) }
-            } else {
-                Modifier
-            },
+            modifier = Modifier
+                .semantics { contentDescription = listOfNotNull("Item Shop", highlight?.label, "opens the Fortnite Item Shop").joinToString(", ") }
+                .then(
+                    if (breathe != null) {
+                        Modifier.testTag("fst.song-detail.shop-breathe.${pulse!!.name}").drawBehind { drawRoundRect(breathe(), cornerRadius = CornerRadius(size.height / 2)) }
+                    } else {
+                        Modifier
+                    },
+                ),
         ) {
             Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
             Text("Item Shop", modifier = Modifier.padding(start = 6.dp))

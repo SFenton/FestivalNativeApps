@@ -1,5 +1,7 @@
 package com.festivalscoretracker.android.ui.songdetail
 
+import com.festivalscoretracker.android.ui.common.rememberRevealed
+import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.DropdownMenuItem
@@ -22,7 +24,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -111,6 +112,7 @@ fun SongPathsSheet(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var warning by remember { mutableStateOf(showKaraokeWarning) }
+    val revealed = rememberRevealed(state.load is PathLoad.Image || state.load is PathLoad.Text)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -152,8 +154,8 @@ fun SongPathsSheet(
                         modifier = Modifier.align(Alignment.Center).padding(24.dp).testTag("fst.paths.not-generated"),
                     )
                     is PathLoad.Failed -> ServiceStatusInline(load.issue, "Path unavailable", null, viewModel::retry, Modifier.testTag("fst.paths.error"))
-                    is PathLoad.Image -> PathImage(load.image, "${state.instrument.label} ${state.difficulty.label} CHOpt path")
-                    is PathLoad.Text -> Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) { PathTable(load.data, columns) }
+                    is PathLoad.Image -> Box(Modifier.festivalFadeIn(revealed)) { PathImage(load.image, "${state.instrument.label} ${state.difficulty.label} CHOpt path") }
+                    is PathLoad.Text -> Box(Modifier.fillMaxSize().festivalFadeIn(revealed).verticalScroll(rememberScrollState())) { PathTable(load.data, columns) }
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 8.dp).testTag("fst.paths.selectors")) {

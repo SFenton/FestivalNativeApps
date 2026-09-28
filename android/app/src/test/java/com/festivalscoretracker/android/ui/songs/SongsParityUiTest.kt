@@ -122,7 +122,7 @@ class SongsParityUiTest {
         assertTrue(exists("fst.songs.sort.lastplayed"))
         assertTrue(!exists("fst.songs.sort.chart-mode"))
         click("fst.songs.sort.hasfc")
-        click("fst.songs.sort.apply")
+        click("fst.songs.sort.done")
         waitForTag("fst.songs.section.hasfc.no-fc")
         // The fallback is a non-FC score, so Alpha is no longer in the FC bucket.
         assertTrue(!exists("fst.songs.section.hasfc.fc"))
@@ -155,7 +155,7 @@ class SongsParityUiTest {
         click("fst.songs.sort.maxdistance")
         rule.onNodeWithTag("fst.songs.sort.form").performScrollToNode(hasTestTag("fst.songs.sort.priority.0.down"))
         click("fst.songs.sort.priority.0.down")
-        click("fst.songs.sort.apply")
+        click("fst.songs.sort.done")
         waitForTag("fst.songs.max-score.s-alpha", unmerged = true)
         waitForTag("fst.songs.section.maxdistance.100")
 
@@ -163,7 +163,7 @@ class SongsParityUiTest {
         click("fst.songs.filter.open")
         settle()
         click("fst.songs.filter.instrument.all")
-        click("fst.songs.filter.apply")
+        click("fst.songs.filter.done")
         waitForTag("fst.songs.section-index")
     }
 
@@ -175,7 +175,7 @@ class SongsParityUiTest {
         settle()
         rule.onNodeWithTag("fst.songs.filter.form").performScrollToNode(hasTestTag("fst.songs.filter.score.instrument.Solo_Guitar.OverThreshold"))
         click("fst.songs.filter.score.instrument.Solo_Guitar.OverThreshold")
-        click("fst.songs.filter.apply")
+        click("fst.songs.filter.done")
         waitGone("fst.songs.row.s-beta")
         waitForTag("fst.songs.invalid-score.s-alpha")
         click("fst.songs.invalid-score.s-alpha")

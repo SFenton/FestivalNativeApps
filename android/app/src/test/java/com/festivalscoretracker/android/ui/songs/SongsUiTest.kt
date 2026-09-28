@@ -95,23 +95,22 @@ class SongsUiTest {
         click("fst.songs.filter.score.instrument.Solo_Guitar.HasScores")
         click("fst.songs.filter.score.global.MissingFCs")
         click("fst.songs.filter.score.global.MissingFCs")
-        click("fst.songs.filter.apply")
+        click("fst.songs.filter.done")
         rule.waitUntil(5_000) { settle(100); rule.onAllNodesWithTag("fst.songs.row.s-beta").fetchSemanticsNodes().isEmpty() }
         waitForTag("fst.songs.row.s-alpha")
 
         click("fst.songs.sort.open")
         settle()
         click("fst.songs.sort.shop")
-        click("fst.songs.sort.apply")
+        click("fst.songs.sort.done")
         waitForTag("fst.songs.row.s-alpha")
 
         click("fst.songs.filter.open")
         settle()
+        // Changes apply live: Reset restores every row immediately, Done just closes.
         click("fst.songs.filter.reset")
-        click("fst.songs.filter.cancel")
-        settle()
-        rule.onNodeWithText("Discard Changes?").assertIsDisplayed()
-        click("fst.songs.filter.discard")
+        waitForTag("fst.songs.row.s-beta")
+        click("fst.songs.filter.done")
         settle()
     }
 
