@@ -37,6 +37,15 @@ public struct FestivalRootView: View {
     public init() {
         _selected = State(initialValue: .songs)
         #if DEBUG
+        let debug = DebugLaunchRoute(environment: ProcessInfo.processInfo.environment)
+        if let tab = debug.section { _selected = State(initialValue: tab) }
+        if let route = debug.route {
+            switch debug.section ?? .songs {
+            case .songs: _songsPath = State(initialValue: [route])
+            case .leaderboards: _leaderboardsPath = State(initialValue: [route])
+            case .settings: _settingsPath = State(initialValue: [route])
+            }
+        }
         if ProcessInfo.processInfo.environment["FST_UI_TEST_CLEAR_PROFILE"] == "1" {
             UserDefaults.standard.removeObject(forKey: SelectedPlayerIdentity.storageKey)
         }
@@ -91,6 +100,17 @@ public struct FestivalRootView: View {
 
     /// Use system split navigation on iPad/macOS and adaptive tabs on iPhone.
     public var body: some View {
+        ZStack {
+            FestivalBackgroundHost(session: session)
+                .ignoresSafeArea()
+            shell
+        }
+        .tint(moreContrast || systemContrast == .increased
+            ? BrandTokens.textPrimary : BrandTokens.accentBlue)
+    }
+
+    /// Platform navigation (tabs on iPhone, split view on iPad/macOS).
+    private var shell: some View {
         Group {
             #if os(macOS)
             NavigationSplitView {
@@ -119,8 +139,6 @@ public struct FestivalRootView: View {
             }
             #endif
         }
-        .tint(moreContrast || systemContrast == .increased
-            ? BrandTokens.textPrimary : BrandTokens.accentBlue)
         .preferredColorScheme(.dark)
         .transaction { transaction in
             if reduceMotion || systemReduceMotion {
@@ -308,3 +326,50 @@ enum FestivalSection: String, CaseIterable, Identifiable, Sendable {
         }
     }
 }
+
+// MARK: - Debug launch routing
+
+#if DEBUG
+/// Parses `FST_DEBUG_TAB` / `FST_DEBUG_ROUTE` so `tools/ios_sim.py` can open any page directly.
+///
+/// Route syntax: `player:<accountId>`, `leaderboards`, `fullRankings:<Instrument rawValue>`,
+/// `shop`, `rivals`, `statistics`, `suggestions`, `compete`, `bands`, `manual`, `licenses`.
+/// Song routes need a loaded `Song`; the Songs lane handles `FST_DEBUG_SONG` itself.
+struct DebugLaunchRoute {
+    let section: FestivalSection?
+    let route: AppRoute?
+
+    /// Parse the launch environment.
+    ///
+    /// - Parameter environment: Process environment.
+    init(environment: [String: String]) {
+        section = environment["FST_DEBUG_TAB"].flatMap(FestivalSection.init(rawValue:))
+        guard let raw = environment["FST_DEBUG_ROUTE"] else {
+            route = nil
+            return
+        }
+        let parts = raw.split(separator: ":", maxSplits: 1).map(String.init)
+        let arg = parts.count > 1 ? parts[1] : nil
+        switch parts.first {
+        case "player": route = arg.map { .player(accountId: $0, displayName: nil) }
+        case "playerBands": route = arg.map { .playerBands(accountId: $0, displayName: nil) }
+        case "leaderboards": route = .leaderboards
+        case "fullRankings":
+            route = .fullRankings(
+                instrument: arg.flatMap(Instrument.init(rawValue:)) ?? .lead, rankBy: "adjusted"
+            )
+        case "bandRankings": route = .bandRankings(bandType: arg ?? "Band_Duets")
+        case "shop": route = .shop
+        case "rivals": route = .rivals
+        case "statistics": route = .statistics
+        case "suggestions": route = .suggestions
+        case "compete": route = .compete
+        case "bands": route = .bands
+        case "band": route = arg.map { .band(bandId: $0, name: nil) }
+        case "manual": route = .manual
+        case "licenses": route = .licenses
+        default: route = nil
+        }
+    }
+}
+#endif
