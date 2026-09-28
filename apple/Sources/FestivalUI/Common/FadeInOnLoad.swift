@@ -6,11 +6,11 @@ import SwiftUI
 ///
 /// The web wraps freshly loaded page content in a `fadeInUp` CSS animation
 /// (`styles/animations.css`: opacity 0 → 1 while rising 12 px, `FADE_DURATION` 400 ms,
-/// `ease-out`), and staggers list items by `STAGGER_INTERVAL` (125 ms) through
-/// `useStagger`/`getCardDelay` (`packages/theme/src/animation.ts`,
-/// `hooks/ui/useStagger.ts`, `pages/suggestions/suggestionsHelpers.ts`). Items past the
-/// first screenful (`estimateVisibleCount`) appear without animation so a long list never
-/// makes the user wait for off-screen rows.
+/// `ease-out`), and staggers list items by `STAGGER_INTERVAL` (125 ms) as
+/// `staggerDelay(index) = (index + 1) × 125 ms` (`packages/ui-utils/src/stagger.ts`,
+/// `packages/theme/src/animation.ts`); the same values are used on Android and Windows.
+/// Items past the first screenful (`estimateVisibleCount`) appear without animation so a
+/// long list never makes the user wait for off-screen rows.
 public enum FestivalFadeIn {
     /// Length of one fade (web `FADE_DURATION`, 400 ms).
     public static let duration: TimeInterval = 0.4
@@ -33,15 +33,15 @@ public enum FestivalFadeIn {
     /// - Parameters:
     ///   - index: Zero-based position in render order.
     ///   - maxStaggered: Items at or beyond this index skip the animation.
-    /// - Returns: Seconds to wait before this item fades, or `nil` when it should appear
-    ///   immediately (a negative index, or past the first screenful).
+    /// - Returns: Seconds to wait before this item fades (`(index + 1) × 125 ms`, web
+    ///   `staggerDelay`), or `nil` when it should appear immediately (a negative index, or
+    ///   past the first screenful).
     public static func delay(forIndex index: Int, maxStaggered: Int = maxStaggeredItems) -> TimeInterval? {
         guard index >= 0, index < maxStaggered else { return nil }
-        return Double(index) * staggerInterval
+        return Double(index + 1) * staggerInterval
     }
 
-    /// Time until the last of `itemCount` staggered items has finished fading
-    /// (web `staggerCompletionDelay`).
+    /// Time until the last of `itemCount` staggered items has finished fading.
     ///
     /// - Parameters:
     ///   - itemCount: Number of items revealed together.
@@ -50,7 +50,7 @@ public enum FestivalFadeIn {
     public static func completionDelay(itemCount: Int, maxStaggered: Int = maxStaggeredItems) -> TimeInterval {
         guard itemCount > 0 else { return 0 }
         let animated = min(itemCount, maxStaggered)
-        return Double(animated - 1) * staggerInterval + duration
+        return Double(animated) * staggerInterval + duration
     }
 }
 
@@ -123,7 +123,7 @@ extension View {
     }
 
     /// Staggered variant for lists and card stacks: item `index` starts
-    /// `index × 125 ms` after the reveal, and items past the first screenful appear
+    /// `(index + 1) × 125 ms` after the reveal, and items past the first screenful appear
     /// immediately.
     ///
     /// - Parameters:

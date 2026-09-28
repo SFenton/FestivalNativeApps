@@ -13,20 +13,21 @@ import Testing
 }
 
 @Test func fadeInStaggerDelaysFirstScreenOnly() {
-    #expect(FestivalFadeIn.delay(forIndex: 0) == 0)
-    #expect(FestivalFadeIn.delay(forIndex: 1) == 0.125)
-    #expect(FestivalFadeIn.delay(forIndex: 4) == 0.5)
+    // Web `staggerDelay`: (index + 1) × 125 ms.
+    #expect(FestivalFadeIn.delay(forIndex: 0) == 0.125)
+    #expect(FestivalFadeIn.delay(forIndex: 1) == 0.25)
+    #expect(FestivalFadeIn.delay(forIndex: 4) == 0.625)
     #expect(FestivalFadeIn.delay(forIndex: FestivalFadeIn.maxStaggeredItems - 1) != nil)
     #expect(FestivalFadeIn.delay(forIndex: FestivalFadeIn.maxStaggeredItems) == nil)
     #expect(FestivalFadeIn.delay(forIndex: -1) == nil)
     #expect(FestivalFadeIn.delay(forIndex: 3, maxStaggered: 3) == nil)
 }
 
-@Test func fadeInCompletionDelayMatchesWebFormula() {
+@Test func fadeInCompletionDelayCoversTheLastStaggeredItem() {
     #expect(FestivalFadeIn.completionDelay(itemCount: 0) == 0)
-    #expect(FestivalFadeIn.completionDelay(itemCount: 1) == 0.4)
-    #expect(abs(FestivalFadeIn.completionDelay(itemCount: 3) - 0.65) < 1e-9)
+    #expect(abs(FestivalFadeIn.completionDelay(itemCount: 1) - 0.525) < 1e-9)
+    #expect(abs(FestivalFadeIn.completionDelay(itemCount: 3) - 0.775) < 1e-9)
     // Items past the cap appear instantly, so they add no time.
     let capped = FestivalFadeIn.completionDelay(itemCount: 100)
-    #expect(abs(capped - (Double(FestivalFadeIn.maxStaggeredItems - 1) * 0.125 + 0.4)) < 1e-9)
+    #expect(abs(capped - (Double(FestivalFadeIn.maxStaggeredItems) * 0.125 + 0.4)) < 1e-9)
 }
