@@ -8,8 +8,9 @@ import FestivalDesign
 // (`FortniteFestivalWeb/src/pages/player/sections/InstrumentStatsSection.tsx`):
 //
 // - Rank history: the web's `RankHistoryChart` (metric `totalscore`, 30 days) —
-//   Total Score bars plus a reversed global-rank line. Swift Charts has no second
-//   y-axis, so the two series are two stacked charts sharing one date axis.
+//   one combined chart of Total Score bars plus a reversed global-rank line, with the
+//   rank projected onto the value scale (`RankHistoryChartScale`), a swipeable window
+//   and the web's four pagination buttons (`RankHistoryPaging`).
 // - Percentiles: the web's percentile *table* (`PlayerPercentileTable.tsx`), drawn
 //   as a horizontal bar chart of the same "Top N%" bands.
 //
@@ -76,12 +77,13 @@ struct PlayerRankHistoryCard: View {
             case let .loaded(points) where points.isEmpty:
                 EmptyView()
             case let .loaded(points):
-                FestivalGlassSection(title, subtitle: "Total Score rank over the last 30 days") {
+                FestivalGlassSection("Rank History", subtitle: "Ranking progression over the past 30 days.") {
                     RankHistoryCharts(
                         points: points, instrument: instrument,
                         motion: ChartMotion(system: systemReduceMotion, app: appReduceMotion)
                     )
                 }
+                .festivalFadeIn(isLoaded: true)
                 .accessibilityIdentifier("fst.player.rank-history.\(instrument.rawValue)")
                 .quickLinkSection(QuickLinkSection(
                     id: "rank-history:\(instrument.rawValue)", title: "Rank History",
@@ -117,114 +119,285 @@ struct PlayerRankHistoryCard: View {
     }
 }
 
-/// The rank line (rank 1 at the top) above Total Score bars, plus a latest summary.
+/// The web's combined Rank History chart: Total Score bars (leading value axis, each bar
+/// coloured by its rank's place in the field) and the global-rank line (trailing, reversed
+/// rank axis, bright blue with dots), one legend, a latest summary, and a swipeable window
+/// of history (swipe a page at a time) with the web's four pagination buttons.
+///
+/// Ported from `pages/leaderboards/components/RankHistoryChart.tsx` + `GraphCard.tsx`
+/// (`useChartPagination`). Swift Charts has one y scale, so ranks are projected into the
+/// value range (`RankHistoryChartScale`); the trailing axis labels those positions as ranks.
 struct RankHistoryCharts: View {
     let points: [PlayerRankHistorySnapshot]
     let instrument: Instrument
     let motion: ChartMotion
 
-    private struct Point: Identifiable, Equatable {
+    /// Web `Colors.accentBlueBright` (#4C7DFF), the rank line and its dots.
+    static let rankLineColor = Color(.sRGB, red: 76 / 255, green: 125 / 255, blue: 1, opacity: 1)
+    /// Width reserved for the two y-axis label columns when sizing the page.
+    private static let axisOverhead: CGFloat = 96
+
+    struct Point: Identifiable, Equatable {
         let id: String
-        let date: Date
+        let label: String
         let rank: Int
-        let totalScore: Int?
+        let value: Double
+        let rankedAccountCount: Int?
     }
 
+    @State private var chartWidth: CGFloat = 0
+    /// Snapshot date of the oldest visible bar; nil shows the newest page.
+    @State private var startID: String?
+
     private var chartPoints: [Point] {
-        points.compactMap { snapshot in
-            snapshot.date.map {
-                Point(
-                    id: snapshot.snapshotDate, date: $0,
-                    rank: snapshot.totalScoreRank, totalScore: snapshot.totalScore
-                )
-            }
+        points.map {
+            Point(
+                id: $0.snapshotDate, label: RankHistoryChartFormat.axisDate($0.snapshotDate),
+                rank: $0.totalScoreRank, value: Double($0.totalScore ?? 0),
+                rankedAccountCount: $0.rankedAccountCount
+            )
         }
+    }
+
+    private var scale: RankHistoryChartScale {
+        RankHistoryChartScale(values: chartPoints.map(\.value), ranks: chartPoints.map(\.rank))
+    }
+
+    private var paging: RankHistoryPaging {
+        let plot = Double(max(0, chartWidth - Self.axisOverhead))
+        let size = chartWidth > 0 ? RankHistoryPaging.pageSize(forPlotWidth: plot) : points.count
+        return RankHistoryPaging(count: points.count, pageSize: size)
+    }
+
+    /// Index of the oldest visible point.
+    private var start: Int {
+        paging.clamp(chartPoints.firstIndex { $0.id == startID } ?? paging.latestStart)
     }
 
     var body: some View {
         let data = chartPoints
+        let visible = Array(data[paging.visibleRange(from: start)])
         VStack(alignment: .leading, spacing: 12) {
             if let latest = points.last {
                 latestSummary(latest)
             }
-            // Plot -rank on an explicit padded domain: rank 1 sits on top, and the
-            // axis can never round past #1 to a meaningless "#0".
-            let axis = Self.rankAxis(data.map(\.rank))
-            Chart(data) { point in
-                LineMark(x: .value("Date", point.date, unit: .day), y: .value("Rank", -point.rank))
-                    .foregroundStyle(BrandTokens.accentBlue)
-                    .interpolationMethod(.monotone)
-                PointMark(x: .value("Date", point.date, unit: .day), y: .value("Rank", -point.rank))
-                    .foregroundStyle(BrandTokens.accentBlue)
-                    .symbolSize(data.count > 14 ? 14 : 30)
+            HStack(spacing: 2) {
+                axisTitle("Total Score", degrees: -90)
+                chart(visible)
+                    .background(GeometryReader { proxy in
+                        Color.clear
+                            .onAppear { chartWidth = proxy.size.width }
+                            .onChange(of: proxy.size.width) { _, width in chartWidth = width }
+                    })
+                axisTitle("Rank", degrees: 90)
             }
-            .chartYScale(domain: -axis.worst ... -axis.best)
-            .chartYAxis {
-                AxisMarks(position: .leading, values: axis.ticks.map { -$0 }) { value in
-                    AxisGridLine().foregroundStyle(BrandTokens.glassBorder)
-                    AxisValueLabel {
-                        if let negated = value.as(Int.self) {
-                            Text("#\((-negated).formatted())")
-                                .foregroundStyle(FestivalText.deemphasized)
-                        }
-                    }
-                }
-            }
-            .chartXAxis(.hidden)
-            .frame(height: 140)
-            .accessibilityChartDescriptor(RankLineDescriptor(points: points, instrument: instrument))
-            .accessibilityIdentifier("fst.player.rank-history.\(instrument.rawValue).rank-chart")
-
-            if data.contains(where: { $0.totalScore != nil }) {
-                Chart(data) { point in
-                    if let totalScore = point.totalScore {
-                        BarMark(
-                            x: .value("Date", point.date, unit: .day),
-                            y: .value("Total Score", totalScore)
-                        )
-                        .foregroundStyle(BrandTokens.accentBlue.opacity(0.55))
-                        .cornerRadius(2)
-                    }
-                }
-                .chartYAxis {
-                    AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { value in
-                        AxisGridLine().foregroundStyle(BrandTokens.glassBorder)
-                        AxisValueLabel {
-                            if let score = value.as(Int.self) {
-                                Text(RankingFormatting.wholeNumber(Double(score)))
-                                    .foregroundStyle(FestivalText.deemphasized)
-                            }
-                        }
-                    }
-                }
-                .chartXAxis {
-                    AxisMarks(values: .automatic(desiredCount: 4)) { _ in
-                        AxisValueLabel(format: .dateTime.month(.abbreviated).day(), centered: true)
-                            .foregroundStyle(FestivalText.deemphasized)
-                    }
-                }
-                .frame(height: 110)
-                .accessibilityChartDescriptor(TotalScoreDescriptor(points: points, instrument: instrument))
-                .accessibilityIdentifier("fst.player.rank-history.\(instrument.rawValue).score-chart")
+            legend
+            if paging.needsPagination {
+                pager
             }
         }
-        .animation(motion.animation, value: data)
+        .animation(motion.animation, value: visible)
+        .onChange(of: paging) { _, _ in startID = nil }
     }
 
-    /// Padded rank bounds (best ≥ 1) and up to four whole-number ticks between them.
-    ///
-    /// - Parameter ranks: Charted Total Score ranks (all ≥ 1).
-    /// - Returns: Best (smallest) and worst bounds plus tick ranks, best first.
-    static func rankAxis(_ ranks: [Int]) -> (best: Int, worst: Int, ticks: [Int]) {
-        let low = ranks.min() ?? 1
-        let high = ranks.max() ?? 1
-        let pad = max(1, (high - low) / 8)
-        let best = max(1, low - pad)
-        let worst = max(best + 1, high + pad)
-        let step = max(1, Int((Double(worst - best) / 3).rounded(.up)))
-        let ticks = Array(stride(from: best, through: worst, by: step))
-        return (best, worst, ticks)
+    // MARK: Chart
+
+    @ViewBuilder
+    private func chart(_ data: [Point]) -> some View {
+        let scale = scale
+        let base = Chart(data) { point in
+            BarMark(
+                x: .value("Date", point.id),
+                y: .value("Total Score", point.value),
+                width: .ratio(0.9)
+            )
+            .foregroundStyle(Self.barColor(point).opacity(0.8))
+            .cornerRadius(4)
+            LineMark(
+                x: .value("Date", point.id),
+                y: .value("Rank", scale.y(forRank: point.rank)),
+                series: .value("Series", "Rank")
+            )
+            .foregroundStyle(Self.rankLineColor)
+            .lineStyle(StrokeStyle(lineWidth: 2))
+            .interpolationMethod(.monotone)
+            PointMark(
+                x: .value("Date", point.id),
+                y: .value("Rank", scale.y(forRank: point.rank))
+            )
+            .foregroundStyle(Self.rankLineColor)
+            .symbolSize(30)
+        }
+        .chartYScale(domain: 0 ... scale.valueTop)
+        .chartYAxis {
+            AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
+                AxisGridLine().foregroundStyle(BrandTokens.glassBorder)
+                AxisValueLabel {
+                    if let score = value.as(Double.self) {
+                        Text(RankHistoryChartFormat.compactScore(score))
+                            .foregroundStyle(FestivalText.primary)
+                    }
+                }
+            }
+            AxisMarks(position: .trailing, values: scale.rankTicks.map { scale.y(forRank: $0) }) { value in
+                AxisValueLabel {
+                    if let y = value.as(Double.self),
+                       let rank = scale.rankTicks.first(where: { abs(scale.y(forRank: $0) - y) < 0.0001 }) {
+                        Text("#\(rank.formatted())")
+                            .foregroundStyle(FestivalText.primary)
+                    }
+                }
+            }
+        }
+        .chartXAxis {
+            AxisMarks { value in
+                AxisValueLabel {
+                    if let id = value.as(String.self) {
+                        Text(RankHistoryChartFormat.axisDate(id))
+                            .foregroundStyle(FestivalText.primary)
+                    }
+                }
+            }
+        }
+        .frame(height: 220)
+        .accessibilityChartDescriptor(RankHistoryDescriptor(points: points, instrument: instrument))
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: move(to: paging.forwardPage(from: start))
+            case .decrement: move(to: paging.backPage(from: start))
+            @unknown default: break
+            }
+        }
+        .accessibilityIdentifier("fst.player.rank-history.\(instrument.rawValue).chart")
+
+        if paging.needsPagination {
+            // Swipe a page at a time (web `SWIPE_THRESHOLD` 50 pt): left shows newer
+            // snapshots, right older. Horizontal-dominant drags only, so the page still
+            // scrolls vertically over the chart.
+            base.simultaneousGesture(
+                DragGesture(minimumDistance: 20).onEnded { drag in
+                    let dx = drag.translation.width
+                    guard abs(dx) > 50, abs(dx) > abs(drag.translation.height) else { return }
+                    move(to: dx < 0 ? paging.forwardPage(from: start) : paging.backPage(from: start))
+                }
+            )
+        } else {
+            base
+        }
     }
+
+    /// Bar fill: the web's `rankColor(rank, rankedAccounts)` red→green field placement.
+    ///
+    /// - Parameter point: One snapshot.
+    /// - Returns: Opaque colour for the bar.
+    static func barColor(_ point: Point) -> Color {
+        let rgb = RankHistoryChartFormat.rankColor(rank: point.rank, totalAccounts: point.rankedAccountCount)
+        return Color(.sRGB, red: Double(rgb.red) / 255, green: Double(rgb.green) / 255, blue: Double(rgb.blue) / 255)
+    }
+
+    /// A rotated axis title beside the plot, like the web's rotated Recharts labels.
+    private func axisTitle(_ text: String, degrees: Double) -> some View {
+        Text(text)
+            .font(.caption)
+            .foregroundStyle(FestivalText.primary)
+            .fixedSize()
+            .rotationEffect(.degrees(degrees))
+            .frame(width: 16)
+            .accessibilityHidden(true)
+    }
+
+    // MARK: Legend
+
+    /// Web legend: gradient swatch "Total Score", line-and-dot "Rank".
+    private var legend: some View {
+        HStack(spacing: 20) {
+            HStack(spacing: 6) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(LinearGradient(
+                        colors: [
+                            Color(.sRGB, red: 220 / 255, green: 40 / 255, blue: 40 / 255),
+                            Color(.sRGB, red: 46 / 255, green: 204 / 255, blue: 113 / 255),
+                        ],
+                        startPoint: .leading, endPoint: .trailing
+                    ))
+                    .frame(width: 16, height: 12)
+                Text("Total Score")
+            }
+            HStack(spacing: 6) {
+                ZStack(alignment: .trailing) {
+                    Rectangle().fill(Self.rankLineColor).frame(width: 18, height: 2)
+                    Circle().fill(Self.rankLineColor).frame(width: 6, height: 6).offset(x: 3)
+                }
+                .frame(width: 24, height: 12, alignment: .leading)
+                Text("Rank")
+            }
+        }
+        .font(.subheadline)
+        .foregroundStyle(FestivalText.primary)
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Legend: bars show Total Score, the line shows Rank")
+    }
+
+    // MARK: Pagination
+
+    /// The web `GraphCard` pager: back a page, back an entry, forward an entry, forward a page.
+    private var pager: some View {
+        let paging = paging
+        let start = start
+        let range = paging.visibleRange(from: start)
+        return HStack(spacing: 12) {
+            pagerButton("chevron.left.2", label: "Back one page", id: "back-page",
+                        enabled: paging.canGoBack(from: start)) { move(to: paging.backPage(from: start)) }
+            pagerButton("chevron.left", label: "Back one entry", id: "back-entry",
+                        enabled: paging.canGoBack(from: start)) { move(to: paging.backEntry(from: start)) }
+            Text(rangeLabel(range))
+                .font(.footnote.monospacedDigit())
+                .foregroundStyle(FestivalText.primary)
+                .frame(maxWidth: .infinity)
+                .accessibilityLabel("Showing \(rangeLabel(range))")
+            pagerButton("chevron.right", label: "Forward one entry", id: "forward-entry",
+                        enabled: paging.canGoForward(from: start)) { move(to: paging.forwardEntry(from: start)) }
+            pagerButton("chevron.right.2", label: "Forward one page", id: "forward-page",
+                        enabled: paging.canGoForward(from: start)) { move(to: paging.forwardPage(from: start)) }
+        }
+    }
+
+    private func rangeLabel(_ range: Range<Int>) -> String {
+        let data = chartPoints
+        guard let first = range.first, let last = range.last, last < data.count else { return "" }
+        return first == last ? data[first].label : "\(data[first].label) – \(data[last].label)"
+    }
+
+    private func pagerButton(
+        _ symbol: String, label: String, id: String, enabled: Bool, action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.footnote.weight(.semibold))
+                .frame(width: 36, height: 36)
+                .background(Color.white.opacity(0.08), in: Circle())
+                .overlay(Circle().stroke(BrandTokens.glassBorder, lineWidth: 1))
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(enabled ? FestivalText.primary : FestivalText.disabled)
+        .disabled(!enabled)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier("fst.player.rank-history.\(instrument.rawValue).\(id)")
+    }
+
+    /// Show the window whose oldest visible snapshot is `index`.
+    private func move(to index: Int) {
+        let data = chartPoints
+        guard data.indices.contains(index) else { return }
+        withAnimation(motion.animation) {
+            startID = index == paging.latestStart ? nil : data[index].id
+        }
+    }
+
+    // MARK: Summary
 
     /// Latest rank "of N", plus Total Score when present, as one readable line.
     ///
@@ -324,30 +497,37 @@ struct PercentileBandsChart: View {
 
 // MARK: - Audio Graph descriptors
 
-/// VoiceOver Audio Graph for the rank line: date categories, rank values.
-struct RankLineDescriptor: AXChartDescriptorRepresentable {
+/// VoiceOver Audio Graph for the combined chart: Total Score bars and the rank line as
+/// two series over the same date categories.
+struct RankHistoryDescriptor: AXChartDescriptorRepresentable {
     let points: [PlayerRankHistorySnapshot]
     let instrument: Instrument
 
     func makeChartDescriptor() -> AXChartDescriptor {
         let ranks = points.map { Double($0.totalScoreRank) }
+        let scores = points.map { Double($0.totalScore ?? 0) }
         let xAxis = AXCategoricalDataAxisDescriptor(
             title: "Date", categoryOrder: points.map(\.snapshotDate)
         )
         let yAxis = AXNumericDataAxisDescriptor(
-            title: "Global rank", range: (ranks.min() ?? 0)...(ranks.max() ?? 1),
+            title: "Total score", range: 0...(max(scores.max() ?? 1, 1)), gridlinePositions: []
+        ) { Int($0).formatted() }
+        let rankAxis = AXNumericDataAxisDescriptor(
+            title: "Global rank", range: (ranks.min() ?? 0)...(max(ranks.max() ?? 1, (ranks.min() ?? 0) + 1)),
             gridlinePositions: []
         ) { "Rank \(Int($0).formatted())" }
-        let series = AXDataSeriesDescriptor(
+        let scoreSeries = AXDataSeriesDescriptor(
+            name: "Total score", isContinuous: false,
+            dataPoints: points.map { AXDataPoint(x: $0.snapshotDate, y: Double($0.totalScore ?? 0)) }
+        )
+        let rankSeries = AXDataSeriesDescriptor(
             name: "Total Score rank", isContinuous: true,
-            dataPoints: points.map {
-                AXDataPoint(x: $0.snapshotDate, y: Double($0.totalScoreRank))
-            }
+            dataPoints: points.map { AXDataPoint(x: $0.snapshotDate, y: Double($0.totalScoreRank)) }
         )
         return AXChartDescriptor(
             title: "\(instrument.label) rank history",
             summary: rankSummary(points),
-            xAxis: xAxis, yAxis: yAxis, additionalAxes: [], series: [series]
+            xAxis: xAxis, yAxis: yAxis, additionalAxes: [rankAxis], series: [scoreSeries, rankSeries]
         )
     }
 
@@ -358,34 +538,6 @@ struct RankLineDescriptor: AXChartDescriptorRepresentable {
         let trend = delta > 0 ? "up \(delta.formatted()) places"
             : delta < 0 ? "down \((-delta).formatted()) places" : "unchanged"
         return "\(points.count) daily snapshots. Latest rank \(last.totalScoreRank.formatted()), \(trend)."
-    }
-}
-
-/// VoiceOver Audio Graph for the Total Score bars.
-struct TotalScoreDescriptor: AXChartDescriptorRepresentable {
-    let points: [PlayerRankHistorySnapshot]
-    let instrument: Instrument
-
-    func makeChartDescriptor() -> AXChartDescriptor {
-        let scored = points.filter { $0.totalScore != nil }
-        let values = scored.compactMap { $0.totalScore.map(Double.init) }
-        let xAxis = AXCategoricalDataAxisDescriptor(
-            title: "Date", categoryOrder: scored.map(\.snapshotDate)
-        )
-        let yAxis = AXNumericDataAxisDescriptor(
-            title: "Total score", range: 0...(values.max() ?? 1), gridlinePositions: []
-        ) { Int($0).formatted() }
-        let series = AXDataSeriesDescriptor(
-            name: "Total score", isContinuous: false,
-            dataPoints: scored.map {
-                AXDataPoint(x: $0.snapshotDate, y: Double($0.totalScore ?? 0))
-            }
-        )
-        return AXChartDescriptor(
-            title: "\(instrument.label) total score history",
-            summary: values.last.map { "Latest total score \(Int($0).formatted())." },
-            xAxis: xAxis, yAxis: yAxis, additionalAxes: [], series: [series]
-        )
     }
 }
 

@@ -162,14 +162,13 @@ private func chartPixels<Content: View>(_ chart: Content) throws -> CGImage {
 
 @Test func chartDescriptorsNarrateEverySnapshotAndBand() throws {
     let history = try JSONDecoder().decode(PlayerRankHistory.self, from: Data(threeDayHistory.utf8))
-    let rank = RankLineDescriptor(points: history.rankedChronological, instrument: .lead)
+    let combined = RankHistoryDescriptor(points: history.rankedChronological, instrument: .lead)
         .makeChartDescriptor()
-    #expect(rank.title == "Lead rank history")
-    #expect(rank.series.first?.dataPoints.count == 3)
-    #expect(rank.summary?.contains("Latest rank 4, up 5 places") == true)
-    let score = TotalScoreDescriptor(points: history.rankedChronological, instrument: .lead)
-        .makeChartDescriptor()
-    #expect(score.series.first?.dataPoints.count == 3)
+    #expect(combined.title == "Lead rank history")
+    #expect(combined.series.map(\.name) == ["Total score", "Total Score rank"])
+    #expect(combined.series.allSatisfy { $0.dataPoints.count == 3 })
+    #expect(combined.additionalAxes.count == 1, "The rank line keeps its own axis")
+    #expect(combined.summary?.contains("Latest rank 4, up 5 places") == true)
     let bands = PercentileDescriptor(
         buckets: [PlayerPercentileBucket(topPercent: 1, count: 3)], instrument: .bass
     ).makeChartDescriptor()
@@ -182,20 +181,6 @@ private func chartPixels<Content: View>(_ chart: Content) throws -> CGImage {
     #expect(ChartMotion(system: false, app: false).animation != nil)
     #expect(ChartMotion(system: true, app: false).animation == nil)
     #expect(ChartMotion(system: false, app: true).animation == nil)
-}
-
-// MARK: - Rank axis
-
-@Test func rankAxisNeverRoundsPastFirstPlaceAndCoversTheSeries() {
-    let top = RankHistoryCharts.rankAxis([4, 6, 9, 14])
-    #expect(top.best == 3 && top.worst == 15)
-    #expect(top.ticks.first == 3 && top.ticks.allSatisfy { $0 >= 1 && $0 <= 15 })
-    let first = RankHistoryCharts.rankAxis([1, 1, 2])
-    #expect(first.best == 1, "Rank #1 is the ceiling; never #0")
-    let flat = RankHistoryCharts.rankAxis([500])
-    #expect(flat.best < flat.worst, "A single snapshot still needs a non-empty domain")
-    let wide = RankHistoryCharts.rankAxis([1, 10_000])
-    #expect(wide.ticks.count <= 5)
 }
 
 // MARK: - Quick Links spoken titles
