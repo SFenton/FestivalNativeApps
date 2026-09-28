@@ -33,6 +33,8 @@ import com.festivalscoretracker.android.core.search.SearchScope
  * @property searchQuery `FST_DEBUG_SEARCH=<text>` opens global search with that text.
  * @property searchScope `FST_DEBUG_SEARCH_SCOPE=songs|players|bands` selects a scope chip.
  * @property suggestionsSeed `FST_DEBUG_SUGGESTIONS_SEED`: pins the Suggestions mix seed (0–4294967295) for screenshots.
+ * @property opensNotifications `FST_DEBUG_SHEET=notifications` opens the notifications sheet.
+ * @property firstRun `FST_DEBUG_FIRST_RUN=off|on|force` (debug default off so automation is never blocked).
  */
 data class DebugLaunch(
     val section: FestivalSection? = null,
@@ -48,6 +50,8 @@ data class DebugLaunch(
     val searchQuery: String? = null,
     val searchScope: SearchScope? = null,
     val suggestionsSeed: Long? = null,
+    val opensNotifications: Boolean = false,
+    val firstRun: String? = null,
 ) {
     companion object {
         /** An empty launch (release builds, or no extras). */
@@ -80,6 +84,8 @@ data class DebugLaunch(
                 searchQuery = extras["FST_DEBUG_SEARCH"],
                 searchScope = extras["FST_DEBUG_SEARCH_SCOPE"]?.let(SearchScope::parse)?.takeIf { it != SearchScope.All },
                 suggestionsSeed = extras["FST_DEBUG_SUGGESTIONS_SEED"]?.toLongOrNull()?.takeIf { it in 0..0xFFFF_FFFFL },
+                opensNotifications = extras["FST_DEBUG_SHEET"] == "notifications",
+                firstRun = extras["FST_DEBUG_FIRST_RUN"],
             )
         }
 

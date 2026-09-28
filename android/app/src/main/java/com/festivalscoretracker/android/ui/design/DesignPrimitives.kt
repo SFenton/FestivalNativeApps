@@ -52,8 +52,9 @@ fun GlassCard(
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val contrast = LocalFestivalAccessibility.current.increaseContrast
-    val color = if (contrast) BrandTokens.cardBackground else BrandTokens.surfaceFrosted
+    val accessibility = LocalFestivalAccessibility.current
+    val contrast = accessibility.increaseContrast
+    val color = if (contrast || accessibility.reduceTransparency) BrandTokens.cardBackground else BrandTokens.surfaceFrosted
     val border = BorderStroke(if (contrast) 2.dp else 1.dp, if (contrast) BrandTokens.textPrimary else BrandTokens.glassBorder)
     if (onClick != null) {
         Surface(onClick = onClick, modifier = modifier, shape = shape, color = color, border = border) {

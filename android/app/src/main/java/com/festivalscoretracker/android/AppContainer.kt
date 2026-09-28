@@ -4,7 +4,13 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
+import com.festivalscoretracker.android.core.firstrun.FirstRunMode
+import com.festivalscoretracker.android.core.firstrun.FirstRunSeenStore
 import com.festivalscoretracker.android.core.nav.DebugLaunch
+import com.festivalscoretracker.android.core.notifications.NotificationSeenStore
+import com.festivalscoretracker.android.core.settings.SettingsRegistry
+import com.festivalscoretracker.android.data.settings.SettingsBlobStore
+import com.festivalscoretracker.android.presentation.firstrun.FirstRunCenter
 import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import com.festivalscoretracker.android.data.FestivalApi
 import com.festivalscoretracker.android.data.ForcedFreezeTransport
@@ -67,6 +73,15 @@ class AppContainer(
 
     /** Shared animated backdrop state. */
     val background = BackgroundController(loadCatalog = { api.catalog() }, artworkUrl = api::artworkUrl)
+
+    /** App-wide first-run arbiter (seen-state in the settings DataStore). */
+    val firstRun = FirstRunCenter(
+        FirstRunSeenStore(SettingsBlobStore(settings, SettingsRegistry.FIRST_RUN_SEEN)),
+        FirstRunMode.parse(launch.firstRun, BuildConfig.DEBUG),
+    )
+
+    /** Per-account notification seen-state. */
+    val notificationSeen = NotificationSeenStore(SettingsBlobStore(settings, SettingsRegistry.NOTIFICATIONS_SEEN))
 
     /** Selected player's process-only scores (Songs, Statistics and the player page read this). */
     val selectedProfile = SelectedProfileStore(read = { api.playerProfile(it) }, publications = api.publicationChanges, backoff = backoff)

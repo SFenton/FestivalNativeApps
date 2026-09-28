@@ -104,7 +104,15 @@ import com.festivalscoretracker.android.ui.profile.StatisticsScreen
 import com.festivalscoretracker.android.ui.profile.playerHistoryViewModel
 import com.festivalscoretracker.android.ui.profile.profileViewModel
 import com.festivalscoretracker.android.ui.rivals.rivalsDestinations
+import com.festivalscoretracker.android.ui.settings.LicensesScreen
 import com.festivalscoretracker.android.ui.settings.SettingsScreen
+import com.festivalscoretracker.android.data.notifications.playerNotifications
+import com.festivalscoretracker.android.presentation.notifications.NotificationsViewModel
+import com.festivalscoretracker.android.presentation.settings.SettingsViewModel
+import com.festivalscoretracker.android.ui.firstrun.FirstRunHost
+import com.festivalscoretracker.android.ui.firstrun.firstRunPage
+import com.festivalscoretracker.android.ui.notifications.NotificationsBell
+import com.festivalscoretracker.android.ui.notifications.NotificationsSheet
 import com.festivalscoretracker.android.ui.songdetail.SongDetailScreen
 import com.festivalscoretracker.android.ui.songdetail.SongLeaderboardScreen
 import com.festivalscoretracker.android.ui.suggestions.suggestionsDestinations
@@ -156,12 +164,16 @@ import com.festivalscoretracker.android.ui.search.GlobalSearchHost
 fun FestivalApp(container: AppContainer, launch: DebugLaunch, shortcuts: ShellShortcutBridge = remember { ShellShortcutBridge() }) {
     val shellViewModel: ShellViewModel = viewModel { ShellViewModel(container.settings, launch) }
     val settings by shellViewModel.settings.collectAsStateWithLifecycle()
-    FestivalTheme(appIncreaseContrast = settings?.increaseContrast == true, appReduceMotion = settings?.reduceMotion == true) {
+    FestivalTheme(
+        appIncreaseContrast = settings?.increaseContrast == true,
+        appReduceMotion = settings?.reduceMotion == true,
+        appReduceTransparency = settings?.reduceTransparency == true,
+    ) {
         LaunchedEffect(Unit) { container.background.start(this) }
         LaunchedEffect(Unit) { container.selectedProfile.start(this, shellViewModel.settings.map { it?.selectedPlayer }) }
         // Compose test tags double as UIAutomator resource ids for `device.py drive` journeys.
         Box(Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
-            ArtworkBackground(container.background, forceStill = launch.stillBackground)
+            ArtworkBackground(container.background, forceStill = launch.stillBackground || settings?.disableAnimatedArtwork == true)
             settings?.let { FestivalShell(container, shellViewModel, it, launch, shortcuts) }
         }
     }
@@ -258,6 +270,15 @@ private fun FestivalShell(
     val drawerState = rememberDrawerState(if (launch.opensDrawer) DrawerValue.Open else DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var showProfile by rememberSaveable { mutableStateOf(launch.opensProfileSheet) }
+    var showNotifications by rememberSaveable { mutableStateOf(launch.opensNotifications) }
+    val notificationsViewModel: NotificationsViewModel = viewModel {
+        NotificationsViewModel(
+            player = shellViewModel.settings.map { it?.selectedPlayer },
+            load = { container.api.playerNotifications(it) },
+            seenStore = container.notificationSeen,
+            songTitle = { id -> runCatching { container.api.catalog().catalog.songs.firstOrNull { it.songId == id }?.title }.getOrNull() },
+        )
+    }
 
     LaunchedEffect(sections) {
         val resolved = FestivalTabPolicy.resolve(selected, sections)
@@ -353,6 +374,7 @@ private fun FestivalShell(
         selectedPlayer = settings.selectedPlayer,
         bottomPadding = bottomPadding,
         search = SearchChrome(presentation = presentation, open = openSearch, report = { anchors.last = it }),
+        notifications = { NotificationsBell(notificationsViewModel) { showNotifications = true } },
     )
     val openDestination: (SearchDestination) -> Unit = { destination ->
         when (destination) {
@@ -464,6 +486,21 @@ private fun FestivalShell(
             onDismiss = { showProfile = false },
         )
     }
+    if (showNotifications) {
+        NotificationsSheet(
+            viewModel = notificationsViewModel,
+            onDismiss = { showNotifications = false },
+            onNavigate = actions.navigate,
+            onChooseProfile = { showProfile = true },
+        )
+    }
+    FirstRunHost(
+        center = container.firstRun,
+        page = firstRunPage(stack.lastOrNull()),
+        settings = settings,
+        compact = !AdaptiveLayoutPolicy.isRegularWidth(widthDp),
+        blocked = showProfile || showNotifications,
+    )
 }
 
 /** Permanent drawer width on large windows. */
@@ -551,9 +588,20 @@ private fun FestivalNavHost(
         }
         leaderboardsGraph(container, shellViewModel, container.leaderboardPreferences)
         composable<SettingsTab> {
-            SettingsScreen(settings = settings, shellViewModel = shellViewModel, serviceOrigin = api.origin)
+            val settingsViewModel: SettingsViewModel = viewModel {
+                SettingsViewModel(container.settings, checkService = {
+                    val songs = api.catalog(refresh = true).catalog.songs.size
+                    api.publication() to songs
+                })
+            }
+            val replayScope = rememberCoroutineScope()
+            val compact = !AdaptiveLayoutPolicy.isRegularWidth(with(LocalDensity.current) { currentWindowSize().width.toDp().value.toInt() })
+            SettingsScreen(settings, settingsViewModel, api.origin, onReplayFirstRun = { page ->
+                replayScope.launch { container.firstRun.beginReplay(page, compact) }
+            })
         }
-        suggestionsDestinations(container, shellViewModel.settings)
+        suggestionsDestinations(container, shellViewModel.settings)
+        composable<LicensesRoute> { LicensesScreen() }
         placeholder<CompeteTab>("Compete", isRoot = true)
         composable<StatisticsTab> {
             StatisticsScreen(profileViewModel(container, shellViewModel, accountId = null, name = null))
@@ -573,7 +621,6 @@ private fun FestivalNavHost(
         rivalsDestinations(container, settings)
         placeholder<CompeteRoute>("Compete")
         placeholder<ShopRoute>("Item Shop")
-        placeholder<LicensesRoute>("Licenses")
     }
 }
 

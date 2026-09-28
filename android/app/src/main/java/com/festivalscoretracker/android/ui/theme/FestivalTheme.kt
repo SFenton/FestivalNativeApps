@@ -45,9 +45,10 @@ object BrandTokens {
  *
  * @property increaseContrast Opaque surfaces and strong borders.
  * @property reduceMotion No decorative motion.
+ * @property reduceTransparency Opaque surfaces (in-app override; Android has no system equivalent).
  */
 @Immutable
-data class FestivalAccessibility(val increaseContrast: Boolean = false, val reduceMotion: Boolean = false)
+data class FestivalAccessibility(val increaseContrast: Boolean = false, val reduceMotion: Boolean = false, val reduceTransparency: Boolean = false)
 
 /** Current effective accessibility preferences. */
 val LocalFestivalAccessibility = staticCompositionLocalOf { FestivalAccessibility() }
@@ -102,15 +103,22 @@ private val festivalScheme = darkColorScheme(
  *
  * @param appIncreaseContrast In-app contrast override.
  * @param appReduceMotion In-app motion override.
+ * @param appReduceTransparency In-app transparency override.
  * @param content Themed content.
  */
 @Composable
-fun FestivalTheme(appIncreaseContrast: Boolean = false, appReduceMotion: Boolean = false, content: @Composable () -> Unit) {
+fun FestivalTheme(
+    appIncreaseContrast: Boolean = false,
+    appReduceMotion: Boolean = false,
+    appReduceTransparency: Boolean = false,
+    content: @Composable () -> Unit,
+) {
     val context = LocalContext.current
-    val accessibility = remember(appIncreaseContrast, appReduceMotion) {
+    val accessibility = remember(appIncreaseContrast, appReduceMotion, appReduceTransparency) {
         FestivalAccessibility(
             increaseContrast = appIncreaseContrast || systemIncreasesContrast(context),
             reduceMotion = appReduceMotion || systemReducesMotion(context),
+            reduceTransparency = appReduceTransparency,
         )
     }
     val scheme = if (accessibility.increaseContrast) {
