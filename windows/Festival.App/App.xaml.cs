@@ -30,7 +30,13 @@ public partial class App : Application
     /// <param name="args">Launch details.</param>
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        Options = LaunchOptions.Parse(Environment.GetCommandLineArgs().Skip(1).ToArray(), Environment.GetEnvironmentVariable);
+#if DEBUG
+        Func<string, string?> environment = Environment.GetEnvironmentVariable;
+#else
+        // FST_* environment deep links are a Debug-only automation hook; Release honours explicit flags only.
+        Func<string, string?> environment = _ => null;
+#endif
+        Options = LaunchOptions.Parse(Environment.GetCommandLineArgs().Skip(1).ToArray(), environment);
         PerfLog.Configure(Options.PerfLogPath);
         var handler = new SocketsHttpHandler
         {

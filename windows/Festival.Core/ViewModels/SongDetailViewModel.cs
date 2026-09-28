@@ -214,6 +214,9 @@ public sealed record LeaderboardRow(LeaderboardEntry Entry)
     /// <summary>Accuracy text, <c>FC</c> suffix handled by the view.</summary>
     public string Accuracy => ScoreFormatting.Accuracy(Entry.Accuracy);
 
+    /// <summary>Whether an accuracy value exists (hides the empty pill).</summary>
+    public bool HasAccuracy => Accuracy.Length > 0;
+
     /// <summary>Whether the explicit FC flag is set.</summary>
     public bool IsFullCombo => Entry.IsFullCombo == true;
 

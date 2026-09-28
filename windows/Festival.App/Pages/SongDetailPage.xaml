@@ -95,7 +95,8 @@
                                                     <TextBlock Grid.Column="2" Text="{x:Bind Score}" VerticalAlignment="Center"
                                                                Style="{StaticResource BodyStrongTextBlockStyle}" />
                                                     <Border Grid.Column="3" CornerRadius="4" Padding="6,2" HorizontalAlignment="Right"
-                                                            VerticalAlignment="Center" Background="{StaticResource FSTSurfaceMutedBrush}">
+                                                            VerticalAlignment="Center" Background="{StaticResource FSTSurfaceMutedBrush}"
+                                                            Visibility="{x:Bind HasAccuracy}">
                                                         <TextBlock Text="{x:Bind Accuracy}" FontSize="12" />
                                                     </Border>
                                                 </Grid>

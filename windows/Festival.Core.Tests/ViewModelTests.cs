@@ -301,6 +301,8 @@ public class SongDetailViewModelTests
         Assert.Contains("accuracy", row.Announcement);
         Assert.Equal("Unknown player", new LeaderboardRow(new LeaderboardEntry { DisplayName = " " }).Name);
         Assert.DoesNotContain("accuracy", new LeaderboardRow(new LeaderboardEntry()).Announcement);
+        Assert.False(new LeaderboardRow(new LeaderboardEntry()).HasAccuracy);
+        Assert.True(row.HasAccuracy);
     }
 
     [Fact]

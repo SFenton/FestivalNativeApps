@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using Microsoft.UI.Xaml.Media;
 
@@ -12,7 +13,7 @@ namespace Festival.App.Services;
 internal static class FrameStats
 {
     private static readonly List<double> Intervals = new(2048);
-    private static TimeSpan? last;
+    private static long? last;
     private static DateTime windowStart;
 
     /// <summary>Starts sampling.</summary>
@@ -24,12 +25,12 @@ internal static class FrameStats
 
     /// <summary>Records one frame interval and flushes a summary every 5 s.</summary>
     /// <param name="sender">Unused.</param>
-    /// <param name="e">Rendering arguments.</param>
+    /// <param name="e">Unused: casting it to RenderingEventArgs fails under NativeAOT, so time the callbacks.</param>
     private static void OnRendering(object? sender, object e)
     {
-        var time = ((RenderingEventArgs)e).RenderingTime;
-        if (last is { } previous && time > previous) Intervals.Add((time - previous).TotalMilliseconds);
-        last = time;
+        var now = Stopwatch.GetTimestamp();
+        if (last is { } previous) Intervals.Add(Stopwatch.GetElapsedTime(previous, now).TotalMilliseconds);
+        last = now;
         if (DateTime.UtcNow - windowStart < TimeSpan.FromSeconds(5) || Intervals.Count == 0) return;
         Intervals.Sort();
         double At(double p) => Intervals[Math.Min(Intervals.Count - 1, (int)(Intervals.Count * p))];
