@@ -20,6 +20,49 @@ see `cmd_uitest`'s docstring in `tools/ios_sim.py` for the full contract.
 sequence instead of a written `XCTestCase`, useful for ad hoc exploration
 before writing a real journey.
 
+### Shared launch helper (`FestivalApp.swift`, added 2026-09-28)
+
+Every journey launches through `FestivalApp.makeApp(_:)` (build, don't launch)
+or `FestivalApp.launch(_:)` (build and launch), never `XCUIApplication()`
+directly — `tools/tests/test_launch_helper.py` fails if any other file under
+`apple/Apps/iOSUITests/` constructs one. The helper always defaults
+`FST_DEBUG_STILL_BACKGROUND=1`: more than one journey file (`SongsUITestSupport
+.fixtureApp()`, `FestivalMobileUITests.fixtureApp()`, `SuggestionsJourneyTests
+.fixtureApp()`) had forgotten it entirely, which is exactly the "app never
+idles" failure mode below — a caller overrides it explicitly (a `String` value,
+not the key's absence) when it genuinely needs animation, as `DriverTests.swift`
+does to keep `ios_sim.py drive --animate`'s opt-out working.
+
+### Journey hangs traced to a missing still-background flag (2026-09-28)
+
+`SongsJourneyTests` and `SuggestionsJourneyTests` were reported hanging the
+shared simulator's lock. Investigation found two contributing causes, both
+now fixed:
+
+1. The two files' fixture launchers never set `FST_DEBUG_STILL_BACKGROUND=1`
+   at all (see the shared helper above — now impossible to omit).
+2. `Design/MarqueeText.swift`'s `TimelineView(.animation(paused: false))`
+   (used by every Songs row and, since this lane's work, Song Detail's header
+   and Suggestion category rows) checked `reduceMotion`/`isOnScreen`/
+   `scenePhase` but never the app's own `DebugAnimationOverride.stillBackground`
+   — so even with the flag set, any row whose title/artist/year overflowed its
+   container kept a `TimelineView` ticking forever, the same "app never idles"
+   failure already fixed once for the artwork background carousel and
+   `FirstRunPulse`. Now gated the same way.
+
+`SettingsJourneyTests`' three tests were also skipped as "consistently hung
+300s under heavy concurrent-lane load, inconclusive root cause." No
+Settings-specific product bug was found on inspection (no `TimelineView`/
+`repeatForever`/`Timer` anywhere in `Features/Settings/**` or
+`FirstRunSettingsSection.swift`, unlike the `MarqueeText` cause above) or
+reproduced via `ios_sim.py drive` against the live simulator (a plain load,
+then a scroll-and-tap sequence, both completed in under 20s). Re-run via
+`ios_sim.py uitest` after the shared-helper fix (Settings doesn't use
+`MarqueeText`, so only that fix applied here), `testSongRowOrderReorderSheetOpensAndCloses`
+passed on its own in 267.8s (including a cold build-for-testing pass) — see
+this lane's final report for the full three-test batch result and whether the
+skips were removed.
+
 ### Retired: `tools/apple_native_matrix.py` (removed 2026-09-28)
 
 The old serial two-device (iPhone+iPad) matrix runner assumed exactly one

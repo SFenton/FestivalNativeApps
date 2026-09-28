@@ -20,11 +20,11 @@ final class SuggestionsJourneyTests: XCTestCase {
     /// - Returns: Native app launcher that clears only the Debug selected-identity key.
     @MainActor
     private func fixtureApp() -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchEnvironment["FST_UI_TEST_CLEAR_PROFILE"] = "1"
-        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
-        app.launchEnvironment["FST_DEBUG_TAB"] = "suggestions"
-        return app
+        FestivalApp.makeApp([
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_API_BASE_URL": "http://127.0.0.1:8765",
+            "FST_DEBUG_TAB": "suggestions",
+        ])
     }
 
     /// Wait for the screen to leave its transient loading spinner.

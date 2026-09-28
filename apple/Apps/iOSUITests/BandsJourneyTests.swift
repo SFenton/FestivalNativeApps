@@ -9,12 +9,11 @@ import XCTest
 final class BandsJourneyTests: XCTestCase {
     @MainActor
     private func fixtureApp(route: String) -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchEnvironment["FST_UI_TEST_CLEAR_PROFILE"] = "1"
-        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:18790"
-        app.launchEnvironment["FST_DEBUG_STILL_BACKGROUND"] = "1"
-        app.launchEnvironment["FST_DEBUG_ROUTE"] = route
-        return app
+        FestivalApp.makeApp([
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_API_BASE_URL": "http://127.0.0.1:18790",
+            "FST_DEBUG_ROUTE": route,
+        ])
     }
 
     /// Band Rankings (rank 1, `fixture-team-1`) → Band Detail → its catalog-linked

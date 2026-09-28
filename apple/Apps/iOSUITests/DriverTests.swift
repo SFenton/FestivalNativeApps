@@ -176,12 +176,20 @@ final class DriverTests: XCTestCase {
         let environment = ProcessInfo.processInfo.environment
         let steps = try Self.loadSteps(environment: environment)
 
-        let app = XCUIApplication()
+        var launchEnvironment: [String: String] = [:]
         for (key, value) in environment
         where key.hasPrefix("FST_") && !Self.controlKeys.contains(key) {
-            app.launchEnvironment[key] = value
+            launchEnvironment[key] = value
         }
-        app.launch()
+        // FestivalApp.makeApp defaults FST_DEBUG_STILL_BACKGROUND=1, but
+        // `ios_sim.py drive --animate` opts out by omitting that key entirely
+        // from its passthrough environment, not by setting it to something
+        // falsy — make that override explicit so the shared default doesn't
+        // silently win and re-enable animation `--animate` asked to keep.
+        if launchEnvironment["FST_DEBUG_STILL_BACKGROUND"] == nil {
+            launchEnvironment["FST_DEBUG_STILL_BACKGROUND"] = "0"
+        }
+        let app = FestivalApp.launch(launchEnvironment)
 
         for (offset, raw) in steps.enumerated() {
             let index = offset + 1

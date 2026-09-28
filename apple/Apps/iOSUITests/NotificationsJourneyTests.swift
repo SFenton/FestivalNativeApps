@@ -11,12 +11,11 @@ import XCTest
 final class NotificationsJourneyTests: XCTestCase {
     @MainActor
     private func fixtureApp() -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
-        app.launchEnvironment["FST_UI_TEST_CLEAR_PROFILE"] = "1"
-        app.launchEnvironment["FST_DEBUG_STILL_BACKGROUND"] = "1"
-        app.launchEnvironment["FST_DEBUG_PROFILE"] = "fixture-player-1:Fixture Player 1"
-        return app
+        FestivalApp.makeApp([
+            "FST_API_BASE_URL": "http://127.0.0.1:8765",
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1",
+        ])
     }
 
     /// The bell shows an unread badge, opens the sheet with both fixture rows, and

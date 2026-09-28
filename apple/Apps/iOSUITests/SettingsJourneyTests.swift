@@ -30,12 +30,11 @@ final class SettingsJourneyTests: XCTestCase {
 
     @MainActor
     private func fixtureApp() -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchEnvironment["FST_UI_TEST_CLEAR_PROFILE"] = "1"
-        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:18790"
-        app.launchEnvironment["FST_DEBUG_STILL_BACKGROUND"] = "1"
-        app.launchEnvironment["FST_DEBUG_TAB"] = "settings"
-        return app
+        FestivalApp.makeApp([
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_API_BASE_URL": "http://127.0.0.1:18790",
+            "FST_DEBUG_TAB": "settings",
+        ])
     }
 
     /// Toggling an accessibility override must still read back the same value after

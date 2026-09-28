@@ -14,10 +14,10 @@ final class FestivalMobileUITests: XCTestCase {
     /// - Returns: Native app launcher that clears only the Debug selected-identity key.
     @MainActor
     private func fixtureApp() -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchEnvironment["FST_UI_TEST_CLEAR_PROFILE"] = "1"
-        app.launchEnvironment["FST_UI_TEST_RESET_SONG_CARDS"] = "1"
-        return app
+        FestivalApp.makeApp([
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_UI_TEST_RESET_SONG_CARDS": "1",
+        ])
     }
 
     // MARK: - Navigation and orientation

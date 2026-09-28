@@ -17,12 +17,10 @@ final class ProfileJourneyTests: XCTestCase {
     /// Anonymous fixture app on Songs with a still background (no carousel idle waits).
     @MainActor
     private func launchFixtureApp() -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
-        app.launchEnvironment["FST_UI_TEST_CLEAR_PROFILE"] = "1"
-        app.launchEnvironment["FST_DEBUG_STILL_BACKGROUND"] = "1"
-        app.launch()
-        return app
+        FestivalApp.launch([
+            "FST_API_BASE_URL": "http://127.0.0.1:8765",
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+        ])
     }
 
     // MARK: Helpers
@@ -108,13 +106,12 @@ final class ProfileJourneyTests: XCTestCase {
     /// changes cannot mask a navigation.
     @MainActor
     func testSelectAndDeselectUpdateProfilePageInPlace() {
-        let app = XCUIApplication()
-        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
-        app.launchEnvironment["FST_UI_TEST_CLEAR_PROFILE"] = "1"
-        app.launchEnvironment["FST_DEBUG_STILL_BACKGROUND"] = "1"
-        app.launchEnvironment["FST_DEBUG_TAB"] = "settings"
-        app.launchEnvironment["FST_DEBUG_ROUTE"] = "player:fixture-player-1"
-        app.launch()
+        let app = FestivalApp.launch([
+            "FST_API_BASE_URL": "http://127.0.0.1:8765",
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_DEBUG_TAB": "settings",
+            "FST_DEBUG_ROUTE": "player:fixture-player-1",
+        ])
         assertViewing("Fixture Player 1", in: app)
 
         let select = app.buttons["fst.player.select"]

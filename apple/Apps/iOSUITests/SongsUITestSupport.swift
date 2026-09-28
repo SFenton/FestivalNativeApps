@@ -15,10 +15,10 @@ enum SongsUITestSupport {
     /// - Returns: Native app launcher that clears only the Debug selected-identity key.
     @MainActor
     static func fixtureApp() -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchEnvironment["FST_UI_TEST_CLEAR_PROFILE"] = "1"
-        app.launchEnvironment["FST_UI_TEST_RESET_SONG_CARDS"] = "1"
-        return app
+        FestivalApp.makeApp([
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_UI_TEST_RESET_SONG_CARDS": "1",
+        ])
     }
     /// Choose the source's icons-off variant for tests of numeric score metadata.
     ///

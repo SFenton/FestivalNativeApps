@@ -11,14 +11,14 @@ final class ShellJourneyTests: XCTestCase {
     /// first-run carousel in the way (`FST_DEBUG_FIRST_RUN` defaults to off in Debug).
     @MainActor
     private func fixtureApp(profile: Bool) -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
-        app.launchEnvironment["FST_UI_TEST_CLEAR_PROFILE"] = "1"
-        app.launchEnvironment["FST_DEBUG_STILL_BACKGROUND"] = "1"
+        var env = [
+            "FST_API_BASE_URL": "http://127.0.0.1:8765",
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+        ]
         if profile {
-            app.launchEnvironment["FST_DEBUG_PROFILE"] = "fixture-player-1:Fixture Player 1"
+            env["FST_DEBUG_PROFILE"] = "fixture-player-1:Fixture Player 1"
         }
-        return app
+        return FestivalApp.makeApp(env)
     }
 
     // MARK: - Drawer

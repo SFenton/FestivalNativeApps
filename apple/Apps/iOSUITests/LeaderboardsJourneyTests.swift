@@ -10,12 +10,11 @@ import XCTest
 final class LeaderboardsJourneyTests: XCTestCase {
     @MainActor
     private func fixtureApp() -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
-        app.launchEnvironment["FST_UI_TEST_CLEAR_PROFILE"] = "1"
-        app.launchEnvironment["FST_DEBUG_STILL_BACKGROUND"] = "1"
-        app.launchEnvironment["FST_DEBUG_TAB"] = "leaderboards"
-        return app
+        FestivalApp.makeApp([
+            "FST_API_BASE_URL": "http://127.0.0.1:8765",
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_DEBUG_TAB": "leaderboards",
+        ])
     }
 
     /// A rankings row navigates to the player's profile (`fixture-player-1`, seeded

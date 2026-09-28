@@ -28,14 +28,14 @@ final class FirstRunJourneyTests: XCTestCase {
 
     @MainActor
     private func fixtureApp() -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
-        app.launchEnvironment["FST_UI_TEST_CLEAR_PROFILE"] = "1"
-        app.launchEnvironment["FST_DEBUG_STILL_BACKGROUND"] = "1"
-        // Force every gate-passing slide to show regardless of persisted seen-state
-        // (`FirstRunDebugMode.force`), so this journey is deterministic across runs.
-        app.launchEnvironment["FST_DEBUG_FIRST_RUN"] = "force"
-        return app
+        FestivalApp.makeApp([
+            "FST_API_BASE_URL": "http://127.0.0.1:8765",
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            // Force every gate-passing slide to show regardless of persisted
+            // seen-state (`FirstRunDebugMode.force`), so this journey is
+            // deterministic across runs.
+            "FST_DEBUG_FIRST_RUN": "force",
+        ])
     }
 
     /// Next advances from the first slide to the second, changing the announced
