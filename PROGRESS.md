@@ -417,3 +417,4 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Windows lanes | win-suggestions + win-settings landed; launched win-shell |
 | 2026-09-28 | Windows lanes | win-leaderboards landed; anonymous-ranking-row quirk fixed on Apple + documented |
 | 2026-09-28 | Lane W3 | Duo page polish landed (`e0e887f`): rail overflow decision (Bell+Profile visible, hamburger overflows, `RootChromeRailItem`), B2 pagination → `.bottomBar` items, B6 row accessibility clearance, regular-width 2-column dashboard grids (Leaderboards/Profile), Settings readable-width; found and fixed reappear-reload jitter in Statistics/Player Profile and Suggestions (`.task(id:)` restarting on `NavigationStack` reappearance even with an unchanged id) |
+| 2026-09-28 | Lane W3 | Duo rail/page polish landed; orchestrator fixed last non-standard spinners (`e5c41a4`) |
