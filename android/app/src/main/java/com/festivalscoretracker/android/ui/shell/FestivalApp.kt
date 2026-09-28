@@ -271,7 +271,7 @@ private fun FestivalShell(container: AppContainer, shellViewModel: ShellViewMode
                     )
                     if (layout == NavigationLayout.BottomBar) {
                         NavigationBar(
-                            containerColor = BrandTokens.surfaceFrosted,
+                            containerColor = BrandTokens.cardBackground.copy(alpha = 0.96f),
                             modifier = Modifier.align(Alignment.BottomCenter).testTag("fst.nav.bar"),
                         ) {
                             sections.forEach { section ->

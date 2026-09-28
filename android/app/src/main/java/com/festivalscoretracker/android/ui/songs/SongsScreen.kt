@@ -306,7 +306,7 @@ fun SongRow(song: Song, instrument: Instrument?, artUrl: String?, selected: Bool
 fun SectionIndexScrubber(sections: List<SongSection>, onJump: (SongSection) -> Unit, modifier: Modifier = Modifier) {
     var active by remember { mutableStateOf<String?>(null) }
     BoxWithConstraints(modifier.width(24.dp).testTag("fst.songs.section-index")) {
-        val maxLabels = (maxHeight.value / 16f).toInt().coerceAtLeast(2)
+        val maxLabels = (maxHeight.value / 20f).toInt().coerceAtLeast(2)
         val stride = (sections.size + maxLabels - 1) / maxLabels
         val heightPx = constraints.maxHeight.toFloat()
         fun jumpTo(y: Float) {

@@ -8,6 +8,7 @@ import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import com.festivalscoretracker.android.data.FestivalApi
 import com.festivalscoretracker.android.data.ForcedFreezeTransport
+import com.festivalscoretracker.android.data.HttpTransport
 import com.festivalscoretracker.android.data.OkHttpTransport
 import com.festivalscoretracker.android.data.SettingsRepository
 import com.festivalscoretracker.android.presentation.BackgroundController
@@ -24,17 +25,25 @@ private val Context.settingsDataStore: DataStore<Preferences> by preferencesData
  * @param context Application context.
  * @param httpClient Shared cache-less OkHttp client (also used for artwork).
  * @param launch Debug launch extras; only debug builds pass anything but [DebugLaunch.NONE].
+ * @param transport Transport override for fixture-backed tests.
+ * @param settingsStore Preferences override for tests.
  */
-class AppContainer(context: Context, httpClient: OkHttpClient, launch: DebugLaunch) {
+class AppContainer(
+    context: Context,
+    httpClient: OkHttpClient,
+    launch: DebugLaunch,
+    transport: HttpTransport? = null,
+    settingsStore: DataStore<Preferences>? = null,
+) {
     /** Keyless public API client. */
     val api: FestivalApi = run {
-        val base = OkHttpTransport(httpClient)
-        val transport = if (launch.forceFreeze) ForcedFreezeTransport(base) else base
-        FestivalApi(launch.origin ?: BuildConfig.SERVICE_ORIGIN, transport)
+        val base = transport ?: OkHttpTransport(httpClient)
+        val effective = if (launch.forceFreeze) ForcedFreezeTransport(base) else base
+        FestivalApi(launch.origin ?: BuildConfig.SERVICE_ORIGIN, effective)
     }
 
     /** Persisted settings. */
-    val settings = SettingsRepository(context.applicationContext.settingsDataStore)
+    val settings = SettingsRepository(settingsStore ?: context.applicationContext.settingsDataStore)
 
     /** Shared automatic-retry backoff. */
     val backoff = ServiceRetryBackoff()
