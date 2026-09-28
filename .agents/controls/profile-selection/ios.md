@@ -57,6 +57,8 @@ Screenshots: `/tmp/laneP/sheet-anon.png` (`FST_DEBUG_SHEET=profile`) shows the r
 
 ## Gotchas
 
+- **Wrong-account push (fixed 2026-09-28):** search results used to share one `Form` row (a `LazyVStack`), and on iOS one tap fired every result's Button, so the *last* result's profile landed on top. Results now render through `PlayerSearchResultRows`, one row each. The rule is in [architecture.md](../../platforms/apple/architecture.md#list-rows-hold-one-action), and `ProfileJourneyTests` guards it on-device.
+
 - `FST_UI_TEST_CLEAR_PROFILE=1` (set by the shared XCUITest launcher) resets only this app's identity; the cold-restore test removes it for its second launch. A failed profile test must not leak identity into anonymous tests.
 - `FST_DEBUG_PROFILE=<accountId>:<displayName>` (`FestivalRootView.DebugLaunchRoute`) selects a player **in memory only** before the session loads — the tool of record for screenshotting a selected state; prefer it over hand-writing `UserDefaults`. It never persists (see "Debug profile is in-memory only" above), so it is safe to run alongside other lanes' launches on the shared simulator.
 
