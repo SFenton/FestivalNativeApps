@@ -377,6 +377,10 @@ class PageDriver:
         self.cdp = cdp
         self.target_id = target_id
         self.touch = touch
+        #: Optional real-input hooks ``(x, y)`` / ``(x, y, dy)`` in CSS px; Android
+        #: sets them to ``adb input`` so taps and flings go through the OS pipeline.
+        self.tapper = None
+        self.scroller = None
         self.session = cdp.send("Target.attachToTarget",
                                 {"targetId": target_id, "flatten": True})["sessionId"]
         for domain in ("Page", "Runtime", "Network"):
@@ -425,6 +429,9 @@ class PageDriver:
 
     def tap_point(self, x: float, y: float) -> None:
         """Press and release at CSS-pixel viewport coordinates."""
+        if self.tapper:
+            self.tapper(x, y)
+            return
         if self.touch:
             self.send("Input.dispatchTouchEvent",
                       {"type": "touchStart", "touchPoints": [{"x": x, "y": y}]})
@@ -455,6 +462,10 @@ class PageDriver:
                speed: int = 1600) -> None:
         """Synthesize a real scroll gesture (positive ``dy`` scrolls content up/down the page)."""
         size = self.eval("[innerWidth, innerHeight]")
+        if self.scroller:
+            self.scroller(x if x is not None else size[0] / 2,
+                          y if y is not None else size[1] / 2, dy)
+            return
         params = {"x": x if x is not None else size[0] / 2,
                   "y": y if y is not None else size[1] / 2,
                   "yDistance": -dy, "speed": speed,

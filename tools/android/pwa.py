@@ -315,7 +315,35 @@ class AndroidLab:
                 if driver.eval("document.visibilityState") == "visible":
                     self.page = driver
                     break
+        self.use_real_input()
         return self.page
+
+    def use_real_input(self) -> None:
+        """Route page taps/scrolls through ``adb input`` (real touch events).
+
+        CSS px map to screen px through the web root's on-screen bounds (Chrome
+        exposes it to UIAutomator as ``android.webkit.WebView``) and
+        ``devicePixelRatio``; call again after a posture or rotation change.
+        """
+        match = re.search(r'class="android\.webkit\.WebView"[^>]*bounds="([^"]+)"', self.tree())
+        if not match or not self.page:
+            return
+        left, top, _, _ = dv.parse_bounds(match.group(1))
+        ratio = float(self.page.eval("devicePixelRatio"))
+        device = self.device
+
+        def tap(x: float, y: float) -> None:
+            device.shell(f"input tap {round(left + x * ratio)} {round(top + y * ratio)}")
+
+        def scroll(x: float, y: float, dy: float) -> None:
+            # One 300 ms fling from the centre (finger moves against the content;
+            # positive dy scrolls down). Momentum carries it further, as by hand.
+            sx, sy = round(left + x * ratio), round(top + y * ratio)
+            travel = max(-900, min(900, dy * ratio))
+            device.shell(f"input swipe {sx} {round(sy + travel / 2)} {sx} "
+                         f"{round(sy - travel / 2)} 300")
+
+        self.page.tapper, self.page.scroller = tap, scroll
 
     # endregion
 
@@ -483,6 +511,7 @@ def run_step(lab: AndroidLab, verb: str, arg: str, log: list[dict], started: flo
     elif verb in ("posture", "rotate"):
         dv.run_step(lab.device, lab.avd, verb, arg)
         time.sleep(1.0)
+        lab.use_real_input()
         entry["wm_size"] = lab.device.shell("wm size").strip()
     elif verb == "relaunch":
         entry["activity_s"] = lab.open_icon()
