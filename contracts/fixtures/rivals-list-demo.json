@@ -1,0 +1,61 @@
+{
+  "combo": "01",
+  "above": [
+    {
+      "accountId": "408abb67d81446f0ac714506950ce178",
+      "displayName": "uwphe",
+      "rivalScore": 863.541259765625,
+      "sharedSongCount": 371,
+      "aheadCount": 243,
+      "behindCount": 128,
+      "avgSignedDelta": -6.541779041290283
+    },
+    {
+      "accountId": "d3267533a56043d7b572dfc173a1b7fb",
+      "displayName": "mdcurtis99",
+      "rivalScore": 852.74072265625,
+      "sharedSongCount": 423,
+      "aheadCount": 385,
+      "behindCount": 38,
+      "avgSignedDelta": -11.88888931274414
+    },
+    {
+      "accountId": "3becd01605044fd6b688f0d5d6a980a6",
+      "displayName": "CODE JUANPGP",
+      "rivalScore": 834.1747436523438,
+      "sharedSongCount": 413,
+      "aheadCount": 244,
+      "behindCount": 169,
+      "avgSignedDelta": -3.370460033416748
+    }
+  ],
+  "below": [
+    {
+      "accountId": "c1eb0f2bce8443b1881062f3eff19cb2",
+      "displayName": "Naisuly",
+      "rivalScore": 704.1378173828125,
+      "sharedSongCount": 460,
+      "aheadCount": 101,
+      "behindCount": 359,
+      "avgSignedDelta": 9.756522178649902
+    },
+    {
+      "accountId": "75a76ce7304d49c0ab76ea7ff5c3288e",
+      "displayName": "GingerNINZIN_JPN",
+      "rivalScore": 684.6947021484375,
+      "sharedSongCount": 535,
+      "aheadCount": 86,
+      "behindCount": 448,
+      "avgSignedDelta": 13.785046577453613
+    },
+    {
+      "accountId": "f96c67cb09b2410492100c7b25d98854",
+      "displayName": "trenton luv regi",
+      "rivalScore": 639.3411254882812,
+      "sharedSongCount": 320,
+      "aheadCount": 147,
+      "behindCount": 173,
+      "avgSignedDelta": 0.10625000298023224
+    }
+  ]
+}

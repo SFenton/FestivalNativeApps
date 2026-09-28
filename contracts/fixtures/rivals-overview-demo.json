@@ -1,0 +1,31 @@
+{
+  "accountId": "e408c4613c8f4da5907090b390bda80c",
+  "computedAt": "2026-09-27T06:49:54.8878480Z",
+  "combos": [
+    {
+      "combo": "01",
+      "aboveCount": 10,
+      "belowCount": 10
+    },
+    {
+      "combo": "02",
+      "aboveCount": 10,
+      "belowCount": 10
+    },
+    {
+      "combo": "03",
+      "aboveCount": 10,
+      "belowCount": 10
+    },
+    {
+      "combo": "04",
+      "aboveCount": 10,
+      "belowCount": 10
+    },
+    {
+      "combo": "05",
+      "aboveCount": 10,
+      "belowCount": 10
+    }
+  ]
+}

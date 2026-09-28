@@ -1,0 +1,38 @@
+{
+  "instrument": "Solo_Guitar",
+  "rankBy": "totalscore",
+  "userRank": 1,
+  "above": [],
+  "below": [
+    {
+      "accountId": "75a76ce7304d49c0ab76ea7ff5c3288e",
+      "displayName": "GingerNINZIN_JPN",
+      "sharedSongCount": 727,
+      "aheadCount": 142,
+      "behindCount": 585,
+      "avgSignedDelta": 15.306739807128906,
+      "leaderboardRank": 2,
+      "userLeaderboardRank": 1
+    },
+    {
+      "accountId": "f306ba9c390c40ff9c3b604ee3e45a07",
+      "displayName": "ShadowDevGames",
+      "sharedSongCount": 727,
+      "aheadCount": 62,
+      "behindCount": 665,
+      "avgSignedDelta": 171.7675323486328,
+      "leaderboardRank": 3,
+      "userLeaderboardRank": 1
+    },
+    {
+      "accountId": "195e93ef108143b2975ee46662d4d0e1",
+      "displayName": "SFentonX",
+      "sharedSongCount": 727,
+      "aheadCount": 40,
+      "behindCount": 687,
+      "avgSignedDelta": 589.7922973632812,
+      "leaderboardRank": 4,
+      "userLeaderboardRank": 1
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "rival": { "accountId": "75a76ce7304d49c0ab76ea7ff5c3288e", "displayName": "GingerNINZIN_JPN" },
+  "instrument": "Solo_Guitar",
+  "rankBy": "totalscore",
+  "totalSongs": 2,
+  "sort": "closest",
+  "songs": [
+    {
+      "songId": "fixture-pulse",
+      "title": "Fixture Pulse",
+      "artist": "Fixture Artist",
+      "instrument": "Solo_Guitar",
+      "userRank": 12,
+      "rivalRank": 13,
+      "rankDelta": 1,
+      "userScore": 99200,
+      "rivalScore": 99000
+    },
+    {
+      "songId": "fixture-orbit",
+      "title": "Fixture Orbit",
+      "artist": "Fixture Artist",
+      "instrument": "Solo_Guitar",
+      "userRank": 40,
+      "rivalRank": 20,
+      "rankDelta": -20,
+      "userScore": 88000,
+      "rivalScore": 95000
+    }
+  ],
+  "songsToCompete": [],
+  "yourExclusiveSongs": []
+}

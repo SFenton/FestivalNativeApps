@@ -1,0 +1,69 @@
+{
+  "rival": { "accountId": "408abb67d81446f0ac714506950ce178", "displayName": "uwphe" },
+  "combo": "01",
+  "source": "precomputed",
+  "totalSongs": 4,
+  "offset": 0,
+  "limit": 50,
+  "sort": "closest",
+  "songs": [
+    {
+      "songId": "fixture-pulse",
+      "title": "Fixture Pulse",
+      "artist": "Fixture Artist",
+      "instrument": "Solo_Guitar",
+      "userInstrument": null,
+      "rivalInstrument": null,
+      "userRank": 12,
+      "rivalRank": 13,
+      "rankDelta": 1,
+      "userScore": 99200,
+      "rivalScore": 99000
+    },
+    {
+      "songId": "fixture-orbit",
+      "title": "Fixture Orbit",
+      "artist": "Fixture Artist",
+      "instrument": "Solo_Guitar",
+      "userInstrument": null,
+      "rivalInstrument": null,
+      "userRank": 40,
+      "rivalRank": 20,
+      "rankDelta": -20,
+      "userScore": 88000,
+      "rivalScore": 95000
+    },
+    {
+      "songId": "fixture-echo",
+      "title": "Fixture Echo",
+      "artist": "Fixture Artist",
+      "instrument": "Solo_Guitar",
+      "userInstrument": null,
+      "rivalInstrument": null,
+      "userRank": 5,
+      "rivalRank": 45,
+      "rankDelta": 40,
+      "userScore": 99900,
+      "rivalScore": 91000
+    },
+    {
+      "songId": "fixture-drift",
+      "title": "Fixture Drift",
+      "artist": "Fixture Artist",
+      "instrument": "Solo_Guitar",
+      "userInstrument": null,
+      "rivalInstrument": null,
+      "userRank": 30,
+      "rivalRank": 30,
+      "rankDelta": 0,
+      "userScore": 93000,
+      "rivalScore": 93000
+    }
+  ],
+  "songsToCompete": [
+    { "songId": "fixture-gap", "title": "Fixture Gap", "artist": "Fixture Artist", "instrument": "Solo_Guitar", "score": 90000, "rank": 50 }
+  ],
+  "yourExclusiveSongs": [
+    { "songId": "fixture-solo", "title": "Fixture Solo", "artist": "Fixture Artist", "instrument": "Solo_Guitar", "score": 97000, "rank": 8 }
+  ]
+}
