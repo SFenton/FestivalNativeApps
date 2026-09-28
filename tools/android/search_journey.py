@@ -73,7 +73,7 @@ JOURNEYS = [
         tap:id=fst.global-search.scope.bands; wait:1
         tap:id=fst.global-search.result.song; waitfor:id=fst.song-detail.intensity@20; wait:1; shot:{{out}}-song-detail.png
         {OPEN}; type:busy; wait:3; shot:{{out}}-search-players-error.png
-        back; wait:1; back; wait:1; shot:{{out}}-detail-after-search.png
+        tap:id=fst.global-search.close; wait:2; shot:{{out}}-detail-after-search.png
         back; wait:1; shot:{{out}}-back.png
         tap:id=fst.nav.drawer; wait:1; shot:{{out}}-drawer.png
     """),
@@ -83,33 +83,33 @@ JOURNEYS = [
         posture:half; wait:3; shot:{{out}}-book-search.png
         rotate:90; wait:4; shot:{{out}}-tabletop-search.png
         rotate:0; wait:3; posture:folded; wait:4; shot:{{out}}-folded-search.png
-        back; wait:1; back; wait:1; shot:{{out}}-folded.png
+        tap:id=fst.global-search.close; wait:2; shot:{{out}}-folded.png
     """, posture="unfolded"),
     Journey("passport-fold", "FST_Passport_Fold", f"""
         {SONGS}; wait:2; shot:{{out}}-unfolded.png
         {OPEN}; type:fixture; wait:3; shot:{{out}}-unfolded-search.png
         posture:folded; wait:4; shot:{{out}}-folded-search.png
-        back; wait:1; back; wait:1; shot:{{out}}-folded.png
+        tap:id=fst.global-search.close; wait:2; shot:{{out}}-folded.png
     """, posture="unfolded"),
     Journey("trifold", "FST_TriFold", f"""
         {SONGS}; wait:2; shot:{{out}}-folded.png
         {OPEN}; type:fixture; wait:3; shot:{{out}}-folded-search.png
         posture:partial; wait:4; shot:{{out}}-partial-search.png
         posture:unfolded; wait:4; shot:{{out}}-unfolded-search.png
-        back; wait:1; back; wait:1; shot:{{out}}-unfolded.png
+        tap:id=fst.global-search.close; wait:2; shot:{{out}}-unfolded.png
     """, posture="folded"),
     Journey("tablet", "FST_Tablet", f"""
         {SONGS}; wait:2; shot:{{out}}-landscape.png
         {OPEN}; type:fixture; wait:3; shot:{{out}}-landscape-search.png
         rotate:90; wait:4; shot:{{out}}-portrait-search.png
-        back; wait:1; back; wait:1; shot:{{out}}-portrait.png
+        tap:id=fst.global-search.close; wait:2; shot:{{out}}-portrait.png
     """),
     Journey("resizable", "FST_Resizable", f"""
         {SONGS}; wait:2; shot:{{out}}-phone.png
         {OPEN}; type:fixture; wait:3; shot:{{out}}-phone-search.png
         resize:tablet; wait:4; shot:{{out}}-tablet-search.png
         resize:desktop; wait:4; shot:{{out}}-desktop-search.png
-        back; wait:1; back; wait:1; shot:{{out}}-desktop.png
+        tap:id=fst.global-search.close; wait:2; shot:{{out}}-desktop.png
         resize:phone; wait:3
     """),
     Journey("profile", "FST_Phone", f"""
