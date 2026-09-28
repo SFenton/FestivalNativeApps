@@ -14,7 +14,10 @@
         <DataTemplate x:Key="StatTileTemplate" x:DataType="vm:PlayerStatTile">
             <StackPanel Spacing="2" Padding="4,6" VerticalAlignment="Center" AutomationProperties.Name="{x:Bind Announcement}">
                 <TextBlock Text="{x:Bind Value}" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center"
-                           Foreground="{x:Bind controls:PlayerBrushes.Tile(Gold)}" TextAlignment="Center" />
+                           Foreground="{x:Bind controls:PlayerBrushes.Tile(Gold)}" TextAlignment="Center" Visibility="{x:Bind ShowValue}" />
+                <!-- Average stars of exactly six: five gold star images (web GoldStars), spoken by the tile name. -->
+                <controls:StarRow Stars="6" StarSize="18" HorizontalAlignment="Center" Visibility="{x:Bind GoldStars}"
+                                  AutomationProperties.AccessibilityView="Raw" />
                 <TextBlock Text="{x:Bind Label}" FontSize="11" CharacterSpacing="40" HorizontalAlignment="Center" TextAlignment="Center"
                            Foreground="{ThemeResource FSTSecondaryTextBrush}" TextWrapping="Wrap" />
             </StackPanel>
@@ -26,7 +29,7 @@
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
-        <ScrollViewer x:Name="Scroller" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" AutomationProperties.AutomationId="fst.player.available">
+        <ScrollViewer x:Name="Scroller" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" controls:FadeIn.OnShow="True" AutomationProperties.AutomationId="fst.player.available">
             <StackPanel Padding="24,12,24,32" Spacing="12" MaxWidth="1280">
                 <!-- Header -->
                 <Border Style="{StaticResource FSTCardStyle}">
@@ -82,7 +85,7 @@
                 </Border>
 
                 <!-- Per-instrument sections -->
-                <ItemsRepeater x:Name="InstrumentsRepeater" TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.Instruments, Mode=OneWay}" ElementPrepared="OnInstrumentPrepared">
+                <ItemsRepeater x:Name="InstrumentsRepeater" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="480" TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.Instruments, Mode=OneWay}" ElementPrepared="OnInstrumentPrepared">
                     <ItemsRepeater.Layout>
                         <StackLayout Spacing="12" />
                     </ItemsRepeater.Layout>
@@ -144,7 +147,8 @@
                                                 <TextBlock Text="Total Score rank over the last 30 days" Style="{StaticResource FSTSecondaryTextStyle}" FontSize="12" />
                                                 <TextBlock Text="{x:Bind RankHistory.Headline, Mode=OneWay}" Style="{StaticResource SubtitleTextBlockStyle}" />
                                                 <TextBlock Text="{x:Bind RankHistory.TotalScoreLine, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" />
-                                                <controls:RankHistoryChart Model="{x:Bind RankHistory, Mode=OneWay}"
+                                                <!-- One combined chart (web RankHistoryChart): rank-coloured Total Score bars + rank line, paged. -->
+                                                <controls:RankHistoryGraph Model="{x:Bind RankHistory.Combined, Mode=OneWay}" Margin="0,4,0,0"
                                                                            AutomationProperties.AutomationId="{x:Bind controls:PlayerProfileView.RankHistoryId(AutomationKey)}" />
                                             </StackPanel>
                                             <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{x:Bind RankHistoryFailed, Mode=OneWay}">

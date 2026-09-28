@@ -140,44 +140,6 @@ public abstract partial class PlayerLineChart : Grid
 }
 #endregion
 
-#region Rank history chart
-/// <summary>Total Score rank line (#1 on top) above Total Score bars.</summary>
-public sealed partial class RankHistoryChart : PlayerLineChart
-{
-    /// <summary>Chart model.</summary>
-    public static readonly DependencyProperty ModelProperty = DependencyProperty.Register(
-        nameof(Model), typeof(RankHistoryChartModel), typeof(RankHistoryChart), new PropertyMetadata(null, (d, _) => ((RankHistoryChart)d).Redraw()));
-
-    /// <summary>Creates a 140 px rank plot with a 64 px bar strip.</summary>
-    public RankHistoryChart() : base(140, 64) { }
-
-    /// <summary>Chart model.</summary>
-    public RankHistoryChartModel? Model
-    {
-        get => (RankHistoryChartModel?)GetValue(ModelProperty);
-        set => SetValue(ModelProperty, value);
-    }
-
-    /// <inheritdoc />
-    protected override IReadOnlyList<ChartPoint> Points => Model?.RankLine ?? [];
-
-    /// <inheritdoc />
-    protected override IReadOnlyList<ChartTick> Ticks => Model?.RankTicks ?? [];
-
-    /// <inheritdoc />
-    protected override IReadOnlyList<ChartBar> Bars => Model?.ScoreBars ?? [];
-
-    /// <inheritdoc />
-    protected override string StartLabel => Model?.StartLabel ?? "";
-
-    /// <inheritdoc />
-    protected override string EndLabel => Model?.EndLabel ?? "";
-
-    /// <inheritdoc />
-    protected override string Summary => Model?.Summary ?? "";
-}
-#endregion
-
 #region Score history chart
 /// <summary>Score over time; the personal best is gold.</summary>
 public sealed partial class ScoreHistoryChart : PlayerLineChart

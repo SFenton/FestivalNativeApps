@@ -37,6 +37,9 @@ public sealed record RankHistoryChartModel(
     List<ChartPoint> RankLine, List<ChartTick> RankTicks, List<ChartBar> ScoreBars,
     string Headline, string? TotalScoreLine, string StartLabel, string EndLabel, string Summary)
 {
+    /// <summary>The combined bars-and-line chart the player page draws (web <c>RankHistoryChart</c>).</summary>
+    public RankHistoryCombinedChart? Combined { get; init; }
+
     /// <summary>Builds the chart from ranked snapshots.</summary>
     /// <param name="ranked">Chronological snapshots with a positive Total Score rank (at least one).</param>
     /// <returns>Chart geometry, or <see langword="null"/> when empty.</returns>
@@ -59,7 +62,10 @@ public sealed record RankHistoryChartModel(
             ScoreFormatting.Rank(latest.TotalScoreRank) + field,
             latest.TotalScore is { } total ? "Total Score " + ScoreFormatting.Score(total) : null,
             DayLabel(ranked[0]), DayLabel(latest),
-            PlayerRankingText.RankTrend(ranked));
+            PlayerRankingText.RankTrend(ranked))
+        {
+            Combined = RankHistoryCombinedChart.Build(ranked),
+        };
     }
 
     /// <summary>Short month/day label.</summary>
