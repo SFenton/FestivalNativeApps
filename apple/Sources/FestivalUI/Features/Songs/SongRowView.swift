@@ -270,15 +270,17 @@ struct SongRowView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(BrandTokens.cardBackground, in: RoundedRectangle(cornerRadius: 12))
+        .festivalGlass(.card, cornerRadius: 12)
         .overlay {
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(
-                    shopHighlight == .leavingTomorrow ? BrandTokens.statusRed
-                        : shopHighlight == .new ? BrandTokens.gold
-                        : highContrast ? BrandTokens.textPrimary : BrandTokens.glassBorder,
-                    lineWidth: shopHighlight != nil || highContrast ? 2 : 1
-                )
+            if shopHighlight != nil || highContrast {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(
+                        shopHighlight == .leavingTomorrow ? BrandTokens.statusRed
+                            : shopHighlight == .new ? BrandTokens.gold
+                            : BrandTokens.textPrimary,
+                        lineWidth: 2
+                    )
+            }
         }
         .accessibilityElement(children: .combine)
     }

@@ -13,11 +13,13 @@ struct SongsFilterSheet: View {
   @State private var draftInShop: Bool
   @State private var draftLeavingTomorrow: Bool
   @State private var draftPlayerFilter: SongPlayerScoreFilter
+  @State private var draftInstrument: Instrument?
   @State private var scoreSectionsExpanded: Bool
   @State private var discardPending = false
   @State private var applyError: String?
   let applied: SongShopFilter
   let appliedPlayerFilter: SongPlayerScoreFilter
+  let appliedInstrument: Instrument?
   let visibleInstruments: Set<Instrument>
   let showShop: Bool
   let shopAvailable: Bool
@@ -25,13 +27,15 @@ struct SongsFilterSheet: View {
   let selectedPlayer: Bool
   let scoreAvailable: Bool
   let invalidScoreFilteringEnabled: Bool
-  let onApply: (SongShopFilter, SongPlayerScoreFilter) throws -> Void
+  let onApply: (SongShopFilter, SongPlayerScoreFilter, Instrument?) throws -> Void
 
   /// Stage all backed toggles without changing Songs until Apply.
   ///
   /// - Parameters:
   ///   - applied: Saved native public Shop filters.
   ///   - appliedPlayerFilter: Saved typed selected-player chart predicates.
+  ///   - appliedInstrument: Currently applied single-chart Songs filter, like web's
+  ///     `instrumentFilter` field folded into the same Filter draft.
   ///   - visibleInstruments: Settings-enabled solo charts in source order.
   ///   - showShop: Whether Settings exposes the Shop feature.
   ///   - shopAvailable: Whether a validated Shop feed is retained.
@@ -44,13 +48,15 @@ struct SongsFilterSheet: View {
     applied: SongShopFilter, showShop: Bool, shopAvailable: Bool,
     profileAvailable: Bool,
     appliedPlayerFilter: SongPlayerScoreFilter = SongPlayerScoreFilter(),
+    appliedInstrument: Instrument? = nil,
     visibleInstruments: Set<Instrument> = Set(Instrument.allCases),
     selectedPlayer: Bool = false, scoreAvailable: Bool = false,
     invalidScoreFilteringEnabled: Bool = false,
-    onApply: @escaping (SongShopFilter, SongPlayerScoreFilter) throws -> Void
+    onApply: @escaping (SongShopFilter, SongPlayerScoreFilter, Instrument?) throws -> Void
   ) {
     self.applied = applied
     self.appliedPlayerFilter = appliedPlayerFilter.scoped(to: visibleInstruments)
+    self.appliedInstrument = appliedInstrument
     self.visibleInstruments = visibleInstruments
     self.showShop = showShop
     self.shopAvailable = shopAvailable
@@ -62,6 +68,7 @@ struct SongsFilterSheet: View {
     _draftInShop = State(initialValue: applied.inShop)
     _draftLeavingTomorrow = State(initialValue: applied.leavingTomorrow)
     _draftPlayerFilter = State(initialValue: appliedPlayerFilter.scoped(to: visibleInstruments))
+    _draftInstrument = State(initialValue: appliedInstrument)
     _scoreSectionsExpanded = State(
       initialValue: appliedPlayerFilter.scoped(to: visibleInstruments).isActive
     )
@@ -73,6 +80,7 @@ struct SongsFilterSheet: View {
 
   private var hasChanges: Bool {
     draft != applied || draftPlayerFilter != appliedPlayerFilter
+      || draftInstrument != appliedInstrument
   }
 
   private var canEnableShop: Bool {
@@ -110,6 +118,18 @@ struct SongsFilterSheet: View {
             .accessibilityIdentifier("fst.songs.filter.title")
         #endif
         Form {
+          if selectedPlayer {
+            Section("Instrument") {
+              Picker("Instrument", selection: $draftInstrument) {
+                Text("All instruments").tag(Instrument?.none)
+                ForEach(Instrument.allCases.filter(visibleInstruments.contains)) { choice in
+                  Text(choice.label).tag(Instrument?.some(choice))
+                }
+              }
+              .pickerStyle(.inline)
+              .accessibilityIdentifier("fst.songs.filter.instrument")
+            }
+          }
           if selectedPlayer {
             Section {
               Button {
@@ -211,6 +231,7 @@ struct SongsFilterSheet: View {
               draftInShop = false
               draftLeavingTomorrow = false
               draftPlayerFilter = SongPlayerScoreFilter()
+              draftInstrument = nil
             }
             .tint(BrandTokens.textPrimary)
             .accessibilityIdentifier("fst.songs.filter.reset")
@@ -248,7 +269,7 @@ struct SongsFilterSheet: View {
           .accessibilityIdentifier("fst.songs.filter.cancel")
           Button {
             do {
-              try onApply(draft, draftPlayerFilter)
+              try onApply(draft, draftPlayerFilter, draftInstrument)
               dismiss()
             } catch {
               applyError = error.localizedDescription

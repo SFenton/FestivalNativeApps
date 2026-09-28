@@ -139,50 +139,45 @@ struct SongInstrumentStatusChips: View {
         .accessibilityIdentifier("fst.songs.instrument-status.\(songId)")
     }
 
-    /// Preserve chart identity and a second non-color status mark inside each chip.
+    /// Match the web `InstrumentChip`'s colored ring/fill with the real chart icon
+    /// inside, while keeping a second non-color status mark for accessibility.
     ///
     /// - Parameter badge: Source-ordered, verified per-song instrument state.
     /// - Returns: A bounded circular native status with contrast-safe glyphs.
     private func chip(_ badge: SongInstrumentBadge) -> some View {
-        VStack(spacing: 0) {
-            Text(badge.instrument.chipAbbreviation)
-                .font(.system(size: side * 0.30, weight: .heavy, design: .rounded))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .accessibilityHidden(true)
-            if let mark = badge.status.mark {
+        InstrumentIcon(badge.instrument, size: side * 0.56)
+            .accessibilityHidden(true)
+            .frame(width: side, height: side)
+            .background(badge.status.fillColor, in: Circle())
+            .overlay {
+                Circle().stroke(badge.status.strokeColor, lineWidth: 2)
+            }
+            .overlay(alignment: .bottomTrailing) {
+                statusMark(badge.status)
+                    .frame(width: side * 0.42, height: side * 0.42)
+                    .background(badge.status.glyphBackground, in: Circle())
+                    .overlay { Circle().stroke(badge.status.strokeColor, lineWidth: 1) }
+                    .offset(x: side * 0.08, y: side * 0.08)
+            }
+            .accessibilityHidden(true)
+    }
+
+    /// Draw the same non-color status distinction previously carried by the chip fill.
+    ///
+    /// - Parameter status: Verified per-chart score/FC state.
+    /// - Returns: A small badge glyph, distinguishable without color.
+    private func statusMark(_ status: SongInstrumentStatus) -> some View {
+        Group {
+            if let mark = status.mark {
                 Image(systemName: mark)
-                    .font(.system(size: side * 0.26, weight: .bold))
-                    .accessibilityHidden(true)
+                    .font(.system(size: side * 0.24, weight: .bold))
             } else {
                 Text("/")
-                    .font(.system(size: side * 0.26, weight: .bold, design: .rounded))
-                    .accessibilityHidden(true)
+                    .font(.system(size: side * 0.24, weight: .bold, design: .rounded))
             }
         }
-        .foregroundStyle(badge.status.glyphColor)
-        .frame(width: side, height: side)
-        .background(badge.status.fillColor, in: Circle())
-        .overlay {
-            Circle().stroke(badge.status.strokeColor, lineWidth: 2)
-        }
+        .foregroundStyle(status.glyphColor)
         .accessibilityHidden(true)
-    }
-}
-
-private extension Instrument {
-    var chipAbbreviation: String {
-        switch self {
-        case .lead: "L"
-        case .bass: "B"
-        case .drums: "D"
-        case .vocals: "V"
-        case .proLead: "PL"
-        case .proBass: "PB"
-        case .karaoke: "K"
-        case .proCymbals: "PC"
-        case .proDrums: "PD"
-        }
     }
 }
 
@@ -211,6 +206,9 @@ private extension SongInstrumentStatus {
         case .noScore, .unavailable, .inconsistentFullCombo: BrandTokens.textPrimary
         }
     }
+
+    /// Background of the small corner status badge, matching the ring's fill.
+    var glyphBackground: Color { fillColor }
 
     var mark: String? {
         switch self {

@@ -3,6 +3,18 @@ import SwiftUI
 import FestivalCore
 import FestivalDesign
 
+#if DEBUG
+/// Screenshot-only hook: `FST_DEBUG_SONG=<title or songId>` auto-pushes that
+/// song's Detail once the catalogue loads, so `tools/ios_sim.py shot` can
+/// capture Song Detail without manual navigation. Never compiled into Release.
+enum FestivalDebugLaunch {
+    static var songTitleOrId: String? {
+        let value = ProcessInfo.processInfo.environment["FST_DEBUG_SONG"]
+        return (value?.isEmpty ?? true) ? nil : value
+    }
+}
+#endif
+
 // MARK: - Song catalogue
 
 /// Native virtualized catalogue with explicit loading, error and offline states.
@@ -22,7 +34,8 @@ struct SongsScreen: View {
     @State private var shopRetryRevision = 0
     @State private var sortPresented = false
     @State private var filterPresented = false
-    @State private var profilePresented = false
+    @State private var debugPushedSong: Song?
+    @Environment(\.openProfile) private var openProfile
     @AppStorage("fst.songs.sortMode") private var sortMode = SongSortMode.title
     @AppStorage("fst.songs.sortAscending") private var sortAscending = true
     @AppStorage("fst.songs.filterInShop") private var filterInShop = false
@@ -43,7 +56,6 @@ struct SongsScreen: View {
     @AppStorage("fst.settings.metadataDifficulty") private var metadataDifficulty = true
     @AppStorage("fst.settings.metadataStars") private var metadataStars = true
     @AppStorage("fst.settings.metadataLastPlayed") private var metadataLastPlayed = true
-    @FocusState private var searchFocused: Bool
 
     enum LoadState {
         case loading
@@ -199,8 +211,10 @@ struct SongsScreen: View {
         return filter.scoped(to: visibleInstruments) != filter
     }
 
-    private var groupedRowInsets: EdgeInsets {
-        EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16)
+    /// Tight, web-like row gutters: a small vertical gap keeps varied-height glass
+    /// cards close together (web's virtualized list uses a 2pt row gap).
+    private var songRowInsets: EdgeInsets {
+        EdgeInsets(top: 2, leading: 16, bottom: 2, trailing: 16)
     }
 
     private var canPresentFilter: Bool {
@@ -246,28 +260,6 @@ struct SongsScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                Image(systemName: "magnifyingglass")
-                    .accessibilityHidden(true)
-                TextField(
-                    "", text: $searchText,
-                    prompt: Text("Search").foregroundStyle(BrandTokens.textSecondary)
-                )
-                .font(.body)
-                .foregroundStyle(BrandTokens.textPrimary)
-                .textFieldStyle(.plain)
-                .focused($searchFocused)
-                .submitLabel(.search)
-                .onSubmit { searchFocused = false }
-                .accessibilityLabel("Search songs")
-                .accessibilityIdentifier("fst.songs.search")
-            }
-            .padding(12)
-            .frame(minHeight: 50)
-            .background(BrandTokens.cardBackground, in: Capsule())
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-
             if let navigationNotice {
                 HStack(spacing: 8) {
                     Text(navigationNotice)
@@ -369,65 +361,7 @@ struct SongsScreen: View {
                         }
                     }
                 } else {
-                    List {
-                        if hasDisclosure(for: payload) {
-                            disclosures(for: payload)
-                        }
-                        if effectiveMode == .shop, let shopOffersForCurrentSongs {
-                            let sections = SongCatalogSort.shopSections(
-                                visible, offersById: shopOffersForCurrentSongs
-                            )
-                            if sections.count > 1 {
-                                ForEach(sections) { section in
-                                    HStack {
-                                        Text(section.kind.label.uppercased())
-                                            .font(.headline)
-                                            .foregroundStyle(BrandTokens.textPrimary)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                            .accessibilityLabel(section.kind.label)
-                                            .accessibilityAddTraits(.isHeader)
-                                            .accessibilityIdentifier(
-                                                "fst.songs.shop-section.\(section.kind.rawValue)"
-                                            )
-                                        Spacer(minLength: 0)
-                                    }
-                                    .padding(8)
-                                    .background(
-                                        BrandTokens.cardBackground,
-                                        in: RoundedRectangle(cornerRadius: 8)
-                                    )
-                                    .listRowSeparator(.hidden)
-                                    .listRowBackground(Color.clear)
-                                    .listRowInsets(groupedRowInsets)
-                                    ForEach(section.songs) { song in
-                                        songLink(
-                                            for: song,
-                                            catalogueObservation: payload.observedPublicationId
-                                        )
-                                        .listRowInsets(groupedRowInsets)
-                                    }
-                                }
-                            } else {
-                                ForEach(visible) { song in
-                                    songLink(
-                                        for: song,
-                                        catalogueObservation: payload.observedPublicationId
-                                    )
-                                }
-                            }
-                        } else {
-                            ForEach(visible) { song in
-                                songLink(
-                                    for: song,
-                                    catalogueObservation: payload.observedPublicationId
-                                )
-                            }
-                        }
-                    }
-                    .listStyle(.plain)
-                    .accessibilityIdentifier("fst.songs.list")
-                    .scrollContentBackground(.hidden)
-                    .refreshable { await reload() }
+                    populatedList(payload: payload, visible: visible, effectiveMode: effectiveMode)
                 }
                 }
                 }
@@ -437,41 +371,30 @@ struct SongsScreen: View {
         }
         .festivalBackground(.carousel, session: session, visible: isVisible)
         .navigationTitle("Songs")
+        .searchable(text: $searchText, prompt: Text("Search"))
         .toolbar {
             #if os(iOS)
-            ToolbarItem(placement: .topBarLeading) { profileAction }
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                sortAction
+                if canPresentFilter {
+                    filterAction
+                }
+            }
             #else
-            ToolbarItem(placement: .primaryAction) { profileAction }
+            ToolbarItemGroup(placement: .primaryAction) {
+                sortAction
+                if canPresentFilter {
+                    filterAction
+                }
+            }
             #endif
-            ToolbarItem(placement: .primaryAction) {
-                Menu {
-                    Button("All instruments") { instrument = nil }
-                    ForEach(Instrument.allCases.filter(visibleInstruments.contains)) { choice in
-                        Button(choice.label) { instrument = choice }
-                    }
-                } label: {
-                    Label(
-                        instrument?.label ?? "All instruments",
-                        systemImage: "slider.horizontal.3"
-                    )
-                }
-                .accessibilityIdentifier("fst.songs.instrument-filter")
+            #if os(iOS)
+            if #available(iOS 26.0, *) {
+                ToolbarSpacer(.fixed, placement: .topBarTrailing)
             }
-            ToolbarItem(placement: .primaryAction) { sortAction }
-            if canPresentFilter {
-                ToolbarItem(placement: .primaryAction) { filterAction }
-            }
-            if !hideShop, let openShop {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        openShop()
-                    } label: {
-                        Label("Item Shop", systemImage: "bag")
-                    }
-                    .accessibilityIdentifier("fst.songs.shop")
-                }
-            }
+            #endif
         }
+        .festivalRootChrome(session: session)
         .sheet(isPresented: $sortPresented) {
             SongsSortSheet(
                 mode: sortMode, ascending: sortAscending,
@@ -489,22 +412,41 @@ struct SongsScreen: View {
                     profileAvailable: session.selectedPlayer != nil
                         && session.playerLoadState == .available,
                     appliedPlayerFilter: appliedPlayerScoreFilter,
+                    appliedInstrument: instrument,
                     visibleInstruments: visibleInstruments,
                     selectedPlayer: session.selectedPlayer != nil,
                     scoreAvailable: scoreFilterAvailable,
                     invalidScoreFilteringEnabled: filterInvalidScores
-                ) { shop, player in
+                ) { shop, player, instrumentChoice in
                     playerScoreFilterData = try player.encoded()
                     filterInShop = shop.inShop
                     filterLeavingTomorrow = shop.leavingTomorrow
+                    instrument = instrumentChoice
                 }
             } else {
                 Text("Saved song filters are invalid. Reset them from Songs to continue.")
             }
         }
-        .sheet(isPresented: $profilePresented) {
-            ProfileSelectionSheet(session: session)
+        #if DEBUG
+        .navigationDestination(item: $debugPushedSong) { song in
+            SongDetailScreen(song: song, session: session, visibleInstruments: visibleInstruments)
         }
+        .task(id: FestivalDebugLaunch.songTitleOrId) {
+            guard debugPushedSong == nil, let target = FestivalDebugLaunch.songTitleOrId
+            else { return }
+            for _ in 0..<200 {
+                if case let .loaded(payload) = state,
+                   let match = payload.catalog.songs.first(where: {
+                       $0.songId == target
+                           || $0.title.localizedCaseInsensitiveCompare(target) == .orderedSame
+                   }) {
+                    debugPushedSong = match
+                    return
+                }
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+        }
+        #endif
         .task(id: CatalogueTaskKey(
             publicationRevision: session.publicationRevision, visible: isVisible
         )) {
@@ -553,13 +495,6 @@ struct SongsScreen: View {
             } catch {
                 state = .failed("Search could not finish: \(error.localizedDescription)")
             }
-        }
-    }
-
-    /// Keep the profile search reachable ahead of Song sorting and Shop actions.
-    private var profileAction: some View {
-        ProfileActionButton(session: session) {
-            profilePresented = true
         }
     }
 
@@ -641,7 +576,7 @@ struct SongsScreen: View {
     /// - Parameter payload: Catalogue state to check for visible disclosure.
     /// - Returns: True when at least one warning must appear above the rows.
     private func hasDisclosure(for payload: CatalogPayload) -> Bool {
-        refreshFailure != nil || payload.isStale || payload.publicationId == nil
+        refreshFailure != nil || payload.publicationId == nil
             || session.publicationId.map { $0 != payload.observedPublicationId } == true
             || profilePublicationMismatch
             || session.playerError != nil
@@ -649,7 +584,6 @@ struct SongsScreen: View {
             || (!hideShop && (
                 session.shopError != nil
                     || (session.currentShop == nil && shopRefreshFailure != nil)
-                    || session.currentShop?.isStale == true
             ))
             || sortPausedMessage != nil || shopFilterPausedMessage != nil
             || playerScoreFilterPausedMessage != nil
@@ -665,15 +599,7 @@ struct SongsScreen: View {
         if let refreshFailure {
             RefreshErrorBanner(message: refreshFailure)
         }
-        if payload.isStale {
-            FreshnessDisclosure(
-                message: OfflineDisclosure.label(
-                    .songs, publicationId: payload.publicationId
-                ),
-                symbol: "wifi.slash"
-            )
-            .accessibilityIdentifier("fst.songs.offline")
-        } else if payload.publicationId == nil {
+        if payload.publicationId == nil {
             FreshnessDisclosure(
                 message: "Showing live songs without publication verification",
                 symbol: "info.circle"
@@ -749,7 +675,7 @@ struct SongsScreen: View {
                 message: playerError, symbol: "exclamationmark.triangle"
             )
             .accessibilityIdentifier("fst.songs.profile-status")
-            Button("Choose Profile") { profilePresented = true }
+            Button("Choose Profile") { openProfile() }
                 .accessibilityIdentifier("fst.songs.profile-retry")
         }
         if !hideShop, let shopFailure = session.shopError
@@ -770,14 +696,6 @@ struct SongsScreen: View {
                 )
                 .buttonStyle(HighContrastPagerStyle())
                 .accessibilityIdentifier("fst.songs.shop-retry")
-        } else if !hideShop, let shop = session.currentShop, shop.isStale {
-            FreshnessDisclosure(
-                message: OfflineDisclosure.label(
-                    .shop, publicationId: shop.publicationId
-                ),
-                symbol: "wifi.slash"
-            )
-            .accessibilityIdentifier("fst.songs.shop-offline")
         }
     }
 
@@ -825,6 +743,104 @@ struct SongsScreen: View {
         .accessibilityIdentifier("fst.songs.filter-invalid")
     }
 
+    /// Render the non-empty catalogue List with Item Shop or A-Z/Year sections.
+    ///
+    /// Extracted from `body` so the section-index scrubber's own layout does not
+    /// deepen an already large `switch`/`if` expression the type checker must solve.
+    ///
+    /// - Parameters:
+    ///   - payload: Currently loaded catalogue and its observed publication.
+    ///   - visible: Songs after search, filters and sort have been applied.
+    ///   - effectiveMode: Sort mode actually in effect (paused sorts fall back to Title).
+    /// - Returns: A scrollable List, with a trailing jump scrubber when applicable.
+    private func populatedList(
+        payload: CatalogPayload, visible: [Song], effectiveMode: SongSortMode
+    ) -> some View {
+        let indexSections = SongSectionIndex.sections(visible, mode: effectiveMode)
+        let showsIndex = indexSections.count > 1
+        return ScrollViewReader { scrollProxy in
+            ZStack(alignment: .trailing) {
+                List {
+                    if hasDisclosure(for: payload) {
+                        disclosures(for: payload)
+                    }
+                    if effectiveMode == .shop, let shopOffersForCurrentSongs {
+                        let sections = SongCatalogSort.shopSections(
+                            visible, offersById: shopOffersForCurrentSongs
+                        )
+                        if sections.count > 1 {
+                            ForEach(sections) { section in
+                                HStack {
+                                    Text(section.kind.label.uppercased())
+                                        .font(.headline)
+                                        .foregroundStyle(BrandTokens.textPrimary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                        .accessibilityLabel(section.kind.label)
+                                        .accessibilityAddTraits(.isHeader)
+                                        .accessibilityIdentifier(
+                                            "fst.songs.shop-section." + section.kind.rawValue
+                                        )
+                                    Spacer(minLength: 0)
+                                }
+                                .padding(8)
+                                .background(
+                                    BrandTokens.cardBackground, in: RoundedRectangle(cornerRadius: 8)
+                                )
+                                .listRowSeparator(.hidden)
+                                .listRowBackground(Color.clear)
+                                .listRowInsets(songRowInsets)
+                                ForEach(section.songs) { song in
+                                    songLink(
+                                        for: song, catalogueObservation: payload.observedPublicationId
+                                    )
+                                }
+                            }
+                        } else {
+                            ForEach(visible) { song in
+                                songLink(
+                                    for: song, catalogueObservation: payload.observedPublicationId
+                                )
+                            }
+                        }
+                    } else if showsIndex {
+                        ForEach(indexSections) { section in
+                            Section {
+                                ForEach(section.songs) { song in
+                                    songLink(
+                                        for: song, catalogueObservation: payload.observedPublicationId
+                                    )
+                                }
+                            } header: {
+                                sectionIndexHeader(section)
+                            }
+                            .id(section.id)
+                        }
+                    } else {
+                        ForEach(visible) { song in
+                            songLink(
+                                for: song, catalogueObservation: payload.observedPublicationId
+                            )
+                        }
+                    }
+                }
+                .listStyle(.plain)
+                .accessibilityIdentifier("fst.songs.list")
+                .scrollContentBackground(.hidden)
+                .refreshable { await reload() }
+                if showsIndex {
+                    SongSectionIndexScrubber(sections: indexSections) { id in
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            scrollProxy.scrollTo(id, anchor: .top)
+                        }
+                    }
+                    .padding(.trailing, 2)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: showsIndex)
+        }
+    }
+
     /// Keep every grouped and ungrouped Song row on the same navigation path.
     ///
     /// - Parameters:
@@ -840,7 +856,11 @@ struct SongsScreen: View {
             highlightingDisabled: disableShopHighlighting
         )
         let chart = instrument ?? Instrument.allCases.first(where: visibleInstruments.contains)
-        return NavigationLink(value: AppRoute.songDetail(song)) {
+        // Apple HIG: a card-style row is itself the tap target and drops the
+        // trailing disclosure chevron. `NavigationLink` still owns the push (kept
+        // invisible and stretched to the card's bounds) so the row remains one
+        // accessible, combined VoiceOver stop with the standard Link action.
+        return ZStack {
             SongRowView(
                 song: song, instrument: instrument,
                 session: session, highContrast: highContrast,
@@ -852,10 +872,28 @@ struct SongsScreen: View {
                 visibleInstruments: visibleInstruments,
                 currentSeason: currentSeason
             )
+            NavigationLink(value: AppRoute.songDetail(song)) { EmptyView() }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .opacity(0)
         }
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
+        .listRowInsets(songRowInsets)
         .accessibilityIdentifier("fst.songs.row.\(song.songId)")
+    }
+
+    /// Compact, tappable jump letter/year header for section-indexed sorts.
+    ///
+    /// - Parameter section: One nonempty bucket from `SongSectionIndex`.
+    /// - Returns: A small, accessible List section header.
+    private func sectionIndexHeader(_ section: SongSection) -> some View {
+        Text(section.label)
+            .font(.caption.bold())
+            .foregroundStyle(BrandTokens.textSecondary)
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityIdentifier("fst.songs.section.\(section.id)")
     }
 
     /// Refresh the public catalogue, preserving the last-viewed process cache.
