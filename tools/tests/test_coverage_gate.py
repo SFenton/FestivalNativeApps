@@ -98,6 +98,28 @@ class CoverageGateTests(unittest.TestCase):
             for error in errors
         ))
 
+    def test_recursive_patterns_classify_nested_production_source(self):
+        """`**` patterns must reach files nested under Features/App/Common/etc.
+
+        Regression for the real `contracts/coverage-rules.json`, whose Swift
+        `ux`/`logic` patterns used to be non-recursive (`FestivalUI/*.swift`)
+        while the actual source tree nests everything under `Features/**`,
+        `App/**`, `Common/**`, `Design/**` and `Background/**` — silently
+        classifying zero of those files as UX and inflating the percentage.
+        """
+        nested = self.root / "Sources/UI/Features/Deep/NewControl.swift"
+        nested.parent.mkdir(parents=True)
+        nested.write_text("production code\n", encoding="utf-8")
+        rules = dict(self.rules)
+        rules["swift"] = dict(self.rules["swift"], ux=["Sources/UI/**/*.swift"])
+        totals = {
+            "Sources/Logic/Example.swift": (95, 100),
+            "Sources/UI/Example.swift": (90, 100),
+            "Sources/UI/Features/Deep/NewControl.swift": (1, 1),
+        }
+        errors = check_coverage(totals, self.root, rules, "swift")
+        self.assertEqual(errors, [])
+
     def test_invalid_source_roots_are_rejected(self):
         """A malformed inventory cannot silently disable completeness checks."""
         rules = dict(self.rules)

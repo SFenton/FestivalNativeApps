@@ -12,8 +12,8 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_SOURCES = {
-    "FestivalUI": "apple/Sources/FestivalUI/*.swift",
-    "FestivalMobile.app": "apple/Apps/iOS/*.swift",
+    "FestivalUI": "apple/Sources/FestivalUI/**/*.swift",
+    "FestivalMobile.app": "apple/Apps/iOS/**/*.swift",
 }
 
 

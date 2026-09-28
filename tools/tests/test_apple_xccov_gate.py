@@ -9,8 +9,8 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from tools.apple_xccov_gate import (
-    collect_result, device_identity, line_hits, main, union_lines,
-    validate_result_devices,
+    TARGET_SOURCES, collect_result, device_identity, line_hits, main,
+    union_lines, validate_result_devices,
 )
 
 
@@ -118,6 +118,30 @@ class XcodeCoverageTests(unittest.TestCase):
                     "--root", str(root), "--scope", "iphone", "--result", str(first),
                 ]), 1)
                 self.assertIn("below 90%", errors.getvalue())
+
+    def test_target_source_patterns_reach_nested_feature_files(self):
+        """FestivalUI/app globs must not stop at their target's top-level files.
+
+        Regression: the real product nests every `FestivalUI` file under
+        `Features/**`, `App/**`, `Common/**`, `Design/**` or `Background/**`,
+        so a non-recursive `FestivalUI/*.swift` pattern matched zero files.
+        """
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            nested = root / "apple/Sources/FestivalUI/Features/Deep/NewControl.swift"
+            nested.parent.mkdir(parents=True)
+            nested.write_text("production code\n", encoding="utf-8")
+            top = root / "apple/Apps/iOS/AppDelegate.swift"
+            top.parent.mkdir(parents=True)
+            top.write_text("production code\n", encoding="utf-8")
+            self.assertEqual(
+                {p.resolve() for p in root.glob(TARGET_SOURCES["FestivalUI"])},
+                {nested.resolve()},
+            )
+            self.assertEqual(
+                {p.resolve() for p in root.glob(TARGET_SOURCES["FestivalMobile.app"])},
+                {top.resolve()},
+            )
 
     def test_rejects_missing_identity_and_coverage_target(self):
         """A passing but incomplete Xcode report cannot count as UX evidence."""

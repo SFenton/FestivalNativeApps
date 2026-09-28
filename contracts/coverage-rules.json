@@ -5,8 +5,8 @@
   },
   "swift": {
     "sourceRoots": ["apple/Sources/**/*.swift"],
-    "logic": ["apple/Sources/FestivalCore/*.swift"],
-    "ux": ["apple/Sources/FestivalDesign/*.swift", "apple/Sources/FestivalUI/*.swift"],
+    "logic": ["apple/Sources/FestivalCore/**/*.swift"],
+    "ux": ["apple/Sources/FestivalDesign/**/*.swift", "apple/Sources/FestivalUI/**/*.swift"],
     "exclude": ["apple/Sources/FestivalDesign/BrandTokens.swift"]
   },
   "kotlin": {
