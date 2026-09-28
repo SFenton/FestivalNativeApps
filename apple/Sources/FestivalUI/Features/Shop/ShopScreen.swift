@@ -68,7 +68,7 @@ struct ShopScreen: View {
         Group {
             switch state {
             case .loading:
-                ProgressView("Loading Item Shop")
+                FestivalLoadingView(accessibilityLabel: "Loading Item Shop")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case let .failed(issue):
                 ServiceStatusView(issue, title: "Item Shop unavailable") {

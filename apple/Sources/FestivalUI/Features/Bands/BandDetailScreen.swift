@@ -100,7 +100,7 @@ struct BandDetailScreen: View {
     @ViewBuilder private var content: some View {
         switch detailState {
         case .loading:
-            ProgressView("Loading band")
+            FestivalLoadingView(accessibilityLabel: "Loading band")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         case let .failed(issue):
             ServiceStatusView(issue, title: "Band unavailable") {

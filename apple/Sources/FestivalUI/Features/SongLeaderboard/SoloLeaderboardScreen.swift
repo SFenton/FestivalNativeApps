@@ -62,7 +62,7 @@ struct SoloLeaderboardScreen: View {
         Group {
             switch state {
             case .loading:
-                ProgressView("Loading leaderboard")
+                FestivalLoadingView(accessibilityLabel: "Loading leaderboard")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case let .failed(issue):
                 ServiceStatusView(issue, title: "Leaderboard unavailable") {

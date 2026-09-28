@@ -97,8 +97,7 @@ struct ArtworkTile: View {
                 Image(systemName: "music.note")
                     .accessibilityLabel("No album artwork")
             } else {
-                ProgressView()
-                    .accessibilityLabel("Loading album artwork")
+                FestivalLoadingView(accessibilityLabel: "Loading album artwork")
             }
         }
         .frame(width: size, height: size)

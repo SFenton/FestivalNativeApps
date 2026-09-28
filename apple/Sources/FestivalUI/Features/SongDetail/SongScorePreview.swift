@@ -90,7 +90,7 @@ struct SongScorePreview: View {
             }
             switch state {
             case .loading:
-                ProgressView("Loading \(instrument.label) scores")
+                FestivalLoadingView(accessibilityLabel: "Loading \(instrument.label) scores")
                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             case let .failed(message):
                 Text("Scores unavailable: \(message)")

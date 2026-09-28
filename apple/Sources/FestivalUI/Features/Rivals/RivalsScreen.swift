@@ -154,7 +154,7 @@ struct RivalCommonSection: View {
     @ViewBuilder private var content: some View {
         switch state {
         case .loading:
-            shell { ProgressView().frame(maxWidth: .infinity).padding(.vertical, 12) }
+            shell { FestivalLoadingView(accessibilityLabel: "Loading").frame(maxWidth: .infinity).padding(.vertical, 12) }
         case let .failed(issue):
             shell { ServiceStatusInline(issue, scope: "rivals.common") { Task { await load() } } }
         case let .loaded(result) where result.above.isEmpty && result.below.isEmpty:
@@ -230,7 +230,7 @@ struct RivalComboSection: View {
     @ViewBuilder private var content: some View {
         switch state {
         case .loading:
-            shell { ProgressView().frame(maxWidth: .infinity).padding(.vertical, 12) }
+            shell { FestivalLoadingView(accessibilityLabel: "Loading").frame(maxWidth: .infinity).padding(.vertical, 12) }
         case let .failed(issue):
             shell { ServiceStatusInline(issue, scope: "rivals.combo.\(scope.token)") { Task { await load() } } }
         case let .loaded(response) where response.isEmpty:
@@ -307,7 +307,7 @@ struct RivalInstrumentSongSection: View {
     @ViewBuilder private var content: some View {
         switch state {
         case .loading:
-            shell { ProgressView().frame(maxWidth: .infinity).padding(.vertical, 12) }
+            shell { FestivalLoadingView(accessibilityLabel: "Loading").frame(maxWidth: .infinity).padding(.vertical, 12) }
         case let .failed(issue):
             shell { ServiceStatusInline(issue, scope: "rivals.song.\(instrument.rawValue)") { Task { await load() } } }
         case let .loaded(response) where response.isEmpty:
@@ -392,7 +392,7 @@ struct RivalInstrumentLeaderboardSection: View {
     @ViewBuilder private var content: some View {
         switch state {
         case .loading:
-            shell { ProgressView().frame(maxWidth: .infinity).padding(.vertical, 12) }
+            shell { FestivalLoadingView(accessibilityLabel: "Loading").frame(maxWidth: .infinity).padding(.vertical, 12) }
         case let .failed(issue):
             shell { ServiceStatusInline(issue, scope: "rivals.leaderboard.\(instrument.rawValue)") { Task { await load() } } }
         case let .loaded(response) where response.isEmpty:

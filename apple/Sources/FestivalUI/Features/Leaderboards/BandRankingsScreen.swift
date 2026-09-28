@@ -38,7 +38,7 @@ struct BandRankingsScreen: View {
         Group {
             switch state {
             case .loading:
-                ProgressView("Loading rankings")
+                FestivalLoadingView(accessibilityLabel: "Loading rankings")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case let .failed(issue):
                 ServiceStatusView(issue, title: "Rankings unavailable") {

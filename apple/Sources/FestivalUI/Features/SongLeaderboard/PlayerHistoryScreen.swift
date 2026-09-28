@@ -65,7 +65,7 @@ struct PlayerHistoryScreen: View {
             } else {
                 switch state {
                 case .loading:
-                    ProgressView("Loading Score History")
+                    FestivalLoadingView(accessibilityLabel: "Loading Score History")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case let .failed(issue):
                     ServiceStatusView(issue, title: "History unavailable") {
@@ -132,7 +132,7 @@ struct PlayerHistoryScreen: View {
             )
         case .syncing:
             VStack(spacing: 16) {
-                ProgressView()
+                FestivalLoadingView(accessibilityLabel: "Score history syncing")
                 Text("Score history is still syncing for this player. Check back soon.")
                     .foregroundStyle(BrandTokens.textSecondary)
                     .multilineTextAlignment(.center)

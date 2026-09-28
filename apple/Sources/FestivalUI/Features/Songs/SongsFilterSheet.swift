@@ -113,7 +113,6 @@ struct SongsFilterSheet: View {
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, minHeight: 44)
             .padding(.vertical, 8)
-            .background(Color(uiColor: .systemGroupedBackground))
             .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier("fst.songs.filter.title")
         #endif
@@ -295,6 +294,9 @@ struct SongsFilterSheet: View {
         .background(BrandTokens.cardBackground)
       }
     }
+    // Many collapsible sections (instrument, score/FC, Shop): fixed large detent
+    // rather than a partial height that would clip mid-section.
+    .festivalSheet(.large)
     .alert("Discard filter changes?", isPresented: $discardPending) {
       Button("Continue Editing", role: .cancel) {}
       Button("Discard Changes", role: .destructive) { dismiss() }

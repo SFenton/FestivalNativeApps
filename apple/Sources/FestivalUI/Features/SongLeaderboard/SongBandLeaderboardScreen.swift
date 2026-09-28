@@ -40,7 +40,7 @@ struct SongBandLeaderboardScreen: View {
         Group {
             switch state {
             case .loading:
-                ProgressView("Loading band scores")
+                FestivalLoadingView(accessibilityLabel: "Loading band scores")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case let .failed(issue):
                 ServiceStatusView(issue, title: "Band scores unavailable") {

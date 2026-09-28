@@ -123,6 +123,8 @@ struct PlayerHistorySortSheet: View {
                 .background(BrandTokens.cardBackground)
             }
         }
+        // festivalSheet(.compact) is already applied by the presenting call site
+        // (PlayerHistoryScreen.swift) — do not double-apply it here.
         .alert("Discard Sort Changes", isPresented: $discardPending) {
             Button("Continue Editing", role: .cancel) {}
             Button("Discard Changes", role: .destructive) { dismiss() }

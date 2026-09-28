@@ -124,7 +124,9 @@ struct SongPathsSheet: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(BrandTokens.appBackground)
+        // Full-bleed page sizing at every width: the zoomable image/table benefits from
+        // the extra room on Duo unfolded/iPad rather than a centered form card.
+        .festivalSheet(.large, sizing: .page)
         .task(id: requestKey) { await loadPath() }
         .onChange(of: instrument) { _, _ in resetZoom() }
         .onChange(of: difficulty) { _, _ in resetZoom() }
@@ -145,7 +147,7 @@ struct SongPathsSheet: View {
     private var pathContent: some View {
         switch state {
         case .loading:
-            ProgressView("Loading \(display.label.lowercased()) path")
+            FestivalLoadingView(accessibilityLabel: "Loading \(display.label.lowercased()) path")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         case let .failed(issue):
             ServiceStatusView(issue, title: "Path unavailable") {

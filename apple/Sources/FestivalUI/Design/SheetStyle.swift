@@ -18,6 +18,21 @@ public enum FestivalSheetSize: Sendable {
     }
 }
 
+/// Width sizing for a sheet across size classes (see `.agents/design/apple/duo.md`).
+///
+/// This is independent of ``FestivalSheetSize``'s *height* detents: sizing picks a system
+/// `presentationSizing` (iOS/macOS 18+) so Duo unfolded and iPad don't stretch a short,
+/// standalone task edge-to-edge like Mail's compose sheet does on iPad.
+public enum FestivalSheetSizing: Sendable {
+    /// A fixed, centered "form" card at regular width (Duo unfolded, iPad) — the system's
+    /// own compact-width sheet elsewhere. The default for short tasks: pickers, filters,
+    /// sort, notifications, search.
+    case automatic
+    /// Full-bleed "page" sizing at every width, for content that benefits from using all
+    /// of it regardless of size class (e.g. the zoomable Paths image/text viewer).
+    case page
+}
+
 /// Dark Liquid Glass modal presentation (see `.agents/design/apple/liquid-glass.md`).
 ///
 /// - iOS/macOS 26+: the system sheet material *is* Liquid Glass (translucent at partial
@@ -27,7 +42,9 @@ public enum FestivalSheetSize: Sendable {
 /// - Reduce Transparency (system or in-app) and Increase Contrast: opaque card colour.
 struct FestivalSheetModifier: ViewModifier {
     let size: FestivalSheetSize
+    var sizing: FestivalSheetSizing = .automatic
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.deviceLayout) private var deviceLayout
     @AppStorage("fst.accessibility.lessTransparency") private var lessTransparency = false
     @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
 
@@ -37,10 +54,38 @@ struct FestivalSheetModifier: ViewModifier {
             .presentationDetents(size.detents)
             .presentationDragIndicator(.visible)
             .modifier(SheetBackground(opaque: reduceTransparency || lessTransparency || moreContrast))
+            .modifier(FestivalSheetSizingModifier(
+                sizing: sizing, regularWidth: deviceLayout.widthClass == .regular
+            ))
             .preferredColorScheme(.dark)
             .tint(BrandTokens.accentBlue)
     }
 
+}
+
+/// Applies `presentationSizing(.form)` at regular width (Duo unfolded/iPad) unless the
+/// caller asked for full-bleed `.page` sizing everywhere. No-op pre-iOS/macOS 18.
+private struct FestivalSheetSizingModifier: ViewModifier {
+    let sizing: FestivalSheetSizing
+    let regularWidth: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, macOS 15.0, *) {
+            switch sizing {
+            case .page:
+                content.presentationSizing(.page)
+            case .automatic:
+                if regularWidth {
+                    content.presentationSizing(.form)
+                } else {
+                    content
+                }
+            }
+        } else {
+            content
+        }
+    }
 }
 
 /// System glass on 26+, frosted navy before it, opaque navy for accessibility overrides.
@@ -76,9 +121,14 @@ public extension View {
     /// }
     /// ```
     ///
-    /// - Parameter size: Detent preset; `.large` by default.
+    /// - Parameters:
+    ///   - size: Detent preset; `.large` by default.
+    ///   - sizing: Width sizing across size classes; `.automatic` (form at regular width)
+    ///     by default. Pass `.page` for content that wants full width everywhere.
     /// - Returns: The sheet content with Festival presentation styling.
-    func festivalSheet(_ size: FestivalSheetSize = .large) -> some View {
-        modifier(FestivalSheetModifier(size: size))
+    func festivalSheet(
+        _ size: FestivalSheetSize = .large, sizing: FestivalSheetSizing = .automatic
+    ) -> some View {
+        modifier(FestivalSheetModifier(size: size, sizing: sizing))
     }
 }

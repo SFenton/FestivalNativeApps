@@ -117,7 +117,7 @@ struct SuggestionsScreen: View {
         switch viewModel.loadState {
         case .idle, .loading:
             if viewModel.categories.isEmpty {
-                ProgressView("Loading Suggestions\u{2026}")
+                FestivalLoadingView(accessibilityLabel: "Loading Suggestions")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .accessibilityIdentifier("fst.suggestions.loading")
             } else {
@@ -168,7 +168,7 @@ struct SuggestionsScreen: View {
 
     @ViewBuilder private var footer: some View {
         if viewModel.isLoadingMore {
-            ProgressView()
+            FestivalLoadingView(accessibilityLabel: "Loading more suggestions")
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
         } else if !viewModel.hasMore {

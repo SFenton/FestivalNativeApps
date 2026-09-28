@@ -67,7 +67,9 @@ struct FindRivalSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                // Dismiss-only modal: trailing, per the app's modal-standard placement
+                // (operator, 2026-09-28) — not leading like a paired Cancel action.
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Close") { dismiss() }
                         .accessibilityIdentifier("fst.rivals.findRival.close")
                 }
@@ -130,7 +132,7 @@ struct FindRivalSheet: View {
         case .loading:
             HStack {
                 Spacer(minLength: 0)
-                ProgressView("Searching Players")
+                FestivalLoadingView(accessibilityLabel: "Searching Players")
                 Spacer(minLength: 0)
             }
             .padding(.vertical, 32)

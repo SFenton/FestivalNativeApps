@@ -32,7 +32,9 @@ struct NotificationsSheet: View {
                 .navigationBarTitleDisplayMode(.inline)
                 #endif
                 .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
+                    // Dismiss-only modal: Done belongs on the trailing side (HIG), not
+                    // leading like a Cancel action (operator, 2026-09-28).
+                    ToolbarItem(placement: .confirmationAction) {
                         Button("Done") { dismiss() }
                     }
                 }
@@ -51,7 +53,7 @@ struct NotificationsSheet: View {
                 description: Text("Select a profile to see your notifications.")
             )
         case (_, .loading), (_, .idle):
-            ProgressView("Loading Notifications")
+            FestivalLoadingView(accessibilityLabel: "Loading Notifications")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         case let (_, .failed(issue)):
             ServiceStatusView(issue, title: "Notifications unavailable") {

@@ -133,6 +133,8 @@ struct SongsSortSheet: View {
                 .background(BrandTokens.cardBackground)
             }
         }
+        // Simple, fixed-height picker: compact detent (medium, expandable to large).
+        .festivalSheet(.compact)
         .alert("Discard sort changes?", isPresented: $discardPending) {
             Button("Continue Editing", role: .cancel) {}
             Button("Discard Changes", role: .destructive) { dismiss() }
