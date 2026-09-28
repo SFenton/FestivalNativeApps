@@ -26,3 +26,32 @@
 | TalkBack 17.0 | Preinstalled on the API 37 Google APIs image, along with Switch Access, Voice Access and the Accessibility Menu. Toggle it with the `talkback:on\|off` drive step (secure settings) |
 | Accessibility Scanner | Play Store only; not installable on the Google APIs image without a signed-in Play account. Use ATF checks instead |
 | Text size, dark theme | `fontscale:<x>` and `dark:on\|off` drive steps |
+> **What:** Android coverage, test layout and device-test rules. **Read when:** writing or running Android tests. Architecture: [platforms/android.md](../platforms/android.md).
+
+## Layout
+
+| Kind | Where | Runs on |
+|---|---|---|
+| JVM unit (core/data/presentation) | `android/app/src/test/.../{core,data,presentation}` | JVM (`testDebugUnitTest`) |
+| Whole-shell Compose UI | `android/app/src/test/.../ui/ShellUiTest.kt` | Robolectric (SDK 34, `robolectric.properties`), phone `w411dp-h891dp` and expanded `w1280dp-h800dp` qualifiers |
+| Instrumented | `android/app/src/androidTest` (empty) | `device.py test` on one FST AVD |
+
+- Fixtures are synthetic (`testing/Fixtures.kt`: made-up titles, 32-hex fake account IDs); `FakeTransport` routes by path and records requests so tests assert that no forbidden header or non-GET was sent. Never copy production payloads ([service safety](../platforms/service-safety.md)).
+- `AppContainer(transport =, settingsStore =)` injects the fake transport and an in-memory `DataStore` so the full `FestivalApp` runs offline.
+- View models: `MainDispatcherRule` + `runTest(main.dispatcher)`; launch loaders in the test scope, not `backgroundScope` (`advanceUntilIdle` does not drive background work).
+
+## Gotchas
+
+- DataStore replaces its file by rename, which the **Windows JVM** refuses when the target exists: on-disk tests do one write then a cold-start reload; multi-write setters use the in-memory store. Android devices are unaffected.
+- Robolectric runs coroutines on a paused main looper: advance with `shadowOf(Looper.getMainLooper()).idleFor(...)`, and `waitUntil` for `flowOn(Dispatchers.Default)` work (search debounce runs on real time).
+- The phone bottom bar overlays scrolled content; after `performScrollToNode`, invoke `performSemanticsAction(SemanticsActions.OnClick)` instead of a touch click, or the touch lands on the tab (re-tap pops to root).
+
+## Coverage
+
+- Debug unit tests are instrumented by AGP JaCoCo (`createDebugUnitTestCoverageReport`); `fst_android.py coverage` splits **logic** (`core/`, `data/`, `presentation/`) from **UI** (everything else), excluding generated serializers/Compose singletons. Gate: `--min-logic 95`. Targets: 95% logic / 90% UI lines.
+
+| Last measured | Logic lines | UI lines | Tests |
+|---|---|---|---|
+| `lane/android` | 96.8% | 87.3% | 74 JVM + Robolectric |
+
+- Open: UI below 90% (`ArtworkBackground`, `MainActivity`, service-status inline variants); instrumented tests and TalkBack/posture evidence not started. Control-state snapshots and navigation coverage are separate evidence from line coverage.

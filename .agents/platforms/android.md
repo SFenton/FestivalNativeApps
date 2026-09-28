@@ -88,3 +88,52 @@ Compose `testTag`s appear as resource ids only when the app sets `testTagsAsReso
 - FST emulators always use console port **5580** (`emulator-5580`). Only `FST_*` AVDs, or whatever holds port 5580, are ever stopped. Any other running emulator makes `boot` refuse (exit 3) rather than kill it.
 - Shutdown runs `sync` + `reboot -p`, then `emu kill`, then kills leftover qemu processes. A hard `emu kill` can lose recent `/data` writes such as a fresh install. Install and shoot in one hold with `--apk`.
 - Emulator logs: `~/.fst-locks/emulator-<AVD>.log`.
+# Android architecture and devices
+
+> **What:** Kotlin/Compose architecture, build/run tooling and device rules for Android. **Read when:** working on the Android app (built on `sfenton-primary` via [windows-relay](../workflow/windows-relay.md)). Design: [design/android.md](../design/android.md); tests: [testing/android.md](../testing/android.md).
+
+## Layers (`android/app/src/main/java/com/festivalscoretracker/android/`)
+
+| Package | Holds | Rule |
+|---|---|---|
+| `core/` | Wire models, `FestivalApiException`, `ServiceIssue` + freeze reasons + `ServiceRetryBackoff`, song search/sort/section index, formatting, difficulty-meter geometry, `AppRoute`, tab/adaptive-layout policy, `DebugLaunch` | Pure Kotlin, no Android imports; mirrors Apple `FestivalCore` names |
+| `data/` | `RequestGate`, `FestivalApi`, `OkHttpTransport`, `ForcedFreezeTransport`, `SettingsRepository` (DataStore) | Only path to the service |
+| `presentation/` | ViewModels, `RetryingLoader`/`LoadState`, `BackgroundController` | Logic; unit-tested |
+| `ui/` | Compose screens, shell, design primitives, background | Composables only |
+| root | `MainActivity` (single activity, edge-to-edge), `FestivalApplication` (Coil loader), `AppContainer` (manual DI) | |
+
+## Service access
+
+- One request path: `RequestGate.send` rejects non-GET and `X-API-Key` / `x-fst-selected-*`, checks cancellation both sides, and `mapStatus` maps 202/304/503(+`Retry-After`, `X-FST-Public-Read-Freeze-Reason`)/other → `FestivalApiException` → `ServiceIssue`. Never create another client. Rules: [service-safety](service-safety.md).
+- `FestivalApi` bootstraps `/api/publication`, sends `X-FST-Publication-Id` only while `readyForPinning && pinningEnabled`, retries one `publication_changed` 409, adopts a newer response publication when unpinned, and keeps an in-process ETag body cache + decoded catalogue per publication (cleared on change). No HTTP disk cache (online-only).
+- Origin: keyless `https://festivalscoretracker.com` in debug and release (`BuildConfig.SERVICE_ORIGIN`); a fixture run passes `FST_ORIGIN=http://10.0.2.2:<port>` (loopback/emulator host only; debug network config allows cleartext only there).
+- Add an endpoint: a `ServiceEndpoint` case with validated segments + one typed method on `FestivalApi` + fake-transport tests (same steps as [add-endpoint](../skills/add-endpoint.md)).
+- `/api/songs` is ~4.6 MB (population tiers); the decoder skips unknown keys and streams from bytes.
+
+## Navigation
+
+- Typed Navigation-Compose routes in `core/nav/AppRoute.kt` mirror Apple `AppRoute` (every web route except Manual). Songs are addressed by ID and resolved against the current catalogue. Unported routes render a placeholder.
+- One `NavHost`; tab roots (`*Tab`) switch with `popUpTo(start){saveState}` + `restoreState` (Statistics does not restore); re-tapping a tab pops to its root. Selected tab is derived from the back stack.
+
+## Debug launch extras (debug builds only)
+
+String intent extras, same names as Apple: `FST_DEBUG_TAB`, `FST_DEBUG_ROUTE` (`song:<id-or-title>`, `songLeaderboard:<id>:<wireId>[:page]`, `player:`, `leaderboards`, `fullRankings:`, `bandRankings:`, `shop`, `rivals`, `statistics`, `suggestions`, `compete`, `bands`, `band:`, `licenses`), `FST_DEBUG_PROFILE=<accountId>:<name>` (in memory only), `FST_DEBUG_ANONYMOUS=1`, `FST_DEBUG_DRAWER=1`, `FST_DEBUG_SHEET=profile`, `FST_DEBUG_FORCE_FREEZE=1`, `FST_DEBUG_STILL_BACKGROUND=1`, `FST_ORIGIN`. Parsed by `DebugLaunch` (unit-tested).
+
+## Tooling
+
+| Command (repo root) | Does |
+|---|---|
+| `python tools/android/fst_android.py build [--tests] [--coverage] [--release]` | Gradle wrapper build, JVM + Robolectric tests, JaCoCo report + logic/UI summary |
+| `python tools/android/fst_android.py coverage --min-logic 95 [--files]` | Gate/summary from the JaCoCo XML |
+| `python tools/android/fst_android.py session --avd FST_Phone "out.png\|posture\|wait\|KEY=V,KEY=V" …` | Installs the debug APK and takes every listed screenshot inside **one** shared-lock hold (with `device.py` JSON sidecars) |
+| `python tools/android/fst_android.py device <install\|shot\|launch\|drive\|posture\|features\|list> …` | Forwards to the shared FIFO-locked `tools/android/device.py` (device-lab lane) with this app's package/activity |
+
+- Prefer `session`: the lab boots AVDs fresh (`-no-snapshot`) and may shut them down between holds, so a separate `install` then `shot` can find the app gone. A shot right after a cold boot can show "You're offline" before networking is up — take a warm-up shot first.
+- Screenshots of live data show production names, titles and third-party art: keep them as `android/reports/screenshots/*.local.png` (gitignored), never commit them ([service safety](service-safety.md)).
+- Foldables: `--avd FST_Book_Fold --posture folded|unfolded` (and `device features` to see what WindowManager reports).
+
+## Devices
+
+- One emulator per host, only through `device.py` (FST AVDs, API 37). Never start `Pixel_5_API_36`/`Pixel_9_Pro_Fold` by hand while lanes share the host; headless `-gpu auto` in session 0 wedged adb shell — the shared tool uses `swiftshader_indirect`.
+- Observe folds with Jetpack WindowManager (`currentWindowAdaptiveInfo().windowPosture.hingeList`), never product names or pixels. Record API level, window size and posture with each result (`device.py` writes a JSON sidecar).
+- Host: Android SDK `C:/Users/sfent/AppData/Local/Android/Sdk`, JDK 17 (Temurin), Gradle 8.14.3 wrapper, AGP 8.11, Kotlin 2.2.10, compile/target SDK 36, min 26.
