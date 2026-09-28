@@ -106,10 +106,10 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 - ✅ Song Detail: intensity card uses instrument icons instead of text
 - ✅ Remove offline/warm-cache disclosure UI (online-only)
 
-**Lane P — Profile + Statistics tab** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/profile`
+**Lane P — Profile + Statistics tab** (Sonnet) — ✅ landed `4f3dfae`, `8324dc2`, `3eba1af`
 - ⬜ Fix: selected profile survives app close / cold start
-- ⬜ Player profile page `/player/:accountId` — viewed (unselected) and selected states, select/deselect action
-- ⬜ Profile selection sheet redesign: native, dark glass, "Find Player"/"Find Band", centered "Enter at least…" hint, Title Case headers
+- ✅ Player profile page `/player/:accountId` — viewed (unselected) and selected states, select/deselect action
+- ✅ Profile selection sheet redesign: native, dark glass, "Find Player"/"Find Band", centered "Enter at least…" hint, Title Case headers
 
 **Lane L — Leaderboards** (Sonnet) — ✅ landed `f50dce9`…`65e8607`
 - ⬜ Leaderboards overview: top-10 cards per visible instrument (+ band types), metric picker
@@ -158,6 +158,7 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 - ⬜ Adoption on Songs, Song Detail, Player/Statistics, Band, Compete, Rivals, Rivalry, Rival Detail, Settings — handed to owning lanes as they finish
 
 Queued (start when load allows):
+- ⬜ **Profile follow-up:** global ranks/percentiles on the profile page via `GET /api/rankings/{instrument}/{accountId}` (pure read, verified) instead of the forbidden player-stats GET; profile sheet should dismiss and push on the presenting tab rather than push inside the sheet; `FST_DEBUG_PROFILE` should not persist selection (lanes clobber each other on the shared simulator)
 - ⬜ **Rivals follow-up:** replace `RivalNavigationBridge` global singleton with scope carried in `AppRoute` payloads (deep-link/state-restoration safe); cross-instrument combo / common rivals; Find Rival search
 - ⬜ **Wave 3 UX tests** for completed features (shell/drawer/tabs, leaderboards, background, history, notifications, rivals) — hosted snapshots first, XCUITest journeys batched to limit simulator contention
 
@@ -219,3 +220,4 @@ Not yet assigned:
 | 2026-09-28 | Lane S | Native toolbar search/sort/filter, glass rows, instrument-icon chips, A–Z scrubber, instrument filter moved to Filter, icon intensity card, offline banners removed |
 | 2026-09-28 | Lane X | Player history + notifications (read-only endpoints verified); FirstRun types handed to Lane F |
 | 2026-09-28 | Lane R | Compete hub, Rivals hub/all/detail/rivalry; 18 tests; combos + Find Rival deferred |
+| 2026-09-28 | Lane P | Fixed profile persistence (tautological publication check after relaunch); player profile page shared with Statistics tab; native profile sheet |
