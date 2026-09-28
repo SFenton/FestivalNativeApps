@@ -1,0 +1,58 @@
+{
+  "accountId": "0000000000000000000000000000a001",
+  "songs": [
+    "demo-song-alpha",
+    "demo-song-bravo",
+    "demo-song-charlie"
+  ],
+  "combos": [
+    {
+      "combo": "01",
+      "above": [
+        {
+          "accountId": "0000000000000000000000000000b001",
+          "displayName": "Demo Rival One",
+          "direction": "above",
+          "sharedSongCount": 371,
+          "aheadCount": 243,
+          "behindCount": 128,
+          "rivalScore": 863.541259765625,
+          "samples": [
+            { "s": 0, "i": "Solo_Guitar", "ur": 3, "rr": 2, "us": 105163, "rs": 105225 },
+            { "s": 2, "i": "Solo_Guitar", "ur": 12, "rr": 9, "us": 98001, "rs": 98410 }
+          ]
+        }
+      ],
+      "below": [
+        {
+          "accountId": "0000000000000000000000000000b002",
+          "displayName": null,
+          "direction": "below",
+          "sharedSongCount": 88,
+          "aheadCount": 10,
+          "behindCount": 78,
+          "rivalScore": 412.25,
+          "samples": [
+            { "s": 1, "i": "Solo_Guitar", "ur": 40, "rr": 41, "us": null, "rs": 77120 }
+          ]
+        }
+      ]
+    },
+    {
+      "combo": "03",
+      "above": [],
+      "below": [
+        {
+          "accountId": "0000000000000000000000000000b001",
+          "displayName": "Demo Rival One",
+          "direction": "below",
+          "sharedSongCount": 12,
+          "aheadCount": 2,
+          "behindCount": 10,
+          "rivalScore": 101.5,
+          "samples": []
+        }
+      ]
+    }
+  ]
+}

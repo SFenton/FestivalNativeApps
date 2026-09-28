@@ -9,11 +9,13 @@ import Foundation
 /// side-effecting route in that file, `POST .../rivals/recompute`, is
 /// `RequireAuthorization()`-gated and is intentionally never called here.
 ///
-/// These bypass `FestivalAPI.read(_:)` (the Songs/Shop/Player publication-pinned
-/// pipeline) because Rivals data is not part of the catalogue/score publication
-/// contract that pipeline exists to protect; it is fetched directly against
-/// `FestivalAPI.baseURL` with the same keyless, no-cache request shape.
+/// These stay unpinned (outside `FestivalAPI.read(_:)`, the Songs/Shop/Player
+/// publication-pinned pipeline) because Rivals data is not part of the
+/// catalogue/score publication contract that pipeline protects, but they share
+/// its transport, keyless header guard and status mapping via `fetchJSON`.
 enum RivalsEndpoint: Sendable {
+    /// Every combo's rivals with indexed song samples (`/rivals/all`).
+    case all(accountId: String)
     case list(accountId: String, instrument: Instrument)
     case comboList(accountId: String, token: String)
     case detail(accountId: String, instrument: Instrument, rivalId: String, sort: String, limit: Int, offset: Int)
@@ -45,6 +47,15 @@ enum RivalsEndpoint: Sendable {
     /// - Throws: `RivalsAPIError.invalidResource` for an untrusted or malformed argument.
     func url(relativeTo baseURL: URL) throws -> URL {
         switch self {
+        case let .all(accountId):
+            guard ProfileSearchText.isValidAccountId(accountId) else {
+                throw RivalsAPIError.invalidResource
+            }
+            return baseURL
+                .appendingPathComponent("api").appendingPathComponent("player")
+                .appendingPathComponent(accountId).appendingPathComponent("rivals")
+                .appendingPathComponent("all")
+
         case let .list(accountId, instrument):
             guard ProfileSearchText.isValidAccountId(accountId) else {
                 throw RivalsAPIError.invalidResource
@@ -125,18 +136,12 @@ enum RivalsEndpoint: Sendable {
     }
 }
 
-/// Ephemeral, no-cache transport for keyless Rivals reads; a static member on
-/// an extension is allowed to be stored (unlike an instance property), so this
-/// adds no state to `FestivalAPI` itself.
-private let rivalsHTTPSession: URLSession = {
-    let configuration = URLSessionConfiguration.ephemeral
-    configuration.urlCache = nil
-    configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
-    return URLSession(configuration: configuration)
-}()
+extension RivalsEndpoint: ServiceEndpoint {}
 
 extension FestivalAPI {
-    /// Fetch and decode one keyless Rivals/Compete GET.
+    /// Fetch and decode one keyless Rivals/Compete GET through the shared,
+    /// unpinned request helper (`FestivalAPI+Request.swift`), so Rivals shares
+    /// the transport, keyless header guard, timeout and status mapping.
     ///
     /// - Parameters:
     ///   - endpoint: Allowlisted Rivals resource.
@@ -144,42 +149,36 @@ extension FestivalAPI {
     ///     "no rivals found" / "no precomputed song data" HTTP 404, so callers
     ///     see a normal empty result instead of an error.
     /// - Returns: Decoded response body.
-    /// - Throws: `RivalsAPIError` for network, HTTP or decoding failures.
-    private func fetchRivalsJSON<T: Decodable>(
+    /// - Throws: `RivalsAPIError` for invalid arguments or undecodable bodies;
+    ///   `FestivalAPIError` (including `.publicReadFrozen`) or `URLError` otherwise.
+    private func fetchRivalsJSON<T: Decodable & Sendable>(
         _ endpoint: RivalsEndpoint, emptyOn404 emptyValue: T?
     ) async throws -> T {
-        let url = try endpoint.url(relativeTo: baseURL)
-        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
-        request.httpMethod = "GET"
-        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
-        let data: Data
-        let response: URLResponse
         do {
-            (data, response) = try await rivalsHTTPSession.data(for: request)
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch let error as URLError where error.code == .cancelled {
-            throw error
+            return try await fetchJSON(
+                endpoint, as: T.self, invalid: RivalsAPIError.invalidResponse
+            ).value
+        } catch FestivalAPIError.httpStatus(404) where emptyValue != nil {
+            return emptyValue!
         }
-        try Task.checkCancellation()
-        guard let http = response as? HTTPURLResponse else {
-            throw RivalsAPIError.invalidResponse
-        }
-        if http.statusCode == 404, let emptyValue {
-            return emptyValue
-        }
-        guard (200...299).contains(http.statusCode) else {
-            if http.statusCode == 503 {
-                let retryAfter = http.value(forHTTPHeaderField: "Retry-After")
-                throw RivalsAPIError.unavailable(retryAfter: retryAfter)
-            }
-            throw RivalsAPIError.httpStatus(http.statusCode)
-        }
-        do {
-            return try JSONDecoder().decode(T.self, from: data)
-        } catch {
-            throw RivalsAPIError.invalidResponse
-        }
+    }
+
+    /// Read every combo's rivals in one call
+    /// (`GET /api/player/{accountId}/rivals/all`), the source for the web's
+    /// `buildRivalDataIndexFromRivalsAll` (`song_rival_*`/`lb_rival_*` suggestions).
+    ///
+    /// A pure read (`FSTService/Api/RivalsEndpoints.cs:207`): it serves the
+    /// precomputed `rivals-all:{accountId}` response, else the in-memory rivals
+    /// cache, else `SELECT`s from `user_rivals`/`account_names` and stores the
+    /// bytes only in the process response cache. Its HTTP 404 "No rivals found."
+    /// becomes an empty response.
+    ///
+    /// - Parameter accountId: Selected player's account ID.
+    /// - Returns: Per-combo rivals plus the song index their samples reference.
+    /// - Throws: `RivalsAPIError` for invalid arguments or decoding; shared
+    ///   `FestivalAPIError`/`URLError` for HTTP and network failures.
+    public func rivalsAll(accountId: String) async throws -> RivalsAllResponse {
+        try await fetchRivalsJSON(.all(accountId: accountId), emptyOn404: .empty(accountId: accountId))
     }
 
     /// Read per-instrument rivals (`GET /api/player/{accountId}/rivals/{instrument}`).
@@ -188,7 +187,8 @@ extension FestivalAPI {
     ///   - accountId: Selected player's account ID.
     ///   - instrument: Solo chart scope.
     /// - Returns: Rivals ahead of and behind the player, or an empty list if none exist yet.
-    /// - Throws: `RivalsAPIError` for network, HTTP or decoding failures.
+    /// - Throws: `RivalsAPIError` for invalid arguments or decoding; shared
+    ///   `FestivalAPIError`/`URLError` for HTTP and network failures.
     public func rivalsList(accountId: String, instrument: Instrument) async throws -> RivalsListResponse {
         try await fetchRivalsJSON(
             .list(accountId: accountId, instrument: instrument),
@@ -206,7 +206,8 @@ extension FestivalAPI {
     ///   - token: `RivalComboScope.token`.
     /// - Returns: Rivals ahead of and behind the player under this scope, or an
     ///   empty list if none exist yet.
-    /// - Throws: `RivalsAPIError` for network, HTTP or decoding failures.
+    /// - Throws: `RivalsAPIError` for invalid arguments or decoding; shared
+    ///   `FestivalAPIError`/`URLError` for HTTP and network failures.
     public func rivalsComboList(accountId: String, token: String) async throws -> RivalsListResponse {
         try await fetchRivalsJSON(
             .comboList(accountId: accountId, token: token), emptyOn404: .empty(combo: token)
@@ -224,7 +225,8 @@ extension FestivalAPI {
     ///   - limit: Rows requested; `0` means "all".
     ///   - offset: Zero-based row offset.
     /// - Returns: Compared songs, or an empty detail result if none are precomputed yet.
-    /// - Throws: `RivalsAPIError` for network, HTTP or decoding failures.
+    /// - Throws: `RivalsAPIError` for invalid arguments or decoding; shared
+    ///   `FestivalAPIError`/`URLError` for HTTP and network failures.
     public func rivalDetail(
         accountId: String, instrument: Instrument, rivalId: String,
         sort: String = "closest", limit: Int = 0, offset: Int = 0
@@ -249,7 +251,8 @@ extension FestivalAPI {
     ///   - limit: Rows requested; `0` means "all".
     ///   - offset: Zero-based row offset.
     /// - Returns: Compared songs, or an empty detail result if none are precomputed yet.
-    /// - Throws: `RivalsAPIError` for network, HTTP or decoding failures.
+    /// - Throws: `RivalsAPIError` for invalid arguments or decoding; shared
+    ///   `FestivalAPIError`/`URLError` for HTTP and network failures.
     public func rivalComboDetail(
         accountId: String, token: String, rivalId: String,
         sort: String = "closest", limit: Int = 0, offset: Int = 0
@@ -271,7 +274,8 @@ extension FestivalAPI {
     ///   - instrument: Solo chart scope.
     ///   - rankBy: Ranking metric.
     /// - Returns: Neighbors on the instrument's global leaderboard.
-    /// - Throws: `RivalsAPIError` for network, HTTP or decoding failures.
+    /// - Throws: `RivalsAPIError` for invalid arguments or decoding; shared
+    ///   `FestivalAPIError`/`URLError` for HTTP and network failures.
     public func leaderboardRivals(
         accountId: String, instrument: Instrument, rankBy: RivalRankMetric = .totalscore
     ) async throws -> LeaderboardRivalsListResponse {
@@ -291,7 +295,8 @@ extension FestivalAPI {
     ///   - rankBy: Ranking metric.
     ///   - sort: `closest`, `they_lead` or `you_lead`.
     /// - Returns: Compared songs for this instrument.
-    /// - Throws: `RivalsAPIError` for network, HTTP or decoding failures.
+    /// - Throws: `RivalsAPIError` for invalid arguments or decoding; shared
+    ///   `FestivalAPIError`/`URLError` for HTTP and network failures.
     public func leaderboardRivalDetail(
         accountId: String, instrument: Instrument, rivalId: String,
         rankBy: RivalRankMetric = .totalscore, sort: String = "closest"

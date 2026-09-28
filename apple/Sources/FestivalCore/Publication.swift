@@ -47,6 +47,14 @@ public enum FestivalAPIError: LocalizedError, Equatable, Sendable {
     case httpStatus(Int)
     case unexpectedNotModified
     case unavailable(retryAfter: String?)
+    /// HTTP 503 while the service's public reads are frozen, carrying the
+    /// `X-FST-Public-Read-Freeze-Reason` value (for example `scrape`).
+    case publicReadFrozen(reason: String, retryAfter: String?)
+    /// HTTP 202 from an endpoint that does not return a syncing envelope.
+    case syncing
+    /// A request was not a plain GET or carried a privileged or selected-profile
+    /// header, so the shared request gate refused to send it.
+    case forbiddenRequestHeader
 
     /// Explain service failures without exposing Swift enum names or server text.
     ///
@@ -96,11 +104,19 @@ public enum FestivalAPIError: LocalizedError, Equatable, Sendable {
         case .unexpectedNotModified:
             "The service returned an incomplete update. Try again."
         case let .unavailable(retryAfter):
-            if let retryAfter, let seconds = Int(retryAfter), (1...86_400).contains(seconds) {
+            if let seconds = ServiceIssue.retryAfterSeconds(retryAfter) {
                 "The service is temporarily unavailable. Try again in \(seconds) seconds."
             } else {
                 "The service is temporarily unavailable. Try again."
             }
+        case let .publicReadFrozen(reason, _):
+            ServiceFreezeReason.isScoreUpdate(reason)
+                ? "Scores are updating. Try again shortly."
+                : "The service is temporarily unavailable. Try again."
+        case .syncing:
+            "This data is still syncing. Try again shortly."
+        case .forbiddenRequestHeader:
+            "The app blocked an unsafe request."
         }
     }
 }

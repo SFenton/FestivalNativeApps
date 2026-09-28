@@ -195,6 +195,16 @@ public enum PublicEndpoint: Sendable {
         return resolved
     }
 
+    /// Whether HTTP 202 is a documented syncing envelope rather than an error.
+    ///
+    /// - Returns: True for a player profile or score history still being synced.
+    var acceptsSyncing: Bool {
+        switch self {
+        case .player, .playerHistory: true
+        default: false
+        }
+    }
+
     /// Keep personal profile bytes out of the raw multi-resource cache.
     ///
     /// - Returns: False for account profiles, including HTTP 202 syncing envelopes,
@@ -387,7 +397,7 @@ public struct PublicPayload: Sendable {
 /// Publication-aware, read-only API client for distributable native apps.
 public actor FestivalAPI {
     let baseURL: URL
-    private let transport: any HTTPTransport
+    let transport: any HTTPTransport
     private let cache: SessionResponseCache
     private let fixtureScenario: FixtureScenario?
     private var current: Publication?
@@ -430,15 +440,11 @@ public actor FestivalAPI {
         if !force, let current {
             return current
         }
-        let request = URLRequest(
-            url: baseURL.appendingPathComponent("api").appendingPathComponent("publication"),
-            cachePolicy: .reloadIgnoringLocalCacheData
-        )
-        let response = try await transport.send(request)
-        guard response.status == 200 else {
-            if response.status == 503 {
-                throw FestivalAPIError.unavailable(retryAfter: response.header("Retry-After"))
-            }
+        let response = try await send(Self.makeRequest(
+            baseURL.appendingPathComponent("api").appendingPathComponent("publication")
+        ))
+        guard try Self.mapStatus(response, acceptsSyncing: false) == .success,
+              response.status == 200 else {
             throw FestivalAPIError.httpStatus(response.status)
         }
         let new = try JSONDecoder().decode(Publication.self, from: response.data)
@@ -464,17 +470,7 @@ public actor FestivalAPI {
     /// - Returns: Wire bytes never treated as an offline snapshot.
     /// - Throws: Network or HTTP errors, including Retry-After on a service 503.
     public func readOperational(_ endpoint: OperationalEndpoint) async throws -> Data {
-        let request = URLRequest(
-            url: try endpoint.url(relativeTo: baseURL), cachePolicy: .reloadIgnoringLocalCacheData
-        )
-        let response = try await transport.send(request)
-        guard (200...299).contains(response.status) else {
-            if response.status == 503 {
-                throw FestivalAPIError.unavailable(retryAfter: response.header("Retry-After"))
-            }
-            throw FestivalAPIError.httpStatus(response.status)
-        }
-        return response.data
+        try await fetch(endpoint, acceptsSyncing: true).value
     }
 
     /// Fetch a public resource, retrying one publication conflict and safe ETags.
@@ -576,10 +572,9 @@ public actor FestivalAPI {
         }
         var response: HTTPResult
         do {
-            response = try await transport.send(
+            response = try await send(
                 request(for: url, publication: publication, etag: cached?.etag)
             )
-            try Task.checkCancellation()
         } catch let error as URLError {
             try Task.checkCancellation()
             if error.canUseOfflineCache,
@@ -621,10 +616,9 @@ public actor FestivalAPI {
                     for: identifier, publicationId: publication.publicationId
                 )
             }
-            response = try await transport.send(
+            response = try await send(
                 request(for: url, publication: publication, etag: cached?.etag)
             )
-            try Task.checkCancellation()
             guard current?.publicationId == publication.publicationId else {
                 throw FestivalAPIError.invalidPublication
             }
@@ -641,21 +635,15 @@ public actor FestivalAPI {
                     observedPublicationId: publication.publicationId, isStale: false
                 )
             }
-            response = try await transport.send(
+            response = try await send(
                 request(for: url, publication: publication, etag: nil)
             )
-            try Task.checkCancellation()
             if response.status == 304 {
                 throw FestivalAPIError.unexpectedNotModified
             }
         }
 
-        guard (200...299).contains(response.status) else {
-            if response.status == 503 {
-                throw FestivalAPIError.unavailable(retryAfter: response.header("Retry-After"))
-            }
-            throw FestivalAPIError.httpStatus(response.status)
-        }
+        let status = try Self.mapStatus(response, acceptsSyncing: endpoint.acceptsSyncing)
         switch endpoint {
         case .player where response.data.count > PlayerProfileResponse.wireByteLimit:
             throw FestivalAPIError.invalidPlayerProfile
@@ -681,13 +669,7 @@ public actor FestivalAPI {
         guard current?.publicationId == publication.publicationId else {
             throw FestivalAPIError.invalidPublication
         }
-        if response.status == 202 {
-            switch endpoint {
-            case .player, .playerHistory:
-                break
-            default:
-                throw FestivalAPIError.invalidResponse
-            }
+        if status == .syncing {
             try Task.checkCancellation()
             return PublicPayload(
                 data: response.data, publicationId: responseId,
@@ -737,8 +719,7 @@ public actor FestivalAPI {
     ///   - etag: Optional entity tag for a matching cached generation.
     /// - Returns: Configured HTTP GET request.
     private func request(for url: URL, publication: Publication, etag: String?) -> URLRequest {
-        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
-        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        var request = Self.makeRequest(url)
         if publication.readyForPinning && publication.pinningEnabled {
             request.setValue(
                 String(publication.publicationId), forHTTPHeaderField: "X-FST-Publication-Id"

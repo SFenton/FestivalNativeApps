@@ -2,14 +2,12 @@ import Foundation
 
 // MARK: - Errors
 
-/// Read-only failures for the Rivals and Compete domain, kept separate from
-/// `FestivalAPIError` because Rivals reads bypass the publication-pinned
-/// `FestivalAPI.read(_:)` pipeline (see `FestivalAPI+Rivals.swift`).
+/// Rivals-specific validation failures. HTTP and network failures use the
+/// shared `FestivalAPIError` vocabulary from the unified request helper
+/// (`FestivalAPI+Request.swift`); convert either with `ServiceIssue(_:)`.
 public enum RivalsAPIError: LocalizedError, Equatable, Sendable {
     case invalidResource
     case invalidResponse
-    case httpStatus(Int)
-    case unavailable(retryAfter: String?)
 
     /// Explain a Rivals failure without exposing raw server text.
     public var errorDescription: String? {
@@ -18,12 +16,6 @@ public enum RivalsAPIError: LocalizedError, Equatable, Sendable {
             "That rival comparison is unavailable."
         case .invalidResponse:
             "The service returned data we could not read. Try again."
-        case let .httpStatus(status) where status == 429:
-            "Too many requests. Try again shortly."
-        case .httpStatus:
-            "The service returned an unexpected error. Try again."
-        case .unavailable:
-            "Rivals data is temporarily unavailable. Try again shortly."
         }
     }
 }

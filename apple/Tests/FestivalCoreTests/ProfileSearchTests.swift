@@ -67,7 +67,8 @@ private actor HeldAccountSearchAbort: HTTPTransport {
     ] {
         #expect(request.value(forHTTPHeaderField: forbidden) == nil)
     }
-    #expect(request.allHTTPHeaderFields?.isEmpty ?? true)
+    // The shared request helper adds only its no-cache directive.
+    #expect(Array((request.allHTTPHeaderFields ?? [:]).keys) == ["Cache-Control"])
     #expect(request.value(forHTTPHeaderField: "X-FST-Publication-Id") == nil)
 }
 
