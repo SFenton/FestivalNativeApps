@@ -26,6 +26,8 @@ Selectors used by every ``click``/``waitfor``/``scrollto`` step:
     ``[data-testid="<id>"]``.
 ``x,y``
     CSS-pixel viewport coordinates.
+``pct=<x>,<y>``
+    Percent of the viewport (e.g. ``pct=92,50`` taps a drawer scrim at any size).
 """
 
 from __future__ import annotations
@@ -399,6 +401,11 @@ class PageDriver:
         if "," in selector and "=" not in selector:
             x, y = (float(v) for v in selector.split(","))
             return {"x": x, "y": y, "w": 0, "h": 0, "tag": "", "text": ""}
+        if selector.startswith("pct="):
+            px, py = (float(v) for v in selector[4:].split(","))
+            width, height = self.eval("[innerWidth, innerHeight]")
+            return {"x": width * px / 100, "y": height * py / 100, "w": 0, "h": 0,
+                    "tag": "", "text": ""}
         return self.eval(f"({RESOLVE_JS})({json.dumps(selector)}, {json.dumps(scroll)})")
 
     def waitfor(self, selector: str, timeout: float = 10.0, scroll: bool = False) -> dict:
@@ -785,11 +792,13 @@ def probe_size(clip: Path) -> tuple[int, int, float]:
     return int(size.group(1)), int(size.group(2)), seconds
 
 
-def finalize_clip(raw: Path, out: Path, max_bytes: int = 2_000_000) -> dict:
+def finalize_clip(raw: Path, out: Path, max_bytes: int = 2_000_000,
+                  crop: tuple[int, int, int, int] | None = None, start: float = 0.0) -> dict:
     """Re-encode a capture to a small 540p H.264 MP4 under ``max_bytes``.
 
     The bitrate is derived from the clip duration, then lowered and the clip
-    re-encoded if it still overshoots.
+    re-encoded if it still overshoots. ``crop`` is ``(x, y, w, h)`` in raw pixels;
+    ``start`` trims that many seconds from the beginning.
 
     Returns:
         ``{out, width, height, seconds, bytes}``.
@@ -797,19 +806,25 @@ def finalize_clip(raw: Path, out: Path, max_bytes: int = 2_000_000) -> dict:
     import subprocess
 
     width, height, seconds = probe_size(raw)
+    pre = ""
+    if crop:
+        cx, cy, cw, ch = crop
+        cw, ch = even(min(cw, width - cx)), even(min(ch, height - cy))
+        pre, width, height = f"crop={cw}:{ch}:{cx}:{cy},", cw, ch
     w, h = scale_540(width, height)
     budget_kbps = max(150, int(max_bytes * 8 / 1000 / max(seconds, 1) * 0.85))
     out.parent.mkdir(parents=True, exist_ok=True)
     for attempt in range(4):
         kbps = int(min(budget_kbps, 1400) * (0.7 ** attempt))
-        cmd = [ffmpeg_path(), "-hide_banner", "-loglevel", "error", "-y", "-i", str(raw),
-               "-vf", f"scale={w}:{h}:flags=lanczos,fps=30", "-c:v", "libx264", "-preset", "slow",
+        cmd = [ffmpeg_path(), "-hide_banner", "-loglevel", "error", "-y",
+               *(["-ss", f"{start:.2f}"] if start > 0 else []), "-i", str(raw),
+               "-vf", f"{pre}scale={w}:{h}:flags=lanczos,fps=30", "-c:v", "libx264", "-preset", "slow",
                "-crf", "26", "-maxrate", f"{kbps}k", "-bufsize", f"{kbps * 2}k",
                "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-an", str(out)]
         subprocess.run(cmd, check=True, timeout=600)
         if out.stat().st_size <= max_bytes:
             break
-    return {"out": str(out), "width": w, "height": h, "seconds": round(seconds, 2),
+    return {"out": str(out), "width": w, "height": h, "seconds": round(seconds - start, 2),
             "bytes": out.stat().st_size}
 
 

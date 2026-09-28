@@ -82,13 +82,15 @@ FIRST_RUN_STEPS = [
     "tap:text=No thanks", "wait:3",
 ]
 
-#: Chrome menu install, then the launcher's pin confirmation.
-INSTALL_STEPS = [
-    "tap:id=com.android.chrome:id/menu_button", "wait:2",
-    "tap:text=Add to Home screen", "wait:3",
-    "tap:text=Install", "wait:10",
-    "tap:text=Add to home screen", "wait:3",
-]
+#: Install: the toolbar *Install* button (wide layouts: foldables, tablet) or
+#: ⋮ → *Add to Home screen* (phone), then Chrome's dialog and the launcher's
+#: pin confirmation. ``id/menu_button``'s description changes when Chrome is
+#: stale ("Update available…"), so it is matched by id.
+TOOLBAR_INSTALL = "id=com.android.chrome:id/install_button"
+CONFIRM_INSTALL_STEPS = ["tap:text=Install", "wait:10", "tap:text=Add to home screen", "wait:3"]
+
+#: Chrome Settings row whose switch controls usage/crash reporting.
+USAGE_ROW = "Help improve Chrome"
 
 #: Platform-specific drive verbs (on top of :data:`cdp.WEB_VERBS`).
 PLATFORM_VERBS = {"shot": "path", "back": "none", "home": "none", "posture": "text",
@@ -107,6 +109,27 @@ def manage_link_point(bounds: str) -> tuple[int, int]:
     """
     left, top, right, bottom = dv.parse_bounds(bounds)
     return right - 65, bottom - 25
+
+
+def row_switch(xml_text: str, row_text: str) -> tuple[bool, tuple[int, int]] | None:
+    """Find the switch on the same row as ``row_text`` in a Settings dump.
+
+    Returns:
+        ``(checked, centre)`` of the ``switchWidget`` whose vertical span
+        overlaps the row's text, or ``None``.
+    """
+    row = re.search(r'<node [^>]*text="' + re.escape(row_text) + r'[^"]*"[^>]*bounds="([^"]+)"',
+                    xml_text)
+    if not row:
+        return None
+    _, top, _, bottom = dv.parse_bounds(row.group(1))
+    for node in re.finditer(r'<node [^>]*resource-id="[^"]*switchWidget"[^>]*>', xml_text):
+        checked = re.search(r'checked="(\w+)"', node.group(0)).group(1) == "true"
+        left, s_top, right, s_bottom = dv.parse_bounds(
+            re.search(r'bounds="([^"]+)"', node.group(0)).group(1))
+        if s_top < bottom and s_bottom > top:
+            return checked, ((left + right) // 2, (s_top + s_bottom) // 2)
+    return None
 
 
 def parse_top_activity(dumpsys: str) -> str:
@@ -133,6 +156,9 @@ class AndroidLab:
         self.device = dv.boot_exclusive(lock, avd, gpu="swiftshader_indirect", animations=True)
         for key in ANIMATION_KEYS:
             self.device.shell(f"settings put global {key} 1", check=False)
+        # The screen sleeps between holds when the AVD stays booted.
+        self.device.shell("input keyevent KEYCODE_WAKEUP", check=False)
+        self.device.shell("wm dismiss-keyguard", check=False)
         self.cdp: cdp.Cdp | None = None
         self.page: cdp.PageDriver | None = None
 
@@ -168,6 +194,52 @@ class AndroidLab:
             return True
         except dv.DeviceError:
             return False
+
+    def tap_menu_item(self, text: str, pages: int = 3) -> bool:
+        """Tap an item of Chrome's open ⋮ menu, scrolling the menu when it is taller
+        than the screen (short folded/cover displays)."""
+        for _ in range(pages):
+            if self.try_step(f"tap:text={text}"):
+                return True
+            match = re.search(r'app_menu_list"[^>]*bounds="([^"]+)"', self.tree())
+            if not match:
+                return False
+            left, top, right, bottom = dv.parse_bounds(match.group(1))
+            x = (left + right) // 2
+            self.device.shell(f"input swipe {x} {bottom - 100} {x} {top + 100} 400")
+            time.sleep(1)
+        return False
+
+    def usage_reporting_off(self) -> str:
+        """Ensure Chrome's usage/crash reporting is off (Settings → *Help improve Chrome*).
+
+        The first-run *Manage* link only sits where :func:`manage_link_point`
+        expects on phone-width layouts, so every setup re-checks the setting.
+
+        Returns:
+            ``"off"`` (already), ``"turned off"``, or ``"unknown"``.
+        """
+        self.device.shell(f"am start -n {CHROME}/com.google.android.apps.chrome.Main", check=False)
+        time.sleep(3)
+        if not self.try_step("tap:id=com.android.chrome:id/menu_button"):
+            return "unknown"
+        time.sleep(2)
+        if not self.tap_menu_item("Settings"):
+            return "unknown"
+        time.sleep(3)
+        found = row_switch(self.tree(), USAGE_ROW)
+        if found is None:
+            return "unknown"
+        checked, (x, y) = found
+        result = "off"
+        if checked:
+            self.device.shell(f"input tap {x} {y}")
+            time.sleep(1)
+            again = row_switch(self.tree(), USAGE_ROW)
+            result = "turned off" if again and not again[0] else "unknown"
+        self.device.shell("input keyevent KEYCODE_BACK")
+        self.device.shell("input keyevent KEYCODE_HOME")
+        return result
 
     def top_activity(self) -> str:
         return parse_top_activity(self.device.shell("dumpsys activity activities", check=False))
@@ -295,27 +367,42 @@ def cmd_setup(args: argparse.Namespace) -> int:
         lab = AndroidLab(lock, args.avd)
         try:
             if lab.installed() and not args.force:
-                print(json.dumps({"avd": args.avd, "installed": True, "skipped": True}))
+                usage = lab.usage_reporting_off()
+                print(json.dumps({"avd": args.avd, "installed": True, "skipped": True,
+                                  "usage_reporting": usage}))
                 return 0
             lab.device.shell(f"am start -a android.intent.action.VIEW -d {SITE} {CHROME}")
             time.sleep(8)
             answered = [s for s in FIRST_RUN_STEPS if lab.try_step(s)]
             time.sleep(4)
-            installed = [s for s in INSTALL_STEPS if lab.try_step(s)]
+            lab.device.shell(f"am start -a android.intent.action.VIEW -d {SITE} {CHROME}")
+            time.sleep(5)
+            # The toolbar button appears once Chrome has checked the manifest (slow on
+            # swiftshader); the phone layout never shows it.
+            wide = lab.device.screen_size()[0] >= 1400
+            if lab.try_step(f"tap:{TOOLBAR_INSTALL}@{20 if wide else 3}"):
+                installed = ["toolbar install"]
+                time.sleep(3)
+            else:
+                installed = ["menu"] if (lab.try_step("tap:id=com.android.chrome:id/menu_button")
+                                         and lab.tap_menu_item("Add to Home screen")) else []
+                time.sleep(3)
+            installed += [s for s in CONFIRM_INSTALL_STEPS if lab.try_step(s)]
+            usage = lab.usage_reporting_off()
             ok = lab.installed()
             print(json.dumps({"avd": args.avd, "first_run": answered, "install": installed,
-                              "installed": ok}, indent=2))
+                              "usage_reporting": usage, "installed": ok}))
             return 0 if ok else 3
         finally:
             lab.close()
 
 
 def open_app(lab: AndroidLab, reset_storage: bool, route: str | None,
-             posture: str | None) -> dict:
+             posture: str | None, cold: bool = False) -> dict:
     """Pose the device, open the app from its icon and attach CDP."""
     if posture:
         dv.apply_pose(lab.device, lab.avd, posture)
-    if reset_storage:
+    if reset_storage or cold:
         # Cold start: background Chrome, then kill its process (``am kill`` rather
         # than force-stop, which leaves the package "stopped").
         lab.device.shell("input keyevent KEYCODE_HOME")
@@ -337,8 +424,10 @@ def cmd_launch(args: argparse.Namespace) -> int:
     with _lock(args, "launch") as lock:
         lab = AndroidLab(lock, args.avd)
         try:
+            if args.cold or args.reset_storage:
+                lab.device.shell("input keyevent KEYCODE_HOME")
             recorder = ScreenRecorder(lab, Path(args.record)) if args.record else None
-            result = open_app(lab, args.reset_storage, args.route, args.posture)
+            result = open_app(lab, args.reset_storage, args.route, args.posture, args.cold)
             time.sleep(args.wait)
             result["page"] = lab.page.paint_timing()
             if recorder:
@@ -470,6 +559,8 @@ def build_parser() -> argparse.ArgumentParser:
         p.set_defaults(func=func)
         if name == "launch":
             p.add_argument("--shot")
+            p.add_argument("--cold", action="store_true",
+                           help="kill Chrome first (cold start) but keep web storage")
         else:
             p.add_argument("--steps")
             p.add_argument("--steps-file")

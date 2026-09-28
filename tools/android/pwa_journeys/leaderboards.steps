@@ -8,7 +8,7 @@ scroll:-600
 ?click:contains=View all rankings@3
 wait:2.5
 shot:{out}/full-rankings-enter.png
-?click:aria=Next page@3
+?click:aria=Next@3
 wait:2
 shot:{out}/full-rankings-page2.png
 back

@@ -11,6 +11,16 @@ class AndroidPwaTests(unittest.TestCase):
     def test_manage_link_point(self):
         self.assertEqual(pwa.manage_link_point("[63,2207][1017,2298]"), (952, 2273))
 
+    def test_row_switch_matches_overlapping_row(self):
+        xml = ('<node text="Allow Chrome sign-in" bounds="[1050,392][1935,456]" />'
+               '<node resource-id="com.android.chrome:id/switchWidget" checked="true" '
+               'bounds="[1980,389][2089,515]" />'
+               '<node text="Help improve Chrome’s features" bounds="[1050,602][1935,719]" />'
+               '<node resource-id="com.android.chrome:id/switchWidget" checked="true" '
+               'bounds="[1980,649][2089,775]" />')
+        self.assertEqual(pwa.row_switch(xml, "Help improve Chrome"), (True, (2034, 712)))
+        self.assertIsNone(pwa.row_switch(xml, "Missing row"))
+
     def test_top_activity(self):
         dump = ("  topResumedActivity=ActivityRecord{92628745 u0 "
                 "com.android.chrome/org.chromium.chrome.browser.webapps.WebappActivity t23}\n")

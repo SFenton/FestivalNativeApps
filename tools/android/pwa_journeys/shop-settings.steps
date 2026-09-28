@@ -1,4 +1,4 @@
-# Shop scroll and Settings toggle (local-only preference), then restore it.
+# Shop scroll and Settings scroll (no preference is changed).
 route:/shop
 wait:3
 anims:start
@@ -7,11 +7,6 @@ wait:1.5
 shot:{out}/shop-scrolled.png
 route:/settings
 wait:2.5
-?click:css=[role=switch]@2
-wait:1
-shot:{out}/settings-toggled.png
-?click:css=[role=switch]@2
-wait:1
 scroll:1500
 wait:1.2
 shot:{out}/settings-scrolled.png

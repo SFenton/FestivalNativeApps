@@ -452,15 +452,15 @@ class Recorder:
         time.sleep(0.6)
         self.started = time.monotonic()
 
-    def stop(self) -> dict:
-        """Stop recording and write the small 540p clip next to the raw capture."""
+    def stop(self, crop: tuple[int, int, int, int] | None = None, start: float = 0.0) -> dict:
+        """Stop recording and write the small 540p clip (optionally cropped, raw px)."""
         try:
             self.proc.communicate(b"q", timeout=30)
         except subprocess.TimeoutExpired:
             self.proc.kill()
         if self.hwnd:
             foreground(self.hwnd, topmost=False)
-        return cdp.finalize_clip(self.raw, self.out)
+        return cdp.finalize_clip(self.raw, self.out, crop=crop, start=start)
 
 # endregion
 
@@ -576,23 +576,36 @@ def cmd_launch(args: argparse.Namespace) -> int:
     """Open the installed app window (optionally at a route), resize and screenshot."""
     lab = Lab()
     with _lock(args, "launch") as lock:
-        recorder = None
-        if args.record and args.fresh and lab.state.get("rect"):
-            # The app window reopens at its last bounds: record that region from
-            # before launch so the splash and first paint are in the clip.
-            recorder = Recorder(lab, Path(args.record), args.fps, lock, tuple(lab.state["rect"]))
+        recorder, launch_video = None, None
+        if args.record and args.fresh:
+            # Record the whole lab monitor from before the window exists, then crop
+            # the clip to wherever Edge opens the window (splash + first paint).
+            monitor = lab_monitor(monitors())
             launch_app_close(lab)
+            recorder = Recorder(lab, Path(args.record), args.fps, lock, monitor["work_px"])
         started = time.monotonic()
         target = launch_app(lab, args.fresh and not recorder)
         opened = round(time.monotonic() - started, 2)
         hwnd = lab.hwnd()
+        found = time.monotonic()
         page = cdp.PageDriver(lab.cdp, target)
+        if recorder:
+            left, top, right, bottom = window_rect(hwnd)
+            mleft, mtop = monitor["work_px"][:2]
+            time.sleep(args.wait)
+            # Trim to ~0.2 s before the window was found so the desktop underneath
+            # is not kept. ffmpeg's first frame lands ~0.3 s after Popen, and the
+            # Recorder returns 0.6 s after Popen.
+            launch_video = recorder.stop(crop=(max(0, left - mleft), max(0, top - mtop),
+                                               right - left, bottom - top),
+                                         start=max(0.0, found - recorder.started + 0.3 - 0.2))
+            recorder = None
         if args.reset_storage:
             page.eval("localStorage.clear(); sessionStorage.clear(); true")
             page.navigate(SITE)
         if args.preset:
             lab.resize(args.preset)
-        if args.record and not recorder:
+        if args.record and not launch_video:
             recorder = Recorder(lab, Path(args.record), args.fps, lock)
         if args.route:
             page.navigate(SITE + "#" + args.route)
@@ -606,6 +619,8 @@ def cmd_launch(args: argparse.Namespace) -> int:
         if recorder:
             time.sleep(args.wait)
             result["video"] = recorder.stop()
+        if launch_video:
+            result["video"] = launch_video
         if args.shot:
             result["shot"] = lab.shot(Path(args.shot), page)
     print(json.dumps(result, indent=2))
@@ -678,11 +693,17 @@ def run_step(lab: Lab, page: cdp.PageDriver, verb: str, arg: str, lock: HostLock
         page.key("alt+left")
     elif verb == "record":
         if arg.startswith("start"):
-            entry["_recorder"] = Recorder(lab, Path(arg.partition(":")[2]), fps, lock)
+            # ``start-monitor:`` grabs the whole lab monitor (for resize journeys,
+            # where the window outgrows its starting rectangle).
+            rect = lab_monitor(monitors())["work_px"] if arg.startswith("start-monitor") else None
+            entry["_recorder"] = Recorder(lab, Path(arg.partition(":")[2]), fps, lock, rect)
+            if rect:
+                foreground(lab.hwnd(), topmost=True)
             entry["t"] = 0.0
         elif recorder:
             entry["video"] = recorder.stop()
             entry["_recorder"] = None
+            foreground(lab.hwnd(), topmost=False)
     log.append(entry)
 
 
@@ -693,8 +714,9 @@ def parse_drive_steps(text: str | None, path: str | None,
     for step in cdp.expand_placeholders(cdp.split_steps(text, path), values or {}):
         verb, arg = cdp.parse_step(step, PLATFORM_VERBS)
         optional = cdp.is_optional(step)
-        if verb == "record" and not (arg == "stop" or arg.startswith("start:")):
-            raise ValueError("record: use start:<out.mp4> or stop")
+        if verb == "record" and not (arg == "stop" or arg.startswith(("start:",
+                                                                         "start-monitor:"))):
+            raise ValueError("record: use start:<out.mp4>, start-monitor:<out.mp4> or stop")
         if verb == "resize":
             preset_bounds(arg, (0, 0, 10_000, 10_000))
         steps.append((verb, arg, optional))

@@ -1,6 +1,7 @@
 # Song Detail: enter from the list, scroll (header/art), paths, full leaderboard, pagination, back.
 # Leaderboard rows link to player pages (GET /stats is blocked): never tap rows.
 route:/songs
+?click:aria=Clear Search@1   # a leftover songs filter persists across journeys
 wait:2.5
 anims:start
 click:css=a[href*="songs/"]
@@ -14,12 +15,14 @@ wait:1
 ?click:text=View Paths@2
 ?wait:2
 ?shot:{out}/song-detail-paths.png
+?key:escape   # the first Escape is swallowed by the Paths modal; the second closes it
+?wait:0.8
 ?key:escape
 wait:1
 ?click:contains=View full leaderboard@3
 wait:2.5
 shot:{out}/song-leaderboard-enter.png
-?click:aria=Next page@3
+?click:aria=Next@3
 wait:2
 shot:{out}/song-leaderboard-page2.png
 back

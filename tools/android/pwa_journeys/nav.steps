@@ -1,6 +1,7 @@
 # Shell navigation: bottom tabs, drawer, route transitions. Record with --record.
 ?click:text=Dismiss@1
 route:/songs
+?click:aria=Clear Search@1   # a leftover songs filter persists across journeys
 wait:2
 anims:start
 click:testid=bottom-nav-leaderboards
@@ -13,7 +14,10 @@ wait:2.5
 click:aria=Open navigation
 wait:1.5
 shot:{out}/nav-drawer.png
-key:escape
+key:escape   # the web drawer ignores Escape (no key handler in Sidebar.tsx)
+wait:1
+shot:{out}/nav-drawer-after-escape.png
+click:pct=92,50   # scrim tap closes it
 wait:1.5
 ?click:aria=Open navigation
 ?wait:1.2

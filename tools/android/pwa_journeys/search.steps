@@ -1,5 +1,6 @@
 # Global search and profile sheet: open/close only. Typing would query /api/bands/search (blocked).
 route:/songs
+?click:aria=Clear Search@1   # a leftover songs filter persists across journeys
 wait:2.5
 anims:start
 click:testid=mobile-header-search
