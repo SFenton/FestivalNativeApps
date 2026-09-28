@@ -117,7 +117,7 @@ struct QuickLinksContainerModifier: ViewModifier {
                 .sensoryFeedback(.selection, trigger: controller.jumpSerial)
                 .accessibilityRotor(Text(controller.title)) {
                     ForEach(controller.sections) { section in
-                        AccessibilityRotorEntry(Text(section.title), id: section.id, in: rotorNamespace)
+                        AccessibilityRotorEntry(Text(section.accessibilityTitle), id: section.id, in: rotorNamespace)
                     }
                 }
         }

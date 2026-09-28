@@ -17,6 +17,9 @@ public enum PublicEndpoint: Sendable {
     /// yet (see `PlayerInstrumentRanking.swift`); never the player-stats GET itself,
     /// which can compute and store missing tiers.
     case playerInstrumentRanking(instrument: String, accountId: String)
+    /// Daily Total Score/skill rank snapshots for one account on one instrument
+    /// (`PlayerRankHistory.swift`); a pure `SELECT`, unlike player-stats.
+    case playerRankHistory(instrument: String, accountId: String, days: Int)
     case bandRankings(bandType: String, rankBy: String, page: Int, pageSize: Int)
     case playerBands(accountId: String, group: String, page: Int, pageSize: Int)
     case playerBandsByType(accountId: String, bandType: String, combo: String?)
@@ -104,6 +107,13 @@ public enum PublicEndpoint: Sendable {
                 throw FestivalAPIError.invalidResource
             }
             segments = ["api", "rankings", instrument, accountId]
+        case let .playerRankHistory(instrument, accountId, days):
+            guard !instrument.isEmpty, !instrument.contains("/"),
+                  ProfileSearchText.isValidAccountId(accountId), (1...365).contains(days) else {
+                throw FestivalAPIError.invalidResource
+            }
+            segments = ["api", "rankings", instrument, accountId, "history"]
+            query = [URLQueryItem(name: "days", value: String(days))]
         case let .bandRankings(bandType, rankBy, page, pageSize):
             guard !bandType.isEmpty, !bandType.contains("/"),
                   !rankBy.isEmpty, !rankBy.contains("/"),
@@ -224,7 +234,7 @@ public enum PublicEndpoint: Sendable {
     var allowsSnapshotCache: Bool {
         switch self {
         case .player, .playerHistory, .playerNotifications, .playerBands, .playerBandsByType,
-             .playerInstrumentRanking:
+             .playerInstrumentRanking, .playerRankHistory:
             false
         default: true
         }

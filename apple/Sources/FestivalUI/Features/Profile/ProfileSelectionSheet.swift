@@ -274,7 +274,7 @@ struct ProfileSelectionSheet: View {
             case .loading:
                 HStack {
                     Spacer(minLength: 0)
-                    ProgressView("Searching Players")
+                    FestivalLoadingView(accessibilityLabel: "Searching Players")
                         .accessibilityIdentifier("fst.profile.search-loading")
                     Spacer(minLength: 0)
                 }

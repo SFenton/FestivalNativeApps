@@ -25,19 +25,30 @@ public struct QuickLinkSection: Identifiable, Hashable, Sendable {
     public let icon: QuickLinkIcon?
     /// Indentation level; 0 for top-level sections (web `depth`).
     public let depth: Int
+    /// Spoken name when the short visible `title` relies on its indented parent for
+    /// context (e.g. "Rank History" under "Lead" is spoken "Lead Rank History").
+    public let spokenTitle: String?
+
+    /// VoiceOver name for menu rows and the rotor: `spokenTitle`, else `title`.
+    public var accessibilityTitle: String { spokenTitle ?? title }
 
     /// Create a quick link section.
     ///
     /// - Parameters:
     ///   - id: Stable anchor identifier, unique within the page.
-    ///   - title: Visible label, also used as the accessibility label.
+    ///   - title: Visible label, also the accessibility label unless `spokenTitle` is set.
     ///   - icon: Optional leading glyph.
     ///   - depth: Indentation level; negative values clamp to 0.
-    public init(id: String, title: String, icon: QuickLinkIcon? = nil, depth: Int = 0) {
+    ///   - spokenTitle: Fuller VoiceOver name for a short, context-dependent title.
+    public init(
+        id: String, title: String, icon: QuickLinkIcon? = nil, depth: Int = 0,
+        spokenTitle: String? = nil
+    ) {
         self.id = id
         self.title = title
         self.icon = icon
         self.depth = max(0, depth)
+        self.spokenTitle = spokenTitle
     }
 }
 

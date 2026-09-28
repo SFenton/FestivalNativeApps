@@ -52,7 +52,12 @@ class MockServiceTests(unittest.TestCase):
             "contracts/fixtures/path-demo.json",
             "contracts/fixtures/shop-demo.json",
             "contracts/fixtures/player-demo.json",
+            "contracts/fixtures/player-rank-history-demo.json",
             "contracts/fixtures/metadata-edge.json",
+            "contracts/fixtures/rivals-list-demo.json",
+            "contracts/fixtures/leaderboard-rivals-demo.json",
+            "contracts/fixtures/rival-detail-demo.json",
+            "contracts/fixtures/leaderboard-rival-detail-demo.json",
         })
         for name, digest in identity["sourceHashes"].items():
             self.assertEqual(
@@ -72,6 +77,24 @@ class MockServiceTests(unittest.TestCase):
         self.assertEqual(error.exception.headers["X-FST-Publication-Id"], "7")
         with urlopen(self.base + "/api/songs?scenario=empty") as response:
             self.assertEqual(json.load(response)["count"], 0)
+
+    def test_player_rank_history_is_a_bounded_pure_read(self):
+        """Demo players get the committed 7-day series; others are unranked, not 404."""
+        route = "/api/rankings/Solo_Guitar/fixture-player-1/history?days=30"
+        with urlopen(self.base + route) as response:
+            body = json.load(response)
+        self.assertEqual(body["instrument"], "Solo_Guitar")
+        self.assertEqual(body["accountId"], "fixture-player-1")
+        self.assertEqual(len(body["history"]), 7)
+        with urlopen(self.base + "/api/rankings/Solo_Bass/fixture-empty/history") as response:
+            self.assertEqual(json.load(response)["history"], [])
+        for bad in (
+            "/api/rankings/Nope/fixture-player-1/history",
+            "/api/rankings/Solo_Guitar/fixture-player-1/history?unexpected=1",
+        ):
+            with self.subTest(route=bad), self.assertRaises(HTTPError) as failure:
+                urlopen(self.base + bad)
+            self.assertIn(failure.exception.code, {400, 404})
 
     def test_paged_leaderboard_and_original_artwork(self):
         """One page of 25 and one page of one share a 26-entry total."""

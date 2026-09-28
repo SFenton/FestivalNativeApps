@@ -44,6 +44,7 @@ DEMO_SONGS, DEMO_SONGS_HASH = load_fixture("songs-demo")
 PATH_DEMO, PATH_DEMO_HASH = load_fixture("path-demo")
 SHOP_DEMO, SHOP_DEMO_HASH = load_fixture("shop-demo")
 PLAYER_DEMO, PLAYER_DEMO_HASH = load_fixture("player-demo")
+PLAYER_RANK_HISTORY_DEMO, PLAYER_RANK_HISTORY_DEMO_HASH = load_fixture("player-rank-history-demo")
 METADATA_EDGE, METADATA_EDGE_HASH = load_fixture("metadata-edge")
 RIVALS_LIST_DEMO, RIVALS_LIST_DEMO_HASH = load_fixture("rivals-list-demo")
 LEADERBOARD_RIVALS_DEMO, LEADERBOARD_RIVALS_DEMO_HASH = load_fixture("leaderboard-rivals-demo")
@@ -98,6 +99,7 @@ SOURCE_HASHES = {
     "contracts/fixtures/path-demo.json": PATH_DEMO_HASH,
     "contracts/fixtures/shop-demo.json": SHOP_DEMO_HASH,
     "contracts/fixtures/player-demo.json": PLAYER_DEMO_HASH,
+    "contracts/fixtures/player-rank-history-demo.json": PLAYER_RANK_HISTORY_DEMO_HASH,
     "contracts/fixtures/metadata-edge.json": METADATA_EDGE_HASH,
     "contracts/fixtures/rivals-list-demo.json": RIVALS_LIST_DEMO_HASH,
     "contracts/fixtures/leaderboard-rivals-demo.json": LEADERBOARD_RIVALS_DEMO_HASH,
@@ -112,6 +114,7 @@ PLAYER = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)$")
 PLAYER_HISTORY = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)/history$")
 PLAYER_NOTIFICATIONS = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)/notifications$")
 RANKINGS = re.compile(r"^/api/rankings/([A-Za-z_]+)$")
+PLAYER_RANK_HISTORY = re.compile(r"^/api/rankings/([A-Za-z_]+)/(fixture-[a-z0-9-]+)/history$")
 BAND_RANKINGS = re.compile(r"^/api/rankings/bands/([A-Za-z_]+)$")
 PATH_ARTIFACT = re.compile(
     r"^/api/paths/(fixture-[a-z]+)/([A-Za-z_]+)/([a-z]+)(/data)?$"
@@ -858,6 +861,23 @@ class FixtureHandler(BaseHTTPRequestHandler):
             self._json(200, {
                 "bandType": band_type, "rankBy": rank_by, "page": page,
                 "pageSize": page_size, "totalTeams": total, "entries": entries,
+            })
+        elif match := PLAYER_RANK_HISTORY.fullmatch(path):
+            # Pure-read `GET /api/rankings/{instrument}/{accountId}/history`
+            # (`InstrumentDatabase.GetRankHistory`). The two player-demo accounts get
+            # the committed 7-day series on every instrument; any other fixture
+            # account is simply unranked (an empty `history`, never a 404).
+            instrument, account_id = match.group(1), match.group(2)
+            if instrument not in INSTRUMENTS:
+                self._json(404, {"error": f"Unknown instrument: {instrument}"})
+                return
+            if set(query) - {"days", "leeway"}:
+                self._json(400, {"status": "invalid_rank_history_query"})
+                return
+            ranked = account_id in {"fixture-player-1", "fixture-player-2"}
+            self._json(200, {
+                "instrument": instrument, "accountId": account_id,
+                "history": PLAYER_RANK_HISTORY_DEMO["history"] if ranked else [],
             })
         elif match := RANKINGS.fullmatch(path):
             instrument = match.group(1)

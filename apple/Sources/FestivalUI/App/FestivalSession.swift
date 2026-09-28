@@ -200,6 +200,22 @@ final class FestivalSession {
         return payload
     }
 
+    /// Read one account's daily global-rank history on one instrument.
+    ///
+    /// Pure keyless read (`FestivalAPI.playerRankHistory`), safe for any viewed
+    /// account; the rank-history chart's only data source.
+    ///
+    /// - Parameters:
+    ///   - instrument: Solo chart to read.
+    ///   - accountId: Validated public account key from the profile being shown.
+    /// - Returns: Validated snapshots for exactly this instrument and account.
+    /// - Throws: Client configuration, transport, status or wire-shape errors.
+    func playerRankHistory(
+        instrument: Instrument, accountId: String
+    ) async throws -> PlayerRankHistory {
+        try await client().playerRankHistory(instrument: instrument, accountId: accountId)
+    }
+
     /// Promote an explicitly viewed, response-proven player and its score index.
     ///
     /// - Parameters:

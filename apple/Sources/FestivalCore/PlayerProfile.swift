@@ -402,6 +402,52 @@ extension PlayerProfileResponse {
     }
 }
 
+// MARK: - Percentile distribution
+
+/// Songs whose leaderboard placement falls in one "Top N%" band, for the per-instrument
+/// percentile chart (the web's percentile table, `PlayerPercentileTable.tsx`).
+public struct PlayerPercentileBucket: Equatable, Sendable, Identifiable {
+    /// Upper bound of the band: the song placed within the top `topPercent`%.
+    public let topPercent: Int
+    /// Number of the player's songs in `(previous threshold, topPercent]`.
+    public let count: Int
+
+    public var id: Int { topPercent }
+}
+
+extension PlayerProfileResponse {
+    /// Band upper bounds, matching the web's `pctThresholds` (`playerStats.ts:69`).
+    public static let percentileThresholds = [
+        1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100,
+    ]
+
+    /// Distribution of one instrument's placements, computed like the web's
+    /// `computeInstrumentStats` (`pages/player/helpers/playerStats.ts:54-79`): each
+    /// score with a rank and a field size contributes `rank / totalEntries`, counted
+    /// in the first band whose upper bound it does not exceed. Empty bands are
+    /// omitted, as on the web.
+    ///
+    /// - Parameter instrument: Solo chart to summarize.
+    /// - Returns: Non-empty bands, best (smallest) first.
+    public func percentileBuckets(_ instrument: Instrument) -> [PlayerPercentileBucket] {
+        let fractions: [Double] = scores.compactMap { score in
+            guard score.instrument == instrument, let rank = score.rank, rank > 0,
+                  let entries = score.totalEntries, entries > 0 else { return nil }
+            return Double(rank) / Double(entries) * 100
+        }
+        var previous = 0
+        var buckets: [PlayerPercentileBucket] = []
+        for threshold in Self.percentileThresholds {
+            let lower = Double(previous)
+            let upper = Double(threshold)
+            let count = fractions.filter { $0 > lower && $0 <= upper }.count
+            if count > 0 { buckets.append(PlayerPercentileBucket(topPercent: threshold, count: count)) }
+            previous = threshold
+        }
+        return buckets
+    }
+}
+
 extension FestivalAPI {
     /// Fetch public compact scores without selected-profile or registration headers.
     ///

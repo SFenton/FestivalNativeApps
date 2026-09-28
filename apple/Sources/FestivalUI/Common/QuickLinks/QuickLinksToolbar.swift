@@ -107,7 +107,7 @@ struct QuickLinkLabel: View {
                 EmptyView()
             }
         }
-        .accessibilityLabel(section.title)
+        .accessibilityLabel(section.accessibilityTitle)
     }
 
     /// Menus cannot indent rows, so nested sections get a leading figure space per level.

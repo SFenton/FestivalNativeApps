@@ -154,7 +154,7 @@ struct PlayerProfileContent: View {
     @ViewBuilder private var content: some View {
         switch shownPhase {
         case .loading:
-            ProgressView("Loading Profile")
+            FestivalLoadingView(accessibilityLabel: "Loading Profile")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .accessibilityIdentifier("fst.player.loading")
         case .syncing:
@@ -174,6 +174,7 @@ struct PlayerProfileContent: View {
                     overallSection(payload)
                     ForEach(visibleInstruments) { instrument in
                         instrumentSection(payload, instrument: instrument)
+                        instrumentCharts(payload, instrument: instrument)
                     }
                     bandsLink
                 }
@@ -322,6 +323,25 @@ struct PlayerProfileContent: View {
         ))
     }
 
+    // MARK: Graphs
+
+    /// The instrument's rank-history and percentile graphs, as separate glass cards
+    /// after its stats card (`PlayerProfileCharts.swift`); none for an unplayed chart,
+    /// matching the web's empty-instrument block.
+    ///
+    /// - Parameters:
+    ///   - payload: Current validated profile read.
+    ///   - instrument: Settings-visible solo chart.
+    @ViewBuilder
+    private func instrumentCharts(_ payload: PlayerProfilePayload, instrument: Instrument) -> some View {
+        if payload.profile.instrumentStats(instrument).songsPlayed > 0 {
+            PlayerRankHistoryCard(session: session, accountId: accountId, instrument: instrument)
+            PlayerPercentileChartCard(
+                buckets: payload.profile.percentileBuckets(instrument), instrument: instrument
+            )
+        }
+    }
+
     // MARK: Bands
 
     private var bandsLink: some View {
@@ -423,14 +443,10 @@ private struct InstrumentGlobalRankView: View {
     @ViewBuilder private var content: some View {
         switch phase {
         case .loading:
-            HStack(spacing: 6) {
-                ProgressView().controlSize(.small)
-                Text("Loading Global Rank")
-                    .font(.caption)
-                    .foregroundStyle(BrandTokens.textSecondary)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("fst.player.global-rank.\(instrument.rawValue).loading")
+            FestivalLoadingView(accessibilityLabel: "Loading \(instrument.label) global rank")
+                .controlSize(.small)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("fst.player.global-rank.\(instrument.rawValue).loading")
         case .unranked:
             FestivalFootnote("Not yet ranked globally on \(instrument.label).")
                 .accessibilityIdentifier("fst.player.global-rank.\(instrument.rawValue).unranked")

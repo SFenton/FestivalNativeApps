@@ -56,7 +56,12 @@ FIXTURE_INPUTS = (
     "contracts/fixtures/path-demo.json",
     "contracts/fixtures/shop-demo.json",
     "contracts/fixtures/player-demo.json",
+    "contracts/fixtures/player-rank-history-demo.json",
     "contracts/fixtures/metadata-edge.json",
+    "contracts/fixtures/rivals-list-demo.json",
+    "contracts/fixtures/leaderboard-rivals-demo.json",
+    "contracts/fixtures/rival-detail-demo.json",
+    "contracts/fixtures/leaderboard-rival-detail-demo.json",
 )
 REQUIRED_INPUTS = (
     *FIXTURE_INPUTS,
