@@ -197,37 +197,40 @@ public abstract record AppRoute
         public override string ToPath() => "/rivals";
     }
 
-    /// <summary><c>/rivals/all?category=&amp;mode=&amp;rankBy=</c>.</summary>
-    /// <param name="Category">Optional category.</param>
-    /// <param name="Mode">Optional mode.</param>
-    /// <param name="RankBy">Optional metric.</param>
-    public sealed record AllRivals(string? Category = null, string? Mode = null, string? RankBy = null) : AppRoute
+    /// <summary><c>/rivals/all?category=&amp;mode=&amp;rankBy=</c>: one scope's full rival list.</summary>
+    /// <param name="Scope">Typed scope (web <c>category</c>/<c>mode</c>/<c>rankBy</c>; Common Rivals may add <c>instruments</c>).</param>
+    public sealed record AllRivals(RivalScope Scope) : AppRoute
     {
         /// <inheritdoc />
         public override AppSection Section => AppSection.Rivals;
         /// <inheritdoc />
-        public override string ToPath() => "/rivals/all" + Query(("category", Category), ("mode", Mode), ("rankBy", RankBy));
+        public override string ToPath() => "/rivals/all" + Query(Scope.ToAllRivalsQuery());
     }
 
-    /// <summary><c>/rivals/:rivalId</c>.</summary>
+    /// <summary><c>/rivals/:rivalId[?name=&amp;scope=]</c>.</summary>
     /// <param name="RivalId">Rival account.</param>
-    public sealed record RivalDetail(string RivalId) : AppRoute
+    /// <param name="Name">Rival display name from the originating row.</param>
+    /// <param name="Scope">Scope that produced the row; <see langword="null"/> merges Settings-visible charts.</param>
+    public sealed record RivalDetail(string RivalId, string? Name = null, RivalScope? Scope = null) : AppRoute
     {
         /// <inheritdoc />
         public override AppSection Section => AppSection.Rivals;
         /// <inheritdoc />
-        public override string ToPath() => $"/rivals/{Esc(RivalId)}";
+        public override string ToPath() => $"/rivals/{Esc(RivalId)}" + Query(("name", Name), ("scope", Scope?.ToToken()));
     }
 
-    /// <summary><c>/rivals/:rivalId/rivalry?mode=</c>.</summary>
+    /// <summary><c>/rivals/:rivalId/rivalry?mode=[&amp;name=&amp;scope=]</c>: one category's songs head to head.</summary>
     /// <param name="RivalId">Rival account.</param>
-    /// <param name="Mode">Rivalry mode.</param>
-    public sealed record Rivalry(string RivalId, string Mode) : AppRoute
+    /// <param name="Mode">Category key such as <c>closest_battles</c>.</param>
+    /// <param name="Name">Rival display name.</param>
+    /// <param name="Scope">Scope forwarded from Rival Detail.</param>
+    public sealed record Rivalry(string RivalId, string Mode, string? Name = null, RivalScope? Scope = null) : AppRoute
     {
         /// <inheritdoc />
         public override AppSection Section => AppSection.Rivals;
         /// <inheritdoc />
-        public override string ToPath() => $"/rivals/{Esc(RivalId)}/rivalry" + Query(("mode", Mode));
+        public override string ToPath() =>
+            $"/rivals/{Esc(RivalId)}/rivalry" + Query(("mode", Mode), ("name", Name), ("scope", Scope?.ToToken()));
     }
 
     /// <summary><c>/statistics</c>.</summary>

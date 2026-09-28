@@ -44,11 +44,14 @@ public static class AppRouteParser
                 Chart(query.GetValueOrDefault("instrument")) ?? Instrument.Lead, query.GetValueOrDefault("rankBy") ?? "adjusted"),
             ["leaderboards", "bands", var type] => new AppRoute.BandRankings(type),
             ["rivals"] => new AppRoute.Rivals(),
-            ["rivals", "all"] => new AppRoute.AllRivals(
-                query.GetValueOrDefault("category"), query.GetValueOrDefault("mode"), query.GetValueOrDefault("rankBy")),
-            ["rivals", var rival] when ProfileText.IsValidAccountId(rival) => new AppRoute.RivalDetail(rival),
+            ["rivals", "all"] => RivalScope.FromAllRivalsQuery(query.GetValueOrDefault("category"), query.GetValueOrDefault("mode"),
+                query.GetValueOrDefault("rankBy"), query.GetValueOrDefault("instruments")) is { } scope
+                ? new AppRoute.AllRivals(scope) : Invalid,
+            ["rivals", var rival] when ProfileText.IsValidAccountId(rival) =>
+                new AppRoute.RivalDetail(rival, query.GetValueOrDefault("name"), RivalScope.FromToken(query.GetValueOrDefault("scope"))),
             ["rivals", var rival, "rivalry"] when ProfileText.IsValidAccountId(rival) =>
-                new AppRoute.Rivalry(rival, query.GetValueOrDefault("mode") ?? "solo"),
+                new AppRoute.Rivalry(rival, query.GetValueOrDefault("mode") ?? "closest_battles", query.GetValueOrDefault("name"),
+                    RivalScope.FromToken(query.GetValueOrDefault("scope"))),
             ["statistics"] => new AppRoute.Statistics(),
             ["suggestions"] => new AppRoute.Suggestions(),
             ["compete"] => new AppRoute.Compete(),

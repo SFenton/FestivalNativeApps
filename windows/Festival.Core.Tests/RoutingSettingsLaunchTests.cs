@@ -21,10 +21,13 @@ public class RoutingTests
         { new AppRoute.FullRankings(Instrument.Drums, "adjusted"), "/leaderboards/all?instrument=Solo_Drums&rankBy=adjusted", AppSection.Leaderboards },
         { new AppRoute.BandRankings("Band_Trios"), "/leaderboards/bands/Band_Trios", AppSection.Leaderboards },
         { new AppRoute.Rivals(), "/rivals", AppSection.Rivals },
-        { new AppRoute.AllRivals(), "/rivals/all", AppSection.Rivals },
-        { new AppRoute.AllRivals("song", "solo", "count"), "/rivals/all?category=song&mode=solo&rankBy=count", AppSection.Rivals },
+        { new AppRoute.AllRivals(new RivalScope.FromSettings(RivalSettingsScope.Common)), "/rivals/all?category=common", AppSection.Rivals },
+        { new AppRoute.AllRivals(new RivalScope.Leaderboard(Instrument.Bass, RankingMetric.FcRate)), "/rivals/all?category=Solo_Bass&mode=leaderboard&rankBy=fcrate", AppSection.Rivals },
+        { new AppRoute.AllRivals(new RivalScope.Song([Instrument.Lead, Instrument.Bass])), "/rivals/all?category=common&instruments=Solo_Guitar%2CSolo_Bass", AppSection.Rivals },
         { new AppRoute.RivalDetail("r1"), "/rivals/r1", AppSection.Rivals },
-        { new AppRoute.Rivalry("r1", "combo"), "/rivals/r1/rivalry?mode=combo", AppSection.Rivals },
+        { new AppRoute.RivalDetail("r1", "A B", new RivalScope.Combo("03")), "/rivals/r1?name=A%20B&scope=combo%3A03", AppSection.Rivals },
+        { new AppRoute.Rivalry("r1", "almost_passed"), "/rivals/r1/rivalry?mode=almost_passed", AppSection.Rivals },
+        { new AppRoute.Rivalry("r1", "slipping_away", "N", new RivalScope.Song([Instrument.Drums])), "/rivals/r1/rivalry?mode=slipping_away&name=N&scope=song%3ASolo_Drums", AppSection.Rivals },
         { new AppRoute.Statistics(), "/statistics", AppSection.Statistics },
         { new AppRoute.Suggestions(), "/suggestions", AppSection.Suggestions },
         { new AppRoute.Compete(), "/compete", AppSection.Rivals },
@@ -64,6 +67,7 @@ public class RoutingTests
     [InlineData("/player/bad%20id")]
     [InlineData("/songs//x")]
     [InlineData("/rivals/bad%20id/rivalry")]
+    [InlineData("/rivals/all?category=nonsense")]
     public void Parser_RejectsUnknownOrUnsafePaths(string? path) => Assert.False(AppRouteParser.TryParse(path, out _, out _));
 
     [Fact]
@@ -74,7 +78,11 @@ public class RoutingTests
         AppRouteParser.TryParse("/leaderboards/all", out var rankings, out _);
         Assert.Equal(new AppRoute.FullRankings(Instrument.Lead, "adjusted"), rankings);
         AppRouteParser.TryParse("/rivals/r1/rivalry", out var rivalry, out _);
-        Assert.Equal(new AppRoute.Rivalry("r1", "solo"), rivalry);
+        Assert.Equal(new AppRoute.Rivalry("r1", "closest_battles"), rivalry);
+        AppRouteParser.TryParse("/rivals/r1?scope=bogus", out var unscoped, out _);
+        Assert.Equal(new AppRoute.RivalDetail("r1"), unscoped);
+        AppRouteParser.TryParse("/rivals/all", out var all, out _);
+        Assert.Equal(new AppRoute.AllRivals(new RivalScope.FromSettings(RivalSettingsScope.Common)), all);
         AppRouteParser.TryParse("/songs/s1?instrument=bogus", out var detail, out _);
         Assert.Equal(new AppRoute.SongDetail("s1"), detail);
         AppRouteParser.TryParse("/songs/a%20b", out var escaped, out _);

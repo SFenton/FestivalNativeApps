@@ -383,13 +383,21 @@ public static class RivalHeadToHead
     /// <param name="songs">Category songs.</param>
     /// <param name="sort">Sort.</param>
     /// <returns>Ordered copy.</returns>
-    public static List<RivalSongComparison> Sort(IEnumerable<RivalSongComparison> songs, RivalrySort sort) => sort switch
+    public static List<RivalSongComparison> Sort(IEnumerable<RivalSongComparison> songs, RivalrySort sort) => Sort(songs, s => s, sort);
+
+    /// <summary>Orders items that wrap a comparison; ties keep the incoming order.</summary>
+    /// <typeparam name="T">Item type.</typeparam>
+    /// <param name="items">Items.</param>
+    /// <param name="comparison">Comparison accessor.</param>
+    /// <param name="sort">Sort.</param>
+    /// <returns>Ordered copy.</returns>
+    public static List<T> Sort<T>(IEnumerable<T> items, Func<T, RivalSongComparison> comparison, RivalrySort sort) => sort switch
     {
-        RivalrySort.Closest => [.. songs.OrderBy(s => Math.Abs((long)s.RankDelta))],
-        RivalrySort.YouLead => [.. songs.OrderByDescending(s => s.RankDelta)],
-        RivalrySort.TheyLead => [.. songs.OrderBy(s => s.RankDelta)],
-        RivalrySort.Title => [.. songs.OrderBy(s => s.Title ?? s.SongId, StringComparer.CurrentCultureIgnoreCase)],
-        _ => [.. songs],
+        RivalrySort.Closest => [.. items.OrderBy(i => Math.Abs((long)comparison(i).RankDelta))],
+        RivalrySort.YouLead => [.. items.OrderByDescending(i => comparison(i).RankDelta)],
+        RivalrySort.TheyLead => [.. items.OrderBy(i => comparison(i).RankDelta)],
+        RivalrySort.Title => [.. items.OrderBy(i => comparison(i).Title ?? comparison(i).SongId, StringComparer.CurrentCultureIgnoreCase)],
+        _ => [.. items],
     };
 
     /// <summary>Web <c>rivals.detail.summary</c>: "{total} shared songs · {ahead} ahead / {behind} behind".</summary>
