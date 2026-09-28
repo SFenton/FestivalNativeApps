@@ -89,6 +89,10 @@ FIRST_RUN_STEPS = [
 TOOLBAR_INSTALL = "id=com.android.chrome:id/install_button"
 CONFIRM_INSTALL_STEPS = ["tap:text=Install", "wait:10", "tap:text=Add to home screen", "wait:3"]
 
+#: Pixel launcher's one-time large-screen taskbar tutorial, which overlays apps on
+#: foldables/tablets until the user performs the gesture it describes.
+TASKBAR_EDU = "Swipe up slowly to show the Taskbar"
+
 #: Chrome Settings row whose switch controls usage/crash reporting.
 USAGE_ROW = "Help improve Chrome"
 
@@ -257,6 +261,22 @@ class AndroidLab:
         self.device.shell("input keyevent KEYCODE_HOME")
         return result
 
+    def dismiss_taskbar_edu(self) -> bool:
+        """Complete the launcher's taskbar tutorial if it is showing (large screens).
+
+        Performs the slow, short upward swipe it asks for; returns whether it was shown.
+        """
+        if TASKBAR_EDU not in self.tree():
+            return False
+        width, height = self.device.screen_size()
+        for _ in range(3):
+            self.device.shell(f"input swipe {width // 2} {height - 5} {width // 2} "
+                              f"{height - 260} 1500")
+            time.sleep(2.0)
+            if TASKBAR_EDU not in self.tree():
+                break
+        return True
+
     def top_activity(self) -> str:
         return parse_top_activity(self.device.shell("dumpsys activity activities", check=False))
 
@@ -325,8 +345,15 @@ class AndroidLab:
         exposes it to UIAutomator as ``android.webkit.WebView``) and
         ``devicePixelRatio``; call again after a posture or rotation change.
         """
-        match = re.search(r'class="android\.webkit\.WebView"[^>]*bounds="([^"]+)"', self.tree())
+        match = None
+        for _ in range(4):  # Chrome builds its accessibility tree lazily after the first dump
+            match = re.search(r'class="android\.webkit\.WebView"[^>]*bounds="([^"]+)"',
+                              self.tree())
+            if match:
+                break
+            time.sleep(1.0)
         if not match or not self.page:
+            print("warning: web root not in the UI tree; using CDP touch", file=sys.stderr)
             return
         left, top, _, _ = dv.parse_bounds(match.group(1))
         ratio = float(self.page.eval("devicePixelRatio"))
@@ -454,6 +481,8 @@ def open_app(lab: AndroidLab, reset_storage: bool, route: str | None,
         lab.device.shell(f"am kill {CHROME}", check=False)
         time.sleep(1)
     opened = lab.open_icon()
+    time.sleep(1.5)
+    lab.dismiss_taskbar_edu()
     page = lab.connect()
     if reset_storage:
         page.eval("localStorage.clear(); sessionStorage.clear(); true")
@@ -511,6 +540,7 @@ def run_step(lab: AndroidLab, verb: str, arg: str, log: list[dict], started: flo
     elif verb in ("posture", "rotate"):
         dv.run_step(lab.device, lab.avd, verb, arg)
         time.sleep(1.0)
+        lab.dismiss_taskbar_edu()
         lab.use_real_input()
         entry["wm_size"] = lab.device.shell("wm size").strip()
     elif verb == "relaunch":
@@ -541,6 +571,7 @@ def cmd_drive(args: argparse.Namespace) -> int:
                 log.append({"open": open_app(lab, args.reset_storage, args.route, args.posture)})
                 time.sleep(args.wait)
             else:
+                lab.dismiss_taskbar_edu()
                 lab.connect()
                 if args.route:
                     lab.page.eval(f"location.hash = {json.dumps('#' + args.route)}; true")
@@ -597,6 +628,7 @@ def cmd_native(args: argparse.Namespace) -> int:
                                            ("FST_DEBUG_FIRST_RUN", "off")])
                 lab.device.shell(dv.am_start_command(component, extras), cap=60)
                 time.sleep(args.wait)
+                lab.dismiss_taskbar_edu()
                 lab.shot(out / f"{name}.png")
                 done.append(name)
         finally:
