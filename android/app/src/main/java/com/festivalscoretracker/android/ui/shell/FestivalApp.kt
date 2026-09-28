@@ -85,8 +85,6 @@ import com.festivalscoretracker.android.core.nav.SongLeaderboardRoute
 import com.festivalscoretracker.android.core.nav.SongsTab
 import com.festivalscoretracker.android.core.nav.StatisticsRoute
 import com.festivalscoretracker.android.core.nav.StatisticsTab
-import com.festivalscoretracker.android.core.nav.SuggestionsRoute
-import com.festivalscoretracker.android.core.nav.SuggestionsTab
 import com.festivalscoretracker.android.core.settings.AppSettings
 import com.festivalscoretracker.android.presentation.ProfileSearchViewModel
 import com.festivalscoretracker.android.presentation.ShellViewModel
@@ -109,6 +107,7 @@ import com.festivalscoretracker.android.ui.rivals.rivalsDestinations
 import com.festivalscoretracker.android.ui.settings.SettingsScreen
 import com.festivalscoretracker.android.ui.songdetail.SongDetailScreen
 import com.festivalscoretracker.android.ui.songdetail.SongLeaderboardScreen
+import com.festivalscoretracker.android.ui.suggestions.suggestionsDestinations
 import com.festivalscoretracker.android.ui.songs.SongsScreen
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.FestivalTheme
@@ -554,7 +553,7 @@ private fun FestivalNavHost(
         composable<SettingsTab> {
             SettingsScreen(settings = settings, shellViewModel = shellViewModel, serviceOrigin = api.origin)
         }
-        placeholder<SuggestionsTab>("Suggestions", isRoot = true)
+        suggestionsDestinations(container, shellViewModel.settings)
         placeholder<CompeteTab>("Compete", isRoot = true)
         composable<StatisticsTab> {
             StatisticsScreen(profileViewModel(container, shellViewModel, accountId = null, name = null))
@@ -572,7 +571,6 @@ private fun FestivalNavHost(
         }
         bandsDestinations(container)
         rivalsDestinations(container, settings)
-        placeholder<SuggestionsRoute>("Suggestions")
         placeholder<CompeteRoute>("Compete")
         placeholder<ShopRoute>("Item Shop")
         placeholder<LicensesRoute>("Licenses")

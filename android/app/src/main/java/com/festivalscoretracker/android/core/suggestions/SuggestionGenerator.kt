@@ -318,7 +318,7 @@ class SuggestionGenerator(
     private fun finalize(candidates: List<Candidate>, includeInstrument: Boolean): List<SuggestionSongItem> =
         candidates.map { finalizeOne(it, includeInstrument) }
 
-    private inline fun candidatesForSong(song: Song, predicate: (SuggestionScore, Instrument) -> Boolean): List<Candidate> {
+    private fun candidatesForSong(song: Song, predicate: (SuggestionScore, Instrument) -> Boolean): List<Candidate> {
         val scores = scoresIndex[song.songId] ?: return emptyList()
         val out = ArrayList<Candidate>()
         for (instrument in Instrument.entries) {
@@ -328,13 +328,13 @@ class SuggestionGenerator(
         return out
     }
 
-    private inline fun candidates(predicate: (SuggestionScore, Instrument) -> Boolean): List<Candidate> {
+    private fun candidates(predicate: (SuggestionScore, Instrument) -> Boolean): List<Candidate> {
         val out = ArrayList<Candidate>()
         for (song in songs) out += candidatesForSong(song, predicate)
         return out
     }
 
-    private inline fun candidates(instrument: Instrument, predicate: (SuggestionScore) -> Boolean): List<Candidate> {
+    private fun candidates(instrument: Instrument, predicate: (SuggestionScore) -> Boolean): List<Candidate> {
         val out = ArrayList<Candidate>()
         for (song in songs) {
             val score = scoresIndex[song.songId]?.get(instrument) ?: continue

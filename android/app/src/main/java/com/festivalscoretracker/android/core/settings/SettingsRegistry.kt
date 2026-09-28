@@ -52,6 +52,7 @@ object SettingsRegistry {
     const val VISIBLE_METADATA = "fst.settings.visibleMetadata"
     const val FIRST_RUN_SEEN = "fst.firstRun.seen.v1"
     const val NOTIFICATIONS_SEEN = "fst.notifications.seen.v1"
+    const val SUGGESTIONS_FILTER = "fst.suggestions.filter"
 
     /** Every registered key. */
     val entries: List<RegisteredSetting> = listOf(
@@ -80,6 +81,7 @@ object SettingsRegistry {
         RegisteredSetting(VISIBLE_METADATA, ResetPolicy.AppSetting, "settings"),
         RegisteredSetting(FIRST_RUN_SEEN, ResetPolicy.Kept, "first-run"),
         RegisteredSetting(NOTIFICATIONS_SEEN, ResetPolicy.Kept, "notifications"),
+        RegisteredSetting(SUGGESTIONS_FILTER, ResetPolicy.AppSetting, "suggestions"),
     )
 
     /** Keys Reset removes. */

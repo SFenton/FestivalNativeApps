@@ -32,6 +32,7 @@ import com.festivalscoretracker.android.core.search.SearchScope
  * @property origin `FST_ORIGIN`, a loopback fixture origin.
  * @property searchQuery `FST_DEBUG_SEARCH=<text>` opens global search with that text.
  * @property searchScope `FST_DEBUG_SEARCH_SCOPE=songs|players|bands` selects a scope chip.
+ * @property suggestionsSeed `FST_DEBUG_SUGGESTIONS_SEED`: pins the Suggestions mix seed (0–4294967295) for screenshots.
  */
 data class DebugLaunch(
     val section: FestivalSection? = null,
@@ -46,6 +47,7 @@ data class DebugLaunch(
     val origin: String? = null,
     val searchQuery: String? = null,
     val searchScope: SearchScope? = null,
+    val suggestionsSeed: Long? = null,
 ) {
     companion object {
         /** An empty launch (release builds, or no extras). */
@@ -77,6 +79,7 @@ data class DebugLaunch(
                 origin = extras["FST_ORIGIN"]?.takeIf { it.isNotBlank() },
                 searchQuery = extras["FST_DEBUG_SEARCH"],
                 searchScope = extras["FST_DEBUG_SEARCH_SCOPE"]?.let(SearchScope::parse)?.takeIf { it != SearchScope.All },
+                suggestionsSeed = extras["FST_DEBUG_SUGGESTIONS_SEED"]?.toLongOrNull()?.takeIf { it in 0..0xFFFF_FFFFL },
             )
         }
 

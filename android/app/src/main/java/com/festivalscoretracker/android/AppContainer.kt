@@ -14,6 +14,7 @@ import com.festivalscoretracker.android.data.SettingsRepository
 import com.festivalscoretracker.android.data.profile.playerProfile
 import com.festivalscoretracker.android.data.rankings.LeaderboardPreferences
 import com.festivalscoretracker.android.data.rivals.RivalsRepository
+import com.festivalscoretracker.android.data.suggestions.SuggestionFilterStore
 import com.festivalscoretracker.android.presentation.BackgroundController
 import com.festivalscoretracker.android.presentation.profile.SelectedProfileStore
 import okhttp3.OkHttpClient
@@ -51,6 +52,12 @@ class AppContainer(
 
     /** Persisted Leaderboards Rank By (same store, its own key). */
     val leaderboardPreferences = LeaderboardPreferences(settingsStore ?: context.applicationContext.settingsDataStore)
+
+    /** Persisted Suggestions filter (its own key in the shared settings store). */
+    val suggestionFilters = SuggestionFilterStore(settingsStore ?: context.applicationContext.settingsDataStore)
+
+    /** Debug-pinned Suggestions seed, or null for a random mix. */
+    val suggestionsSeed: Long? = launch.suggestionsSeed
 
     /** Shared automatic-retry backoff. */
     val backoff = ServiceRetryBackoff()
