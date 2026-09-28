@@ -18,4 +18,5 @@ All controls are `pending` until every platform has state/visual/accessibility e
 | profile-selection | `fst.profile.*` | 17 | pending | [spec](profile-selection/spec.md) | [ios](profile-selection/ios.md) · [ipados](profile-selection/ipados.md) |
 | songs-instrument-status-chips | `fst.songs.instrument-status.*` | 21 | pending | [spec](songs-instrument-status-chips/spec.md) | [ios](songs-instrument-status-chips/ios.md) · [ipados](songs-instrument-status-chips/ipados.md) |
 | song-score-metadata | `fst.songs.metadata.*` | 32 | pending | [spec](song-score-metadata/spec.md) | [ios](song-score-metadata/ios.md) · [ipados](song-score-metadata/ipados.md) |
+| songs-section-index | ? | ? | not in contract | [spec](songs-section-index/spec.md) | [ios](songs-section-index/ios.md) |
 <!-- END GENERATED -->
