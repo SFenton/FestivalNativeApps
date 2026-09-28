@@ -1,8 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!-- UI-free domain, service and view-model logic; unit-tested to the 95% line gate. -->
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsTrimmable>true</IsTrimmable>
   </PropertyGroup>
+  <ItemGroup>
+    <Using Include="Festival.Core.Data" />
+    <Using Include="Festival.Core.Domain" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Festival.Core.Tests" />
+  </ItemGroup>
 </Project>

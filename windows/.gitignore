@@ -1,0 +1,2 @@
+# Build and coverage output from tools/windows/*.ps1.
+.artifacts/

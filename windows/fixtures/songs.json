@@ -1,7 +1,0 @@
-{
-  "publicationId": "fixture-publication-001",
-  "songs": [
-    { "id": "fixture-song-1", "title": "Test Track", "artist": "Fixture Artist", "difficulty": 1 },
-    { "id": "fixture-song-2", "title": "Another Test Track", "artist": "Fixture Artist", "difficulty": 7 }
-  ]
-}

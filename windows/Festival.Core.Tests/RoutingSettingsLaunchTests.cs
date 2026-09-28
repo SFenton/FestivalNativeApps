@@ -1,0 +1,308 @@
+using System.Text;
+
+namespace Festival.Core.Tests;
+
+public class RoutingTests
+{
+    public static TheoryData<AppRoute, string, AppSection> Routes => new()
+    {
+        { new AppRoute.SongDetail("s1"), "/songs/s1", AppSection.Songs },
+        { new AppRoute.SongDetail("s1", Instrument.Bass), "/songs/s1?instrument=Solo_Bass", AppSection.Songs },
+        { new AppRoute.SongLeaderboard("s1", Instrument.Lead), "/songs/s1/Solo_Guitar", AppSection.Songs },
+        { new AppRoute.SongLeaderboard("s1", Instrument.Lead, 3), "/songs/s1/Solo_Guitar?page=3", AppSection.Songs },
+        { new AppRoute.SongBandLeaderboard("s1", "Band_Duets"), "/songs/s1/bands/Band_Duets", AppSection.Songs },
+        { new AppRoute.PlayerHistory("s1", Instrument.Karaoke), "/songs/s1/Solo_PeripheralVocals/history", AppSection.Songs },
+        { new AppRoute.Player("acc1"), "/player/acc1", AppSection.Leaderboards },
+        { new AppRoute.PlayerBands("acc1"), "/bands/player/acc1", AppSection.Leaderboards },
+        { new AppRoute.Bands(), "/bands", AppSection.Leaderboards },
+        { new AppRoute.Band("b1"), "/bands/b1", AppSection.Leaderboards },
+        { new AppRoute.Band("b1", "Band_Duets", "k"), "/bands/b1?bandType=Band_Duets&teamKey=k", AppSection.Leaderboards },
+        { new AppRoute.Leaderboards(), "/leaderboards", AppSection.Leaderboards },
+        { new AppRoute.FullRankings(Instrument.Drums, "adjusted"), "/leaderboards/all?instrument=Solo_Drums&rankBy=adjusted", AppSection.Leaderboards },
+        { new AppRoute.BandRankings("Band_Trios"), "/leaderboards/bands/Band_Trios", AppSection.Leaderboards },
+        { new AppRoute.Rivals(), "/rivals", AppSection.Rivals },
+        { new AppRoute.AllRivals(), "/rivals/all", AppSection.Rivals },
+        { new AppRoute.AllRivals("song", "solo", "count"), "/rivals/all?category=song&mode=solo&rankBy=count", AppSection.Rivals },
+        { new AppRoute.RivalDetail("r1"), "/rivals/r1", AppSection.Rivals },
+        { new AppRoute.Rivalry("r1", "combo"), "/rivals/r1/rivalry?mode=combo", AppSection.Rivals },
+        { new AppRoute.Statistics(), "/statistics", AppSection.Statistics },
+        { new AppRoute.Suggestions(), "/suggestions", AppSection.Suggestions },
+        { new AppRoute.Compete(), "/compete", AppSection.Rivals },
+        { new AppRoute.Shop(), "/shop", AppSection.Songs },
+        { new AppRoute.Licenses(), "/settings/licenses", AppSection.Settings },
+    };
+
+    [Theory]
+    [MemberData(nameof(Routes))]
+    public void Routes_RoundTripThroughPaths(AppRoute route, string path, AppSection section)
+    {
+        Assert.Equal(path, route.ToPath());
+        Assert.Equal(section, route.Section);
+        Assert.True(AppRouteParser.TryParse(path, out var parsed, out var parsedSection));
+        Assert.Equal(route, parsed);
+        Assert.Equal(section, parsedSection);
+    }
+
+    [Theory]
+    [InlineData("/", AppSection.Songs)]
+    [InlineData("/songs", AppSection.Songs)]
+    [InlineData("/settings", AppSection.Settings)]
+    [InlineData("https://festivalscoretracker.com/settings", AppSection.Settings)]
+    public void Parser_SectionRoots(string path, AppSection section)
+    {
+        Assert.True(AppRouteParser.TryParse(path, out var route, out var parsed));
+        Assert.Null(route);
+        Assert.Equal(section, parsed);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("  ")]
+    [InlineData("/manual")]
+    [InlineData("/songs/s1/NotAnInstrument")]
+    [InlineData("/songs/%2E%2E")]
+    [InlineData("/player/bad%20id")]
+    [InlineData("/songs//x")]
+    [InlineData("/rivals/bad%20id/rivalry")]
+    public void Parser_RejectsUnknownOrUnsafePaths(string? path) => Assert.False(AppRouteParser.TryParse(path, out _, out _));
+
+    [Fact]
+    public void Parser_DefaultsAndLenientQuery()
+    {
+        AppRouteParser.TryParse("/songs/s1/Solo_Bass?page=abc&junk&=x&instrument=%01", out var route, out _);
+        Assert.Equal(new AppRoute.SongLeaderboard("s1", Instrument.Bass, 1), route);
+        AppRouteParser.TryParse("/leaderboards/all", out var rankings, out _);
+        Assert.Equal(new AppRoute.FullRankings(Instrument.Lead, "adjusted"), rankings);
+        AppRouteParser.TryParse("/rivals/r1/rivalry", out var rivalry, out _);
+        Assert.Equal(new AppRoute.Rivalry("r1", "solo"), rivalry);
+        AppRouteParser.TryParse("/songs/s1?instrument=bogus", out var detail, out _);
+        Assert.Equal(new AppRoute.SongDetail("s1"), detail);
+        AppRouteParser.TryParse("/songs/a%20b", out var escaped, out _);
+        Assert.Equal("/songs/a%20b", escaped!.ToPath());
+    }
+
+    [Fact]
+    public void Sections_DependOnPlayer()
+    {
+        Assert.Equal([AppSection.Songs, AppSection.Leaderboards, AppSection.Settings], AppSections.Visible(false));
+        Assert.Equal(6, AppSections.Visible(true).Count);
+        Assert.True(AppSection.Rivals.RequiresPlayer());
+        Assert.False(AppSection.Leaderboards.RequiresPlayer());
+        Assert.Equal("fst.nav.statistics", AppSection.Statistics.AutomationId());
+        Assert.Equal("Suggestions", AppSection.Suggestions.Label());
+        Assert.True(AppSections.TryParse("RIVALS", out var s));
+        Assert.Equal(AppSection.Rivals, s);
+        Assert.False(AppSections.TryParse("7", out _));
+        Assert.False(AppSections.TryParse("nope", out _));
+    }
+}
+
+public class SettingsTests : IDisposable
+{
+    private readonly string directory = Path.Combine(Path.GetTempPath(), "fst-tests-" + Guid.NewGuid().ToString("N"));
+
+    public void Dispose()
+    {
+        if (Directory.Exists(directory)) Directory.Delete(directory, true);
+    }
+
+    [Fact]
+    public void Sanitize_ClampsEverything()
+    {
+        var bad = new AppSettings
+        {
+            Version = 0,
+            SelectedPlayer = new SelectedPlayer("bad id", "x"),
+            SongSort = (SongSortMode)42,
+            SongFilter = new SongFilter(null, 5, 2),
+            VisibleInstruments = [(Instrument)99],
+        };
+        var clean = bad.Sanitized();
+        Assert.Equal(AppSettings.CurrentVersion, clean.Version);
+        Assert.Null(clean.SelectedPlayer);
+        Assert.Equal(SongSortMode.Title, clean.SongSort);
+        Assert.Equal(SongFilter.None, clean.SongFilter);
+        Assert.Equal(InstrumentInfo.All, clean.VisibleInstruments);
+        var hiddenFilter = new AppSettings { SongFilter = new SongFilter(Instrument.Bass), VisibleInstruments = [Instrument.Lead, Instrument.Lead] }.Sanitized();
+        Assert.Null(hiddenFilter.SongFilter.Instrument);
+        Assert.Equal([Instrument.Lead], hiddenFilter.VisibleInstruments);
+        Assert.Equal(SongFilter.None, new AppSettings { SongFilter = new SongFilter((Instrument)77) }.Sanitized().SongFilter);
+        Assert.Equal(InstrumentInfo.All, new AppSettings { VisibleInstruments = null! }.Sanitized().VisibleInstruments);
+    }
+
+    [Fact]
+    public void InstrumentVisibility_KeepsLastChart()
+    {
+        var one = new AppSettings { VisibleInstruments = [Instrument.Bass], SongFilter = new SongFilter(Instrument.Bass) };
+        Assert.Equal([Instrument.Bass], one.WithInstrumentVisible(Instrument.Bass, false).VisibleInstruments);
+        var two = one.WithInstrumentVisible(Instrument.Lead, true);
+        Assert.Equal([Instrument.Lead, Instrument.Bass], two.VisibleInstruments);
+        var hidden = two.WithInstrumentVisible(Instrument.Bass, false);
+        Assert.Equal([Instrument.Lead], hidden.VisibleInstruments);
+        Assert.Null(hidden.SongFilter.Instrument);
+    }
+
+    [Fact]
+    public void SelectedPlayer_ValidationAndInitials()
+    {
+        Assert.True(new SelectedPlayer("abc", "Jane Q Public").IsValid);
+        Assert.Equal("JQ", new SelectedPlayer("abc", "Jane Q Public").Initials);
+        Assert.Equal("X", new SelectedPlayer("abc", "x").Initials);
+        Assert.False(new SelectedPlayer("abc", " padded").IsValid);
+        Assert.False(new SelectedPlayer("abc", "").IsValid);
+        Assert.False(new SelectedPlayer("abc", "a\u0007").IsValid);
+    }
+
+    [Fact]
+    public void FileStore_RoundTripsSelectedPlayerAcrossInstances()
+    {
+        var path = Path.Combine(directory, "settings.json");
+        var store = new JsonFileSettingsStore(path);
+        Assert.Equal(new AppSettings().SongSort, store.Load().SongSort);
+        Assert.False(store.RecoveredFromCorruption);
+        var saved = new AppSettings
+        {
+            SelectedPlayer = new SelectedPlayer("acc_1", "Player One"),
+            SongSort = SongSortMode.Year,
+            SongSortAscending = false,
+            SongFilter = new SongFilter(Instrument.Drums, 2, 5),
+            VisibleInstruments = [Instrument.Lead, Instrument.Drums],
+            ReduceMotion = true,
+            DisableAnimatedArtwork = true,
+            SaveData = true,
+        };
+        store.Save(saved);
+        var loaded = new JsonFileSettingsStore(path).Load();
+        Assert.Equal(saved.SelectedPlayer, loaded.SelectedPlayer);
+        Assert.Equal(saved.SongFilter, loaded.SongFilter);
+        Assert.Equal(saved.VisibleInstruments, loaded.VisibleInstruments);
+        Assert.Equal((SongSortMode.Year, false, true, true, true),
+            (loaded.SongSort, loaded.SongSortAscending, loaded.ReduceMotion, loaded.DisableAnimatedArtwork, loaded.SaveData));
+        Assert.Contains("\"songSort\": \"Year\"", File.ReadAllText(path));
+        Assert.False(File.Exists(path + ".tmp"));
+    }
+
+    [Theory]
+    [InlineData("{ not json")]
+    [InlineData("null")]
+    public void FileStore_RecoversFromCorruptData(string content)
+    {
+        var path = Path.Combine(directory, "settings.json");
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(path, content);
+        var store = new JsonFileSettingsStore(path);
+        var settings = store.Load();
+        Assert.Equal(SongSortMode.Title, settings.SongSort);
+        Assert.Equal(content == "null" ? false : true, store.RecoveredFromCorruption);
+    }
+
+    [Fact]
+    public void FileStore_RejectsOversizedFile()
+    {
+        var path = Path.Combine(directory, "settings.json");
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(path, new string(' ', 300_000), Encoding.UTF8);
+        var store = new JsonFileSettingsStore(path);
+        store.Load();
+        Assert.True(store.RecoveredFromCorruption);
+        Assert.EndsWith("settings.json", JsonFileSettingsStore.DefaultPath);
+    }
+
+    [Fact]
+    public void InMemoryStore_CountsSaves()
+    {
+        var store = new InMemorySettingsStore();
+        store.Save(new AppSettings { SaveData = true });
+        Assert.True(store.Load().SaveData);
+        Assert.Equal(1, store.SaveCount);
+        Assert.False(store.RecoveredFromCorruption);
+    }
+}
+
+public class LaunchAndBackgroundTests
+{
+    private static Func<string, string?> Env(params (string Key, string Value)[] values) =>
+        key => values.FirstOrDefault(v => v.Key == key).Value;
+
+    [Fact]
+    public void Launch_ParsesFlagsOverEnvironment()
+    {
+        var options = LaunchOptions.Parse(
+            ["--tab", "settings", "--route=/songs/s1/Solo_Bass?page=2", "--width", "1280", "--height", "9999", "--reduce-motion", "--no-art", "--auto-scroll", "stray", "--perf-log", "C:/x.log"],
+            Env(("FST_DEBUG_TAB", "songs"), ("FST_BASE_URL", "http://127.0.0.1:8765/")));
+        Assert.Equal(AppSection.Settings, options.Tab);
+        Assert.Equal(new AppRoute.SongLeaderboard("s1", Instrument.Bass, 2), options.Route);
+        Assert.Equal(8765, options.BaseUri!.Port);
+        Assert.Equal((1280, (int?)null), (options.Width!.Value, options.Height));
+        Assert.True(options.ReduceMotion);
+        Assert.True(options.NoArt);
+        Assert.True(options.AutoScroll);
+        Assert.Equal("C:/x.log", options.PerfLogPath);
+        Assert.Single(options.Warnings);
+    }
+
+    [Fact]
+    public void Launch_RouteImpliesTabAndRejectsBadValues()
+    {
+        var fromEnv = LaunchOptions.Parse([], Env(("FST_DEBUG_ROUTE", "/rivals")));
+        Assert.Equal(AppSection.Rivals, fromEnv.Tab);
+        var bad = LaunchOptions.Parse(["--tab", "nope", "--route", "/manual", "--base-url", "https://evil.example/", "--width"], Env());
+        Assert.Null(bad.Tab);
+        Assert.Null(bad.Route);
+        Assert.Null(bad.BaseUri);
+        Assert.Equal(4, bad.Warnings.Count);
+        Assert.Null(LaunchOptions.Parse([], Env()).PerfLogPath);
+    }
+
+    [Theory]
+    [InlineData(true, true, false, false, false, false, ArtworkMode.Animated)]
+    [InlineData(false, true, false, false, false, false, ArtworkMode.Static)]
+    [InlineData(true, true, false, true, false, false, ArtworkMode.Static)]
+    [InlineData(true, true, false, false, true, false, ArtworkMode.Static)]
+    [InlineData(true, false, false, false, false, false, ArtworkMode.Paused)]
+    [InlineData(true, true, true, false, false, false, ArtworkMode.Paused)]
+    [InlineData(true, false, false, false, false, true, ArtworkMode.Hidden)]
+    public void Policy_Resolves(bool animations, bool visible, bool occluded, bool reduce, bool disable, bool save, ArtworkMode mode) =>
+        Assert.Equal(mode, ArtworkPlaybackPolicy.Resolve(new ArtworkPolicyInputs(animations, visible, occluded, reduce, disable, save)));
+
+    [Fact]
+    public void Carousel_ShufflesBoundsAndCycles()
+    {
+        var art = Enumerable.Range(0, 150).Select(i => (string?)$"a{i}.jpg").Append(null).Append(" ").Append("a1.jpg");
+        var carousel = new ArtworkCarousel(art, new Random(1));
+        Assert.Equal(ArtworkCarousel.MaxCovers, carousel.Covers.Count);
+        Assert.Equal(carousel.Covers.Count, carousel.Covers.Distinct().Count());
+        var first = carousel.Next()!.Value;
+        Assert.Equal(carousel.Covers[0], first.Cover);
+        Assert.Contains(first.Preset, ArtworkCarousel.Presets);
+        for (var i = 1; i < 100; i++) carousel.Next();
+        Assert.Equal(carousel.Covers[0], carousel.Next()!.Value.Cover);
+    }
+
+    [Fact]
+    public void Carousel_StopsAfterFailureBudgetOrWhenEmpty()
+    {
+        Assert.True(new ArtworkCarousel([]).IsExhausted);
+        Assert.Null(new ArtworkCarousel([]).Next());
+        var carousel = new ArtworkCarousel(["a", "b"]);
+        for (var i = 0; i < ArtworkCarousel.FailureBudget; i++)
+        {
+            Assert.NotNull(carousel.Next());
+            carousel.ReportFailure();
+        }
+        Assert.True(carousel.IsExhausted);
+    }
+
+    [Fact]
+    public void Carousel_PresetsStayWithinSpec()
+    {
+        Assert.Equal(10, ArtworkCarousel.Presets.Count);
+        Assert.All(ArtworkCarousel.Presets, p =>
+        {
+            Assert.InRange(p.FromScale, 1.0, 1.18);
+            Assert.InRange(p.ToScale, 1.0, 1.18);
+            Assert.InRange(Math.Max(Math.Max(Math.Abs(p.FromX), Math.Abs(p.ToX)), Math.Max(Math.Abs(p.FromY), Math.Abs(p.ToY))), 0, 18);
+        });
+        Assert.Equal((5.0, 1.0, 6.0, 0.7), (ArtworkCarousel.Dwell.TotalSeconds, ArtworkCarousel.Crossfade.TotalSeconds, ArtworkCarousel.Drift.TotalSeconds, ArtworkCarousel.DimOpacity));
+    }
+}

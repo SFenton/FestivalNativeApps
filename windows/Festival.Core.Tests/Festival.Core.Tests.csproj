@@ -1,21 +1,26 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!-- Logic tests for Festival.Core; coverage via coverlet (Cobertura) gated at 95% lines. -->
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>
   <ItemGroup>
+    <Using Include="Festival.Core.Data" />
+    <Using Include="Festival.Core.Domain" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
-    <PackageReference Include="xunit" Version="2.9.2" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
-    <ProjectReference Include="..\Festival.Core\Festival.Core.csproj" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="9.10.0" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\fixtures\songs.json" Link="songs.json" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\Festival.App\MainWindow.xaml" Link="MainWindow.xaml" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\Festival.App\SongsPage.xaml" Link="SongsPage.xaml" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\Festival.App\SettingsPage.xaml" Link="SettingsPage.xaml" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\Festival.App\DifficultyMeter.xaml" Link="DifficultyMeter.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <ProjectReference Include="..\Festival.Core\Festival.Core.csproj" />
+    <Using Include="Xunit" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Shared synthetic fixtures (read-only; owned by contracts/). -->
+    <None Include="..\..\contracts\fixtures\songs-demo.json" Link="fixtures\songs-demo.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\contracts\fixtures\publication.json" Link="fixtures\publication.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
