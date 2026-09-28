@@ -32,6 +32,10 @@
 | Marquee always scrolls on overflow | Scrolls only while the row is hovered or keyboard-focused | No per-frame work while idle beside a game |
 | Cancel on a changed draft confirms discard | Light-dismiss flyout discards | Fluent flyout convention |
 
+## UI journeys
+
+`python tools/windows/songs_journey.py [--sizes compact,medium,wide] [--shots DIR]` (fixture `tools/mock_service.py`, throwaway `FST_SETTINGS_PATH`): selected-player rows → Item Shop sort → Leaving Tomorrow filter → reset → Song Detail; Item Shop grid/list/compact → Song Detail; Paths image → text → not generated; Karaoke warning dismissal; no player; hidden Shop. Rows expose `fst.songs.row.<songId>`. IDs must sit on UIA-visible elements (text, buttons), not `Border`/`StackPanel`.
+
 ## Gotchas
 
 - `SongsViewModel` re-reads the catalogue, Shop and scores on `FestivalSession.PublicationAdvanced`; until the catalogue is re-read, Shop accents and scores stay paused (`ShopOffersForCatalog` is null on mismatch).

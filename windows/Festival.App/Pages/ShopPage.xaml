@@ -135,18 +135,19 @@
                                         AutomationProperties.AutomationId="fst.shop.error" />
 
             <Border Style="{StaticResource FSTCardStyle}" Padding="24" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="440"
-                    Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" AutomationProperties.AutomationId="fst.shop.empty">
+                    Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}">
                 <StackPanel Spacing="12">
                     <FontIcon Glyph="&#xE719;" FontSize="32" HorizontalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
                     <TextBlock Text="No Songs in the Item Shop" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center"
-                               TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level2" />
+                               TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.shop.empty" />
                     <TextBlock Text="Check back later. The shop updates regularly." HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
 
             <StackPanel Visibility="{x:Bind ViewModel.IsHidden, Mode=OneWay}" HorizontalAlignment="Center" VerticalAlignment="Center"
-                        Spacing="12" MaxWidth="440" AutomationProperties.AutomationId="fst.shop.hidden">
-                <TextBlock Text="Item Shop Is Hidden" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" />
+                        Spacing="12" MaxWidth="440">
+                <TextBlock Text="Item Shop Is Hidden" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center"
+                           AutomationProperties.AutomationId="fst.shop.hidden" />
                 <TextBlock Text="Turn off Hide Item Shop in Settings to see today's songs." HorizontalAlignment="Center"
                            TextAlignment="Center" TextWrapping="Wrap" />
             </StackPanel>

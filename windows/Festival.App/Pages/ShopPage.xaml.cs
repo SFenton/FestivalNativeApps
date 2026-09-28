@@ -120,7 +120,7 @@ public sealed partial class ShopPage : Page
         if (root.FindName(badgeName) is not Border badge || root.FindName(textName) is not TextBlock text) return;
         badge.Background = item.IsLeaving ? Brush("FSTStatusRedBrush") : new SolidColorBrush(Windows.UI.Color.FromArgb(0xE6, 0x12, 0x18, 0x26));
         text.Foreground = item.IsLeaving ? new SolidColorBrush(Colors.White) : Brush("FSTGoldBrush");
-        AutomationProperties.SetAutomationId(badge, item.IsLeaving ? $"fst.shop.badge.leaving.{item.Offer.SongId}" : $"fst.shop.badge.new.{item.Offer.SongId}");
+        AutomationProperties.SetAutomationId(text, item.IsLeaving ? $"fst.shop.badge.leaving.{item.Offer.SongId}" : $"fst.shop.badge.new.{item.Offer.SongId}");
     }
 
     /// <summary>Accent border for an offer.</summary>

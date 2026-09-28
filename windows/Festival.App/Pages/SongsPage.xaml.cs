@@ -137,6 +137,7 @@ public sealed partial class SongsPage : Page
             secondary.Children.Clear();
             secondary.Visibility = Visibility.Collapsed;
             AutomationProperties.SetName(container, row.Announcement);
+            AutomationProperties.SetAutomationId(container, $"fst.songs.row.{row.Song.SongId}");
             ApplyHighlight(root, row.Highlight);
             HookMarquee(container);
             // Not Handled: x:Bind template bindings run in this same event.

@@ -95,15 +95,13 @@
                 </StackPanel>
                 <DropDownButton.Flyout>
                     <Flyout x:Name="FilterFlyout" Placement="BottomEdgeAlignedLeft" Opening="OnFilterOpening">
-                        <Flyout.FlyoutPresenterStyle>
-                            <Style TargetType="FlyoutPresenter" BasedOn="{StaticResource DefaultFlyoutPresenterStyle}">
-                                <Setter Property="MaxWidth" Value="460" />
-                                <Setter Property="MaxHeight" Value="640" />
-                                <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto" />
-                                <Setter Property="ScrollViewer.VerticalScrollMode" Value="Auto" />
-                            </Style>
-                        </Flyout.FlyoutPresenterStyle>
-                        <StackPanel Width="400" Spacing="12" AutomationProperties.AutomationId="fst.songs.filter.form">
+                        <Grid Width="400" RowSpacing="12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <ScrollViewer MaxHeight="520" Padding="0,0,16,0" AutomationProperties.AutomationId="fst.songs.filter.form">
+                        <StackPanel Spacing="12">
                             <TextBlock Text="Filter Songs" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0"
                                        AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.songs.filter.title" />
                             <ComboBox Header="Instrument" HorizontalAlignment="Stretch"
@@ -129,9 +127,9 @@
                                       IsEnabled="{x:Bind ViewModel.FilterDraft.ShopEnabled, Mode=OneWay}"
                                       AutomationProperties.AutomationId="fst.songs.filter.leaving" />
 
-                            <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.FilterDraft.ShowScoreFilters, Mode=OneWay}"
-                                        AutomationProperties.AutomationId="fst.songs.filter.score-sections">
-                                <TextBlock Text="Player Scores" Style="{StaticResource BodyStrongTextBlockStyle}" AutomationProperties.HeadingLevel="Level3" />
+                            <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.FilterDraft.ShowScoreFilters, Mode=OneWay}">
+                                <TextBlock Text="Player Scores" Style="{StaticResource BodyStrongTextBlockStyle}" AutomationProperties.HeadingLevel="Level3"
+                                           AutomationProperties.AutomationId="fst.songs.filter.score-sections" />
                                 <TextBlock Text="Checks on one instrument must all match; any checked instrument can match."
                                            TextWrapping="Wrap" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
                                 <Grid ColumnSpacing="8" RowSpacing="0">
@@ -202,7 +200,9 @@
                                          AutomationProperties.AutomationId="fst.songs.score-filter-hidden" />
                             </StackPanel>
 
-                            <Grid ColumnSpacing="8">
+                        </StackPanel>
+                        </ScrollViewer>
+                            <Grid Grid.Row="1" ColumnSpacing="8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
@@ -216,7 +216,7 @@
                                         IsEnabled="{x:Bind ViewModel.FilterDraft.CanApply, Mode=OneWay}" Click="OnFilterApply"
                                         AutomationProperties.AutomationId="fst.songs.filter.apply" />
                             </Grid>
-                        </StackPanel>
+                        </Grid>
                     </Flyout>
                 </DropDownButton.Flyout>
             </DropDownButton>
@@ -325,8 +325,9 @@
                                         AutomationProperties.AutomationId="fst.songs.error" />
 
             <StackPanel Visibility="{x:Bind ViewModel.ShowInvalidFilter, Mode=OneWay}" VerticalAlignment="Center"
-                        HorizontalAlignment="Center" Spacing="12" MaxWidth="420" AutomationProperties.AutomationId="fst.songs.filter-invalid">
-                <TextBlock Text="Saved Filters Can't Be Read" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" TextWrapping="Wrap" />
+                        HorizontalAlignment="Center" Spacing="12" MaxWidth="420">
+                <TextBlock Text="Saved Filters Can't Be Read" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" TextWrapping="Wrap"
+                           AutomationProperties.AutomationId="fst.songs.filter-invalid" />
                 <TextBlock Text="Your saved player score filters are damaged, so songs can't be filtered safely. Reset filters to continue."
                            HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
                 <Button Content="Reset Filters" HorizontalAlignment="Center" Style="{StaticResource AccentButtonStyle}"

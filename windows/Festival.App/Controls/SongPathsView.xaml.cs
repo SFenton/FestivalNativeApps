@@ -117,8 +117,9 @@ public sealed partial class SongPathsView : UserControl
     private void OnActivationPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
     {
         if (args.Element is not Border card || sender.ItemsSourceView?.GetAt(args.Index) is not PathActivationRow row) return;
-        ((TextBlock)card.FindName("Heading")).Text = $"Activation {row.Number}";
-        AutomationProperties.SetAutomationId(card, $"fst.paths.activation.{row.Number}");
+        var heading = (TextBlock)card.FindName("Heading");
+        heading.Text = $"Activation {row.Number}";
+        AutomationProperties.SetAutomationId(heading, $"fst.paths.activation.{row.Number}");
         var grid = (Grid)card.FindName("Columns");
         grid.Children.Clear();
         grid.ColumnDefinitions.Clear();
