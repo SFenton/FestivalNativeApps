@@ -121,10 +121,10 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 - ⬜ Song Detail: animate from the carousel to that song's album art, hold still; animate back on pop/tab change
 - ⬜ Carousel loads independently of the Songs tab
 
-**Lane D — Agent docs architecture** (Opus) — 🟨 running in `~/repos/FestivalNativeApps-lanes/docs`
-- ⬜ Split every multi-platform doc by platform, then form factor (`.agents/<area>/<topic>/{spec,ios,ipados,duo,macos,android,windows}.md`)
-- ⬜ Router tables with direct pointers at every level; workflow docs for the lane model
-- ⬜ Remove tandem-research requirements; encode testing phases
+**Lane D — Agent docs architecture** (Opus) — ✅ landed `7c8b6eb`…`0b01884`
+- ✅ Split every multi-platform doc by platform, then form factor (`.agents/<area>/<topic>/{spec,ios,ipados,duo,macos,android,windows}.md`)
+- ✅ Router tables with direct pointers at every level; workflow docs for the lane model
+- ✅ Remove tandem-research requirements; encode testing phases
 
 ### Wave 2 — remaining pages
 
@@ -155,7 +155,10 @@ Not yet assigned:
 
 ## 5. Known issues / decisions
 
-- **Live service:** rankings and songs return 200 to native user agents (2026-09-27). Keep the no-`X-API-Key` and no-side-effect-endpoint rules from `AGENTS.md`.
+- **Build contention:** 7 lanes on a 10-core Mac hit load 169; SwiftPM builds are serialized via `~/.fst-build.lock` (Lane T adding it to `ios_sim.py build`). Keep ≤7 concurrent lanes.
+- **Test-ID families** are registered per page in `contracts/product.json` (`fst.<page>.*`), so new controls don't need registry edits.
+
+- **Live service:** rankings, songs, account search and `/leaderboard/{song}/all` return 200 keyless to native user agents (re-probed 2026-09-27; see `.agents/platforms/service-safety.md`). Keep the no-`X-API-Key` and no-side-effect-endpoint rules from `AGENTS.md`.
 - **Instrument icons** are copied from the web app's `public/instruments/` (the operator's own site), downscaled to 144 px.
 - **iOS 17 runtime** is not installed on this Mac; iOS 17 is compile-checked only until Wave 4.
 
@@ -169,3 +172,5 @@ Not yet assigned:
 | 2026-09-27 | Orchestrator | Launched Wave 1 lanes A, S, P, L, B, D in parallel worktrees |
 | 2026-09-27 | Lane A | Landed tabs, root chrome, drawer, Liquid Glass doc, Settings glass, festivalSheet, settings persistence |
 | 2026-09-27 | Orchestrator | Launched Lanes T (sim driver), R (Rivals/Compete), G (Suggestions); Statistics folded into Lane P |
+| 2026-09-27 | Lane D | `.agents` split by platform/form factor, routers, `check_docs.py` (CI-enforced), single `service-safety.md` |
+| 2026-09-27 | Orchestrator | Unblocked public reads (`b17eac2`), per-page test-ID families, serialized builds (`c972417`) |
