@@ -7,7 +7,7 @@
 | Piece | File | Notes |
 |---|---|---|
 | Data + hash + seen store | `FestivalCore/Changelog.swift` | `Changelog.entries` verbatim from the web; `hash(_:)` reproduces `calculateChangelogHash` (`ChangelogTests` pins `webHash` `-6p8bh3`); `displayEntries` drops Manual; `ChangelogSeenStore` (`fst.changelog.seen.v1`, ≤1 KB, empty/oversized hash → unseen) |
-| Sheet | `Features/WhatsNew/WhatsNewSheet.swift` | `NavigationStack` inline title `What's New · <CFBundleShortVersionString>`, `festivalSheet(.large)`, bullets as primary text, bottom-inset prominent **Dismiss**, toolbar ✕ |
+| Sheet | `Features/WhatsNew/WhatsNewSheet.swift` | `NavigationStack` inline title `What's New · <CFBundleShortVersionString>`, opaque `cardBackground` (page, nav bar, `presentationBackground`), bullets as primary text, **Dismiss** in an opaque `safeAreaInset(.bottom)` bar with a hairline (the list ends above it), toolbar ✕ |
 | Launch gate | `Features/WhatsNew/WhatsNewModifier.swift` | `.whatsNew(session:)` over `WhatsNewLauncher.shared` (tests inject their own); resolves once per process; waits `settleDelay` (700 ms) so the launch page's `.firstRun` claims first, then claims `FirstRunCenter` slot `whats-new`; re-checks whenever `activeKey` returns to nil; `onDismiss` stores `{version, hash}` and releases the slot |
 | Root hook | `App/FestivalRootView.swift` | One additive `.whatsNew(session: session)` line after the global-search sheet |
 | Replay | `Features/Settings/SettingsScreen.swift` | Version card row `fst.settings.whats-new` ("Show") |
@@ -24,7 +24,7 @@
 ## Decisions
 
 - Gate on the content hash (web parity), not on the native app version; the title shows the native version because the card lives in the native app.
-- System sheet with drag indicator instead of the web's centred card (HIG); swipe-down counts as Dismiss.
+- Launch presentation is `whatsNewPresentation(isPresented:)`: a full-height `fullScreenCover` on iPhone (operator, 2026-09-28: the large sheet's curved bottom corners exposed the page and content scrolled visibly under Dismiss), a sheet on macOS. Settings' replay (Settings-owned) still uses `.sheet`; it should adopt `whatsNewPresentation` (TODO(Settings owner)).
 - The shipped web entries include web-only chrome items (FAB dock, search modal). They are kept verbatim for hash parity. TODO(orchestrator): decide whether natives should curate a separate changelog.
 
 ## Tests

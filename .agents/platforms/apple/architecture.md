@@ -45,6 +45,7 @@ Never put several default-style `Button`s or `NavigationLink`s in **one** `List`
 | Use | Not | Why |
 |---|---|---|
 | `StarRating(stars:gold:style:)` (`Design/StarRating.swift`; web `star_white`/`star_gold` in `Resources/Stars.xcassets`; 6 → five gold; `.inline` 14 pt or `.mini` web `MiniStars` circles) | SF Symbol `star`/`star.fill` | Operator rule (2026-09-28): stars use the game's own artwork everywhere |
+| `InstrumentSectionHeader(_:title:size:)` (`Features/Profile/InstrumentSectionHeader.swift`, web `InstrumentHeader` SM 36 pt / MD 48 pt) **above** the card it titles | Instrument icon + name inside a glass card | Operator rule (2026-09-28): instrument headers sit outside containers |
 | `ServiceStatusView(ServiceIssue(error), title:)` (`.title2`/`.body`, heading trait, opaque ≥44pt Retry, scrolls at large text, freeze countdown) | `ContentUnavailableView` or a bare message for service errors | iOS 26.5's system view failed Dynamic Type audits; one vocabulary for freeze/offline/syncing |
 | `.refreshable` on the loaded List only | on an error `ScrollView` | Replacing an active refresh source can strand a spinner |
 | Explicit scaled `frame` inside shared badges | SwiftUI `padding` inside the fixed score badge | Padding caused an iPad split-view layout loop ([score-accuracy](../../controls/score-accuracy/ipados.md)) |
