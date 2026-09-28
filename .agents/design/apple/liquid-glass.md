@@ -21,7 +21,8 @@ Apple's HIG for iOS 26 puts Liquid Glass on the **navigation/control layer that 
 | Tab bar (iPhone) | System nav | `TabView { Tab(…) }` in `FestivalRootView` | System Liquid Glass tab bar, minimises and adapts automatically | Classic translucent tab bar (`.tabItem` on iOS 17) |
 | Navigation bar + toolbar items | System nav | `.toolbar { ToolbarItem(…) }`; shared items via `festivalRootChrome(session:)` | System glass capsules; `ToolbarSpacer` separates the profile bubble from page actions | Standard bar buttons, no capsule |
 | Toolbar glyphs | — | White (`BrandTokens.textPrimary`) monochrome SF Symbols | Matches the web header; accent is reserved for *state* (e.g. non-default sort = gold, active filter = accent) | Same |
-| Search field | System control | `.searchable` | iOS 26 places it in glass automatically | Standard search bar |
+| Search field | System control | Songs: tab-bar accessory pill + docked glass field ([nav-accessories.md](nav-accessories.md)); other pages `.searchable` | Accessory is system glass; the docked field is a `festivalGlassCapsule` in a `safeAreaBar` | Standard `.searchable` search bar |
+| Tab-bar bottom accessory | System nav | `.festivalTabAccessory { … }` on the page; host on the `TabView` | System glass capsule (Music mini player); content uses flat fills | None: toolbar item or `.searchable` fallback |
 | Sheets / modals | System overlay | `.festivalSheet(.large / .compact)` on the sheet's root | System glass sheet forced dark; opaque when expanded | Dark `.ultraThinMaterial` + navy 62% tint |
 | Menus, confirmation dialogs, context menus, alerts | System overlay | Native APIs only | Already glass | System |
 | Hamburger drawer | Custom nav layer | `FestivalDrawer` (`App/Shell`), `.overlay` glass, 44 pt concentric corners, scrim masked under the panel | Navigation surface floating over content — the canonical glass case | Frosted navy `.overlay` fallback of `festivalGlass` |

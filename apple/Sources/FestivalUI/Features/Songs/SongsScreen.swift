@@ -374,7 +374,7 @@ struct SongsScreen: View {
         }
         .festivalBackground(.carousel, session: session, visible: isVisible)
         .navigationTitle("Songs")
-        .searchable(text: $searchText, prompt: Text("Search"))
+        .songsSearch(text: $searchText)
         .toolbar {
             ToolbarItemGroup(placement: Self.pageActionPlacement) {
                 sortAction

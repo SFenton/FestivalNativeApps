@@ -385,7 +385,7 @@ final class FestivalMobileUITests: XCTestCase {
         let row = app.buttons["fst.songs.row.fixture-white"]
         XCTAssertTrue(row.waitForExistence(timeout: 15))
         try await assertWhiteArtVisible(in: app)
-        let search = app.textFields["fst.songs.search"]
+        let search = SongsUITestSupport.songsSearchField(in: app)
         search.tap()
         search.typeText("zzzz\n")
         XCTAssertTrue(app.staticTexts.matching(
@@ -510,7 +510,7 @@ final class FestivalMobileUITests: XCTestCase {
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launch()
         XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
-        let search = app.textFields["fst.songs.search"]
+        let search = SongsUITestSupport.songsSearchField(in: app)
         XCTAssertTrue(search.exists)
         search.tap()
         search.typeText("zzzz")

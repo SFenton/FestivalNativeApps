@@ -1431,7 +1431,7 @@ final class SongsJourneyTests: XCTestCase {
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launch()
         XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
-        let search = app.textFields["fst.songs.search"]
+        let search = SongsUITestSupport.songsSearchField(in: app)
         search.tap()
         search.typeText("zzzz\n")
         let noMatches = app.staticTexts.matching(

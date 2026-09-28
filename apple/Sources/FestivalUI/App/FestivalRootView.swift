@@ -267,6 +267,9 @@ public struct FestivalRootView: View {
                     }
                 }
             }
+            // Page-provided bottom accessory (Songs search, profile Select/Deselect);
+            // see `.agents/design/apple/nav-accessories.md`.
+            .festivalTabAccessoryHost()
         } else {
             TabView(selection: tabSelection) {
                 ForEach(visibleSections) { section in

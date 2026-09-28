@@ -68,6 +68,7 @@ struct PlayerProfileContent: View {
     @State private var actionError: String?
     @State private var quickLinks = QuickLinksController()
     @Environment(\.deviceLayout) private var layout
+    @Environment(\.isTabAccessoryAvailable) private var accessoryAvailable
     @AppStorage("fst.settings.showLead") private var showLead = true
     @AppStorage("fst.settings.showBass") private var showBass = true
     @AppStorage("fst.settings.showDrums") private var showDrums = true
@@ -127,6 +128,21 @@ struct PlayerProfileContent: View {
 
     private var isSelected: Bool { session.selectedPlayer?.accountId == accountId }
 
+    /// Select, Switch or Deselect for the shown account; nil while loading or paused.
+    private var identity: ProfileIdentityAction? {
+        guard case let .available(payload) = shownPhase else { return nil }
+        if isSelected { return .deselect }
+        guard let publication = payload.publicationId, publication == session.publicationId
+        else { return nil }
+        return session.selectedPlayer == nil ? .select : .switchTo
+    }
+
+    /// Values the tab accessory displays; re-registers it when any changes.
+    private struct IdentityAccessoryToken: Hashable {
+        let action: ProfileIdentityAction?
+        let name: String
+    }
+
     /// `phase`, never showing another account's payload (see `PlayerProfilePhase.shown(for:)`).
     private var shownPhase: PlayerProfilePhase { phase.shown(for: accountId) }
 
@@ -165,16 +181,30 @@ struct PlayerProfileContent: View {
             } message: {
                 Text("Scores and profile-only content will be hidden; app Settings stay saved.")
             }
+            .festivalTabAccessory(
+                token: IdentityAccessoryToken(action: identity, name: displayName),
+                isEnabled: identity != nil
+            ) {
+                if let identity {
+                    ProfileIdentityAccessory(name: displayName, action: identity) {
+                        perform(identity)
+                    }
+                }
+            }
             .toolbar {
-                // iPhone Duo: Select/Switch also sits in the vertical-bar rail (Lane W1).
-                if canSelect {
-                    VerticalBarActionItem(
-                        title: session.selectedPlayer == nil ? "Select Profile" : "Switch To This Profile",
-                        systemImage: session.selectedPlayer == nil
-                            ? "person.crop.circle.badge.plus" : "arrow.left.arrow.right",
-                        identifier: "fst.player.select.rail",
-                        action: requestSelect
-                    )
+                if let identity {
+                    if layout.sectionChrome.isVerticalBar {
+                        // iPhone Duo: in the rail, its own group after Back (Lane W1).
+                        VerticalBarActionItem(
+                            title: identity.title, systemImage: identity.systemImage,
+                            identifier: identity.railAccessibilityIdentifier,
+                            action: { perform(identity) }
+                        )
+                    } else if !accessoryAvailable {
+                        ProfileIdentityToolbarItem(
+                            action: identity, onTabRoot: showsRootTrailingItems, perform: perform
+                        )
+                    }
                 }
                 QuickLinksToolbarItem(quickLinks)
                 if showsRootTrailingItems {
@@ -253,7 +283,7 @@ struct PlayerProfileContent: View {
                         .accessibilityHidden(true)
                 }
             }
-            identityAction(payload)
+            identityPause(payload)
             if let actionError {
                 Text(actionError)
                     .font(.footnote)
@@ -263,16 +293,14 @@ struct PlayerProfileContent: View {
         }
     }
 
-    /// Select/switch when viewing someone else, or deselect when this is "me".
+    /// Why selection is paused, when it is. The Select/Switch/Deselect action itself
+    /// lives in the tab accessory or toolbar (`ProfileIdentityAccessory.swift`).
     ///
-    /// - Parameter payload: Current validated read backing this action.
+    /// - Parameter payload: Current validated read backing the action.
     @ViewBuilder
-    private func identityAction(_ payload: PlayerProfilePayload) -> some View {
+    private func identityPause(_ payload: PlayerProfilePayload) -> some View {
         if isSelected {
-            Button("Deselect Profile", role: .destructive) { deselectPending = true }
-                .buttonStyle(.bordered)
-                .tint(BrandTokens.textPrimary)
-                .accessibilityIdentifier("fst.player.deselect")
+            EmptyView()
         } else if payload.publicationId == nil {
             Text("These scores have no verified publication. Selection is paused.")
                 .font(.footnote)
@@ -283,28 +311,17 @@ struct PlayerProfileContent: View {
                 .font(.footnote)
                 .foregroundStyle(BrandTokens.gold)
                 .accessibilityIdentifier("fst.player.preview-changed")
-        } else {
-            Button(session.selectedPlayer == nil ? "Select Profile" : "Switch To This Profile") {
-                requestSelect()
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(BrandTokens.accentBlue)
-            .accessibilityIdentifier("fst.player.select")
         }
     }
 
-    /// Whether the Select/Switch action is offered (same rule as ``identityAction(_:)``).
-    private var canSelect: Bool {
-        guard case let .available(payload) = shownPhase, !isSelected else { return false }
-        return payload.publicationId != nil && payload.publicationId == session.publicationId
-    }
-
-    /// Select directly when anonymous; confirm before switching away from another profile.
-    private func requestSelect() {
-        if session.selectedPlayer == nil {
-            select()
-        } else {
-            switchPending = true
+    /// Carry out an identity action; Switch and Deselect confirm first.
+    ///
+    /// - Parameter action: Action chosen in the accessory or toolbar.
+    private func perform(_ action: ProfileIdentityAction) {
+        switch action {
+        case .select: select()
+        case .switchTo: switchPending = true
+        case .deselect: deselectPending = true
         }
     }
 

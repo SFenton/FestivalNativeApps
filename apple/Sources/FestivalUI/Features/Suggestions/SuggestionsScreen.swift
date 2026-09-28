@@ -49,6 +49,15 @@ struct SuggestionsScreen: View {
         viewModel.visibleCategories(appVisibleInstruments: visibleInstruments)
     }
 
+    /// Trailing navigation bar on iOS (before the shared bell/avatar), primary action elsewhere.
+    private static var pageActionPlacement: ToolbarItemPlacement {
+        #if os(iOS)
+        .topBarTrailing
+        #else
+        .primaryAction
+        #endif
+    }
+
     var body: some View {
         Group {
             if session.selectedPlayer == nil {
@@ -67,7 +76,9 @@ struct SuggestionsScreen: View {
         .festivalBackground(.carousel, session: session)
         .toolbar {
             if session.selectedPlayer != nil, session.playerLoadState == .available {
-                ToolbarItem(placement: .primaryAction) {
+                // Tab root: page actions precede the bell + avatar, which stay rightmost
+                // (`.primaryAction` is pinned trailing and would land after the avatar).
+                ToolbarItem(placement: Self.pageActionPlacement) {
                     Button {
                         filterPresented = true
                     } label: {
@@ -77,7 +88,9 @@ struct SuggestionsScreen: View {
                     .accessibilityIdentifier("fst.suggestions.filter-button")
                 }
             }
+            FestivalRootTrailingItems(session: session)
         }
+        .festivalProvidesRootTrailingItems()
         .sheet(isPresented: $filterPresented) {
             SuggestionsFilterSheet(
                 applied: viewModel.filter, visibleInstruments: orderedVisibleInstruments

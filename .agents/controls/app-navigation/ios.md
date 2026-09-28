@@ -18,3 +18,7 @@ SwiftUI lays out items from an outer `.toolbar` modifier (the root chrome) *befo
 - Use `placement: .topBarTrailing` (iOS only — wrap in `#if os(iOS)`, `.primaryAction` on macOS) for page actions on tab roots. `.primaryAction` is pinned to the far trailing edge and would land after the avatar.
 - Tab roots **without** their own actions do nothing; `festivalRootChrome` adds the bell + avatar itself.
 - Pushed pages never show the chrome, so `.primaryAction` is fine there.
+
+## Tab-bar bottom accessory
+
+`FestivalRootView` applies `.festivalTabAccessoryHost()` to the iPhone `TabView` (`Common/TabAccessory/TabAccessory.swift`). Pages register content with `.festivalTabAccessory(token:isEnabled:)` while visible; the newest registration is shown, and the tab bar minimizes on scroll only while one is. Which pages use it, and their fallbacks: [nav-accessories.md](../../design/apple/nav-accessories.md).
