@@ -199,12 +199,16 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 
 ### Wave 3 — UX tests (started for completed features)
 
-**Lane Z — Bugs found by UX tests** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/bugfix`
+**Lane Z — Bugs found by UX tests** (Sonnet) — ✅ landed `a445a3f`…`8716205`
 - ⬜ Leaderboards row IDs shadowed by card ID · ⬜ Quick Links jump lands before target (see also Lane U3's independent repro below: tapping any row but the first activates the row *above* it) · ⬜ FirstRun pulse ignores still-background flag
 
 Coverage so far (SwiftPM hosted+logic): Shell 71.8%, Leaderboards+QL 83.6%, Background 81.0%, History+Notifications 72.7%, First-run 78.8%, Licenses 67.7% — gap is mostly device-only branches; iOS app-target `xccov` measurement still to run.
 
-Queued: **UX tests for Profile / Statistics / Bands / Settings** (worktree `uxprofile` ready; start when load allows)
+**Lane U4 — UX tests: Profile, Statistics, Bands, Settings + Suggestions hosted** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/uxprofile`
+
+**Lane Z2 — Wrong-account profile bug** (Opus) — 🟨 running in `~/repos/FestivalNativeApps-lanes/wrongacct` (viewing a searched player could show another account's data; client-side)
+
+Coverage (SwiftPM hosted): Songs 91.3%, Song Detail 92.6%, Item Shop 94.5%, Rivals/Compete 87.8%, Suggestions 8.3% (→ U4)
 
 **Lane U3 — UX tests: Rivals & Compete** (Sonnet) — ✅ landed
 - ✅ `RivalsRenderTests.swift` (29 hosted tests) + `CompeteRenderTests.swift` (6): every declared control state (no-profile, loading, empty instruments, song/leaderboard tab, Common Rivals + Combo, per-section 503/empty, All Rivals loaded/empty/unavailable/combo/common/unknown-category, Rival Detail categorized/no-songs/unavailable/nil-scope-fallback/leaderboard-scope, Rivalry ordering, Find Rival's 5 search states)
@@ -216,13 +220,13 @@ Queued: **UX tests for Profile / Statistics / Bands / Settings** (worktree `uxpr
 - **Real bug found:** `QuickLinksMenu` (`Common/QuickLinks/QuickLinksToolbar.swift`) activates the row *above* the one actually tapped, reproduced independently on both Compete and Rivals via `ios_sim.py drive` — a shared-component bug affecting every page with Quick Links, not fixed by this lane (out of scope; flagged via `spawn_task`)
 - Rebased mid-lane onto Lane K's API-client/`ServiceStatusView` consolidation (landed concurrently); full rebuild + full `swift test` re-run confirmed everything still compiles and passes unchanged
 
-**Lane U2 — UX tests: Songs, Song Detail, Paths, Shop, Suggestions** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/uxsongs` — landed `6920322`, `1775788`
+**Lane U2 — UX tests: Songs, Song Detail, Paths, Shop, Suggestions** (Sonnet) — ✅ landed `6920322`…`d26bcaf` — landed `6920322`, `1775788`
 - ✅ Triaged the legacy monolith: 34 tests migrated into `SongsJourneyTests`/`SongDetailJourneyTests`/`ShopJourneyTests`, 7 deleted (broken by the instrument-picker-into-Filter and offline-disclosure-removal redesigns), shared helpers into `SongsUITestSupport` (a namespaced `enum`, not an `XCTestCase` extension, so it can't collide with Lane U's own helpers extracted from the same file in parallel)
 - ✅ New `SuggestionsJourneyTests` (no-profile guard, filter draft, best-effort incremental load) and `SongSectionIndexScrubberRenderTests` (0→3 hosted cases, previously untested)
 - **Found and fixed two real bugs while running the migrated tests against the device:** `SongsScreen`'s card row silently lost its VoiceOver `.isButton` trait when `b84cfa4` combined it with an invisible `opacity(0)` `NavigationLink` (SwiftUI drops fully-transparent children's traits from `.accessibilityElement(children: .combine)`); and the Songs UITest helpers still targeted the pre-redesign inline profile-preview sheet (`fst.profile.open`/`fst.profile.select`) instead of the current shared-chrome button (`fst.shell.profile`) and pushed Player Profile page (`fst.player.*`) — both fixed.
 - **Follow-up task flagged, not fixed:** viewing a searched player's profile page can display a *different* account's data (verified server-side responses are correct; client-side bug in `PlayerProfileContent`'s load-task identity) — blocks reliable XCUITest coverage of every player-selection journey until fixed.
 - Coverage (SwiftPM hosted, `apple/Sources/FestivalUI/Features/*`): Songs 91.3%, Song Detail 92.6%, Item Shop 94.5% (all above the 90% UX target); Suggestions 8.3% (primary gap — needs hosted snapshot tests, not just the XCUITest journeys added this pass); shared Quick Links 76.6%.
-- ⬜ Full 41-test XCUITest device pass (a representative subset verified; operator's new ≤5-minute-per-lock-hold rule means the rest needs several more short batches) · ⬜ Suggestions hosted snapshots · ⬜ `apple_xccov_gate.py` iPhone device coverage
+- ✅ Full 41-test XCUITest device pass (a representative subset verified; operator's new ≤5-minute-per-lock-hold rule means the rest needs several more short batches) · ⬜ Suggestions hosted snapshots · ⬜ `apple_xccov_gate.py` iPhone device coverage
 
 **Lane U — UX tests: shell, leaderboards, background, history, notifications, first-run, licenses** (Sonnet) — ✅ landed `bf30198`…`7b85419`
 - ⬜ Hosted snapshot per declared control state · ⬜ Per-feature XCUITest journeys against the loopback mock (batched on the shared simulator) · ⬜ Per-feature UX coverage → `.agents/testing/apple/coverage.md`
@@ -262,7 +266,7 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 
 ## 5. Known issues / decisions
 
-- **Open operator decisions (Duo):** (1) poses other than folded-portrait can only be set via Device Hub's on-screen buttons (no `simctl`/XCTest API) — needs manual pose changes or permission for UI scripting; (2) whether large iPhones in landscape also get the split Leaderboards/Rivals tabs (web does ≥600 px). Default until decided: Duo-only.
+- **Operator decisions (Duo, 2026-09-28):** (1) **UI scripting allowed** for Device Hub poses — operator grants macOS Accessibility permission (agents never change security settings); (2) split Leaderboards/Rivals tabs **only on Duo unfolded + iPad**; large iPhones keep portrait tabs in landscape.
 
 - **One simulator booted at a time (`ad76e5e`):** `ios_sim.py` shuts down other FST simulators before booting a device (Duo lane had both iPhone and Duo booted).
 - **SwiftUI sheet environment trap:** environment actions set by the presenter weren't visible inside `.sheet` content in practice; pass closures into sheets explicitly (see `.agents/controls/profile-selection/ios.md`).
@@ -349,3 +353,8 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Lane G3 | Rival-driven suggestions: `RivalDataIndex` from `/rivals/all`, all ten `song_rival_*` pipelines, rivals loaded alongside the catalogue (best-effort), rival badge on category rows; found `lb_rival_*` is dead code on the web itself; 75 tests, 96.13% Suggestions-Core coverage |
 | 2026-09-28 | Lane U2 | Triaged Songs/Shop/Detail legacy UITests (34 migrated, 7 deleted), added Suggestions journeys + section-index hosted tests; found and fixed the Songs-row `.isButton` trait loss and stale profile-flow test IDs; flagged (unfixed) a Player Profile wrong-account-data bug; Songs/Detail/Shop hosted coverage 91–95%, Suggestions 8.3% (open gap) |
 | 2026-09-28 | Lane U3 | Rivals/Compete UX tests: 35 hosted snapshot tests, 5 XCUITest journeys, `mock_service.py` Rivals/rankings routes, missing row accessibility identifiers; found a shared `QuickLinksMenu` off-by-one row-selection bug (flagged, not fixed by this lane) |
+| 2026-09-28 | Lane G3 | All 10 `song_rival_*` suggestion families (`lb_rival_*` is dead code on web); Suggestions Core 96% |
+| 2026-09-28 | Lane U2 | Legacy UITest monolith 4921→1797 lines (7 deleted, 34 migrated); Songs/Detail/Shop ≥91% hosted coverage; fixed VoiceOver button trait on song rows; found wrong-account bug |
+| 2026-09-28 | Lane U3 | Rivals/Compete: 35 hosted + 5 journeys, 87.8% |
+| 2026-09-28 | Lane Z | Fixed Leaderboards row ID shadowing, Quick Links landing short, FirstRun pulse vs still flag; all journey batches pass |
+| 2026-09-28 | Orchestrator | Operator decisions recorded; launched Z2 (wrong-account bug), U4 (Profile/Bands/Settings UX tests), W1 (Duo shell) |
