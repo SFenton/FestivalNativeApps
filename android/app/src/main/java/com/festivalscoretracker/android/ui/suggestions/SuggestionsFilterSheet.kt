@@ -10,7 +10,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -20,15 +19,15 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -50,40 +49,33 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
 
 // region Filter sheet
 
-/** Saves a draft across configuration changes (rotation, fold) as its stored text. */
-private val DraftSaver = Saver<SuggestionFilterSettings, String>(save = { it.encoded() }, restore = SuggestionFilterSettings::decodeSaved)
-
 /**
- * Staged Suggestions filter (web `SuggestionsFilterModal`): Instruments, General
- * and Instrument-Specific switches with the web cascade rules. Cancel, back or a
- * swipe with unapplied edits asks to discard them first; Apply persists.
+ * Live Suggestions filter (web `SuggestionsFilterModal`): Instruments, General and
+ * Instrument-Specific switches with the web cascade rules. Every change applies and persists
+ * at once (operator 2026-09-28: no Cancel/Apply); **Done**, back or a swipe closes the sheet.
  *
- * @param saved Applied filter.
+ * @param filter Applied filter.
  * @param instruments Settings-visible charts in display order.
- * @param onApply Apply and persist the draft.
- * @param onDismiss Close without applying.
+ * @param onChange Apply and persist a change.
+ * @param onDismiss Close the sheet.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SuggestionsFilterSheet(
-    saved: SuggestionFilterSettings,
+    filter: SuggestionFilterSettings,
     instruments: List<Instrument>,
-    onApply: (SuggestionFilterSettings) -> Unit,
+    onChange: (SuggestionFilterSettings) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var draft by rememberSaveable(stateSaver = DraftSaver) { mutableStateOf(saved) }
-    var selected by rememberSaveable { mutableStateOf<String?>(null) }
-    var confirmDiscard by rememberSaveable { mutableStateOf(false) }
-    val hasChanges = draft != saved
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true) { target ->
-        if (target == SheetValue.Hidden && draft != saved) {
-            confirmDiscard = true
-            false
-        } else {
-            true
-        }
+    // Local copy so rapid toggles build on each other before the applied state round-trips.
+    var draft by remember { mutableStateOf(filter) }
+    LaunchedEffect(filter) { draft = filter }
+    val update: (SuggestionFilterSettings) -> Unit = { next ->
+        draft = next
+        onChange(next)
     }
-    val requestClose = { if (hasChanges) confirmDiscard = true else onDismiss() }
+    var selected by rememberSaveable { mutableStateOf<String?>(null) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val pickedInstrument = instruments.firstOrNull { it.wireId == selected }
 
     ModalBottomSheet(
@@ -92,21 +84,16 @@ fun SuggestionsFilterSheet(
         containerColor = BrandTokens.cardBackground,
         modifier = Modifier.semantics { testTagsAsResourceId = true },
     ) {
-        // Pinned toolbar: Cancel and Apply stay reachable however far the form scrolls.
-        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = requestClose, modifier = Modifier.testTag("fst.suggestions.filter.cancel")) { Text("Cancel") }
+        // Pinned header: Done stays reachable however far the form scrolls.
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 "Filter Suggestions",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = BrandTokens.textPrimary,
-                modifier = Modifier.weight(1f).padding(horizontal = 8.dp).semantics { heading() }.testTag("fst.suggestions.filter.title"),
+                modifier = Modifier.weight(1f).semantics { heading() }.testTag("fst.suggestions.filter.title"),
             )
-            TextButton(
-                onClick = { onApply(draft) },
-                enabled = hasChanges,
-                modifier = Modifier.testTag("fst.suggestions.filter.apply"),
-            ) { Text("Apply") }
+            TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp).testTag("fst.suggestions.filter.done")) { Text("Done") }
         }
         HorizontalDivider(color = BrandTokens.glassBorder)
         LazyColumn(Modifier.fillMaxWidth().testTag("fst.suggestions.filter.form")) {
@@ -117,7 +104,7 @@ fun SuggestionsFilterSheet(
                     checked = draft.isInstrumentEnabled(instrument),
                     tag = "fst.suggestions.filter.instrument.${instrument.wireId}",
                     instrument = instrument,
-                ) { draft = draft.withInstrument(instrument, it) }
+                ) { update(draft.withInstrument(instrument, it)) }
             }
             item { SectionTitle("General", "fst.suggestions.filter.general") }
             items(SuggestionCategoryType.entries, key = { "type.${it.key}" }) { type ->
@@ -126,7 +113,7 @@ fun SuggestionsFilterSheet(
                     supporting = type.filterDescription,
                     checked = draft.isGlobalEnabled(type),
                     tag = "fst.suggestions.filter.type.${type.key}",
-                ) { draft = draft.withGlobalType(type, it, instruments) }
+                ) { update(draft.withGlobalType(type, it, instruments)) }
             }
             if (instruments.isNotEmpty()) {
                 item { SectionTitle("Instrument-Specific", "fst.suggestions.filter.instrument-specific") }
@@ -154,7 +141,7 @@ fun SuggestionsFilterSheet(
                             title = type.label,
                             checked = draft.isTypeEnabled(type, pickedInstrument),
                             tag = "fst.suggestions.filter.type.${pickedInstrument.wireId}.${type.key}",
-                        ) { draft = draft.withPerInstrumentType(type, pickedInstrument, it, instruments) }
+                        ) { update(draft.withPerInstrumentType(type, pickedInstrument, it, instruments)) }
                     }
                 } else {
                     item {
@@ -169,25 +156,12 @@ fun SuggestionsFilterSheet(
             }
             item {
                 OutlinedButton(
-                    onClick = { draft = SuggestionFilterSettings.DEFAULTS },
+                    onClick = { update(SuggestionFilterSettings.DEFAULTS) },
                     enabled = draft.isActive,
                     modifier = Modifier.fillMaxWidth().padding(16.dp).heightIn(min = 48.dp).testTag("fst.suggestions.filter.reset"),
                 ) { Text("Reset Filters") }
             }
         }
-    }
-    if (confirmDiscard) {
-        AlertDialog(
-            onDismissRequest = { confirmDiscard = false },
-            title = { Text("Discard Changes?") },
-            text = { Text("Your filter changes haven't been applied.") },
-            confirmButton = {
-                TextButton(onClick = { confirmDiscard = false; onDismiss() }, modifier = Modifier.testTag("fst.suggestions.filter.discard")) { Text("Discard") }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmDiscard = false }, modifier = Modifier.testTag("fst.suggestions.filter.keep-editing")) { Text("Keep Editing") }
-            },
-        )
     }
 }
 

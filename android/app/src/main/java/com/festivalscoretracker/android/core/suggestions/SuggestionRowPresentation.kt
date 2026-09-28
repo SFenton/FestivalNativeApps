@@ -75,6 +75,7 @@ data class SuggestionInstrumentChip(val instrument: Instrument, val hasScore: Bo
  * @property rivalName Rival name, truncated to 12 characters.
  * @property rivalDeltaText "+5" / "-3", or null when zero.
  * @property rivalDeltaSign Sign of the rank delta (positive: the player leads).
+ * @property rivalFromSong The rival comes from song rivals (blue badge), not leaderboard rivals (yellow).
  * @property chips Instrument chips for [SuggestionRowLayout.InstrumentChips].
  * @property accessibleLabel TalkBack description for the whole row.
  */
@@ -93,6 +94,7 @@ data class SuggestionRowPresentation(
     val rivalName: String? = null,
     val rivalDeltaText: String? = null,
     val rivalDeltaSign: Int = 0,
+    val rivalFromSong: Boolean = false,
     val chips: List<SuggestionInstrumentChip> = emptyList(),
     val accessibleLabel: String = "",
 ) {
@@ -167,6 +169,7 @@ data class SuggestionRowPresentation(
                         instrument = item.instrument,
                         rivalName = name,
                         rivalDeltaSign = delta.sign,
+                        rivalFromSong = category.key.lowercase(Locale.ROOT).startsWith("song_rival_"),
                         rivalDeltaText = when {
                             delta == 0 -> null
                             delta > 0 -> "+$delta"

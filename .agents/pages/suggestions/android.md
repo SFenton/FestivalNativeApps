@@ -14,7 +14,7 @@
 | Reads via the `ServiceEndpoint.Feature` seam: `/api/player/{id}` (pinned, 202 = syncing, compact wire validated like Apple `PlayerProfileResponse.validate`, `acc` ×1000) and `/api/player/{id}/rivals/all` (404 → empty) | `data/suggestions/FestivalApiSuggestions.kt` |
 | Filter persistence under `fst.suggestions.filter` in the shared settings DataStore (registered in `SettingsRegistry`, reset with app settings) | `data/suggestions/SuggestionFilterStore.kt` |
 | Page model: one generator per (player, catalogue publication, score publication); web batching (10 first, 6 per trigger), endless `resetForEndless` remix, 1,000-category cap + Start a new mix; rivals fetched after the first batch and spliced in (best-effort); filter/chart visibility re-applied without regenerating; generation on `Dispatchers.Default` under a mutex, state published inside the lock | `presentation/suggestions/SuggestionsViewModel.kt` |
-| Stateless screen + `SuggestionsActions`; glass category cards; `LazyVerticalStaggeredGrid`; staged filter `ModalBottomSheet` | `ui/suggestions/SuggestionsScreen.kt`, `SuggestionCardView.kt`, `SuggestionsFilterSheet.kt` |
+| Stateless screen + `SuggestionsActions`; category header above a glass card of rows; `LazyVerticalStaggeredGrid`; live filter `ModalBottomSheet` | `ui/suggestions/SuggestionsScreen.kt`, `SuggestionCardView.kt`, `SuggestionsFilterSheet.kt` |
 | Nav registration for `SuggestionsTab` and `SuggestionsRoute` (one call in `FestivalApp`) | `ui/suggestions/SuggestionsDestinations.kt` |
 
 States: no player (Choose Profile opens the profile sheet), loading, syncing (202, Retry), failed (shared `ServiceStatusView`, scrape-freeze countdown), empty (Play some songs first! / filtered → Reset Filters), loaded, loading-more footer, 1,000 cap. Rows push `SongDetailRoute(songId)`.
@@ -32,7 +32,14 @@ States: no player (Choose Profile opens the profile sheet), loading, syncing (20
 | Medium/expanded | `max(1, ⌊(width + 16) / (400 + 16)⌋)` columns (book fold unfolded: 1; tablet/tri-fold unfolded: 2) |
 | Separating vertical hinge (book fold half-open) | `HingeSplitCells`: two unequal columns whose gap is the hinge (≥ 16 dp), so no card straddles the fold; computed from `currentWindowAdaptiveInfo().windowPosture.hingeList` and the grid's window position |
 
-Filter sheet: Cancel / title / Apply pinned above the scrolling form; back, swipe or Cancel with unapplied edits asks **Discard Changes?**; the draft survives rotation and posture changes (`rememberSaveable` via the stored encoding). Swipe-to-dismiss is blocked through `confirmValueChange` while edits are pending.
+Filter sheet (operator 2026-09-28): **applies live** — every switch, cascade and Reset Filters applies and persists at once (`SuggestionsViewModel.applyFilter`), so the grid and the toolbar's "filters on" state update behind the sheet. The header is the title plus a single **Done**; back, swipe or Done just closes. No Cancel/Apply and no discard prompt.
+
+## Card (web `CategoryCard`, operator 2026-09-28)
+
+- **Header outside the card**: title (16 sp bold, heading), description (12 sp `textTertiary` #9AA6B2) and, for single-chart categories, a 36 dp instrument icon sit above the glass card (`fst.suggestions.header.<id>`), like Leaderboards/Compete; the card holds only the rows (1 dp `borderSubtle` dividers). Cards are 24 dp apart (web `Gap.section`).
+- Row: 44 dp artwork, then title (14 sp semibold) and "Artist · Year" (12 sp `textSubtle`), both marquee when they overflow (`MarqueeLine`; truncated under Reduce Motion); 10 dp vertical / 16 dp horizontal insets (web 24 px; Material list-item inset keeps metadata beside the text on phones). Narrow cards move metadata to a right-aligned second line.
+- Metadata per category (web `RightContent`): instrument chips = 34 dp solid status circles (gold/green/red fill + 2 dp darker stroke, 20 dp icon, 6 dp gap, Settings-visible charts); star-gain rows = web star images at 20 dp (`StarRating`) + 28 dp instrument icon; percentile = `PercentilePill` (subtle white; Top 5% gold outline; Top 1% gold outline italic — Compose has no skew) + 28 dp icon; UNFC = accuracy pill tinted by accuracy; stale = 48 dp `SeasonPill` (16 sp); rival = name badge (blue song rival / yellow leaderboard rival, 11 sp, ≤ 100 dp) + bold tabular rank delta (green ahead / red behind) + 28 dp icon; unplayed/variety/artist = none.
+- Entry motion: each generated batch fades in (web `getCardDelay`: 125 ms stagger from the batch's first card); cards already revealed or scrolled back into view show at once; Reduce Motion shows them immediately.
 
 ## Decisions
 
@@ -52,7 +59,7 @@ Filter sheet: Cancel / title / Apply pinned above the scrolling form; back, swip
 | `core/suggestions/SuggestionParityTest`, `SuggestionCoreTest` | Apple parity; helpers, filter cascade/persistence, rival index edge cases, row layouts, skip streak, spotlight |
 | `suggestions/SuggestionDataTest` | Wire validation (identity, counts, duplicates, bounds, 202 envelope), instrument bit codes, keyless requests, rivals 404/500, filter store |
 | `suggestions/SuggestionsViewModelTest` | Batching, rival splice, remix to the cap + new mix, filter/visibility refilter, syncing/failure retry, player switch, new publication |
-| `suggestions/SuggestionsUiTest`, `SuggestionsRenderTest` (Robolectric) | Whole-shell journeys (load, scroll, open Song Detail, filter apply/discard/reset, all types off, no player, syncing → failure → loaded) and hosted renders of every phase/row layout, phone and expanded |
+| `suggestions/SuggestionsUiTest`, `SuggestionsRenderTest` (Robolectric) | Whole-shell journeys (load, scroll, open Song Detail, live filter/Done/reset, all types off, no player, syncing → failure → loaded) and hosted renders of every phase/row layout, phone and expanded |
 
 | Last measured | Logic lines | UI lines |
 |---|---|---|

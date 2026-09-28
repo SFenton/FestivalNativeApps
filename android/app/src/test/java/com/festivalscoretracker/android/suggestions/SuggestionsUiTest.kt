@@ -95,22 +95,25 @@ class SuggestionsUiTest {
     }
 
     @Test
-    fun filterSheetAppliesResetsAndDiscards() {
+    fun filterSheetAppliesLiveAndResets() {
         launch()
         waitForTag("fst.suggestions.list")
         rule.onNodeWithTag("fst.suggestions.filter-button").performClick()
         waitForTag("fst.suggestions.filter.form")
-        rule.onNodeWithTag("fst.suggestions.filter.apply").assertIsNotEnabled()
+        assertEquals(0, rule.onAllNodesWithTag("fst.suggestions.filter.apply").fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithTag("fst.suggestions.filter.cancel").fetchSemanticsNodes().size)
         rule.onNodeWithTag("fst.suggestions.filter.instrument.Solo_Guitar").assertIsOn().performSemanticsAction(SemanticsActions.OnClick); settle()
         rule.onNodeWithTag("fst.suggestions.filter.instrument.Solo_Guitar").assertIsOff()
-        rule.onNodeWithTag("fst.suggestions.filter.apply").assertIsEnabled().performSemanticsAction(SemanticsActions.OnClick); settle()
+        // Applied live: the toolbar badge flips while the sheet is still open; Done just closes.
+        rule.onNodeWithContentDescription("Filter Suggestions, filters on").assertExists()
+        rule.onNodeWithTag("fst.suggestions.filter.done").performSemanticsAction(SemanticsActions.OnClick); settle()
         settle()
         rule.onNodeWithContentDescription("Filter Suggestions, filters on").assertIsDisplayed()
         assertTrue(rule.onAllNodes(hasTestTagPrefix("fst.suggestions.row.")).fetchSemanticsNodes().none {
             it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag)!!.endsWith("|Solo_Guitar")
         })
 
-        // General + instrument-specific toggles, then Cancel asks before discarding.
+        // General + instrument-specific toggles apply as they change; closing keeps them.
         rule.onNodeWithTag("fst.suggestions.filter-button").performClick()
         waitForTag("fst.suggestions.filter.form")
         rule.onNodeWithTag("fst.suggestions.filter.form").performScrollToNode(hasTestTag("fst.suggestions.filter.type.stale"))
@@ -123,22 +126,22 @@ class SuggestionsUiTest {
         rule.onNodeWithTag("fst.suggestions.filter.type.Solo_Bass.nearFC").assertIsOff()
         rule.onNodeWithTag("fst.suggestions.filter.form").performScrollToNode(hasTestTag("fst.suggestions.filter.type.Solo_Bass.stale"))
         rule.onNodeWithTag("fst.suggestions.filter.type.Solo_Bass.stale").assertIsOff()
-        rule.onNodeWithTag("fst.suggestions.filter.cancel").performSemanticsAction(SemanticsActions.OnClick); settle()
-        settle()
-        rule.onNodeWithTag("fst.suggestions.filter.keep-editing").performSemanticsAction(SemanticsActions.OnClick); settle()
-        settle()
-        rule.onNodeWithTag("fst.suggestions.filter.cancel").performSemanticsAction(SemanticsActions.OnClick); settle()
-        settle()
-        rule.onNodeWithTag("fst.suggestions.filter.discard").performSemanticsAction(SemanticsActions.OnClick); settle()
+        rule.onNodeWithTag("fst.suggestions.filter.done").performSemanticsAction(SemanticsActions.OnClick); settle()
         settle()
         assertEquals(0, rule.onAllNodesWithTag("fst.suggestions.filter.form").fetchSemanticsNodes().size)
+        rule.onNodeWithTag("fst.suggestions.filter-button").performClick()
+        waitForTag("fst.suggestions.filter.form")
+        rule.onNodeWithTag("fst.suggestions.filter.form").performScrollToNode(hasTestTag("fst.suggestions.filter.type.stale"))
+        rule.onNodeWithTag("fst.suggestions.filter.type.stale").assertIsOff()
+        rule.onNodeWithTag("fst.suggestions.filter.done").performSemanticsAction(SemanticsActions.OnClick); settle()
+        settle()
 
         // Reset back to defaults.
         rule.onNodeWithTag("fst.suggestions.filter-button").performClick()
         waitForTag("fst.suggestions.filter.form")
         rule.onNodeWithTag("fst.suggestions.filter.form").performScrollToNode(hasTestTag("fst.suggestions.filter.reset"))
         rule.onNodeWithTag("fst.suggestions.filter.reset").performSemanticsAction(SemanticsActions.OnClick); settle()
-        rule.onNodeWithTag("fst.suggestions.filter.apply").performSemanticsAction(SemanticsActions.OnClick); settle()
+        rule.onNodeWithTag("fst.suggestions.filter.done").performSemanticsAction(SemanticsActions.OnClick); settle()
         settle()
         rule.onNodeWithContentDescription("Filter Suggestions").assertIsDisplayed()
     }
@@ -154,7 +157,7 @@ class SuggestionsUiTest {
             rule.onNodeWithTag("fst.suggestions.filter.form").performScrollToNode(hasTestTag("fst.suggestions.filter.type.$key"))
             rule.onNodeWithTag("fst.suggestions.filter.type.$key").performSemanticsAction(SemanticsActions.OnClick); settle()
         }
-        rule.onNodeWithTag("fst.suggestions.filter.apply").performSemanticsAction(SemanticsActions.OnClick); settle()
+        rule.onNodeWithTag("fst.suggestions.filter.done").performSemanticsAction(SemanticsActions.OnClick); settle()
         waitForTag("fst.suggestions.reset-filters")
         rule.onNodeWithText("Try changing your filters to see more suggestions.").assertIsDisplayed()
         rule.onNodeWithTag("fst.suggestions.reset-filters").performClick()

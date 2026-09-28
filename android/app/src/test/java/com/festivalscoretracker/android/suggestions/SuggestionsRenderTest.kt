@@ -171,34 +171,38 @@ class SuggestionsRenderTest {
     }
 
     @Test
-    fun filterButtonOpensTheSheetAndApplyCloses() {
+    fun filterButtonOpensTheSheetAndChangesApplyLive() {
         show(SuggestionsUiState(SuggestionsPhase.Empty))
         rule.onNodeWithText("Play some songs first!").assertIsDisplayed()
         rule.onNodeWithTag("fst.suggestions.filter-button").performClick()
         settle()
         rule.onNodeWithTag("fst.suggestions.filter.instrument.Solo_Bass").performSemanticsAction(SemanticsActions.OnClick)
         settle()
-        rule.onNodeWithTag("fst.suggestions.filter.apply").performSemanticsAction(SemanticsActions.OnClick)
-        settle()
         assertEquals(listOf("filter:true"), events)
+        rule.onNodeWithTag("fst.suggestions.filter.done").performSemanticsAction(SemanticsActions.OnClick)
+        settle()
         assertEquals(0, rule.onAllNodesWithTag("fst.suggestions.filter.form").fetchSemanticsNodes().size)
     }
 
     @Test
-    fun sheetWithoutVisibleChartsAndBackAsksToDiscard() {
+    fun sheetWithoutVisibleChartsAppliesEachToggleAndSwipeCloses() {
         var dismissed = false
+        val changes = mutableListOf<SuggestionFilterSettings>()
         rule.setContent {
             FestivalTheme {
-                SuggestionsFilterSheet(SuggestionFilterSettings.DEFAULTS, emptyList(), onApply = {}, onDismiss = { dismissed = true })
+                SuggestionsFilterSheet(SuggestionFilterSettings.DEFAULTS, emptyList(), onChange = { changes += it }, onDismiss = { dismissed = true })
             }
         }
         settle()
         assertEquals(0, rule.onAllNodesWithTag("fst.suggestions.filter.instrument-specific").fetchSemanticsNodes().size)
         rule.onNodeWithTag("fst.suggestions.filter.type.nearFC").performSemanticsAction(SemanticsActions.OnClick)
         settle()
-        rule.onNodeWithTag("fst.suggestions.filter.title").performTouchInput { swipeDown(startY = centerY, endY = centerY + 1500f, durationMillis = 200) }
+        rule.onNodeWithTag("fst.suggestions.filter.type.nearFC").performSemanticsAction(SemanticsActions.OnClick)
         settle()
-        rule.onNodeWithTag("fst.suggestions.filter.discard").performClick()
+        // Each toggle builds on the previous one before the applied state round-trips.
+        assertEquals(2, changes.size)
+        assertEquals(SuggestionFilterSettings.DEFAULTS, changes.last())
+        rule.onNodeWithTag("fst.suggestions.filter.title").performTouchInput { swipeDown(startY = centerY, endY = centerY + 1500f, durationMillis = 200) }
         settle()
         assertTrue(dismissed)
     }

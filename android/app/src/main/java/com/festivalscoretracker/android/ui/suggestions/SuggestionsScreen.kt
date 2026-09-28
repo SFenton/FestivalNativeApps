@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
-import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FilterList
@@ -30,11 +30,13 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -60,6 +62,8 @@ import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LoadingView
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
+import com.festivalscoretracker.android.ui.common.fadeInStagger
+import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlinx.coroutines.flow.distinctUntilChanged
 
@@ -139,12 +143,9 @@ internal fun SuggestionsScreenContent(
     }
     if (showFilter) {
         SuggestionsFilterSheet(
-            saved = state.filter,
+            filter = state.filter,
             instruments = state.visibleInstruments,
-            onApply = {
-                actions.applyFilter(it)
-                showFilter = false
-            },
+            onChange = actions.applyFilter,
             onDismiss = { showFilter = false },
         )
     }
@@ -249,6 +250,17 @@ private fun SuggestionsGrid(
     val cardCount = state.cards.size
 
     LaunchedEffect(state.mixId) { if (gridState.firstVisibleItemIndex > 0) gridState.scrollToItem(0) }
+    // Web `getCardDelay`: each newly generated batch fades in, staggered from its first card;
+    // cards already revealed (or scrolled back into view) show at once.
+    var revealedCount by remember(state.mixId) { mutableIntStateOf(0) }
+    var batchStart by remember(state.mixId) { mutableIntStateOf(0) }
+    LaunchedEffect(state.mixId, cardCount) {
+        if (cardCount > revealedCount) {
+            batchStart = revealedCount
+            withFrameNanos {}
+        }
+        revealedCount = cardCount
+    }
     LaunchedEffect(gridState, cardCount, state.hasMore) {
         if (!state.hasMore) return@LaunchedEffect
         snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 }
@@ -278,11 +290,17 @@ private fun SuggestionsGrid(
             state = gridState,
             contentPadding = PaddingValues(start = start, end = end, top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding() + 24.dp),
             horizontalArrangement = Arrangement.spacedBy(columns.gap),
-            verticalItemSpacing = 12.dp,
+            verticalItemSpacing = 24.dp,
             modifier = Modifier.fillMaxSize().testTag("fst.suggestions.list"),
         ) {
-            items(state.cards, key = { it.id }, contentType = { "card" }) { card ->
-                SuggestionCardView(card, columns.narrow, artworkUrl, onSong)
+            itemsIndexed(state.cards, key = { _, card -> card.id }, contentType = { _, _ -> "card" }) { index, card ->
+                SuggestionCardView(
+                    card,
+                    columns.narrow,
+                    artworkUrl,
+                    onSong,
+                    Modifier.festivalFadeIn(index < revealedCount, fadeInStagger(index - batchStart)),
+                )
             }
             if (state.hasMore) {
                 item(key = "more", contentType = "more", span = StaggeredGridItemSpan.FullLine) {

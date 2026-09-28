@@ -246,6 +246,8 @@ class SuggestionCoreTest {
         assertEquals("AVeryLongRi…", rival.rivalName)
         assertEquals("-3", rival.rivalDeltaText)
         assertEquals(-1, rival.rivalDeltaSign)
+        assertTrue(rival.rivalFromSong)
+        assertFalse(make("lb_rival_x", SuggestionSongItem(s, rivalName = "LB", rivalRankDelta = 1)).rivalFromSong)
         assertEquals("Alpha, Band · 2001, Lead, rival AVeryLongRivalName, behind by 3 ranks", rival.accessibleLabel)
         assertEquals("+4", make("song_rival_x", SuggestionSongItem(s, rivalRankDelta = 4)).rivalDeltaText)
         assertNull(make("song_rival_x", SuggestionSongItem(s)).rivalDeltaText)
