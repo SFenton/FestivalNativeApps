@@ -20,7 +20,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
 
     /// <summary>One toggle per chart in service order.</summary>
-    public IReadOnlyList<InstrumentToggle> Instruments { get; }
+    public List<InstrumentToggle> Instruments { get; }
 
     /// <summary>Selected player name, or a prompt.</summary>
     public string ProfileText => session.SelectedPlayer is { } p ? p.DisplayName : "No player selected";

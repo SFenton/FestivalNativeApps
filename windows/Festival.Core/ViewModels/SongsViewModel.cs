@@ -236,7 +236,7 @@ public sealed partial class SongSortDraft(FestivalSession session) : ObservableO
 public sealed partial class SongFilterDraft(FestivalSession session) : ObservableObject
 {
     /// <summary>Choices for the instrument picker: index 0 is "All instruments".</summary>
-    public IReadOnlyList<string> InstrumentChoices =>
+    public List<string> InstrumentChoices =>
         ["All Instruments", .. session.Settings.VisibleInstruments.Select(i => i.Label())];
 
     /// <summary>Selected picker index (0 = all).</summary>

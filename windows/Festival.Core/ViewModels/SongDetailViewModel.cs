@@ -40,11 +40,11 @@ public sealed partial class SongDetailViewModel : ObservableObject
 
     /// <summary>Intensity rows for every charted instrument (including Settings-hidden ones).</summary>
     [ObservableProperty]
-    private IReadOnlyList<IntensityRow> intensity = [];
+    private List<IntensityRow> intensity = [];
 
     /// <summary>Leaderboard previews for visible charted instruments.</summary>
     [ObservableProperty]
-    private IReadOnlyList<LeaderboardPreviewViewModel> leaderboards = [];
+    private List<LeaderboardPreviewViewModel> leaderboards = [];
 
     /// <summary>Whether content is shown.</summary>
     public bool ShowContent => State == LoadState.Loaded;
@@ -154,7 +154,7 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
 
     /// <summary>Rows.</summary>
     [ObservableProperty]
-    private IReadOnlyList<LeaderboardRow> rows = [];
+    private List<LeaderboardRow> rows = [];
 
     /// <summary>Whether loading.</summary>
     public bool IsLoading => State is LoadState.Loading or LoadState.Idle;

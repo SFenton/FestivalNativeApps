@@ -60,7 +60,7 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     /// <param name="args">Prepared element.</param>
     private void OnBoardPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
     {
-        if (args.Element is FrameworkElement { DataContext: LeaderboardPreviewViewModel card }) _ = card.EnsureLoadedAsync();
+        if (sender.ItemsSourceView?.GetAt(args.Index) is LeaderboardPreviewViewModel card) _ = card.EnsureLoadedAsync();
     }
 
     /// <summary>Opens the full 25-row leaderboard route.</summary>

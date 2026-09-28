@@ -15,6 +15,9 @@ public partial class App : Application
     {
         PerfLog.Mark("app-constructor");
         InitializeComponent();
+        UnhandledException += (_, e) => CrashLog.Write(e.Exception, e.Message);
+        DebugSettings.BindingFailed += (_, e) => CrashLog.Write(null, "Binding failed: " + e.Message);
+        DebugSettings.XamlResourceReferenceFailed += (_, e) => CrashLog.Write(null, "Resource failed: " + e.Message);
     }
 
     /// <summary>The process-lifetime session shared by every page.</summary>

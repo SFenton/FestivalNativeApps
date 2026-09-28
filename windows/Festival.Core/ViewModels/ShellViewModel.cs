@@ -46,7 +46,7 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Search results.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ProfileHint))]
-    private IReadOnlyList<PlayerSearchResult> profileResults = [];
+    private List<PlayerSearchResult> profileResults = [];
 
     /// <summary>Whether a search is in flight.</summary>
     [ObservableProperty]
@@ -108,7 +108,7 @@ public sealed partial class ShellViewModel : ObservableObject
             IsSearching = true;
             var response = await session.Api.SearchPlayersAsync(query, 10, token);
             token.ThrowIfCancellationRequested();
-            ProfileResults = response.Results;
+            ProfileResults = [.. response.Results];
             IsSearching = false;
         }
         catch (OperationCanceledException)

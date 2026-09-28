@@ -5,6 +5,7 @@
     xmlns:controls="using:Festival.App.Controls"
     xmlns:data="using:Festival.Core.Data"
     xmlns:pages="using:Festival.App.Pages"
+    xmlns:data2="using:Microsoft.UI.Xaml.Data"
     NavigationCacheMode="Required"
     Background="Transparent">
     <Page.Resources>
@@ -184,8 +185,8 @@
                               AutomationProperties.Name="Jump to section"
                               AutomationProperties.AutomationId="fst.songs.section-index">
                         <GridView.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding Group.Label}" Style="{StaticResource SubtitleTextBlockStyle}"
+                            <DataTemplate x:DataType="data2:ICollectionViewGroup">
+                                <TextBlock Text="{x:Bind ((pages:SongGroup)Group).Label}" Style="{StaticResource SubtitleTextBlockStyle}"
                                            Margin="12" MinWidth="48" TextAlignment="Center" />
                             </DataTemplate>
                         </GridView.ItemTemplate>

@@ -22,6 +22,12 @@
     <InvariantGlobalization>false</InvariantGlobalization>
     <Version>0.1.0</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- Newer C#/WinRT projection (trim/AOT-annotated) than the one bundled with SDK 9.0.304. -->
+    <WindowsSdkPackageVersion>10.0.26100.87</WindowsSdkPackageVersion>
+    <!-- Framework assemblies still emit trim-analysis warnings; keep them visible but not fatal. -->
+    <ILLinkTreatWarningsAsErrors>false</ILLinkTreatWarningsAsErrors>
+    <!-- Generate WinRT vtables for every .NET type the app hands to XAML (needed for NativeAOT/trimming). -->
+    <CsWinRTAotOptimizerEnabled>true</CsWinRTAotOptimizerEnabled>
   </PropertyGroup>
   <!-- Release publishes trimmed; pass -p:FstAot=true for NativeAOT (see tools/windows/build.ps1). -->
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
