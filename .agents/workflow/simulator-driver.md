@@ -71,6 +71,45 @@ Two separate `flock`s, never held at once:
 - `~/.fst-build.lock` — held only around the `xcodebuild build-for-testing` compile step (see `build_lock()` in `tools/ios_sim.py`; `build` and `lane_integrate.sh`'s `swift build` use the same lock). Released before touching the simulator.
 - `~/.fst-sim.lock` — held for the `test-without-building` run, exactly like `shot`'s install/launch/screenshot sequence. Never call `simctl` or `xcodebuild test` directly against the shared simulator; always go through `tools/ios_sim.py`.
 
+### 5-minute lock-hold rule (added after a real starvation incident)
+
+One lane's `xcodebuild test-without-building` run held `~/.fst-sim.lock` for
+10+ minutes covering many `-only-testing:` selectors in one invocation,
+starving every other lane's queued `shot`/`drive`/`uitest`. Rules for any
+script that takes the simulator lock:
+
+- **Bound every single lock hold to ≤5 minutes.** `drive`'s `--timeout`
+  defaults to 180s; `uitest`'s defaults to 300s. Both kill `xcodebuild` (via
+  `subprocess.run`'s own timeout) and the app under test (`simctl terminate`)
+  on expiry, so a hang can never pin the lock past the timeout.
+- **Batch, don't bundle.** A long list of tests must run as several bounded
+  `xcodebuild` invocations, each acquiring and then fully releasing the lock,
+  rather than one invocation covering the whole list. `uitest` does this
+  automatically via `--batch-size` (default 3 selectors per lock hold).
+- Never write a one-off runner that calls `xcodebuild test`/`simctl` directly
+  against the shared simulator to work around this — extend `tools/ios_sim.py`
+  instead so every lane gets the same bounded-hold behavior.
+
+## uitest (real XCUITest classes)
+
+`python3 tools/ios_sim.py uitest --only <Class>[/<testMethod>] [--only ...]`
+runs ordinary `XCTestCase` journey files under `apple/Apps/iOSUITests/`
+(anything added there builds automatically — no project.yml change needed),
+as opposed to `drive`'s single scripted `DriverTests/testDrive` step sequence.
+It reuses `drive`'s build-for-testing product/DerivedData and staleness check,
+then runs the given selectors in batches per the lock-hold rule above:
+
+```
+python3 tools/ios_sim.py uitest \
+    --only ShellJourneyTests --only LeaderboardsJourneyTests \
+    --only NotificationsJourneyTests --only FirstRunJourneyTests
+```
+
+Journey tests that need the loopback mock service start/assert it themselves
+(same `FST_API_BASE_URL`/`FST_FIXTURE_SCENARIO` convention as
+`FestivalMobileUITests.swift`); `uitest` does not manage
+`tools/mock_service.py` for you — start it separately first.
+
 ## Limitations
 
 - One step failure stops the whole script (steps are not retried or skippable).

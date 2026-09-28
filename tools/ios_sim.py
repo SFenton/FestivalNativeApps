@@ -33,6 +33,10 @@ Examples::
     python3 tools/ios_sim.py drive --tab settings \
         --steps "tap:fst.shell.drawer.open; shot:/tmp/drawer.png; tree:/tmp/drawer.tree.txt"
 
+    # Run real XCUITest journey classes (batched into one simulator-lock hold).
+    python3 tools/ios_sim.py uitest \
+        --only ShellJourneyTests --only LeaderboardsJourneyTests
+
 Devices are named by alias (see ``DEVICES``) or UDID. The default is the
 iPhone 17 Pro on iOS 26.5 (Liquid Glass).
 """
@@ -483,6 +487,165 @@ def cmd_drive(args: argparse.Namespace) -> int:
         print(f"{'ok' if Path(out).exists() else 'MISSING'}: {out}")
     return 0
 
+
+def cmd_uitest(args: argparse.Namespace) -> int:
+    """Build once (if stale) and run one or more real XCUITest classes/methods.
+
+    Unlike ``drive`` (a single scripted ``DriverTests/testDrive`` step sequence),
+    this runs ordinary ``XCTestCase`` journey tests written directly in Swift
+    (e.g. ``ShellJourneyTests``, ``LeaderboardsJourneyTests``) under
+    ``apple/Apps/iOSUITests/``. It reuses the exact same build-for-testing
+    product and ``~/.fst-build.lock``/``~/.fst-sim.lock`` machinery as ``drive``
+    (same scheme, same ``FestivalMobileUITests`` target, same DerivedData and
+    staleness check), so any new journey file placed in that target is picked
+    up by the next build with no tool changes. Pass one or more ``--only``
+    selectors (``Class`` or ``Class/testMethod``); they run in bounded batches
+    of ``--batch-size`` (default 3) selectors per ``xcodebuild
+    test-without-building`` invocation, fully releasing ``~/.fst-sim.lock``
+    between batches (and bounding each one to ``--timeout`` seconds, default
+    300) so other lanes queued on the shared simulator aren't starved by one
+    long run. See ``_run_uitest_batch`` and the 5-minute lock-hold rule in
+    ``.agents/workflow/simulator-driver.md``.
+
+    Journey tests that need the loopback mock service are responsible for
+    starting/asserting it themselves (matching the existing
+    ``FestivalMobileUITests.swift`` convention of setting
+    ``FST_API_BASE_URL``/``FST_FIXTURE_SCENARIO`` on ``app.launchEnvironment``);
+    this command does not manage ``tools/mock_service.py`` for you.
+
+    Args:
+        args: Parsed CLI arguments (device, only, timeout, rebuild).
+
+    Returns:
+        Process exit code.
+    """
+    if not args.only:
+        print("at least one --only Class[/testMethod] is required", file=sys.stderr)
+        return 2
+    udid = resolve_device(args.device)
+    derived = driver_derived_data()
+
+    current_hash = source_hash()
+    if args.rebuild or driver_build_stale(derived, current_hash):
+        _run(["xcodegen", "generate", "-q"], cwd=APPLE_DIR)
+        with build_lock():
+            build = _run([
+                "xcodebuild", "-project", "FestivalNativeApple.xcodeproj", "-scheme", "FestivalMobile",
+                "-configuration", "Debug", "-destination", "generic/platform=iOS Simulator",
+                "-derivedDataPath", str(derived), "build-for-testing", "-quiet",
+            ], cwd=APPLE_DIR, check=False)
+        if build.returncode:
+            return build.returncode
+        write_driver_hash(derived, current_hash)
+    else:
+        print(f"driver build up to date ({current_hash[:12]}); skipping rebuild", file=sys.stderr)
+
+    # Split into bounded batches, each taking (and fully releasing) the simulator
+    # lock on its own: one long ``xcodebuild`` invocation covering many selectors
+    # can hold ``~/.fst-sim.lock`` for 10+ minutes and starve every other lane
+    # sharing this Mac's one simulator. Releasing between batches lets a queued
+    # `shot`/`drive`/`uitest` from another lane interleave instead of waiting out
+    # the whole list. See the 5-minute lock-hold rule in
+    # ``.agents/workflow/simulator-driver.md``.
+    batches = [
+        args.only[index:index + args.batch_size]
+        for index in range(0, len(args.only), args.batch_size)
+    ]
+    overall_start = time.time()
+    failed_batches: list[tuple[list[str], int]] = []
+    for batch_index, batch in enumerate(batches, start=1):
+        label = f"batch {batch_index}/{len(batches)}"
+        returncode, elapsed, log_path, result_bundle = _run_uitest_batch(
+            udid=udid, derived=derived, selectors=batch, timeout=args.timeout
+        )
+        if returncode:
+            failed_batches.append((batch, returncode))
+            log_text = log_path.read_text(encoding="utf-8", errors="replace")
+            print(f"uitest {label} FAILED after {elapsed:.1f}s; last lines of {log_path}:", file=sys.stderr)
+            print("\n".join(log_text.splitlines()[-60:]), file=sys.stderr)
+            print(f"result bundle: {result_bundle}", file=sys.stderr)
+        else:
+            print(f"uitest {label} OK in {elapsed:.1f}s ({len(batch)} selector(s))", file=sys.stderr)
+            log_path.unlink(missing_ok=True)
+            shutil.rmtree(result_bundle, ignore_errors=True)
+
+    overall_elapsed = time.time() - overall_start
+    if failed_batches:
+        failed_selectors = [selector for batch, _ in failed_batches for selector in batch]
+        print(
+            f"uitest: {len(failed_batches)}/{len(batches)} batch(es) failed after "
+            f"{overall_elapsed:.1f}s total: {', '.join(failed_selectors)}",
+            file=sys.stderr,
+        )
+        return max(code for _, code in failed_batches)
+
+    print(f"uitest OK in {overall_elapsed:.1f}s total ({len(args.only)} selector(s), {len(batches)} batch(es))",
+          file=sys.stderr)
+    return 0
+
+
+def _run_uitest_batch(
+    *, udid: str, derived: Path, selectors: list[str], timeout: float
+) -> tuple[int, float, Path, Path]:
+    """Run one bounded batch of ``-only-testing:`` selectors under one lock hold.
+
+    Acquires ``~/.fst-sim.lock`` for exactly this batch's ``xcodebuild
+    test-without-building`` call and releases it before returning (the ``with
+    open(...)`` block closes the lock file), so ``cmd_uitest`` can interleave
+    with other lanes between batches. ``timeout`` bounds this single hold: on
+    expiry, both ``xcodebuild`` (via ``subprocess.run``'s own timeout kill) and
+    the app under test (via an explicit ``simctl terminate``) are stopped so a
+    hang can never pin the shared simulator lock past ``timeout`` seconds.
+
+    Args:
+        udid: Target simulator UDID.
+        derived: The driver's DerivedData directory (already built-for-testing).
+        selectors: One batch's ``Class``/``Class/testMethod`` selectors.
+        timeout: Seconds before killing this batch's run.
+
+    Returns:
+        ``(returncode, elapsed_seconds, log_path, result_bundle_path)``.
+    """
+    result_bundle = derived / "Results" / f"uitest-{uuid.uuid4().hex}.xcresult"
+    result_bundle.parent.mkdir(parents=True, exist_ok=True)
+    log_path = Path(tempfile.gettempdir()) / f"fst-uitest-log-{uuid.uuid4().hex}.txt"
+
+    LOCK_PATH.touch(exist_ok=True)
+    start = time.time()
+    with open(LOCK_PATH, "w") as lock:
+        print(f"waiting for simulator lock {LOCK_PATH} ...", file=sys.stderr)
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        lock.write(f"{os.getpid()} {REPO_ROOT}\n")
+        lock.flush()
+        _run(["xcrun", "simctl", "boot", udid], check=False, capture_output=True)
+        _run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True)
+        cmd = [
+            "xcodebuild", "-project", "FestivalNativeApple.xcodeproj", "-scheme", "FestivalMobile",
+            "-destination", f"platform=iOS Simulator,id={udid}",
+            "-derivedDataPath", str(derived), "-resultBundlePath", str(result_bundle),
+        ]
+        for selector in selectors:
+            cmd.append(f"-only-testing:FestivalMobileUITests/{selector}")
+        cmd += ["test-without-building", "-quiet"]
+        print("+", " ".join(cmd), file=sys.stderr)
+        with open(log_path, "w") as log:
+            try:
+                process = subprocess.run(
+                    cmd, cwd=APPLE_DIR, env=_env(),
+                    stdout=log, stderr=subprocess.STDOUT, check=False,
+                    timeout=timeout,
+                )
+            except subprocess.TimeoutExpired:
+                # Never let a hung run hold the shared simulator lock past `timeout`:
+                # `subprocess.run` already killed the xcodebuild process tree: this
+                # also stops the app under test so nothing lingers on the simulator.
+                _run(["xcrun", "simctl", "terminate", udid, BUNDLE_ID],
+                     check=False, capture_output=True)
+                process = subprocess.CompletedProcess(cmd, 124)
+                log.write(f"\nTIMEOUT after {timeout}s; killed.\n")
+    elapsed = time.time() - start
+    return process.returncode, elapsed, log_path, result_bundle
+
 # endregion
 
 
@@ -530,6 +693,25 @@ def main(argv: list[str] | None = None) -> int:
         "--rebuild", action="store_true", help="force a fresh build-for-testing"
     )
     drive.set_defaults(func=cmd_drive)
+
+    uitest = sub.add_parser(
+        "uitest", help="build once, run one or more XCUITest classes/methods (serialized, batched)"
+    )
+    uitest.add_argument("--device", default="iphone", help=f"alias {sorted(DEVICES)} or UDID")
+    uitest.add_argument(
+        "--only", action="append", required=True,
+        help="Class or Class/testMethod under FestivalMobileUITests (repeatable)"
+    )
+    uitest.add_argument("--timeout", type=float, default=300.0,
+                        help="kill each batch's run after this many seconds "
+                             "(default 300 = 5 min) so the sim lock is released")
+    uitest.add_argument("--batch-size", type=int, default=3,
+                        help="max selectors per simulator-lock hold (default 3); "
+                             "the lock is released between batches for other lanes")
+    uitest.add_argument(
+        "--rebuild", action="store_true", help="force a fresh build-for-testing"
+    )
+    uitest.set_defaults(func=cmd_uitest)
 
     args = parser.parse_args(argv)
     return args.func(args)
