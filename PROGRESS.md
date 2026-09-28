@@ -286,7 +286,7 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 - ⬜ iPadOS · ⬜ macOS · ⬜ iPhone iOS 17 classic tab bar
 - 🟨 Android / Windows — Windows host resumed 2026-09-28; lanes run there via `tools/win_relay.py` (headless Claude Code on `sfenton-primary`)
   - **Lane AND — Android** (remote): port Copilot foundation → tooling (build/emulator/screenshot, one emulator at a time) → Compose architecture + request gate + typed routes → adaptive shell (bar/rail/list-detail) → Songs + Song Detail live → JUnit ≥95% logic
-  - **Lane LAB — Device lab** (remote): SDK/tool updates; `FST_` AVD matrix (phone, book fold, passport fold, tri-fold, tablet, resizable); `tools/android/device.py` + `tools/windows/uiwin.py` with global locks (one emulator / one desktop driver at a time, ≤5 min holds), window-size presets for Windows desktop/tablet
+  - **Lane LAB — Device lab** (remote) — ✅ `7ddc2b3` (pushed from Windows): 6 `FST_` AVDs boot (phone, book/passport fold w/ real postures, tri-fold approximated, tablet, resizable); `tools/android/device.py` + `tools/windows/uiwin.py` with FIFO locks (300 s); TalkBack on AVDs, Axe.Windows/Accessibility Insights/PresentMon/FlaUI installed. Original scope: SDK/tool updates; `FST_` AVD matrix (phone, book fold, passport fold, tri-fold, tablet, resizable); `tools/android/device.py` + `tools/windows/uiwin.py` with global locks (one emulator / one desktop driver at a time, ≤5 min holds), window-size presets for Windows desktop/tablet
   - **Lane WIN — Windows** (remote): port Copilot foundation → **C# vs C++/WinRT measured decision** → tooling → MVVM + request gate → NavigationView shell (Mica, split Leaderboards/Rivals) + composition-thread background → Songs + Song Detail live → tests
 
 ---
@@ -401,3 +401,4 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Orchestrator | `win_relay launch/wait`: Windows lanes as monitorable Remote Control sessions (probe verified); launched Lane C (cleanup + gates) |
 | 2026-09-28 | Lane U4 | UX tests for Profile/Statistics/Bands/Settings/Suggestions: 43 hosted tests (94.2% combined coverage, Suggestions 8.3%→93.0%), `mock_service.py` Bands/ranking fixtures, 3 XCUITest journeys passing (2 files) + 3 skipped (Settings, simulator-load hang); confirmed Lane Z2's independent fix for stale dismiss-then-push assumptions in `SongsUITestSupport.swift` |
 | 2026-09-28 | Lane U4 | 43 hosted tests + Profile/Bands journeys; mock_service band/ranking routes; Settings journeys hand-off to Lane C |
+| 2026-09-28 | Lane LAB | Device lab landed from Windows (first direct Windows→GitHub push) |
