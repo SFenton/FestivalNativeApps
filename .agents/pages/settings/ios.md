@@ -14,6 +14,10 @@
 | Metadata (8) | Selected player: all enabled (7 change row text; Intensity gates the filtered meter). Anonymous: only Intensity enabled; others disabled with a reason |
 | Accessibility section | Reduce Motion / Disable Animated Artwork hold a static cover; Increase Contrast strengthens accents and dims art more; Reduce Transparency removes decorative imagery/dim layers and makes the Solo pager opaque. System Low Data / Low Power also stop background work |
 | Publication check | Refetches catalogue/art before reporting success; a failed Songs read is reported separately |
+| Song Row Visual Order | Persisted field order (`fst.settings.songRowVisualOrder`) via a native drag-handle `SettingsReorderSheet`; Songs cards do not yet read the order (Lane S consumer change, below) |
+| CHOpt Path Column Order | Same reorder sheet over `PathColumnKey` (note/beat/time/od/score, `FestivalCore/SettingsModels.swift`); the Paths text table does not yet read it (Lane S consumer change, below) |
+| Diagnostics (debug-only) | Tap Diagnostics / Tap Telemetry toggles persist behind `#if DEBUG`; no collector reads them yet — wiring only |
+| Version | App Version/build (`Bundle.main`) and Build Configuration are live; Service Version is a disclosed placeholder because `/api/version` is not yet on the verified-read allowlist ([service-safety.md](../../platforms/service-safety.md)) |
 
 ## Decisions and gotchas
 
@@ -24,4 +28,6 @@
 
 ## Open (iPhone)
 
-Full-page audit (offscreen heading / compact title contrast — [accessibility](../../testing/apple/accessibility.md)); Service Progress, exports, first-run replay, metadata ordering, draggable path columns, only-Karaoke-visible Paths guard, band profiles and most remaining web settings.
+Full-page audit (offscreen heading / compact title contrast — [accessibility](../../testing/apple/accessibility.md)); Service Progress (live `/api/service-info` is not on the verified-read allowlist, so it stays unported), ZIP export, only-Karaoke-visible Paths guard, band profiles, search target and light-trails/header-button settings (native chrome has no mouse-cursor or floating-action-button equivalent, so these are treated N/A rather than ported), selected-profile name refresh (a POST — fixtures only, deferred). First-run replay rows are owned by a dedicated FRE lane, which may add a small additive section to `SettingsScreen.swift`.
+
+**Consumer changes owed to other lanes:** Songs (Lane S) should read `fst.settings.songRowVisualOrder` (`SettingsOrder.decode` in `FestivalCore/SettingsModels.swift`) for the lead metadata field on cards, and the Paths text table (`SongPathsSheet`) should read `fst.settings.pathColumnOrder` (`PathColumnKey`) for column order.

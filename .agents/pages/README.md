@@ -29,7 +29,7 @@ Status of record: [contracts/parity-backlog.json](../../contracts/parity-backlog
 | band-detail | `/bands/:bandId` | none | absent | [spec (stub)](band-detail/spec.md) | — |
 | compete | `/compete` | player | absent | [spec (stub)](compete/spec.md) | — |
 | settings | `/settings` | none | partial | [spec](settings/spec.md) | [ios](settings/ios.md) |
-| licenses | `/settings/licenses` | none | absent | [spec (stub)](licenses/spec.md) | — |
+| licenses | `/settings/licenses` | none | absent | [spec](licenses/spec.md) | [ios](licenses/ios.md) |
 <!-- END GENERATED -->
 
 Cross-cutting web shell pieces without their own route (global search, notices, FAB actions, quick-link rail, first-run carousels, modals) are tracked under [app-navigation](../controls/app-navigation/spec.md).
