@@ -21,7 +21,7 @@
 
 ## Desktop session
 
-SSH runs in session 0 (no desktop). `_common.ps1` runs GUI work through a one-shot `schtasks /IT` task in the signed-in console session (no stored credentials). From session 0 `Process.MainWindowHandle` is always 0, so window lookups happen inside that task. `PrintWindow(PW_RENDERFULLCONTENT)` captures the DirectComposition content; the capture process must be DPI-aware. From Git Bash, prefix route arguments with `MSYS_NO_PATHCONV=1` or `/songs/…` becomes a Windows path.
+SSH runs in session 0 (no desktop). `_common.ps1` runs GUI work through a one-shot `schtasks /IT` task in the signed-in console session (no stored credentials), and every hop holds the shared FIFO `desktop` lock via `tools/windows/desktop_lock.py`, so it queues with `uiwin.py` and other lanes. From session 0 `Process.MainWindowHandle` is always 0, so window lookups happen inside that task. `PrintWindow(PW_RENDERFULLCONTENT)` captures the DirectComposition content; the capture process must be DPI-aware. From Git Bash, prefix route arguments with `MSYS_NO_PATHCONV=1` or `/songs/…` becomes a Windows path.
 
 ## UI automation
 

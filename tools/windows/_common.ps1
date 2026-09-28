@@ -56,8 +56,10 @@ function Invoke-InDesktopSession {
     .PARAMETER Script PowerShell source to run (Windows PowerShell 5.1, so System.Drawing is available).
     .PARAMETER TimeoutSeconds How long to wait for completion.
     .PARAMETER NoWait Start it and return immediately (for launching the app).
+    .PARAMETER Purpose Label recorded by the desktop lock.
+    .NOTES Every hop holds the shared FIFO desktop lock (≤300 s) for its duration only.
     #>
-    param([Parameter(Mandatory)][string]$Script, [int]$TimeoutSeconds = 120, [switch]$NoWait)
+    param([Parameter(Mandatory)][string]$Script, [int]$TimeoutSeconds = 120, [switch]$NoWait, [string]$Purpose = 'script')
     $work = Join-Path $env:TEMP ("fst-" + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Force $work | Out-Null
     $body = Join-Path $work 'body.ps1'
@@ -69,24 +71,12 @@ try { & { $Script } *>&1 | Out-File -FilePath '$out' -Encoding utf8 } catch { `$
 'done' | Out-File -FilePath '$done'
 "@
     Set-Content -Path $body -Value $wrapped -Encoding UTF8
-    if (Test-DesktopSession) {
-        if ($NoWait) { Start-Process powershell.exe -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $body -WindowStyle Hidden; return }
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $body
-    } else {
-        $task = 'FST-' + [guid]::NewGuid().ToString('N').Substring(0, 8)
-        $action = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$body`""
-        schtasks.exe /Create /TN $task /TR $action /SC ONCE /ST 23:59 /IT /F | Out-Null
-        schtasks.exe /Run /TN $task | Out-Null
-        if ($NoWait) {
-            Start-Sleep -Seconds 2
-            schtasks.exe /Delete /TN $task /F | Out-Null
-            return
-        }
-        $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-        while (-not (Test-Path $done) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 250 }
-        schtasks.exe /Delete /TN $task /F | Out-Null
-        if (-not (Test-Path $done)) { throw "Desktop-session script timed out after $TimeoutSeconds s ($work)." }
-    }
+    # Queue on the shared desktop lock (tools/windows/desktop_lock.py) like uiwin.py and other lanes.
+    $taskArgs = @('-NoProfile', '-File', (Join-Path $PSScriptRoot '_desktop_task.ps1'), '-Body', $body, '-Done', $done, '-TimeoutSeconds', $TimeoutSeconds)
+    if ($NoWait) { $taskArgs += '-NoWait' }
+    python (Join-Path $PSScriptRoot 'desktop_lock.py') --purpose "tools/windows $Purpose" -- pwsh @taskArgs
+    if ($LASTEXITCODE -ne 0) { throw "Desktop-session step failed ($LASTEXITCODE): see $work" }
+    if ($NoWait) { return }
     if (Test-Path $out) { Get-Content $out -Raw }
     Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
 }
