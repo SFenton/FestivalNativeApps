@@ -1,5 +1,11 @@
 """Keep the serial Apple simulator runner safe around unrelated host devices."""
 
+import sys as _sys
+import unittest as _unittest
+
+if _sys.platform == "win32":  # Apple tooling imports the POSIX-only fcntl module.
+    raise _unittest.SkipTest("Apple simulator tooling runs only on macOS")
+
 import json
 import os
 import signal

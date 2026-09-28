@@ -6,6 +6,12 @@ functions ``drive`` composes before it ever touches ``xcodebuild`` or
 real simulator.
 """
 
+import sys as _sys
+import unittest as _unittest
+
+if _sys.platform == "win32":  # Apple tooling imports the POSIX-only fcntl module.
+    raise _unittest.SkipTest("Apple simulator tooling runs only on macOS")
+
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
