@@ -18,6 +18,13 @@ public sealed partial class FirstRunCarousel : UserControl
     {
         Carousel = carousel;
         InitializeComponent();
+        PropertyChangedEventHandler announce = (_, e) =>
+        {
+            if (e.PropertyName == nameof(FirstRunCarouselViewModel.Index) && IsLoaded)
+                Services.ScreenReader.Announce(this, new Festival.Core.ViewModels.Announcement(carousel.PositionAnnouncement, Festival.Core.ViewModels.AnnouncementKind.Completed));
+        };
+        Loaded += (_, _) => carousel.PropertyChanged += announce;
+        Unloaded += (_, _) => carousel.PropertyChanged -= announce;
     }
 
     /// <summary>Carousel model.</summary>

@@ -4,7 +4,8 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Festival.App.Controls"
     xmlns:domain="using:Festival.Core.Domain">
-    <!-- Content of the first-run ContentDialog: FlipView of slides, pips, live position. -->
+    <!-- Content of the first-run ContentDialog: FlipView of slides and pips. No visible "Slide X of Y" (the web has none):
+         FlipView items expose PositionInSet/SizeOfSet and slide changes are announced (FirstRunCarousel.xaml.cs). -->
     <StackPanel Spacing="12" Width="440" AutomationProperties.AutomationId="fst.first-run.carousel">
         <FlipView x:Name="Slides" Height="300" Background="Transparent" ItemsSource="{x:Bind Carousel.Slides}"
                   SelectedIndex="{x:Bind Carousel.Index, Mode=TwoWay}"
@@ -27,8 +28,5 @@
                        Visibility="{x:Bind MultipleSlides}"
                        AutomationProperties.Name="Slides" AutomationProperties.AutomationId="fst.first-run.pips" />
         </Grid>
-        <TextBlock Text="{x:Bind Carousel.PositionText, Mode=OneWay}" HorizontalAlignment="Center"
-                   Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource FSTSecondaryTextBrush}"
-                   AutomationProperties.LiveSetting="Polite" AutomationProperties.AutomationId="fst.first-run.position" />
     </StackPanel>
 </UserControl>

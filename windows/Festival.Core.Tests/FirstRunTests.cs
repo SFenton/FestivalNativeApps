@@ -446,6 +446,8 @@ public class FirstRunTests
         Assert.Equal("Slide 2 of 2", carousel.PositionText);
         Assert.True(carousel.PreviousCommand.CanExecute(null));
         Assert.Contains(nameof(FirstRunCarouselViewModel.PositionText), changes);
+        Assert.Contains(nameof(FirstRunCarouselViewModel.PositionAnnouncement), changes);
+        Assert.Equal($"{carousel.Current.Title}, slide 2 of 2", carousel.PositionAnnouncement);
 
         carousel.PreviousCommand.Execute(null);
         Assert.Equal(0, carousel.Index);

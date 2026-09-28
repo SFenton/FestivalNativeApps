@@ -115,15 +115,18 @@ public sealed partial class FirstRunCarouselViewModel : ObservableObject
 
     /// <summary>Current slide index.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Current), nameof(PositionText), nameof(IsFirst), nameof(IsLast), nameof(NextLabel))]
+    [NotifyPropertyChangedFor(nameof(Current), nameof(PositionText), nameof(PositionAnnouncement), nameof(IsFirst), nameof(IsLast), nameof(NextLabel))]
     [NotifyCanExecuteChangedFor(nameof(PreviousCommand))]
     private int index;
 
     /// <summary>Current slide.</summary>
     public FirstRunSlide Current => Slides[Index];
 
-    /// <summary>Narrator position, e.g. "Slide 2 of 5".</summary>
+    /// <summary>Narrator position, e.g. "Slide 2 of 5" (spoken only; the dialog shows pips, like the web).</summary>
     public string PositionText => $"Slide {Index + 1} of {Slides.Count}";
+
+    /// <summary>Spoken when the slide changes from the dialog buttons or pips, e.g. "Sort Songs, slide 2 of 5".</summary>
+    public string PositionAnnouncement => $"{Current.Title}, {PositionText.ToLowerInvariant()}";
 
     /// <summary>Whether the first slide is shown.</summary>
     public bool IsFirst => Index == 0;
