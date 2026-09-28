@@ -319,7 +319,9 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
   - ✅ `win-rivals` (`3789228`…`6bd8cd3`): hub (Common/combo/family), All, Detail, Rivalry, Find Rival, typed scope; 7/7 journeys on AOT; idle 0.01% CPU.
   - ⬜ **Rivals live fallback (all platforms):** pass `allowLiveFallback=true` on rival detail **only when opened from Find Rival** (web: `RivalsPage.tsx:263` route state → `client.ts:490`; verified read-only, `c873ce1`) — carry the flag in the typed `RivalScope`/route.
   - ✅ `win-shell` (`3881458`…`2d46afe`): NavigationView Auto (LeftMinimal <641, rail 641–1007, expanded ≥1008; 9 pages × 7 configs), occlusion pause (covered 0.3–2.2% core), per-worktree Debug data dir, AppStateFiles reset registry, UIA foreground/--isolate; 848 tests.
-  - ⬜ **Windows infra backlog** (next shell/infra lane): Release/AOT UI automation — first-run dialog has no test-launch opt-out (`--first-run=off` for automation) and UIA tree walk fails while it's open; plus:
+  - 🟨 `win-infra` (`FST-win-infra`): Release/AOT automation switch, coverage gate for async partials, CI windows-latest job, title bar <720, search VM reuse, rivals live fallback, Quick Links everywhere.
+  - 🟨 `win-a11y` (`FST-win-a11y`): **Windows accessibility phase** — Axe.Windows 0 errors per page, keyboard order/focus, Narrator names + announcements + manual script, high contrast/text scaling/animations off/transparency off.
+  - ⬜ **Windows infra backlog** (now assigned to win-infra) (next shell/infra lane): Release/AOT UI automation — first-run dialog has no test-launch opt-out (`--first-run=off` for automation) and UIA tree walk fails while it's open; plus:
   - ⬜ Wire `tools/windows/tests` + `tools/android/tests` into CI (windows-latest runner).
   - ⬜ Windows coverage gate: async-only Rivals/Notifications client partials report uncovered (compiler-generated exclusion) — fix in next shell/infra pass.
   - 🟨 `win-shell` (`FST-win-shell`): compact NavigationView, occlusion pause, per-lane Debug data dir, UI-automation foreground robustness, reset registry.
@@ -460,3 +462,4 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Lane W2 | Duo list/detail landed; SongsJourneyTests regression (19/21 failing on master) sent to A2 |
 | 2026-09-28 | Orchestrator | Windows Remote Control lanes now appear as peer sessions → orchestrator can message them mid-run |
 | 2026-09-28 | Windows | win-search landed (global search on Windows) |
+| 2026-09-28 | Windows | Launched win-infra + win-a11y (Windows enters accessibility phase) |
