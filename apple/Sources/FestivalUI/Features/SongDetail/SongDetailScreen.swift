@@ -89,9 +89,8 @@ struct SongDetailScreen: View {
                         .id(song.albumArt)
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(song.title)
-                            .font(.title.bold())
-                        Text(song.artist)
+                        MarqueeText(song.title, font: .title.bold())
+                        MarqueeText(song.artist, font: .body)
                             .foregroundStyle(BrandTokens.textSecondary)
                         if let year = song.year {
                             Text(year.formatted(.number.grouping(.never)))

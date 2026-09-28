@@ -43,14 +43,10 @@ struct SuggestionSongRowView: View {
             ArtworkTile(raw: item.song.albumArt, session: session, size: 44)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
-                Text(item.song.title)
-                    .font(.subheadline.weight(.semibold))
+                MarqueeText(item.song.title, font: .subheadline.weight(.semibold))
                     .foregroundStyle(BrandTokens.textPrimary)
-                    .lineLimit(1)
-                Text(subtitle)
-                    .font(.caption)
+                MarqueeText(subtitle, font: .caption)
                     .foregroundStyle(BrandTokens.textSecondary)
-                    .lineLimit(1)
             }
             Spacer(minLength: 8)
             trailing
