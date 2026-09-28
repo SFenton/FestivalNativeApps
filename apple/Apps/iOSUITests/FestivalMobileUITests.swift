@@ -40,7 +40,7 @@ final class FestivalMobileUITests: XCTestCase {
         XCTAssertTrue(action.waitForExistence(timeout: 10))
         XCTAssertTrue(action.isHittable)
         action.tap()
-        let search = app.textFields["fst.profile.search"]
+        let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 10))
         search.tap()
         search.typeText("Fixture Player\n")
@@ -61,7 +61,7 @@ final class FestivalMobileUITests: XCTestCase {
         record(app, name: "songs-player-one-available-score")
 
         action.tap()
-        let secondSearch = app.textFields["fst.profile.search"]
+        let secondSearch = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch
         XCTAssertTrue(secondSearch.waitForExistence(timeout: 10))
         secondSearch.tap()
         secondSearch.typeText("Fixture Player\n")
@@ -139,7 +139,7 @@ final class FestivalMobileUITests: XCTestCase {
         XCTAssertTrue(bandStatus.label.contains("Band search is paused"))
         XCTAssertFalse(app.buttons["fst.profile.select"].exists)
         app.buttons["Players"].tap()
-        let search = app.textFields["fst.profile.search"]
+        let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 10))
         search.tap()
         search.typeText("blocked")
@@ -156,7 +156,7 @@ final class FestivalMobileUITests: XCTestCase {
         app.buttons["fst.profile.close"].tap()
 
         app.buttons["fst.profile.open"].tap()
-        let emptySearch = app.textFields["fst.profile.search"]
+        let emptySearch = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch
         XCTAssertTrue(emptySearch.waitForExistence(timeout: 10))
         emptySearch.tap()
         emptySearch.typeText("missing\n")
@@ -217,13 +217,13 @@ final class FestivalMobileUITests: XCTestCase {
             .waitForExistence(timeout: 15))
         rootControl("Settings", app: app).tap()
         try rootProfileAction(in: app).tap()
-        XCTAssertTrue(app.textFields["fst.profile.search"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch.waitForExistence(timeout: 10))
         app.buttons["fst.profile.close"].tap()
         XCTAssertTrue(app.switches["Filter Invalid Scores"].waitForExistence(timeout: 10))
 
         rootControl("Leaderboards", app: app).tap()
         try rootProfileAction(in: app).tap()
-        XCTAssertTrue(app.textFields["fst.profile.search"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch.waitForExistence(timeout: 10))
         app.buttons["fst.profile.close"].tap()
         XCTAssertTrue(app.staticTexts["Leaderboards overview migration in progress"].exists)
 
@@ -235,7 +235,7 @@ final class FestivalMobileUITests: XCTestCase {
         } else {
             try rootProfileAction(in: app).tap()
         }
-        let search = app.textFields["fst.profile.search"]
+        let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 10))
         search.tap()
         search.typeText("Fixture Player")
@@ -258,9 +258,9 @@ final class FestivalMobileUITests: XCTestCase {
         let action = try rootProfileAction(in: app)
         XCTAssertTrue(action.label.contains("Fixture Player 1"))
         action.tap()
-        let selectedName = app.staticTexts["fst.profile.selected"]
-        XCTAssertTrue(selectedName.waitForExistence(timeout: 10))
-        XCTAssertEqual(selectedName.label, "Fixture Player 1")
+        // No selected-profile container in the finder (the web's modal has none).
+        XCTAssertTrue(app.buttons["fst.profile.close"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["fst.profile.selected"].exists)
         app.buttons["fst.profile.close"].tap()
         rootControl("Songs", app: app).tap()
         try deselectFixturePlayer(in: app)
@@ -874,7 +874,7 @@ final class FestivalMobileUITests: XCTestCase {
         let action = app.buttons["fst.profile.open"]
         XCTAssertTrue(action.waitForExistence(timeout: 10))
         action.tap()
-        let search = app.textFields["fst.profile.search"]
+        let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 10))
         search.tap()
         search.typeText(query + "\n")
@@ -900,15 +900,8 @@ final class FestivalMobileUITests: XCTestCase {
     /// - Throws: Missing accessible confirmation or stale selection.
     @MainActor
     private func deselectFixturePlayer(in app: XCUIApplication) throws {
-        app.buttons["fst.profile.open"].tap()
-        let deselect = app.buttons["fst.profile.deselect"]
-        XCTAssertTrue(deselect.waitForExistence(timeout: 10))
-        deselect.tap()
-        let confirmed = try XCTUnwrap(
-            app.buttons.matching(identifier: "Deselect Profile")
-                .allElementsBoundByIndex.first(where: \.isHittable)
-        )
-        confirmed.tap()
+        // The profile sheet has no selected-profile summary; deselect from Statistics.
+        try SongsUITestSupport.deselectFixturePlayer(in: app)
     }
 
     /// Open Shop from the native Songs overflow while keeping three phone tabs.

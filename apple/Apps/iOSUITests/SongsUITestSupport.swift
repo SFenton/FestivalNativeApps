@@ -87,7 +87,7 @@ enum SongsUITestSupport {
         let action = app.buttons["fst.shell.profile"]
         XCTAssertTrue(action.waitForExistence(timeout: 10))
         action.tap()
-        let search = app.textFields["fst.profile.search"]
+        let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 10))
         search.tap()
         search.typeText(query + "\n")
@@ -150,19 +150,27 @@ enum SongsUITestSupport {
 
     /// Remove only the app's selected identity through its own confirmation action.
     ///
-    /// - Parameter app: Foreground Songs screen with a selected player.
+    /// The profile sheet no longer carries a selected-profile summary (the web's modal
+    /// has none), so this deselects from the selected player's own page on the
+    /// Statistics tab, then returns to Songs.
+    ///
+    /// - Parameter app: Foreground app with a selected player.
     /// - Throws: Missing accessible confirmation or stale selection.
     @MainActor
     static func deselectFixturePlayer(in app: XCUIApplication) throws {
-        app.buttons["fst.shell.profile"].tap()
-        let deselect = app.buttons["fst.profile.deselect"]
-        XCTAssertTrue(deselect.waitForExistence(timeout: 10))
+        let statistics = rootControl("Statistics", app: app)
+        XCTAssertTrue(statistics.waitForExistence(timeout: 10))
+        statistics.tap()
+        let deselect = app.buttons.matching(identifier: "fst.player.deselect").firstMatch
+        XCTAssertTrue(deselect.waitForExistence(timeout: 15))
         deselect.tap()
         let confirmed = try XCTUnwrap(
             app.buttons.matching(identifier: "Deselect Profile")
                 .allElementsBoundByIndex.first(where: \.isHittable)
         )
         confirmed.tap()
+        let songs = rootControl("Songs", app: app)
+        if songs.waitForExistence(timeout: 5) { songs.tap() }
     }
 
     /// Open Shop from the leading hamburger drawer.

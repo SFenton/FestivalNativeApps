@@ -31,7 +31,7 @@ private func profileSheetImage(
     return try nativeHostedImage(host)
 }
 
-/// Initial and stored-selection states paint distinct, readable sheets at two widths.
+/// Initial and stored-selection states paint the same readable finder at two widths.
 @MainActor
 @Test func profileSheetPaintsAnonymousAndSelectedIdentityWithoutAService() throws {
     let suiteName = "fst-profile-render-\(UUID().uuidString)"
@@ -60,7 +60,9 @@ private func profileSheetImage(
         let anonymousPixels = nativeHostedControlPixels(initial)
         let chosenPixels = nativeHostedControlPixels(chosen)
         #expect(anonymousPixels.bright > 20 && anonymousPixels.selected > 40)
-        #expect(chosenPixels.bright > anonymousPixels.bright)
+        // No selected-profile ("Public Profile") container: the web's modal has none,
+        // so a stored selection paints the same finder as the anonymous state.
+        #expect(chosenPixels.bright == anonymousPixels.bright)
         #expect(chosenPixels.selected > 40)
         #expect(anonymousPixels.placeholder == 0 && chosenPixels.placeholder == 0)
         let first = try nativeHostedPNG(
@@ -71,7 +73,7 @@ private func profileSheetImage(
             chosen, filename: "profile-selected-\(Int(size.width)).png",
             environment: "FST_PROFILE_RENDER_OUT"
         )
-        #expect(first != second)
+        #expect(first == second)
     }
 
     let largeText = try profileSheetImage(

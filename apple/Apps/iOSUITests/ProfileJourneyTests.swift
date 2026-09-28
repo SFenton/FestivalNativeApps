@@ -36,7 +36,7 @@ final class ProfileJourneyTests: XCTestCase {
         let profile = app.buttons["fst.shell.profile"]
         XCTAssertTrue(profile.waitForExistence(timeout: 15))
         profile.tap()
-        let search = app.textFields["fst.profile.search"]
+        let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 10))
         search.tap()
         search.typeText(query)
@@ -149,5 +149,36 @@ final class ProfileJourneyTests: XCTestCase {
         openResult("fixture-player-1", query: "Fixture Player", in: app)
         assertViewing("Fixture Player 1", in: app)
         assertSingleBackReturnsToRoot(in: app)
+    }
+
+    /// The native search field keeps the sheet's title and Close while focused
+    /// (`.searchable` hides the navigation bar by default), the two-character hint sits
+    /// below the scope control, and no selected-profile container is shown.
+    @MainActor
+    func testSearchFocusKeepsTitleAndCloseInProfileSheet() {
+        let app = FestivalApp.launch([
+            "FST_API_BASE_URL": "http://127.0.0.1:8765",
+            "FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1",
+        ])
+        let profile = app.buttons["fst.shell.profile"]
+        XCTAssertTrue(profile.waitForExistence(timeout: 15))
+        profile.tap()
+        let close = app.buttons["fst.profile.close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["fst.profile.selected"].exists)
+        let hint = app.staticTexts["fst.profile.search-hint"]
+        XCTAssertTrue(hint.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(hint.frame.minY, app.segmentedControls["fst.profile.scope"].frame.maxY)
+        let search = app.searchFields.matching(
+            NSPredicate(format: "placeholderValue == %@", "Find Player")
+        ).firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 10))
+        search.tap()
+        search.typeText("F")
+        XCTAssertTrue(close.waitForExistence(timeout: 3))
+        XCTAssertTrue(close.isHittable, "Close hid behind the focused search field")
+        XCTAssertTrue(app.navigationBars["Profiles"].exists, "Sheet title hid while searching")
+        close.tap()
+        XCTAssertTrue(close.waitForNonExistence(timeout: 5))
     }
 }

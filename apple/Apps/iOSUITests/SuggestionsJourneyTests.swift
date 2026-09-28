@@ -64,7 +64,7 @@ final class SuggestionsJourneyTests: XCTestCase {
         record(app, name: "suggestions-choose-profile")
 
         choose.tap()
-        let search = app.textFields["fst.profile.search"]
+        let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 10))
         search.tap()
         search.typeText("Fixture Player 1\n")

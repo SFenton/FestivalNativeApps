@@ -52,62 +52,39 @@ struct ProfileActionButton: View {
     }
 }
 
-/// Native profile-discovery sheet: an already-selected profile summary, a
-/// Players/Bands search scope, and an honest Bands gate.
+/// Native profile-discovery sheet: a Players/Bands search scope over the results, and an
+/// honest Bands gate. It mirrors the web's Select Profile search modal, which has no
+/// selected-profile summary: the selected player is reached from the header profile
+/// button and deselected from their own page (operator, 2026-09-28: no "Public
+/// Profile" container).
 ///
 /// Presented by the root shell inside `.festivalSheet()` (dark Liquid Glass per
-/// `.agents/design/apple/liquid-glass.md`); this file supplies only the content, and
-/// follows that doc's "sections inside sheets" rule (native `Form`/`List` sections
-/// with `FestivalSectionHeader` and a tinted `listRowBackground`, never a nested
-/// glass card, to avoid glass-on-glass inside the already-glass sheet).
+/// `.agents/design/apple/liquid-glass.md`); this file supplies only the content.
 ///
 /// **Navigation choice — dismiss the sheet, then push onto the presenting tab:**
-/// a result row and the selected-profile summary's "View Profile" both dismiss this
-/// sheet and push the *real* `AppRoute.player` route onto whichever tab presented it,
-/// via the `openRoute` closure parameter `FestivalRootView` passes in (see that
-/// property's own doc comment for why it is a plain closure and not the
-/// environment-based `OpenRouteAction`/`\.openRoute` the rest of the app uses for
-/// this same dismiss-then-push shape). An earlier draft pushed `AppRoute.player`
-/// inside this sheet's own `NavigationStack`
-/// instead — genuinely simpler (no cross-lane seam) but the wrong UX once compared to
-/// native search flows: the pushed player screen offers Select/Switch/Deselect
-/// actions that change app-wide state (the selected profile, visible tabs, Songs
-/// filters), and having those actions live one level inside a still-presented sheet
-/// reads as "still searching" rather than "you're now on your new profile" — closing
-/// the sheet afterward is an extra, unnecessary step. Dismiss-then-push matches how
-/// Contacts/Messages "New Message" search hands off to the real destination, and
-/// keeps this sheet a pure finder with no navigation state of its own.
+/// a result row dismisses this sheet and pushes the *real* `AppRoute.player` route onto
+/// whichever tab presented it, via the `openRoute` closure parameter `FestivalRootView`
+/// passes in. The pushed player screen offers Select/Switch/Deselect actions that change
+/// app-wide state, so they must not live one level inside a still-presented sheet.
 ///
-/// **Search field — a styled `TextField`, not literal `.searchable`:** HIG prefers
-/// `.searchable` for a search pill, but this sheet is exercised by macOS
-/// `NSHostingView` snapshot tests that introspect a concrete `NSTextField` /
-/// `NSSegmentedControl` off-window (`ProfileSelectionSheetRenderTests.swift`).
-/// `.searchable`'s system search bar is chrome the host window places, not a plain
-/// subview, so it cannot be relied on to render (or to be found) in an off-window
-/// host. The field below matches `.searchable`'s exact visual shape (leading
-/// magnifying glass, rounded capsule, trailing clear button, scope-aware prompt)
-/// while staying a directly hosted, testable control.
+/// **Search field:** iOS uses the system `.searchable` field in the navigation-bar
+/// drawer (no custom fill), with `.searchPresentationToolbarBehavior(.avoidHidingContent)`
+/// so the title and Close stay while the field is focused. macOS keeps a plain rounded
+/// `TextField` because its hosted snapshot tests introspect a concrete `NSTextField`
+/// off-window, where `.searchable`'s window-placed chrome never renders.
 struct ProfileSelectionSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var scope = ProfileSearchScope.players
     @State private var query = ""
     @State private var searchPhase = PlayerSearchPhase.enterQuery
     @State private var searchRetry = 0
-    @State private var deselectPending = false
     @FocusState private var searchFocused: Bool
 
     let session: FestivalSession
     /// Dismiss-then-push hook, called after `dismiss()` with the route to push onto
-    /// the presenting tab. A plain closure parameter, **not** `\.openRoute`
-    /// (`FestivalRootView`'s environment action of the same shape): verified
-    /// empirically that a custom `@Entry` environment value set by the presenting
-    /// view — this one, and the pre-existing `\.openDrawer` — never actually fires
-    /// once read from inside this sheet's own content, even though both read
-    /// correctly everywhere else in the app. `FestivalRootView` passes its
-    /// `paths[selected, default: []].append` directly here instead, the same
-    /// closure-capture mechanism `FestivalDrawer`'s proven-working `onIntent:
-    /// handleDrawer` already uses. Defaults to a no-op for hosted previews/tests
-    /// that construct this sheet without the root shell.
+    /// the presenting tab. A plain closure parameter, **not** `\.openRoute`: a custom
+    /// `@Entry` environment value set by the presenting view never fires once read from
+    /// inside this sheet's own content. Defaults to a no-op for hosted tests.
     var openRoute: (AppRoute) -> Void = { _ in }
 
     private struct SearchKey: Hashable {
@@ -118,32 +95,27 @@ struct ProfileSelectionSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                if let selected = session.selectedPlayer {
-                    Section {
-                        selectedProfileRow(selected)
-                    } header: {
-                        FestivalSectionHeader("Selected Profile")
-                    }
-                    .listRowBackground(Color.white.opacity(0.06))
-                }
-                Section {
-                    scopePicker
+            VStack(spacing: 0) {
+                VStack(spacing: 12) {
+                    #if os(macOS)
                     searchField
-                } header: {
-                    FestivalSectionHeader("Find a Profile")
+                    #endif
+                    scopePicker
                 }
-                .listRowBackground(Color.white.opacity(0.06))
-                Section {
-                    scopeResultsContent
-                }
-                .listRowBackground(Color.white.opacity(0.06))
-                .listRowInsets(EdgeInsets())
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 12)
+                scopeResultsContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .scrollContentBackground(.hidden)
             .navigationTitle("Profiles")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            .searchable(
+                text: $query, placement: .navigationBarDrawer(displayMode: .always),
+                prompt: Text(scope.searchPrompt)
+            )
+            .modifier(KeepSheetChromeWhileSearching())
             #endif
             .toolbar {
                 // Dismiss-only modal: trailing, matching the app's modal-standard
@@ -159,19 +131,10 @@ struct ProfileSelectionSheet: View {
         .task(id: SearchKey(query: query, scope: scope, retry: searchRetry)) {
             await search()
         }
-        .confirmationDialog(
-            "Deselect profile?", isPresented: $deselectPending,
-            titleVisibility: .visible
-        ) {
-            Button("Deselect Profile", role: .destructive) { session.deselectPlayer() }
-        } message: {
-            Text("Scores and profile-only content will be hidden; app Settings stay saved.")
-        }
     }
 
     /// Native segmented Players/Bands scope (`fst.profile.scope`, an `NSSegmentedControl`
-    /// under macOS hosting) — unchanged shape so existing native-render tests still
-    /// introspect a real control.
+    /// under macOS hosting).
     private var scopePicker: some View {
         Picker("Search profiles", selection: $scope) {
             ForEach(ProfileSearchScope.allCases) { target in
@@ -179,138 +142,86 @@ struct ProfileSelectionSheet: View {
             }
         }
         .pickerStyle(.segmented)
+        .labelsHidden()
         .accessibilityIdentifier("fst.profile.scope")
     }
 
-    /// Search-pill styled like `.searchable`; see the type doc for why it is a plain
-    /// `TextField` rather than the modifier itself.
+    #if os(macOS)
+    /// macOS-only system rounded field (see the type doc); disabled in Bands scope.
     private var searchField: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(FestivalText.deemphasized)
-                .accessibilityHidden(true)
-            TextField(
-                "", text: $query,
-                prompt: Text(scope.searchPrompt).foregroundStyle(FestivalText.deemphasized)
-            )
-            .textFieldStyle(.plain)
+        TextField(scope.searchPrompt, text: $query)
+            .textFieldStyle(.roundedBorder)
             .focused($searchFocused)
-            .submitLabel(.search)
             .onSubmit { searchFocused = false }
             .disabled(scope == .bands)
             .accessibilityLabel(scope.searchPrompt)
             .accessibilityIdentifier("fst.profile.search")
-            if !query.isEmpty {
-                Button {
-                    query = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(FestivalText.deemphasized)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear Search")
-                .accessibilityIdentifier("fst.profile.search-clear")
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(BrandTokens.appBackground, in: Capsule())
     }
+    #endif
 
-    /// Selected-profile summary; "View Profile" routes through the real `AppRoute.player`.
+    /// A message centred in the space between the scope control and the bottom safe area.
     ///
-    /// - Parameter selected: Currently selected, previously validated identity.
-    private func selectedProfileRow(_ selected: SelectedPlayerIdentity) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: "person.crop.circle.fill")
-                    .accessibilityHidden(true)
-                Text(selected.displayName)
-                    .accessibilityIdentifier("fst.profile.selected")
-            }
-            .foregroundStyle(BrandTokens.textPrimary)
-            HStack(spacing: 16) {
-                Button("View Profile") {
-                    openPlayer(accountId: selected.accountId, displayName: selected.displayName)
-                }
-                .accessibilityIdentifier("fst.profile.view-selected")
-                Button("Deselect", role: .destructive) { deselectPending = true }
-                    .accessibilityIdentifier("fst.profile.deselect")
-            }
-            .buttonStyle(.borderless)
-            .tint(BrandTokens.accentBlue)
+    /// - Parameters:
+    ///   - text: White status or hint text.
+    ///   - identifier: Accessibility identifier for journey tests.
+    private func centredMessage(_ text: String, identifier: String) -> some View {
+        VStack {
+            Spacer(minLength: 0)
+            Text(text)
+                .font(.body)
+                .foregroundStyle(FestivalText.primary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 32)
+                .accessibilityIdentifier(identifier)
+            Spacer(minLength: 0)
         }
     }
 
-    /// Bands gate, the enter-query hint (centered in the remaining sheet space,
-    /// per the operator's requirement), loading, results and error states.
+    /// Bands gate, the enter-query hint, loading, results and error states.
     @ViewBuilder private var scopeResultsContent: some View {
         switch scope {
         case .bands:
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: "person.3")
-                    .accessibilityHidden(true)
-                Text("Band search is paused: the service's fallback for a missing "
+            centredMessage(
+                "Band search is paused: the service's fallback for a missing "
                     + "band index rebuilds membership data instead of only reading it, "
-                    + "so this app never sends that request.")
-                    .accessibilityIdentifier("fst.profile.bands-unavailable")
-            }
-            .foregroundStyle(FestivalText.primary)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(16)
+                    + "so this app never sends that request.",
+                identifier: "fst.profile.bands-unavailable"
+            )
         case .players:
             switch searchPhase {
             case .enterQuery:
-                VStack {
-                    Spacer(minLength: 0)
-                    Text("Enter at least two characters to search for players.")
-                        .foregroundStyle(FestivalText.primary)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
-                    Spacer(minLength: 0)
-                }
-                .containerRelativeFrame(.vertical) { length, _ in max(length * 0.55, 180) }
-                .accessibilityIdentifier("fst.profile.search-hint")
+                centredMessage(
+                    "Enter at least two characters to search for players.",
+                    identifier: "fst.profile.search-hint"
+                )
             case .loading:
-                HStack {
+                VStack {
                     Spacer(minLength: 0)
                     FestivalLoadingView(accessibilityLabel: "Searching Players")
                         .accessibilityIdentifier("fst.profile.search-loading")
                     Spacer(minLength: 0)
                 }
-                .padding(.vertical, 32)
             case let .results(results):
                 if results.isEmpty {
                     VStack(spacing: 12) {
+                        Spacer(minLength: 0)
                         Text("No player results were returned. Try another search or Retry.")
                             .foregroundStyle(FestivalText.primary)
                             .multilineTextAlignment(.center)
+                            .padding(.horizontal, 32)
                             .accessibilityIdentifier("fst.profile.search-empty")
                         Button("Retry Player Search") { searchRetry += 1 }
                             .tint(BrandTokens.textPrimary)
                             .accessibilityIdentifier("fst.profile.search-retry")
+                        Spacer(minLength: 0)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
                 } else {
-                    // One `Form` row per result (`PlayerSearchResultRows`' doc: a
-                    // shared row of Buttons fired every result on one tap).
-                    PlayerSearchResultRows(results) { player in
-                        Button {
-                            openPlayer(accountId: player.accountId, displayName: player.displayName)
-                        } label: {
-                            Label(player.displayName, systemImage: "person.crop.circle")
-                                .foregroundStyle(BrandTokens.textPrimary)
-                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                                .contentShape(Rectangle())
-                        }
-                        .padding(.horizontal, 16)
-                        .accessibilityLabel("View \(player.displayName)")
-                        .accessibilityIdentifier("fst.profile.result.\(player.accountId)")
-                    }
+                    resultsList(results)
                 }
             case let .failed(message):
                 VStack(spacing: 12) {
+                    Spacer(minLength: 0)
                     HStack(alignment: .top, spacing: 8) {
                         Image(systemName: "exclamationmark.triangle")
                             .accessibilityHidden(true)
@@ -318,14 +229,40 @@ struct ProfileSelectionSheet: View {
                             .accessibilityIdentifier("fst.profile.search-error")
                     }
                     .foregroundStyle(BrandTokens.gold)
+                    .padding(.horizontal, 32)
                     Button("Retry Player Search") { searchRetry += 1 }
                         .tint(BrandTokens.textPrimary)
                         .accessibilityIdentifier("fst.profile.search-retry")
+                    Spacer(minLength: 0)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(16)
             }
         }
+    }
+
+    /// One `List` row per result (`PlayerSearchResultRows`' doc: a shared row of Buttons
+    /// fired every result on one tap), in a native inset section.
+    ///
+    /// - Parameter results: Validated, non-empty search results.
+    private func resultsList(_ results: [PlayerSearchResult]) -> some View {
+        List {
+            Section {
+                PlayerSearchResultRows(results) { player in
+                    Button {
+                        openPlayer(accountId: player.accountId, displayName: player.displayName)
+                    } label: {
+                        Label(player.displayName, systemImage: "person.crop.circle")
+                            .foregroundStyle(BrandTokens.textPrimary)
+                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("View \(player.displayName)")
+                    .accessibilityIdentifier("fst.profile.result.\(player.accountId)")
+                }
+            }
+            .listRowBackground(Color.white.opacity(0.06))
+        }
+        .scrollContentBackground(.hidden)
+        .festivalFadeIn(isLoaded: true)
     }
 
     /// Dismiss this sheet, then push the real player-profile route on the presenting
@@ -362,3 +299,21 @@ struct ProfileSelectionSheet: View {
         }
     }
 }
+
+// MARK: - Search chrome
+
+#if os(iOS)
+/// Keeps the sheet's title and Close visible while the search field is focused.
+///
+/// `.searchable` hides the navigation bar on activation by default, which removed the
+/// only way to close this sheet mid-search (the same bug the global search sheet had).
+private struct KeepSheetChromeWhileSearching: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 17.1, *) {
+            content.searchPresentationToolbarBehavior(.avoidHidingContent)
+        } else {
+            content
+        }
+    }
+}
+#endif
