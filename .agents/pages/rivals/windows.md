@@ -40,7 +40,7 @@ Rivals reads are unpinned operational GETs through `RequestGate` (see [service-s
 
 ## IDs
 
-`fst.rivals.title`, `.findRival`, `.tab`, `.tab.song`, `.tab.leaderboard`, `.rankBy`, `.jump`, `.jump.<sectionId>`, `.section.<common|combo|Solo_*>` (card title), `.see-all`, `.row.<accountId>`, `.empty`, `.chooseProfile`, `.selectPlayer`, `.page-empty`; `fst.all-rivals.title`, `.list`, `.row.<accountId>`; `fst.rival-detail.title`, `.scope`, `.summary`, `.view-profile`, `.category.<key>`, `.see-all`; `fst.rivalry.title`, `.sort`, `.view-profile`, `.list`, `.song.<songId>.<instrument>`; inline status `fst.service-status.inline`. IDs sit on TextBlocks or controls: panels/borders have no UIA peer.
+`fst.rivals.title`, `.findRival`, `.tab`, `.tab.song`, `.tab.leaderboard`, `.rankBy`, `.jump`, `.jump.[leaderboard.]<sectionId>`, `.section.<common|combo|Solo_*>` / `.section.leaderboard.<Solo_*>` (card title; distinct per tab because ItemsRepeater keeps recycled off-screen cards and the driver takes the first match), `.see-all`, `.row.<accountId>`, `.empty`, `.chooseProfile`, `.selectPlayer`, `.page-empty`; `fst.all-rivals.title`, `.list`, `.row.<accountId>`; `fst.rival-detail.title`, `.scope`, `.summary`, `.view-profile`, `.category.<key>`, `.see-all`; `fst.rivalry.title`, `.sort`, `.view-profile`, `.list`, `.song.<songId>.<instrument>`; inline status `fst.service-status.inline`. IDs sit on TextBlocks or controls: panels/borders have no UIA peer.
 
 ## Open
 

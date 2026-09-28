@@ -55,8 +55,13 @@ public sealed partial class RivalsPage : Page
         var tab = sender.SelectedItem == LeaderboardTab ? RivalsTab.Leaderboard : RivalsTab.Song;
         if (tab == ViewModel.Tab) return;
         ViewModel.Tab = tab;
-        Scroller.ChangeView(null, 0, null, disableAnimation: true);
+        ScrollToTop();
+        // Again after the new sections lay out: an in-flight Jump To scroll animation would otherwise win.
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, ScrollToTop);
     }
+
+    /// <summary>Scrolls the sections to the top without animation.</summary>
+    private void ScrollToTop() => Scroller.ChangeView(null, 0, null, disableAnimation: true);
 
     /// <summary>Keeps the SelectorBar in step with the model.</summary>
     private void SyncTab()
@@ -104,7 +109,7 @@ public sealed partial class RivalsPage : Page
             var index = i;
             var section = ViewModel.Sections[i];
             var item = new MenuFlyoutItem { Text = section.Title };
-            Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(item, "fst.rivals.jump." + section.Id);
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(item, section.AutomationId.Replace("fst.rivals.section.", "fst.rivals.jump.", StringComparison.Ordinal));
             item.Click += (_, _) => JumpTo(index);
             JumpMenu.Items.Add(item);
         }

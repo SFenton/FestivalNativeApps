@@ -75,6 +75,7 @@ public class RivalsViewModelTests
         await Async.Until(() => hub.State == RivalsHubState.Loaded && hub.Sections.All(s => s.State == LoadState.Loaded));
 
         Assert.Equal(["common", "combo", "Solo_Guitar", "Solo_Bass"], hub.Sections.Select(s => s.Id));
+        Assert.True(hub.ShowJump);
         Assert.Equal(["Common Rivals", "Combined Rivals", "Lead Rivals", "Bass Rivals"], hub.Sections.Select(s => s.Title));
         var lead = hub.Sections[2];
         Assert.Equal(6, lead.Rows.Count);
@@ -107,6 +108,7 @@ public class RivalsViewModelTests
         hub.Activate();
         await Async.Until(() => hub.State == RivalsHubState.Empty);
         Assert.Empty(hub.Sections);
+        Assert.False(hub.ShowJump);
         Assert.True(hub.ShowEmpty);
         Assert.StartsWith("Not enough data", hub.EmptyTitle);
         Assert.Contains("instruments", hub.EmptySubtitle);
@@ -168,6 +170,7 @@ public class RivalsViewModelTests
         Assert.Equal("#2", row.RankText);
         Assert.Contains("rank 2", row.AccessibleName);
         Assert.Equal(new RivalScope.Leaderboard(Instrument.Lead, RankingMetric.TotalScore), row.Route.Scope);
+        Assert.Equal("fst.rivals.section.leaderboard.Solo_Guitar", hub.Sections.Single().AutomationId);
 
         hub.MetricIndex = RankingMetricInfo.All.ToList().IndexOf(RankingMetric.FcRate);
         Assert.Equal(RankingMetric.FcRate, hub.Metric);

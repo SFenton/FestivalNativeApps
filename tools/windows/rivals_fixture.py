@@ -12,6 +12,7 @@ app with ``--base-url http://127.0.0.1:8765/`` and ``FST_DEBUG_PROFILE=fixture-p
 from __future__ import annotations
 
 import sys
+from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -45,6 +46,20 @@ def main() -> None:
         mock_service.LEADERBOARD_RIVAL_DETAIL_DEMO,
     ):
         anonymize(payload, names)
+    # The app's carousel art plus up to four concurrent Rivals reads overflow socketserver's default backlog
+    # of 5, and Windows refuses the excess connections (the app then shows "You're offline").
+    mock_service.FixtureServer.request_queue_size = 128
+    # The stdlib server answers HTTP/1.0 and closes each socket; without an explicit "Connection: close" .NET's
+    # pooled client occasionally reuses a closing socket (WSAECONNABORTED -> the app reports "offline").
+    for handler in vars(mock_service).values():
+        if isinstance(handler, type) and issubclass(handler, BaseHTTPRequestHandler) and handler is not BaseHTTPRequestHandler:
+            original = handler.end_headers
+
+            def end_headers(self, _original=original):  # noqa: ANN001 (stdlib handler signature)
+                self.send_header("Connection", "close")
+                _original(self)
+
+            handler.end_headers = end_headers
     mock_service.main()
 
 

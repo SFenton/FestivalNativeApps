@@ -120,8 +120,8 @@ public sealed partial class RivalSectionViewModel : ObservableObject
     /// <summary>All Rivals route for this scope.</summary>
     public AppRoute.AllRivals ViewAllRoute { get; }
 
-    /// <summary>UIA automation ID.</summary>
-    public string AutomationId => "fst.rivals.section." + Id;
+    /// <summary>UIA automation ID (leaderboard sections are distinct so recycled Song-tab cards never match).</summary>
+    public string AutomationId => "fst.rivals.section." + (ViewAllRoute.Scope is RivalScope.Leaderboard ? "leaderboard." : "") + Id;
 
     /// <summary>Failed-read presentation.</summary>
     public ServiceStatusViewModel Status { get; }
@@ -273,6 +273,9 @@ public sealed partial class RivalsHubViewModel : ObservableObject
 
     /// <summary>Whether the empty state is shown.</summary>
     public bool ShowEmpty => State == RivalsHubState.Empty;
+
+    /// <summary>Whether Jump To is offered (web quick links need at least two sections).</summary>
+    public bool ShowJump => Sections.Count >= 2;
 
     /// <summary>Whether the no-player state is shown.</summary>
     public bool ShowNoPlayer => State == RivalsHubState.NoPlayer;
@@ -449,6 +452,7 @@ public sealed partial class RivalsHubViewModel : ObservableObject
     /// <summary>Loading while anything loads and nothing shows; Empty once every section settled empty.</summary>
     private void UpdateState()
     {
+        OnPropertyChanged(nameof(ShowJump));
         if (all.Count > 0 && all.All(s => s.State == LoadState.Empty)) State = RivalsHubState.Empty;
         else if (all.Count == 0) State = RivalsHubState.Empty;
         else State = all.Any(s => s.State is LoadState.Loaded or LoadState.Failed) ? RivalsHubState.Loaded : RivalsHubState.Loading;

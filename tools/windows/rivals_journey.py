@@ -34,26 +34,27 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
             "waitfor:id=fst.rivals.section.common@20",
             f"waitfor:id=fst.rivals.row.{RIVAL}@10",
             "{shot:hub}",
-            "click:id=fst.rivals.jump",
-            "waitfor:id=fst.rivals.jump.Solo_Bass",
-            "click:id=fst.rivals.jump.Solo_Bass",
-            "click:id=fst.rivals.tab.leaderboard",
-            "waitfor:id=fst.rivals.section.Solo_Guitar@10",
+            "invoke:id=fst.rivals.jump",
+            "waitfor:id=fst.rivals.jump.Solo_Bass@10",
+            "invoke:id=fst.rivals.jump.Solo_Bass",
+            "wait:1",
+            "select:id=fst.rivals.tab.leaderboard",
+            "waitfor:id=fst.rivals.section.leaderboard.Solo_Guitar@10",
             "waitfor:name=#2@10",
             "{shot:hub-leaderboard}",
-            "click:id=fst.rivals.tab.song",
+            "select:id=fst.rivals.tab.song",
             "waitfor:id=fst.rivals.section.common@10",
             f"click:id=fst.rivals.row.{RIVAL}",
             "waitfor:id=fst.rival-detail.category.closest_battles@15",
-            "waitfor:id=fst.rival-detail.view-profile",
+            "waitfor:id=fst.rival-detail.view-profile@10",
             "{shot:detail}",
             "click:id=fst.rival-detail.see-all",
             "waitfor:id=fst.rivalry.list@15",
-            "waitfor:id=fst.rivalry.song.fixture-pulse.Solo_Guitar",
+            "waitfor:id=fst.rivalry.song.fixture-pulse.Solo_Guitar@10",
             "expand:id=fst.rivalry.sort",
-            "waitfor:name=Your Biggest Leads",
+            "waitfor:name=Your Biggest Leads@10",
             "click:name=Your Biggest Leads",
-            "waitfor:id=fst.rivalry.song.fixture-echo.Solo_Guitar",
+            "waitfor:id=fst.rivalry.song.fixture-echo.Solo_Guitar@10",
             "{shot:rivalry}",
             "key:alt+left",
             "waitfor:id=fst.rival-detail.title@10",
@@ -61,7 +62,7 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
             "waitfor:id=fst.rivals.see-all@10",
             "click:id=fst.rivals.see-all",
             "waitfor:id=fst.all-rivals.list@15",
-            f"waitfor:id=fst.all-rivals.row.{RIVAL}",
+            f"waitfor:id=fst.all-rivals.row.{RIVAL}@10",
             "{shot:all-rivals}",
         ],
     ),
@@ -73,12 +74,12 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
     "freeze": (
         {"FST_DEBUG_PROFILE": "fixture-player-503:Demo Player"},
         f"/rivals/{RIVAL}?scope=song%3ASolo_Guitar",
-        ["waitfor:id=fst.service-status.title@20", "waitfor:id=fst.service-status.countdown", "{shot:freeze}"],
+        ["waitfor:id=fst.service-status.title@20", "waitfor:id=fst.service-status.countdown@10", "{shot:freeze}"],
     ),
     "no-player": (
         {"FST_DEBUG_ANONYMOUS": "1"},
         f"/rivals/{RIVAL}",
-        ["waitfor:id=fst.rivals.chooseProfile@20", "waitfor:id=fst.rivals.selectPlayer", "{shot:no-player}"],
+        ["waitfor:id=fst.rivals.chooseProfile@20", "waitfor:id=fst.rivals.selectPlayer@10", "{shot:no-player}"],
     ),
     "compete": (
         {"FST_DEBUG_PROFILE": "fixture-player-1:Demo Player"},
@@ -132,15 +133,26 @@ def run(name: str, port: int, shots: Path | None, size: str) -> None:
     env, route, steps = SCENARIOS[name]
     args = ["launch", str(EXE), "--timeout", "60", "--wait", "1", "--preset", size,
             f"--arg=--base-url=http://127.0.0.1:{port}/"]
-    for key, value in env.items():
-        args += ["--extra", f"{key}={value}"]
+    # An absent settings file gives defaults (all nine charts), independent of the operator's saved settings.
+    isolated = Path(tempfile.gettempdir()) / "fst-rivals-journey" / "settings.json"
+    for key, value in {**env, "FST_SETTINGS_PATH": str(isolated)}.items():
+        args += [f"--arg={key}"] if key.startswith("--") else ["--extra", f"{key}={value}"]
     if route:
         args += ["--route", route]
     uiwin(*args)
     try:
         with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as handle:
             handle.write("\n".join(expand(steps, shots, size)))
-        uiwin("drive", "--steps-file", handle.name)
+        try:
+            uiwin("drive", "--steps-file", handle.name)
+        except RuntimeError:
+            evidence = shots or Path(tempfile.gettempdir())
+            for command, suffix in (("shot", ".png"), ("tree", ".txt")):
+                try:
+                    uiwin(command, str(evidence / f"FAILED-{name}-{size}{suffix}"))
+                except RuntimeError:
+                    pass
+            raise
         print(f"PASS {name} [{size}]")
     finally:
         uiwin("close")

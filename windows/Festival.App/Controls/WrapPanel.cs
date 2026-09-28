@@ -24,30 +24,51 @@ public sealed partial class WrapPanel : Panel
         return finalSize;
     }
 
-    /// <summary>Measures or arranges children line by line.</summary>
+    /// <summary>Measures or arranges children line by line, centring each item vertically within its line.</summary>
     /// <param name="width">Available width.</param>
     /// <param name="arrange">Whether to arrange (otherwise measure).</param>
     /// <returns>Used size.</returns>
     private Size Layout(double width, bool arrange)
     {
-        double x = 0, y = 0, line = 0, used = 0;
+        var lines = new List<(List<UIElement> Items, double Height)>();
+        var current = new List<UIElement>();
+        double x = 0, line = 0, used = 0;
         foreach (var child in Children)
         {
             if (!arrange) child.Measure(new Size(width, double.PositiveInfinity));
-            var size = child.DesiredSize;
             if (child.Visibility == Visibility.Collapsed) continue;
+            var size = child.DesiredSize;
             if (x > 0 && x + size.Width > width)
             {
+                lines.Add((current, line));
+                current = [];
                 x = 0;
-                y += line + VerticalSpacing;
                 line = 0;
             }
-            if (arrange) child.Arrange(new Rect(x, y, Math.Min(size.Width, width), size.Height));
+            current.Add(child);
             x += size.Width + HorizontalSpacing;
             used = Math.Max(used, x - HorizontalSpacing);
             line = Math.Max(line, size.Height);
         }
-        return new Size(double.IsInfinity(width) ? used : Math.Min(used, width), y + line);
+        if (current.Count > 0) lines.Add((current, line));
+
+        double y = 0;
+        foreach (var (items, height) in lines)
+        {
+            if (arrange)
+            {
+                double left = 0;
+                foreach (var item in items)
+                {
+                    var size = item.DesiredSize;
+                    item.Arrange(new Rect(left, y + (height - size.Height) / 2, Math.Min(size.Width, width), size.Height));
+                    left += size.Width + HorizontalSpacing;
+                }
+            }
+            y += height + VerticalSpacing;
+        }
+        var total = lines.Count == 0 ? 0 : y - VerticalSpacing;
+        return new Size(double.IsInfinity(width) ? used : Math.Min(used, width), total);
     }
 }
 #endregion
