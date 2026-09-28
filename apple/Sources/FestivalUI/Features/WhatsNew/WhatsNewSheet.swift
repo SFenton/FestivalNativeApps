@@ -8,9 +8,11 @@ import FestivalDesign
 /// (`components/modals/ChangelogModal.tsx`): a titled, scrolling list of sections with bullet
 /// items and a full-width Dismiss button.
 ///
-/// Native deviations (HIG over the web card): a system sheet with a drag indicator instead of a
-/// centred card, Title Case section headings instead of CSS upper-casing, and a toolbar close
-/// button in the standard trailing position.
+/// Presentation (operator, 2026-09-28): the launch presentation is a full-height cover on
+/// iPhone (`whatsNewPresentation(isPresented:)`), so no rounded sheet corner exposes the page
+/// behind it, and the background is opaque. Dismiss sits in an opaque bottom bar
+/// (`safeAreaInset(.bottom)` over `cardBackground` with a hairline), so the list scrolls
+/// **above** it and never shows beneath it. Close stays in the standard toolbar position.
 struct WhatsNewSheet: View {
     /// App version shown after the title, like the web's `What's New · 0.1.133`.
     let version: String
@@ -33,10 +35,13 @@ struct WhatsNewSheet: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 12)
             }
-            .safeAreaInset(edge: .bottom) { dismissButton }
+            .safeAreaInset(edge: .bottom, spacing: 0) { dismissBar }
+            .background(BrandTokens.cardBackground)
             .navigationTitle(Self.title(version: version))
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(BrandTokens.cardBackground, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -49,9 +54,12 @@ struct WhatsNewSheet: View {
             }
         }
         .festivalSheet(.large)
+        // Opaque, so neither the page behind nor a rounded sheet corner shows through.
+        .presentationBackground(BrandTokens.cardBackground)
     }
 
-    private var dismissButton: some View {
+    /// Opaque bottom bar holding Dismiss; the scroll view ends above it.
+    private var dismissBar: some View {
         Button(action: onDismiss) {
             Text("Dismiss")
                 .font(.headline)
@@ -61,8 +69,15 @@ struct WhatsNewSheet: View {
         .buttonStyle(.borderedProminent)
         .tint(BrandTokens.accentBlue)
         .padding(.horizontal, 20)
-        .padding(.top, 8)
-        .padding(.bottom, 12)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity)
+        .background(alignment: .top) {
+            BrandTokens.cardBackground
+                .overlay(alignment: .top) {
+                    Rectangle().fill(BrandTokens.glassBorder).frame(height: 1)
+                }
+                .ignoresSafeArea(edges: .bottom)
+        }
         .accessibilityIdentifier("fst.whats-new.dismiss")
     }
 
@@ -99,5 +114,28 @@ private struct WhatsNewSectionView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Presentation
+
+extension View {
+    /// Present What's New full height: a cover on iPhone (no rounded sheet corners over
+    /// the page), a large sheet elsewhere.
+    ///
+    /// - Parameters:
+    ///   - isPresented: Presentation binding.
+    ///   - onDismiss: Runs after the presentation closes.
+    ///   - content: The `WhatsNewSheet`.
+    /// - Returns: The view with the presentation attached.
+    func whatsNewPresentation<Content: View>(
+        isPresented: Binding<Bool>, onDismiss: (() -> Void)? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
+        #if os(iOS)
+        fullScreenCover(isPresented: isPresented, onDismiss: onDismiss, content: content)
+        #else
+        sheet(isPresented: isPresented, onDismiss: onDismiss, content: content)
+        #endif
     }
 }

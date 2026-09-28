@@ -153,7 +153,7 @@ struct WhatsNewLaunchModifier: ViewModifier {
                 guard key == nil else { return }
                 Task { await presentWhenSettled() }
             }
-            .sheet(isPresented: $presented, onDismiss: { launcher.finish(in: session.firstRunCenter) }) {
+            .whatsNewPresentation(isPresented: $presented, onDismiss: { launcher.finish(in: session.firstRunCenter) }) {
                 WhatsNewSheet(
                     version: WhatsNewGate.appVersion(),
                     entries: Changelog.displayEntries()
