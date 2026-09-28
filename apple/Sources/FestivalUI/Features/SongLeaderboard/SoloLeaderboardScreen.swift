@@ -84,22 +84,53 @@ struct SoloLeaderboardScreen: View {
                                 .listRowBackground(Color.clear)
                         }
                         ForEach(payload.leaderboard.entries) { entry in
-                            SongLeaderboardEntryRow(entry: entry)
-                            .listRowBackground(BrandTokens.cardBackground)
+                            NavigationLink(value: playerRoute(for: entry)) {
+                                SongLeaderboardEntryRow(entry: entry)
+                                    .padding(12)
+                                    .festivalGlass(.card)
+                            }
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
                             .accessibilityElement(children: .contain)
                             .accessibilityIdentifier(
                                 "fst.song-leaderboard.row.\(entry.accountId)"
                             )
                         }
                     }
+                    .listStyle(.plain)
                     .scrollContentBackground(.hidden)
-                    pagination(totalPages: payload.leaderboard.pageCount)
+                    RankingsPagerView(
+                        page: page, totalPages: payload.leaderboard.pageCount,
+                        idPrefix: "fst.song-leaderboard"
+                    ) { destination in
+                        move(to: destination)
+                    }
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .festivalBackground(.song(song.albumArt), session: session)
-        .navigationTitle("\(song.title) - \(instrument.label)")
+        .navigationTitle(song.title)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                HStack(spacing: 8) {
+                    InstrumentIcon(instrument, size: 20)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(song.title)
+                            .font(.headline)
+                            .lineLimit(1)
+                        Text(instrument.label)
+                            .font(.caption)
+                            .foregroundStyle(BrandTokens.textSecondary)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
+        #if os(iOS)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task(id: requestKey) {
             if case .loading = state {
                 await loadPage()
@@ -107,6 +138,19 @@ struct SoloLeaderboardScreen: View {
                 await loadPage()
             }
         }
+    }
+
+    /// Send a row to the shared Statistics tab when it is the selected player,
+    /// otherwise to the viewed player's profile — matching the source's
+    /// `navToPlayer` (`FortniteFestivalWeb/src/pages/leaderboard/global/LeaderboardPage.tsx`).
+    ///
+    /// - Parameter entry: Tapped chart row.
+    /// - Returns: `.statistics` for the signed-in selected player, else `.player`.
+    private func playerRoute(for entry: LeaderboardEntry) -> AppRoute {
+        if let selected = session.selectedPlayer, selected.accountId == entry.accountId {
+            return .statistics
+        }
+        return .player(accountId: entry.accountId, displayName: entry.displayName)
     }
 
     /// Keep score provenance in both the fixed and accessibility-scrolling layouts.
@@ -205,71 +249,4 @@ struct SoloLeaderboardScreen: View {
         }
     }
 
-    /// Render discoverable first/previous/next/last actions with an announced page.
-    ///
-    /// - Parameter totalPages: Number of pages computed from local entries.
-    /// - Returns: Accessible native pagination control row.
-    private func pagination(totalPages: Int) -> some View {
-        let first = pagerButton("First", enabled: page > 1) { move(to: 1) }
-            .accessibilityIdentifier("fst.song-leaderboard.page-first")
-        let previous = pagerButton("Previous", enabled: page > 1) {
-            move(to: page - 1)
-        }
-            .accessibilityIdentifier("fst.song-leaderboard.page-previous")
-        let indicator = Text("\(page) / \(totalPages)")
-            .monospacedDigit()
-            .accessibilityIdentifier("fst.song-leaderboard.page-info")
-        let next = pagerButton("Next", enabled: page < totalPages) {
-            move(to: page + 1)
-        }
-            .accessibilityIdentifier("fst.song-leaderboard.page-next")
-        let last = pagerButton("Last", enabled: page < totalPages) {
-            move(to: totalPages)
-        }
-            .accessibilityIdentifier("fst.song-leaderboard.page-last")
-        return VStack(spacing: 8) {
-            HStack(spacing: 8) {
-                first
-                previous
-                Spacer(minLength: 0)
-            }
-            indicator
-            HStack(spacing: 8) {
-                Spacer(minLength: 0)
-                next
-                last
-            }
-        }
-        .padding(12)
-        .background(BrandTokens.cardBackground)
-    }
-
-    /// Keep native pager actions scalable and large enough to touch on every row.
-    ///
-    /// - Parameters:
-    ///   - title: Visible First, Previous, Next or Last action name.
-    ///   - enabled: Whether the current page can move in that direction.
-    ///   - action: Page transition to run when activated.
-    /// - Returns: A native Button with a Fluent opaque plate and Dynamic Type text.
-    private func pagerButton(
-        _ title: String, enabled: Bool, action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.body)
-                .foregroundStyle(
-                    enabled ? BrandTokens.textPrimary : BrandTokens.textSecondary
-                )
-                .padding(.horizontal, 8)
-                .frame(minHeight: 44)
-                .background(
-                    BrandTokens.cardBackground,
-                    in: RoundedRectangle(cornerRadius: 12)
-                )
-        }
-        .buttonStyle(HighContrastPagerStyle())
-        .disabled(!enabled)
-    }
 }
-
-/// Preserve readable control labels even when their native action is disabled.
