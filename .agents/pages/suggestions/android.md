@@ -58,9 +58,16 @@ Filter sheet: Cancel / title / Apply pinned above the scrolling form; back, swip
 |---|---|---|
 | Suggestions packages (JaCoCo, JVM + Robolectric) | 99.0% | 96.8% |
 
+## Device evidence
+
+| AVD / posture | Result (fixture mode, seed 1) |
+|---|---|
+| `FST_Phone` | One column, narrow rows, filter sheet, filter apply (`android/reports/screenshots/suggestions-{phone,phone-scrolled,filter-phone}.png`) |
+| `FST_Book_Fold` unfolded / half / folded | One wide column / hinge split (WindowManager reported `fold-[1038,0,1038,2152]`, HALF_OPENED): two columns with the gap on the fold / phone layout (`suggestions-book-{unfolded,half,folded}.png`) |
+
 ## Open
 
-- Device journeys on every AVD posture, TalkBack walkthrough and ATF checks (accessibility phase).
+- Passport, tri-fold, tablet and resizable captures; TalkBack walkthrough and ATF checks (accessibility phase).
 - No first-run slides, scroll restoration across launches or list-detail Song Detail pane (rows push).
 
 ## IDs
