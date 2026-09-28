@@ -9,6 +9,7 @@
 - **Side-effecting GETs are blocked** until the service owner grants a mutation-free policy. Do not infer safety from the HTTP method, a cache hit or the website's usage:
   - band search: when its projection is absent it deletes/rebuilds/upserts membership state (`FSTService/Persistence/GlobalLeaderboardPersistence.cs:3954-3971,4433-4453`, `FSTService/Persistence/BandLeaderboardPersistence.cs:905-947`);
   - band detail `GET /api/bands/{bandId}`: `GetBandConfigurations` → `EnsureBandTeamConfigurations` rebuilds band team configuration rows on a cache miss (`FSTService/Persistence/GlobalLeaderboardPersistence.cs:4160,4192`). Natives resolve band detail through `GET /api/rankings/bands/{bandType}?teamKey=` instead;
+  - band team ranking `GET /api/rankings/bands/{bandType}/{teamKey}` (bare route, no sub-path): also calls `GetBandConfigurations` → `EnsureBandTeamConfigurations` (`FSTService/Api/RankingsEndpoints.cs:1020,1049`). Its `/history`, `/songs`, `/song-rows` sub-routes and `GET /api/rankings/bands/{bandType}?teamKey=` do **not** write and are allowed;
   - player stats GET can compute and store tiers; band sync-status GET registers bands (`FSTService/Api/PlayerEndpoints.cs:508-546,815-830`, `FSTService/Api/BandSyncEndpoints.cs:10-43`).
   These are source-backed potential effects, not proof they fired in production.
 - Never run profile tracking, name refresh, scrape, maintenance, export or load tests against production. POSTs are fixture-only.
@@ -30,7 +31,7 @@
 | `/api/player/{accountId}` | allowed, not yet probed live | 202 = syncing; 200 ≠ registered/published (`FSTService/Api/PlayerEndpoints.cs:31-51,85-103`, `FSTService/Scraping/ScrapeTimePrecomputer.cs:911-953,2442-2476`) |
 | `/api/player/{accountId}/rivals/{instrument\|combo}[/{rivalId}]`, `/leaderboard-rivals/{instrument}[/{rivalId}]` | allowed (200) | Pure reads (`FSTService/Api/RivalsEndpoints.cs`, `LeaderboardRivalsEndpoints.cs`); 404 = no rivals yet (normalized to empty). `POST …/rivals/recompute` is never called |
 | `/api/player/{accountId}/rivals/all` | allowed (200, probed 2026-09-28) | Pure read (`FSTService/Api/RivalsEndpoints.cs:207-273`): precomputed `rivals-all:{id}` → process cache → `SELECT`s from `user_rivals`/`account_names`; stores bytes only in the in-memory response cache. Precomputed shape has `songs[]` + per-rival `direction`/`samples`; the live fallback omits them and adds `avgSignedDelta` |
-| band search, band detail (`/api/bands/{bandId}`), player stats, band sync-status | **blocked** | See hard rules |
+| band search, band detail (`/api/bands/{bandId}`), bare band team ranking (`/api/rankings/bands/{type}/{teamKey}`), player stats, band sync-status | **blocked** | See hard rules |
 
 ## Public-read freeze
 
