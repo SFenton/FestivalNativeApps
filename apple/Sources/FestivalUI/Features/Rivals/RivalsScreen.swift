@@ -307,6 +307,15 @@ struct RivalInstrumentSongSection: View {
     let session: FestivalSession
     let instrument: Instrument
     var registersQuickLink = true
+    /// When set, an empty result renders this sentence instead of hiding the
+    /// section entirely. `RivalsScreen` leaves this nil — its per-instrument
+    /// sections are meant to be skipped when empty (`.agents/pages/rivals/ios.md`).
+    /// `CompeteScreen` sets it: its coarse "Rivals" header must never show
+    /// nothing underneath (previously every instrument going empty left a bare
+    /// header), matching the web's `compete.noRivalsSubtitle` copy and how its
+    /// own Leaderboards section always renders a per-instrument card even when
+    /// empty (`CompeteInstrumentLeaderboardSection`).
+    var emptyMessage: String? = nil
     @State private var state: RivalsLoadState<RivalsListResponse> = .loading
 
     private let previewCount = 3
@@ -322,7 +331,11 @@ struct RivalInstrumentSongSection: View {
         case let .failed(issue):
             shell { ServiceStatusInline(issue, scope: "rivals.song.\(instrument.rawValue)") { Task { await load() } } }
         case let .loaded(response) where response.isEmpty:
-            EmptyView()
+            if let emptyMessage {
+                shell { FestivalFootnote(emptyMessage) }
+            } else {
+                EmptyView()
+            }
         case let .loaded(response):
             taggedShell {
                 ForEach(previewRows(response)) { row in

@@ -103,7 +103,8 @@ struct CompeteScreen: View {
             } else {
                 ForEach(visible.instruments) { instrument in
                     RivalInstrumentSongSection(
-                        session: session, instrument: instrument, registersQuickLink: false
+                        session: session, instrument: instrument, registersQuickLink: false,
+                        emptyMessage: "No rivals found for \(instrument.label) yet."
                     )
                 }
             }

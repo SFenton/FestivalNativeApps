@@ -163,11 +163,18 @@ private func anonymousCompeteSession() async throws -> FestivalSession {
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 1000))
     defer { window.orderOut(nil) }
     let image = try await nativeHostedSettle(
-        host, untilText: ["Fixture Player 1", "Rivals"], excluding: ["Loading"]
+        host, untilText: ["Fixture Player 1", "No rivals found for Lead yet."], excluding: ["Loading"]
     )
     _ = try nativeHostedPNG(image, filename: "compete-rivals-empty.png", environment: "FST_COMPETE_RENDER_OUT")
+    // Regression for a fixed product bug: an all-empty Rivals section used to
+    // render its "Rivals" header with nothing underneath it (the shared
+    // `RivalInstrumentSongSection` hid entirely when a result was empty, which
+    // is correct for `RivalsScreen` but left Compete's own section looking
+    // broken). It now shows the same honest empty copy as the web
+    // (`compete.noRivalsSubtitle`) per instrument, mirroring how the
+    // Leaderboards section already never goes fully blank.
     assertRendersContent(
-        host, image: image, containing: ["Fixture Player 1", "Rivals"],
+        host, image: image, containing: ["Fixture Player 1", "Rivals", "No rivals found for Lead yet."],
         notContaining: ["uwphe", "Loading"]
     )
 }
