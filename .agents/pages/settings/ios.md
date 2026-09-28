@@ -25,6 +25,8 @@
 - Last Played switch still shows a date under Title (temporary native deviation until Last Played sort); experimental ranks stay disabled.
 - The Form keeps its scroll position across tab switches: UI tests must try the reverse swipe for an earlier toggle.
 - Every persisted setting is registered and has cold-start round-trip and reset coverage (Lane A, 2026-09-27). Groups render as `FestivalGlassSection` cards ([liquid-glass.md](../../design/apple/liquid-glass.md)).
+- **Quick Links adopted** (Lane P follow-up, 2026-09-28): `app-settings`, `diagnostics` (DEBUG only — tagged inside that `#if DEBUG` block so Release never registers a link to nothing), `item-shop`, `show-instruments`, `show-metadata`, `version`, `service-info` (the `service` section), `first-run` (tags `FirstRunSettingsSection` from the call site, no edit to that FRE-lane file), `licenses` (the `about` section) and `reset`, matching the spec order/icons. `refresh-profile-name`/`export` are left out — this screen has no such rows yet (see Open below) — rather than pointing a quick link at nothing. Tab root with its own page action, so it now ends its single `.toolbar` with `FestivalRootTrailingItems(session:)` and calls `.festivalProvidesRootTrailingItems()`, per the toolbar-order rule.
+- **`SettingsRegistry.SettingDefault` gained a `.data(Data)` case** (Lane P, 2026-09-28) so Suggestions' own `SuggestionFilterSettings.storageKey` (a Codable-JSON `@AppStorage(Data)`, default `Data()`) is included in "Reset App Settings" and the persistence round-trip test, without SettingsScreen needing to understand that type's contents — it only resets the key to empty `Data()`, matching `SuggestionFilterSettings`'s own "absent/empty means defaults" contract.
 
 ## Open (iPhone)
 
