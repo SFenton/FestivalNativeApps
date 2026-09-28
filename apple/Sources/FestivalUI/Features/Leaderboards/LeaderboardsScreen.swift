@@ -21,6 +21,7 @@ struct LeaderboardsScreen: View {
     @AppStorage("fst.leaderboards.rankBy") private var rankByRaw = RankingMetric.totalscore.rawValue
     @State private var instrumentStates: [Instrument: RankLoadState<RankingsPayload>] = [:]
     @State private var bandStates: [BandType: RankLoadState<BandRankingsPayload>] = [:]
+    @State private var quickLinks = QuickLinksController()
 
     /// Create the screen.
     ///
@@ -54,6 +55,27 @@ struct LeaderboardsScreen: View {
         "\(rankByRaw)|\(visibleInstruments.map(\.rawValue).joined(separator: ","))"
     }
 
+    /// One quick link per card, in card order (web ids `instrument:<key>` / `band:<type>`).
+    private var quickLinkSections: [QuickLinkSection] {
+        visibleInstruments.map { Self.quickLink(for: $0) } + BandType.allCases.map { Self.quickLink(for: $0) }
+    }
+
+    /// Quick link for an instrument card.
+    ///
+    /// - Parameter instrument: Card's instrument.
+    /// - Returns: Section with the web id and label.
+    static func quickLink(for instrument: Instrument) -> QuickLinkSection {
+        QuickLinkSection(id: "instrument:\(instrument.rawValue)", title: instrument.label, icon: .instrument(instrument))
+    }
+
+    /// Quick link for a band card.
+    ///
+    /// - Parameter bandType: Card's band size.
+    /// - Returns: Section with the web id and label.
+    static func quickLink(for bandType: BandType) -> QuickLinkSection {
+        QuickLinkSection(id: "band:\(bandType.rawValue)", title: bandType.label, icon: .system("person.3.fill"))
+    }
+
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 20) {
@@ -66,6 +88,7 @@ struct LeaderboardsScreen: View {
             }
             .padding(16)
         }
+        .quickLinks(quickLinks, title: "Leaderboards Quick Links", sections: quickLinkSections)
         .refreshable { await loadAll() }
         .festivalBackground(.carousel, session: session)
         .navigationTitle("Leaderboards")
@@ -73,6 +96,7 @@ struct LeaderboardsScreen: View {
             ToolbarItem(placement: .primaryAction) {
                 RankByMenu(selection: rankByBinding)
             }
+            QuickLinksToolbarItem(quickLinks)
         }
         .task(id: reloadKey) { await loadAll() }
     }
@@ -107,6 +131,7 @@ struct LeaderboardsScreen: View {
         .padding(16)
         .festivalGlass(.card)
         .accessibilityIdentifier("fst.leaderboards.card.\(instrument.rawValue)")
+        .quickLinkSection(Self.quickLink(for: instrument))
     }
 
     // MARK: Band cards
@@ -143,6 +168,7 @@ struct LeaderboardsScreen: View {
         .padding(16)
         .festivalGlass(.card)
         .accessibilityIdentifier("fst.leaderboards.band-card.\(bandType.rawValue)")
+        .quickLinkSection(Self.quickLink(for: bandType))
     }
 
     // MARK: Shared card fragments
