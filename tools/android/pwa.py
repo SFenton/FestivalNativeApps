@@ -93,6 +93,9 @@ CONFIRM_INSTALL_STEPS = ["tap:text=Install", "wait:10", "tap:text=Add to home sc
 #: foldables/tablets until the user performs the gesture it describes.
 TASKBAR_EDU = "Swipe up slowly to show the Taskbar"
 
+#: Its persistent-taskbar variant (tablets): a card paged with Next / Done.
+TASKBAR_EDU_CARD = "Do more with the Taskbar"
+
 #: Chrome Settings row whose switch controls usage/crash reporting.
 USAGE_ROW = "Help improve Chrome"
 
@@ -276,9 +279,20 @@ class AndroidLab:
     def dismiss_taskbar_edu(self) -> bool:
         """Complete the launcher's taskbar tutorial if it is showing (large screens).
 
-        Performs the slow, short upward swipe it asks for; returns whether it was shown.
+        Performs the slow, short upward swipe it asks for, or pages the tablet card
+        through Next/Done; returns whether it was shown.
         """
-        if TASKBAR_EDU not in self.tree():
+        tree = self.tree()
+        if TASKBAR_EDU_CARD in tree:
+            for _ in range(5):
+                if not any(self.try_step(f"tap:text={label}@1") for label in ("Next", "Done",
+                                                                              "Got it", "Close")):
+                    break
+                time.sleep(1.0)
+                if TASKBAR_EDU_CARD not in self.tree():
+                    return True
+            return True
+        if TASKBAR_EDU not in tree:
             return False
         width, height = self.device.screen_size()
         for _ in range(3):
