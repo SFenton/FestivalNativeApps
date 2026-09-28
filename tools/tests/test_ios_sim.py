@@ -17,8 +17,11 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from tools.ios_sim import (
+    accessibility_instructions,
+    app_bundle_for,
     bmp_is_dark,
     classify_pose,
+    match_pose_control,
     driver_build_stale,
     output_paths,
     parse_steps,
@@ -198,6 +201,81 @@ class DuoPoseTests(unittest.TestCase):
         self.assertEqual(classify_pose(outer_dark=True, inner_dark=False), "unfolded")
         self.assertEqual(classify_pose(outer_dark=True, inner_dark=True), "unknown")
         self.assertEqual(classify_pose(outer_dark=False, inner_dark=False), "unknown")
+
+
+def _control(title=None, role="AXButton", kind="control", **extra):
+    """Build one Device Hub ``dump`` entry."""
+    entry = {"kind": kind, "path": ["w", 0, len(title or "")], "role": role, "subrole": None,
+             "title": title, "description": None, "help": None, "identifier": None,
+             "enabled": True}
+    entry.update(extra)
+    return entry
+
+
+class PoseControlMatchTests(unittest.TestCase):
+    """Keyword matching behind ``pose --set`` (Device Hub UI scripting)."""
+
+    def setUp(self):
+        self.controls = [
+            _control(subrole="AXCloseButton", description="close button"),
+            _control("Open in New Window", role="AXMenuItem", kind="menu"),
+            _control(description="Close", identifier="pose.closed"),
+            _control(description="Partially Open"),
+            _control(description="Open", help="Unfold the device"),
+            _control("Rotate Left", role="AXMenuItem", kind="menu"),
+            _control(identifier="rotate.device.left"),
+            _control(identifier="rotate.device.right"),
+        ]
+
+    def test_each_action_finds_its_control(self):
+        found = {action: match_pose_control(action, self.controls)
+                 for action in ("folded", "unfolded", "half", "rotate-left", "rotate-right")}
+        self.assertEqual(found["folded"]["identifier"], "pose.closed")
+        self.assertEqual(found["unfolded"]["help"], "Unfold the device")
+        self.assertEqual(found["half"]["description"], "Partially Open")
+        self.assertEqual(found["rotate-right"]["identifier"], "rotate.device.right")
+
+    def test_window_buttons_beat_menu_items(self):
+        self.assertEqual(match_pose_control("rotate-left", self.controls)["identifier"],
+                         "rotate.device.left")
+
+    def test_window_chrome_and_unrelated_items_never_match(self):
+        chrome = [self.controls[0], self.controls[1]]
+        for action in ("folded", "unfolded"):
+            self.assertIsNone(match_pose_control(action, chrome))
+
+    def test_bare_open_close_buttons_match_only_in_the_device_window(self):
+        controls = [_control(description="Close"), _control(description="Open"),
+                    _control("Close", role="AXMenuItem", kind="menu"),
+                    _control(description="Close Navigation")]
+        self.assertEqual(match_pose_control("folded", controls), controls[0])
+        self.assertEqual(match_pose_control("unfolded", controls), controls[1])
+        self.assertIsNone(match_pose_control("folded", controls[2:]))
+
+    def test_disabled_and_static_text_ignored(self):
+        controls = [_control(description="Partially Open", enabled=False),
+                    _control(description="Partially Open", role="AXStaticText")]
+        self.assertIsNone(match_pose_control("half", controls))
+
+
+class AccessibilityInstructionTests(unittest.TestCase):
+    """The operator is told exactly which app to allow; nothing is changed for them."""
+
+    def test_bundle_is_outermost_app(self):
+        path = "/Applications/Claude.app/Contents/Helpers/x.app/Contents/MacOS/x"
+        self.assertEqual(app_bundle_for(path), "/Applications/Claude.app")
+        self.assertEqual(app_bundle_for("/usr/bin/python3"), "/usr/bin/python3")
+
+    def test_names_the_responsible_app_and_settings_path(self):
+        text = accessibility_instructions((42, "/Apps/Agent.app/Contents/MacOS/agent"))
+        self.assertIn("/Apps/Agent.app", text)
+        self.assertIn("Privacy & Security > Accessibility", text)
+        self.assertIn("never changes privacy settings", text)
+
+    def test_automation_variant(self):
+        text = accessibility_instructions((42, "/Apps/Agent.app/Contents/MacOS/agent"), automation=True)
+        self.assertIn("Automation", text)
+        self.assertIn("System Events", text)
 
 
 if __name__ == "__main__":

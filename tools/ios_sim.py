@@ -403,25 +403,37 @@ def detect_pose(udid: str) -> str:
     return classify_pose(dark["outer"], dark["inner"])
 
 
-def require_pose(udid: str, pose: str | None) -> str | None:
-    """Verify the Duo pose before a capture. Call under the simulator lock.
+def require_pose(udid: str, pose: str | None, set_pose: bool = False) -> str | None:
+    """Verify (and optionally set) the Duo pose before a capture. Call under the simulator lock.
 
     Args:
         udid: Booted simulator.
-        pose: Required pose (``folded``/``unfolded``), or None to skip the check.
+        pose: Required pose (``folded``/``unfolded``/``half``), or None to skip the check.
+            ``half`` (partially open) runs on the inner panel, so it verifies like ``unfolded``.
+        set_pose: On a mismatch, press Device Hub's pose control via UI scripting
+            (needs the Accessibility permission; see ``set_duo_pose``).
 
     Returns:
         None when satisfied, otherwise a message telling the operator how to fix it.
     """
     if pose is None:
         return None
+    expected = POSE_EXPECTED_CLASS[pose]
     actual = detect_pose(udid)
     print(f"duo pose: {actual}", file=sys.stderr)
-    if actual == pose:
+    if actual == expected and not (set_pose and pose == "half"):
         return None
+    if set_pose:
+        try:
+            set_duo_pose(udid, pose)
+            return None
+        except DeviceHubError as error:
+            return str(error)
     return (f"iPhone Duo is {actual}, not {pose}. Change it in Device Hub "
             "(Xcode > Open Developer Tool > Device Hub; the pose buttons under the device, "
-            "Option-click for the hinge slider), then re-run. simctl/XCTest cannot fold the device.")
+            "Option-click for the hinge slider), or pass --set-pose / run "
+            f"`python3 tools/ios_sim.py pose --set {pose}` (UI scripting; needs the Accessibility "
+            "permission), then re-run. simctl/XCTest cannot fold the device.")
 
 
 def screenshot_display(args: argparse.Namespace, udid: str) -> str | None:
@@ -479,6 +491,420 @@ class ScreenRecording:
 
 # endregion
 
+# region iPhone Duo pose scripting (Device Hub UI scripting)
+
+#: Device Hub (Xcode 27.1) owns the only fold/unfold/rotate controls for the Duo.
+DEVICE_HUB_APP = Path(DEVELOPER_DIR).parent / "Applications" / "DeviceHub.app"
+DEVICE_HUB_BUNDLE_ID = "com.apple.dt.Devices"
+
+#: ``pose --set`` actions. ``half`` is Device Hub's partially-open pose.
+POSE_ACTIONS = ("folded", "unfolded", "half", "rotate-left", "rotate-right")
+
+#: Panel classification (``detect_pose``) each pose action must end in. Partially
+#: open runs on the inner panel, so it classifies like ``unfolded``; rotations keep
+#: whatever pose the device was in.
+POSE_EXPECTED_CLASS = {"folded": "folded", "unfolded": "unfolded", "half": "unfolded"}
+
+#: Exit codes for ``pose --set`` / ``shot --set-pose`` / ``--rotate``.
+EXIT_POSE_MISMATCH = 3
+EXIT_NO_ACCESSIBILITY = 4
+EXIT_NO_CONTROL = 5
+
+#: Accessibility-tree walk bounds for the JXA dump (each property read is an Apple event).
+_HUB_MAX_DEPTH = 14
+_HUB_MAX_ELEMENTS = 2000
+
+#: JavaScript for Automation run by ``osascript -l JavaScript``. ``dump`` returns the
+#: Device Hub window controls and menu items as JSON (each with a ``path``);
+#: ``press <path-json>`` activates Device Hub and presses that element.
+_DEVICE_HUB_JXA = r"""
+function run(argv) {
+  const MAX_DEPTH = %(depth)d, MAX_ELEMENTS = %(limit)d;
+  const se = Application('System Events');
+  const procs = se.applicationProcesses.whose({bundleIdentifier: '%(bundle)s'})();
+  let proc = null;
+  for (const p of procs) {
+    let count = 0;
+    try { count = p.windows.length; } catch (e) {}
+    if (count > 0 && (proc === null || p.frontmost())) proc = p;
+  }
+  if (proc === null) return JSON.stringify({error: 'no-window', processes: procs.length});
+  const read = (f) => { try { const v = f(); return v === undefined ? null : v; } catch (e) { return null; } };
+  if (argv[0] === 'press') {
+    const path = JSON.parse(argv[1]);
+    proc.frontmost = true;
+    delay(0.3);
+    let el;
+    if (path[0] === 'w') {
+      el = proc.windows[path[1]];
+      for (const i of path.slice(2)) el = el.uiElements[i];
+      try { el.actions.byName('AXPress').perform(); } catch (e) { se.click(el); }
+    } else {
+      el = proc.menuBars[0].menuBarItems[path[1]].menus[0].menuItems[path[2]];
+      if (path.length > 3) el = el.menus[0].menuItems[path[3]];
+      el.click();
+    }
+    return JSON.stringify({pressed: path});
+  }
+  const out = [];
+  const describe = (el, kind, path, windowTitle) => ({
+    kind: kind, path: path, window: windowTitle,
+    role: read(() => el.role()), subrole: read(() => el.subrole()),
+    title: read(() => el.name()), description: read(() => el.description()),
+    help: read(() => el.help()),
+    identifier: read(() => el.attributes.byName('AXIdentifier').value()),
+    enabled: read(() => el.enabled()),
+  });
+  const walk = (el, path, depth, windowTitle) => {
+    if (depth > MAX_DEPTH || out.length >= MAX_ELEMENTS) return;
+    const kids = read(() => el.uiElements()) || [];
+    for (let i = 0; i < kids.length && out.length < MAX_ELEMENTS; i++) {
+      const p = path.concat([i]);
+      out.push(describe(kids[i], 'control', p, windowTitle));
+      walk(kids[i], p, depth + 1, windowTitle);
+    }
+  };
+  const windows = proc.windows();
+  for (let w = 0; w < windows.length; w++) {
+    walk(windows[w], ['w', w], 0, read(() => windows[w].name()));
+  }
+  const bar = read(() => proc.menuBars[0].menuBarItems()) || [];
+  for (let m = 0; m < bar.length; m++) {
+    const items = read(() => bar[m].menus[0].menuItems()) || [];
+    for (let j = 0; j < items.length; j++) {
+      out.push(describe(items[j], 'menu', ['m', m, j], null));
+      const sub = read(() => items[j].menus[0].menuItems()) || [];
+      for (let k = 0; k < sub.length; k++) out.push(describe(sub[k], 'menu', ['m', m, j, k], null));
+    }
+  }
+  return JSON.stringify({pid: read(() => proc.unixId()), controls: out});
+}
+"""
+
+#: Words that identify each action's control in Device Hub's accessibility text
+#: (title, description, help or identifier). Uncalibrated guesses from DeviceKit's
+#: symbols (``rotate.device.left``); ``pose --list-controls`` prints the real tree.
+_POSE_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "rotate-left": ("rotate left", "rotate.device.left", "rotateleft", "rotate-left", "counterclockwise"),
+    "rotate-right": ("rotate right", "rotate.device.right", "rotateright", "rotate-right"),
+    "half": ("partially", "partial", "half", "tent", "book", "laptop"),
+    "unfolded": ("unfold", "fully open", "open device", "flat"),
+    "folded": ("fold", "closed", "close device"),
+}
+
+#: Words that disqualify a candidate for an action (other poses and unrelated UI).
+_POSE_EXCLUDE: dict[str, tuple[str, ...]] = {
+    "rotate-left": ("rotate right",),
+    "rotate-right": ("rotate left", "counterclockwise", "rotate.device.left"),
+    "half": ("unfold", "fully"),
+    "unfolded": ("partial", "half", "close"),
+    "folded": ("unfold", "partial", "half", "open", "window", "tab", "folder"),
+}
+
+#: Bare verbs that count only for buttons in the device window (never menu items),
+#: ranked after every strong keyword. Device Hub may label its pose buttons just
+#: "Open"/"Close".
+_POSE_WEAK_KEYWORDS: dict[str, tuple[str, ...]] = {"folded": ("close",), "unfolded": ("open",)}
+_WEAK_EXCLUDE = ("window", "tab", "folder", "finder", "new", "shell", "settings", "report",
+                 "navigation", "sidebar", "inspector")
+
+#: Roles that can be a pose button in the device window.
+_PRESSABLE_ROLES = ("AXButton", "AXRadioButton", "AXCheckBox", "AXMenuItem", "AXMenuButton",
+                    "AXPopUpButton", "AXSegment")
+
+
+def _control_text(control: dict) -> str:
+    """Join a control's accessibility strings for keyword matching.
+
+    Args:
+        control: One ``dump`` entry (``title``/``description``/``help``/``identifier``).
+
+    Returns:
+        Lower-cased text with ``_`` treated as a space.
+    """
+    parts = [control.get(key) or "" for key in ("title", "description", "help", "identifier")]
+    return " ".join(str(part) for part in parts).lower().replace("_", " ")
+
+
+def match_pose_control(action: str, controls: list[dict]) -> dict | None:
+    """Pick the Device Hub control that performs a pose action.
+
+    Only enabled, pressable controls are considered; window-chrome buttons (close,
+    zoom, minimise) never match. Buttons in the device window win over menu items.
+
+    Args:
+        action: One of ``POSE_ACTIONS``.
+        controls: ``dump`` entries from the Device Hub JXA script.
+
+    Returns:
+        The best matching control, or None.
+    """
+    keywords, excluded = _POSE_KEYWORDS[action], _POSE_EXCLUDE[action]
+    candidates = []
+    for control in controls:
+        if control.get("enabled") is False or control.get("role") not in _PRESSABLE_ROLES:
+            continue
+        if (control.get("subrole") or "") in ("AXCloseButton", "AXZoomButton",
+                                              "AXMinimizeButton", "AXFullScreenButton"):
+            continue
+        text = _control_text(control)
+        if any(word in text for word in excluded):
+            continue
+        strong = [index for index, word in enumerate(keywords) if word in text]
+        weak = [] if control.get("kind") != "control" or any(word in text for word in _WEAK_EXCLUDE) \
+            else [len(keywords) + index
+                  for index, word in enumerate(_POSE_WEAK_KEYWORDS.get(action, ())) if word in text]
+        if not strong and not weak:
+            continue
+        # Prefer a button in the device window, then the earliest keyword (most specific).
+        candidates.append((control.get("kind") != "control", min(strong + weak), control))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: (item[0], item[1]))
+    return candidates[0][2]
+
+
+def responsible_process() -> tuple[int, str] | None:
+    """Find the process macOS privacy checks (TCC) attribute this script to.
+
+    TCC grants Accessibility to the *responsible* process (usually the app that
+    started the terminal or agent), not to ``python3`` or ``osascript``.
+
+    Returns:
+        ``(pid, executable path)``, or None if the private libSystem call is unavailable.
+    """
+    try:
+        import ctypes
+        libc = ctypes.CDLL(None)
+        lookup = libc.responsibility_get_pid_responsible_for_pid
+        lookup.argtypes, lookup.restype = [ctypes.c_int], ctypes.c_int
+        pid = lookup(os.getpid())
+        buffer = ctypes.create_string_buffer(4096)
+        if pid <= 0 or libc.proc_pidpath(pid, buffer, 4096) <= 0:
+            return None
+        return pid, buffer.value.decode("utf-8", "replace")
+    except (AttributeError, OSError):
+        return None
+
+
+def app_bundle_for(executable: str) -> str:
+    """Return the outermost ``.app`` bundle containing an executable.
+
+    Args:
+        executable: Absolute executable path.
+
+    Returns:
+        The ``.app`` directory to add in System Settings, or the path itself if none.
+    """
+    parts = Path(executable).parts
+    for index, part in enumerate(parts):
+        if part.endswith(".app"):
+            return str(Path(*parts[:index + 1]))
+    return executable
+
+
+def accessibility_trusted() -> bool:
+    """Ask macOS (without prompting) whether this process may use UI scripting.
+
+    Returns:
+        ``AXIsProcessTrusted()``; False if ApplicationServices cannot be loaded.
+    """
+    try:
+        import ctypes
+        services = ctypes.CDLL(
+            "/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices")
+        services.AXIsProcessTrusted.restype = ctypes.c_bool
+        return bool(services.AXIsProcessTrusted())
+    except (AttributeError, OSError):
+        return False
+
+
+def scripting_preflight(needed: bool) -> int:
+    """Refuse UI scripting early (before taking the simulator lock) without permission.
+
+    Args:
+        needed: The command will press Device Hub controls.
+
+    Returns:
+        0 to proceed, or ``EXIT_NO_ACCESSIBILITY`` after printing the instructions.
+    """
+    if not needed or accessibility_trusted():
+        return 0
+    print(accessibility_instructions(responsible_process()), file=sys.stderr)
+    return EXIT_NO_ACCESSIBILITY
+
+
+def accessibility_instructions(responsible: tuple[int, str] | None, automation: bool = False) -> str:
+    """Tell the operator exactly which app to allow. Never changes settings itself.
+
+    Args:
+        responsible: ``responsible_process()`` result.
+        automation: True when Accessibility is granted but the Apple-event
+            (Automation) permission for System Events was refused.
+
+    Returns:
+        Multi-line instructions.
+    """
+    if responsible:
+        pid, executable = responsible
+        bundle = app_bundle_for(executable)
+        who = f"{bundle}\n    (pid {pid}; executable {executable})"
+    else:
+        bundle = "the app that launched this terminal/agent"
+        who = bundle
+    if automation:
+        return (
+            "Device Hub UI scripting needs Automation access to System Events.\n"
+            f"  App to allow: {who}\n"
+            "  System Settings > Privacy & Security > Automation > (that app) > turn on "
+            "\"System Events\".\n"
+            "  If it is not listed, re-run this command and click OK on the macOS prompt.")
+    return (
+        "Device Hub UI scripting needs the macOS Accessibility permission, which is not granted.\n"
+        f"  App to allow: {who}\n"
+        "  System Settings > Privacy & Security > Accessibility > \"+\" > choose that app "
+        f"({bundle}; press Cmd-Shift-G to type the path) > turn its switch on.\n"
+        "  Quit and reopen that app so the grant applies, then re-run.\n"
+        "  macOS then asks once to let it control \"System Events\" (Automation): click OK.\n"
+        "  This tool never changes privacy settings itself (no tccutil, no TCC database edits).")
+
+
+class DeviceHubError(RuntimeError):
+    """Device Hub scripting failed; ``code`` is the CLI exit code to return."""
+
+    def __init__(self, message: str, code: int) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+def _device_hub_script(*argv: str) -> dict:
+    """Run the Device Hub JXA script and parse its JSON reply.
+
+    Args:
+        *argv: ``dump`` or ``press <path-json>``.
+
+    Returns:
+        The decoded reply.
+
+    Raises:
+        DeviceHubError: Permission refusals, a missing window or a script failure.
+    """
+    import json
+    script = _DEVICE_HUB_JXA % {"depth": _HUB_MAX_DEPTH, "limit": _HUB_MAX_ELEMENTS,
+                                "bundle": DEVICE_HUB_BUNDLE_ID}
+    result = subprocess.run(["osascript", "-l", "JavaScript", "-e", script, *argv],
+                            capture_output=True, text=True, timeout=120, check=False)
+    error = (result.stderr or "").strip()
+    if result.returncode:
+        if "-1743" in error or "Not authorized to send Apple events" in error:
+            raise DeviceHubError(accessibility_instructions(responsible_process(), automation=True),
+                                 EXIT_NO_ACCESSIBILITY)
+        if "-1719" in error or "-25211" in error or "assistive access" in error:
+            raise DeviceHubError(accessibility_instructions(responsible_process()),
+                                 EXIT_NO_ACCESSIBILITY)
+        raise DeviceHubError(f"Device Hub script failed: {error}", EXIT_NO_CONTROL)
+    reply = json.loads(result.stdout or "{}")
+    if reply.get("error") == "no-window":
+        raise DeviceHubError(
+            "Device Hub has no open window. Open it (Xcode > Open Developer Tool > Device Hub), "
+            "select \"iPhone Duo (FST)\" so its pose buttons show, then re-run.", EXIT_NO_CONTROL)
+    return reply
+
+
+def ensure_device_hub() -> None:
+    """Launch Device Hub if it is not running (it hosts the pose controls)."""
+    running = subprocess.run(["pgrep", "-f", str(DEVICE_HUB_APP / "Contents/MacOS/DeviceHub")],
+                             capture_output=True, check=False)
+    if running.returncode:
+        _run(["open", "-g", str(DEVICE_HUB_APP)], check=False)
+        time.sleep(4)
+
+
+def list_device_hub_controls() -> list[dict]:
+    """Dump Device Hub's window controls and menu items (for calibration).
+
+    Returns:
+        ``dump`` entries.
+
+    Raises:
+        DeviceHubError: No permission or no window.
+    """
+    if not accessibility_trusted():
+        raise DeviceHubError(accessibility_instructions(responsible_process()), EXIT_NO_ACCESSIBILITY)
+    ensure_device_hub()
+    return _device_hub_script("dump").get("controls", [])
+
+
+def _panel_digest(udid: str) -> str | None:
+    """Hash the lit panel's screenshot, to confirm a rotation re-laid out the app.
+
+    Args:
+        udid: Booted Duo.
+
+    Returns:
+        SHA-256 of the lit panel's BMP, or None when no panel is lit.
+    """
+    panel = POSE_PANEL.get(detect_pose(udid))
+    if panel is None:
+        return None
+    with tempfile.TemporaryDirectory() as folder:
+        path = Path(folder) / "panel.bmp"
+        _run(["xcrun", "simctl", "io", udid, "screenshot", "--type=bmp",
+              f"--display={DUO_PANELS[panel]}", str(path)], check=False, capture_output=True)
+        return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else None
+
+
+def set_duo_pose(udid: str, action: str, settle: float = 12.0) -> str:
+    """Press Device Hub's control for a pose action and verify the result.
+
+    Call under the simulator lock with the Duo booted. Poses are verified with the
+    same lit-panel check as ``--pose``; rotations by an unchanged pose plus a
+    changed lit-panel image (the app re-laid out).
+
+    Args:
+        udid: Booted iPhone Duo.
+        action: One of ``POSE_ACTIONS``.
+        settle: Seconds to wait for the pose to take effect.
+
+    Returns:
+        The verified panel classification after the action.
+
+    Raises:
+        DeviceHubError: Missing permission, no matching control, or verification failure.
+    """
+    import json
+    expected = POSE_EXPECTED_CLASS.get(action)
+    before = detect_pose(udid)
+    if expected is not None and before == expected and action != "half":
+        print(f"duo pose already {before}", file=sys.stderr)
+        return before
+    controls = list_device_hub_controls()
+    control = match_pose_control(action, controls)
+    if control is None:
+        raise DeviceHubError(
+            f"No Device Hub control matched '{action}' among {len(controls)} elements. "
+            "Run `python3 tools/ios_sim.py pose --list-controls` and update _POSE_KEYWORDS.",
+            EXIT_NO_CONTROL)
+    print(f"pressing Device Hub control {control.get('role')} "
+          f"'{control.get('title') or control.get('description')}' at {control['path']}", file=sys.stderr)
+    digest = _panel_digest(udid) if expected is None else None
+    _device_hub_script("press", json.dumps(control["path"]))
+    deadline = time.time() + settle
+    while True:
+        time.sleep(1.5)
+        actual = detect_pose(udid)
+        if expected is None:
+            if actual == before and _panel_digest(udid) not in (None, digest):
+                return actual
+        elif actual == expected:
+            return actual
+        if time.time() > deadline:
+            raise DeviceHubError(
+                f"Pressed the {action} control but the Duo reads {actual} "
+                f"(expected {expected or before + ' with a re-laid-out panel'}).", EXIT_POSE_MISMATCH)
+
+# endregion
+
 # region Commands
 
 
@@ -518,6 +944,8 @@ def cmd_shot(args: argparse.Namespace) -> int:
     """
     udid = resolve_device(args.device)
     app = app_path()
+    if code := scripting_preflight(args.set_pose or bool(args.rotate)):
+        return code
     LOCK_PATH.touch(exist_ok=True)
     with open(LOCK_PATH, "w") as lock:
         print(f"waiting for simulator lock {LOCK_PATH} ...", file=sys.stderr)
@@ -526,10 +954,16 @@ def cmd_shot(args: argparse.Namespace) -> int:
         lock.flush()
         boot_exclusive(udid)
         _run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True)
-        problem = require_pose(udid, args.pose)
+        problem = require_pose(udid, args.pose, args.set_pose)
         if problem:
             print(problem, file=sys.stderr)
-            return 3
+            return EXIT_POSE_MISMATCH
+        for direction in args.rotate or []:
+            try:
+                set_duo_pose(udid, f"rotate-{direction}")
+            except DeviceHubError as error:
+                print(error, file=sys.stderr)
+                return error.code
         display = screenshot_display(args, udid)
         _run(["xcrun", "simctl", "install", udid, str(app)])
         _run(["xcrun", "simctl", "terminate", udid, BUNDLE_ID], check=False, capture_output=True)
@@ -631,10 +1065,10 @@ def cmd_drive(args: argparse.Namespace) -> int:
             lock.flush()
             boot_exclusive(udid)
             _run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True)
-            problem = require_pose(udid, args.pose)
+            problem = require_pose(udid, args.pose, args.set_pose)
             if problem:
                 print(problem, file=sys.stderr)
-                return 3
+                return EXIT_POSE_MISMATCH
             cmd = [
                 "xcodebuild", "-project", "FestivalNativeApple.xcodeproj", "-scheme", "FestivalMobile",
                 "-destination", f"platform=iOS Simulator,id={udid}",
@@ -853,17 +1287,45 @@ def _with_sim_lock(udid: str, action) -> int:
 
 
 def cmd_pose(args: argparse.Namespace) -> int:
-    """Print the iPhone Duo pose (``folded``/``unfolded``/``unknown``) under the lock.
+    """Print, set or calibrate the iPhone Duo pose under the lock.
+
+    Without flags, prints ``folded``/``unfolded``/``unknown`` from the lit panel.
+    ``--set`` presses Device Hub's fold/unfold/partial/rotate control by UI scripting
+    and verifies the result; ``--list-controls`` prints Device Hub's accessibility
+    controls (to calibrate ``_POSE_KEYWORDS``). Both need the macOS Accessibility
+    permission for the responsible app; without it they print exactly which app to
+    allow and exit 4. This tool never changes privacy settings itself.
 
     Args:
-        args: Parsed CLI arguments (device).
+        args: Parsed CLI arguments (device, set, list_controls).
 
     Returns:
-        0 when the pose is known, 1 otherwise.
+        0 on success; 1 unknown pose; 3 pose not reached; 4 no permission; 5 no control.
     """
+    if args.list_controls:
+        try:
+            controls = list_device_hub_controls()
+        except DeviceHubError as error:
+            print(error, file=sys.stderr)
+            return error.code
+        for control in controls:
+            text = " | ".join(str(control.get(key)) for key in
+                              ("role", "subrole", "title", "description", "help", "identifier"))
+            print(f"{control['kind']:7} {control['path']}  {text}")
+        return 0
+
+    if code := scripting_preflight(bool(args.set)):
+        return code
+
     def action(udid: str) -> int:
         boot_exclusive(udid)
         _run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True)
+        if args.set:
+            try:
+                set_duo_pose(udid, args.set)
+            except DeviceHubError as error:
+                print(error, file=sys.stderr)
+                return error.code
         pose = detect_pose(udid)
         print(pose)
         return 0 if pose != "unknown" else 1
@@ -915,8 +1377,12 @@ def main(argv: list[str] | None = None) -> int:
     shot.add_argument("--record", help="also record the session to this .mp4 (for remote review)")
     shot.add_argument("--record-tail", type=float, default=3.0,
                       help="seconds to keep recording after the last screenshot (animations)")
-    shot.add_argument("--pose", choices=sorted(POSE_PANEL),
+    shot.add_argument("--pose", choices=sorted(POSE_EXPECTED_CLASS),
                       help="iPhone Duo: fail (exit 3) unless the device is in this pose (set it in Device Hub)")
+    shot.add_argument("--set-pose", action="store_true",
+                      help="with --pose: press Device Hub's pose control if needed (UI scripting, Accessibility)")
+    shot.add_argument("--rotate", action="append", choices=["left", "right"],
+                      help="iPhone Duo: rotate via Device Hub after the pose check (repeatable; UI scripting)")
     shot.add_argument("--display", choices=[*sorted(DUO_PANELS), "auto"],
                       help="iPhone Duo panel to capture; auto = the lit panel (default: simctl's first display)")
     shot.set_defaults(func=cmd_shot)
@@ -932,8 +1398,10 @@ def main(argv: list[str] | None = None) -> int:
     drive.add_argument("--timeout", type=float, default=180.0,
                        help="kill the run after this many seconds (default 180) so the sim lock is released")
     drive.add_argument("--route", help="FST_DEBUG_ROUTE, applied at app launch")
-    drive.add_argument("--pose", choices=sorted(POSE_PANEL),
+    drive.add_argument("--pose", choices=sorted(POSE_EXPECTED_CLASS),
                        help="iPhone Duo: fail (exit 3) unless the device is in this pose (set it in Device Hub)")
+    drive.add_argument("--set-pose", action="store_true",
+                       help="with --pose: press Device Hub's pose control if needed (UI scripting, Accessibility)")
     drive.add_argument("--env", action="append", help="extra KEY=VALUE app launch environment")
     drive.add_argument("--steps", help="';'-separated step script, e.g. 'tap:x; shot:/tmp/a.png'")
     drive.add_argument("--steps-file", help="path to a newline-separated step script")
@@ -961,8 +1429,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     uitest.set_defaults(func=cmd_uitest)
 
-    pose = sub.add_parser("pose", help="print the iPhone Duo pose from which panel is lit (serialized)")
+    pose = sub.add_parser("pose", help="print, set (Device Hub UI scripting) or calibrate the iPhone Duo pose")
     pose.add_argument("--device", default="duo", help=f"alias {sorted(DEVICES)} or UDID")
+    pose.add_argument("--set", choices=POSE_ACTIONS,
+                      help="press Device Hub's control for this pose/rotation and verify it (needs Accessibility)")
+    pose.add_argument("--list-controls", action="store_true",
+                      help="print Device Hub's accessibility controls (calibrates the pose keywords)")
     pose.set_defaults(func=cmd_pose)
 
     shutdown = sub.add_parser("shutdown", help="shut down one product simulator (serialized)")
