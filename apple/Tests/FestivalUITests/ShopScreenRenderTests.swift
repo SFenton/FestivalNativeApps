@@ -157,6 +157,8 @@ func shopFixtureBytes() throws -> (offers: Data, catalogue: Data) {
     let storage = try #require(UserDefaults(suiteName: suiteName))
     defer { storage.removePersistentDomain(forName: suiteName) }
     storage.set(true, forKey: "fst.accessibility.lessTransparency")
+    // Load-in fades (`festivalFadeIn`) would otherwise be captured mid-animation.
+    storage.set(true, forKey: "fst.accessibility.reduceMotion")
     let cases: [(CGSize, UserInterfaceSizeClass, DynamicTypeSize, String)] = [
         (CGSize(width: 820, height: 1180), .regular, .large, "wide-grid"),
         (CGSize(width: 390, height: 844), .compact, .large, "phone-list"),
@@ -234,6 +236,8 @@ func shopFixtureBytes() throws -> (offers: Data, catalogue: Data) {
     let storage = try #require(UserDefaults(suiteName: suiteName))
     defer { storage.removePersistentDomain(forName: suiteName) }
     storage.set(true, forKey: "fst.accessibility.lessTransparency")
+    // Load-in fades (`festivalFadeIn`) would otherwise be captured mid-animation.
+    storage.set(true, forKey: "fst.accessibility.reduceMotion")
     var snapshots: [Data] = []
     for scenario: HostedShopScenario in [.empty, .unavailable] {
         let transport = HostedShopTransport(

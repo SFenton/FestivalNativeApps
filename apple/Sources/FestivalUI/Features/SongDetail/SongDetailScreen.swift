@@ -49,13 +49,6 @@ struct SongDetailScreen: View {
         )
     }
 
-    private var shopHighlight: ShopHighlight? {
-        ShopPresentationPolicy.highlight(
-            for: shopOffer, hidden: hideShop,
-            highlightingDisabled: disableShopHighlighting
-        )
-    }
-
     /// Intensity, then one entry per visible leaderboard card, in source order
     /// (`.agents/controls/quick-links/ios.md`; band/score-history sections are
     /// not built yet).
@@ -114,25 +107,6 @@ struct SongDetailScreen: View {
                         if let year = song.year {
                             Text(year.formatted(.number.grouping(.never)))
                                 .foregroundStyle(FestivalText.primary)
-                        }
-                        if let shopHighlight {
-                            Label(
-                                "Item Shop: \(shopHighlight.label)",
-                                systemImage: shopHighlight == .leavingTomorrow
-                                    ? "clock" : "sparkles"
-                            )
-                            .font(.caption.bold())
-                            .foregroundStyle(
-                                shopHighlight == .leavingTomorrow
-                                    ? FestivalText.primary : BrandTokens.gold
-                            )
-                            .padding(8)
-                            .background(
-                                shopHighlight == .leavingTomorrow
-                                    ? BrandTokens.statusRed : BrandTokens.cardBackground,
-                                in: Capsule()
-                            )
-                            .accessibilityIdentifier("fst.song-detail.shop-badge")
                         }
                     }
                 }

@@ -405,12 +405,20 @@ final class SongDetailJourneyTests: XCTestCase {
         let header = app.descendants(matching: .any)
             .matching(identifier: "fst.song-detail.card-header.Solo_Guitar").firstMatch
         XCTAssertTrue(header.waitForExistence(timeout: 15))
-        XCTAssertEqual(header.label, "Lead")
+        XCTAssertTrue(header.label.hasPrefix("Lead"), header.label)
+        XCTAssertTrue(
+            header.label.contains("26 entries"),
+            "Total entries must be the header subtitle: \(header.label)"
+        )
         XCTAssertTrue(header.isHittable)
         let shop = app.descendants(matching: .any)
             .matching(identifier: "fst.song-detail.shop").firstMatch
         XCTAssertTrue(shop.waitForExistence(timeout: 10), "Item Shop action missing")
         XCTAssertTrue(shop.isHittable)
+        // The pulsing toolbar action carries the status; the hero chip is gone.
+        XCTAssertTrue(shop.label.contains("New in the Item Shop"), shop.label)
+        XCTAssertFalse(app.descendants(matching: .any)
+            .matching(identifier: "fst.song-detail.shop-badge").firstMatch.exists)
 
         let pinned = app.descendants(matching: .any)
             .matching(identifier: "fst.song-detail.pinned-title").firstMatch

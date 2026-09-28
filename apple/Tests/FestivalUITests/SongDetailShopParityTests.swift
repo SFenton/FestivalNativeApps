@@ -105,3 +105,61 @@ private func offer(isNew: Bool, leaving: Bool) throws -> ShopSong {
     #expect(ShopStatusTone.period == 3)
     #expect(Set([ShopStatusTone.inShop, .new, .leaving].map(\.spokenStatus)).count == 3)
 }
+
+// MARK: - Selected-player spotlight row (operator report)
+
+/// Decode one preview row.
+///
+/// - Parameters:
+///   - id: Account ID.
+///   - rank: Board rank.
+/// - Returns: A synthetic leaderboard row.
+private func row(_ id: String, rank: Int) -> LeaderboardEntry {
+    LeaderboardEntry(
+        accountId: id, displayName: id, score: 1_000 - rank, rank: rank,
+        accuracy: nil, isFullCombo: nil, stars: nil, season: nil, difficulty: nil
+    )
+}
+
+/// Decode a selected-player score with an optional rank.
+///
+/// - Parameters:
+///   - rank: Rank on the chart, or nil when unranked.
+///   - score: Score value.
+/// - Returns: Synthetic score-index row.
+/// - Throws: A decoding failure for malformed synthetic JSON.
+private func playerScore(rank: Int?, score: Int = 500) throws -> PlayerScore {
+    let rankJSON = rank.map(String.init) ?? "null"
+    return try JSONDecoder().decode(PlayerScore.self, from: Data("""
+    {"si":"fixture-pulse","ins":"01","sc":\(score),"rk":\(rankJSON)}
+    """.utf8))
+}
+
+/// The player's own row follows the top ten only when they are ranked outside it.
+@Test func spotlightRowOnlyForRankedPlayersOutsideTopTen() throws {
+    let top = (1...10).map { row("p\($0)", rank: $0) }
+    let me = try JSONDecoder().decode(
+        SelectedPlayerIdentity.self, from: Data(#"{"accountId":"ME","displayName":"Me"}"#.utf8)
+    )
+    let footer = SongPreviewSpotlightPolicy.footerEntry(
+        selected: me, score: try playerScore(rank: 42), displayed: top
+    )
+    #expect(footer?.rank == 42 && footer?.accountId == "ME" && footer?.displayName == "Me")
+    // Already in the top ten (case-insensitive): highlighted there, no extra row.
+    let withMe = top + [row("me", rank: 11)]
+    #expect(SongPreviewSpotlightPolicy.footerEntry(
+        selected: me, score: try playerScore(rank: 11), displayed: withMe
+    ) == nil)
+    #expect(SongPreviewSpotlightPolicy.isSelected(row("me", rank: 3), selected: me))
+    #expect(!SongPreviewSpotlightPolicy.isSelected(row("p1", rank: 1), selected: me))
+    // No selection, unranked or zero score: nothing appended.
+    #expect(SongPreviewSpotlightPolicy.footerEntry(
+        selected: nil, score: try playerScore(rank: 42), displayed: top
+    ) == nil)
+    #expect(SongPreviewSpotlightPolicy.footerEntry(
+        selected: me, score: try playerScore(rank: nil), displayed: top
+    ) == nil)
+    #expect(SongPreviewSpotlightPolicy.footerEntry(
+        selected: me, score: try playerScore(rank: 42, score: 0), displayed: top
+    ) == nil)
+}

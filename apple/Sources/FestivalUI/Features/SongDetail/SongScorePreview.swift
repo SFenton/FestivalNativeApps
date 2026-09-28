@@ -87,7 +87,17 @@ struct SongScorePreview: View {
 
     // MARK: - Card chrome
 
-    /// Large instrument icon and name above the card, like the web `InstrumentHeader` (MD).
+    /// Total entries for the loaded chart, shown as the header subtitle when the
+    /// service asks for totals (`showLeaderboardEntryTotals`).
+    private var entriesSubtitle: String? {
+        guard case let .loaded(payload) = state,
+              payload.leaderboard.showLeaderboardEntryTotals == true else { return nil }
+        let total = payload.leaderboard.totalEntries
+        return "\(total.formatted()) \(total == 1 ? "entry" : "entries")"
+    }
+
+    /// Large instrument icon, name and optional total-entries subtitle above the card,
+    /// like the web `InstrumentHeader` (MD) with a subtitle.
     private var instrumentHeader: some View {
         HStack(spacing: 12) {
             InstrumentIcon(
@@ -97,10 +107,19 @@ struct SongScorePreview: View {
                 size: headerIconSize
             )
             .accessibilityHidden(true)
-            Text(instrument.label)
-                .font(.title3.bold())
-                .foregroundStyle(FestivalText.primary)
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(instrument.label)
+                    .font(.title3.bold())
+                    .foregroundStyle(FestivalText.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let entriesSubtitle {
+                    Text(entriesSubtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(FestivalText.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .transition(.opacity)
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
@@ -121,11 +140,8 @@ struct SongScorePreview: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .padding(.horizontal, 12)
-                .background(
-                    BrandTokens.appBackground,
-                    in: RoundedRectangle(cornerRadius: 10)
-                )
-                .contentShape(RoundedRectangle(cornerRadius: 10))
+                .modifier(PurpleGlassButtonSurface())
+                .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityLabel("View full \(instrument.label) leaderboard")
@@ -173,27 +189,69 @@ struct SongScorePreview: View {
                 symbol: "info.circle"
             )
         }
-        if payload.leaderboard.showLeaderboardEntryTotals == true {
-            Text("\(payload.leaderboard.totalEntries) \(instrument.label) entries")
-                .font(.subheadline)
-                .foregroundStyle(FestivalText.primary)
-        }
-        if payload.leaderboard.entries.isEmpty {
+        let displayed = Array(payload.leaderboard.entries.prefix(10))
+        let spotlight = filterInvalidScores ? nil : SongPreviewSpotlightPolicy.footerEntry(
+            selected: session.selectedPlayer,
+            score: session.selectedPlayerScores[song.songId]?[instrument],
+            displayed: displayed
+        )
+        if displayed.isEmpty && spotlight == nil {
             Text("No \(instrument.label) scores yet")
                 .foregroundStyle(FestivalText.primary)
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         } else {
-            let displayed = Array(payload.leaderboard.entries.prefix(10))
-            ForEach(Array(displayed.enumerated()), id: \.offset) { index, entry in
-                SongLeaderboardEntryRow(entry: entry)
-                    .padding(.vertical, 6)
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(displayed.enumerated()), id: \.offset) { index, entry in
+                    previewRow(
+                        entry,
+                        highlighted: SongPreviewSpotlightPolicy.isSelected(
+                            entry, selected: session.selectedPlayer
+                        )
+                    )
                     .accessibilityIdentifier(
                         "fst.song-detail.preview-row.\(instrument.rawValue).\(entry.accountId)"
                     )
-                if index < displayed.count - 1 {
-                    Divider()
+                    if index < displayed.count - 1 {
+                        Divider()
+                    }
+                }
+                // Web `InstrumentCard` spotlight footer: the selected player's own row
+                // (rank 11+) sits after the top ten, before View full leaderboard.
+                if let spotlight {
+                    previewRow(spotlight, highlighted: true)
+                        .padding(.top, 8)
+                        .accessibilityIdentifier(
+                            "fst.song-detail.spotlight.\(instrument.rawValue)"
+                        )
                 }
             }
+            .festivalFadeInOnAppear()
+        }
+    }
+
+    /// One preview score row; the selected player's row gets the web's purple highlight.
+    ///
+    /// - Parameters:
+    ///   - entry: Score row to draw.
+    ///   - highlighted: Whether this row belongs to the selected player.
+    /// - Returns: Row view.
+    @ViewBuilder
+    private func previewRow(_ entry: LeaderboardEntry, highlighted: Bool) -> some View {
+        if highlighted {
+            SongLeaderboardEntryRow(entry: entry)
+                .padding(.vertical, 6)
+                .padding(.horizontal, 8)
+                .background(
+                    BrandTokens.accentPurple.opacity(0.18),
+                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(BrandTokens.accentPurple, lineWidth: 1)
+                )
+        } else {
+            SongLeaderboardEntryRow(entry: entry)
+                .padding(.vertical, 6)
         }
     }
 
@@ -216,6 +274,70 @@ struct SongScorePreview: View {
         } catch {
             guard !Task.isCancelled, requested == requestKey else { return }
             state = .failed(error.localizedDescription)
+        }
+    }
+}
+
+// MARK: - Spotlight policy
+
+/// Which preview rows belong to the selected player (web `InstrumentCard` spotlight).
+enum SongPreviewSpotlightPolicy {
+    /// Whether a top-ten row is the selected player's (case-insensitive account match).
+    ///
+    /// - Parameters:
+    ///   - entry: Preview row.
+    ///   - selected: Current selected player, if any.
+    /// - Returns: True for the selected player's own row.
+    static func isSelected(_ entry: LeaderboardEntry, selected: SelectedPlayerIdentity?) -> Bool {
+        guard let selected else { return false }
+        return entry.accountId.caseInsensitiveCompare(selected.accountId) == .orderedSame
+    }
+
+    /// The selected player's own row to append after the top ten, when they have a
+    /// ranked score on this chart that the top ten does not already show.
+    ///
+    /// - Parameters:
+    ///   - selected: Current selected player, if any.
+    ///   - score: Their score on this song/instrument from the loaded score index.
+    ///   - displayed: Top-ten rows already shown.
+    /// - Returns: A synthesized row, or nil.
+    static func footerEntry(
+        selected: SelectedPlayerIdentity?, score: PlayerScore?, displayed: [LeaderboardEntry]
+    ) -> LeaderboardEntry? {
+        guard let selected, let score, let rank = score.rank, score.score > 0,
+              !displayed.contains(where: { isSelected($0, selected: selected) }) else {
+            return nil
+        }
+        return LeaderboardEntry(
+            accountId: selected.accountId, displayName: selected.displayName,
+            score: score.score, rank: rank, localRank: nil,
+            accuracy: score.accuracy, isFullCombo: score.isFullCombo,
+            stars: score.stars, season: score.season, difficulty: score.difficulty
+        )
+    }
+}
+
+// MARK: - Purple glass button
+
+/// Purple Liquid Glass surface for the card's View full leaderboard button, with an
+/// opaque purple fallback under Reduce Transparency / the app's contrast overrides.
+private struct PurpleGlassButtonSurface: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
+    @AppStorage("fst.accessibility.lessTransparency") private var lessTransparency = false
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        if reduceTransparency || lessTransparency || moreContrast {
+            content.background(BrandTokens.accentPurple, in: shape)
+        } else if #available(iOS 26.0, macOS 26.0, *) {
+            content.glassEffect(
+                .regular.tint(BrandTokens.accentPurple.opacity(0.7)).interactive(), in: shape
+            )
+        } else {
+            content
+                .background(BrandTokens.accentPurple.opacity(0.75), in: shape)
+                .background(.ultraThinMaterial, in: shape)
         }
     }
 }

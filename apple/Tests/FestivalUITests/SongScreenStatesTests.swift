@@ -156,6 +156,8 @@ private func deterministicGlassDefaults() -> UserDefaults {
     let suiteName = "fst-glass-fallback-\(UUID().uuidString)"
     let storage = UserDefaults(suiteName: suiteName)!
     storage.set(true, forKey: "fst.accessibility.moreContrast")
+    // Load-in fades (`festivalFadeIn`) would otherwise be captured mid-animation.
+    storage.set(true, forKey: "fst.accessibility.reduceMotion")
     return storage
 }
 
