@@ -152,10 +152,10 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
   - Follow-up (Lane S): entry points to Player History from Song Detail / solo leaderboard
   - Simplified: notification copy covers player-scoped kinds only (no band kinds / coalescing)
 
-**Lane F — First-run experiences (FREs)** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/firstrun`
+**Lane F — First-run experiences (FREs)** (Sonnet) — ✅ landed `1930d0f`, `cbd1d0c`, `fdb1f41`
 - ⬜ Core seen-state store: per-slide `{version, hash, seenAt}`; show **only unseen, gate-passing slides** (new info without replaying old)
-- ⬜ Native glass carousel + per-page slides/demos (songs, suggestions, player, song info, compete, rivals, shop, leaderboards)
-- ⬜ Settings: view again per page (all slides), reset, enable toggle · ⬜ Applied app-wide via one route/tab seam
+- ✅ Native glass carousel + per-page slides/demos (songs, suggestions, player, song info, compete, rivals, shop, leaderboards)
+- ✅ Settings: view again per page (all slides), reset, enable toggle · ⬜ Applied app-wide via one route/tab seam
 
 **Lane Q — Quick Links** (Opus) — ✅ landed `b68af1d`…`4fa8bd3`
 - ⬜ Feasibility + native design decision (HIG + Fluent) → `.agents/controls/quick-links/` · ⬜ Reusable `Common/QuickLinks` API (toolbar jump menu, active section, VoiceOver rotor) · ⬜ Adopt on Leaderboards
@@ -170,6 +170,7 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 **Lane S follow-ups** — 🟨 toolbar order rule on Songs, Quick Links on Songs/Song Detail, Settings consumers (row visual order, path column order)
 
 Queued:
+- ⬜ **FRE live demos** for the 31 non-Songs slides (currently icon illustrations; semantics complete)
 - ⬜ **Wave 3 UX tests** for completed features — hosted snapshots first, XCUITest journeys batched
 
 Not yet assigned:
@@ -242,3 +243,4 @@ Not yet assigned:
 | 2026-09-28 | Lane Q | Quick Links: feasible; toolbar Menu + VoiceOver rotor (iPhone), inspector later (iPad/Mac); adopted on Leaderboards |
 | 2026-09-28 | Lane S | Scrubber `#` labels, keyboard icons (`Song.sig`), Player History links from Song Detail |
 | 2026-09-28 | Orchestrator | Avatar-rightmost toolbar rule, implicit test-ID families, app versioning; launched Lanes R2, P2 |
+| 2026-09-28 | Lane F | FREs: 44 slides / 9 pages, versioned+hashed seen state (only new slides show), gates, Settings replay; 36 Core tests |

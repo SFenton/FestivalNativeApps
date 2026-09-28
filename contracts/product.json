@@ -141,6 +141,14 @@
       "states": ["hidden", "title", "artist", "year", "scrubbing"],
       "testId": "fst.songs.section-index.*",
       "spec": ".agents/controls/songs-section-index/spec.md"
+    },
+    {
+      "id": "first-run",
+      "status": "pending",
+      "source": "FortniteFestivalWeb/src/components/firstRun/FirstRunCarousel.tsx:1",
+      "states": ["hidden-all-seen", "new-slides-only", "gated", "waiting-not-ready", "replay-all", "dismissed"],
+      "testId": "fst.first-run.*",
+      "spec": ".agents/controls/first-run/spec.md"
     }
   ],
   "testIds": {
@@ -148,6 +156,7 @@
     "fst.history.*": "player-history",
     "fst.notifications.*": "notifications",
     "fst.quick-links.*": "quick-links",
+    "fst.first-run.*": "first-run",
     "fst.songs.section-index.*": "songs-section-index",
     "fst.placeholder.*": "app-navigation",
     "fst.settings.*": "settings",

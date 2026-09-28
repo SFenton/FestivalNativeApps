@@ -51,7 +51,7 @@ struct FirstRunCarouselView: View {
                     .foregroundStyle(BrandTokens.textSecondary)
             }
             .accessibilityLabel("Close")
-            .accessibilityIdentifier("fst.firstRun.close")
+            .accessibilityIdentifier("fst.first-run.close")
         }
         .padding(.top, 16)
         .padding(.trailing, 16)
@@ -66,7 +66,7 @@ struct FirstRunCarouselView: View {
                 .opacity(isLastSlide ? 0 : 1)
                 .disabled(isLastSlide)
                 .accessibilityHidden(isLastSlide)
-                .accessibilityIdentifier("fst.firstRun.skip")
+                .accessibilityIdentifier("fst.first-run.skip")
             Spacer()
             Button(isLastSlide ? "Done" : "Next") {
                 if isLastSlide {
@@ -77,7 +77,7 @@ struct FirstRunCarouselView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(BrandTokens.accentBlue)
-            .accessibilityIdentifier(isLastSlide ? "fst.firstRun.done" : "fst.firstRun.next")
+            .accessibilityIdentifier(isLastSlide ? "fst.first-run.done" : "fst.first-run.next")
         }
         .padding(.horizontal, 24)
         .padding(.top, 12)

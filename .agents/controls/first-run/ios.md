@@ -119,7 +119,7 @@ full test coverage instead of being crowded out.
   from storage at init, so there's no async gap where gates could evaluate against stale data on
   this platform. Revisit if a future async gate dependency is added.
 - No XCUITest coverage yet for the carousel or replay flow (Wave 1 is unit + visual smoke only,
-  per `PROGRESS.md` §3); `fst.firstRun.close/skip/next/done` and
+  per `PROGRESS.md` §3); `fst.first-run.close/skip/next/done` and
   `fst.settings.first-run.<page>` accessibility identifiers are in place for when that lands.
 - `contracts/product.json` has no `first-run` control entry yet (orchestrator-owned file, not
   edited by this lane) — `check_docs.py` reports the same pending "topic not in contracts"
