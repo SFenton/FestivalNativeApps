@@ -114,6 +114,31 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.FestivalTheme
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.WideNavigationRailDefaults
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuite
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteItem
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldLayout
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
+import androidx.compose.material3.rememberSearchBarState
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.material3.adaptive.HingeInfo
+import androidx.lifecycle.createSavedStateHandle
+import com.festivalscoretracker.android.core.search.GlobalSearchLayout
+import com.festivalscoretracker.android.core.search.GlobalSearchResults
+import com.festivalscoretracker.android.core.search.PxRect
+import com.festivalscoretracker.android.core.search.SearchDestination
+import com.festivalscoretracker.android.core.search.ShellShortcut
+import com.festivalscoretracker.android.presentation.search.GlobalSearchViewModel
+import com.festivalscoretracker.android.ui.common.SearchChrome
+import com.festivalscoretracker.android.ui.search.GlobalSearchHost
 
 // region Root
 
@@ -122,9 +147,10 @@ import kotlinx.coroutines.launch
  *
  * @param container Process dependencies.
  * @param launch Debug launch extras for this activity creation.
+ * @param shortcuts Activity key shortcuts (Ctrl+K, Search key, Ctrl+F) routed to the shell.
  */
 @Composable
-fun FestivalApp(container: AppContainer, launch: DebugLaunch) {
+fun FestivalApp(container: AppContainer, launch: DebugLaunch, shortcuts: ShellShortcutBridge = remember { ShellShortcutBridge() }) {
     val shellViewModel: ShellViewModel = viewModel { ShellViewModel(container.settings, launch) }
     val settings by shellViewModel.settings.collectAsStateWithLifecycle()
     FestivalTheme(appIncreaseContrast = settings?.increaseContrast == true, appReduceMotion = settings?.reduceMotion == true) {
@@ -132,7 +158,7 @@ fun FestivalApp(container: AppContainer, launch: DebugLaunch) {
         LaunchedEffect(Unit) { container.selectedProfile.start(this, shellViewModel.settings.map { it?.selectedPlayer }) }
         Box(Modifier.fillMaxSize()) {
             ArtworkBackground(container.background, forceStill = launch.stillBackground)
-            settings?.let { FestivalShell(container, shellViewModel, it, launch) }
+            settings?.let { FestivalShell(container, shellViewModel, it, launch, shortcuts) }
         }
     }
 }
@@ -150,6 +176,20 @@ internal fun FestivalSection.icon(): ImageVector = when (this) {
     FestivalSection.Rivals -> Icons.Outlined.People
     FestivalSection.Statistics -> Icons.Outlined.BarChart
     FestivalSection.Settings -> Icons.Outlined.Settings
+}
+
+/**
+ * Material 3 navigation suite type for the pure [NavigationLayout] policy.
+ *
+ * @param layout Policy result.
+ * @param widthDp Window width (bars show inline labels from 600 dp).
+ * @return Suite type.
+ */
+internal fun suiteType(layout: NavigationLayout, widthDp: Int): NavigationSuiteType = when (layout) {
+    NavigationLayout.BottomBar ->
+        if (AdaptiveLayoutPolicy.isRegularWidth(widthDp)) NavigationSuiteType.ShortNavigationBarMedium else NavigationSuiteType.ShortNavigationBarCompact
+    NavigationLayout.Rail -> NavigationSuiteType.WideNavigationRailCollapsed
+    NavigationLayout.PermanentDrawer -> NavigationSuiteType.NavigationDrawer
 }
 
 /**
@@ -181,14 +221,32 @@ private fun NavHostController.selectSection(target: FestivalSection, current: Fe
     }
 }
 
+/** Hinge bounds in window pixels. */
+private fun HingeInfo.pxRect(): PxRect = PxRect(bounds.left.toInt(), bounds.top.toInt(), bounds.right.toInt(), bounds.bottom.toInt())
+
+/** Latest reported search-entry bounds (non-snapshot, so layout reports never recompose the shell). */
+private class SearchAnchorHolder {
+    var last: PxRect? = null
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FestivalShell(container: AppContainer, shellViewModel: ShellViewModel, settings: AppSettings, launch: DebugLaunch) {
+private fun FestivalShell(
+    container: AppContainer,
+    shellViewModel: ShellViewModel,
+    settings: AppSettings,
+    launch: DebugLaunch,
+    shortcuts: ShellShortcutBridge,
+) {
     val density = LocalDensity.current
     val windowSize = currentWindowSize()
     val widthDp = with(density) { windowSize.width.toDp().value.toInt() }
     val heightDp = with(density) { windowSize.height.toDp().value.toInt() }
-    val hinge = currentWindowAdaptiveInfo().windowPosture.hingeList.firstOrNull { it.isSeparating && it.isVertical }
-    val layout = AdaptiveLayoutPolicy.navigationLayout(widthDp, heightDp)
+    val posture = currentWindowAdaptiveInfo().windowPosture
+    val verticalHinge = posture.hingeList.firstOrNull { it.isSeparating && it.isVertical }
+    val horizontalHinge = posture.hingeList.firstOrNull { it.isSeparating && !it.isVertical }
+    val layout = AdaptiveLayoutPolicy.navigationLayout(widthDp, heightDp, posture.isTabletop)
+    val navigationType = suiteType(layout, widthDp)
     val sections = FestivalTabPolicy.sections(shellViewModel.profileKind(settings), AdaptiveLayoutPolicy.isRegularWidth(widthDp))
     val navController = rememberNavController()
     val stack by navController.currentBackStack.collectAsStateWithLifecycle()
@@ -207,12 +265,79 @@ private fun FestivalShell(container: AppContainer, shellViewModel: ShellViewMode
         launch.songQuery?.let { navController.navigate(SongDetailRoute(it)) }
     }
 
-    val railWidth = if (layout == NavigationLayout.Rail) RAIL_WIDTH_DP else 0
+    // region Global search
+
+    val searchViewModel: GlobalSearchViewModel = viewModel {
+        GlobalSearchViewModel(
+            loadCatalog = { container.api.catalog().catalog.songs },
+            searchPlayers = { query, limit -> container.api.searchPlayers(query, limit) },
+            selectedAccountId = { shellViewModel.settings.value?.selectedPlayer?.accountId },
+            backoff = container.backoff,
+            savedState = createSavedStateHandle(),
+        )
+    }
+    val searchState = rememberSearchBarState()
+    val presentation = GlobalSearchLayout.presentation(widthDp)
+    val anchors = remember { SearchAnchorHolder() }
+    val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val fallbackRequester = with(density) {
+        // Where the top bar's search action sits (before the avatar) when nothing reported yet.
+        val top = (statusTop + 8.dp).roundToPx()
+        PxRect(windowSize.width - 104.dp.roundToPx(), top, windowSize.width - 56.dp.roundToPx(), top + 48.dp.roundToPx())
+    }
+    var requester by remember { mutableStateOf<PxRect?>(null) }
+    val anchor = remember(presentation, requester, windowSize, verticalHinge, horizontalHinge, fallbackRequester) {
+        GlobalSearchLayout.anchor(
+            presentation = presentation,
+            requester = requester ?: fallbackRequester,
+            windowWidth = windowSize.width,
+            windowHeight = windowSize.height,
+            density = density.density,
+            verticalHinge = verticalHinge?.pxRect(),
+            horizontalHinge = horizontalHinge?.pxRect(),
+        )
+    }
+    val openSearch: (PxRect?) -> Unit = { rect ->
+        requester = rect ?: anchors.last
+        searchViewModel.open()
+    }
+    // Folding, rotating or resizing while open re-anchors to the entry the new layout reports.
+    LaunchedEffect(presentation, windowSize) {
+        if (searchViewModel.state.value.expanded) {
+            withFrameNanos {}
+            requester = anchors.last
+        }
+    }
+    val pageFind = remember { PageFindRegistry() }
+    val latestOpen by rememberUpdatedState(openSearch)
+    DisposableEffect(shortcuts, pageFind) {
+        shortcuts.handler = { shortcut ->
+            when (shortcut) {
+                ShellShortcut.OpenSearch -> latestOpen(null)
+                ShellShortcut.FindInPage -> if (!pageFind.find()) latestOpen(null)
+            }
+            true
+        }
+        onDispose { shortcuts.handler = null }
+    }
+    LaunchedEffect(Unit) {
+        launch.searchQuery?.let { query ->
+            withFrameNanos {}
+            requester = anchors.last
+            searchViewModel.open(query)
+            launch.searchScope?.let(searchViewModel::toggleScope)
+        }
+    }
+
+    // endregion
+
     val navBars = WindowInsets.navigationBars.asPaddingValues()
     val safeEnd = WindowInsets.safeDrawing.asPaddingValues().calculateEndPadding(LocalLayoutDirection.current)
+    // Bars sit below the content (they pad the gesture area themselves); rails and the
+    // drawer leave the content edge-to-edge, so it clears the system navigation itself.
     val bottomPadding = PaddingValues(
         end = safeEnd,
-        bottom = navBars.calculateBottomPadding() + if (layout == NavigationLayout.BottomBar) BAR_HEIGHT_DP.dp else 0.dp,
+        bottom = if (layout == NavigationLayout.BottomBar) 0.dp else navBars.calculateBottomPadding(),
     )
     // Only the phone top bar shows a hamburger; the rail header owns it on medium widths.
     val openDrawer: (() -> Unit)? = if (layout == NavigationLayout.BottomBar) ({ scope.launch { drawerState.open() } }) else null
@@ -223,82 +348,108 @@ private fun FestivalShell(container: AppContainer, shellViewModel: ShellViewMode
         openProfile = { showProfile = true },
         selectedPlayer = settings.selectedPlayer,
         bottomPadding = bottomPadding,
+        search = SearchChrome(presentation = presentation, open = openSearch, report = { anchors.last = it }),
     )
-    val drawerItems = @Composable { permanent: Boolean ->
-        DrawerContent(
-            sections = if (permanent) sections else emptyList(),
-            selected = selected,
-            player = settings.selectedPlayer,
-            onSection = { navController.selectSection(it, selected) },
-            onRoute = actions.navigate,
-        )
+    val openDestination: (SearchDestination) -> Unit = { destination ->
+        when (destination) {
+            is SearchDestination.Push -> navController.navigate(destination.route)
+            is SearchDestination.Section ->
+                if (destination.section in sections) navController.selectSection(destination.section, selected) else navController.navigate(StatisticsRoute)
+        }
     }
-    val content = @Composable {
-        CompositionLocalProvider(LocalShellActions provides actions) {
-            Row(Modifier.fillMaxSize()) {
+
+    var contentLeftPx by remember { mutableIntStateOf(0) }
+    var contentWidthPx by remember { mutableIntStateOf(windowSize.width) }
+    val contentWidthDp = with(density) { contentWidthPx.toDp().value.toInt() }
+    val navigationSuite = @Composable {
+        NavigationSuite(
+            navigationSuiteType = navigationType,
+            colors = NavigationSuiteDefaults.colors(
+                shortNavigationBarContainerColor = BrandTokens.cardBackground.copy(alpha = 0.96f),
+                shortNavigationBarContentColor = BrandTokens.textSecondary,
+                wideNavigationRailColors = WideNavigationRailDefaults.colors(containerColor = BrandTokens.surfaceFrosted),
+                navigationDrawerContainerColor = BrandTokens.surfaceFrosted,
+            ),
+            primaryActionContent = {
                 if (layout == NavigationLayout.Rail) {
-                    NavigationRail(
-                        containerColor = BrandTokens.surfaceFrosted,
-                        header = {
-                            IconButton(onClick = { scope.launch { drawerState.open() } }, modifier = Modifier.testTag("fst.nav.drawer")) {
-                                Icon(Icons.Filled.Menu, contentDescription = "Open menu")
-                            }
-                        },
-                        modifier = Modifier.width(RAIL_WIDTH_DP.dp).testTag("fst.nav.rail"),
-                    ) {
-                        sections.forEach { section ->
-                            NavigationRailItem(
-                                selected = section == selected,
-                                onClick = { navController.selectSection(section, selected) },
-                                icon = { Icon(section.icon(), contentDescription = null) },
-                                label = { Text(section.title) },
-                                modifier = Modifier.testTag("fst.nav.tab.${section.name.lowercase()}"),
-                            )
-                        }
+                    IconButton(onClick = { scope.launch { drawerState.open() } }, modifier = Modifier.testTag("fst.nav.drawer")) {
+                        Icon(Icons.Filled.Menu, contentDescription = "Open menu")
                     }
                 }
-                Box(Modifier.weight(1f).fillMaxHeight()) {
+            },
+            modifier = when (layout) {
+                NavigationLayout.BottomBar -> Modifier.testTag("fst.nav.bar")
+                NavigationLayout.Rail -> Modifier.testTag("fst.nav.rail")
+                NavigationLayout.PermanentDrawer -> Modifier.width(PERMANENT_DRAWER_WIDTH_DP.dp).testTag("fst.nav.permanent-drawer")
+            },
+        ) {
+            if (layout == NavigationLayout.PermanentDrawer) {
+                DrawerContent(
+                    sections = sections,
+                    selected = selected,
+                    player = settings.selectedPlayer,
+                    onSection = { navController.selectSection(it, selected) },
+                    onRoute = actions.navigate,
+                )
+            } else {
+                sections.forEach { section ->
+                    NavigationSuiteItem(
+                        selected = section == selected,
+                        onClick = { navController.selectSection(section, selected) },
+                        icon = { Icon(section.icon(), contentDescription = null) },
+                        label = { Text(section.title, maxLines = 1) },
+                        navigationSuiteType = navigationType,
+                        modifier = Modifier.testTag("fst.nav.tab.${section.name.lowercase()}"),
+                    )
+                }
+            }
+        }
+    }
+    val content = @Composable {
+        CompositionLocalProvider(LocalShellActions provides actions, LocalPageFind provides pageFind) {
+            NavigationSuiteScaffoldLayout(navigationSuite = navigationSuite, navigationSuiteType = navigationType) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .onGloballyPositioned {
+                            contentLeftPx = it.positionInWindow().x.toInt()
+                            contentWidthPx = it.size.width
+                        },
+                ) {
                     FestivalNavHost(
                         navController = navController,
                         container = container,
                         shellViewModel = shellViewModel,
                         settings = settings,
-                        twoPane = AdaptiveLayoutPolicy.showsTwoPanes(widthDp, hinge != null),
+                        twoPane = AdaptiveLayoutPolicy.showsTwoPanes(widthDp, verticalHinge != null),
                         listPaneWidth = AdaptiveLayoutPolicy.listPaneWidth(
-                            widthDp - railWidth,
-                            hinge?.let { with(density) { it.bounds.left.toDp().value.toInt() } - railWidth },
+                            contentWidthDp,
+                            verticalHinge?.let { with(density) { (it.bounds.left - contentLeftPx).toDp().value.toInt() } },
                         ),
                     )
-                    if (layout == NavigationLayout.BottomBar) {
-                        NavigationBar(
-                            containerColor = BrandTokens.cardBackground.copy(alpha = 0.96f),
-                            modifier = Modifier.align(Alignment.BottomCenter).testTag("fst.nav.bar"),
-                        ) {
-                            sections.forEach { section ->
-                                NavigationBarItem(
-                                    selected = section == selected,
-                                    onClick = { navController.selectSection(section, selected) },
-                                    icon = { Icon(section.icon(), contentDescription = null) },
-                                    label = { Text(section.title, maxLines = 1) },
-                                    modifier = Modifier.testTag("fst.nav.tab.${section.name.lowercase()}"),
-                                )
-                            }
-                        }
-                    }
                 }
             }
         }
     }
     if (layout == NavigationLayout.PermanentDrawer) {
-        PermanentNavigationDrawer(drawerContent = {
-            PermanentDrawerSheet(drawerContainerColor = BrandTokens.surfaceFrosted, modifier = Modifier.width(280.dp)) { drawerItems(true) }
-        }) { content() }
+        content()
     } else {
         ModalNavigationDrawer(
             drawerState = drawerState,
-            drawerContent = { ModalDrawerSheet(drawerContainerColor = BrandTokens.cardBackground) { drawerItems(false) } },
+            // Edge swipes belong to system back; the drawer opens from the menu button only.
+            gesturesEnabled = drawerState.isOpen,
+            drawerContent = { ModalDrawerSheet(drawerContainerColor = BrandTokens.cardBackground) { DrawerContent(emptyList(), selected, settings.selectedPlayer, { navController.selectSection(it, selected) }, actions.navigate) } },
         ) { content() }
     }
+    GlobalSearchHost(
+        viewModel = searchViewModel,
+        searchState = searchState,
+        presentation = presentation,
+        anchor = anchor,
+        artworkUrl = container.api::artworkUrl,
+        onOpen = openDestination,
+        onBandRankings = { navController.navigate(GlobalSearchResults.bandRankings) },
+    )
     if (showProfile) {
         val searchViewModel: ProfileSearchViewModel = viewModel { ProfileSearchViewModel { query -> container.api.searchPlayers(query) } }
         ProfileSheet(
@@ -312,11 +463,8 @@ private fun FestivalShell(container: AppContainer, shellViewModel: ShellViewMode
     }
 }
 
-/** Rail width used to offset list-detail and hinge math. */
-private const val RAIL_WIDTH_DP = 80
-
-/** Material 3 navigation bar height. */
-private const val BAR_HEIGHT_DP = 80
+/** Permanent drawer width on large windows. */
+private const val PERMANENT_DRAWER_WIDTH_DP = 280
 
 // endregion
 

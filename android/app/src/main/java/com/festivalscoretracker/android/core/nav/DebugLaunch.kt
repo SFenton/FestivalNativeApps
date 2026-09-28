@@ -2,6 +2,7 @@ package com.festivalscoretracker.android.core.nav
 
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.SelectedPlayer
+import com.festivalscoretracker.android.core.search.SearchScope
 
 // region Debug launch
 
@@ -26,6 +27,8 @@ import com.festivalscoretracker.android.core.model.SelectedPlayer
  * @property forceFreeze `FST_DEBUG_FORCE_FREEZE=1` synthesizes one scrape freeze per API path.
  * @property stillBackground `FST_DEBUG_STILL_BACKGROUND=1` stops background motion for screenshots.
  * @property origin `FST_ORIGIN`, a loopback fixture origin.
+ * @property searchQuery `FST_DEBUG_SEARCH=<text>` opens global search with that text.
+ * @property searchScope `FST_DEBUG_SEARCH_SCOPE=songs|players|bands` selects a scope chip.
  */
 data class DebugLaunch(
     val section: FestivalSection? = null,
@@ -38,6 +41,8 @@ data class DebugLaunch(
     val forceFreeze: Boolean = false,
     val stillBackground: Boolean = false,
     val origin: String? = null,
+    val searchQuery: String? = null,
+    val searchScope: SearchScope? = null,
 ) {
     companion object {
         /** An empty launch (release builds, or no extras). */
@@ -67,6 +72,8 @@ data class DebugLaunch(
                 forceFreeze = extras["FST_DEBUG_FORCE_FREEZE"] == "1",
                 stillBackground = extras["FST_DEBUG_STILL_BACKGROUND"] == "1",
                 origin = extras["FST_ORIGIN"]?.takeIf { it.isNotBlank() },
+                searchQuery = extras["FST_DEBUG_SEARCH"],
+                searchScope = extras["FST_DEBUG_SEARCH_SCOPE"]?.let(SearchScope::parse)?.takeIf { it != SearchScope.All },
             )
         }
 

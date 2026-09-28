@@ -27,11 +27,17 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
@@ -41,6 +47,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.AppRoute
+import com.festivalscoretracker.android.core.search.PxRect
+import com.festivalscoretracker.android.core.search.SearchPresentation
+import com.festivalscoretracker.android.ui.search.GlobalSearchEntry
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 
 // region Shell actions
@@ -54,6 +63,8 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
  * @property openProfile Open profile selection.
  * @property selectedPlayer Current selected player.
  * @property bottomPadding Space reserved by the bottom bar / system navigation.
+ * @property search Global search entry point (`.agents/controls/global-search/android.md`).
+ * @property notifications Bell slot between search and the avatar, when notifications exist.
  */
 @Immutable
 data class ShellActions(
@@ -63,6 +74,22 @@ data class ShellActions(
     val openProfile: () -> Unit = {},
     val selectedPlayer: SelectedPlayer? = null,
     val bottomPadding: PaddingValues = PaddingValues(),
+    val search: SearchChrome = SearchChrome(),
+    val notifications: (@Composable () -> Unit)? = null,
+)
+
+/**
+ * How screens show the one global search entry point.
+ *
+ * @property presentation Surface for the current window (full screen, docked, persistent bar).
+ * @property open Open the surface, anchored to the requester's window bounds when known.
+ * @property report Remember the latest entry bounds (keyboard shortcuts anchor to it).
+ */
+@Immutable
+data class SearchChrome(
+    val presentation: SearchPresentation = SearchPresentation.FullScreen,
+    val open: (requester: PxRect?) -> Unit = {},
+    val report: (PxRect) -> Unit = {},
 )
 
 /** Shell hooks for the current screen. */
@@ -74,13 +101,14 @@ val LocalShellActions = staticCompositionLocalOf { ShellActions() }
 
 /**
  * Standard screen chrome: transparent top app bar over the shared backdrop, the
- * drawer button on tab roots, back on pushed screens, and the profile avatar as
- * the rightmost action on tab roots.
+ * drawer button on tab roots, back on pushed screens, then screen actions, global
+ * search (icon, or a persistent bar on wide panes), the notifications slot and the
+ * profile avatar as the rightmost action on tab roots.
  *
  * @param title Title Case title.
  * @param isRoot Whether this is a tab root.
  * @param modifier Modifier.
- * @param actions Screen actions, placed before the avatar.
+ * @param actions Screen actions, placed before search and the avatar.
  * @param content Content given padding that clears the top bar and bottom chrome.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -94,8 +122,12 @@ fun FestivalScreen(
 ) {
     val shell = LocalShellActions.current
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    val density = LocalDensity.current
+    var paneWidthDp by remember { mutableIntStateOf(0) }
     Scaffold(
-        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = modifier
+            .onSizeChanged { paneWidthDp = with(density) { it.width.toDp().value.toInt() } }
+            .nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0),
         topBar = {
@@ -113,6 +145,8 @@ fun FestivalScreen(
                 },
                 actions = {
                     actions()
+                    GlobalSearchEntry(shell.search, paneWidthDp)
+                    shell.notifications?.invoke()
                     if (isRoot) ProfileAvatarButton(shell.selectedPlayer, shell.openProfile)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

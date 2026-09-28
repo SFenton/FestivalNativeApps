@@ -72,8 +72,14 @@ class NavigationPolicyTest {
     @Test
     fun adaptiveLayoutByWindowSize() {
         assertEquals(NavigationLayout.BottomBar, AdaptiveLayoutPolicy.navigationLayout(393, 851))
-        assertEquals(NavigationLayout.Rail, AdaptiveLayoutPolicy.navigationLayout(851, 393))
-        assertEquals(NavigationLayout.Rail, AdaptiveLayoutPolicy.navigationLayout(500, 400))
+        // Material 3: compact height (phone landscape) and tabletop keep a bottom bar.
+        assertEquals(NavigationLayout.BottomBar, AdaptiveLayoutPolicy.navigationLayout(851, 393))
+        assertEquals(NavigationLayout.BottomBar, AdaptiveLayoutPolicy.navigationLayout(500, 400))
+        assertEquals(NavigationLayout.BottomBar, AdaptiveLayoutPolicy.navigationLayout(1038, 841, tabletop = true))
+        assertEquals(NavigationLayout.Rail, AdaptiveLayoutPolicy.navigationLayout(600, 480))
+        assertEquals(NavigationLayout.Rail, AdaptiveLayoutPolicy.navigationLayout(1199, 800))
+        assertEquals(NavigationLayout.PermanentDrawer, AdaptiveLayoutPolicy.navigationLayout(1200, 800))
+        assertEquals(NavigationLayout.BottomBar, AdaptiveLayoutPolicy.navigationLayout(1920, 470))
         assertEquals(NavigationLayout.Rail, AdaptiveLayoutPolicy.navigationLayout(840, 900))
         assertEquals(NavigationLayout.PermanentDrawer, AdaptiveLayoutPolicy.navigationLayout(1280, 800))
         assertTrue(AdaptiveLayoutPolicy.isRegularWidth(600))

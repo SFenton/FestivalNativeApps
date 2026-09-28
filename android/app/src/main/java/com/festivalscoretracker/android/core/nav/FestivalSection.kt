@@ -113,15 +113,21 @@ object AdaptiveLayoutPolicy {
     /** Material large boundary. */
     const val LARGE_WIDTH_DP = 1200
 
+    /** Material compact-height boundary. */
+    const val MEDIUM_HEIGHT_DP = 480
+
     /**
-     * Choose navigation chrome for a window.
+     * Choose navigation chrome for a window (Material 3 `NavigationSuiteScaffoldDefaults.navigationSuiteType`,
+     * plus a permanent drawer on large windows).
      *
      * @param widthDp Window width in dp.
-     * @param heightDp Window height in dp; a very short landscape window keeps the rail.
-     * @return Bar below 600 dp (unless height-compact), rail below 1200 dp, else a permanent drawer.
+     * @param heightDp Window height in dp.
+     * @param tabletop Whether a horizontal half-opened fold splits the window (tabletop posture).
+     * @return Bar on compact widths, compact heights or tabletop (controls in the bottom half);
+     *   rail below 1200 dp; else a permanent drawer.
      */
-    fun navigationLayout(widthDp: Int, heightDp: Int): NavigationLayout = when {
-        widthDp < MEDIUM_WIDTH_DP && heightDp >= 480 -> NavigationLayout.BottomBar
+    fun navigationLayout(widthDp: Int, heightDp: Int, tabletop: Boolean = false): NavigationLayout = when {
+        widthDp < MEDIUM_WIDTH_DP || heightDp < MEDIUM_HEIGHT_DP || tabletop -> NavigationLayout.BottomBar
         widthDp < LARGE_WIDTH_DP -> NavigationLayout.Rail
         else -> NavigationLayout.PermanentDrawer
     }
