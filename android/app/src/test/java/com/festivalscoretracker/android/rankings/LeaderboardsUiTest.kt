@@ -107,6 +107,9 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         launch("leaderboards")
         waitForTag("fst.rankings.row.${RankingsFixtures.accountId(1)}")
         assertTrue(exists(lead))
+        // No selected player: no rank-history card and no history read.
+        assertFalse(exists("fst.leaderboards.rank-history"))
+        assertTrue(transport.requests.none { it.url.contains("/history") })
         assertEquals("Rank 1st, Synthetic Player 1. 49,999,000. 199 / 250 songs.", description("fst.rankings.row.${RankingsFixtures.accountId(1)}"))
         // Anonymous production rows read "Unknown User" and do nothing.
         val anonymous = "fst.rankings.row.anonymous-3-3-3"
@@ -124,6 +127,7 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         assertEquals("fcrate", store.current[LeaderboardPreferences.KEY_RANK_BY])
 
         scrollTo("fst.leaderboards", "$lead.view-all")
+        waitForText("View all rankings (60)")
         click("$lead.view-all")
         waitForText("Lead Rankings")
         waitForTag("fst.full-rankings.population")
@@ -145,9 +149,13 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
     @Test
     fun spotlightFooterAndYourPage() {
         launch("leaderboards", selected)
+        waitForTag("fst.leaderboards.rank-history")
+        rule.waitUntil(10_000) { settle(100); runCatching { scrollTo("fst.leaderboards", "$lead.spotlight") }.isSuccess }
         waitForTag("$lead.spotlight")
         assertTrue(description("$lead.spotlight")!!.startsWith("Your rank, 40th. Synthetic Player 40."))
+        scrollTo("fst.leaderboards", "fst.leaderboards.card.Solo_Bass.spotlight.unranked")
         waitForTag("fst.leaderboards.card.Solo_Bass.spotlight.unranked")
+        scrollTo("fst.leaderboards", "$lead.spotlight")
         // The selected player's row opens Statistics, like the web.
         click("$lead.spotlight")
         rule.waitUntil(10_000) { settle(100); !exists(lead) }
@@ -161,6 +169,46 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         waitForDescription("Page 2 of 3")
         waitForTag("fst.rankings.row.${RankingsFixtures.SELECTED}")
         rule.waitUntil(5_000) { settle(100); !exists("fst.full-rankings.spotlight-footer") }
+    }
+
+    @Test
+    fun rankHistoryAndQuickLinksOnTheOverview() {
+        launch("leaderboards", selected)
+        waitForTag("fst.leaderboards.rank-history")
+        waitForText("Sep 25, 2026")
+        assertTrue(transport.requests.any { it.url.contains("/api/rankings/Solo_Guitar/${RankingsFixtures.SELECTED}/history?days=30") })
+        click("fst.leaderboards.rank-history.picker.Solo_Bass")
+        waitForText("No rank history for Bass")
+        // Quick Links float with Rank By on phones and jump to a band card.
+        click("fst.quick-links.open")
+        waitForTag("fst.quick-links.sheet")
+        click("fst.quick-links.item.band:Band_Trios")
+        rule.waitUntil(10_000) { settle(100); !exists("fst.quick-links.sheet") }
+        waitForTag("fst.leaderboards.band-card.Band_Trios")
+        assertFalse(exists("fst.leaderboards.rank-history"))
+    }
+
+    @Test
+    fun boardsRestoreTheRoutedPageAndFloatThePager() {
+        launch("fullRankings:Solo_Guitar:2")
+        waitForDescription("Page 2 of 3")
+        assertTrue(transport.requests.any { it.url.contains("/api/rankings/Solo_Guitar?rankBy=totalscore&page=2&pageSize=25") })
+        // Pickers are screen actions (floating toolbar on phones), not list content.
+        assertTrue(exists("fst.full-rankings.instrument-menu"))
+        assertTrue(exists("fst.rankings.rank-by-menu"))
+        val pager = node("fst.full-rankings.pager").fetchSemanticsNode().boundsInRoot
+        val list = node("fst.full-rankings.list").fetchSemanticsNode().boundsInRoot
+        assertTrue("pager $pager is anchored to the bottom of $list", pager.bottom > list.bottom - list.height / 4)
+        click("fst.rankings.rank-by-menu")
+        click("fst.rankings.rank-by.fcrate")
+        waitForDescription("Page 1 of 3")
+        waitForText("60 ranked players · FC Rate")
+    }
+
+    @Test
+    fun bandBoardsRestoreTheRoutedPage() {
+        launch("bandRankings:Band_Duets:2")
+        waitForDescription("Page 2 of 2")
     }
 
     @Test
@@ -243,10 +291,20 @@ class LeaderboardsExpandedUiTest : LeaderboardsHarness() {
     }
 
     @Test
-    fun expandedBoardsUseASupportingPane() {
+    fun expandedBoardsKeepThePagerAnchoredAndPickersInTheTopBar() {
         launch("fullRankings:Solo_Drums")
-        waitForTag("fst.full-rankings.supporting-pane")
         waitForDescription("Page 1 of 3")
-        assertFalse(exists("fst.full-rankings.bottom-bar"))
+        assertTrue(exists("fst.full-rankings.bottom-bar"))
+        assertFalse(exists("fst.full-rankings.supporting-pane"))
+        val bar = node("fst.nav.top-bar").fetchSemanticsNode().boundsInRoot
+        val picker = node("fst.full-rankings.instrument-menu").fetchSemanticsNode().boundsInRoot
+        assertTrue(picker.top >= bar.top && picker.bottom <= bar.bottom)
+    }
+
+    @Test
+    fun expandedSongLeaderboardShowsStarImages() {
+        launch("songLeaderboard:s-alpha:Solo_Guitar")
+        waitForDescription("Page 1 of 3")
+        rule.waitUntil(10_000) { settle(100); exists("fst.stars") }
     }
 }

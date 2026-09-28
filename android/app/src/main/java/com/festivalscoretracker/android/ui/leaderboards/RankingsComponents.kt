@@ -16,12 +16,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FirstPage
 import androidx.compose.material.icons.filled.LastPage
@@ -32,7 +32,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.foundation.relocation.BringIntoViewRequester
@@ -123,13 +123,13 @@ private fun RankingRowLayout(
         Text(
             RankingFormatting.rankLabel(rank),
             style = MaterialTheme.typography.bodyMedium,
-            color = BrandTokens.textSecondary,
+            color = BrandTokens.textPrimary,
             maxLines = 1,
             modifier = Modifier.widthIn(min = 44.dp),
         )
         Column(Modifier.weight(1f)) {
             Text(name, style = MaterialTheme.typography.bodyLarge, color = BrandTokens.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("$songs songs", style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary, maxLines = 1)
+            Text("$songs songs", style = MaterialTheme.typography.bodySmall, color = BrandTokens.textPrimary, maxLines = 1)
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(rating, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = BrandTokens.textPrimary, maxLines = 1)
@@ -286,9 +286,11 @@ fun SpotlightUnrankedRow(message: String, tag: String) {
 // region Pager
 
 /**
- * First / Previous / "page / total" / Next / Last, shared by every paginated board.
- * The page text is a polite live region ("Page 2 of 34,760"); First/Last collapse on
- * very narrow windows. Every target is at least 48 dp.
+ * First / Previous / "page / total" / Next / Last, shared by every paginated board,
+ * drawn as a floating pill (the web's floating paginator; Material 3 floating
+ * toolbar shape) that the board anchors above the bottom chrome. The page text is a
+ * polite live region ("Page 2 of 34,760"); First/Last collapse on very narrow
+ * windows. Every target is at least 48 dp.
  *
  * @param page Current one-based page.
  * @param totalPages Page count.
@@ -300,37 +302,41 @@ fun SpotlightUnrankedRow(message: String, tag: String) {
 fun RankingsPager(page: Int, totalPages: Int, idPrefix: String, onChange: (Int) -> Unit, modifier: Modifier = Modifier) {
     val grouping = remember { NumberFormat.getIntegerInstance() }
     val showEnds = LocalConfiguration.current.screenWidthDp >= 360
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
-        modifier = modifier.fillMaxWidth().testTag("$idPrefix.pager"),
+    Surface(
+        shape = CircleShape,
+        color = BrandTokens.cardBackground.copy(alpha = 0.96f),
+        border = BorderStroke(1.dp, BrandTokens.glassBorder),
+        shadowElevation = 6.dp,
+        modifier = modifier.testTag("$idPrefix.pager"),
     ) {
-        if (showEnds) {
-            IconButton(onClick = { onChange(1) }, enabled = page > 1, modifier = Modifier.testTag("$idPrefix.page-first")) {
-                Icon(Icons.Filled.FirstPage, contentDescription = "First page")
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 4.dp)) {
+            if (showEnds) {
+                IconButton(onClick = { onChange(1) }, enabled = page > 1, modifier = Modifier.testTag("$idPrefix.page-first")) {
+                    Icon(Icons.Filled.FirstPage, contentDescription = "First page")
+                }
             }
-        }
-        IconButton(onClick = { onChange(page - 1) }, enabled = page > 1, modifier = Modifier.testTag("$idPrefix.page-previous")) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous page")
-        }
-        Text(
-            "${grouping.format(page)} / ${grouping.format(totalPages)}",
-            style = MaterialTheme.typography.labelLarge,
-            color = BrandTokens.textPrimary,
-            modifier = Modifier
-                .padding(horizontal = 8.dp)
-                .testTag("$idPrefix.page-info")
-                .semantics {
-                    contentDescription = "Page ${grouping.format(page)} of ${grouping.format(totalPages)}"
-                    liveRegion = LiveRegionMode.Polite
-                },
-        )
-        IconButton(onClick = { onChange(page + 1) }, enabled = page < totalPages, modifier = Modifier.testTag("$idPrefix.page-next")) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next page")
-        }
-        if (showEnds) {
-            IconButton(onClick = { onChange(totalPages) }, enabled = page < totalPages, modifier = Modifier.testTag("$idPrefix.page-last")) {
-                Icon(Icons.Filled.LastPage, contentDescription = "Last page")
+            IconButton(onClick = { onChange(page - 1) }, enabled = page > 1, modifier = Modifier.testTag("$idPrefix.page-previous")) {
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous page")
+            }
+            Text(
+                "${grouping.format(page)} / ${grouping.format(totalPages)}",
+                style = MaterialTheme.typography.labelLarge,
+                color = BrandTokens.textPrimary,
+                modifier = Modifier
+                    .padding(horizontal = 8.dp)
+                    .testTag("$idPrefix.page-info")
+                    .semantics {
+                        contentDescription = "Page ${grouping.format(page)} of ${grouping.format(totalPages)}"
+                        liveRegion = LiveRegionMode.Polite
+                    },
+            )
+            IconButton(onClick = { onChange(page + 1) }, enabled = page < totalPages, modifier = Modifier.testTag("$idPrefix.page-next")) {
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next page")
+            }
+            if (showEnds) {
+                IconButton(onClick = { onChange(totalPages) }, enabled = page < totalPages, modifier = Modifier.testTag("$idPrefix.page-last")) {
+                    Icon(Icons.Filled.LastPage, contentDescription = "Last page")
+                }
             }
         }
     }
@@ -341,51 +347,48 @@ fun RankingsPager(page: Int, totalPages: Int, idPrefix: String, onChange: (Int) 
 // region Pickers
 
 /**
- * A single-choice dropdown picker: an outlined button showing the current value that
- * opens a Material menu with a check on the selected item.
+ * A top-app-bar action that opens a single-choice Material menu (check on the
+ * selected item, a Title Case header). Rankings put their view options here, next
+ * to search, like Songs' sort/filter actions (Material 3 top app bar actions).
  *
  * @param T Option type.
- * @param label Accessible name of the picker ("Rank by", "Instrument", …).
+ * @param label Menu header and accessible name ("Rank By", "Instrument", …).
  * @param options Options in display order.
  * @param selected Current option.
  * @param optionLabel Visible option text.
  * @param onSelect Selection callback.
- * @param tag Test tag of the button; items get `<tag>.<index>`.
- * @param leading Optional leading content for the button and items.
- * @param modifier Modifier.
+ * @param tag Test tag of the action.
+ * @param itemTag Test tag of each item.
+ * @param icon Action glyph.
+ * @param leading Optional leading content for items.
  */
 @Composable
-fun <T> ChoicePicker(
+fun <T> TopBarChoiceAction(
     label: String,
     options: List<T>,
     selected: T,
     optionLabel: (T) -> String,
     onSelect: (T) -> Unit,
     tag: String,
-    modifier: Modifier = Modifier,
+    itemTag: (Int, T) -> String = { index, _ -> "$tag.$index" },
+    icon: @Composable () -> Unit,
     leading: (@Composable (T) -> Unit)? = null,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    Box(modifier) {
-        OutlinedButton(
+    Box {
+        IconButton(
             onClick = { expanded = true },
-            border = BorderStroke(1.dp, BrandTokens.glassBorder.copy(alpha = 0.4f)),
             modifier = Modifier
-                .heightIn(min = 48.dp)
                 .testTag(tag)
                 .semantics { contentDescription = "$label, ${optionLabel(selected)}" },
-        ) {
-            leading?.invoke(selected)
-            Text(
-                optionLabel(selected),
-                color = BrandTokens.textPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = if (leading != null) 8.dp else 0.dp),
-            )
-            Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = BrandTokens.textPrimary)
-        }
+        ) { icon() }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, containerColor = BrandTokens.cardBackground) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelLarge,
+                color = BrandTokens.textPrimary,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
             options.forEachIndexed { index, option ->
                 val isSelected = option == selected
                 DropdownMenuItem(
@@ -397,7 +400,7 @@ fun <T> ChoicePicker(
                         onSelect(option)
                     },
                     modifier = Modifier
-                        .testTag("$tag.$index")
+                        .testTag(itemTag(index, option))
                         .semantics { stateDescription = if (isSelected) "Selected" else "Not selected" },
                 )
             }
@@ -414,37 +417,38 @@ fun <T> ChoicePicker(
  */
 @Composable
 fun RankByAction(selected: RankingMetric, onSelect: (RankingMetric) -> Unit, options: List<RankingMetric> = RankingMetric.entries) {
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        IconButton(
-            onClick = { expanded = true },
-            modifier = Modifier.testTag("fst.rankings.rank-by-menu"),
-        ) {
-            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Rank by, ${selected.label}")
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, containerColor = BrandTokens.cardBackground) {
-            Text(
-                "Rank By",
-                style = MaterialTheme.typography.labelLarge,
-                color = BrandTokens.textSecondary,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
-            options.forEach { metric ->
-                val isSelected = metric == selected
-                DropdownMenuItem(
-                    text = { Text(metric.label, color = BrandTokens.textPrimary) },
-                    trailingIcon = if (isSelected) ({ Icon(Icons.Filled.Check, contentDescription = null, tint = BrandTokens.textPrimary) }) else null,
-                    onClick = {
-                        expanded = false
-                        onSelect(metric)
-                    },
-                    modifier = Modifier
-                        .testTag("fst.rankings.rank-by.${metric.wireId}")
-                        .semantics { stateDescription = if (isSelected) "Selected" else "Not selected" },
-                )
-            }
-        }
-    }
+    TopBarChoiceAction(
+        label = "Rank By",
+        options = options,
+        selected = selected,
+        optionLabel = RankingMetric::label,
+        onSelect = onSelect,
+        tag = "fst.rankings.rank-by-menu",
+        itemTag = { _, metric -> "fst.rankings.rank-by.${metric.wireId}" },
+        icon = { Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null) },
+    )
+}
+
+/**
+ * Top-bar instrument action: the current chart's icon, opening the chart menu.
+ *
+ * @param selected Current chart.
+ * @param options Charts offered.
+ * @param onSelect Selection callback.
+ * @param tag Test tag (items `<tag>.<index>`).
+ */
+@Composable
+fun InstrumentAction(selected: Instrument, options: List<Instrument>, onSelect: (Instrument) -> Unit, tag: String) {
+    TopBarChoiceAction(
+        label = "Instrument",
+        options = options,
+        selected = selected,
+        optionLabel = Instrument::label,
+        onSelect = onSelect,
+        tag = tag,
+        icon = { InstrumentIcon(selected, size = 26.dp, decorative = true) },
+        leading = { PickerInstrumentIcon(it) },
+    )
 }
 
 /**
@@ -460,7 +464,7 @@ fun PickerInstrumentIcon(instrument: Instrument) {
 /** Band-size glyph for band cards and pickers. */
 @Composable
 fun BandGlyph() {
-    Icon(Icons.Outlined.Groups, contentDescription = null, tint = BrandTokens.textSecondary, modifier = Modifier.size(22.dp))
+    Icon(Icons.Outlined.Groups, contentDescription = null, tint = BrandTokens.textPrimary, modifier = Modifier.size(22.dp))
 }
 
 // endregion

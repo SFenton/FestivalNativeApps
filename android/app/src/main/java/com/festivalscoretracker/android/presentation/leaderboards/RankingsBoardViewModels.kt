@@ -187,16 +187,18 @@ class FullRankingsViewModel(
  * @param rankBy Persisted Leaderboards metric, narrowed once for the starting value.
  * @param reads Rankings reads.
  * @param backoff Shared retry backoff.
+ * @param initialPage One-based starting page (restored from the route).
  */
 class BandRankingsViewModel(
     initialBandType: BandType,
     rankBy: Flow<RankingMetric>,
     private val reads: RankingsReads,
     backoff: ServiceRetryBackoff,
+    initialPage: Int = 1,
 ) : ViewModel() {
     private val bandTypeFlow = MutableStateFlow(initialBandType)
     private val metricFlow = MutableStateFlow<BandRankingMetric?>(null)
-    private val pageFlow = MutableStateFlow(1)
+    private val pageFlow = MutableStateFlow(initialPage.coerceAtLeast(1))
     private val boardLoader = RetryingLoader(viewModelScope, "band-rankings", backoff) {
         val bandType = bandTypeFlow.value
         val metric = metricFlow.value ?: BandRankingMetric.TotalScore

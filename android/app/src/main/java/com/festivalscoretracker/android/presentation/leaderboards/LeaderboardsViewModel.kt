@@ -6,6 +6,8 @@ import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.bands.BandRankingMetric
 import com.festivalscoretracker.android.core.bands.BandType
 import com.festivalscoretracker.android.core.rankings.PlayerRankingResult
+import com.festivalscoretracker.android.core.rankings.RankHistoryChart
+import com.festivalscoretracker.android.core.rankings.RankHistoryResponse
 import com.festivalscoretracker.android.core.rankings.RankingMetric
 import com.festivalscoretracker.android.core.rankings.RankingPaging
 import com.festivalscoretracker.android.core.rankings.RankingSpotlight
@@ -35,11 +37,13 @@ import kotlinx.coroutines.sync.withPermit
  * @property rankings `(instrument, metric, page, pageSize)` account page.
  * @property bandRankings `(bandType, metric, page, pageSize)` band page.
  * @property playerRanking `(instrument, accountId)` own row or unranked.
+ * @property rankHistory `(instrument, accountId)` daily rank history over [RankHistoryChart.DAYS].
  */
 data class RankingsReads(
     val rankings: suspend (Instrument, RankingMetric, Int, Int) -> RankingsPayload,
     val bandRankings: suspend (BandType, BandRankingMetric, Int, Int) -> BandRankingsPayload,
     val playerRanking: suspend (Instrument, String) -> PlayerRankingResult,
+    val rankHistory: suspend (Instrument, String) -> RankHistoryResponse = { instrument, accountId -> RankHistoryResponse(instrument.wireId, accountId) },
 )
 
 // endregion
@@ -81,6 +85,9 @@ class LeaderboardsViewModel(
     private val bandKeys = mutableMapOf<BandType, BandRankingMetric>()
     private val spotlights = mutableMapOf<Instrument, RetryingLoader<PlayerRankingResult>>()
     private val spotlightAccounts = mutableMapOf<Instrument, String>()
+    private val historyInstrumentFlow = MutableStateFlow<Instrument?>(null)
+    private val histories = mutableMapOf<Instrument, RetryingLoader<RankHistoryResponse>>()
+    private val historyAccounts = mutableMapOf<Instrument, String>()
 
     /** Current Rank By metric. */
     val metric: StateFlow<RankingMetric> = metricFlow.asStateFlow()
@@ -97,6 +104,9 @@ class LeaderboardsViewModel(
     /** True while a pull-to-refresh is in flight. */
     val refreshing: StateFlow<Boolean> = refreshingFlow.asStateFlow()
 
+    /** Chart shown on the rank-history card (first visible chart until the user picks one). */
+    val historyInstrument: StateFlow<Instrument?> = historyInstrumentFlow.asStateFlow()
+
     init {
         viewModelScope.launch {
             combine(rankBy, settings.filterNotNull()) { metric, current ->
@@ -110,6 +120,7 @@ class LeaderboardsViewModel(
     private fun apply(inputs: Inputs) {
         metricFlow.value = inputs.metric
         instrumentsFlow.value = inputs.instruments
+        if (historyInstrumentFlow.value !in inputs.instruments) historyInstrumentFlow.value = inputs.instruments.firstOrNull()
         selectedFlow.value = inputs.selected
         val cardKey = "${inputs.metric.wireId}|${inputs.selected.orEmpty()}"
         inputs.instruments.forEach { instrument ->
@@ -152,6 +163,45 @@ class LeaderboardsViewModel(
      * @return Own-row state.
      */
     fun spotlight(instrument: Instrument): StateFlow<LoadState<PlayerRankingResult>> = spotlightLoader(instrument).state
+
+    /**
+     * The selected player's rank history on one chart (web `useRankHistoryAll`; one
+     * read per chart and player, reused across metric changes since each snapshot
+     * carries every metric). Call [ensureHistory] to start it.
+     *
+     * @param instrument Chart.
+     * @return History state.
+     */
+    fun rankHistory(instrument: Instrument): StateFlow<LoadState<RankHistoryResponse>> = historyLoader(instrument).state
+
+    /**
+     * Load the selected player's history on a chart unless it is already loaded for them.
+     *
+     * @param instrument Chart.
+     */
+    fun ensureHistory(instrument: Instrument) {
+        val selected = selectedFlow.value ?: return
+        if (historyAccounts[instrument] == selected && historyLoader(instrument).state.value !is LoadState.Failed) return
+        historyAccounts[instrument] = selected
+        historyLoader(instrument).retry()
+    }
+
+    /**
+     * Show another chart on the rank-history card.
+     *
+     * @param instrument Chart.
+     */
+    fun selectHistoryInstrument(instrument: Instrument) {
+        historyInstrumentFlow.value = instrument
+        ensureHistory(instrument)
+    }
+
+    /**
+     * Retry one chart's history.
+     *
+     * @param instrument Chart.
+     */
+    fun retryHistory(instrument: Instrument) = historyLoader(instrument).retry()
 
     /**
      * Change and persist Rank By; cards reload when the stored value comes back.
@@ -214,6 +264,13 @@ class LeaderboardsViewModel(
         RetryingLoader(viewModelScope, "leaderboards:spotlight:${instrument.wireId}", backoff) {
             val accountId = selectedFlow.value ?: return@RetryingLoader PlayerRankingResult.Unranked
             permits.withPermit { reads.playerRanking(instrument, accountId) }
+        }
+    }
+
+    private fun historyLoader(instrument: Instrument): RetryingLoader<RankHistoryResponse> = histories.getOrPut(instrument) {
+        RetryingLoader(viewModelScope, "leaderboards:history:${instrument.wireId}", backoff) {
+            val accountId = selectedFlow.value ?: return@RetryingLoader RankHistoryResponse(instrument.wireId)
+            permits.withPermit { reads.rankHistory(instrument, accountId) }
         }
     }
 

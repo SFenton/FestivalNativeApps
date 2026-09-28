@@ -80,6 +80,28 @@ object RankingsFixtures {
     fun playerRanking(instrument: String = "", accountId: String = SELECTED, rank: Int = SELECTED_RANK): String =
         accountRow(rank).replace(accountId(rank), accountId).dropLast(1) + ""","instrument":"$instrument","totalRankedAccounts":$TOTAL_ACCOUNTS}"""
 
+    /** Sparse rank-history days (a gap on the 21st, 23rd and 24th) and each day's Total Score rank. */
+    val HISTORY_DAYS = listOf("2026-09-20" to 45, "2026-09-22" to 42, "2026-09-25" to SELECTED_RANK)
+
+    /**
+     * A `/api/rankings/{instrument}/{accountId}/history` body; every metric's rank is
+     * the Total Score rank plus an offset so metric switches are observable.
+     *
+     * @param instrument Wire instrument.
+     * @param accountId Account.
+     * @param days Snapshot days and Total Score ranks (empty = unranked).
+     * @return JSON.
+     */
+    fun rankHistory(instrument: String, accountId: String = SELECTED, days: List<Pair<String, Int>> = HISTORY_DAYS): String {
+        val rows = days.joinToString(",") { (day, rank) ->
+            """{"snapshotDate":"$day","snapshotTakenAt":"${day}T06:00:00Z","adjustedSkillRank":${rank + 1},"weightedRank":${rank + 2},""" +
+                """"fcRateRank":${rank + 3},"totalScoreRank":$rank,"maxScorePercentRank":${rank + 4},"adjustedSkillRating":0.02,""" +
+                """"weightedRating":0.03,"fcRate":0.4,"totalScore":${90_000_000L - rank * 100_000L},"maxScorePercent":0.95,""" +
+                """"songsPlayed":34,"coverage":0.68,"fullComboCount":14,"totalChartedSongs":50,"rankedAccountCount":$TOTAL_ACCOUNTS}"""
+        }
+        return """{"instrument":"$instrument","accountId":"$accountId","history":[$rows]}"""
+    }
+
     /**
      * One band row.
      *
@@ -133,6 +155,10 @@ object RankingsFixtures {
             }
             onRaw("/api/rankings/$instrument/$SELECTED") {
                 if (instrument in unranked) HttpResult(404, "{}".toByteArray()) else HttpResult(200, playerRanking().toByteArray(), mapOf("X-FST-Publication-Id" to "7"))
+            }
+            onRaw("/api/rankings/$instrument/$SELECTED/history") {
+                val body = if (instrument in unranked) rankHistory(instrument, days = emptyList()) else rankHistory(instrument)
+                HttpResult(200, body.toByteArray(), mapOf("X-FST-Publication-Id" to "7"))
             }
         }
         listOf("Band_Duets", "Band_Trios", "Band_Quad").forEach { bandType ->

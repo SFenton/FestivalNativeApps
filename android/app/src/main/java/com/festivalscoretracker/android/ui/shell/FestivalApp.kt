@@ -580,7 +580,7 @@ private fun FestivalNavHost(
             SongDetailRouteScreen(container, shellViewModel, settings, route.songId, embedded = false)
         }
         composable<SongLeaderboardRoute> { entry ->
-            SongLeaderboardRouteScreen(container, settings, entry.toRoute<SongLeaderboardRoute>())
+            SongLeaderboardRouteScreen(container, settings, entry.savedStateHandle.toRoute<SongLeaderboardRoute>(), entry.savedStateHandle)
         }
         leaderboardsGraph(container, shellViewModel, container.leaderboardPreferences)
         composable<SettingsTab> {

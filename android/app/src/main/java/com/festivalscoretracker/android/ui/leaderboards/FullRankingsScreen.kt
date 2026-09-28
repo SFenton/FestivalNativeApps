@@ -3,8 +3,6 @@ package com.festivalscoretracker.android.ui.leaderboards
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -48,10 +46,10 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
 // region Full rankings
 
 /**
- * `/leaderboards/all`: one instrument's paginated rankings with instrument and
- * Rank By pickers, the selected player highlighted in place or pinned above the
- * pager, and "Your Page" to jump to their page (native addition; the web footer
- * only links to the profile).
+ * `/leaderboards/all`: one instrument's paginated rankings. The instrument and
+ * Rank By pickers are top-app-bar actions next to search; the selected player is
+ * highlighted in place or pinned above the bottom-anchored pager, with "Your Page"
+ * to jump to their page (native addition; the web footer only links to the profile).
  *
  * @param viewModel Board logic.
  */
@@ -77,7 +75,15 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
         if (!revealsSelected) listState.scrollToItem(0)
     }
 
-    FestivalScreen(title = "${instrument.label} Rankings", isRoot = false, modifier = Modifier.semantics { testTagsAsResourceId = true }) { padding ->
+    FestivalScreen(
+        title = "${instrument.label} Rankings",
+        isRoot = false,
+        modifier = Modifier.semantics { testTagsAsResourceId = true },
+        actions = {
+            InstrumentAction(instrument, Instrument.entries.filter { it in visible || it == instrument }, viewModel::selectInstrument, "fst.full-rankings.instrument-menu")
+            RankByAction(metric, viewModel::selectMetric)
+        },
+    ) { padding ->
         val failed = board as? LoadState.Failed
         if (failed != null && current == null) {
             ServiceStatusView(failed.issue, "Rankings unavailable", failed.countdown, viewModel::retry, contentPadding = padding)
@@ -89,7 +95,7 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
             idPrefix = "fst.full-rankings",
             loadingOverlay = board is LoadState.Loading && current != null,
             controls = {
-                FullRankingsControls(instrument, metric, visible, current, viewModel::selectInstrument, viewModel::selectMetric)
+                FullRankingsControls(metric, current)
                 if (failed != null) ServiceStatusInline(failed.issue, "Rankings unavailable", failed.countdown, viewModel::retry)
             },
             footer = { FullRankingsFooter(instrument, metric, selected, entries, spotlight, current != null, viewModel, navigate) },
@@ -100,29 +106,22 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * Page information above the rows: population and the active metric (the pickers
+ * themselves are top-bar actions).
+ *
+ * @param metric Rank By metric.
+ * @param current Shown page, or null while the first page loads.
+ */
 @Composable
-private fun ColumnScope.FullRankingsControls(
-    instrument: Instrument,
-    metric: RankingMetric,
-    visible: List<Instrument>,
-    current: RankingsPayload?,
-    onInstrument: (Instrument) -> Unit,
-    onMetric: (RankingMetric) -> Unit,
-) {
-    val options = Instrument.entries.filter { it in visible || it == instrument }
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        ChoicePicker("Instrument", options, instrument, Instrument::label, onInstrument, "fst.full-rankings.instrument-menu", leading = { PickerInstrumentIcon(it) })
-        ChoicePicker("Rank by", RankingMetric.entries, metric, RankingMetric::label, onMetric, "fst.rankings.rank-by-menu")
-    }
-    if (current != null) {
-        Text(
-            RankingFormatting.population(current.rankings.totalAccounts, "player"),
-            style = MaterialTheme.typography.bodyMedium,
-            color = BrandTokens.textSecondary,
-            modifier = Modifier.testTag("fst.full-rankings.population"),
-        )
-    }
+private fun FullRankingsControls(metric: RankingMetric, current: RankingsPayload?) {
+    if (current == null) return
+    Text(
+        "${RankingFormatting.population(current.rankings.totalAccounts, "player")} · ${metric.label}",
+        style = MaterialTheme.typography.bodyMedium,
+        color = BrandTokens.textPrimary,
+        modifier = Modifier.testTag("fst.full-rankings.population"),
+    )
 }
 
 /**
@@ -146,7 +145,7 @@ private fun LazyListScope.rankingRows(
             Column(Modifier.padding(8.dp)) {
                 when {
                     loading -> RankingsSkeletonRows(10)
-                    entries.isEmpty() -> Text("No ranked players yet.", color = BrandTokens.textSecondary, modifier = Modifier.padding(8.dp))
+                    entries.isEmpty() -> Text("No ranked players yet.", color = BrandTokens.textPrimary, modifier = Modifier.padding(8.dp))
                     else -> entries.forEach { entry ->
                         AccountRankingRow(
                             entry = entry,
@@ -176,7 +175,7 @@ private fun ColumnScope.FullRankingsFooter(
 ) {
     if (selected == null || !pageLoaded) return
     if (spotlight is LoadState.Failed) {
-        ServiceStatusInline(spotlight.issue, "Your rank is unavailable", spotlight.countdown, viewModel::retrySpotlight)
+        AnchoredRowCard { ServiceStatusInline(spotlight.issue, "Your rank is unavailable", spotlight.countdown, viewModel::retrySpotlight) }
         return
     }
     val source = when (val value = (spotlight as? LoadState.Loaded)?.value) {
@@ -186,9 +185,9 @@ private fun ColumnScope.FullRankingsFooter(
     }
     when (val placement = RankingSpotlight.placement(selected, entries, source)) {
         RankingSpotlightPlacement.None, RankingSpotlightPlacement.Inline -> Unit
-        RankingSpotlightPlacement.Pending -> SpotlightLoadingRow("fst.full-rankings.spotlight-footer.loading")
-        RankingSpotlightPlacement.Unranked -> SpotlightUnrankedRow("Not yet ranked on ${instrument.label}.", "fst.full-rankings.spotlight-footer.unranked")
-        is RankingSpotlightPlacement.Footer -> Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        RankingSpotlightPlacement.Pending -> AnchoredRowCard { SpotlightLoadingRow("fst.full-rankings.spotlight-footer.loading") }
+        RankingSpotlightPlacement.Unranked -> AnchoredRowCard { SpotlightUnrankedRow("Not yet ranked on ${instrument.label}.", "fst.full-rankings.spotlight-footer.unranked") }
+        is RankingSpotlightPlacement.Footer -> AnchoredRowCard { Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.weight(1f)) {
                 AccountRankingRow(
                     entry = placement.entry,
@@ -205,7 +204,7 @@ private fun ColumnScope.FullRankingsFooter(
                     modifier = Modifier.padding(start = 8.dp).heightIn(min = 48.dp).testTag("fst.full-rankings.spotlight-jump"),
                 ) { Text("Your Page") }
             }
-        }
+        } }
     }
 }
 

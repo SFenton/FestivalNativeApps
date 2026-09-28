@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
@@ -36,6 +37,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.core.model.LeaderboardEntry
 import com.festivalscoretracker.android.core.model.LeaderboardPaging
@@ -52,7 +54,9 @@ import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
+import com.festivalscoretracker.android.ui.leaderboards.AnchoredRowCard
 import com.festivalscoretracker.android.ui.leaderboards.RankingsBoardScaffold
+import com.festivalscoretracker.android.ui.leaderboards.SyncRouteArguments
 import com.festivalscoretracker.android.ui.leaderboards.RankingsPager
 import com.festivalscoretracker.android.ui.leaderboards.RankingsSkeletonRows
 import com.festivalscoretracker.android.ui.theme.BrandTokens
@@ -67,9 +71,11 @@ import kotlinx.coroutines.flow.StateFlow
  * @param container Process dependencies.
  * @param settings Current settings.
  * @param route Route.
+ * @param routeState The back-stack entry's saved route arguments; the current page is
+ *   written back so the route follows paging (spec native correction).
  */
 @Composable
-fun SongLeaderboardRouteScreen(container: AppContainer, settings: AppSettings, route: SongLeaderboardRoute) {
+fun SongLeaderboardRouteScreen(container: AppContainer, settings: AppSettings, route: SongLeaderboardRoute, routeState: SavedStateHandle? = null) {
     val api = container.api
     val instrument = Instrument.fromWireId(route.instrument) ?: Instrument.Lead
     val leeway = settings.leeway.takeIf { settings.filterInvalidScores }
@@ -79,6 +85,10 @@ fun SongLeaderboardRouteScreen(container: AppContainer, settings: AppSettings, r
             { id, chart, page, top -> api.leaderboardPage(id, chart, page, top, leeway) },
             container.backoff,
         )
+    }
+    if (routeState != null) {
+        val page by boardViewModel.page.collectAsStateWithLifecycle()
+        SyncRouteArguments(routeState, "page" to page)
     }
     SongLeaderboardScreen(boardViewModel, settings.selectedPlayer?.accountId, container.selectedProfile.state, leeway)
 }
@@ -112,6 +122,7 @@ fun SongLeaderboardScreen(
     val payload = (board as? LoadState.Loaded)?.value
     val loaded = payload?.leaderboard
     val profile = selectedProfile?.collectAsStateWithLifecycle()?.value
+    val showStars = LocalConfiguration.current.screenWidthDp >= STARS_MIN_WIDTH_DP
     val footer = payload?.let {
         SongScoreSpotlight.footer(
             player = profile?.player?.takeIf { player -> RankingSpotlight.isSelected(selectedAccountId, player.accountId) },
@@ -149,7 +160,7 @@ fun SongLeaderboardScreen(
                     )
                 }
             },
-            footer = { footer?.let { SelectedScoreFooter(it, page, navigate, viewModel::goTo) } },
+            footer = { footer?.let { AnchoredRowCard { SelectedScoreFooter(it, page, navigate, viewModel::goTo, showStars) } } },
             pager = { RankingsPager(page, loaded?.pageCount() ?: page, "fst.song-leaderboard", viewModel::goTo) },
         ) {
             item(key = "rows") {
@@ -157,13 +168,14 @@ fun SongLeaderboardScreen(
                     Column(Modifier.padding(vertical = 6.dp)) {
                         when {
                             loaded == null -> RankingsSkeletonRows(10)
-                            loaded.entries.isEmpty() -> Text("No scores yet", color = BrandTokens.textSecondary, modifier = Modifier.padding(16.dp))
+                            loaded.entries.isEmpty() -> Text("No scores yet", color = BrandTokens.textPrimary, modifier = Modifier.padding(16.dp))
                             else -> loaded.entries.forEach { entry ->
                                 SongLeaderboardRow(
                                     entry = entry,
                                     isSelected = RankingSpotlight.isSelected(selectedAccountId, entry.accountId),
                                     route = RankingNavigation.playerRoute(entry.accountId, entry.displayName, selectedAccountId),
                                     onOpen = navigate,
+                                    showStars = showStars,
                                 )
                             }
                         }
@@ -181,13 +193,14 @@ fun SongLeaderboardScreen(
  * @param page Current page.
  * @param navigate Push a route.
  * @param goTo Page change.
+ * @param showStars Show star images.
  */
 @Composable
-private fun SelectedScoreFooter(entry: LeaderboardEntry, page: Int, navigate: (AppRoute) -> Unit, goTo: (Int) -> Unit) {
+private fun SelectedScoreFooter(entry: LeaderboardEntry, page: Int, navigate: (AppRoute) -> Unit, goTo: (Int) -> Unit, showStars: Boolean) {
     val target = if (entry.rank > 0) LeaderboardPaging.pageForRank(entry.rank) else null
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().testTag("fst.song-leaderboard.spotlight-footer")) {
         Box(Modifier.weight(1f)) {
-            SongLeaderboardRow(entry, isSelected = true, route = StatisticsRoute, onOpen = navigate)
+            SongLeaderboardRow(entry, isSelected = true, route = StatisticsRoute, onOpen = navigate, showStars = showStars)
         }
         if (target != null && target != page) {
             FilledTonalButton(
@@ -205,9 +218,10 @@ private fun SelectedScoreFooter(entry: LeaderboardEntry, page: Int, navigate: (A
  * @param isSelected Selected player's row (accent treatment).
  * @param route Destination or null.
  * @param onOpen Navigation callback.
+ * @param showStars Show star images (wide windows, web `QUERY_SHOW_STARS`).
  */
 @Composable
-private fun SongLeaderboardRow(entry: LeaderboardEntry, isSelected: Boolean, route: AppRoute?, onOpen: (AppRoute) -> Unit) {
+private fun SongLeaderboardRow(entry: LeaderboardEntry, isSelected: Boolean, route: AppRoute?, onOpen: (AppRoute) -> Unit, showStars: Boolean = false) {
     val shape = RoundedCornerShape(10.dp)
     var modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp).clip(shape)
     if (isSelected) modifier = modifier.background(BrandTokens.accentPurple.copy(alpha = 0.18f)).border(BorderStroke(1.dp, BrandTokens.accentPurple), shape)
@@ -217,8 +231,11 @@ private fun SongLeaderboardRow(entry: LeaderboardEntry, isSelected: Boolean, rou
         modifier.semantics { stateDescription = "Profile unavailable" }
     }
     Box(modifier.testTag("fst.song-leaderboard.row.${entry.accountId.ifEmpty { "rank-${entry.rank}" }}")) {
-        ScoreRow(entry)
+        ScoreRow(entry, showStars)
     }
 }
+
+/** Width from which rows show stars (web `QUERY_SHOW_STARS`, the 768 px mobile breakpoint, in dp). */
+private const val STARS_MIN_WIDTH_DP = 600
 
 // endregion

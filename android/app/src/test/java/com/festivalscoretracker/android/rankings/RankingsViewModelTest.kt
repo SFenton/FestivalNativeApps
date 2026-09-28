@@ -8,6 +8,8 @@ import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.rankings.BandRankingsResponse
 import com.festivalscoretracker.android.core.rankings.PlayerInstrumentRanking
 import com.festivalscoretracker.android.core.rankings.PlayerRankingResult
+import com.festivalscoretracker.android.core.rankings.RankHistoryResponse
+import com.festivalscoretracker.android.core.rankings.RankHistorySnapshot
 import com.festivalscoretracker.android.core.rankings.RankingMetric
 import com.festivalscoretracker.android.core.rankings.RankingsResponse
 import com.festivalscoretracker.android.core.rankings.AccountRankingEntry
@@ -89,6 +91,22 @@ internal class FakeReads {
                     val row = FestivalApi.JSON.decodeFromString(AccountRankingEntry.serializer(), RankingsFixtures.accountRow(selectedRank)).copy(accountId = accountId)
                     PlayerRankingResult.Ranked(PlayerInstrumentRanking(row, "", RankingsFixtures.TOTAL_ACCOUNTS))
                 }
+            }
+        },
+    )
+
+    val history = RankHistoryResponse(
+        "Solo_Guitar",
+        RankingsFixtures.SELECTED,
+        listOf(RankHistorySnapshot("2026-09-20", totalScoreRank = 45), RankHistorySnapshot("2026-09-25", totalScoreRank = 40)),
+    )
+    var failHistory: Exception? = null
+
+    val historyReads = reads.copy(
+        rankHistory = { instrument, accountId ->
+            track("history:${instrument.wireId}:$accountId") {
+                failHistory?.let { failHistory = null; throw it }
+                history.copy(instrument = instrument.wireId, accountId = accountId)
             }
         },
     )
@@ -235,6 +253,67 @@ class RankingsViewModelTest {
         assertEquals(listOf(Instrument.Lead, Instrument.Drums), viewModel.instruments.value)
     }
 
+    @Test
+    fun rankHistoryLoadsOnDemandOncePerPlayerAndChart() = runTest(main.dispatcher) {
+        settings.value = AppSettings(selectedPlayer = selectedPlayer, visibleInstruments = setOf(Instrument.Lead, Instrument.Bass))
+        val viewModel = LeaderboardsViewModel(fake.historyReads, settings, rankBy, { rankBy.value = it }, ServiceRetryBackoff())
+        advanceUntilIdle()
+        // The first visible chart is shown; nothing is read until the card asks.
+        assertEquals(Instrument.Lead, viewModel.historyInstrument.value)
+        assertEquals(0, fake.count("history:"))
+        viewModel.ensureHistory(Instrument.Lead)
+        advanceUntilIdle()
+        viewModel.ensureHistory(Instrument.Lead)
+        rankBy.value = RankingMetric.FcRate
+        advanceUntilIdle()
+        // Each snapshot carries every metric, so a metric change reuses the read.
+        assertEquals(1, fake.count("history:Solo_Guitar:${RankingsFixtures.SELECTED}"))
+        assertEquals(2, viewModel.rankHistory(Instrument.Lead).value.valueOrNull?.history?.size)
+        viewModel.selectHistoryInstrument(Instrument.Bass)
+        advanceUntilIdle()
+        assertEquals(Instrument.Bass, viewModel.historyInstrument.value)
+        assertEquals(1, fake.count("history:Solo_Bass:"))
+        // A new player re-reads the chart.
+        settings.value = settings.value!!.copy(selectedPlayer = SelectedPlayer("b".repeat(32), "Other"))
+        advanceUntilIdle()
+        viewModel.ensureHistory(Instrument.Bass)
+        advanceUntilIdle()
+        assertEquals(1, fake.count("history:Solo_Bass:${"b".repeat(32)}"))
+    }
+
+    @Test
+    fun rankHistoryRetriesAfterFailureAndFollowsVisibleCharts() = runTest(main.dispatcher) {
+        settings.value = AppSettings(selectedPlayer = selectedPlayer, visibleInstruments = setOf(Instrument.Lead, Instrument.Bass))
+        val viewModel = LeaderboardsViewModel(fake.historyReads, settings, rankBy, { rankBy.value = it }, ServiceRetryBackoff())
+        advanceUntilIdle()
+        fake.failHistory = FestivalApiException.HttpStatus(500)
+        viewModel.ensureHistory(Instrument.Lead)
+        advanceUntilIdle()
+        assertTrue(viewModel.rankHistory(Instrument.Lead).value is LoadState.Failed)
+        // A failed read is retried on the next request rather than reused.
+        viewModel.ensureHistory(Instrument.Lead)
+        advanceUntilIdle()
+        assertNotNull(viewModel.rankHistory(Instrument.Lead).value.valueOrNull)
+        viewModel.retryHistory(Instrument.Lead)
+        advanceUntilIdle()
+        assertEquals(3, fake.count("history:Solo_Guitar:"))
+        // Hiding the shown chart moves the card to the first visible one.
+        settings.value = settings.value!!.copy(visibleInstruments = setOf(Instrument.Bass))
+        advanceUntilIdle()
+        assertEquals(Instrument.Bass, viewModel.historyInstrument.value)
+    }
+
+    @Test
+    fun rankHistoryNeedsASelectedPlayer() = runTest(main.dispatcher) {
+        val viewModel = LeaderboardsViewModel(fake.historyReads, settings, rankBy, { rankBy.value = it }, ServiceRetryBackoff())
+        advanceUntilIdle()
+        viewModel.ensureHistory(Instrument.Lead)
+        advanceUntilIdle()
+        assertEquals(0, fake.count("history:"))
+        // The default read answers an empty history without touching the service.
+        assertEquals(0, RankingsReads(fake.reads.rankings, fake.reads.bandRankings, fake.reads.playerRanking).rankHistory(Instrument.Lead, "x").history.size)
+    }
+
     // endregion
 
     // region Full rankings
@@ -356,6 +435,14 @@ class RankingsViewModelTest {
         advanceUntilIdle()
         assertTrue(viewModel.board.value is LoadState.Failed)
         assertEquals("fcrate", viewModel.displayed.value?.rankings?.rankBy)
+    }
+
+    @Test
+    fun bandBoardStartsOnTheRoutedPage() = runTest(main.dispatcher) {
+        val viewModel = BandRankingsViewModel(BandType.Trios, rankBy, fake.reads, ServiceRetryBackoff(), initialPage = 2)
+        advanceUntilIdle()
+        assertEquals(2, viewModel.page.value)
+        assertTrue(fake.calls.any { it == "bands:Band_Trios:totalscore:2:25" })
     }
 
     // endregion

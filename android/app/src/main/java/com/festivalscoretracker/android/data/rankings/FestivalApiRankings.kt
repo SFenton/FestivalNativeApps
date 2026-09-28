@@ -10,6 +10,7 @@ import com.festivalscoretracker.android.core.rankings.BandRankingsResponse
 import com.festivalscoretracker.android.core.rankings.PlayerInstrumentRanking
 import com.festivalscoretracker.android.core.rankings.PlayerInstrumentRankingEnvelope
 import com.festivalscoretracker.android.core.rankings.PlayerRankingResult
+import com.festivalscoretracker.android.core.rankings.RankHistoryResponse
 import com.festivalscoretracker.android.core.rankings.RankingMetric
 import com.festivalscoretracker.android.core.rankings.RankingPaging
 import com.festivalscoretracker.android.core.rankings.RankingsResponse
@@ -64,6 +65,20 @@ object RankingsEndpoints {
     fun bandRankings(bandType: BandType, rankBy: BandRankingMetric, page: Int, pageSize: Int): ServiceEndpoint {
         requirePaging(page, pageSize)
         return ServiceEndpoint.Feature(listOf("rankings", "bands", bandType.wireId), paging(rankBy.wireId, page, pageSize))
+    }
+
+    /**
+     * `GET /api/rankings/{instrument}/{accountId}/history?days=` (one `SELECT`,
+     * `RankingsEndpoints.cs:392`); an unranked account is an empty `history`.
+     *
+     * @param instrument Chart.
+     * @param accountId Validated account ID.
+     * @param days Lookback, 1–365.
+     * @return Endpoint.
+     */
+    fun rankHistory(instrument: Instrument, accountId: String, days: Int): ServiceEndpoint {
+        if (!ProfileSearchText.isValidAccountId(accountId) || days !in 1..365) throw FestivalApiException.InvalidResource()
+        return ServiceEndpoint.Feature(listOf("rankings", instrument.wireId, accountId, "history"), listOf("days" to days.toString()))
     }
 
     private fun paging(rankBy: String, page: Int, pageSize: Int) =
@@ -153,6 +168,20 @@ suspend fun FestivalApi.playerInstrumentRanking(instrument: Instrument, accountI
     val ranking = PlayerInstrumentRanking(entry, envelope.instrument, envelope.totalRankedAccounts)
     ranking.validate(instrument, accountId)
     return PlayerRankingResult.Ranked(ranking)
+}
+
+/**
+ * Read one account's daily rank history on an instrument (every metric per day).
+ *
+ * @param instrument Chart.
+ * @param accountId Validated account ID.
+ * @param days Lookback.
+ * @return Validated history (empty when unranked).
+ * @throws FestivalApiException for invalid input, service failures or a corrupt response.
+ */
+suspend fun FestivalApi.rankHistory(instrument: Instrument, accountId: String, days: Int): RankHistoryResponse {
+    val (body, _) = readPinned(RankingsEndpoints.rankHistory(instrument, accountId, days))
+    return decode(RankHistoryResponse.serializer(), body).also { it.validate(instrument, accountId) }
 }
 
 // endregion

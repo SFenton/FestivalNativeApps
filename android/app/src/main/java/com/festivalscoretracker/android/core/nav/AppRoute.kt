@@ -80,11 +80,11 @@ data class BandRoute(
 /** `/leaderboards` pushed rather than shown as a tab (e.g. from Compete). */
 @Serializable data object LeaderboardsRoute : AppRoute
 
-/** `/leaderboards/all?instrument=&rankBy=`. */
-@Serializable data class FullRankingsRoute(val instrument: String, val rankBy: String = "totalscore") : AppRoute
+/** `/leaderboards/all?instrument=&rankBy=` with a one-based page (rewritten in the back-stack entry as the user pages). */
+@Serializable data class FullRankingsRoute(val instrument: String, val rankBy: String = "totalscore", val page: Int = 1) : AppRoute
 
-/** `/leaderboards/bands/:bandType`. */
-@Serializable data class BandRankingsRoute(val bandType: String) : AppRoute
+/** `/leaderboards/bands/:bandType` with a one-based page (rewritten in the back-stack entry as the user pages). */
+@Serializable data class BandRankingsRoute(val bandType: String, val page: Int = 1) : AppRoute
 
 /** `/rivals` pushed from the drawer or Compete. */
 @Serializable data object RivalsRoute : AppRoute

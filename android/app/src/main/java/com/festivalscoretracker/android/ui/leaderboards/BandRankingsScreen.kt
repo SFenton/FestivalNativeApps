@@ -1,12 +1,12 @@
 package com.festivalscoretracker.android.ui.leaderboards
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,7 +36,7 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
 
 /**
  * `/leaderboards/bands/:bandType`: one band size's paginated rankings with band-size
- * and band Rank By pickers (no Max Score). Rows open Band Detail with the row's
+ * and band Rank By top-bar actions (no Max Score). Rows open Band Detail with the row's
  * `bandType`/`teamKey`, never the side-effecting `/api/bands/{bandId}` read; rows
  * containing the selected player are highlighted. No selected-band pinned row
  * (Android has no selected-band identity).
@@ -44,7 +44,7 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
  * @param viewModel Board logic.
  * @param selectedAccountId Selected player, for the membership highlight.
  */
-@OptIn(ExperimentalComposeUiApi::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun BandRankingsScreen(viewModel: BandRankingsViewModel, selectedAccountId: String?) {
     val bandType by viewModel.bandType.collectAsStateWithLifecycle()
@@ -59,7 +59,23 @@ fun BandRankingsScreen(viewModel: BandRankingsViewModel, selectedAccountId: Stri
 
     LaunchedEffect(current) { listState.scrollToItem(0) }
 
-    FestivalScreen(title = "${bandType.label} Rankings", isRoot = false, modifier = Modifier.semantics { testTagsAsResourceId = true }) { padding ->
+    FestivalScreen(
+        title = "${bandType.label} Rankings",
+        isRoot = false,
+        modifier = Modifier.semantics { testTagsAsResourceId = true },
+        actions = {
+            TopBarChoiceAction("Band Size", BandType.entries, bandType, BandType::label, viewModel::selectBandType, "fst.band-rankings.band-type-menu", icon = { BandGlyph() }, leading = { BandGlyph() })
+            TopBarChoiceAction(
+                "Rank By",
+                BandRankingMetric.entries,
+                metric,
+                BandRankingMetric::label,
+                viewModel::selectMetric,
+                "fst.band-rankings.rank-by-menu",
+                icon = { Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null) },
+            )
+        },
+    ) { padding ->
         val failed = board as? LoadState.Failed
         if (failed != null && current == null) {
             ServiceStatusView(failed.issue, "Band rankings unavailable", failed.countdown, viewModel::retry, contentPadding = padding)
@@ -71,15 +87,11 @@ fun BandRankingsScreen(viewModel: BandRankingsViewModel, selectedAccountId: Stri
             idPrefix = "fst.band-rankings",
             loadingOverlay = board is LoadState.Loading && current != null,
             controls = {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ChoicePicker("Band size", BandType.entries, bandType, BandType::label, viewModel::selectBandType, "fst.band-rankings.band-type-menu", leading = { BandGlyph() })
-                    ChoicePicker("Rank by", BandRankingMetric.entries, metric, BandRankingMetric::label, viewModel::selectMetric, "fst.band-rankings.rank-by-menu")
-                }
                 current?.let {
                     Text(
-                        RankingFormatting.population(it.rankings.totalTeams, "band"),
+                        "${RankingFormatting.population(it.rankings.totalTeams, "band")} · ${metric.label}",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = BrandTokens.textSecondary,
+                        color = BrandTokens.textPrimary,
                         modifier = Modifier.testTag("fst.band-rankings.population"),
                     )
                 }
@@ -93,7 +105,7 @@ fun BandRankingsScreen(viewModel: BandRankingsViewModel, selectedAccountId: Stri
                     Column(Modifier.padding(8.dp)) {
                         when {
                             current == null -> RankingsSkeletonRows(10)
-                            entries.isEmpty() -> Text("No ranked bands yet.", color = BrandTokens.textSecondary, modifier = Modifier.padding(8.dp))
+                            entries.isEmpty() -> Text("No ranked bands yet.", color = BrandTokens.textPrimary, modifier = Modifier.padding(8.dp))
                             else -> entries.forEach { entry ->
                                 BandRankingRow(entry, metric, entry.includes(selectedAccountId), RankingNavigation.bandRoute(entry, bandType), navigate)
                             }

@@ -80,6 +80,7 @@ import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.design.DifficultyMeter
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
+import com.festivalscoretracker.android.ui.design.StarRating
 import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.shop.ShopDetailAction
 import com.festivalscoretracker.android.ui.theme.BrandTokens
@@ -371,9 +372,10 @@ private fun PreviewRow(entry: LeaderboardEntry, isSelected: Boolean, route: AppR
  * Anonymous rows (no account) read "Unknown User".
  *
  * @param entry Wire row.
+ * @param showStars Show the star images after the score (wide rows, web `QUERY_SHOW_STARS`).
  */
 @Composable
-fun ScoreRow(entry: LeaderboardEntry) {
+fun ScoreRow(entry: LeaderboardEntry, showStars: Boolean = false) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -398,8 +400,16 @@ fun ScoreRow(entry: LeaderboardEntry) {
             color = BrandTokens.textPrimary,
             modifier = Modifier.padding(start = 10.dp),
         )
+        if (showStars) {
+            Box(Modifier.padding(start = 10.dp).width(STAR_COLUMN_DP.dp), contentAlignment = Alignment.CenterEnd) {
+                StarRating(entry.stars ?: 0, Modifier.testTag("fst.stars"), size = 20.dp)
+            }
+        }
     }
 }
+
+/** Width reserved for the stars column so scores stay aligned (web `StarSize.rowWidth`). */
+private const val STAR_COLUMN_DP = 116
 
 @Composable
 private fun AccuracyBadge(entry: LeaderboardEntry) {
