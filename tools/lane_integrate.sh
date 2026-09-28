@@ -22,7 +22,8 @@ fi
 verify() {
   local log
   log="$(mktemp)"
-  if ! (cd "$ROOT/apple" && swift build --build-tests >"$log" 2>&1); then
+  # One heavy SwiftPM build at a time across lanes (10-core Mac thrashes otherwise).
+  if ! (cd "$ROOT/apple" && /usr/bin/lockf -k "$HOME/.fst-build.lock" swift build --build-tests >"$log" 2>&1); then
     grep -E "error:" "$log" | head -30 >&2
     echo "swift build failed" >&2
     return 1
