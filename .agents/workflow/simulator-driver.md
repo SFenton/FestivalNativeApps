@@ -77,3 +77,9 @@ Two separate `flock`s, never held at once:
 - `type:` sends keys to whatever the OS considers the first responder; tap the target field first.
 - `tapXY`/coordinate taps are a last resort — prefer `tap:<identifier>` so scripts survive layout changes.
 - The XCUITest process itself only speaks the accessibility tree; anything invisible to accessibility (e.g. raw Metal/Canvas content) can't be asserted this way, only screenshotted.
+
+## Known quirks
+
+| Symptom | Resolution |
+|---|---|
+| `tap:<identifier>` doesn't reliably toggle a SwiftUI `Form` `Toggle` row (found by the Suggestions lane; `tapXY` worked around it) | Fixed in `DriverTests.swift`: `element(identifierOrLabel:)` now checks `app.switches[id]` first (a generic `.any` descendant match can resolve to a non-hittable container instead of the actual switch), and `.tap` taps a `.switch` element at its trailing-edge coordinate (`dx: 0.9`) instead of dead center, since a Form Toggle row's center can land on the label rather than the knob. No script changes needed going forward — plain `tap:<toggle-id>` now works. |

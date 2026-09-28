@@ -240,14 +240,19 @@ struct ArtworkTransitionSchedule {
     static let fade: Duration = .seconds(1)
     static let motion: Duration = .seconds(6)
 
-    /// Start no sooner than the five-second mark and never before art is ready.
+    /// Start no sooner than the dwell mark and never before art is ready.
     ///
     /// - Parameters:
     ///   - previous: Start of the preceding cover's dwell.
     ///   - ready: Time the standby image became available.
+    ///   - dwell: Interval between transitions; defaults to the real five seconds.
+    ///     Tests inject a short interval instead of waiting on wall-clock sleeps
+    ///     (see `ArtworkCarouselEngine.play(dwell:)`), so retry-pacing assertions
+    ///     stay accurate without depending on real elapsed time under host load.
     /// - Returns: The next native fade-start instant.
     static func deadline(
-        after previous: ContinuousClock.Instant, ready: ContinuousClock.Instant
+        after previous: ContinuousClock.Instant, ready: ContinuousClock.Instant,
+        dwell: Duration = Self.dwell
     ) -> ContinuousClock.Instant {
         max(previous.advanced(by: dwell), ready)
     }
@@ -294,14 +299,18 @@ final class ArtworkCarouselEngine {
         state = ArtworkBackdropState(preview: preview)
     }
 
-    /// Preload one standby cover and start fades on five-second deadlines.
+    /// Preload one standby cover and start fades on paced deadlines.
     ///
     /// - Parameters:
     ///   - paths: Already shuffled, bounded catalogue paths or one song cover.
     ///   - maxPixels: Safe off-main decode size.
     ///   - policy: Effective system/app visibility and resource policy.
+    ///   - dwell: Interval between transitions; defaults to the real five seconds.
+    ///     Test-only override so retry-pacing tests don't depend on real
+    ///     multi-second wall-clock sleeps under concurrent host load.
     func play(
-        _ paths: [String], maxPixels: Int, policy: ArtworkPlaybackPolicy
+        _ paths: [String], maxPixels: Int, policy: ArtworkPlaybackPolicy,
+        dwell: Duration = ArtworkTransitionSchedule.dwell
     ) async {
         guard !Task.isCancelled, let session else { return }
         if failurePool != paths || failureRevision != session.publicationRevision
@@ -335,7 +344,7 @@ final class ArtworkCarouselEngine {
                       failedArtwork.count < Self.maxFailuresPerPool else { return }
                 do {
                     try await clock.sleep(until: ArtworkTransitionSchedule.deadline(
-                        after: initialAttempt, ready: clock.now
+                        after: initialAttempt, ready: clock.now, dwell: dwell
                     ))
                     try Task.checkCancellation()
                 } catch is CancellationError {
@@ -377,7 +386,7 @@ final class ArtworkCarouselEngine {
                         return
                     }
                     let retryAt = ArtworkTransitionSchedule.deadline(
-                        after: lastTransition, ready: clock.now
+                        after: lastTransition, ready: clock.now, dwell: dwell
                     )
                     try await clock.sleep(until: retryAt)
                     lastTransition = retryAt
@@ -392,7 +401,7 @@ final class ArtworkCarouselEngine {
                 await Task.yield()
                 try Task.checkCancellation()
                 let deadline = ArtworkTransitionSchedule.deadline(
-                    after: lastTransition, ready: clock.now
+                    after: lastTransition, ready: clock.now, dwell: dwell
                 )
                 try await clock.sleep(until: deadline)
                 try Task.checkCancellation()
@@ -528,6 +537,7 @@ struct ArtworkBackground: View {
     let visible: Bool
     private let previewOnly: Bool
     private let saveDataOverride: Bool?
+    private let dwellOverride: Duration?
     @State private var engine: ArtworkCarouselEngine
     @State private var lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
     @AppStorage("fst.accessibility.reduceMotion") private var reduceMotion = false
@@ -548,16 +558,20 @@ struct ArtworkBackground: View {
     ///   - visible: True only for the currently selected root page.
     ///   - previewImage: Synthetic decoded image for offline hosted snapshots.
     ///   - saveDataOverride: Test-only constrained-path input.
+    ///   - dwellOverride: Test-only transition interval, replacing the real five
+    ///     seconds so retry-pacing tests observe paced deadlines deterministically
+    ///     instead of racing real wall-clock sleeps under concurrent host load.
     init(
         mode: ArtworkBackgroundMode, session: FestivalSession,
         visible: Bool = true, previewImage: CGImage? = nil,
-        saveDataOverride: Bool? = nil
+        saveDataOverride: Bool? = nil, dwellOverride: Duration? = nil
     ) {
         self.mode = mode
         self.session = session
         self.visible = visible
         self.previewOnly = previewImage != nil
         self.saveDataOverride = saveDataOverride
+        self.dwellOverride = dwellOverride
         _engine = State(initialValue: ArtworkCarouselEngine(
             session: session, preview: previewImage
         ))
@@ -608,7 +622,10 @@ struct ArtworkBackground: View {
                 maxPixels: maxPixels, revision: session.publicationRevision
             )) {
                 if !previewOnly {
-                    await engine.play(candidates, maxPixels: maxPixels, policy: presentation)
+                    await engine.play(
+                        candidates, maxPixels: maxPixels, policy: presentation,
+                        dwell: dwellOverride ?? ArtworkTransitionSchedule.dwell
+                    )
                 }
             }
         }

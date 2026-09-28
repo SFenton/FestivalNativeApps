@@ -153,9 +153,14 @@ private actor ArtworkResponseTransport: HTTPTransport {
     #expect((await transport.requestedPaths()).count == 5)
 }
 
-/// A 100-cover failure may retry after five seconds but never exhaust 100 URLs.
+/// A 100-cover failure may retry after the dwell but never exhaust 100 URLs.
+///
+/// Same injected-dwell approach as `initialArtworkFailuresRetryAfterDwellAndStopAtPoolLimit`
+/// (see its doc comment): avoids a multi-second real wall-clock wait so this stays
+/// deterministic under concurrent lane load.
 @MainActor
 @Test func firstArtworkFailureCapsRequestsBeforeShowingBrandSurface() async throws {
+    let dwell = Duration.milliseconds(150)
     let url = try #require(Bundle.module.url(forResource: "pulse", withExtension: "png"))
     let failures = Set((0..<105).map { "/covers/cover-\($0).png" })
     let transport = ArtworkResponseTransport(
@@ -169,33 +174,41 @@ private actor ArtworkResponseTransport: HTTPTransport {
     #expect(session.artworkPaths.count == 100)
     let renderStarted = ContinuousClock().now
     let renderer = ImageRenderer(content: ArtworkBackground(
-        mode: .carousel, session: session, saveDataOverride: false
+        mode: .carousel, session: session, saveDataOverride: false, dwellOverride: dwell
     ).environment(\.scenePhase, .active).frame(width: 320, height: 568))
     renderer.scale = 1
     _ = try #require(renderer.cgImage)
-    for _ in 0..<160 {
+    for _ in 0..<200 {
         if (await transport.requestedPaths()).count >= 3 { break }
-        try await Task.sleep(for: .milliseconds(50))
+        try await Task.sleep(for: .milliseconds(25))
     }
-    try await Task.sleep(for: .milliseconds(100))
+    try await Task.sleep(for: dwell + .milliseconds(100))
     let paths = await transport.requestedPaths()
     let times = await transport.requestTimes()
     #expect((3...5).contains(paths.count))
     #expect(Set(paths).count == paths.count)
     #expect(times.count == paths.count)
     if times.count > 3 {
-        #expect(renderStarted.duration(to: times[3]) >= .seconds(4.7))
+        #expect(renderStarted.duration(to: times[3]) >= dwell - .milliseconds(30))
     }
 }
 
 /// Retry timing starts with the view's first attempt, before its first artwork GET.
 ///
 /// Three failed covers cannot hide a valid fourth; five failed covers exhaust the pool.
+///
+/// Uses an injected `dwellOverride` (`ArtworkBackground.init(dwellOverride:)`) instead of
+/// the real five-second production dwell: this used to wait on real wall-clock sleeps
+/// (`Task.sleep`/`ContinuousClock.sleep(until:)` over several seconds) and was reported
+/// flaky under concurrent lane load, where CPU contention could push scheduling past the
+/// original fixed 8-second poll budget. A short injected dwell keeps the same paced-retry
+/// behavior under test while leaving 10-20x real-time margin instead of ~1.6x.
 @MainActor
 @Test(arguments: [3, 5])
 func initialArtworkFailuresRetryAfterDwellAndStopAtPoolLimit(
     failedRequests: Int
 ) async throws {
+    let dwell = Duration.milliseconds(150)
     let url = try #require(Bundle.module.url(forResource: "pulse", withExtension: "png"))
     let transport = ArtworkResponseTransport(
         data: try Data(contentsOf: url), failures: [],
@@ -208,7 +221,7 @@ func initialArtworkFailuresRetryAfterDwellAndStopAtPoolLimit(
     _ = try await session.catalog()
     let renderStarted = ContinuousClock().now
     let renderer = ImageRenderer(content: ArtworkBackground(
-        mode: .carousel, session: session, saveDataOverride: false
+        mode: .carousel, session: session, saveDataOverride: false, dwellOverride: dwell
     ).environment(\.scenePhase, .active).frame(width: 320, height: 568))
     renderer.scale = 1
     func snapshot() throws -> Data {
@@ -218,8 +231,10 @@ func initialArtworkFailuresRetryAfterDwellAndStopAtPoolLimit(
         )
     }
     let blank = try snapshot()
-    for _ in 0..<160 where (await transport.requestedPaths()).count < 3 {
-        try await Task.sleep(for: .milliseconds(50))
+    // Generous, dwell-independent wall-clock ceiling: the first three attempts have no
+    // dwell between them, so this should resolve in well under a second even on a busy host.
+    for _ in 0..<200 where (await transport.requestedPaths()).count < 3 {
+        try await Task.sleep(for: .milliseconds(25))
     }
     let initialCount = (await transport.requestedPaths()).count
     #expect(initialCount >= 3)
@@ -228,14 +243,16 @@ func initialArtworkFailuresRetryAfterDwellAndStopAtPoolLimit(
     }
 
     var visible = blank
-    for _ in 0..<160 {
+    // Poll for up to 6s (40x the injected dwell) so a slow/loaded host has ample slack
+    // without the assertion window growing relative to the paced retry itself.
+    for _ in 0..<240 {
         visible = try snapshot()
         let count = (await transport.requestedPaths()).count
         if count >= (failedRequests == 3 ? 4 : 5)
             && (failedRequests == 5 || visible != blank) {
             break
         }
-        try await Task.sleep(for: .milliseconds(50))
+        try await Task.sleep(for: .milliseconds(25))
     }
     let paths = await transport.requestedPaths()
     let times = await transport.requestTimes()
@@ -247,14 +264,17 @@ func initialArtworkFailuresRetryAfterDwellAndStopAtPoolLimit(
     #expect(Set(paths).count == paths.count)
     #expect(times.count == paths.count)
     if times.count > 3 {
-        #expect(renderStarted.duration(to: times[3]) >= .seconds(4.7))
-        #expect(times[0].duration(to: times[3]) < .seconds(8))
+        // The fourth request must not fire before roughly one dwell has elapsed
+        // (small tolerance for clock/timer rounding), but must still land comfortably
+        // inside a wide ceiling even under host contention.
+        #expect(renderStarted.duration(to: times[3]) >= dwell - .milliseconds(30))
+        #expect(times[0].duration(to: times[3]) < dwell * 20)
     }
     if failedRequests == 3 {
         #expect(visible != blank)
     } else {
         #expect(visible == blank)
-        try await Task.sleep(for: .milliseconds(5_500))
+        try await Task.sleep(for: dwell * 4)
         #expect((await transport.requestedPaths()).count == 5)
     }
 }

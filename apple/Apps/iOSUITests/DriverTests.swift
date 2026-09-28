@@ -239,7 +239,14 @@ final class DriverTests: XCTestCase {
     private static func perform(_ step: DriverStep, app: XCUIApplication) throws {
         switch step {
         case let .tap(target):
-            try element(identifierOrLabel: target, in: app).tap()
+            let candidate = try element(identifierOrLabel: target, in: app)
+            if candidate.elementType == .switch {
+                // A dead-center tap on a SwiftUI Form `Toggle` row doesn't reliably land on
+                // the switch's own hit target; its trailing edge (the knob) does.
+                candidate.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+            } else {
+                candidate.tap()
+            }
         case let .tapText(label):
             let candidate = app.descendants(matching: .any)
                 .matching(NSPredicate(format: "label == %@", label)).firstMatch
@@ -312,6 +319,11 @@ final class DriverTests: XCTestCase {
     /// - Throws: ``DriverError/elementNotFound(_:)`` if neither matches in time.
     @MainActor
     private static func element(identifierOrLabel target: String, in app: XCUIApplication) throws -> XCUIElement {
+        // Prefer the concrete `XCUIElementTypeSwitch` over a generic descendant match: a
+        // `Form` `Toggle` row's identifier can resolve to a non-hittable container node via
+        // `.any`, which silently no-ops on tap (see `.tap`'s trailing-edge-coordinate handling).
+        let bySwitch = app.switches[target]
+        if bySwitch.waitForExistence(timeout: 1) { return bySwitch }
         let byIdentifier = app.descendants(matching: .any).matching(identifier: target).firstMatch
         if byIdentifier.waitForExistence(timeout: 6) { return byIdentifier }
         let byLabel = app.descendants(matching: .any)
