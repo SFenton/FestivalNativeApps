@@ -31,6 +31,8 @@ struct BandDetailScreen: View {
     @State private var historyState: RankLoadState<BandRankHistoryResponse> = .loading
     @State private var songsState: RankLoadState<BandSongExtremesResponse> = .loading
     @State private var rankBy: BandRankingMetric = .adjusted
+    @State private var songsById: [String: Song] = [:]
+    @State private var quickLinks = QuickLinksController()
 
     /// Create the screen.
     ///
@@ -71,8 +73,10 @@ struct BandDetailScreen: View {
                     BandRankByMenu(selection: $rankBy)
                 }
             }
+            QuickLinksToolbarItem(quickLinks)
         }
         .task(id: teamKey) { await loadDetail() }
+        .task { await loadSongLookup() }
     }
 
     // MARK: Unresolvable bandId
@@ -113,6 +117,7 @@ struct BandDetailScreen: View {
                 }
                 .padding(16)
             }
+            .quickLinks(quickLinks, title: "Quick Links")
             .refreshable {
                 await loadDetail(force: true)
                 await loadHistory()
@@ -154,6 +159,7 @@ struct BandDetailScreen: View {
             }
         }
         .accessibilityIdentifier("fst.band.members-section")
+        .quickLinkSection(id: "members", title: "Members", symbol: "person.3.fill")
     }
 
     // MARK: Summary
@@ -168,6 +174,7 @@ struct BandDetailScreen: View {
             summaryRow("Coverage", RankingFormatting.percentage(detail.coverage))
         }
         .accessibilityIdentifier("fst.band.summary-section")
+        .quickLinkSection(id: "summary", title: "Summary", symbol: "list.bullet")
     }
 
     private func summaryRow(_ label: String, _ value: String) -> some View {
@@ -200,6 +207,7 @@ struct BandDetailScreen: View {
             statRow("Average Rank", "#\(detail.avgRank.formatted(.number.precision(.fractionLength(1))))")
         }
         .accessibilityIdentifier("fst.band.statistics-section")
+        .quickLinkSection(id: "statistics", title: "Statistics", symbol: "chart.bar.fill")
     }
 
     private func statRow(_ label: String, _ value: String) -> some View {
@@ -244,6 +252,7 @@ struct BandDetailScreen: View {
             }
         }
         .accessibilityIdentifier("fst.band.history-section")
+        .quickLinkSection(id: "rank-history", title: "Rank History", symbol: "trophy.fill")
         .task(id: "\(detail.teamKey)|\(rankBy.rawValue)") { await loadHistory() }
     }
 
@@ -269,6 +278,7 @@ struct BandDetailScreen: View {
             }
         }
         .accessibilityIdentifier("fst.band.songs-section")
+        .quickLinkSection(id: "songs", title: "Songs", symbol: "music.note")
         .task(id: detail.teamKey) { await loadSongs() }
     }
 
@@ -278,21 +288,55 @@ struct BandDetailScreen: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(BrandTokens.textSecondary)
             ForEach(entries) { entry in
-                HStack {
-                    Text(entry.songId)
-                        .font(.footnote.monospaced())
-                        .foregroundStyle(BrandTokens.textPrimary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Spacer(minLength: 8)
-                    Text(entry.score.formatted())
-                        .font(.footnote)
-                        .monospacedDigit()
-                        .foregroundStyle(BrandTokens.textSecondary)
-                }
-                .accessibilityIdentifier("fst.band.song-row.\(entry.songId)")
+                songRow(entry)
             }
         }
+    }
+
+    /// Cross-reference the catalog for a title/artist/album-art row that links to
+    /// `AppRoute.songDetail`; a raw `songId` (never navigable) is the defensive
+    /// fallback for a song the catalog lookup hasn't loaded or no longer has.
+    ///
+    /// - Parameter entry: One best/worst performance row.
+    @ViewBuilder
+    private func songRow(_ entry: BandSongPerformanceEntry) -> some View {
+        let row = songRowContent(entry)
+        if let song = songsById[entry.songId] {
+            NavigationLink(value: AppRoute.songDetail(song)) { row }
+        } else {
+            row
+        }
+    }
+
+    private func songRowContent(_ entry: BandSongPerformanceEntry) -> some View {
+        HStack(spacing: 10) {
+            if let song = songsById[entry.songId] {
+                ArtworkTile(raw: song.albumArt, session: session, size: 36)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(song.title)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(BrandTokens.textPrimary)
+                        .lineLimit(1)
+                    Text(song.artist)
+                        .font(.caption2)
+                        .foregroundStyle(BrandTokens.textSecondary)
+                        .lineLimit(1)
+                }
+            } else {
+                Text(entry.songId)
+                    .font(.footnote.monospaced())
+                    .foregroundStyle(BrandTokens.textPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            Spacer(minLength: 8)
+            Text(entry.score.formatted())
+                .font(.footnote)
+                .monospacedDigit()
+                .foregroundStyle(BrandTokens.textSecondary)
+        }
+        .frame(minHeight: 44)
+        .accessibilityIdentifier("fst.band.song-row.\(entry.songId)")
     }
 
     // MARK: Loading
@@ -332,5 +376,16 @@ struct BandDetailScreen: View {
         } catch {
             songsState = .failed(ServiceIssue(error))
         }
+    }
+
+    /// Build the songId → catalog lookup used to enrich Best/Worst Songs rows.
+    ///
+    /// Best-effort: a failed or not-yet-loaded catalogue leaves rows on the raw
+    /// `songId` fallback rather than blocking or erroring the rest of the page.
+    private func loadSongLookup() async {
+        guard let payload = try? await session.catalog() else { return }
+        songsById = Dictionary(
+            payload.catalog.songs.map { ($0.songId, $0) }, uniquingKeysWith: { first, _ in first }
+        )
     }
 }
