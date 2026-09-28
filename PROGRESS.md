@@ -143,8 +143,10 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 **Lane M — Settings completion, Licenses** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/settings`
 - ⬜ Every web Settings section · ⬜ Licenses
 
-**Lane X — Player history, notifications** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/extras`
-- ⬜ Player history · ⬜ Notifications sheet + bell
+**Lane X — Player history, notifications** (Sonnet) — ✅ landed `1f31d52`, `01c0aca`, `8bfc96a`
+- ✅ Player history (sort sheet, Swift Charts line) · ✅ Notifications sheet + bell (unread dot, seen state, deep links)
+  - Follow-up (Lane S): entry points to Player History from Song Detail / solo leaderboard
+  - Simplified: notification copy covers player-scoped kinds only (no band kinds / coalescing)
 
 **Lane F — First-run experiences (FREs)** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/firstrun`
 - ⬜ Core seen-state store: per-slide `{version, hash, seenAt}`; show **only unseen, gate-passing slides** (new info without replaying old)
@@ -208,3 +210,4 @@ Not yet assigned:
 | 2026-09-27 | Orchestrator | Launched Lane Q (Quick Links) per operator |
 | 2026-09-27 | Orchestrator | Unstuck simulator queue: frozen carousel for drives + drive timeout (`c3b55f3`) |
 | 2026-09-28 | Lane S | Native toolbar search/sort/filter, glass rows, instrument-icon chips, A–Z scrubber, instrument filter moved to Filter, icon intensity card, offline banners removed |
+| 2026-09-28 | Lane X | Player history + notifications (read-only endpoints verified); FirstRun types handed to Lane F |
