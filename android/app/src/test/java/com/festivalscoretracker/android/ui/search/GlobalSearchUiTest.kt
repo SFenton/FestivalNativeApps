@@ -174,7 +174,7 @@ class GlobalSearchUiTest {
         rule.onNodeWithText("Selected player · Statistics").assertIsDisplayed()
         rule.onNodeWithTag(GlobalSearchTags.RESULT_PLAYER).performClick()
         h.waitForGone(GlobalSearchTags.SURFACE)
-        rule.waitUntil(10_000) { h.settle(100); rule.onAllNodes(hasText("Statistics is coming to Android soon")).fetchSemanticsNodes().isNotEmpty() }
+        h.waitForTag("fst.statistics")
         rule.onNodeWithTag("fst.nav.tab.statistics").assertIsSelected()
     }
 

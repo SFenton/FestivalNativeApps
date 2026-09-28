@@ -177,7 +177,7 @@ class BandsUiTest {
         launch(duoRoute)
         waitForTag("fst.band.member.${Fixtures.ACCOUNT_A}")
         click("fst.band.member.${Fixtures.ACCOUNT_A}")
-        waitForTag("fst.coming-soon")
+        waitForTag("fst.player")
     }
 
     @Test
