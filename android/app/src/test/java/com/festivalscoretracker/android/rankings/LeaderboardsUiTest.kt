@@ -24,6 +24,7 @@ import com.festivalscoretracker.android.data.rankings.LeaderboardPreferences
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
+import com.festivalscoretracker.android.testing.ProfileFixtures
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.time.Duration
 import okhttp3.OkHttpClient
@@ -201,6 +202,20 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         click(first)
         rule.waitUntil(10_000) { settle(100); !exists("fst.band-rankings.list") }
         assertTrue(transport.requests.none { it.url.contains("/api/bands/") })
+    }
+
+    @Test
+    fun songLeaderboardPinsTheSelectedScoreAndJumps() {
+        transport.on("/api/player/${RankingsFixtures.SELECTED}", headers = mapOf("X-FST-Publication-Id" to "7")) {
+            ProfileFixtures.profile(RankingsFixtures.SELECTED, "Selected Player", listOf(ProfileFixtures.score("s-alpha", "01", rank = 30, total = 60)))
+        }
+        launch("songLeaderboard:s-alpha:Solo_Guitar", selected)
+        waitForTag("fst.song-leaderboard.spotlight-jump")
+        assertTrue(exists("fst.song-leaderboard.spotlight-footer"))
+        click("fst.song-leaderboard.spotlight-jump")
+        waitForDescription("Page 2 of 3")
+        rule.waitUntil(5_000) { settle(100); !exists("fst.song-leaderboard.spotlight-jump") }
+        assertTrue(exists("fst.song-leaderboard.spotlight-footer"))
     }
 
     @Test

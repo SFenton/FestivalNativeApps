@@ -4,6 +4,8 @@ import com.festivalscoretracker.android.core.bands.BandRankingMetric
 import com.festivalscoretracker.android.core.bands.BandType
 import com.festivalscoretracker.android.core.model.FestivalApiException
 import com.festivalscoretracker.android.core.model.Instrument
+import com.festivalscoretracker.android.core.model.LeaderboardEntry
+import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.BandRoute
 import com.festivalscoretracker.android.core.nav.PlayerRoute
 import com.festivalscoretracker.android.core.nav.StatisticsRoute
@@ -20,6 +22,9 @@ import com.festivalscoretracker.android.core.rankings.RankingSpotlight
 import com.festivalscoretracker.android.core.rankings.RankingSpotlightPlacement
 import com.festivalscoretracker.android.core.rankings.RankingSpotlightSource
 import com.festivalscoretracker.android.core.rankings.RankingsResponse
+import com.festivalscoretracker.android.core.rankings.SongScoreSpotlight
+import com.festivalscoretracker.android.core.profile.PlayerScore
+import com.festivalscoretracker.android.testing.ProfileFixtures
 import com.festivalscoretracker.android.core.rankings.asRankingMetric
 import com.festivalscoretracker.android.data.FestivalApi
 import java.util.Locale
@@ -225,6 +230,25 @@ class RankingsCoreTest {
         val row = band(4)
         assertEquals(BandRoute(row.bandId, null, "Band_Quad", row.teamKey), RankingNavigation.bandRoute(row, BandType.Quad))
         assertNull(RankingNavigation.bandRoute(BandRankingEntry(), BandType.Quad))
+    }
+
+    @Test
+    fun songFooterProjectsOnlySamePublicationScoresOffThePage() {
+        val player = SelectedPlayer(RankingsFixtures.SELECTED, "Me")
+        val score = FestivalApi.JSON.decodeFromString(PlayerScore.serializer(), ProfileFixtures.score("s-alpha", rank = 30, acc = 990, fc = true))
+        val other = LeaderboardEntry(accountId = RankingsFixtures.accountId(1), score = 1, rank = 1)
+        val footer = SongScoreSpotlight.footer(player, score, 7, 7, listOf(other))!!
+        assertEquals(RankingsFixtures.SELECTED, footer.accountId)
+        assertEquals("Me", footer.displayName)
+        assertEquals(30, footer.rank)
+        assertEquals(990_000.0, footer.accuracy!!, 0.0)
+        assertEquals(true, footer.isFullCombo)
+        assertNull(SongScoreSpotlight.footer(player, score, 8, 7, listOf(other)))
+        assertNull(SongScoreSpotlight.footer(player, score, null, 7, listOf(other)))
+        assertNull(SongScoreSpotlight.footer(player, score, 7, 7, listOf(other.copy(accountId = RankingsFixtures.SELECTED.uppercase()))))
+        assertNull(SongScoreSpotlight.footer(null, score, 7, 7, emptyList()))
+        assertNull(SongScoreSpotlight.footer(player, null, 7, 7, emptyList()))
+        assertEquals(0, SongScoreSpotlight.footer(player, score.copy(rank = null), 7, 7, emptyList())!!.rank)
     }
 
     @Test

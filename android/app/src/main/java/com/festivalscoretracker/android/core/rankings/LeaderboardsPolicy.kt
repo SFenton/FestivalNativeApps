@@ -1,11 +1,14 @@
 package com.festivalscoretracker.android.core.rankings
 
 import com.festivalscoretracker.android.core.bands.BandType
+import com.festivalscoretracker.android.core.model.LeaderboardEntry
 import com.festivalscoretracker.android.core.model.ProfileSearchText
+import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.nav.BandRoute
 import com.festivalscoretracker.android.core.nav.PlayerRoute
 import com.festivalscoretracker.android.core.nav.StatisticsRoute
+import com.festivalscoretracker.android.core.profile.PlayerScore
 
 // region Navigation
 
@@ -83,6 +86,49 @@ object LeaderboardsLayoutPolicy {
      */
     fun showsSupportingPane(widthDp: Int, separatingHinge: Boolean = false): Boolean =
         separatingHinge || widthDp >= SUPPORTING_PANE_MIN_DP
+}
+
+// endregion
+
+// region Song leaderboard footer
+
+/** The selected player's pinned row on a per-song solo leaderboard (web `LeaderboardPage.tsx` footer). */
+object SongScoreSpotlight {
+    /**
+     * Build the pinned footer row from the selected player's score index.
+     *
+     * Only projects a score observed under the same publication as the board
+     * (never a newer score index onto an older page, or the reverse), and only when
+     * the player's row is not already on the page.
+     *
+     * @param player Selected player, or null.
+     * @param score Their score on this song and chart, or null.
+     * @param scorePublicationId Publication the score index was observed under.
+     * @param boardPublicationId Publication the page was read under.
+     * @param visible Rows on the current page.
+     * @return Footer row, or null when nothing should be pinned.
+     */
+    fun footer(
+        player: SelectedPlayer?,
+        score: PlayerScore?,
+        scorePublicationId: Int?,
+        boardPublicationId: Int,
+        visible: List<LeaderboardEntry>,
+    ): LeaderboardEntry? {
+        if (player == null || score == null || scorePublicationId != boardPublicationId) return null
+        if (visible.any { RankingSpotlight.isSelected(player.accountId, it.accountId) }) return null
+        return LeaderboardEntry(
+            accountId = player.accountId,
+            displayName = player.displayName,
+            score = score.score,
+            rank = score.rank ?: 0,
+            accuracy = score.accuracy,
+            isFullCombo = score.isFullCombo,
+            stars = score.stars,
+            season = score.season,
+            difficulty = score.difficulty,
+        )
+    }
 }
 
 // endregion

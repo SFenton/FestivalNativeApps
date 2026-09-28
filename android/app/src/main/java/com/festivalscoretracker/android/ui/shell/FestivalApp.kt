@@ -568,7 +568,7 @@ private fun FestivalNavHost(
             val boardViewModel: SongLeaderboardViewModel = viewModel {
                 SongLeaderboardViewModel(route.songId, instrument, route.page, { api.catalog(it) }, api::leaderboard, container.backoff)
             }
-            SongLeaderboardScreen(boardViewModel, settings.selectedPlayer?.accountId)
+            SongLeaderboardScreen(boardViewModel, settings.selectedPlayer?.accountId, container.selectedProfile.state)
         }
         leaderboardsGraph(container, shellViewModel, container.leaderboardPreferences)
         composable<SettingsTab> {

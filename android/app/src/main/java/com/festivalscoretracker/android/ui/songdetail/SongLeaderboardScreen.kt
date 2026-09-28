@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,11 +31,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.core.model.LeaderboardEntry
+import com.festivalscoretracker.android.core.model.LeaderboardPaging
 import com.festivalscoretracker.android.core.nav.AppRoute
+import com.festivalscoretracker.android.core.nav.StatisticsRoute
 import com.festivalscoretracker.android.core.rankings.RankingNavigation
 import com.festivalscoretracker.android.core.rankings.RankingSpotlight
+import com.festivalscoretracker.android.core.rankings.SongScoreSpotlight
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.SongLeaderboardViewModel
+import com.festivalscoretracker.android.presentation.profile.SelectedProfileState
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
@@ -43,6 +49,7 @@ import com.festivalscoretracker.android.ui.leaderboards.RankingsBoardScaffold
 import com.festivalscoretracker.android.ui.leaderboards.RankingsPager
 import com.festivalscoretracker.android.ui.leaderboards.RankingsSkeletonRows
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import kotlinx.coroutines.flow.StateFlow
 
 // region Song leaderboard
 
@@ -50,21 +57,34 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
  * Full 25-row song leaderboard (`/songs/:songId/:instrument`) with the shared
  * rankings pager. Rows open the player's profile (Statistics for the selected
  * player, web `LeaderboardPage.tsx`); rows without a usable account ID are shown
- * but not interactive. The selected player's row is highlighted in place.
+ * but not interactive. The selected player's row is highlighted in place, or pinned
+ * above the pager from their score index (same publication only) with **Your Page**.
  *
  * @param viewModel Leaderboard logic.
  * @param selectedAccountId Selected player, or null.
+ * @param selectedProfile Selected player's process-only scores, or null.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun SongLeaderboardScreen(viewModel: SongLeaderboardViewModel, selectedAccountId: String? = null) {
+fun SongLeaderboardScreen(viewModel: SongLeaderboardViewModel, selectedAccountId: String? = null, selectedProfile: StateFlow<SelectedProfileState>? = null) {
     val song by viewModel.song.collectAsStateWithLifecycle()
     val board by viewModel.board.collectAsStateWithLifecycle()
     val page by viewModel.page.collectAsStateWithLifecycle()
     val navigate = LocalShellActions.current.navigate
     val listState = rememberLazyListState()
     val title = (song as? LoadState.Loaded)?.value?.title ?: "Leaderboard"
-    val loaded = (board as? LoadState.Loaded)?.value?.leaderboard
+    val payload = (board as? LoadState.Loaded)?.value
+    val loaded = payload?.leaderboard
+    val profile = selectedProfile?.collectAsStateWithLifecycle()?.value
+    val footer = payload?.let {
+        SongScoreSpotlight.footer(
+            player = profile?.player?.takeIf { player -> RankingSpotlight.isSelected(selectedAccountId, player.accountId) },
+            score = profile?.scoreIndex?.get(it.leaderboard.songId)?.get(viewModel.instrument),
+            scorePublicationId = profile?.observedPublicationId,
+            boardPublicationId = it.publicationId,
+            visible = it.leaderboard.entries,
+        )
+    }
 
     LaunchedEffect(page) { listState.scrollToItem(0) }
 
@@ -91,7 +111,7 @@ fun SongLeaderboardScreen(viewModel: SongLeaderboardViewModel, selectedAccountId
                     )
                 }
             },
-            footer = {},
+            footer = { footer?.let { SelectedScoreFooter(it, page, navigate, viewModel::goTo) } },
             pager = { RankingsPager(page, loaded?.pageCount() ?: page, "fst.song-leaderboard", viewModel::goTo) },
         ) {
             item(key = "rows") {
@@ -112,6 +132,30 @@ fun SongLeaderboardScreen(viewModel: SongLeaderboardViewModel, selectedAccountId
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * The selected player's pinned score row (opens Statistics) with a jump to their page.
+ *
+ * @param entry Footer row built from the score index.
+ * @param page Current page.
+ * @param navigate Push a route.
+ * @param goTo Page change.
+ */
+@Composable
+private fun SelectedScoreFooter(entry: LeaderboardEntry, page: Int, navigate: (AppRoute) -> Unit, goTo: (Int) -> Unit) {
+    val target = if (entry.rank > 0) LeaderboardPaging.pageForRank(entry.rank) else null
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().testTag("fst.song-leaderboard.spotlight-footer")) {
+        Box(Modifier.weight(1f)) {
+            SongLeaderboardRow(entry, isSelected = true, route = StatisticsRoute, onOpen = navigate)
+        }
+        if (target != null && target != page) {
+            FilledTonalButton(
+                onClick = { goTo(target) },
+                modifier = Modifier.padding(start = 8.dp).heightIn(min = 48.dp).testTag("fst.song-leaderboard.spotlight-jump"),
+            ) { Text("Your Page") }
         }
     }
 }
