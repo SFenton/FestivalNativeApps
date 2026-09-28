@@ -34,6 +34,9 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
         base.OnNavigatedTo(e);
         ViewModel = new SongBandLeaderboardViewModel(App.Session, (AppRoute.SongBandLeaderboard)e.Parameter);
         ViewModel.PropertyChanged += OnViewModelChanged;
+        ScreenReader.Attach(this, [ViewModel, ViewModel.Pager], () => ViewModel.IsLoading,
+            () => ViewModel.ShowRows ? $"{ViewModel.Title}, {ViewModel.Pager.PageAnnouncement}" : ViewModel.ShowEmpty ? ViewModel.EmptyMessage : null,
+            "Loading band leaderboard");
         Bindings.Update();
         SizeBar.SelectedItem = SizeBar.Items[ViewModel.BandTypeIndex];
         await ViewModel.LoadAsync();

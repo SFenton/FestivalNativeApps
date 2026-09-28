@@ -104,53 +104,56 @@
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="vm:RivalSectionViewModel">
-                            <Border Style="{StaticResource FSTCardStyle}" Padding="8,8,8,12">
-                                <StackPanel Spacing="4">
-                                    <Grid Padding="8,0,0,0" ColumnSpacing="10" MinHeight="40">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <controls:InstrumentIcon File="{x:Bind IconFile}" Width="28" Height="28"
-                                                                 Visibility="{x:Bind HasIcon}" AutomationProperties.AccessibilityView="Raw" />
-                                        <TextBlock Grid.Column="1" Text="{x:Bind Title}" Style="{StaticResource FSTSectionHeaderStyle}"
-                                                   Margin="0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                                                   AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="{x:Bind AutomationId}" />
-                                        <HyperlinkButton Grid.Column="2" Content="See All" Tag="{x:Bind ViewAllRoute}" Click="OnRouteClick"
-                                                         AutomationProperties.Name="{x:Bind SeeAllName}"
-                                                         AutomationProperties.AutomationId="fst.rivals.see-all" />
-                                    </Grid>
-                                    <StackPanel Visibility="{x:Bind IsLoading, Mode=OneWay}" Spacing="8" Padding="8,4">
-                                        <ProgressBar IsIndeterminate="{x:Bind IsLoading, Mode=OneWay}" AutomationProperties.Name="Loading rivals" />
-                                        <Rectangle Height="44" RadiusX="6" RadiusY="6" Fill="{ThemeResource FSTRivalTieFillBrush}" />
-                                        <Rectangle Height="44" RadiusX="6" RadiusY="6" Fill="{ThemeResource FSTRivalTieFillBrush}" />
-                                        <Rectangle Height="44" RadiusX="6" RadiusY="6" Fill="{ThemeResource FSTRivalTieFillBrush}" />
+                            <!-- Named UIA group: the same rival in several sections is not an ambiguous sibling. -->
+                            <controls:AccessibleGroup AutomationProperties.Name="{x:Bind Title}">
+                                <Border Style="{StaticResource FSTCardStyle}" Padding="8,8,8,12">
+                                    <StackPanel Spacing="4">
+                                        <Grid Padding="8,0,0,0" ColumnSpacing="10" MinHeight="40">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <controls:InstrumentIcon File="{x:Bind IconFile}" Width="28" Height="28"
+                                                                     Visibility="{x:Bind HasIcon}" AutomationProperties.AccessibilityView="Raw" />
+                                            <TextBlock Grid.Column="1" Text="{x:Bind Title}" Style="{StaticResource FSTSectionHeaderStyle}"
+                                                       Margin="0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                       AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="{x:Bind AutomationId}" />
+                                            <HyperlinkButton Grid.Column="2" Content="See All" Tag="{x:Bind ViewAllRoute}" Click="OnRouteClick"
+                                                             AutomationProperties.Name="{x:Bind SeeAllName}"
+                                                             AutomationProperties.AutomationId="fst.rivals.see-all" />
+                                        </Grid>
+                                        <StackPanel Visibility="{x:Bind IsLoading, Mode=OneWay}" Spacing="8" Padding="8,4">
+                                            <ProgressBar IsIndeterminate="{x:Bind IsLoading, Mode=OneWay}" AutomationProperties.Name="Loading rivals" />
+                                            <Rectangle Height="44" RadiusX="6" RadiusY="6" Fill="{ThemeResource FSTRivalTieFillBrush}" />
+                                            <Rectangle Height="44" RadiusX="6" RadiusY="6" Fill="{ThemeResource FSTRivalTieFillBrush}" />
+                                            <Rectangle Height="44" RadiusX="6" RadiusY="6" Fill="{ThemeResource FSTRivalTieFillBrush}" />
+                                        </StackPanel>
+                                        <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8" Padding="8,4">
+                                            <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" TextWrapping="Wrap"
+                                                       AutomationProperties.AutomationId="fst.service-status.inline" />
+                                            <TextBlock Text="{x:Bind Status.Message, Mode=OneWay}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                                            <TextBlock Text="{x:Bind Status.CountdownText, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
+                                                       AutomationProperties.Name="{x:Bind Status.CountdownAnnouncement, Mode=OneWay}" />
+                                            <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
+                                        </StackPanel>
+                                        <ItemsRepeater ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}">
+                                            <ItemsRepeater.Layout>
+                                                <StackLayout Spacing="2" />
+                                            </ItemsRepeater.Layout>
+                                            <ItemsRepeater.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:RivalRowItem">
+                                                    <Button Style="{StaticResource FSTRivalRowButtonStyle}" Tag="{x:Bind Route}" Click="OnRouteClick"
+                                                            AutomationProperties.Name="{x:Bind AccessibleName}"
+                                                            AutomationProperties.AutomationId="{x:Bind AutomationId}">
+                                                        <controls:RivalRowView Item="{x:Bind}" />
+                                                    </Button>
+                                                </DataTemplate>
+                                            </ItemsRepeater.ItemTemplate>
+                                        </ItemsRepeater>
                                     </StackPanel>
-                                    <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8" Padding="8,4">
-                                        <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" TextWrapping="Wrap"
-                                                   AutomationProperties.AutomationId="fst.service-status.inline" />
-                                        <TextBlock Text="{x:Bind Status.Message, Mode=OneWay}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
-                                        <TextBlock Text="{x:Bind Status.CountdownText, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
-                                                   AutomationProperties.Name="{x:Bind Status.CountdownAnnouncement, Mode=OneWay}" />
-                                        <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
-                                    </StackPanel>
-                                    <ItemsRepeater ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}">
-                                        <ItemsRepeater.Layout>
-                                            <StackLayout Spacing="2" />
-                                        </ItemsRepeater.Layout>
-                                        <ItemsRepeater.ItemTemplate>
-                                            <DataTemplate x:DataType="vm:RivalRowItem">
-                                                <Button Style="{StaticResource FSTRivalRowButtonStyle}" Tag="{x:Bind Route}" Click="OnRouteClick"
-                                                        AutomationProperties.Name="{x:Bind AccessibleName}"
-                                                        AutomationProperties.AutomationId="{x:Bind AutomationId}">
-                                                    <controls:RivalRowView Item="{x:Bind}" />
-                                                </Button>
-                                            </DataTemplate>
-                                        </ItemsRepeater.ItemTemplate>
-                                    </ItemsRepeater>
-                                </StackPanel>
-                            </Border>
+                                </Border>
+                            </controls:AccessibleGroup>
                         </DataTemplate>
                     </ItemsRepeater.ItemTemplate>
                 </ItemsRepeater>

@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
+using Festival.App.Services;
 
 namespace Festival.App.Pages;
 
@@ -20,6 +21,9 @@ public sealed partial class BandsPlayerBandsPage : Page
         base.OnNavigatedTo(e);
         ViewModel = new PlayerBandsViewModel(App.Session, (AppRoute.PlayerBands)e.Parameter);
         ViewModel.PropertyChanged += OnViewModelChanged;
+        ScreenReader.Attach(this, [ViewModel, ViewModel.Pager], () => ViewModel.IsLoading,
+            () => ViewModel.ShowRows ? $"{ViewModel.Title}, {ViewModel.Pager.PageAnnouncement}" : ViewModel.ShowEmpty ? ViewModel.EmptyMessage : null,
+            "Loading bands");
         Bindings.Update();
         GroupBar.SelectedItem = GroupBar.Items[ViewModel.GroupIndex];
         await ViewModel.LoadAsync();

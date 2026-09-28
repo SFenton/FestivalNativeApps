@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
+using Festival.App.Services;
 
 namespace Festival.App.Pages;
 
@@ -30,6 +31,7 @@ public sealed partial class BandsDetailPage : Page
     {
         base.OnNavigatedTo(e);
         ViewModel = new BandDetailViewModel(App.Session, (AppRoute.Band)e.Parameter);
+        ScreenReader.Attach(this, [ViewModel], () => ViewModel.IsLoading, () => ViewModel.ShowContent ? "Band details loaded" : null, "Loading band");
         Bindings.Update();
         RankBy.SelectedIndex = ViewModel.MetricIndex;
         BuildQuickLinks();

@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
+using Festival.App.Services;
 
 namespace Festival.App.Pages;
 
@@ -19,6 +20,9 @@ public sealed partial class StatisticsPage : Page
         model?.Dispose();
         model = new PlayerProfileViewModel(App.Session, accountId: null);
         Profile.Bind(model);
+        var profile = model;
+        ScreenReader.Attach(this, [profile], () => profile.IsLoading,
+            () => profile.ShowContent ? $"{profile.DisplayName}, statistics" : null, "Loading statistics");
         await model.LoadCommand.ExecuteAsync(null);
     }
 

@@ -8,7 +8,7 @@ public enum ArtworkMode
     Animated,
     /// <summary>One still cover (reduced motion / animations off).</summary>
     Static,
-    /// <summary>No art and no dim overlay (save data).</summary>
+    /// <summary>No art and no dim overlay (save data, contrast themes).</summary>
     Hidden,
     /// <summary>Keep the current frame; stop timers and animations (window minimized or hidden).</summary>
     Paused,
@@ -21,9 +21,10 @@ public enum ArtworkMode
 /// <param name="ReduceMotion">In-app reduce motion.</param>
 /// <param name="DisableAnimatedArtwork">In-app disable artwork animation.</param>
 /// <param name="SaveData">In-app data saving or a metered connection.</param>
+/// <param name="HighContrast">A Windows contrast theme is on: decorative art is hidden so content sits on the theme's window colour.</param>
 public readonly record struct ArtworkPolicyInputs(
     bool SystemAnimationsEnabled, bool WindowVisible, bool WindowOccluded,
-    bool ReduceMotion, bool DisableAnimatedArtwork, bool SaveData);
+    bool ReduceMotion, bool DisableAnimatedArtwork, bool SaveData, bool HighContrast = false);
 
 /// <summary>Combines policy inputs (artwork-background spec). Focus moving to a game does not pause.</summary>
 public static class ArtworkPlaybackPolicy
@@ -33,7 +34,7 @@ public static class ArtworkPlaybackPolicy
     /// <returns>Mode to apply.</returns>
     public static ArtworkMode Resolve(ArtworkPolicyInputs inputs)
     {
-        if (inputs.SaveData) return ArtworkMode.Hidden;
+        if (inputs.SaveData || inputs.HighContrast) return ArtworkMode.Hidden;
         if (!inputs.WindowVisible || inputs.WindowOccluded) return ArtworkMode.Paused;
         if (!inputs.SystemAnimationsEnabled || inputs.ReduceMotion || inputs.DisableAnimatedArtwork) return ArtworkMode.Static;
         return ArtworkMode.Animated;

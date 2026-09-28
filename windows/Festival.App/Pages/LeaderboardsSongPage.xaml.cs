@@ -33,6 +33,9 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
             () => new SongLeaderboardViewModel(App.Session, (AppRoute.SongLeaderboard)e.Parameter), out _);
         ViewModel.PropertyChanged += OnViewModelChanged;
         shownPage = ViewModel.Page;
+        ScreenReader.Attach(this, [ViewModel, ViewModel.Pager], () => ViewModel.IsLoading,
+            () => ViewModel.ShowRows ? $"{ViewModel.Title} leaderboard, {ViewModel.Pager.InfoAnnouncement}" : ViewModel.ShowEmpty ? $"{ViewModel.Title} leaderboard, no entries" : null,
+            "Loading leaderboard");
         Bindings.Update();
         if (ViewModel.Song is not null) _ = ShowSongAsync();
         await ViewModel.ActivateAsync();

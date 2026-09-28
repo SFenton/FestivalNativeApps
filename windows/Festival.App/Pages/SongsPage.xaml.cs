@@ -48,6 +48,8 @@ public sealed partial class SongsPage : Page
         ViewModel = new SongsViewModel(App.Session);
         InitializeComponent();
         ViewModel.PropertyChanged += OnViewModelChanged;
+        ScreenReader.Attach(this, [ViewModel], () => ViewModel.IsLoading,
+            () => ViewModel.ShowList || ViewModel.ShowEmpty ? ViewModel.CountText : null, "Loading songs");
         Loaded += (_, _) => UpdateButtonTints();
         SizeChanged += OnSizeChanged;
     }

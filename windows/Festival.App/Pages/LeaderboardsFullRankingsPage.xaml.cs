@@ -27,6 +27,9 @@ public sealed partial class LeaderboardsFullRankingsPage : Page
             () => new FullRankingsViewModel(App.Session, (AppRoute.FullRankings)e.Parameter), out var created);
         ViewModel.PropertyChanged += OnViewModelChanged;
         shownPage = ViewModel.Page;
+        ScreenReader.Attach(this, [ViewModel, ViewModel.Pager], () => ViewModel.IsLoading,
+            () => ViewModel.ShowRows ? $"{ViewModel.Title}, {ViewModel.Pager.InfoAnnouncement}" : ViewModel.ShowEmpty ? $"{ViewModel.Title}, no entries" : null,
+            "Loading rankings");
         Bindings.Update();
         if (created) await ViewModel.LoadAsync();
         else ViewModel.RefreshSelection(); // The selection may have changed on a pushed profile.

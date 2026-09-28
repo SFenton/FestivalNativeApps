@@ -62,52 +62,55 @@
                 </ItemsRepeater.Layout>
                 <ItemsRepeater.ItemTemplate>
                     <DataTemplate x:DataType="vm:RankingCardViewModel">
-                        <Border Style="{StaticResource FSTCardStyle}">
-                            <StackPanel Spacing="8">
-                                <Grid ColumnSpacing="10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <controls:InstrumentIcon File="{x:Bind IconFile}" Label="{x:Bind Title}" Width="28" Height="28"
-                                                             VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
-                                    <StackPanel Grid.Column="1">
-                                        <TextBlock Text="{x:Bind Title}" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0"
-                                                   AutomationProperties.HeadingLevel="Level2"
-                                                   AutomationProperties.AutomationId="{x:Bind AutomationId}" />
-                                        <TextBlock Text="{x:Bind Subtitle}" Style="{StaticResource CaptionTextBlockStyle}"
-                                                   Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                        <!-- Named UIA group: Narrator announces the chart; equal row names in different cards are not siblings. -->
+                        <controls:AccessibleGroup AutomationProperties.Name="{x:Bind Title}">
+                            <Border Style="{StaticResource FSTCardStyle}">
+                                <StackPanel Spacing="8">
+                                    <Grid ColumnSpacing="10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <controls:InstrumentIcon File="{x:Bind IconFile}" Label="{x:Bind Title}" Width="28" Height="28"
+                                                                 VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="{x:Bind Title}" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0"
+                                                       AutomationProperties.HeadingLevel="Level2"
+                                                       AutomationProperties.AutomationId="{x:Bind AutomationId}" />
+                                            <TextBlock Text="{x:Bind Subtitle}" Style="{StaticResource CaptionTextBlockStyle}"
+                                                       Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <controls:LeaderboardsSkeleton Visibility="{x:Bind IsLoading, Mode=OneWay}" />
+                                    <TextBlock Text="{x:Bind EmptyText}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}"
+                                               Style="{StaticResource FSTSecondaryTextStyle}" />
+                                    <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8"
+                                                AutomationProperties.AutomationId="fst.service-status.inline">
+                                        <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                        <TextBlock Text="{x:Bind Status.Message, Mode=OneWay}" TextWrapping="Wrap" />
+                                        <TextBlock Text="{x:Bind Status.CountdownText, Mode=OneWay}"
+                                                   AutomationProperties.Name="{x:Bind Status.CountdownAnnouncement, Mode=OneWay}" />
+                                        <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
                                     </StackPanel>
-                                </Grid>
-                                <controls:LeaderboardsSkeleton Visibility="{x:Bind IsLoading, Mode=OneWay}" />
-                                <TextBlock Text="{x:Bind EmptyText}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}"
-                                           Style="{StaticResource FSTSecondaryTextStyle}" />
-                                <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8"
-                                            AutomationProperties.AutomationId="fst.service-status.inline">
-                                    <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                    <TextBlock Text="{x:Bind Status.Message, Mode=OneWay}" TextWrapping="Wrap" />
-                                    <TextBlock Text="{x:Bind Status.CountdownText, Mode=OneWay}"
-                                               AutomationProperties.Name="{x:Bind Status.CountdownAnnouncement, Mode=OneWay}" />
-                                    <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
+                                    <ItemsRepeater ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}">
+                                        <ItemsRepeater.Layout>
+                                            <StackLayout Spacing="2" />
+                                        </ItemsRepeater.Layout>
+                                        <ItemsRepeater.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:RankingRowViewModel">
+                                                <controls:LeaderboardsRankingRow Row="{x:Bind}" />
+                                            </DataTemplate>
+                                        </ItemsRepeater.ItemTemplate>
+                                    </ItemsRepeater>
+                                    <controls:LeaderboardsSpotlight Spotlight="{x:Bind Spotlight}" IdPrefix="{x:Bind SpotlightAutomationId}"
+                                                                    Visibility="{x:Bind ShowRows, Mode=OneWay}" />
+                                    <HyperlinkButton Content="View All" Tag="{x:Bind}" Click="OnViewAll" HorizontalAlignment="Stretch"
+                                                     HorizontalContentAlignment="Center" Visibility="{x:Bind ShowRows, Mode=OneWay}"
+                                                     AutomationProperties.Name="{x:Bind ViewAllName}"
+                                                     AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
                                 </StackPanel>
-                                <ItemsRepeater ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}">
-                                    <ItemsRepeater.Layout>
-                                        <StackLayout Spacing="2" />
-                                    </ItemsRepeater.Layout>
-                                    <ItemsRepeater.ItemTemplate>
-                                        <DataTemplate x:DataType="vm:RankingRowViewModel">
-                                            <controls:LeaderboardsRankingRow Row="{x:Bind}" />
-                                        </DataTemplate>
-                                    </ItemsRepeater.ItemTemplate>
-                                </ItemsRepeater>
-                                <controls:LeaderboardsSpotlight Spotlight="{x:Bind Spotlight}" IdPrefix="{x:Bind SpotlightAutomationId}"
-                                                                Visibility="{x:Bind ShowRows, Mode=OneWay}" />
-                                <HyperlinkButton Content="View All" Tag="{x:Bind}" Click="OnViewAll" HorizontalAlignment="Stretch"
-                                                 HorizontalContentAlignment="Center" Visibility="{x:Bind ShowRows, Mode=OneWay}"
-                                                 AutomationProperties.Name="{x:Bind ViewAllName}"
-                                                 AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
-                            </StackPanel>
-                        </Border>
+                            </Border>
+                        </controls:AccessibleGroup>
                     </DataTemplate>
                 </ItemsRepeater.ItemTemplate>
             </ItemsRepeater>
@@ -123,50 +126,53 @@
                 </ItemsRepeater.Layout>
                 <ItemsRepeater.ItemTemplate>
                     <DataTemplate x:DataType="vm:BandRankingCardViewModel">
-                        <Border Style="{StaticResource FSTCardStyle}">
-                            <StackPanel Spacing="8">
-                                <Grid ColumnSpacing="10">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <FontIcon Glyph="&#xE716;" FontSize="22" Width="28" VerticalAlignment="Center"
-                                              Foreground="{ThemeResource FSTSecondaryTextBrush}" AutomationProperties.AccessibilityView="Raw" />
-                                    <StackPanel Grid.Column="1">
-                                        <TextBlock Text="{x:Bind Title}" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0"
-                                                   AutomationProperties.HeadingLevel="Level2"
-                                                   AutomationProperties.AutomationId="{x:Bind AutomationId}" />
-                                        <TextBlock Text="{x:Bind Subtitle}" Style="{StaticResource CaptionTextBlockStyle}"
-                                                   Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                        <!-- Named UIA group: Narrator announces the chart; equal row names in different cards are not siblings. -->
+                        <controls:AccessibleGroup AutomationProperties.Name="{x:Bind Title}">
+                            <Border Style="{StaticResource FSTCardStyle}">
+                                <StackPanel Spacing="8">
+                                    <Grid ColumnSpacing="10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <FontIcon Glyph="&#xE716;" FontSize="22" Width="28" VerticalAlignment="Center"
+                                                  Foreground="{ThemeResource FSTSecondaryTextBrush}" AutomationProperties.AccessibilityView="Raw" />
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="{x:Bind Title}" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0"
+                                                       AutomationProperties.HeadingLevel="Level2"
+                                                       AutomationProperties.AutomationId="{x:Bind AutomationId}" />
+                                            <TextBlock Text="{x:Bind Subtitle}" Style="{StaticResource CaptionTextBlockStyle}"
+                                                       Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <controls:LeaderboardsSkeleton Visibility="{x:Bind IsLoading, Mode=OneWay}" />
+                                    <TextBlock Text="{x:Bind EmptyText}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}"
+                                               Style="{StaticResource FSTSecondaryTextStyle}" />
+                                    <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8"
+                                                AutomationProperties.AutomationId="fst.service-status.inline">
+                                        <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                        <TextBlock Text="{x:Bind Status.Message, Mode=OneWay}" TextWrapping="Wrap" />
+                                        <TextBlock Text="{x:Bind Status.CountdownText, Mode=OneWay}"
+                                                   AutomationProperties.Name="{x:Bind Status.CountdownAnnouncement, Mode=OneWay}" />
+                                        <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
                                     </StackPanel>
-                                </Grid>
-                                <controls:LeaderboardsSkeleton Visibility="{x:Bind IsLoading, Mode=OneWay}" />
-                                <TextBlock Text="{x:Bind EmptyText}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}"
-                                           Style="{StaticResource FSTSecondaryTextStyle}" />
-                                <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8"
-                                            AutomationProperties.AutomationId="fst.service-status.inline">
-                                    <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                    <TextBlock Text="{x:Bind Status.Message, Mode=OneWay}" TextWrapping="Wrap" />
-                                    <TextBlock Text="{x:Bind Status.CountdownText, Mode=OneWay}"
-                                               AutomationProperties.Name="{x:Bind Status.CountdownAnnouncement, Mode=OneWay}" />
-                                    <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
+                                    <ItemsRepeater ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}">
+                                        <ItemsRepeater.Layout>
+                                            <StackLayout Spacing="2" />
+                                        </ItemsRepeater.Layout>
+                                        <ItemsRepeater.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:BandRankingRowViewModel">
+                                                <controls:LeaderboardsRankingRow Row="{x:Bind}" />
+                                            </DataTemplate>
+                                        </ItemsRepeater.ItemTemplate>
+                                    </ItemsRepeater>
+                                    <HyperlinkButton Content="View All" Tag="{x:Bind}" Click="OnViewAll" HorizontalAlignment="Stretch"
+                                                     HorizontalContentAlignment="Center" Visibility="{x:Bind ShowRows, Mode=OneWay}"
+                                                     AutomationProperties.Name="{x:Bind ViewAllName}"
+                                                     AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
                                 </StackPanel>
-                                <ItemsRepeater ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}">
-                                    <ItemsRepeater.Layout>
-                                        <StackLayout Spacing="2" />
-                                    </ItemsRepeater.Layout>
-                                    <ItemsRepeater.ItemTemplate>
-                                        <DataTemplate x:DataType="vm:BandRankingRowViewModel">
-                                            <controls:LeaderboardsRankingRow Row="{x:Bind}" />
-                                        </DataTemplate>
-                                    </ItemsRepeater.ItemTemplate>
-                                </ItemsRepeater>
-                                <HyperlinkButton Content="View All" Tag="{x:Bind}" Click="OnViewAll" HorizontalAlignment="Stretch"
-                                                 HorizontalContentAlignment="Center" Visibility="{x:Bind ShowRows, Mode=OneWay}"
-                                                 AutomationProperties.Name="{x:Bind ViewAllName}"
-                                                 AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
-                            </StackPanel>
-                        </Border>
+                            </Border>
+                        </controls:AccessibleGroup>
                     </DataTemplate>
                 </ItemsRepeater.ItemTemplate>
             </ItemsRepeater>

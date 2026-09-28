@@ -52,9 +52,11 @@ public sealed partial class MainWindow : Window
         Instance = this;
         InitializeSettingsFeatures();
         InitializeGlobalSearch();
+        InitializeAccessibility();
         Nav.Loaded += (_, _) =>
         {
             if (Nav.SettingsItem is NavigationViewItem settingsItem) Configure(settingsItem);
+            ApplySectionShortcuts();
             SelectNavItem(current);
         };
         RebuildMenu();
@@ -109,6 +111,11 @@ public sealed partial class MainWindow : Window
             Show(AppSection.Shop);
             return;
         }
+        if (route is AppRoute.Statistics && session.HasPlayer)
+        {
+            Show(AppSection.Statistics);
+            return;
+        }
         frames[current].Navigate(PageFor(route), route);
     }
 
@@ -137,6 +144,7 @@ public sealed partial class MainWindow : Window
         AppRoute.RivalDetail => typeof(RivalDetailPage),
         AppRoute.Rivalry => typeof(RivalryPage),
         AppRoute.Suggestions => typeof(SuggestionsPage),
+        AppRoute.Statistics => typeof(StatisticsPage),
         AppRoute.Search => typeof(SearchPage),
         _ => typeof(PlaceholderPage),
     };
@@ -254,6 +262,7 @@ public sealed partial class MainWindow : Window
         {
             Nav.MenuItems.Add(Configure(new NavigationViewItem { Content = section.Label(), Icon = new FontIcon { Glyph = Glyph(section) } }, section));
         }
+        ApplySectionShortcuts();
         if (!Shell.Sections.Contains(current)) Show(AppSection.Songs);
         else SelectNavItem(current);
     }
@@ -410,7 +419,8 @@ public sealed partial class MainWindow : Window
             WindowOccluded: occlusion?.IsHidden == true,
             ReduceMotion: settings.ReduceMotion || options.ReduceMotion,
             DisableAnimatedArtwork: settings.DisableAnimatedArtwork,
-            SaveData: settings.SaveData || options.NoArt));
+            SaveData: settings.SaveData || options.NoArt,
+            HighContrast: accessibilitySettings.HighContrast));
         Backdrop.ApplyMode(mode);
     }
 

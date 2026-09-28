@@ -1,3 +1,4 @@
+using Festival.App.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -20,6 +21,8 @@ public sealed partial class RivalsPage : Page
     public RivalsPage()
     {
         ViewModel = new RivalsHubViewModel(App.Session);
+        ScreenReader.Attach(this, [ViewModel], () => ViewModel.IsLoading,
+            () => ViewModel.State == RivalsHubState.Loaded ? ViewModel.Title : ViewModel.ShowEmpty ? ViewModel.EmptyTitle : null, "Loading rivals");
         InitializeComponent();
         SizeChanged += (_, e) => VisualStateManager.GoToState(this, e.NewSize.Width < NarrowWidth ? "Narrow" : "Wide", false);
         ViewModel.PropertyChanged += (_, e) =>

@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
+using Festival.App.Services;
 
 namespace Festival.App.Pages;
 
@@ -24,6 +25,8 @@ public sealed partial class AllRivalsPage : Page
     {
         base.OnNavigatedTo(e);
         ViewModel = new AllRivalsViewModel(App.Session, (AppRoute.AllRivals)e.Parameter);
+        ScreenReader.Attach(this, [ViewModel], () => ViewModel.IsLoading,
+            () => ViewModel.ShowContent ? ViewModel.Title : ViewModel.ShowEmpty ? ViewModel.EmptyTitle : null, "Loading rivals");
         Bindings.Update();
         ViewModel.Activate();
     }

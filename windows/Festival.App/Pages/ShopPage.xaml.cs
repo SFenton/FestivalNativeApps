@@ -32,6 +32,9 @@ public sealed partial class ShopPage : Page
             Root.Padding = ViewModel.IsCompact ? new Thickness(12, 8, 4, 0) : new Thickness(24, 12, 12, 0);
         };
         ViewModel.PropertyChanged += OnViewModelChanged;
+        ScreenReader.Attach(this, [ViewModel], () => ViewModel.IsLoading,
+            () => ViewModel.ShowEmpty ? "No Item Shop songs" : ViewModel.State == LoadState.Loaded ? $"Item Shop, {ViewModel.CountText}" : null,
+            "Loading Item Shop");
     }
 
     /// <summary>Page model.</summary>

@@ -27,6 +27,9 @@ public sealed partial class LeaderboardsBandRankingsPage : Page
             () => new BandRankingsViewModel(App.Session, (AppRoute.BandRankings)e.Parameter), out var created);
         ViewModel.PropertyChanged += OnViewModelChanged;
         shownPage = ViewModel.Page;
+        ScreenReader.Attach(this, [ViewModel, ViewModel.Pager], () => ViewModel.IsLoading,
+            () => ViewModel.ShowRows ? $"{ViewModel.Title}, {ViewModel.Pager.InfoAnnouncement}" : ViewModel.ShowEmpty ? ViewModel.EmptyText : null,
+            "Loading band rankings");
         Bindings.Update();
         if (created) await ViewModel.LoadAsync();
     }

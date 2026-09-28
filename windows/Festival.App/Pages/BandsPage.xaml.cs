@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
+using Festival.App.Services;
 
 namespace Festival.App.Pages;
 
@@ -21,6 +22,8 @@ public sealed partial class BandsPage : Page
     {
         base.OnNavigatedTo(e);
         ViewModel = new BandsLandingViewModel(App.Session);
+        ScreenReader.Attach(this, [ViewModel], () => ViewModel.IsLoading,
+            () => ViewModel.ShowRows ? ViewModel.YourBandsTitle : ViewModel.ShowEmpty ? "No bands yet" : null, "Loading bands");
         Bindings.Update();
         await ViewModel.LoadAsync();
     }

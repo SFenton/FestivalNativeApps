@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
+using Festival.App.Services;
 
 namespace Festival.App.Pages;
 
@@ -20,6 +21,8 @@ public sealed partial class PlayerHistoryPage : Page
         base.OnNavigatedTo(e);
         ViewModel?.Dispose();
         ViewModel = new PlayerHistoryViewModel(App.Session, (AppRoute.PlayerHistory)e.Parameter);
+        ScreenReader.Attach(this, [ViewModel], () => ViewModel.IsLoading,
+            () => ViewModel.ShowRows ? $"{ViewModel.Title} loaded" : ViewModel.ShowMessage ? ViewModel.MessageTitle : null, "Loading score history");
         Bindings.Update();
         await ViewModel.LoadCommand.ExecuteAsync(null);
     }

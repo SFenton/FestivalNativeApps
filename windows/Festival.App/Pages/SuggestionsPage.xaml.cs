@@ -18,6 +18,8 @@ public sealed partial class SuggestionsPage : Page
     public SuggestionsPage()
     {
         ViewModel = new SuggestionsViewModel(App.Session, new JsonFileSuggestionFilterStore(JsonFileSuggestionFilterStore.DefaultPath), DebugSeed());
+        ScreenReader.Attach(this, [ViewModel], () => ViewModel.ShowLoading,
+            () => ViewModel.ShowList ? "Suggestions loaded" : ViewModel.ShowEmpty ? ViewModel.EmptyMessage : null, "Loading suggestions");
         InitializeComponent();
         ViewModel.PropertyChanged += (_, e) =>
         {

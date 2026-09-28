@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
+using Festival.App.Services;
 
 namespace Festival.App.Pages;
 
@@ -25,6 +26,8 @@ public sealed partial class RivalDetailPage : Page
     {
         base.OnNavigatedTo(e);
         ViewModel = new RivalDetailViewModel(App.Session, (AppRoute.RivalDetail)e.Parameter);
+        ScreenReader.Attach(this, [ViewModel], () => ViewModel.IsLoading,
+            () => ViewModel.ShowContent ? $"{ViewModel.Title} loaded" : ViewModel.ShowEmpty ? ViewModel.EmptyTitle : null, "Loading rival");
         Bindings.Update();
         ViewModel.Activate();
     }

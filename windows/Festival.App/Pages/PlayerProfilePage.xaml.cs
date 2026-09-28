@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
+using Festival.App.Services;
 
 namespace Festival.App.Pages;
 
@@ -20,6 +21,9 @@ public sealed partial class PlayerProfilePage : Page
         var route = (AppRoute.Player)e.Parameter;
         model = new PlayerProfileViewModel(App.Session, route.AccountId, route.DisplayName);
         Profile.Bind(model);
+        var profile = model;
+        ScreenReader.Attach(this, [profile], () => profile.IsLoading,
+            () => profile.ShowContent ? $"{profile.DisplayName}, {profile.Subtitle}" : null, "Loading profile");
         await model.LoadCommand.ExecuteAsync(null);
     }
 
