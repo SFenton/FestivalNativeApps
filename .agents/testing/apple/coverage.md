@@ -6,7 +6,25 @@
 
 - Iterate: `DEVELOPER_DIR=… swift test --package-path apple --filter <names>`.
 - Gate: `bash tools/apple_coverage.sh` — runs all three SwiftPM test bundles, merges real LLVM line coverage per binary, checks `apple/Sources` for missing/nested files, requires **95% logic / 90% UX**, and runs `python3 -m tools.contrast_gate`. Re-run after compiled-source edits; targeted tests cannot certify a new source state.
-- Sole exclusion: generated `BrandTokens.swift` (no executable lines; the gate fails if that changes). Never exclude handwritten code; update classifiers as directories grow.
+- Exclusions (`contracts/coverage-rules.json`'s `swift.exclude`): generated `BrandTokens.swift`, plus `App/AppRoute.swift` and `Features/Settings/LicenseManifest.swift` — all three have **zero executable lines** (pure `enum`/`struct` declarations and array literals with no function bodies or control flow), so `llvm-cov export` omits them entirely rather than reporting 0 covered/0 executable; the gate's completeness check otherwise reports them as "missing coverage" once correctly classified. Never exclude a file that has real logic; the gate fails loudly (`executable source cannot be excluded`) if an excluded file ever gains one.
+
+### Fixed 2026-09-28 (Lane C): non-recursive glob undercounted UX by ~25,800 lines
+
+`contracts/coverage-rules.json`'s Swift `logic`/`ux` patterns and
+`apple_xccov_gate.py`'s `TARGET_SOURCES` used a single-level glob
+(`apple/Sources/FestivalUI/*.swift`), which only matches files directly
+inside that directory. Every `FestivalUI` file lives under `Features/**`,
+`App/**`, `Common/**`, `Design/**` or `Background/**`, so the UX gate
+classified **zero** of `FestivalUI`'s 103 files: it silently fell back to
+one stray `FestivalDesign` file (~101 lines) and printed a misleading 97%,
+while the `sourceRoots` completeness check separately failed with
+"unclassified production source" for the other 103 files. Fixed by
+switching every pattern to a recursive `**/*.swift` glob (`Path.glob`
+matches zero-or-more intervening directories, so top-level files are still
+found). Regression tests: `tools/tests/test_coverage_gate.py`'s
+`test_recursive_patterns_classify_nested_production_source` and
+`tools/tests/test_apple_xccov_gate.py`'s
+`test_target_source_patterns_reach_nested_feature_files`.
 
 ## iOS app target (`FestivalUI` + mobile app on device)
 
@@ -17,14 +35,54 @@
 
 ## Last measured
 
+Measured with the actual gate (`bash tools/apple_coverage.sh`), now that the
+glob fix above makes it run to completion and print real numbers instead of
+failing on "unclassified production source":
+
 | Gate | Value | Date / source |
 |---|---|---|
-| SwiftPM logic | 5666/6033 (93.92%) **fail** | 2026-09-28, master `74b032a` + hosted-harness lane |
-| SwiftPM UX, recursive (`FestivalUI/**` + `FestivalDesign`, minus `BrandTokens`) | 18275/25943 (70.44%) **fail** | same run; see Hosted UX below |
-| SwiftPM UX as the gate prints it | 98/101 (97.03%) — misleading | `coverage-rules.json` `FestivalUI/*.swift` is non-recursive, so every nested FestivalUI file is "unclassified". TODO(orchestrator): make the Swift patterns recursive |
+| SwiftPM logic (`FestivalCore`) | 5780/6033 (95.81%) **pass** | 2026-09-28, Lane C, after adding `FestivalAPIBandsTests.swift`/`FestivalAPIHistoryTests.swift`/notification-format tests |
+| SwiftPM UX (`FestivalUI` + `FestivalDesign`, minus exclusions) | 18272/25943 (70.43%) **fail** (need 90%) | same run; per-feature breakdown below |
 | iPhone UI/app union | 4092/4695 (87.16%) fail — historical | pre-Score/FC-Filter source; no current-source phone or paired measurement |
 
 CI (`.github/workflows/contracts.yml`) runs only the Python contract/contrast checks.
+
+### UX per feature (real, recursive glob), 2026-09-28
+
+`bash tools/apple_coverage.sh`'s merged LLVM export, summed by
+`apple/Sources/FestivalUI/<area>/` (and `FestivalDesign`), sorted ascending:
+
+| Area | Lines covered / total | % |
+|---|---|---|
+| Features/Bands | 0/795 | 0.00% |
+| Features/Suggestions | 90/1078 | 8.35% |
+| Features/FirstRun | 449/2932 | 15.31% |
+| Common/QuickLinks | 257/363 | 70.80% |
+| Features/SongLeaderboard | 1408/1962 | 71.76% |
+| App (+ App/Shell, App/Layout) | 1675/2235 | 74.94% |
+| Design (FestivalUI) | 309/405 | 76.30% |
+| Features/Settings | 1095/1433 | 76.41% |
+| Features/Profile | 1552/2023 | 76.72% |
+| Background | 1079/1335 | 80.82% |
+| Features/Notifications | 243/291 | 83.51% |
+| Features/Leaderboards | 1346/1564 | 86.06% |
+| Features/Statistics | 54/62 | 87.10% |
+| Features/Songs | 4022/4494 | 89.50% |
+| Features/SongDetail | 1612/1740 | 92.64% |
+| Features/Shop | 613/649 | 94.45% |
+| Features/Rivals | 1752/1844 | 95.01% |
+| Features/Compete | 253/261 | 96.93% |
+| Design (FestivalDesign) | 98/101 | 97.03% |
+| Common (excl. QuickLinks) | 365/376 | 97.07% |
+| **UX total** | **18272/25943** | **70.43%** |
+
+Biggest gaps toward 90%: Bands (no hosted/UX tests at all — Lane N landed
+the feature but no `BandsRenderTests`-style suite followed), Suggestions
+(flagged since Lane U2/G2 — hosted snapshots still needed for
+`SuggestionsScreen`/`SuggestionsFilterSheet`/`SuggestionCategoryCardView`),
+and FirstRun (`FirstRunModifier.swift`'s page-integration seam is mostly
+`#if os(...)`/live-session-only branches). These are feature-lane gaps, not
+part of this cleanup lane's file ownership.
 
 ## Hosted UX coverage vs visual evidence
 
