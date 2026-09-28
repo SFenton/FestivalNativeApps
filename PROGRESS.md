@@ -304,6 +304,9 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
   - ✅ `win-settings` (`d234d24`…`97b77bb`): all web Settings sections + Accessibility, Licenses from NuGet graph, first-run (ContentDialog, replay), notifications bell/flyout, Quick Links (menu < 1150 epx, pane ≥ 1150); 99.6% lines.
   - ✅ `win-leaderboards` (`d56f75f`…`bd71f1c`): overview + spotlight, full/band rankings w/ pinned "your rank", song leaderboard; 3-col grid wide; idle 0.03% CPU; found anonymous production ranking rows (fixed on Apple too, `2e90438`).
   - ✅ `win-bands` (`be040ba`…`8719acf`): landing, player bands, band detail (safe `?teamKey=` read only), per-song band leaderboard; 99.3% band-file coverage; fixed tooling that killed other lanes' app windows; found bare `/api/rankings/bands/{type}/{teamKey}` writes (now in service-safety; Apple never used it).
+  - ✅ `win-songs` (`549b9ea`…`5e9422e`): Songs parity, Song Detail (Shop, Paths dialog, your-score, history), Item Shop page; 829 tests; idle 0.01% CPU; `AppSettings` init→set fix.
+  - 🟨 `win-search` (`FST-win-search`): global search (title-bar AutoSuggestBox, Search page, compact button, Ctrl+E, Narrator).
+  - ⬜ Windows coverage gate: async-only Rivals/Notifications client partials report uncovered (compiler-generated exclusion) — fix in next shell/infra pass.
   - 🟨 `win-shell` (`FST-win-shell`): compact NavigationView, occlusion pause, per-lane Debug data dir, UI-automation foreground robustness, reset registry.
   - **Original Windows foundation brief:** port Copilot foundation → **C# vs C++/WinRT measured decision** → tooling → MVVM + request gate → NavigationView shell (Mica, split Leaderboards/Rivals) + composition-thread background → Songs + Song Detail live → tests
 
@@ -432,3 +435,4 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Lane W3 | Duo rail/page polish landed; orchestrator fixed last non-standard spinners (`e5c41a4`) |
 | 2026-09-28 | Windows lanes | win-bands landed; new blocked endpoint recorded (`1536971`) |
 | 2026-09-28 | Orchestrator | Operator: global search on every page/platform/layout → R-search research lane + A2 Apple scope |
+| 2026-09-28 | Orchestrator | Global search spec landed + operator decisions; win-songs landed; launched win-search; verify_product root-ID rule (`78736f3`) |
