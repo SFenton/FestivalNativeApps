@@ -109,7 +109,13 @@ struct DeviceLayout: Sendable, Equatable {
 
     /// Whether `FestivalTabPolicy` should use its regular-width section set
     /// (Leaderboards and Rivals as separate sections, like the web at ≥ 600 px).
-    var usesRegularSectionSet: Bool { widthClass == .regular }
+    ///
+    /// Only the sidebar shell (iPad/macOS) and an iPhone Duo inner display qualify
+    /// (operator, 2026-09-28): a large iPhone in landscape is regular width too, but
+    /// keeps its portrait tabs (`pose == .standard`).
+    var usesRegularSectionSet: Bool {
+        sectionChrome == .sidebar || (pose != .standard && widthClass == .regular)
+    }
 
     /// Default before the first geometry pass: an ordinary compact phone.
     static let standardPhone = DeviceLayout(

@@ -71,6 +71,92 @@ enum DrawerMenu {
     ]
 }
 
+// MARK: - Drawer placement
+
+/// Pure geometry of the floating drawer panel and its scrim for one window.
+///
+/// An ordinary phone (``DeviceLayout/Pose/standard``) keeps the original iPhone
+/// placement exactly: an 8 pt margin all round, a full-screen scrim, and content padded
+/// below the status bar and above the home indicator. iPhone Duo instead insets the
+/// panel by ``DeviceLayout/overlayInsets`` (the system vertical bar plus the camera
+/// occlusion) and keeps the scrim off the vertical bar, so the drawer never covers a
+/// leading bar or the camera in any outer rotation (`.agents/design/apple/duo.md`, B5).
+struct DrawerPlacement: Equatable {
+    /// Gap between the floating panel and the window (or reserved-region) edges.
+    static let margin: CGFloat = 8
+    /// Widest panel, in points.
+    static let maximumWidth: CGFloat = 340
+    /// Share of the available width the panel may take.
+    static let widthFraction: CGFloat = 0.84
+
+    /// Panel width.
+    let width: CGFloat
+    /// Padding from the window edges to the panel's glass shape (leading/top/bottom used).
+    let panelPadding: EdgeInsets
+    /// Content padding above the first row, inside the panel.
+    let contentTop: CGFloat
+    /// Content padding below the last row, inside the panel.
+    let contentBottom: CGFloat
+    /// Window edges the dimming scrim leaves uncovered (the system vertical bar).
+    let scrimInsets: EdgeInsets
+
+    /// Resolve the placement.
+    ///
+    /// - Parameters:
+    ///   - size: The drawer `GeometryReader`'s size, i.e. the window inside its safe area.
+    ///   - safeArea: Window safe-area insets.
+    ///   - layout: Published device layout.
+    /// - Returns: Panel and scrim geometry.
+    static func resolve(size: CGSize, safeArea: EdgeInsets, layout: DeviceLayout) -> DrawerPlacement {
+        guard layout.pose != .standard else {
+            return DrawerPlacement(
+                width: min(maximumWidth, size.width * widthFraction),
+                panelPadding: EdgeInsets(top: margin, leading: margin, bottom: margin, trailing: margin),
+                contentTop: max(16, safeArea.top - margin + 4),
+                contentBottom: max(16, safeArea.bottom),
+                scrimInsets: EdgeInsets()
+            )
+        }
+        // Never less than the drawer's own safe area, whatever the probe reported.
+        let overlay = layout.overlayInsets
+        let reserved = EdgeInsets(
+            top: max(overlay.top, safeArea.top), leading: max(overlay.leading, safeArea.leading),
+            bottom: max(overlay.bottom, safeArea.bottom), trailing: max(overlay.trailing, safeArea.trailing)
+        )
+        let windowWidth = size.width + safeArea.leading + safeArea.trailing
+        let available = max(0, windowWidth - reserved.leading - reserved.trailing)
+        var scrim = EdgeInsets()
+        if case let .verticalBar(edge) = layout.sectionChrome {
+            // The bar's safe-area inset is at least the bar's width on its edge.
+            switch edge {
+            case .leading: scrim.leading = reserved.leading
+            case .trailing: scrim.trailing = reserved.trailing
+            }
+        }
+        return DrawerPlacement(
+            width: min(maximumWidth, available * widthFraction),
+            panelPadding: EdgeInsets(
+                top: margin + reserved.top, leading: margin + reserved.leading,
+                bottom: margin + reserved.bottom, trailing: margin
+            ),
+            contentTop: 16,
+            contentBottom: 16,
+            scrimInsets: scrim
+        )
+    }
+
+    /// The panel's frame in window coordinates (leading-edge x), before any drag.
+    ///
+    /// - Parameter size: Full window size.
+    /// - Returns: Where the glass panel is drawn.
+    func panelFrame(in size: CGSize) -> CGRect {
+        CGRect(
+            x: panelPadding.leading, y: panelPadding.top, width: width,
+            height: max(0, size.height - panelPadding.top - panelPadding.bottom)
+        )
+    }
+}
+
 // MARK: - Drawer view
 
 /// Leading slide-over navigation panel on dark Liquid Glass (web hamburger `Sidebar`).
@@ -88,9 +174,8 @@ struct FestivalDrawer: View {
     @State private var dragOffset: CGFloat = 0
     @State private var deselectPending = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.deviceLayout) private var layout
 
-    /// Gap between the floating panel and the screen edges.
-    private static let margin: CGFloat = 8
     /// Roughly concentric with an iPhone's display corners at an 8 pt inset.
     private static let cornerRadius: CGFloat = 44
 
@@ -100,8 +185,10 @@ struct FestivalDrawer: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let width = min(340, geometry.size.width * 0.84)
-            let insets = geometry.safeAreaInsets
+            let placement = DrawerPlacement.resolve(
+                size: geometry.size, safeArea: geometry.safeAreaInsets, layout: layout
+            )
+            let width = placement.width
             ZStack(alignment: .leading) {
                 Color.black.opacity(0.45 * progress(width: width))
                     // Leave the content under the panel undimmed so its glass refracts
@@ -110,8 +197,8 @@ struct FestivalDrawer: View {
                         Rectangle().overlay(alignment: .leading) {
                             RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
                                 .frame(width: width)
-                                .padding(Self.margin)
-                                .offset(x: min(0, dragOffset))
+                                .padding(placement.panelPadding)
+                                .offset(x: min(0, dragOffset) - placement.scrimInsets.leading)
                                 .blendMode(.destinationOut)
                         }
                         .compositingGroup()
@@ -119,7 +206,9 @@ struct FestivalDrawer: View {
                     .contentShape(Rectangle())
                     .onTapGesture(perform: onClose)
                     .accessibilityHidden(true)
-                panel(topInset: insets.top, bottomInset: insets.bottom)
+                    // Never dim or intercept taps on the system vertical bar (iPhone Duo).
+                    .padding(placement.scrimInsets)
+                panel(topInset: placement.contentTop, bottomInset: placement.contentBottom)
                     .frame(width: width)
                     .frame(maxHeight: .infinity)
                     .modifier(FestivalGlassModifier(
@@ -128,7 +217,7 @@ struct FestivalDrawer: View {
                         interactive: false
                     ))
                     .shadow(color: .black.opacity(0.3), radius: 20, x: 4)
-                    .padding(Self.margin)
+                    .padding(placement.panelPadding)
                     .offset(x: min(0, dragOffset))
                     .gesture(dismissDrag(width: width))
                     .accessibilityAddTraits(.isModal)
@@ -173,8 +262,8 @@ struct FestivalDrawer: View {
     /// Scrollable drawer body, padded clear of the status bar and home indicator.
     ///
     /// - Parameters:
-    ///   - topInset: Top safe-area inset of the full-screen host.
-    ///   - bottomInset: Bottom safe-area inset of the full-screen host.
+    ///   - topInset: Content padding above the first row (``DrawerPlacement/contentTop``).
+    ///   - bottomInset: Content padding below the last row (``DrawerPlacement/contentBottom``).
     /// - Returns: The drawer contents.
     private func panel(topInset: CGFloat, bottomInset: CGFloat) -> some View {
         ScrollView {
@@ -187,8 +276,8 @@ struct FestivalDrawer: View {
                 group("More", items: DrawerMenu.more)
             }
             .padding(.horizontal, 12)
-            .padding(.top, max(16, topInset - Self.margin + 4))
-            .padding(.bottom, max(16, bottomInset))
+            .padding(.top, topInset)
+            .padding(.bottom, bottomInset)
         }
         .scrollBounceBehavior(.basedOnSize)
         .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous))

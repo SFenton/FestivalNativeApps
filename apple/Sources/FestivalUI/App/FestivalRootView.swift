@@ -63,11 +63,12 @@ public struct FestivalRootView: View {
             debugSelectedPlayer: debugSelectedPlayer
         )
         _session = State(initialValue: session)
-        // A deep link or restored tab may name a section the stored profile hides.
-        let visible = FestivalTabPolicy.sections(
-            profile: session.selectedPlayer == nil ? .none : .player,
-            regularWidth: !Self.isCompactPhone
-        )
+        // A deep link or restored tab may name a section the stored profile hides. The
+        // first geometry pass has not published a layout yet; `shell(_:)`'s
+        // `onChange(of: sections)` re-resolves once it has (e.g. Duo unfolded).
+        let visible = ShellPresentation.resolve(
+            layout: .standardPhone, usesSidebarShell: !Self.isCompactPhone
+        ).sections(profile: session.selectedPlayer == nil ? .none : .player)
         let resolved = FestivalTabPolicy.resolve(initialSection, in: visible)
         _selected = State(initialValue: resolved)
         if let initialRoute { _paths = State(initialValue: [resolved: [initialRoute]]) }
@@ -122,23 +123,28 @@ public struct FestivalRootView: View {
     }
 
     /// Use system split navigation on iPad/macOS and adaptive tabs on iPhone.
+    ///
+    /// `FestivalShellContent` sits inside `publishesDeviceLayout` so the shell can pick its
+    /// section set from the published ``DeviceLayout`` (see ``ShellPresentation``).
     public var body: some View {
-        ZStack {
-            FestivalBackgroundHost(session: session)
-                .ignoresSafeArea()
-            shell
-            if drawerPresented && usesDrawer {
-                FestivalDrawer(
-                    session: session, visibleSections: visibleSections, hideShop: hideShop,
-                    onIntent: handleDrawer, onClose: closeDrawer
-                )
-                .transition(reduceMotion || systemReduceMotion
-                    ? .opacity : .move(edge: .leading).combined(with: .opacity))
-                .zIndex(1)
+        FestivalShellContent(usesSidebarShell: !usesDrawer) { presentation in
+            ZStack {
+                FestivalBackgroundHost(session: session)
+                    .ignoresSafeArea()
+                shell(presentation)
+                if drawerPresented && usesDrawer {
+                    FestivalDrawer(
+                        session: session, visibleSections: sections(for: presentation),
+                        hideShop: hideShop, onIntent: handleDrawer, onClose: closeDrawer
+                    )
+                    .transition(reduceMotion || systemReduceMotion
+                        ? .opacity : .move(edge: .leading).combined(with: .opacity))
+                    .zIndex(1)
+                }
             }
+            .tint(moreContrast || systemContrast == .increased
+                ? BrandTokens.textPrimary : BrandTokens.accentBlue)
         }
-        .tint(moreContrast || systemContrast == .increased
-            ? BrandTokens.textPrimary : BrandTokens.accentBlue)
         .publishesDeviceLayout(usesSidebarShell: !usesDrawer)
     }
 
@@ -162,28 +168,35 @@ public struct FestivalRootView: View {
     }
 
     /// Root sections currently visible (web `BottomNav` rules).
-    private var visibleSections: [FestivalSection] {
-        FestivalTabPolicy.sections(profile: profileKind, regularWidth: !usesDrawer)
+    ///
+    /// - Parameter presentation: Presentation resolved for the current window.
+    /// - Returns: Ordered sections for the selected profile.
+    private func sections(for presentation: ShellPresentation) -> [FestivalSection] {
+        presentation.sections(profile: profileKind)
     }
 
     /// Platform navigation (tabs on iPhone, split view on iPad/macOS).
-    private var shell: some View {
-        Group {
+    ///
+    /// - Parameter presentation: Presentation resolved for the current window.
+    /// - Returns: The shell with its sheets and invalidation handlers.
+    private func shell(_ presentation: ShellPresentation) -> some View {
+        let visibleSections = sections(for: presentation)
+        return Group {
             #if os(macOS)
             NavigationSplitView {
-                sidebar
+                sidebar(visibleSections)
             } detail: {
                 content(for: selected)
             }
             #else
-            if !usesDrawer {
+            if presentation.navigation == .sidebar {
                 NavigationSplitView {
-                    sidebar
+                    sidebar(visibleSections)
                 } detail: {
                     content(for: selected)
                 }
             } else {
-                tabs
+                tabs(visibleSections)
             }
             #endif
         }
@@ -244,8 +257,12 @@ public struct FestivalRootView: View {
     }
 
     /// Compact iPhone tabs: the iOS 18+ `Tab` API (Liquid Glass tab bar on 26),
-    /// classic `.tabItem` on iOS 17.
-    @ViewBuilder private var tabs: some View {
+    /// classic `.tabItem` on iOS 17. On iPhone Duo the system moves the same tab bar into
+    /// the vertical bar; nothing here is Duo-specific.
+    ///
+    /// - Parameter visibleSections: Sections to show as tabs.
+    /// - Returns: The tab view.
+    @ViewBuilder private func tabs(_ visibleSections: [FestivalSection]) -> some View {
         if #available(iOS 18.0, macOS 15.0, *) {
             TabView(selection: tabSelection) {
                 ForEach(visibleSections) { section in
@@ -352,7 +369,10 @@ public struct FestivalRootView: View {
     // MARK: - Wide-layout sidebar
 
     /// Keep visible root destinations as a native, Dynamic Type-aware sidebar.
-    private var sidebar: some View {
+    ///
+    /// - Parameter visibleSections: Sections to list.
+    /// - Returns: The sidebar column.
+    private func sidebar(_ visibleSections: [FestivalSection]) -> some View {
         Group {
             #if os(macOS)
             List(selection: Binding<FestivalSection?>(

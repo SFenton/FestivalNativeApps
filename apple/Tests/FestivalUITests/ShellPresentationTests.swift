@@ -1,0 +1,199 @@
+import CoreGraphics
+import SwiftUI
+import Testing
+@testable import FestivalUI
+
+// MARK: - Layout fixtures
+
+/// Representative layouts (points) for the shell policy. Geometry mirrors
+/// `DeviceLayoutTests`; the insets are illustrative, not asserted device truth.
+private enum Layouts {
+    static let iPhonePortrait = DeviceLayout.resolve(LayoutSignals(
+        size: CGSize(width: 402, height: 874), widthClass: .compact,
+        safeAreaInsets: EdgeInsets(top: 62, leading: 0, bottom: 34, trailing: 0)
+    ))
+    /// A large iPhone in landscape reports regular width but has no hinge or vertical bar.
+    static let largeIPhoneLandscape = DeviceLayout.resolve(LayoutSignals(
+        size: CGSize(width: 956, height: 440), widthClass: .regular,
+        safeAreaInsets: EdgeInsets(top: 0, leading: 62, bottom: 21, trailing: 62)
+    ))
+    static let duoFoldedPortrait = DeviceLayout.resolve(LayoutSignals(
+        size: CGSize(width: 466, height: 678), widthClass: .compact,
+        safeAreaInsets: EdgeInsets(top: 0, leading: 0, bottom: 34, trailing: 84),
+        verticalBarEdge: .trailing, hinge: .closed,
+        occlusions: [CGRect(x: 404, y: 8, width: 44, height: 36)]
+    ))
+    /// Upside down: bar and camera on the leading edge, camera bottom-left.
+    static let duoFoldedUpsideDown = DeviceLayout.resolve(LayoutSignals(
+        size: CGSize(width: 466, height: 678), widthClass: .compact,
+        safeAreaInsets: EdgeInsets(top: 34, leading: 84, bottom: 0, trailing: 0),
+        verticalBarEdge: .leading, hinge: .closed,
+        occlusions: [CGRect(x: 18, y: 634, width: 44, height: 36)]
+    ))
+    /// Landscape with the camera top-left: bar leading.
+    static let duoFoldedLandscapeLeading = DeviceLayout.resolve(LayoutSignals(
+        size: CGSize(width: 678, height: 466), widthClass: .compact,
+        safeAreaInsets: EdgeInsets(top: 0, leading: 84, bottom: 21, trailing: 0),
+        verticalBarEdge: .leading, hinge: .closed,
+        occlusions: [CGRect(x: 8, y: 18, width: 36, height: 44)]
+    ))
+    /// Landscape with the camera bottom-right: bar trailing.
+    static let duoFoldedLandscapeTrailing = DeviceLayout.resolve(LayoutSignals(
+        size: CGSize(width: 678, height: 466), widthClass: .compact,
+        safeAreaInsets: EdgeInsets(top: 0, leading: 0, bottom: 21, trailing: 84),
+        verticalBarEdge: .trailing, hinge: .closed,
+        occlusions: [CGRect(x: 634, y: 404, width: 36, height: 44)]
+    ))
+    static let duoUnfolded = DeviceLayout.resolve(LayoutSignals(
+        size: CGSize(width: 951, height: 669), widthClass: .regular,
+        safeAreaInsets: EdgeInsets(top: 0, leading: 0, bottom: 20, trailing: 84),
+        verticalBarEdge: .trailing, hinge: .fullyOpen
+    ))
+    static let duoPartiallyFolded = DeviceLayout.resolve(LayoutSignals(
+        size: CGSize(width: 951, height: 669), widthClass: .regular,
+        verticalBarEdge: .trailing, hinge: .partiallyOpen,
+        divisions: [CGRect(x: 455, y: 0, width: 41, height: 669)]
+    ))
+    static let duoUnfoldedPortrait = DeviceLayout.resolve(LayoutSignals(
+        size: CGSize(width: 669, height: 951), widthClass: .regular, hinge: .fullyOpen
+    ))
+
+    /// Every folded outer rotation.
+    static let foldedRotations = [
+        duoFoldedPortrait, duoFoldedUpsideDown, duoFoldedLandscapeLeading, duoFoldedLandscapeTrailing,
+    ]
+}
+
+// MARK: - Section set and navigation
+
+/// iPhone portrait keeps today's tabs and the drawer.
+@Test func iPhoneKeepsCompactTabs() {
+    let presentation = ShellPresentation.resolve(layout: Layouts.iPhonePortrait, usesSidebarShell: false)
+    #expect(presentation == ShellPresentation(navigation: .tabs, usesRegularSectionSet: false))
+    #expect(presentation.usesDrawer)
+    #expect(presentation.sections(profile: .player)
+        == [.songs, .suggestions, .compete, .statistics, .settings])
+}
+
+/// Operator 2026-09-28: large iPhones in landscape keep their portrait tabs.
+@Test func largeIPhoneLandscapeKeepsPortraitTabs() {
+    #expect(!Layouts.largeIPhoneLandscape.usesRegularSectionSet)
+    let presentation = ShellPresentation.resolve(
+        layout: Layouts.largeIPhoneLandscape, usesSidebarShell: false
+    )
+    #expect(presentation.sections(profile: .player)
+        == [.songs, .suggestions, .compete, .statistics, .settings])
+}
+
+/// The folded Duo is compact in every rotation: Compete, tabs, drawer.
+@Test(arguments: Layouts.foldedRotations)
+func duoFoldedKeepsCompactTabs(layout: DeviceLayout) {
+    let presentation = ShellPresentation.resolve(layout: layout, usesSidebarShell: false)
+    #expect(presentation == ShellPresentation(navigation: .tabs, usesRegularSectionSet: false))
+}
+
+/// The Duo inner display (flat, partially folded, or portrait) splits Compete into
+/// Leaderboards and Rivals while keeping the tab shell for continuity with folded.
+@Test(arguments: [Layouts.duoUnfolded, Layouts.duoPartiallyFolded, Layouts.duoUnfoldedPortrait])
+func duoInnerDisplayUsesRegularSections(layout: DeviceLayout) {
+    let presentation = ShellPresentation.resolve(layout: layout, usesSidebarShell: false)
+    #expect(presentation.navigation == .tabs)
+    #expect(presentation.usesDrawer)
+    #expect(presentation.sections(profile: .player)
+        == [.songs, .suggestions, .leaderboards, .rivals, .statistics, .settings])
+    #expect(presentation.sections(profile: .none) == [.songs, .leaderboards, .settings])
+}
+
+/// iPad/macOS: the sidebar shell always uses the regular set, even before the first
+/// geometry pass publishes a layout (the default is `.standardPhone`).
+@Test(arguments: [DeviceLayout.standardPhone, Layouts.largeIPhoneLandscape])
+func sidebarShellUsesRegularSections(layout: DeviceLayout) {
+    let presentation = ShellPresentation.resolve(layout: layout, usesSidebarShell: true)
+    #expect(presentation == ShellPresentation(navigation: .sidebar, usesRegularSectionSet: true))
+    #expect(!presentation.usesDrawer)
+}
+
+/// Folding and unfolding swap Compete and Leaderboards in place (same slot).
+@Test func foldTransitionKeepsEquivalentSection() {
+    let folded = ShellPresentation.resolve(layout: Layouts.duoFoldedPortrait, usesSidebarShell: false)
+        .sections(profile: .player)
+    let unfolded = ShellPresentation.resolve(layout: Layouts.duoUnfolded, usesSidebarShell: false)
+        .sections(profile: .player)
+    #expect(FestivalTabPolicy.resolve(.compete, in: unfolded) == .leaderboards)
+    #expect(FestivalTabPolicy.resolve(.leaderboards, in: folded) == .compete)
+    #expect(FestivalTabPolicy.resolve(.rivals, in: folded) == .compete)
+}
+
+/// The drawer stops listing Leaderboards and Rivals once they are tabs.
+@Test func unfoldedDrawerDropsSplitTabs() {
+    let visible = ShellPresentation.resolve(layout: Layouts.duoUnfolded, usesSidebarShell: false)
+        .sections(profile: .player)
+    let ids = DrawerMenu.browse(profile: .player, visibleSections: visible, hideShop: false).map(\.id)
+    #expect(ids == ["bands", "shop"])
+}
+
+// MARK: - Drawer placement
+
+/// Ordinary iPhones keep the original drawer geometry exactly (pixel-identical).
+@Test func iPhoneDrawerPlacementUnchanged() {
+    let safeArea = EdgeInsets(top: 62, leading: 0, bottom: 34, trailing: 0)
+    let size = CGSize(width: 402, height: 874 - 62 - 34)
+    let placement = DrawerPlacement.resolve(size: size, safeArea: safeArea, layout: Layouts.iPhonePortrait)
+    #expect(placement.width == min(340, 402 * 0.84))
+    #expect(placement.panelPadding == EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
+    #expect(placement.contentTop == CGFloat(62 - 8 + 4))
+    #expect(placement.contentBottom == CGFloat(34))
+    #expect(placement.scrimInsets == EdgeInsets())
+}
+
+/// In every folded rotation the panel stays clear of the vertical bar and the camera,
+/// and the scrim leaves the vertical bar uncovered.
+@Test(arguments: Layouts.foldedRotations)
+func duoDrawerAvoidsBarAndCamera(layout: DeviceLayout) {
+    let window = layout.orientation == .portrait
+        ? CGSize(width: 466, height: 678) : CGSize(width: 678, height: 466)
+    let safeArea = layout.overlayInsets
+    let inner = CGSize(
+        width: window.width - safeArea.leading - safeArea.trailing,
+        height: window.height - safeArea.top - safeArea.bottom
+    )
+    let placement = DrawerPlacement.resolve(size: inner, safeArea: safeArea, layout: layout)
+    let panel = placement.panelFrame(in: window)
+    let bounds = CGRect(origin: .zero, size: window)
+    let reserved = layout.overlayInsets
+    let usable = CGRect(
+        x: reserved.leading, y: reserved.top,
+        width: window.width - reserved.leading - reserved.trailing,
+        height: window.height - reserved.top - reserved.bottom
+    )
+    #expect(usable.contains(panel), "panel \(panel) leaves the reserved-free area \(usable)")
+    #expect(panel.width > 200)
+    guard case let .verticalBar(edge) = layout.sectionChrome else {
+        Issue.record("folded layouts have a vertical bar")
+        return
+    }
+    let bar = edge == .leading
+        ? CGRect(x: 0, y: 0, width: reserved.leading, height: window.height)
+        : CGRect(x: window.width - reserved.trailing, y: 0, width: reserved.trailing, height: window.height)
+    #expect(!panel.intersects(bar))
+    let scrim = CGRect(
+        x: placement.scrimInsets.leading, y: 0,
+        width: window.width - placement.scrimInsets.leading - placement.scrimInsets.trailing,
+        height: window.height
+    )
+    #expect(scrim.intersection(bar).width == 0, "scrim \(scrim) covers the bar \(bar)")
+    #expect(bounds.contains(panel))
+}
+
+// MARK: - Root profile item
+
+/// Vertical bars need a titled symbol; horizontal bars keep the monogram (B1).
+@Test func profileItemPresentationPerChrome() {
+    typealias Presentation = RootProfileButton.Presentation
+    #expect(Presentation.resolve(displayName: nil, chrome: .verticalBar(.trailing)) == .choose)
+    #expect(Presentation.resolve(displayName: nil, chrome: .tabBar) == .choose)
+    #expect(Presentation.resolve(displayName: "Fixture", chrome: .tabBar) == .monogram("Fixture"))
+    #expect(Presentation.resolve(displayName: "Fixture", chrome: .sidebar) == .monogram("Fixture"))
+    #expect(Presentation.resolve(displayName: "Fixture", chrome: .verticalBar(.leading))
+        == .symbol(title: "Profile: Fixture"))
+}

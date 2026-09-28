@@ -91,6 +91,10 @@ struct FestivalRootChrome: ViewModifier {
 ///
 /// Pages with their own trailing actions list this **last** inside their `.toolbar`
 /// and apply `.festivalProvidesRootTrailingItems()`, so the avatar stays rightmost.
+///
+/// In the iPhone Duo vertical bar both items stay symbol items (see ``RootProfileButton``)
+/// and the bell carries `visibilityPriority(.high)` (iOS 27+) so it is the last page item
+/// to overflow into the system `…` menu: it carries the unread badge.
 struct FestivalRootTrailingItems: ToolbarContent {
     let session: FestivalSession
     var showsNotifications: Bool = true
@@ -102,7 +106,12 @@ struct FestivalRootTrailingItems: ToolbarContent {
             ToolbarSpacer(.fixed, placement: .topBarTrailing)
         }
         if showsNotifications {
-            ToolbarItem(placement: .topBarTrailing) { NotificationsButton(session: session) }
+            if #available(iOS 27.0, *) {
+                ToolbarItem(placement: .topBarTrailing) { NotificationsButton(session: session) }
+                    .visibilityPriority(.high)
+            } else {
+                ToolbarItem(placement: .topBarTrailing) { NotificationsButton(session: session) }
+            }
         }
         ToolbarItem(placement: .topBarTrailing) {
             RootProfileButton(session: session) { openProfile() }
@@ -186,16 +195,49 @@ struct NotificationsButton: View {
 }
 
 /// Top-right profile action: the selected player's initial, or an add-profile glyph.
+///
+/// In a system vertical bar (iPhone Duo) the selected player shows as the symbol
+/// `person.crop.circle.fill` titled "Profile: <name>" instead of the monogram: a
+/// custom-view item cannot go vertical, so the system would keep a horizontal top bar
+/// just for it (`.agents/design/apple/duo.md`, B1). Horizontal bars keep the monogram.
 struct RootProfileButton: View {
     let session: FestivalSession
     let action: () -> Void
+    @Environment(\.deviceLayout) private var layout
+
+    /// How the profile action is drawn for a player and section chrome.
+    enum Presentation: Equatable {
+        /// Add-profile symbol (no selection).
+        case choose
+        /// Monogram avatar (horizontal bars).
+        case monogram(String)
+        /// Titled symbol item (system vertical bar).
+        case symbol(title: String)
+
+        /// Resolve the presentation.
+        ///
+        /// - Parameters:
+        ///   - displayName: Selected player's name, or nil when anonymous.
+        ///   - chrome: Current section chrome.
+        /// - Returns: The presentation.
+        static func resolve(displayName: String?, chrome: DeviceLayout.SectionChrome) -> Presentation {
+            guard let displayName else { return .choose }
+            if case .verticalBar = chrome { return .symbol(title: "Profile: \(displayName)") }
+            return .monogram(displayName)
+        }
+    }
 
     var body: some View {
         Button(action: action) {
-            if let player = session.selectedPlayer {
-                ProfileAvatar(name: player.displayName, size: 30)
-            } else {
+            switch Presentation.resolve(
+                displayName: session.selectedPlayer?.displayName, chrome: layout.sectionChrome
+            ) {
+            case .choose:
                 Label("Choose Profile", systemImage: "person.crop.circle")
+            case let .monogram(name):
+                ProfileAvatar(name: name, size: 30)
+            case let .symbol(title):
+                Label(title, systemImage: "person.crop.circle.fill")
             }
         }
         .tint(BrandTokens.textPrimary)
