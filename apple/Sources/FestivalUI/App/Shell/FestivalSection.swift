@@ -78,20 +78,64 @@ enum FestivalTabPolicy {
     /// Keep the user on an equivalent section when the visible set changes.
     ///
     /// Compete and Leaderboards occupy the same slot (web `activeKeys`), so selecting or
-    /// deselecting a player swaps between them instead of bouncing to Songs.
+    /// deselecting a player swaps between them instead of bouncing away. A section with no
+    /// equivalent falls back to the nearest visible section before it in tab order
+    /// (Statistics → Leaderboards, Suggestions → Songs), else the first visible section.
     ///
     /// - Parameters:
     ///   - current: Section selected before the change.
     ///   - visible: Newly visible sections.
-    /// - Returns: `current` when still visible, its slot equivalent, or Songs.
+    /// - Returns: `current` when still visible, its slot equivalent, or the nearest section.
     static func resolve(_ current: FestivalSection, in visible: [FestivalSection]) -> FestivalSection {
         if visible.contains(current) { return current }
-        let equivalent: FestivalSection? = switch current {
+        if let equivalent = slotEquivalent(of: current, in: visible) { return equivalent }
+        let order = FestivalSection.allCases
+        let index = order.firstIndex(of: current) ?? 0
+        return order[..<index].reversed().first(where: visible.contains) ?? visible.first ?? .songs
+    }
+
+    /// The section occupying the same tab slot, if visible.
+    ///
+    /// - Parameters:
+    ///   - current: Section that disappeared.
+    ///   - visible: Newly visible sections.
+    /// - Returns: Leaderboards for Compete; Compete for Leaderboards or Rivals; else nil.
+    private static func slotEquivalent(
+        of current: FestivalSection, in visible: [FestivalSection]
+    ) -> FestivalSection? {
+        switch current {
         case .compete: visible.contains(.leaderboards) ? .leaderboards : nil
         case .leaderboards, .rivals: visible.contains(.compete) ? .compete : nil
         default: nil
         }
-        return equivalent ?? .songs
+    }
+
+    /// Adapt the selected section and per-section paths to a new visible section set.
+    ///
+    /// Selecting or deselecting a profile never navigates away by itself (operator,
+    /// 2026-09-28): every path is kept. Only when the selected section disappears does
+    /// the selection move (``resolve(_:in:)``); a slot swap (Leaderboards ↔ Compete,
+    /// Rivals → Compete) carries the nested path along, so a user who selects a player
+    /// from Leaderboards › Player stays on that player's page under Compete.
+    ///
+    /// - Parameters:
+    ///   - selected: Section selected before the change.
+    ///   - paths: Per-section navigation paths.
+    ///   - visible: Newly visible sections.
+    /// - Returns: The new selection and paths.
+    static func adapt(
+        selected: FestivalSection, paths: [FestivalSection: [AppRoute]], to visible: [FestivalSection]
+    ) -> (selected: FestivalSection, paths: [FestivalSection: [AppRoute]]) {
+        guard !visible.contains(selected) else { return (selected, paths) }
+        var paths = paths
+        if let equivalent = slotEquivalent(of: selected, in: visible) {
+            if let carried = paths[selected], !carried.isEmpty {
+                paths[equivalent] = carried
+                paths[selected] = []
+            }
+            return (equivalent, paths)
+        }
+        return (resolve(selected, in: visible), paths)
     }
 
     /// Whether leaving this section should discard its nested route history.

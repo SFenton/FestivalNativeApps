@@ -30,17 +30,81 @@ func bandSections(regularWidth: Bool) {
         == [.songs, .suggestions, .leaderboards, .statistics, .settings])
 }
 
-/// Compete and Leaderboards share a slot; hidden profile tabs fall back to Songs.
+/// Compete and Leaderboards share a slot; other hidden tabs fall back to the nearest
+/// visible tab before them.
 @Test func resolveKeepsEquivalentSlot() {
     let anonymous = FestivalTabPolicy.sections(profile: .none, regularWidth: false)
     let player = FestivalTabPolicy.sections(profile: .player, regularWidth: false)
     #expect(FestivalTabPolicy.resolve(.compete, in: anonymous) == .leaderboards)
     #expect(FestivalTabPolicy.resolve(.leaderboards, in: player) == .compete)
     #expect(FestivalTabPolicy.resolve(.rivals, in: player) == .compete)
-    #expect(FestivalTabPolicy.resolve(.statistics, in: anonymous) == .songs)
+    #expect(FestivalTabPolicy.resolve(.statistics, in: anonymous) == .leaderboards)
     #expect(FestivalTabPolicy.resolve(.suggestions, in: anonymous) == .songs)
     #expect(FestivalTabPolicy.resolve(.settings, in: anonymous) == .settings)
-    #expect(FestivalTabPolicy.resolve(.rivals, in: anonymous) == .songs)
+    #expect(FestivalTabPolicy.resolve(.rivals, in: anonymous) == .leaderboards)
+    #expect(FestivalTabPolicy.resolve(.songs, in: [.settings]) == .settings)
+}
+
+// MARK: - Selection never navigates away (operator, 2026-09-28)
+
+/// Selecting or deselecting a profile keeps the active tab and every path when the
+/// active tab stays visible (Songs and Settings exist for every profile).
+@Test(arguments: [FestivalSection.songs, .settings])
+func selectionKeepsVisibleTabAndPaths(selected: FestivalSection) {
+    let paths: [FestivalSection: [AppRoute]] = [
+        selected: [.shop, .licenses], .statistics: [.bands], .compete: [.rivals],
+    ]
+    // Selecting (→ player) and deselecting (→ none) both keep everything.
+    for profile in [FestivalProfileKind.player, .none] {
+        let visible = FestivalTabPolicy.sections(profile: profile, regularWidth: false)
+        let adapted = FestivalTabPolicy.adapt(selected: selected, paths: paths, to: visible)
+        #expect(adapted.selected == selected)
+        #expect(adapted.paths == paths)
+    }
+}
+
+/// Selecting a player from Leaderboards › Player swaps the tab to Compete (same slot)
+/// and carries the path, so the user stays on that player's page.
+@Test func selectingFromLeaderboardsPlayerStaysOnThePage() {
+    let player = AppRoute.player(accountId: "fixture-1", displayName: "Fixture")
+    let paths: [FestivalSection: [AppRoute]] = [.leaderboards: [.leaderboards, player]]
+    let visible = FestivalTabPolicy.sections(profile: .player, regularWidth: false)
+    let adapted = FestivalTabPolicy.adapt(selected: .leaderboards, paths: paths, to: visible)
+    #expect(adapted.selected == .compete)
+    #expect(adapted.paths[.compete] == [.leaderboards, player])
+    #expect(adapted.paths[.leaderboards] == [])
+
+    // Deselecting there swaps back, still on the same page.
+    let anonymous = FestivalTabPolicy.sections(profile: .none, regularWidth: false)
+    let back = FestivalTabPolicy.adapt(selected: .compete, paths: adapted.paths, to: anonymous)
+    #expect(back.selected == .leaderboards)
+    #expect(back.paths[.leaderboards] == [.leaderboards, player])
+}
+
+/// Unfolding a Duo (or any regular-width change) on Compete keeps the nested page too.
+@Test func sectionSetWidthChangeCarriesComparablePath() {
+    let rival = AppRoute.rivalDetail(rivalId: "r1", name: nil, scope: nil)
+    let wide = FestivalTabPolicy.sections(profile: .player, regularWidth: true)
+    let unfolded = FestivalTabPolicy.adapt(selected: .compete, paths: [.compete: [rival]], to: wide)
+    #expect(unfolded.selected == .leaderboards)
+    #expect(unfolded.paths[.leaderboards] == [rival])
+    let compact = FestivalTabPolicy.sections(profile: .player, regularWidth: false)
+    let folded = FestivalTabPolicy.adapt(selected: .rivals, paths: [.rivals: [rival]], to: compact)
+    #expect(folded.selected == .compete)
+    #expect(folded.paths[.compete] == [rival])
+}
+
+/// Only when the active tab disappears (deselect on Statistics) does the selection move,
+/// and even then no path is discarded.
+@Test func disappearingTabMovesToNearestWithoutDroppingPaths() {
+    let paths: [FestivalSection: [AppRoute]] = [.statistics: [.bands], .songs: [.shop]]
+    let anonymous = FestivalTabPolicy.sections(profile: .none, regularWidth: false)
+    let adapted = FestivalTabPolicy.adapt(selected: .statistics, paths: paths, to: anonymous)
+    #expect(adapted.selected == .leaderboards)
+    #expect(adapted.paths == paths)
+    let fromSuggestions = FestivalTabPolicy.adapt(selected: .suggestions, paths: paths, to: anonymous)
+    #expect(fromSuggestions.selected == .songs)
+    #expect(fromSuggestions.paths[.songs] == [.shop])
 }
 
 /// Only Statistics forgets its nested route when left.

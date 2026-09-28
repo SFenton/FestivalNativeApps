@@ -219,23 +219,18 @@ public struct FestivalRootView: View {
             .festivalSheet()
         }
         .onChange(of: visibleSections) { _, visible in
-            let resolved = FestivalTabPolicy.resolve(selected, in: visible)
-            if resolved != selected { selected = resolved }
+            let adapted = FestivalTabPolicy.adapt(selected: selected, paths: paths, to: visible)
+            if adapted.paths != paths { paths = adapted.paths }
+            if adapted.selected != selected { selected = adapted.selected }
         }
+        // A new publication can leave retained `Song`-valued routes pointing at an older
+        // catalogue (AGENTS.md publication invariants), so the Songs path is cleared with a
+        // visible explanation. Profile/band selection never navigates: pages refresh in
+        // place for the new identity (operator, 2026-09-28).
         .onChange(of: session.publicationRevision) { _, _ in
             if !songsPath.isEmpty {
                 songsNotice = "Published scores changed. Returned to Songs to avoid outdated details."
                 songsPath.removeAll()
-            }
-        }
-        .onChange(of: session.selectionRevision) { _, _ in
-            if !songsPath.isEmpty {
-                songsNotice = "Selected profile changed. Returned to Songs to avoid mixed scores."
-                songsPath.removeAll()
-            }
-            // Profile hubs show the previous identity's data; start them fresh.
-            for section in [FestivalSection.suggestions, .statistics, .compete, .rivals] {
-                paths[section] = nil
             }
         }
         .onChange(of: visibleInstruments) { _, shown in
@@ -508,7 +503,28 @@ public struct FestivalRootView: View {
             session: session, visibleInstruments: visibleInstruments,
             path: path(for: section), isVisible: selected == section
         ) {
-            root().festivalRootChrome(session: session)
+            root().festivalRootChrome(
+                session: session, providesTrailingItems: rootProvidesTrailingItems(section)
+            )
+        }
+    }
+
+    /// Whether a section's root screen ends its own toolbar with `FestivalRootTrailingItems`
+    /// (toolbar order rule, `.agents/controls/app-navigation/ios.md`).
+    ///
+    /// Declared here rather than read back through `FestivalRootTrailingProvidedKey`: the
+    /// preference arrives an update late, so the first pass would add and then remove a
+    /// second bell/avatar (a visible re-layout in the iPhone Duo rail). Keep in sync with the
+    /// screens: Leaderboards, Compete and Settings always provide the items; Statistics
+    /// only while a player is selected (`PlayerProfileContent`); Songs applies its own chrome.
+    ///
+    /// - Parameter section: Root section.
+    /// - Returns: True when the root supplies the bell and avatar itself.
+    private func rootProvidesTrailingItems(_ section: FestivalSection) -> Bool {
+        switch section {
+        case .leaderboards, .compete, .settings: true
+        case .statistics: session.selectedPlayer != nil
+        case .songs, .suggestions, .rivals: false
         }
     }
 }
