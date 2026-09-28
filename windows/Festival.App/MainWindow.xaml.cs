@@ -53,6 +53,7 @@ public sealed partial class MainWindow : Window
         InitializeSettingsFeatures();
         InitializeGlobalSearch();
         InitializeAccessibility();
+        InitializeTitleBarInset();
         Nav.Loaded += (_, _) =>
         {
             if (Nav.SettingsItem is NavigationViewItem settingsItem) Configure(settingsItem);
