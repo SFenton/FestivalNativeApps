@@ -50,9 +50,10 @@ def gradle_tree() -> str:
     Returns:
         The ``dependencies`` task output.
     """
-    wrapper = ANDROID / ("gradlew.bat" if os.name == "nt" else "gradlew")
+    # gradlew is committed without the executable bit (Windows hosts), so run it through bash.
+    wrapper = [str(ANDROID / "gradlew.bat")] if os.name == "nt" else ["bash", str(ANDROID / "gradlew")]
     result = subprocess.run(
-        [str(wrapper), "-p", str(ANDROID), "--no-daemon", "-q", ":app:dependencies", "--configuration", "releaseRuntimeClasspath"],
+        [*wrapper, "-p", str(ANDROID), "--no-daemon", "-q", ":app:dependencies", "--configuration", "releaseRuntimeClasspath"],
         check=True, capture_output=True, text=True,
     )
     return result.stdout

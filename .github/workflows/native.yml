@@ -53,3 +53,5 @@ jobs:
       - name: Android unit tests
         # gradlew is committed without the executable bit (Windows hosts), so run it through bash.
         run: bash android/gradlew -p android testDebugUnitTest --no-daemon
+      - name: Licenses manifest is current
+        run: python3 tools/android/licenses.py --check
