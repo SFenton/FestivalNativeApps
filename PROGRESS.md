@@ -246,7 +246,7 @@ Not yet assigned:
 |---|---|---|
 | **W1** (Duo shell, running) | Never navigate away on profile/band selection (remove all `selectionRevision` path resets) · Duo: Select Profile in rail · Leaderboards → Profile → Back rail jitter | 🟨 |
 | **Z2** (wrong-account, running) | Then: profile graphs (Swift Charts) · selection never navigates away from Profile/Band pages | 🟨 |
-| **M2 — Modals & loading** (Sonnet) | Close/Done trailing app-wide (HIG semantic placements) · profile search purple bg · Notifications Done on left · white spinner, no subtitle (`FestivalLoadingView`) · Duo sheet sizing per orientation | 🟨 `~/repos/FestivalNativeApps-lanes/modals` |
+| **M2 — Modals & loading** (Sonnet) | Close/Done trailing app-wide · profile search purple bg (hardcoded `appBackground` fill) · Notifications Done · white spinner, no subtitle (`FestivalLoadingView`) · form-sized sheets on Duo unfolded/iPad | ✅ `06543ab`, `dc73e42` (follow-ups: Suggestions/PlayerHistory sheets use custom Cancel/Apply footers — harmonize to toolbar placements; Songs/Profile spinners → S2/Z2) |
 | **A2 — Nav-bar accessories** (Opus) | Research iOS 26 accessories (`tabViewBottomAccessory`, search tab/minimize, `safeAreaBar`) · Songs search as accessory (Music mini-player style) · Select Player accessory · Quick Links placement decision · sweep all pages | 🟨 `~/repos/FestivalNativeApps-lanes/accessories` |
 | **S2 — Songs polish** (Sonnet) | Remove "profile changed" card · Quick Links section header bg/black bar · bigger instrument icons · drop star/minus badges · MarqueeText port (long rows) · first-slice loading gate (art ready) · Duo #–Z scrubber anchoring/size/overlap | 🟨 `~/repos/FestivalNativeApps-lanes/songs2` |
 | **L2 — Leaderboards spotlight** (Sonnet) | Selected player highlighted in top 10 / spotlight row below, pinned "You" footer on full rankings & song leaderboards (web parity) | 🟨 `~/repos/FestivalNativeApps-lanes/lbspot` |
@@ -370,3 +370,4 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Lane Z | Fixed Leaderboards row ID shadowing, Quick Links landing short, FirstRun pulse vs still flag; all journey batches pass |
 | 2026-09-28 | Orchestrator | Operator decisions recorded; launched Z2 (wrong-account bug), U4 (Profile/Bands/Settings UX tests), W1 (Duo shell) |
 | 2026-09-28 | Orchestrator | Operator bug batch triaged into W1, Z2 (+graphs), M2, A2, S2, L2; rule: selection never navigates away |
+| 2026-09-28 | Lane M2 | Modal standard (trailing Close/Done, semantic placements), purple sheet bg removed, `FestivalLoadingView` app-wide, form sheet sizing on regular width |
