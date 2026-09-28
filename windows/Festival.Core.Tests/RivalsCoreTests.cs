@@ -33,9 +33,9 @@ public class RivalsCoreTests
         Assert.Equal("/api/player/abc/rivals/pro_drums/r1?sort=you_lead&limit=0&offset=0",
             RivalsEndpoints.Detail(Base, "abc", "pro_drums", "r1", "you_lead").PathAndQuery);
         Assert.Equal("/api/player/abc/leaderboard-rivals/Solo_Guitar?rankBy=fcrate",
-            RivalsEndpoints.LeaderboardList(Base, "abc", Instrument.Lead, RivalRankMetric.FcRate).PathAndQuery);
+            RivalsEndpoints.LeaderboardList(Base, "abc", Instrument.Lead, RankingMetric.FcRate).PathAndQuery);
         Assert.Equal("/api/player/abc/leaderboard-rivals/Solo_Drums/r1?rankBy=totalscore&sort=closest",
-            RivalsEndpoints.LeaderboardDetail(Base, "abc", Instrument.Drums, "r1", RivalRankMetric.TotalScore).PathAndQuery);
+            RivalsEndpoints.LeaderboardDetail(Base, "abc", Instrument.Drums, "r1", RankingMetric.TotalScore).PathAndQuery);
     }
 
     [Theory]
@@ -78,14 +78,14 @@ public class RivalsCoreTests
         var list = await client.GetRivalsListAsync(Me, "Solo_Guitar");
         Assert.Equal(3, list.Above.Count);
         Assert.False(list.IsEmpty);
-        var board = await client.GetLeaderboardRivalsAsync(Me, Instrument.Lead, RivalRankMetric.TotalScore);
+        var board = await client.GetLeaderboardRivalsAsync(Me, Instrument.Lead, RankingMetric.TotalScore);
         Assert.Equal(1, board.UserRank);
         Assert.Empty(board.Above);
         Assert.False(board.IsEmpty);
         var detail = await client.GetRivalDetailAsync(Me, "01", Rival);
         Assert.Equal(4, detail.Songs.Count);
         Assert.Equal("uwphe", detail.Rival.DisplayName);
-        var lbDetail = await client.GetLeaderboardRivalDetailAsync(Me, Instrument.Lead, "75a76ce7304d49c0ab76ea7ff5c3288e", RivalRankMetric.Weighted);
+        var lbDetail = await client.GetLeaderboardRivalDetailAsync(Me, Instrument.Lead, "75a76ce7304d49c0ab76ea7ff5c3288e", RankingMetric.Weighted);
         Assert.Equal(2, lbDetail.Songs.Count);
         var all = await client.GetRivalsAllAsync(Me);
         Assert.False(all.IsEmpty);
@@ -107,9 +107,9 @@ public class RivalsCoreTests
     {
         var (client, _) = Client(_ => Wire.Response(HttpStatusCode.NotFound, """{"error":"No rivals found."}"""));
         Assert.True((await client.GetRivalsListAsync(Me, "03")).IsEmpty);
-        Assert.True((await client.GetLeaderboardRivalsAsync(Me, Instrument.Bass, RivalRankMetric.MaxScore)).IsEmpty);
+        Assert.True((await client.GetLeaderboardRivalsAsync(Me, Instrument.Bass, RankingMetric.MaxScore)).IsEmpty);
         Assert.Empty((await client.GetRivalDetailAsync(Me, "Solo_Guitar", Rival)).Songs);
-        Assert.Empty((await client.GetLeaderboardRivalDetailAsync(Me, Instrument.Bass, Rival, RivalRankMetric.Adjusted)).Songs);
+        Assert.Empty((await client.GetLeaderboardRivalDetailAsync(Me, Instrument.Bass, Rival, RankingMetric.Adjusted)).Songs);
         Assert.True((await client.GetRivalsAllAsync(Me)).IsEmpty);
     }
 
@@ -174,21 +174,7 @@ public class RivalsCoreTests
     }
     #endregion
 
-    #region Metrics and combos
-    [Fact]
-    public void Metrics_RoundTrip()
-    {
-        foreach (var metric in RivalRankMetrics.All)
-        {
-            Assert.True(RivalRankMetrics.TryParse(metric.ServiceId().ToUpperInvariant(), out var parsed));
-            Assert.Equal(metric, parsed);
-            Assert.NotEmpty(metric.Label());
-        }
-        Assert.Equal("FC Rate", RivalRankMetric.FcRate.Label());
-        Assert.False(RivalRankMetrics.TryParse("bogus", out var fallback));
-        Assert.Equal(RivalRankMetric.TotalScore, fallback);
-    }
-
+    #region Combos
     [Fact]
     public void Combo_DerivesWebScopes()
     {
@@ -214,7 +200,7 @@ public class RivalsCoreTests
     [
         new RivalScope.Song([Instrument.Bass]),
         new RivalScope.Song([Instrument.Drums, Instrument.Lead]),
-        new RivalScope.Leaderboard(Instrument.ProBass, RivalRankMetric.Weighted),
+        new RivalScope.Leaderboard(Instrument.ProBass, RankingMetric.Weighted),
         new RivalScope.Combo("03"),
         new RivalScope.Combo("pro_drums"),
         new RivalScope.FromSettings(RivalSettingsScope.Common),
@@ -262,7 +248,7 @@ public class RivalsCoreTests
     public void Scope_ParsesWebQueries()
     {
         Assert.Equal(new RivalScope.FromSettings(RivalSettingsScope.Common), RivalScope.FromAllRivalsQuery(null, null, null, null));
-        Assert.Equal(new RivalScope.Leaderboard(Instrument.Lead, RivalRankMetric.TotalScore),
+        Assert.Equal(new RivalScope.Leaderboard(Instrument.Lead, RankingMetric.TotalScore),
             RivalScope.FromAllRivalsQuery("Solo_Guitar", "leaderboard", "bogus", null));
         Assert.Null(RivalScope.FromAllRivalsQuery("common", "leaderboard", null, null));
         Assert.Null(RivalScope.FromAllRivalsQuery("nonsense", null, null, null));
@@ -280,7 +266,7 @@ public class RivalsCoreTests
         Assert.Null(new RivalScope.Song([]).Resolve(two));
         Assert.Null(new RivalScope.Combo("zz").Resolve(two));
         Assert.Empty(new RivalScope.Combo("zz").Instruments);
-        var board = new RivalScope.Leaderboard(Instrument.Lead, RivalRankMetric.FcRate);
+        var board = new RivalScope.Leaderboard(Instrument.Lead, RankingMetric.FcRate);
         Assert.Same(board, board.Resolve(two));
     }
     #endregion

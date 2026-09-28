@@ -2,65 +2,6 @@ using System.Globalization;
 
 namespace Festival.Core.Domain;
 
-#region Rank metric
-/// <summary>Ranking metrics accepted by <c>rankBy</c> on the leaderboard-rivals endpoints (web <c>RankingMetric</c>).</summary>
-public enum RivalRankMetric
-{
-    /// <summary><c>totalscore</c>.</summary>
-    TotalScore,
-    /// <summary><c>adjusted</c>.</summary>
-    Adjusted,
-    /// <summary><c>weighted</c>.</summary>
-    Weighted,
-    /// <summary><c>fcrate</c>.</summary>
-    FcRate,
-    /// <summary><c>maxscore</c>.</summary>
-    MaxScore,
-}
-
-/// <summary>Wire values and labels for <see cref="RivalRankMetric"/>.</summary>
-public static class RivalRankMetrics
-{
-    /// <summary>All metrics in picker order.</summary>
-    public static IReadOnlyList<RivalRankMetric> All { get; } = Enum.GetValues<RivalRankMetric>();
-
-    /// <summary>Query value.</summary>
-    /// <param name="metric">Metric.</param>
-    /// <returns>Lowercase wire value such as <c>totalscore</c>.</returns>
-    public static string ServiceId(this RivalRankMetric metric) => metric.ToString().ToLowerInvariant();
-
-    /// <summary>Picker label (web <c>rankings.metric.*</c>).</summary>
-    /// <param name="metric">Metric.</param>
-    /// <returns>Title Case label.</returns>
-    public static string Label(this RivalRankMetric metric) => metric switch
-    {
-        RivalRankMetric.TotalScore => "Total Score",
-        RivalRankMetric.Adjusted => "Adjusted",
-        RivalRankMetric.Weighted => "Weighted",
-        RivalRankMetric.FcRate => "FC Rate",
-        _ => "Max Score",
-    };
-
-    /// <summary>Parses a wire value (case-insensitive).</summary>
-    /// <param name="value">Text such as <c>fcrate</c>.</param>
-    /// <param name="metric">Parsed metric.</param>
-    /// <returns><see langword="true"/> when recognized.</returns>
-    public static bool TryParse(string? value, out RivalRankMetric metric)
-    {
-        foreach (var candidate in All)
-        {
-            if (string.Equals(candidate.ServiceId(), value, StringComparison.OrdinalIgnoreCase))
-            {
-                metric = candidate;
-                return true;
-            }
-        }
-        metric = RivalRankMetric.TotalScore;
-        return false;
-    }
-}
-#endregion
-
 #region Direction
 /// <summary>Which half of a rivals list a row came from.</summary>
 public enum RivalDirection
@@ -170,7 +111,7 @@ public abstract record RivalScope
     /// <summary>A global per-instrument leaderboard's neighbouring rivals.</summary>
     /// <param name="Instrument">Chart.</param>
     /// <param name="RankBy">Metric.</param>
-    public sealed record Leaderboard(Instrument Instrument, RivalRankMetric RankBy) : RivalScope;
+    public sealed record Leaderboard(Instrument Instrument, RankingMetric RankBy) : RivalScope;
 
     /// <summary>A server-computed combo or Pro Drums family list.</summary>
     /// <param name="Token">Hex combo ID or <see cref="RivalCombo.ProDrumsToken"/>.</param>
@@ -230,7 +171,7 @@ public abstract record RivalScope
                 var instruments = list.Split(',').Select(p => InstrumentInfo.TryParse(p, out var i) ? i : (Instrument?)null).ToArray();
                 return instruments.Length > 0 && instruments.All(i => i is not null) ? new Song(instruments.Select(i => i!.Value)) : null;
             case ["leaderboard", var chart, var metric]:
-                return InstrumentInfo.TryParse(chart, out var instrument) && RivalRankMetrics.TryParse(metric, out var rankBy)
+                return InstrumentInfo.TryParse(chart, out var instrument) && RankingMetricInfo.TryParse(metric, out var rankBy)
                     ? new Leaderboard(instrument, rankBy) : null;
             case ["combo", var comboToken]:
                 return RivalCombo.InstrumentsFor(comboToken) is not null ? new Combo(comboToken) : null;
@@ -265,7 +206,7 @@ public abstract record RivalScope
         category ??= "common";
         var isChart = InstrumentInfo.TryParse(category, out var chart);
         if (mode == "leaderboard")
-            return isChart ? new Leaderboard(chart, RivalRankMetrics.TryParse(rankBy, out var metric) ? metric : RivalRankMetric.TotalScore) : null;
+            return isChart ? new Leaderboard(chart, RankingMetricInfo.TryParse(rankBy, out var metric) ? metric : RankingMetric.TotalScore) : null;
         if (isChart) return new Song([chart]);
         if (category == "common")
             return instruments is null ? new FromSettings(RivalSettingsScope.Common) : FromToken("song:" + instruments);

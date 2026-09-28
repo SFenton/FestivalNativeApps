@@ -40,7 +40,7 @@ public sealed partial class FestivalApiClient
     /// <param name="cancellationToken">Cancellation.</param>
     /// <returns>Validated list; empty on 404.</returns>
     public async Task<LeaderboardRivalsListResponse> GetLeaderboardRivalsAsync(
-        string accountId, Instrument instrument, RivalRankMetric rankBy, CancellationToken cancellationToken = default)
+        string accountId, Instrument instrument, RankingMetric rankBy, CancellationToken cancellationToken = default)
     {
         var body = await ReadRivalsAsync(RivalsEndpoints.LeaderboardList(BaseUri, accountId, instrument, rankBy), 2_000_000, cancellationToken)
             .ConfigureAwait(false);
@@ -73,7 +73,7 @@ public sealed partial class FestivalApiClient
     /// <param name="cancellationToken">Cancellation.</param>
     /// <returns>Validated detail; empty on 404.</returns>
     public async Task<RivalDetailResponse> GetLeaderboardRivalDetailAsync(
-        string accountId, Instrument instrument, string rivalId, RivalRankMetric rankBy, string sort = "closest",
+        string accountId, Instrument instrument, string rivalId, RankingMetric rankBy, string sort = "closest",
         CancellationToken cancellationToken = default)
     {
         var url = RivalsEndpoints.LeaderboardDetail(BaseUri, accountId, instrument, rivalId, rankBy, sort);

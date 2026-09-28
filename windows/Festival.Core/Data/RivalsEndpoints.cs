@@ -45,7 +45,7 @@ public static class RivalsEndpoints
     /// <param name="instrument">Chart.</param>
     /// <param name="rankBy">Metric.</param>
     /// <returns>Endpoint URL.</returns>
-    public static Uri LeaderboardList(Uri baseUri, string accountId, Instrument instrument, RivalRankMetric rankBy) =>
+    public static Uri LeaderboardList(Uri baseUri, string accountId, Instrument instrument, RankingMetric rankBy) =>
         ServiceEndpoints.Build(baseUri, ["api", "player", Account(accountId), "leaderboard-rivals", instrument.ServiceId()],
             [("rankBy", rankBy.ServiceId())]);
 
@@ -57,7 +57,7 @@ public static class RivalsEndpoints
     /// <param name="rankBy">Metric.</param>
     /// <param name="sort">Detail sort.</param>
     /// <returns>Endpoint URL.</returns>
-    public static Uri LeaderboardDetail(Uri baseUri, string accountId, Instrument instrument, string rivalId, RivalRankMetric rankBy, string sort = "closest") =>
+    public static Uri LeaderboardDetail(Uri baseUri, string accountId, Instrument instrument, string rivalId, RankingMetric rankBy, string sort = "closest") =>
         ServiceEndpoints.Build(baseUri, ["api", "player", Account(accountId), "leaderboard-rivals", instrument.ServiceId(), Account(rivalId)],
             [("rankBy", rankBy.ServiceId()), ("sort", Sort(sort))]);
 
