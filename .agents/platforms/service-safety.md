@@ -26,9 +26,9 @@
 | `/api/paths/{song}/{instrument}/{difficulty}` and `/data` | allowed (200) | PNG and schema-2 JSON |
 | `/api/shop` | allowed (200) | Validate outbound URLs are `https://www.fortnite.com/item-shop/jam-tracks/…` |
 | `/api/rankings/*` | allowed (200, re-probed 2026-09-27) | Earlier Cloudflare 1010 denial no longer applies |
-| `/api/rankings/{instrument}/{accountId}/history?days=` | allowed (pure read, not yet probed live) | `FSTService/Api/RankingsEndpoints.cs:392-413` → `InstrumentDatabase.GetRankHistory` (`FSTService/Persistence/InstrumentDatabase.cs:3143-3224`): one `SELECT` over `rank_history` ⋈ snapshot stats. `GetOrCreateInstrumentDb` only memoizes an in-process handle. No 404 for an unranked account (empty `history`). Player-profile rank-history chart |
+| `/api/rankings/{instrument}/{accountId}/history?days=` | allowed (pure read; probed live 2026-09-28: 200) | `FSTService/Api/RankingsEndpoints.cs:392-413` → `InstrumentDatabase.GetRankHistory` (`FSTService/Persistence/InstrumentDatabase.cs:3143-3224`): one `SELECT` over `rank_history` ⋈ snapshot stats. `GetOrCreateInstrumentDb` only memoizes an in-process handle. No 404 for an unranked account (empty `history`). Player-profile rank-history chart |
 | `/api/account/search?q=&limit=10` | allowed | Re-probed 2026-09-27: 200 keyless. Publication-bound (`FSTService/Api/ApiPublicationClassification.cs:78-84`). An empty envelope is also returned after a logged DB timeout (`FSTService/Persistence/MetaDatabase.cs:3495-3517,3523-3537`) — never proof of no match |
-| `/api/player/{accountId}` | allowed, not yet probed live | 202 = syncing; 200 ≠ registered/published (`FSTService/Api/PlayerEndpoints.cs:31-51,85-103`, `FSTService/Scraping/ScrapeTimePrecomputer.cs:911-953,2442-2476`) |
+| `/api/player/{accountId}` | allowed (probed live 2026-09-28: 200) | 202 = syncing; 200 ≠ registered/published (`FSTService/Api/PlayerEndpoints.cs:31-51,85-103`, `FSTService/Scraping/ScrapeTimePrecomputer.cs:911-953,2442-2476`) |
 | `/api/player/{accountId}/rivals/{instrument\|combo}[/{rivalId}]`, `/leaderboard-rivals/{instrument}[/{rivalId}]` | allowed (200) | Pure reads (`FSTService/Api/RivalsEndpoints.cs`, `LeaderboardRivalsEndpoints.cs`); 404 = no rivals yet (normalized to empty). `POST …/rivals/recompute` is never called |
 | `/api/player/{accountId}/rivals/all` | allowed (200, probed 2026-09-28) | Pure read (`FSTService/Api/RivalsEndpoints.cs:207-273`): precomputed `rivals-all:{id}` → process cache → `SELECT`s from `user_rivals`/`account_names`; stores bytes only in the in-memory response cache. Precomputed shape has `songs[]` + per-rival `direction`/`samples`; the live fallback omits them and adds `avgSignedDelta` |
 | band search, band detail (`/api/bands/{bandId}`), bare band team ranking (`/api/rankings/bands/{type}/{teamKey}`), player stats, band sync-status | **blocked** | See hard rules |
@@ -49,3 +49,7 @@ Clients must treat a freeze as transient, honour `Retry-After` with capped backo
 
 - `bash tools/apple_live_service_smoke.sh --read-public-live` — opt-in, three public GETs (publication, Songs, ten Lead rows) through the real Swift client; prints aggregate counts and provenance only. Never run in automated fixture/coverage suites.
 - Record live observations with a date; counts and pinning state change. Automated UI tests use [fixtures](../testing/fixtures.md), not production.
+
+## Wire scale notes
+
+- Player score-history `accuracy` is in **ten-thousandths of a percent** (`1000000` = 100%), like band accuracy; never a 0–1 fraction. Fixtures must use the same scale (`tools/mock_service.py` fixed 2026-09-28).

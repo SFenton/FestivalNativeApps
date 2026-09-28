@@ -883,7 +883,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
                         {
                             "songId": "fixture-pulse", "instrument": "Solo_Guitar",
                             "oldScore": 700000, "newScore": 850000,
-                            "oldRank": 9, "newRank": 4, "accuracy": 0.9912,
+                            "oldRank": 9, "newRank": 4, "accuracy": 991200,
                             "isFullCombo": True, "stars": 5, "season": 40,
                             "scoreAchievedAt": "2024-01-05T00:00:00Z",
                             "changedAt": "2024-01-05T00:00:00Z",
@@ -891,7 +891,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
                         {
                             "songId": "fixture-pulse", "instrument": "Solo_Guitar",
                             "oldScore": None, "newScore": 700000,
-                            "oldRank": None, "newRank": 9, "accuracy": 0.9545,
+                            "oldRank": None, "newRank": 9, "accuracy": 954500,
                             "isFullCombo": False, "stars": 4, "season": 39,
                             "scoreAchievedAt": "2024-01-01T00:00:00Z",
                             "changedAt": "2024-01-01T00:00:00Z",
