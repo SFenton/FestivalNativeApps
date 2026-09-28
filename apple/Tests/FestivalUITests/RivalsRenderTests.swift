@@ -54,6 +54,13 @@ private func anonymousRivalsSession() async throws -> FestivalSession {
 /// (`RivalCombo.comboId(for: [.lead, .bass]) == "03"`) section should render.
 private let leadAndBass: Set<String> = ["fst.settings.showLead", "fst.settings.showBass"]
 
+/// A rival id `tools/mock_service.py`'s detail routes accept (`[A-Za-z0-9]+`).
+///
+/// A hyphenated id such as `fixture-player-1` never matches those routes, so the
+/// mock answers 404 and the client's documented 404-as-empty mapping renders
+/// "No Shared Songs" whatever scenario the test meant to exercise.
+private let routableRivalId = "408abb67d81446f0ac714506950ce178"
+
 // MARK: - RivalsScreen: no profile / loading / empty instruments
 
 @MainActor
@@ -67,10 +74,9 @@ private let leadAndBass: Set<String> = ["fst.settings.showLead", "fst.settings.s
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 700))
     defer { window.orderOut(nil) }
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["No Player Selected", "Choose Profile"])
     _ = try nativeHostedPNG(image, filename: "rivals-no-profile.png", environment: "FST_RIVALS_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["No Player Selected", "Choose Profile"])
 }
 
 /// Captured before the per-instrument `.task` loads settle: every section's
@@ -89,10 +95,12 @@ private let leadAndBass: Set<String> = ["fst.settings.showLead", "fst.settings.s
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 1400))
     defer { window.orderOut(nil) }
+    // Capture synchronously, before any `.task` load can resolve (no settle:
+    // the loopback fixture answers within one poll).
     host.layoutSubtreeIfNeeded()
     let image = try nativeHostedImage(host)
     _ = try nativeHostedPNG(image, filename: "rivals-loading.png", environment: "FST_RIVALS_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["Common Rivals", "Loading"])
 }
 
 @MainActor
@@ -109,11 +117,13 @@ private let leadAndBass: Set<String> = ["fst.settings.showLead", "fst.settings.s
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 500))
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(600))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(
+        host, untilText: ["Enable at least one instrument in Settings to see rivals."]
+    )
     _ = try nativeHostedPNG(image, filename: "rivals-no-instruments.png", environment: "FST_RIVALS_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(
+        host, image: image, containing: ["Enable at least one instrument in Settings to see rivals."]
+    )
 }
 
 // MARK: - RivalsScreen: loaded song tab (Common + Combo + per-instrument)
@@ -132,13 +142,13 @@ private let leadAndBass: Set<String> = ["fst.settings.showLead", "fst.settings.s
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 1600))
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(1500))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(
+        host, untilText: ["Common Rivals", "Combo Rivals", "uwphe"], excluding: ["Loading"]
+    )
     _ = try nativeHostedPNG(
         image, filename: "rivals-song-tab-common-combo.png", environment: "FST_RIVALS_RENDER_OUT"
     )
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["Common Rivals", "Combo Rivals", "uwphe"])
 }
 
 /// Switch to the Leaderboard tab via the real `NSSegmentedControl` (mirrors
@@ -163,11 +173,11 @@ private let leadAndBass: Set<String> = ["fst.settings.showLead", "fst.settings.s
     #expect(picker.segmentCount == 2)
     picker.selectedSegment = 1
     picker.sendAction(picker.action, to: picker.target)
-    try await Task.sleep(for: .milliseconds(1100))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(
+        host, untilText: ["GingerNINZIN_JPN", "View All Rivals"], excluding: ["Loading"]
+    )
     _ = try nativeHostedPNG(image, filename: "rivals-leaderboard-tab.png", environment: "FST_RIVALS_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["GingerNINZIN_JPN", "View All Rivals"])
 }
 
 /// A 503 (matching the live service's scrape-window freeze) shows each section's
@@ -186,11 +196,11 @@ private let leadAndBass: Set<String> = ["fst.settings.showLead", "fst.settings.s
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 700))
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(1100))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(
+        host, untilText: ["Scores are updating", "Retry Now"], excluding: ["Loading"]
+    )
     _ = try nativeHostedPNG(image, filename: "rivals-unavailable.png", environment: "FST_RIVALS_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["Scores are updating", "Retry Now"])
 }
 
 /// With 2+ visible instruments, a 503 fails the Common Rivals and Combo
@@ -209,17 +219,24 @@ private let leadAndBass: Set<String> = ["fst.settings.showLead", "fst.settings.s
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 900))
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(1300))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(
+        host, untilText: ["Combo Rivals", "Scores are updating"], excluding: ["Loading"]
+    )
     _ = try nativeHostedPNG(
         image, filename: "rivals-common-combo-errors.png", environment: "FST_RIVALS_RENDER_OUT"
     )
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["Combo Rivals", "Scores are updating"])
+    // Product bug (reported by the hosted-harness lane): `RivalCommonSection.load()`
+    // reads each instrument with `try?`, so when every read 503s it intersects
+    // nothing and renders `EmptyView()`; its `.failed` branch is unreachable.
+    withKnownIssue("Common Rivals hides instead of showing its 503 error") {
+        #expect(nativeHostedAccessibility(host).contains("Common Rivals"))
+    }
 }
 
 /// An empty per-instrument scenario hides the Common Rivals/Combo sections
-/// entirely (`EmptyView()`), leaving only the per-instrument empty sections.
+/// entirely (`EmptyView()`). Per-instrument sections are skipped when empty too
+/// (`.agents/pages/rivals/ios.md`), so only the Song/Leaderboard picker remains.
 @MainActor
 @Test func rivalsScreenHidesCommonAndComboSectionsWhenEmpty() async throws {
     let (session, storage, suite) = try await rivalsFixtureSession(
@@ -234,13 +251,14 @@ private let leadAndBass: Set<String> = ["fst.settings.showLead", "fst.settings.s
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 700))
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(1300))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["Leaderboard"], excluding: ["Loading"])
     _ = try nativeHostedPNG(
         image, filename: "rivals-common-combo-empty.png", environment: "FST_RIVALS_RENDER_OUT"
     )
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(
+        host, image: image, containing: ["Song", "Leaderboard"],
+        notContaining: ["Common Rivals", "Combo Rivals", "Loading"]
+    )
 }
 
 private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
@@ -264,11 +282,9 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 1000))
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(900))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["Lead Rivals", "uwphe"])
     _ = try nativeHostedPNG(image, filename: "all-rivals-loaded.png", environment: "FST_RIVALS_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["Lead Rivals", "uwphe"])
 }
 
 @MainActor
@@ -285,11 +301,9 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 600))
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(900))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["No Rivals Yet"])
     _ = try nativeHostedPNG(image, filename: "all-rivals-empty.png", environment: "FST_RIVALS_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["No Rivals Yet"])
 }
 
 @MainActor
@@ -306,11 +320,9 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 600))
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(900))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["Scores are updating", "Retry Now"])
     _ = try nativeHostedPNG(image, filename: "all-rivals-unavailable.png", environment: "FST_RIVALS_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["Scores are updating", "Retry Now"])
 }
 
 @MainActor
@@ -327,13 +339,13 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 1000))
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(1100))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(
+        host, untilText: ["Common Rivals", "uwphe"], excluding: ["Loading"]
+    )
     _ = try nativeHostedPNG(
         image, filename: "all-rivals-common.png", environment: "FST_RIVALS_RENDER_OUT"
     )
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["Common Rivals", "uwphe"])
 }
 
 // MARK: - RivalDetailScreen: categorization
@@ -355,11 +367,9 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 1000))
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(900))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["Combo Rivals", "uwphe"])
     _ = try nativeHostedPNG(image, filename: "all-rivals-combo.png", environment: "FST_RIVALS_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["Combo Rivals", "uwphe"])
 }
 
 /// An unresolvable scope (every named instrument raw value is unknown) shows
@@ -378,12 +388,11 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 500))
     defer { window.orderOut(nil) }
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["Unknown Category"])
     _ = try nativeHostedPNG(
         image, filename: "all-rivals-unknown-category.png", environment: "FST_RIVALS_RENDER_OUT"
     )
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["Unknown Category"])
 }
 
 @MainActor
@@ -403,13 +412,15 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 1400))
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(1100))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(
+        host, untilText: ["Closest Battles", "Almost Passed", "Fixture Drift"]
+    )
     _ = try nativeHostedPNG(
         image, filename: "rival-detail-categories.png", environment: "FST_RIVALS_RENDER_OUT"
     )
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(
+        host, image: image, containing: ["Closest Battles", "Almost Passed", "Fixture Drift"]
+    )
 }
 
 @MainActor
@@ -419,7 +430,7 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     let host = nativeHostedView(
         NavigationStack {
             RivalDetailScreen(
-                session: session, rivalId: "fixture-player-1", name: "Fixture Player 1",
+                session: session, rivalId: routableRivalId, name: "Fixture Player 1",
                 scope: .song(instruments: ["Solo_Guitar"])
             )
         }
@@ -429,13 +440,11 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 600))
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(1100))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["No Shared Songs"])
     _ = try nativeHostedPNG(
         image, filename: "rival-detail-no-songs.png", environment: "FST_RIVALS_RENDER_OUT"
     )
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["No Shared Songs"])
 }
 
 /// A `nil` scope (deep link, cold `DebugLaunchRoute`, or `FindRivalSheet`'s
@@ -451,7 +460,7 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     let host = nativeHostedView(
         NavigationStack {
             RivalDetailScreen(
-                session: session, rivalId: "fixture-player-1", name: "Fixture Player 1",
+                session: session, rivalId: routableRivalId, name: "Fixture Player 1",
                 scope: nil
             )
         }
@@ -461,13 +470,11 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 1400))
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(1300))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["Closest Battles"], excluding: ["Loading"])
     _ = try nativeHostedPNG(
         image, filename: "rival-detail-fallback-merge.png", environment: "FST_RIVALS_RENDER_OUT"
     )
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["Closest Battles"])
 }
 
 /// A `.leaderboard` scope's normal (200) path, complementing the unavailable
@@ -489,13 +496,11 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 1200))
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(1100))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["Closest Battles", "GingerNINZIN_JPN"])
     _ = try nativeHostedPNG(
         image, filename: "rival-detail-leaderboard-loaded.png", environment: "FST_RIVALS_RENDER_OUT"
     )
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["Closest Battles", "GingerNINZIN_JPN"])
 }
 
 @MainActor
@@ -505,7 +510,7 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     let host = nativeHostedView(
         NavigationStack {
             RivalDetailScreen(
-                session: session, rivalId: "fixture-player-1", name: "Fixture Player 1",
+                session: session, rivalId: routableRivalId, name: "Fixture Player 1",
                 scope: .leaderboard(instrument: "Solo_Guitar", rankBy: .totalscore)
             )
         }
@@ -515,13 +520,11 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 600))
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(1100))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["Scores are updating"], excluding: ["Loading"])
     _ = try nativeHostedPNG(
         image, filename: "rival-detail-unavailable.png", environment: "FST_RIVALS_RENDER_OUT"
     )
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["Scores are updating"])
 }
 
 // MARK: - RivalryScreen: full category list, delta-magnitude ordering
@@ -546,13 +549,11 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 900))
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(1100))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["Fixture Drift", "Fixture Echo"])
     _ = try nativeHostedPNG(
         image, filename: "rivalry-closest-battles.png", environment: "FST_RIVALS_RENDER_OUT"
     )
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["Fixture Drift", "Fixture Echo"])
     // The demo fixture's rival leads on `fixture-orbit` (delta -20): confirms a
     // rival-leads bucket exists alongside `closest_battles` for the same detail.
     let categories = RivalCategorization.categorize(rivalDetailDemoSongs)
@@ -568,7 +569,7 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     let host = nativeHostedView(
         NavigationStack {
             RivalryScreen(
-                session: session, rivalId: "fixture-player-1", mode: "closest_battles",
+                session: session, rivalId: routableRivalId, mode: "closest_battles",
                 name: "Fixture Player 1", scope: .song(instruments: ["Solo_Guitar"])
             )
         }
@@ -578,13 +579,13 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 500))
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(1100))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(
+        host, untilText: ["No Songs", "There are no songs in this category."]
+    )
     _ = try nativeHostedPNG(
         image, filename: "rivalry-empty-category.png", environment: "FST_RIVALS_RENDER_OUT"
     )
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["No Songs", "There are no songs in this category."])
 }
 
 /// Songs used by `rival-detail-demo.json`, mirrored here (rather than decoding the
@@ -632,10 +633,13 @@ private func typeIntoFindRival(_ text: String, host: NSView) throws {
             .preferredColorScheme(.dark),
         size: CGSize(width: 390, height: 700)
     )
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(
+        host, untilText: ["Enter at least two characters to search for a rival."]
+    )
     _ = try nativeHostedPNG(image, filename: "find-rival-enter-query.png", environment: "FST_RIVALS_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(
+        host, image: image, containing: ["Enter at least two characters to search for a rival."]
+    )
 }
 
 @MainActor
@@ -649,17 +653,23 @@ private func typeIntoFindRival(_ text: String, host: NSView) throws {
         size: CGSize(width: 390, height: 700)
     )
     try typeIntoFindRival("Fixture", host: host)
-    // Under the 250ms debounce: still `.loading`.
+    // Under the 250ms debounce: still `.loading`. Only the painted sheet and query
+    // are asserted here — a busy parallel run can outlast the debounce window.
     try await Task.sleep(for: .milliseconds(60))
     host.layoutSubtreeIfNeeded()
     let loading = try nativeHostedImage(host)
     _ = try nativeHostedPNG(loading, filename: "find-rival-loading.png", environment: "FST_RIVALS_RENDER_OUT")
+    assertRendersContent(host, image: loading, containing: ["Find a Rival", "Fixture"])
     // Past the debounce plus the real network round trip: `.results`.
-    try await Task.sleep(for: .milliseconds(1500))
-    host.layoutSubtreeIfNeeded()
-    let results = try nativeHostedImage(host)
+    let results = try await nativeHostedSettle(
+        host, untilText: ["View rivalry with Fixture Player 1"]
+    )
     _ = try nativeHostedPNG(results, filename: "find-rival-results.png", environment: "FST_RIVALS_RENDER_OUT")
-    #expect(loading.width > 0 && results.width > 0)
+    assertRendersContent(
+        host, image: results,
+        containing: ["View rivalry with Fixture Player 1", "View rivalry with Fixture Player 2"],
+        notContaining: ["Searching Players"]
+    )
 }
 
 @MainActor
@@ -673,11 +683,12 @@ private func typeIntoFindRival(_ text: String, host: NSView) throws {
         size: CGSize(width: 390, height: 700)
     )
     try typeIntoFindRival("zzz-nobody", host: host)
-    try await Task.sleep(for: .milliseconds(1800))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["No player results were returned."])
     _ = try nativeHostedPNG(image, filename: "find-rival-empty.png", environment: "FST_RIVALS_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(
+        host, image: image, containing: ["No player results were returned.", "Retry Search"],
+        notContaining: ["Searching Players"]
+    )
 }
 
 /// Clearing back to an empty query resets to `.enterQuery` without a stale
@@ -693,12 +704,18 @@ private func typeIntoFindRival(_ text: String, host: NSView) throws {
         size: CGSize(width: 390, height: 700)
     )
     try typeIntoFindRival("Fixture", host: host)
-    try await Task.sleep(for: .milliseconds(1300))
-    host.layoutSubtreeIfNeeded()
-    let withResults = try nativeHostedImage(host)
+    let withResults = try await nativeHostedSettle(
+        host, untilText: ["View rivalry with Fixture Player 1"]
+    )
     try typeIntoFindRival("", host: host)
-    host.layoutSubtreeIfNeeded()
-    let cleared = try nativeHostedImage(host)
+    let cleared = try await nativeHostedSettle(
+        host, untilText: ["Enter at least two characters to search for a rival."]
+    )
+    assertRendersContent(
+        host, image: cleared,
+        containing: ["Enter at least two characters to search for a rival."],
+        notContaining: ["View rivalry with"]
+    )
     _ = try nativeHostedPNG(
         withResults, filename: "find-rival-before-clear.png", environment: "FST_RIVALS_RENDER_OUT"
     )
@@ -720,10 +737,11 @@ private func typeIntoFindRival(_ text: String, host: NSView) throws {
     )
     // The shared fixture's `/api/account/search` returns HTTP 503 for "busy".
     try typeIntoFindRival("busy", host: host)
-    try await Task.sleep(for: .milliseconds(1800))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["Player search unavailable"])
     _ = try nativeHostedPNG(image, filename: "find-rival-failed.png", environment: "FST_RIVALS_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(
+        host, image: image, containing: ["Player search unavailable", "Retry Search"],
+        notContaining: ["Searching Players"]
+    )
 }
 #endif

@@ -141,11 +141,9 @@ private let fixtureSong = Song(
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
     // Let the `.task` load complete.
-    try await Task.sleep(for: .milliseconds(300))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["Score history chart", "score 850000"])
     _ = try nativeHostedPNG(image, filename: "player-history.png", environment: "FST_HISTORY_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["Score history chart", "score 850000"])
 }
 
 // MARK: - Notifications
@@ -164,11 +162,13 @@ private let fixtureSong = Song(
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(300))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(
+        host, untilText: ["You climbed from #42 to #10 on Lead", "Full Combo on Bass"]
+    )
     _ = try nativeHostedPNG(image, filename: "notifications.png", environment: "FST_HISTORY_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(
+        host, image: image, containing: ["You climbed from #42 to #10 on Lead", "Full Combo on Bass"]
+    )
 }
 
 /// No selected profile shows "Choose a Profile" rather than an empty feed
@@ -190,11 +190,9 @@ private let fixtureSong = Song(
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(200))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["Choose a Profile"])
     _ = try nativeHostedPNG(image, filename: "notifications-no-profile.png", environment: "FST_HISTORY_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["Choose a Profile"])
 }
 
 /// A generated-but-empty feed shows the "will appear here" copy
@@ -217,13 +215,16 @@ private let fixtureSong = Song(
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(300))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(
+        host, untilText: ["No notifications available", "will appear here when new high scores are set"]
+    )
     _ = try nativeHostedPNG(
         image, filename: "notifications-empty-generated.png", environment: "FST_HISTORY_RENDER_OUT"
     )
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(
+        host, image: image,
+        containing: ["No notifications available", "will appear here when new high scores are set"]
+    )
 }
 
 /// A feed that has never been generated shows the "may appear after the next
@@ -246,12 +247,15 @@ private let fixtureSong = Song(
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(300))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(
+        host, untilText: ["No notifications available", "may appear here after the next leaderboard update"]
+    )
     _ = try nativeHostedPNG(
         image, filename: "notifications-empty-not-generated.png", environment: "FST_HISTORY_RENDER_OUT"
     )
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(
+        host, image: image,
+        containing: ["No notifications available", "may appear here after the next leaderboard update"]
+    )
 }
 #endif

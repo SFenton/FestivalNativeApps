@@ -11,7 +11,7 @@ import Testing
 /// A lone slide is simultaneously the first and last: Skip is hidden and the
 /// trailing button reads "Done" (`fst.first-run.done`), matching `isLastSlide`.
 @MainActor
-@Test func firstRunCarouselSingleSlideShowsDoneNotSkip() throws {
+@Test func firstRunCarouselSingleSlideShowsDoneNotSkip() async throws {
     var finished = false
     let slide = FirstRunSlide(
         id: "songs-song-list", version: 1, title: "Browse Every Song",
@@ -26,17 +26,18 @@ import Testing
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["Browse Every Song", "Slide 1 of 1", "Done"])
     _ = try nativeHostedPNG(image, filename: "first-run-single-slide.png", environment: "FST_FIRST_RUN_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(
+        host, image: image, containing: ["Browse Every Song", "Slide 1 of 1", "Done"], notContaining: ["Skip"]
+    )
     #expect(!finished, "onFinish must only fire from a user action, never on render")
 }
 
 /// A multi-slide carousel starts on its first slide with Skip visible and "Next"
 /// as the trailing action, and the shown title/description match slide zero.
 @MainActor
-@Test func firstRunCarouselMultiSlideStartsOnFirstSlideWithSkipAndNext() throws {
+@Test func firstRunCarouselMultiSlideStartsOnFirstSlideWithSkipAndNext() async throws {
     let slides = [
         FirstRunSlide(
             id: "songs-song-list", version: 1, title: "Browse Every Song",
@@ -60,10 +61,13 @@ import Testing
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(
+        host, untilText: ["Browse Every Song", "Slide 1 of 3", "Skip", "Next"]
+    )
     _ = try nativeHostedPNG(image, filename: "first-run-multi-slide.png", environment: "FST_FIRST_RUN_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(
+        host, image: image, containing: ["Browse Every Song", "Slide 1 of 3", "Skip", "Next"]
+    )
 }
 
 /// The gated third slide is excluded by `FirstRunSlideEvaluator` when Shop highlighting
@@ -94,7 +98,7 @@ import Testing
 
 /// One "Show" row per registered first-run page (`fst.settings.first-run.<page>`).
 @MainActor
-@Test func firstRunSettingsSectionListsEveryRegisteredPage() throws {
+@Test func firstRunSettingsSectionListsEveryRegisteredPage() async throws {
     let session = FestivalSession(factory: { throw FestivalAPIError.invalidResource })
     let size = CGSize(width: 390, height: 700)
     let host = nativeHostedView(
@@ -105,10 +109,13 @@ import Testing
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(
+        host, untilText: ["First-Run Guides", "Songs, Show", "Item Shop, Show"]
+    )
     _ = try nativeHostedPNG(image, filename: "first-run-settings.png", environment: "FST_FIRST_RUN_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(
+        host, image: image, containing: ["First-Run Guides", "Songs, Show", "Item Shop, Show"]
+    )
     #expect(FirstRunCenter.registeredPages.count == FirstRunPageKey.allCases.count)
 }
 #endif

@@ -36,7 +36,7 @@ private func selectedPlayerDrawerSession() -> FestivalSession {
 /// The anonymous drawer offers "Select Profile", Bands and Item Shop, but no
 /// Rivals row (requires a player) and no Leaderboards row (already a tab).
 @MainActor
-@Test func drawerRendersAnonymousProfileState() throws {
+@Test func drawerRendersAnonymousProfileState() async throws {
     let session = anonymousDrawerSession()
     let size = CGSize(width: 402, height: 874)
     let visible = FestivalTabPolicy.sections(profile: .none, regularWidth: false)
@@ -51,17 +51,16 @@ private func selectedPlayerDrawerSession() -> FestivalSession {
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["Select Profile", "Item Shop", "Settings"])
     _ = try nativeHostedPNG(image, filename: "drawer-anonymous.png", environment: "FST_SHELL_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["Select Profile", "Item Shop", "Settings"])
 }
 
 /// The selected-player drawer swaps in "View Profile"/"Switch Profile"/"Deselect"
 /// and gains both Leaderboards and Rivals rows: a selected player's compact tab
 /// bar shows Compete instead of Leaderboards, so the drawer surfaces both again.
 @MainActor
-@Test func drawerRendersSelectedPlayerProfileState() throws {
+@Test func drawerRendersSelectedPlayerProfileState() async throws {
     let session = selectedPlayerDrawerSession()
     #expect(session.selectedPlayer?.displayName == "Fixture Player")
     let size = CGSize(width: 402, height: 874)
@@ -77,10 +76,13 @@ private func selectedPlayerDrawerSession() -> FestivalSession {
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(
+        host, untilText: ["Fixture Player, Selected Player", "Deselect Profile"]
+    )
     _ = try nativeHostedPNG(image, filename: "drawer-player.png", environment: "FST_SHELL_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(
+        host, image: image, containing: ["Fixture Player, Selected Player", "Deselect Profile"]
+    )
     // Real content check to back the pixel evidence, matching `DrawerMenu.playerDrawerBrowse`.
     let items = DrawerMenu.browse(profile: .player, visibleSections: visible, hideShop: false)
     #expect(items.map(\.id) == ["leaderboards", "rivals", "bands", "shop"])
@@ -88,7 +90,7 @@ private func selectedPlayerDrawerSession() -> FestivalSession {
 
 /// Settings › Hide Item Shop removes the drawer's Item Shop row even while rendered.
 @MainActor
-@Test func drawerHidesItemShopRowWhenSettingHides() throws {
+@Test func drawerHidesItemShopRowWhenSettingHides() async throws {
     let session = anonymousDrawerSession()
     let size = CGSize(width: 402, height: 874)
     let visible = FestivalTabPolicy.sections(profile: .none, regularWidth: false)
@@ -103,8 +105,10 @@ private func selectedPlayerDrawerSession() -> FestivalSession {
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    host.layoutSubtreeIfNeeded()
-    _ = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["Select Profile", "Settings"])
+    assertRendersContent(
+        host, image: image, containing: ["Select Profile", "Settings"], notContaining: ["Item Shop"]
+    )
     let items = DrawerMenu.browse(profile: .none, visibleSections: visible, hideShop: true)
     #expect(!items.contains { $0.id == "shop" })
 }
@@ -122,7 +126,7 @@ private func selectedPlayerDrawerSession() -> FestivalSession {
     #expect(anonymous.selectedPlayer == nil)
     #expect(player.selectedPlayer?.displayName == "Fixture Player")
     let size = CGSize(width: 200, height: 60)
-    for (session, expectHidden) in [(anonymous, true), (player, false)] {
+    for (session, label) in [(anonymous, "Choose Profile"), (player, "Profile: Fixture Player")] {
         let host = nativeHostedView(
             RootProfileButton(session: session, action: {})
                 .frame(width: size.width, height: size.height)
@@ -131,8 +135,10 @@ private func selectedPlayerDrawerSession() -> FestivalSession {
         )
         host.layoutSubtreeIfNeeded()
         let image = try nativeHostedImage(host)
-        #expect(image.width > 0)
-        _ = expectHidden
+        // A 200×60 control: most of the frame is intentionally empty.
+        assertRendersContent(
+            host, image: image, minimumNonBackgroundFraction: 0.05, containing: [label]
+        )
     }
 }
 #endif

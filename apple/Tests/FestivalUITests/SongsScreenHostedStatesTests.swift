@@ -166,6 +166,11 @@ private func hostedSongsState(
     #expect((1...3).contains(scale))
     #expect(abs(CGFloat(image.height) / scenario.size.height - scale) < 0.02)
     #expect(nativeHostedControlPixels(image).bright > 20)
+    // Sparse "No Results" states paint ~0.3% non-background; this guards against a
+    // transparent capture (see `NativeHostedRoot`), not against a sparse state.
+    assertRendersContent(
+        host, image: image, minimumNonBackgroundFraction: 0.002, minimumInkFraction: 0.001
+    )
     if scenario.restorePlayerLoading && scenario.shopFilter.leavingTomorrow {
         // Removing Songs' own inline search bar for native `.searchable` moved
         // every row up, invalidating the previous narrow band. The gold "Loading

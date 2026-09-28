@@ -12,7 +12,7 @@ import Testing
 /// currently has zero third-party SwiftPM packages) alongside the bundled-assets
 /// section, which always has at least the instrument iconography entry.
 @MainActor
-@Test func licensesScreenRendersEmptyThirdPartyAndBundledAssetsSections() throws {
+@Test func licensesScreenRendersEmptyThirdPartyAndBundledAssetsSections() async throws {
     #expect(LicenseManifest.thirdPartySoftware.isEmpty)
     #expect(LicenseManifest.bundledAssets.count == 1)
     let session = FestivalSession(factory: { throw FestivalAPIError.invalidResource })
@@ -25,9 +25,24 @@ import Testing
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(
+        host,
+        untilText: [
+            "Third-Party Software",
+            "no external Swift package dependencies",
+            "Bundled Assets",
+            "Instrument Iconography",
+        ]
+    )
     _ = try nativeHostedPNG(image, filename: "licenses.png", environment: "FST_LICENSES_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(
+        host, image: image,
+        containing: [
+            "Third-Party Software",
+            "no external Swift package dependencies",
+            "Bundled Assets",
+            "Instrument Iconography",
+        ]
+    )
 }
 #endif

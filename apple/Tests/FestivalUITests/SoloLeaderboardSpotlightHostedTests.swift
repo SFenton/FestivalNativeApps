@@ -118,14 +118,14 @@ private func spotlightSelectedSession() async throws -> FestivalSession {
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(300))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["Fixture Pulse", "Your rank"])
     _ = try nativeHostedPNG(
         image, filename: "song-leaderboard-spotlight-visible.png",
         environment: "FST_LEADERBOARDS_RENDER_OUT"
     )
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(
+        host, image: image, containing: ["Fixture Pulse", "Your rank"], notContaining: ["Jump to"]
+    )
 }
 
 /// A selected player not visible on the current page gets a footer with a jump
@@ -149,14 +149,12 @@ private func spotlightSelectedSession() async throws -> FestivalSession {
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(300))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["Fixture Pulse", "Jump to"])
     _ = try nativeHostedPNG(
         image, filename: "song-leaderboard-spotlight-jump.png",
         environment: "FST_LEADERBOARDS_RENDER_OUT"
     )
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["Fixture Pulse", "Jump to"])
     // Rank 57 at page size 25 is page 3, matching `LeaderboardPaging.page(forRank:pageSize:)`.
     #expect(LeaderboardPaging.page(forRank: 57, pageSize: 25) == 3)
 }
@@ -182,13 +180,15 @@ private func spotlightSelectedSession() async throws -> FestivalSession {
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(300))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["Fixture Pulse", "#1, Row 1"])
     _ = try nativeHostedPNG(
         image, filename: "song-leaderboard-spotlight-none.png",
         environment: "FST_LEADERBOARDS_RENDER_OUT"
     )
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(
+        host, image: image,
+        containing: ["Fixture Pulse", "#1, Row 1"],
+        notContaining: ["Your rank", "Jump to"]
+    )
 }
 #endif

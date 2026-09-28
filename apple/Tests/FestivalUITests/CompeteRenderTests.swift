@@ -59,10 +59,9 @@ private func anonymousCompeteSession() async throws -> FestivalSession {
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 700))
     defer { window.orderOut(nil) }
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["No Player Selected", "Choose Profile"])
     _ = try nativeHostedPNG(image, filename: "compete-no-profile.png", environment: "FST_COMPETE_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["No Player Selected", "Choose Profile"])
 }
 
 @MainActor
@@ -77,11 +76,21 @@ private func anonymousCompeteSession() async throws -> FestivalSession {
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 600))
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(600))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(
+        host,
+        untilText: [
+            "Enable at least one instrument in Settings to see leaderboards.",
+            "Enable at least one instrument in Settings to see rivals.",
+        ]
+    )
     _ = try nativeHostedPNG(image, filename: "compete-no-instruments.png", environment: "FST_COMPETE_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(
+        host, image: image,
+        containing: [
+            "Enable at least one instrument in Settings to see leaderboards.",
+            "Enable at least one instrument in Settings to see rivals.",
+        ]
+    )
 }
 
 // MARK: - Loaded: Leaderboards + Rivals sections together
@@ -100,13 +109,15 @@ private func anonymousCompeteSession() async throws -> FestivalSession {
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 1800))
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(1500))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(
+        host, untilText: ["Leaderboards Overview", "Fixture Player 1", "uwphe"], excluding: ["Loading"]
+    )
     _ = try nativeHostedPNG(
         image, filename: "compete-leaderboards-and-rivals.png", environment: "FST_COMPETE_RENDER_OUT"
     )
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(
+        host, image: image, containing: ["Leaderboards Overview", "Fixture Player 1", "uwphe"]
+    )
 }
 
 /// A 503 from the Rivals endpoints must not blank the Leaderboards cards next to
@@ -126,13 +137,13 @@ private func anonymousCompeteSession() async throws -> FestivalSession {
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 1200))
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(1300))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(
+        host, untilText: ["Fixture Player 1", "Scores are updating"], excluding: ["Loading"]
+    )
     _ = try nativeHostedPNG(
         image, filename: "compete-rivals-error-leaderboards-ok.png", environment: "FST_COMPETE_RENDER_OUT"
     )
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["Fixture Player 1", "Scores are updating"])
 }
 
 /// The Rivals section's own empty state ("no rivals yet") renders while the
@@ -151,10 +162,13 @@ private func anonymousCompeteSession() async throws -> FestivalSession {
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 1000))
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(1300))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(
+        host, untilText: ["Fixture Player 1", "Rivals"], excluding: ["Loading"]
+    )
     _ = try nativeHostedPNG(image, filename: "compete-rivals-empty.png", environment: "FST_COMPETE_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(
+        host, image: image, containing: ["Fixture Player 1", "Rivals"],
+        notContaining: ["uwphe", "Loading"]
+    )
 }
 #endif

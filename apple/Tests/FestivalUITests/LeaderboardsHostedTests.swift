@@ -232,11 +232,11 @@ private func hostedRankingsSessionWithSelection(
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(400))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(
+        host, untilText: ["Fixture Rank 1", "Fixture Rank 3", "View All"]
+    )
     _ = try nativeHostedPNG(image, filename: "leaderboards-overview.png", environment: "FST_LEADERBOARDS_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["Fixture Rank 1", "Fixture Rank 3", "View All"])
 }
 
 /// The "no ranked players yet" / "no ranked … yet" empty-card text for every card.
@@ -254,11 +254,11 @@ private func hostedRankingsSessionWithSelection(
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(400))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["No ranked Lead players yet."])
     _ = try nativeHostedPNG(image, filename: "leaderboards-empty.png", environment: "FST_LEADERBOARDS_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(
+        host, image: image, containing: ["No ranked Lead players yet."], notContaining: ["Fixture Rank 1"]
+    )
 }
 
 // MARK: - FullRankingsScreen
@@ -277,11 +277,9 @@ private func hostedRankingsSessionWithSelection(
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(400))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["Fixture Rank 1", "Fixture Rank 3", "1 / 1"])
     _ = try nativeHostedPNG(image, filename: "full-rankings.png", environment: "FST_LEADERBOARDS_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["Fixture Rank 1", "Fixture Rank 3", "1 / 1"])
 }
 
 // MARK: - BandRankingsScreen
@@ -300,11 +298,9 @@ private func hostedRankingsSessionWithSelection(
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(400))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["Member 1A", "Member 2B", "1 / 1"])
     _ = try nativeHostedPNG(image, filename: "band-rankings.png", environment: "FST_LEADERBOARDS_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["Member 1A", "Member 2B", "1 / 1"])
 }
 
 // MARK: - LeaderboardsScreen selected-player spotlight
@@ -327,13 +323,15 @@ private func hostedRankingsSessionWithSelection(
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(400))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["Your rank, 2nd. Fixture Rank 2."])
     _ = try nativeHostedPNG(
         image, filename: "leaderboards-spotlight-inline.png", environment: "FST_LEADERBOARDS_RENDER_OUT"
     )
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(
+        host, image: image,
+        containing: ["Your rank, 2nd. Fixture Rank 2."],
+        notContaining: ["Loading your rank"]
+    )
     // No live single-account read was needed since the row was already visible.
     #expect(await transport.spotlightCalls == 0)
 }
@@ -355,13 +353,11 @@ private func hostedRankingsSessionWithSelection(
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(500))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["Your rank, 57th. Spotlight Player."])
     _ = try nativeHostedPNG(
         image, filename: "leaderboards-spotlight-footer.png", environment: "FST_LEADERBOARDS_RENDER_OUT"
     )
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["Your rank, 57th. Spotlight Player."])
 }
 
 /// A selected player with no rank yet on a board shows the "not yet ranked" text.
@@ -381,13 +377,11 @@ private func hostedRankingsSessionWithSelection(
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(500))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["Not yet ranked on Lead."])
     _ = try nativeHostedPNG(
         image, filename: "leaderboards-spotlight-unranked.png", environment: "FST_LEADERBOARDS_RENDER_OUT"
     )
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["Not yet ranked on Lead."])
 }
 
 /// A failed single-account read shows the shared inline service status, not a crash.
@@ -407,13 +401,16 @@ private func hostedRankingsSessionWithSelection(
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(500))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(
+        host, untilText: ["The service is temporarily unavailable. Try again.", "Retry"]
+    )
     _ = try nativeHostedPNG(
         image, filename: "leaderboards-spotlight-failed.png", environment: "FST_LEADERBOARDS_RENDER_OUT"
     )
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(
+        host, image: image,
+        containing: ["Fixture Rank 1", "The service is temporarily unavailable. Try again."]
+    )
 }
 
 /// The loading placeholder renders while the single-account read is still in flight.
@@ -435,13 +432,11 @@ private func hostedRankingsSessionWithSelection(
     defer { window.orderOut(nil) }
     // The top-ten board itself resolves quickly; only the delayed single-account
     // spotlight read is still pending at this point.
-    try await Task.sleep(for: .milliseconds(300))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["Fixture Rank 1", "Loading your rank"])
     _ = try nativeHostedPNG(
         image, filename: "leaderboards-spotlight-loading.png", environment: "FST_LEADERBOARDS_RENDER_OUT"
     )
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["Fixture Rank 1", "Loading your rank"])
 }
 
 // MARK: - FullRankingsScreen selected-player spotlight
@@ -463,13 +458,11 @@ private func hostedRankingsSessionWithSelection(
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    try await Task.sleep(for: .milliseconds(500))
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
+    let image = try await nativeHostedSettle(host, untilText: ["Your rank, 57th", "Jump to your page"])
     _ = try nativeHostedPNG(
         image, filename: "full-rankings-spotlight-footer.png", environment: "FST_LEADERBOARDS_RENDER_OUT"
     )
-    #expect(image.width > 0 && image.height > 0)
+    assertRendersContent(host, image: image, containing: ["Your rank, 57th", "Jump to your page"])
 }
 
 // MARK: - Quick Links (control states, Leaderboards adoption)
