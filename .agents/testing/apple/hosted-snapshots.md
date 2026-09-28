@@ -49,6 +49,7 @@ Not causes: `NavigationStack`/`ScrollView` layout, lazy stacks (with a window), 
 
 - Find Rival's loading shot asserts only the painted sheet and query: a busy run can outlast the 250 ms debounce.
 - Component tests using `ImageRenderer` (chips, pills, difficulty meter, artwork) assert layout/geometry, not native control rendering.
+- **`.toolbar` items are not hosted evidence at all**, not even structurally: a `NavigationStack`'s `.cancellationAction`/`.confirmationAction` items attach to the window's `NSToolbar`, but `nativeHostedWindow`'s bare offscreen window never gets one (`window.toolbar` reads `nil` even after `nativeHostedImage`), and `nativeHostedAccessibility`'s walk starts from the content view, which a toolbar's items live outside of. Every sheet using semantic toolbar placements (`FindRivalSheet`, `ProfileSelectionSheet`, `SuggestionsFilterSheet`, `PlayerHistorySortSheet`, …) can only prove its Cancel/Apply/Close buttons exist and work via an XCUITest journey on-device; hosted tests can still cover the Form content and draft-state logic beneath the toolbar.
 
 Fixed 2026-09-28 (Lane C): `RivalCommonSection.load()` (`Features/Rivals/RivalsScreen.swift`)
 used `try?` per instrument read, so a 503 across every visible instrument silently

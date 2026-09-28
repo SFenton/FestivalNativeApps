@@ -9,7 +9,6 @@ import FestivalDesign
 /// sort mode (date/score/accuracy/season) and ascending/descending direction.
 struct PlayerHistorySortSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var draftMode: PlayerScoreSortMode
     @State private var draftAscending: Bool
     @State private var discardPending = false
@@ -35,12 +34,6 @@ struct PlayerHistorySortSheet: View {
     }
 
     private var hasChanges: Bool { draftMode != mode || draftAscending != ascending }
-
-    private var actionLayout: AnyLayout {
-        dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(spacing: 12))
-            : AnyLayout(HStackLayout(spacing: 12))
-    }
 
     var body: some View {
         NavigationStack {
@@ -86,41 +79,24 @@ struct PlayerHistorySortSheet: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                actionLayout {
-                    Button {
+            // Paired Cancel/Apply modal: `.cancellationAction` leading,
+            // `.confirmationAction` trailing (app modal standard, operator
+            // 2026-09-28) — replaces a custom `safeAreaInset` footer.
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
                         if hasChanges { discardPending = true } else { dismiss() }
-                    } label: {
-                        Text("Cancel")
-                            .font(.body)
-                            .foregroundStyle(BrandTokens.textPrimary)
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                            .background(
-                                BrandTokens.cardBackground, in: RoundedRectangle(cornerRadius: 10)
-                            )
                     }
-                    .buttonStyle(HighContrastPagerStyle())
                     .accessibilityIdentifier("fst.history.sort.cancel")
-                    Button {
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Apply") {
                         onApply(draftMode, draftAscending)
                         dismiss()
-                    } label: {
-                        Text("Apply Sort Changes")
-                            .font(.body.bold())
-                            .foregroundStyle(
-                                hasChanges ? BrandTokens.textPrimary : BrandTokens.textSecondary
-                            )
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                            .background(
-                                BrandTokens.cardBackground, in: RoundedRectangle(cornerRadius: 10)
-                            )
                     }
-                    .buttonStyle(HighContrastPagerStyle())
                     .disabled(!hasChanges)
                     .accessibilityIdentifier("fst.history.sort.apply")
                 }
-                .padding(12)
-                .background(BrandTokens.cardBackground)
             }
         }
         // festivalSheet(.compact) is already applied by the presenting call site

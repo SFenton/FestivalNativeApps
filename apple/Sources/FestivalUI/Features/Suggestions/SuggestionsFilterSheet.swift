@@ -5,7 +5,9 @@ import FestivalDesign
 /// Native staged draft for the Suggestions filter (web `SuggestionsFilterModal`):
 /// per-instrument visibility, a global toggle per `SuggestionCategoryType`, and a
 /// per-instrument override section. Applies atomically on "Apply"; "Cancel" with
-/// unsaved changes confirms before discarding, matching `SongsFilterSheet`.
+/// unsaved changes confirms before discarding. Cancel/Apply are semantic
+/// `.cancellationAction`/`.confirmationAction` toolbar items (app modal standard),
+/// not a custom footer.
 struct SuggestionsFilterSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var draft: SuggestionFilterSettings
@@ -117,38 +119,28 @@ struct SuggestionsFilterSheet: View {
                 .scrollContentBackground(.hidden)
                 .accessibilityIdentifier("fst.suggestions.filter.form")
             }
-            #if os(iOS)
-            .toolbar(.hidden, for: .navigationBar)
-            #endif
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                HStack(spacing: 12) {
-                    Button {
+            // Paired Cancel/Apply modal: `.cancellationAction` leading,
+            // `.confirmationAction` trailing (app modal standard, operator
+            // 2026-09-28) — replaces a custom `safeAreaInset` footer, matching
+            // `PlayerHistorySortSheet`. The in-content title `Text` above stays
+            // (it carries `fst.suggestions.filter.title`, asserted by
+            // `SuggestionsJourneyTests`), so the navigation bar itself shows
+            // only these two actions with no title.
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
                         if hasChanges { discardPending = true } else { dismiss() }
-                    } label: {
-                        Text("Cancel")
-                            .font(.body)
-                            .foregroundStyle(BrandTokens.textPrimary)
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                            .background(BrandTokens.cardBackground, in: RoundedRectangle(cornerRadius: 10))
                     }
-                    .buttonStyle(.plain)
                     .accessibilityIdentifier("fst.suggestions.filter.cancel")
-                    Button {
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Apply") {
                         onApply(draft)
                         dismiss()
-                    } label: {
-                        Text("Apply")
-                            .font(.body.bold())
-                            .foregroundStyle(hasChanges ? BrandTokens.textPrimary : BrandTokens.textSecondary)
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                            .background(BrandTokens.cardBackground, in: RoundedRectangle(cornerRadius: 10))
                     }
-                    .buttonStyle(.plain)
                     .disabled(!hasChanges)
                     .accessibilityIdentifier("fst.suggestions.filter.apply")
                 }
-                .padding(12)
-                .background(BrandTokens.cardBackground)
             }
         }
         .festivalSheet(.large)
