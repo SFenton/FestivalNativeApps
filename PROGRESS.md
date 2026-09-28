@@ -96,15 +96,15 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 
   - Follow-ups: drawer swipe/VoiceOver dismissal and tab re-tap untested (no tap tooling → Lane T); band tab rules unit-tested only
 
-**Lane S — Songs, Song Detail, Shop** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/songs`
-- ⬜ Native toolbar controls on Liquid Glass nav bar: search, sort, filter (Item Shop button removed → drawer)
-- ⬜ Song rows as Liquid Glass; tighten row spacing to match web
-- ⬜ Instrument icons inside the instrument status circles
-- ⬜ Right-side section index scrubber for Title/Artist/Year sorts; animate out for sorts where it doesn't make sense
-- ⬜ Instrument selection moved into Filter (only when a profile is selected), like web
-- ⬜ Search pill to native iOS standard; decide chevrons (HIG: no disclosure chevrons inside card rows)
-- ⬜ Song Detail: intensity card uses instrument icons instead of text
-- ⬜ Remove offline/warm-cache disclosure UI (online-only)
+**Lane S — Songs, Song Detail, Shop** (Sonnet) — ✅ landed …`eaecd6c` (follow-up running: scrubber `#` labels, keyboard icons)
+- ✅ Native toolbar controls on Liquid Glass nav bar: search, sort, filter (Item Shop button removed → drawer)
+- ✅ Song rows as Liquid Glass; tighten row spacing to match web
+- ✅ Instrument icons inside the instrument status circles
+- ✅ Right-side section index scrubber for Title/Artist/Year sorts; animate out for sorts where it doesn't make sense
+- ✅ Instrument selection moved into Filter (only when a profile is selected), like web
+- ✅ Search pill to native iOS standard; decide chevrons (HIG: no disclosure chevrons inside card rows)
+- ✅ Song Detail: intensity card uses instrument icons instead of text
+- ✅ Remove offline/warm-cache disclosure UI (online-only)
 
 **Lane P — Profile + Statistics tab** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/profile`
 - ⬜ Fix: selected profile survives app close / cold start
@@ -207,3 +207,4 @@ Not yet assigned:
 | 2026-09-27 | Orchestrator | Split FREs into dedicated Lane F per operator (versioned/hashed seen state, replay settings) |
 | 2026-09-27 | Orchestrator | Launched Lane Q (Quick Links) per operator |
 | 2026-09-27 | Orchestrator | Unstuck simulator queue: frozen carousel for drives + drive timeout (`c3b55f3`) |
+| 2026-09-28 | Lane S | Native toolbar search/sort/filter, glass rows, instrument-icon chips, A–Z scrubber, instrument filter moved to Filter, icon intensity card, offline banners removed |
