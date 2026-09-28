@@ -121,11 +121,8 @@ public final class QuickLinksController {
 
     /// Record one section's viewport-relative frame, or `nil` when it leaves the tree.
     ///
-    /// Forgetting a frame does not republish the active section by itself: when a page
-    /// is popped every section leaves at once, and republishing then re-rendered the
-    /// page's Quick Links toolbar item mid-transition, which made the iPhone Duo rail
-    /// re-insert the destination's items (Leaderboards › Player › Back jitter). While
-    /// scrolling, the remaining sections' next frame reports refresh the state anyway.
+    /// A section leaving must recompute the active section (a Quick Links jump past a
+    /// lazily unloaded section settles on it), so `nil` refreshes like any report.
     ///
     /// - Parameters:
     ///   - id: Section id.
@@ -133,7 +130,6 @@ public final class QuickLinksController {
     func report(_ id: String, frame: QuickLinkFrame?) {
         guard frames[id] != frame else { return }
         frames[id] = frame
-        guard frame != nil else { return }
         refresh()
     }
 

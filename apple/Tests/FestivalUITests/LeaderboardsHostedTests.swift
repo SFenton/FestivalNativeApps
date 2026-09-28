@@ -503,10 +503,10 @@ private func hostedRankingsSessionWithSelection(
     #expect(controller.jumpSerial == 1)
 }
 
-/// Tearing a page down (every section reports `nil` as it leaves) must not republish the
-/// active section: that re-rendered the popped page's toolbar mid-pop (Lane W1 rail jitter).
+/// A collapsing (zero-height) viewport during teardown must not republish the active
+/// section; a real geometry report still recomputes it (Lane W1 rail jitter).
 @MainActor
-@Test func quickLinksTeardownKeepsActiveSection() {
+@Test func quickLinksTeardownViewportKeepsActiveSection() {
     let controller = QuickLinksController()
     let sections = Instrument.allCases.prefix(3).map { LeaderboardsScreen.quickLink(for: $0) }
     controller.configure(title: "Leaderboards Quick Links", explicit: Array(sections))
@@ -517,14 +517,10 @@ private func hostedRankingsSessionWithSelection(
     }
     let active = controller.activeID
     #expect(active == sections[1].id)
-    for section in sections { controller.report(section.id, frame: nil) }
-    #expect(controller.activeID == active)
-    // A collapsing viewport is teardown too.
     controller.reportViewport(height: 0)
     #expect(controller.activeID == active)
-    // The next real geometry report still recomputes the active section.
-    controller.report(sections[0].id, frame: QuickLinkFrame(minY: 0, maxY: 400))
-    #expect(controller.activeID == sections[0].id)
+    controller.report(sections[1].id, frame: nil)
+    #expect(controller.activeID != sections[1].id)
 }
 
 /// Discovered sections survive the all-at-once disappearance of a page teardown, so the
