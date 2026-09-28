@@ -1,7 +1,7 @@
 package com.festivalscoretracker.android.ui.common
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -41,7 +41,7 @@ fun Modifier.festivalFadeIn(isLoaded: Boolean, delayMillis: Int = 0): Modifier =
         when {
             !isLoaded -> progress.snapTo(0f)
             reduceMotion -> progress.snapTo(1f)
-            else -> progress.animateTo(1f, tween(FADE_IN_MILLIS, delayMillis, FastOutSlowInEasing))
+            else -> progress.animateTo(1f, tween(FADE_IN_MILLIS, delayMillis, FadeInEasing))
         }
     }
     val drift = FADE_IN_DRIFT_DP.dp
@@ -67,16 +67,19 @@ internal fun fadeInAlpha(progress: Float, isLoaded: Boolean, reduceMotion: Boole
 /**
  * Whether freshly loaded content should now be shown: false for one frame after a
  * loading to loaded transition (so [festivalFadeIn] on newly composed children sees
- * the change and fades them in), true at once for content that was already loaded.
+ * the change and fades them in), true at once for content that was already loaded or
+ * when Remove animations / Reduce Motion is on.
  *
  * @param isLoaded Whether the content is ready.
  * @return Value to pass to [festivalFadeIn].
  */
 @Composable
 fun rememberRevealed(isLoaded: Boolean): Boolean {
+    val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
     var revealed by remember { mutableStateOf(isLoaded) }
     LaunchedEffect(isLoaded) { revealed = isLoaded }
-    return revealed
+    // No fade to set up under Remove animations: show loaded content in its first frame.
+    return if (reduceMotion) isLoaded else revealed
 }
 
 /**
@@ -97,7 +100,10 @@ const val FADE_IN_STAGGER_MILLIS = 125
 /** Siblings after this index start together. */
 private const val FADE_IN_MAX_STAGGERED = 12
 
-/** Upward drift at the start of the fade (web `fadeInUp`). */
-private const val FADE_IN_DRIFT_DP = 8
+/** Upward drift at the start of the fade (web `fadeInUp`: `translateY(12px)`). */
+private const val FADE_IN_DRIFT_DP = 12
+
+/** Web `fadeInUp` timing function: CSS `ease-out`, `cubic-bezier(0, 0, 0.58, 1)`. */
+internal val FadeInEasing = CubicBezierEasing(0f, 0f, 0.58f, 1f)
 
 // endregion
