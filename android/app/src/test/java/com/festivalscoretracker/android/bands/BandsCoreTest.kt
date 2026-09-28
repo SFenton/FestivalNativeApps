@@ -1,0 +1,260 @@
+package com.festivalscoretracker.android.bands
+
+import com.festivalscoretracker.android.core.bands.BandDetail
+import com.festivalscoretracker.android.core.bands.BandDetailProjection
+import com.festivalscoretracker.android.core.bands.BandFormatting
+import com.festivalscoretracker.android.core.bands.BandMember
+import com.festivalscoretracker.android.core.bands.BandPaging
+import com.festivalscoretracker.android.core.bands.BandProfileEnvelope
+import com.festivalscoretracker.android.core.bands.BandRankHistoryEntry
+import com.festivalscoretracker.android.core.bands.BandRankHistoryResponse
+import com.festivalscoretracker.android.core.bands.BandRankingMetric
+import com.festivalscoretracker.android.core.bands.BandSongPerformance
+import com.festivalscoretracker.android.core.bands.BandSongRow
+import com.festivalscoretracker.android.core.bands.BandText
+import com.festivalscoretracker.android.core.bands.BandType
+import com.festivalscoretracker.android.core.bands.PlayerBandGroup
+import com.festivalscoretracker.android.core.bands.PlayerBandListResponse
+import com.festivalscoretracker.android.core.bands.SongBandLeaderboardResponse
+import com.festivalscoretracker.android.core.model.FestivalApiException
+import com.festivalscoretracker.android.core.nav.BandRankingsRoute
+import com.festivalscoretracker.android.core.nav.SongDetailRoute
+import com.festivalscoretracker.android.data.FestivalApi
+import com.festivalscoretracker.android.testing.Fixtures
+import java.util.Locale
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class BandsCoreTest {
+    private val us = Locale.US
+
+    // region Types
+
+    @Test
+    fun bandTypesMetricsAndGroups() {
+        assertEquals(listOf("Band_Duets", "Band_Trios", "Band_Quad"), BandType.entries.map { it.wireId })
+        assertEquals(listOf("Duos", "Trios", "Quads"), BandType.entries.map { it.label })
+        assertEquals(listOf(2, 3, 4), BandType.entries.map { it.memberCount })
+        assertEquals(BandType.Trios, BandType.fromWireId("Band_Trios"))
+        assertNull(BandType.fromWireId("band_trios"))
+        assertNull(BandType.fromWireId(null))
+        assertEquals(BandRankingMetric.FcRate, BandRankingMetric.fromWireId("fcrate"))
+        assertNull(BandRankingMetric.fromWireId("maxscore"))
+        assertEquals(BandRankingMetric.TotalScore, BandRankingMetric.DEFAULT)
+        assertEquals(listOf("all", "duos", "trios", "quads"), PlayerBandGroup.entries.map { it.wireId })
+        assertEquals("All Bands", PlayerBandGroup.All.label)
+        assertEquals(BandType.Quad, PlayerBandGroup.Quads.bandType)
+        assertNull(PlayerBandGroup.All.bandType)
+    }
+
+    @Test
+    fun teamKeyAndMemberValidation() {
+        assertTrue(BandText.isValidMemberId(Fixtures.ACCOUNT_A))
+        assertTrue(BandText.isValidMemberId("fixture-player-1"))
+        assertFalse(BandText.isValidMemberId(""))
+        assertFalse(BandText.isValidMemberId(null))
+        assertFalse(BandText.isValidMemberId("a/b"))
+        assertFalse(BandText.isValidMemberId("x".repeat(129)))
+        assertTrue(BandText.isValidTeamKey(BandFixtures.DUO_KEY))
+        assertTrue(BandText.isValidTeamKey("fixture-team-1"))
+        assertTrue(BandText.isValidTeamKey("a:b:c:d"))
+        assertFalse(BandText.isValidTeamKey("a:b:c:d:e"))
+        assertFalse(BandText.isValidTeamKey("a::b"))
+        assertFalse(BandText.isValidTeamKey("../x"))
+        assertFalse(BandText.isValidTeamKey(null))
+        assertFalse(BandText.isValidTeamKey(""))
+        assertFalse(BandText.isValidTeamKey("a".repeat(601)))
+    }
+
+    // endregion
+
+    // region Models
+
+    @Test
+    fun membersDecodeWithAnonymousFallbackAndDistinctInstruments() {
+        val list = FestivalApi.JSON.decodeFromString(PlayerBandListResponse.serializer(), BandFixtures.playerBands(3, 1, 25))
+        assertEquals(3, list.entries.size)
+        val duo = list.entries[0]
+        assertEquals(BandFixtures.DUO_ID, duo.key)
+        assertEquals("Synthetic Lead + Synthetic Bass", duo.membersLabel)
+        assertEquals(listOf("Lead"), duo.members[0].chartedInstruments.map { it.label })
+        val trio = list.entries[1]
+        assertEquals("Synthetic Lead + Synthetic Bass + Unknown User", trio.membersLabel)
+        val anonymous = trio.members.last()
+        assertFalse(anonymous.isLinkable)
+        assertEquals(BandMember.UNKNOWN_USER, anonymous.resolvedName)
+        assertEquals(BandMember.UNKNOWN_USER, BandMember(accountId = "x", displayName = "  ").resolvedName)
+        // Anonymous members are never collapsed together; repeated IDs are.
+        val repeated = listOf(BandMember("a"), BandMember("a"), BandMember(""), BandMember(""))
+        assertEquals(3, BandMember.distinct(repeated).size)
+        assertEquals("Band", BandMember.joinNames(emptyList()))
+        assertEquals("teamKey-only", list.entries[0].copy(bandId = "", teamKey = "teamKey-only").key)
+    }
+
+    @Test
+    fun playerBandListValidation() {
+        val list = FestivalApi.JSON.decodeFromString(PlayerBandListResponse.serializer(), BandFixtures.playerBands(30, 1, 25))
+        list.validate(BandFixtures.PLAYER, 25)
+        assertEquals(2, list.pageCount(25))
+        assertEquals(1, PlayerBandListResponse().pageCount(25))
+        assertThrows(FestivalApiException.InvalidResponse::class.java) { list.validate(Fixtures.ACCOUNT_B, 25) }
+        assertThrows(FestivalApiException.InvalidResponse::class.java) { list.validate(BandFixtures.PLAYER, 10) }
+        assertThrows(FestivalApiException.InvalidResponse::class.java) { list.copy(totalCount = -1).validate(BandFixtures.PLAYER, 25) }
+        assertThrows(FestivalApiException.InvalidResponse::class.java) {
+            list.copy(entries = listOf(list.entries[0].copy(teamKey = ""))).validate(BandFixtures.PLAYER, 25)
+        }
+        assertEquals(1, BandPaging.pageCount(0, 25))
+        assertEquals(1, BandPaging.pageCount(25, 25))
+        assertEquals(2, BandPaging.pageCount(26, 25))
+        assertEquals(26, BandPaging.pageCount(26, 0))
+    }
+
+    @Test
+    fun bandDetailDecodesRanksAndDisplayMembers() {
+        val envelope = FestivalApi.JSON.decodeFromString(BandProfileEnvelope.serializer(), BandFixtures.bandProfile())
+        val detail = envelope.selectedBandEntry!!
+        assertEquals(listOf(3, 4, 5, 2), BandRankingMetric.entries.map { detail.rank(it) })
+        assertEquals(2, detail.displayMembers.size)
+        val rosterOnly = BandDetail(teamMembers = listOf(BandMember("a", "Roster")))
+        assertEquals("Roster", rosterOnly.displayMembers.single().resolvedName)
+        assertTrue(BandDetail().displayMembers.isEmpty())
+        assertNull(FestivalApi.JSON.decodeFromString(BandProfileEnvelope.serializer(), BandFixtures.bandProfile(teamKey = null)).selectedBandEntry)
+    }
+
+    @Test
+    fun songBoardValidationAndPaging() {
+        val board = FestivalApi.JSON.decodeFromString(SongBandLeaderboardResponse.serializer(), BandFixtures.songBoard("s-alpha", "Band_Duets", 30, 0, 25))
+        board.validate("s-alpha", BandType.Duets, 25)
+        assertEquals(2, board.pageCount(25))
+        assertEquals("band-1:1", board.entries[0].key)
+        assertEquals("Synthetic Lead + Unknown User", board.entries[0].membersLabel)
+        assertEquals("t:3", board.entries[0].copy(bandId = "", teamKey = "t", rank = 3).key)
+        assertEquals(0, board.copy(localEntries = null, totalEntries = -5).population)
+        listOf(
+            { board.validate("s-beta", BandType.Duets, 25) },
+            { board.validate("s-alpha", BandType.Trios, 25) },
+            { board.validate("s-alpha", BandType.Duets, 10) },
+            { board.copy(count = 3).validate("s-alpha", BandType.Duets, 25) },
+            { board.copy(totalEntries = -1).validate("s-alpha", BandType.Duets, 25) },
+            { board.copy(localEntries = -1).validate("s-alpha", BandType.Duets, 25) },
+        ).forEach { assertThrows(FestivalApiException.InvalidResponse::class.java) { it() } }
+    }
+
+    // endregion
+
+    // region Formatting
+
+    @Test
+    fun formatting() {
+        assertEquals("12,345", BandFormatting.count(12345, us))
+        assertEquals("#1,234", BandFormatting.rank(1234, us))
+        assertEquals(BandFormatting.NONE, BandFormatting.rank(0, us))
+        assertEquals("#1.5", BandFormatting.averageRank(1.5, us))
+        assertEquals(BandFormatting.NONE, BandFormatting.averageRank(Double.NaN, us))
+        assertEquals(BandFormatting.NONE, BandFormatting.averageRank(0.0, us))
+        assertEquals("98.8%", BandFormatting.accuracy(987654.0, us))
+        assertEquals(BandFormatting.NONE, BandFormatting.accuracy(null, us))
+        assertEquals(BandFormatting.NONE, BandFormatting.accuracy(0.0, us))
+        assertEquals("5.4", BandFormatting.stars(5.4, us))
+        assertEquals(BandFormatting.NONE, BandFormatting.stars(0.0, us))
+        assertEquals("30.0%", BandFormatting.percentage(0.3, us))
+        assertEquals(BandFormatting.NONE, BandFormatting.percentage(Double.POSITIVE_INFINITY, us))
+        assertEquals("Top 3%", BandFormatting.percentile(0.03, us))
+        assertEquals("Top 0.40%", BandFormatting.percentile(0.004, us))
+        assertEquals("Top 0.01%", BandFormatting.percentile(0.0, us))
+        assertEquals("Top 100%", BandFormatting.percentile(4.0, us))
+        assertEquals(BandFormatting.NONE, BandFormatting.percentile(Double.NaN, us))
+        assertEquals("29 / 50", BandFormatting.fraction(29, 50, us))
+        assertEquals("1 appearance", BandFormatting.appearances(1, us))
+        assertEquals("2 appearances", BandFormatting.appearances(2, us))
+        assertEquals("Top 5%", BandFormatting.metricValue(0.05, BandRankingMetric.Adjusted, us))
+        assertEquals("Top 5%", BandFormatting.metricValue(0.05, BandRankingMetric.Weighted, us))
+        assertEquals("30.0%", BandFormatting.metricValue(0.3, BandRankingMetric.FcRate, us))
+        assertEquals("1,235", BandFormatting.metricValue(1234.6, BandRankingMetric.TotalScore, us))
+        assertEquals(BandFormatting.NONE, BandFormatting.metricValue(null, BandRankingMetric.TotalScore, us))
+        assertEquals(BandFormatting.NONE, BandFormatting.metricValue(Double.NaN, BandRankingMetric.TotalScore, us))
+        assertEquals("Sep 27", BandFormatting.shortDate("2026-09-27", us))
+        assertEquals("yesterday", BandFormatting.shortDate("yesterday", us))
+    }
+
+    // endregion
+
+    // region Projection
+
+    @Test
+    fun summaryAndStatistics() {
+        val detail = FestivalApi.JSON.decodeFromString(BandProfileEnvelope.serializer(), BandFixtures.bandProfile()).selectedBandEntry!!
+        val summary = BandDetailProjection.summary(detail, BandType.Duets)
+        assertEquals(listOf("Duos", "29", "2"), summary.map { it.value })
+        val song = Fixtures.song("s-alpha", "Alpha Tune")
+        val stats = BandDetailProjection.statistics(detail, BandType.Duets, BandRankingMetric.TotalScore, song)
+        assertEquals(
+            listOf("rank", "songs-played", "full-combos", "total-score", "fc-rate", "avg-accuracy", "avg-stars", "best-rank", "avg-rank"),
+            stats.map { it.id },
+        )
+        assertEquals("Total Score Rank", stats[0].label)
+        assertEquals(BandRankingsRoute("Band_Duets"), stats[0].route)
+        assertEquals(SongDetailRoute("s-alpha"), stats[7].route)
+        val unranked = BandDetailProjection.statistics(detail.copy(adjustedSkillRank = 0, bestRank = 0), BandType.Duets, BandRankingMetric.Adjusted, song)
+        assertNull(unranked[0].route)
+        assertEquals(BandFormatting.NONE, unranked[0].value)
+        assertNull(unranked[7].route)
+        assertNull(BandDetailProjection.statistics(detail, BandType.Duets, BandRankingMetric.Adjusted, null)[7].route)
+    }
+
+    @Test
+    fun historyProjection() {
+        val response = FestivalApi.JSON.decodeFromString(BandRankHistoryResponse.serializer(), BandFixtures.history())
+        val ranked = BandDetailProjection.ranked(response.history, BandRankingMetric.TotalScore)
+        assertEquals(listOf("2024-01-01", "2024-01-02", "2024-01-03"), ranked.map { it.snapshotDate })
+        val points = BandDetailProjection.points(ranked, BandRankingMetric.TotalScore)
+        assertEquals(listOf(0f, 0.5f, 1f), points.map { it.x })
+        assertEquals(listOf(1f, 0.5f, 0f), points.map { it.y })
+        assertEquals(0.5f, BandDetailProjection.points(ranked.take(1), BandRankingMetric.TotalScore).single().x)
+        assertEquals(0.5f, BandDetailProjection.points(ranked.take(1), BandRankingMetric.TotalScore).single().y)
+        assertTrue(BandDetailProjection.points(emptyList(), BandRankingMetric.TotalScore).isEmpty())
+        val rows = BandDetailProjection.recentRows(ranked, BandRankingMetric.Adjusted, us)
+        assertEquals(listOf("2024-01-03", "2024-01-02", "2024-01-01"), rows.map { it.date })
+        assertEquals("Jan 3", rows[0].dateText)
+        assertEquals("#1", rows[0].rankText)
+        assertEquals("Top 2%", rows[0].valueText)
+        val many = (1..15).map { BandRankHistoryEntry(snapshotDate = "2024-02-%02d".format(it), totalScoreRank = it) }
+        assertEquals(BandDetailProjection.RECENT_ROWS, BandDetailProjection.recentRows(many, BandRankingMetric.TotalScore, us).size)
+        val entry = BandRankHistoryEntry(adjustedSkillRank = 1, weightedRank = 2, fcRateRank = 3, totalScoreRank = 4, adjustedSkillRating = 0.1, weightedRating = 0.2, fcRate = 0.3, totalScore = 5)
+        assertEquals(listOf(1, 2, 3, 4), BandRankingMetric.entries.map { entry.rank(it) })
+        assertEquals(listOf(0.1, 0.2, 0.3, 5.0), BandRankingMetric.entries.map { entry.value(it) })
+    }
+
+    @Test
+    fun historyNotes() {
+        fun note(status: String?, message: String? = null) = BandDetailProjection.historyNote(BandRankHistoryResponse(historyStatus = status, historyMessage = message))
+        assertNull(note(null))
+        assertNull(note("current"))
+        assertEquals("Rank history is temporarily unavailable.", note("failed", "ignored"))
+        assertEquals("Custom", note("stale", " Custom "))
+        assertEquals("History is catching up. Current rankings are already fresh.", note("catching_up"))
+        assertEquals("Rank history is behind the latest current rankings.", note("stale"))
+        assertEquals("Rank history is disabled while current rankings remain available.", note("disabled"))
+        assertNull(note(null, "  "))
+    }
+
+    @Test
+    fun songRows() {
+        val song = Fixtures.song("s-alpha", "Alpha Tune", artist = "Synthetic Artist", year = 2021)
+        val known = BandSongRow(BandSongPerformance(songId = "s-alpha"), song)
+        assertEquals("Alpha Tune", known.title)
+        assertEquals("Synthetic Artist · 2021", known.subtitle)
+        assertEquals(SongDetailRoute("s-alpha"), known.route)
+        val unknown = BandSongRow(BandSongPerformance(songId = "s-x"), null)
+        assertEquals("Unknown Song", unknown.title)
+        assertEquals("", unknown.subtitle)
+        assertNull(unknown.route)
+        assertEquals("2020", BandSongRow(BandSongPerformance(), Fixtures.song("a", "A", artist = "", year = 2020)).subtitle)
+    }
+
+    // endregion
+}

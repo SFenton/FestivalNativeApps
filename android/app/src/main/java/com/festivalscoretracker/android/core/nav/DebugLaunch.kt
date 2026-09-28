@@ -95,7 +95,9 @@ data class DebugLaunch(
                 "suggestions" -> SuggestionsRoute
                 "compete" -> CompeteRoute
                 "bands" -> BandsRoute
-                "band" -> arg?.let { BandRoute(it) }
+                // `band:<bandId>[:<bandType>:<teamKey>]`; the team key itself contains `:`.
+                "band" -> arg?.split(":", limit = 3)?.let { BandRoute(it[0], bandType = it.getOrNull(1), teamKey = it.getOrNull(2)) }
+                "songBandLeaderboard" -> arg?.split(":", limit = 2)?.let { SongBandLeaderboardRoute(it[0], it.getOrNull(1) ?: "Band_Duets") }
                 "licenses" -> LicensesRoute
                 else -> null
             }

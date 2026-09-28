@@ -70,8 +70,6 @@ import com.festivalscoretracker.android.core.nav.AdaptiveLayoutPolicy
 import com.festivalscoretracker.android.core.nav.AllRivalsRoute
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.nav.BandRankingsRoute
-import com.festivalscoretracker.android.core.nav.BandRoute
-import com.festivalscoretracker.android.core.nav.BandsRoute
 import com.festivalscoretracker.android.core.nav.CompeteRoute
 import com.festivalscoretracker.android.core.nav.CompeteTab
 import com.festivalscoretracker.android.core.nav.DebugLaunch
@@ -82,7 +80,6 @@ import com.festivalscoretracker.android.core.nav.LeaderboardsRoute
 import com.festivalscoretracker.android.core.nav.LeaderboardsTab
 import com.festivalscoretracker.android.core.nav.LicensesRoute
 import com.festivalscoretracker.android.core.nav.NavigationLayout
-import com.festivalscoretracker.android.core.nav.PlayerBandsRoute
 import com.festivalscoretracker.android.core.nav.PlayerHistoryRoute
 import com.festivalscoretracker.android.core.nav.PlayerRoute
 import com.festivalscoretracker.android.core.nav.RivalDetailRoute
@@ -91,7 +88,6 @@ import com.festivalscoretracker.android.core.nav.RivalsRoute
 import com.festivalscoretracker.android.core.nav.RivalsTab
 import com.festivalscoretracker.android.core.nav.SettingsTab
 import com.festivalscoretracker.android.core.nav.ShopRoute
-import com.festivalscoretracker.android.core.nav.SongBandLeaderboardRoute
 import com.festivalscoretracker.android.core.nav.SongDetailRoute
 import com.festivalscoretracker.android.core.nav.SongLeaderboardRoute
 import com.festivalscoretracker.android.core.nav.SongsTab
@@ -106,6 +102,7 @@ import com.festivalscoretracker.android.presentation.SongDetailViewModel
 import com.festivalscoretracker.android.presentation.SongLeaderboardViewModel
 import com.festivalscoretracker.android.presentation.SongsViewModel
 import com.festivalscoretracker.android.ui.background.ArtworkBackground
+import com.festivalscoretracker.android.ui.bands.bandsDestinations
 import com.festivalscoretracker.android.ui.common.ComingSoonScreen
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ShellActions
@@ -409,12 +406,9 @@ private fun FestivalNavHost(
         placeholder<CompeteTab>("Compete", isRoot = true)
         placeholder<RivalsTab>("Rivals", isRoot = true)
         placeholder<StatisticsTab>("Statistics", isRoot = true)
-        placeholder<SongBandLeaderboardRoute>("Band Leaderboard")
+        bandsDestinations(container)
         placeholder<PlayerHistoryRoute>("Score History")
         placeholder<PlayerRoute>("Player")
-        placeholder<PlayerBandsRoute>("Player Bands")
-        placeholder<BandsRoute>("Bands")
-        placeholder<BandRoute>("Band")
         placeholder<LeaderboardsRoute>("Leaderboards")
         placeholder<FullRankingsRoute>("Full Rankings")
         placeholder<BandRankingsRoute>("Band Rankings")
