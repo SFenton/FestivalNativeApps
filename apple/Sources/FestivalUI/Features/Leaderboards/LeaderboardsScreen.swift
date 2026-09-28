@@ -9,6 +9,7 @@ import FestivalDesign
 /// (`FortniteFestivalWeb/src/pages/leaderboards/LeaderboardsOverviewPage.tsx`).
 struct LeaderboardsScreen: View {
     let session: FestivalSession
+    @Environment(\.deviceLayout) private var layout
     @AppStorage("fst.settings.showLead") private var showLead = true
     @AppStorage("fst.settings.showBass") private var showBass = true
     @AppStorage("fst.settings.showDrums") private var showDrums = true
@@ -100,14 +101,36 @@ struct LeaderboardsScreen: View {
         #endif
     }
 
+    /// Two flexible columns on a regular-width window (Duo unfolded, iPad): the
+    /// overview's instrument/band cards read as a dashboard rather than one very
+    /// wide column (`.agents/design/apple/duo.md` "Compete, Statistics, … dashboards
+    /// use 2-column grids"). Compact windows (iPhone, Duo folded) keep the single
+    /// column unchanged.
+    private var regularWidthColumns: [GridItem] {
+        [GridItem(.flexible(), spacing: 20), GridItem(.flexible(), spacing: 20)]
+    }
+
+    @ViewBuilder
+    private var cards: some View {
+        ForEach(visibleInstruments) { instrument in
+            instrumentCard(instrument)
+        }
+        ForEach(BandType.allCases) { bandType in
+            bandCard(bandType)
+        }
+    }
+
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 20) {
-                ForEach(visibleInstruments) { instrument in
-                    instrumentCard(instrument)
-                }
-                ForEach(BandType.allCases) { bandType in
-                    bandCard(bandType)
+            Group {
+                if layout.widthClass == .regular {
+                    LazyVGrid(columns: regularWidthColumns, alignment: .leading, spacing: 20) {
+                        cards
+                    }
+                } else {
+                    LazyVStack(spacing: 20) {
+                        cards
+                    }
                 }
             }
             .padding(16)

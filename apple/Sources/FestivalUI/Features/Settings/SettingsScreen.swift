@@ -78,6 +78,7 @@ struct SettingsScreen: View {
 
     let session: FestivalSession
     let isVisible: Bool
+    @Environment(\.deviceLayout) private var layout
 
     /// Keep settings on the same process-scoped API session as the Songs tab.
     ///
@@ -112,6 +113,7 @@ struct SettingsScreen: View {
             .padding(.horizontal, 16)
             .padding(.top, 8)
             .padding(.bottom, 32)
+            .modifier(ReadableWidthContainer(isRegularWidth: layout.widthClass == .regular))
         }
         .quickLinks(quickLinks, title: "Quick Links")
         .scrollDismissesKeyboard(.interactively)
@@ -641,6 +643,32 @@ struct SettingsScreen: View {
         moreContrast = false
         lessTransparency = false
         suggestionFilterData = Data()
+    }
+}
+
+// MARK: - Readable width
+
+/// Caps Settings' content to a readable column and centers it on a regular-width
+/// window (Duo unfolded, iPad), instead of stretching every toggle row edge to edge
+/// or splitting into a 2-column grid: Settings rows are label/control pairs, not
+/// dashboard cards, so a wide row just reads worse
+/// (`.agents/design/apple/duo.md` "Settings, Shop, Bands — … readable-width Settings").
+/// A compact window (iPhone, Duo folded) is unaffected — this only activates once a
+/// caller passes `isRegularWidth: true`.
+struct ReadableWidthContainer: ViewModifier {
+    let isRegularWidth: Bool
+    /// Roughly a Dynamic Type–friendly settings form width, well under an iPad or
+    /// unfolded Duo's full window.
+    private static let maxWidth: CGFloat = 680
+
+    func body(content: Content) -> some View {
+        if isRegularWidth {
+            content
+                .frame(maxWidth: Self.maxWidth, alignment: .leading)
+                .frame(maxWidth: .infinity)
+        } else {
+            content
+        }
     }
 }
 

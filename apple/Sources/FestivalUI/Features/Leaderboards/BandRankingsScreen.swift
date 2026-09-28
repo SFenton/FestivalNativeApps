@@ -12,6 +12,7 @@ struct BandRankingsScreen: View {
     @State private var rankBy: BandRankingMetric
     @State private var page = 1
     @State private var state: RankLoadState<BandRankingsPayload> = .loading
+    @Environment(\.deviceLayout) private var layout
 
     private struct RequestKey: Equatable {
         let bandType: BandType
@@ -58,6 +59,7 @@ struct BandRankingsScreen: View {
                         }
                     }
                     .scrollContentBackground(.hidden)
+                    .rankingsListRailClearance(layout)
                     RankingsPagerView(
                         page: page, totalPages: payload.rankings.pageCount,
                         idPrefix: "fst.band-rankings"
@@ -77,6 +79,16 @@ struct BandRankingsScreen: View {
                     BandRankByMenu(selection: $rankBy)
                 }
             }
+            #if os(iOS)
+            if case let .loaded(payload) = state {
+                RankingsPagerToolbarContent(
+                    page: page, totalPages: payload.rankings.pageCount,
+                    idPrefix: "fst.band-rankings"
+                ) { destination in
+                    page = destination
+                }
+            }
+            #endif
         }
         .onChange(of: bandType) { _, _ in page = 1 }
         .onChange(of: rankBy) { _, _ in page = 1 }

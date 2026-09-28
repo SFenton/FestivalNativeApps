@@ -229,43 +229,74 @@ struct RankingsSkeletonRows: View {
     }
 }
 
+// MARK: - Rail clearance (B6)
+
+extension View {
+    /// Keeps a rankings `List`'s rows clear of the iPhone Duo vertical bar (B6:
+    /// "row accessibility frames span 0–466 pt, under the vertical bar").
+    ///
+    /// `List` doesn't extend its own safe area the way a plain `VStack`/`ScrollView`
+    /// does — its rows (and their accessibility frames / tap targets) can reach the
+    /// physical trailing edge even though the row's own drawn card stops well before
+    /// it, once the system reserves that edge for the rail. A no-op wherever there is
+    /// no vertical bar (`overlayInsets.trailing` is 0 on iPhone and Duo portrait).
+    ///
+    /// - Parameter layout: Current `\.deviceLayout`.
+    /// - Returns: The list, inset clear of the rail.
+    func rankingsListRailClearance(_ layout: DeviceLayout) -> some View {
+        padding(.trailing, layout.overlayInsets.trailing)
+    }
+}
+
 // MARK: - Pager
 
 /// Discoverable first/previous/next/last paging control shared by every
 /// paginated rankings board, matching the Solo chart's native pager.
+///
+/// On the iPhone Duo vertical bar this footer alone ran ≈150 of 678 pt (B2,
+/// `.agents/design/apple/duo.md`), so it renders nothing there: the caller also adds
+/// ``RankingsPagerToolbarContent`` to its own `.toolbar { … }`, which shows the same
+/// four actions as compact `.bottomBar` symbol items instead. iPhone (horizontal bar)
+/// keeps this footer — a bottom toolbar there would collide with the floating tab bar
+/// (`.agents/design/apple/iphone.md`).
 struct RankingsPagerView: View {
     let page: Int
     let totalPages: Int
     let idPrefix: String
     let onChange: (Int) -> Void
+    @Environment(\.deviceLayout) private var layout
 
     var body: some View {
-        let first = pagerButton("First", enabled: page > 1) { onChange(1) }
-            .accessibilityIdentifier("\(idPrefix).page-first")
-        let previous = pagerButton("Previous", enabled: page > 1) { onChange(page - 1) }
-            .accessibilityIdentifier("\(idPrefix).page-previous")
-        let indicator = Text("\(page) / \(totalPages)")
-            .monospacedDigit()
-            .accessibilityIdentifier("\(idPrefix).page-info")
-        let next = pagerButton("Next", enabled: page < totalPages) { onChange(page + 1) }
-            .accessibilityIdentifier("\(idPrefix).page-next")
-        let last = pagerButton("Last", enabled: page < totalPages) { onChange(totalPages) }
-            .accessibilityIdentifier("\(idPrefix).page-last")
-        return VStack(spacing: 8) {
-            HStack(spacing: 8) {
-                first
-                previous
-                Spacer(minLength: 0)
+        if layout.sectionChrome.isVerticalBar {
+            EmptyView()
+        } else {
+            let first = pagerButton("First", enabled: page > 1) { onChange(1) }
+                .accessibilityIdentifier("\(idPrefix).page-first")
+            let previous = pagerButton("Previous", enabled: page > 1) { onChange(page - 1) }
+                .accessibilityIdentifier("\(idPrefix).page-previous")
+            let indicator = Text("\(page) / \(totalPages)")
+                .monospacedDigit()
+                .accessibilityIdentifier("\(idPrefix).page-info")
+            let next = pagerButton("Next", enabled: page < totalPages) { onChange(page + 1) }
+                .accessibilityIdentifier("\(idPrefix).page-next")
+            let last = pagerButton("Last", enabled: page < totalPages) { onChange(totalPages) }
+                .accessibilityIdentifier("\(idPrefix).page-last")
+            VStack(spacing: 8) {
+                HStack(spacing: 8) {
+                    first
+                    previous
+                    Spacer(minLength: 0)
+                }
+                indicator
+                HStack(spacing: 8) {
+                    Spacer(minLength: 0)
+                    next
+                    last
+                }
             }
-            indicator
-            HStack(spacing: 8) {
-                Spacer(minLength: 0)
-                next
-                last
-            }
+            .padding(12)
+            .background(BrandTokens.cardBackground)
         }
-        .padding(12)
-        .background(BrandTokens.cardBackground)
     }
 
     /// Keep native pager actions scalable and large enough to touch on every row.
@@ -295,6 +326,87 @@ struct RankingsPagerView: View {
         .disabled(!enabled)
     }
 }
+
+// MARK: - Pager (vertical bar toolbar content)
+
+/// Compact vertical-bar equivalent of ``RankingsPagerView``'s footer (B2): First,
+/// Previous, Next and Last as `.bottomBar` symbol items (system-placed at the bottom
+/// of the rail, above the tab bar), with the page label as a low-priority item so it
+/// overflows into the system `…` menu first and still reads as "Page 3 of 34,770"
+/// there. Every item is a `Label(title, systemImage:)`: a title-only item would force
+/// the system to keep a horizontal bar just for it (`.agents/design/apple/duo.md`).
+///
+/// Add alongside ``RankingsPagerView`` in the same `.toolbar { … }`; both read
+/// `\.deviceLayout` themselves, so exactly one of the two renders anything for a
+/// given chrome.
+///
+/// iOS-only: `.bottomBar` and `visibilityPriority` don't exist on macOS, and macOS
+/// never resolves a vertical-bar `\.deviceLayout` chrome, so there is nothing for
+/// this type to do there. Callers wrap their own use of it in `#if os(iOS)`.
+#if os(iOS)
+struct RankingsPagerToolbarContent: ToolbarContent {
+    let page: Int
+    let totalPages: Int
+    let idPrefix: String
+    let onChange: (Int) -> Void
+    @Environment(\.deviceLayout) private var layout
+
+    var body: some ToolbarContent {
+        if layout.sectionChrome.isVerticalBar {
+            ToolbarItem(placement: .bottomBar) {
+                Button { onChange(1) } label: {
+                    Label("First", systemImage: "chevron.left.to.line")
+                }
+                .disabled(page <= 1)
+                .accessibilityIdentifier("\(idPrefix).page-first")
+            }
+            ToolbarItem(placement: .bottomBar) {
+                Button { onChange(page - 1) } label: {
+                    Label("Previous", systemImage: "chevron.left")
+                }
+                .disabled(page <= 1)
+                .accessibilityIdentifier("\(idPrefix).page-previous")
+            }
+            if #available(iOS 27.0, *) {
+                ToolbarItem(placement: .bottomBar) {
+                    pageIndicator
+                }
+                .visibilityPriority(.low)
+            } else {
+                ToolbarItem(placement: .bottomBar) {
+                    pageIndicator
+                }
+            }
+            ToolbarItem(placement: .bottomBar) {
+                Button { onChange(page + 1) } label: {
+                    Label("Next", systemImage: "chevron.right")
+                }
+                .disabled(page >= totalPages)
+                .accessibilityIdentifier("\(idPrefix).page-next")
+            }
+            ToolbarItem(placement: .bottomBar) {
+                Button { onChange(totalPages) } label: {
+                    Label("Last", systemImage: "chevron.right.to.line")
+                }
+                .disabled(page >= totalPages)
+                .accessibilityIdentifier("\(idPrefix).page-last")
+            }
+        }
+    }
+
+    /// Disabled, informational "Page X of Y": not an action, but still a
+    /// `Label(title, systemImage:)` so it can go vertical instead of forcing a
+    /// horizontal bar just for its title.
+    private var pageIndicator: some View {
+        Button {
+        } label: {
+            Label("Page \(page) of \(totalPages)", systemImage: "number")
+        }
+        .disabled(true)
+        .accessibilityIdentifier("\(idPrefix).page-info")
+    }
+}
+#endif
 
 // MARK: - Metric picker
 

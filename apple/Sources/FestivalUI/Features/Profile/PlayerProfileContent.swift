@@ -54,10 +54,20 @@ struct PlayerProfileContent: View {
 
     @State private var phase = PlayerProfilePhase.loading
     @State private var retryRevision = 0
+    /// `LoadKey` whose read finished (successfully or as a known "syncing" state); a
+    /// reappearance with the same key skips reloading. `PlayerProfileContent` backs
+    /// both the Statistics tab root and the pushed `/player/:accountId` route, both
+    /// inside a `NavigationStack`: like Leaderboards (Lane W1), `.task(id:)` restarts
+    /// on every reappearance (e.g. Back from Player Bands), not only when the id
+    /// value actually changes, so an unguarded reload flashed `phase` back to
+    /// `.loading` on every pop. A failed load leaves this nil so the next reappearance
+    /// (or explicit Retry) tries again.
+    @State private var loadedKey: LoadKey?
     @State private var switchPending = false
     @State private var deselectPending = false
     @State private var actionError: String?
     @State private var quickLinks = QuickLinksController()
+    @Environment(\.deviceLayout) private var layout
     @AppStorage("fst.settings.showLead") private var showLead = true
     @AppStorage("fst.settings.showBass") private var showBass = true
     @AppStorage("fst.settings.showDrums") private var showDrums = true
@@ -72,6 +82,19 @@ struct PlayerProfileContent: View {
         let accountId: String
         let retry: Int
         let publicationRevision: Int
+    }
+
+    private var loadKey: LoadKey {
+        LoadKey(accountId: accountId, retry: retryRevision, publicationRevision: session.publicationRevision)
+    }
+
+    /// Whether `phase` reflects a finished read worth remembering in `loadedKey`
+    /// (a failure is deliberately excluded, so the next reappearance retries it).
+    private var loadFinished: Bool {
+        switch phase {
+        case .available, .syncing: true
+        case .loading, .failed: false
+        }
     }
 
     /// Create the shared player-profile content.
@@ -120,11 +143,11 @@ struct PlayerProfileContent: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.large)
             #endif
-            .task(id: LoadKey(
-                accountId: accountId, retry: retryRevision,
-                publicationRevision: session.publicationRevision
-            )) {
+            .task(id: loadKey) {
+                guard loadedKey != loadKey else { return }
+                let key = loadKey
                 await load()
+                if !Task.isCancelled && loadFinished { loadedKey = key }
             }
             .confirmationDialog(
                 "Switch selected profile?", isPresented: $switchPending,
@@ -182,9 +205,21 @@ struct PlayerProfileContent: View {
                 VStack(alignment: .leading, spacing: 20) {
                     header(payload)
                     overallSection(payload)
-                    ForEach(visibleInstruments) { instrument in
-                        instrumentSection(payload, instrument: instrument)
-                        instrumentCharts(payload, instrument: instrument)
+                    if layout.widthClass == .regular {
+                        // Two flexible columns on a regular-width window (Duo unfolded,
+                        // iPad): each instrument's stats card and charts read as one
+                        // dashboard tile instead of stretching full width
+                        // (`.agents/design/apple/duo.md`).
+                        LazyVGrid(columns: instrumentGridColumns, alignment: .leading, spacing: 20) {
+                            ForEach(visibleInstruments) { instrument in
+                                instrumentTile(payload, instrument: instrument)
+                            }
+                        }
+                    } else {
+                        ForEach(visibleInstruments) { instrument in
+                            instrumentSection(payload, instrument: instrument)
+                            instrumentCharts(payload, instrument: instrument)
+                        }
                     }
                     bandsLink
                 }
@@ -344,6 +379,26 @@ struct PlayerProfileContent: View {
         ))
     }
 
+    // MARK: Regular-width grid
+
+    private var instrumentGridColumns: [GridItem] {
+        [GridItem(.flexible(), spacing: 20), GridItem(.flexible(), spacing: 20)]
+    }
+
+    /// One dashboard tile: an instrument's stats card followed by its charts,
+    /// grouped so the regular-width grid places both in the same column together.
+    ///
+    /// - Parameters:
+    ///   - payload: Current validated profile read.
+    ///   - instrument: Settings-visible solo chart.
+    @ViewBuilder
+    private func instrumentTile(_ payload: PlayerProfilePayload, instrument: Instrument) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            instrumentSection(payload, instrument: instrument)
+            instrumentCharts(payload, instrument: instrument)
+        }
+    }
+
     // MARK: Graphs
 
     /// The instrument's rank-history and percentile graphs, as separate glass cards
@@ -443,6 +498,9 @@ private struct InstrumentGlobalRankView: View {
 
     @State private var phase = InstrumentRankPhase.loading
     @State private var retryRevision = 0
+    /// See `PlayerProfileContent.loadedKey`: this per-instrument card sits inside the
+    /// same reappearing `NavigationStack` root, so it needs the same reappear guard.
+    @State private var loadedKey: LoadKey?
 
     private struct LoadKey: Hashable {
         let accountId: String
@@ -451,13 +509,27 @@ private struct InstrumentGlobalRankView: View {
         let publicationRevision: Int
     }
 
+    private var loadKey: LoadKey {
+        LoadKey(
+            accountId: accountId, instrument: instrument, retry: retryRevision,
+            publicationRevision: session.publicationRevision
+        )
+    }
+
+    private var loadFinished: Bool {
+        switch phase {
+        case .unranked, .available: true
+        case .loading, .failed: false
+        }
+    }
+
     var body: some View {
         content
-            .task(id: LoadKey(
-                accountId: accountId, instrument: instrument, retry: retryRevision,
-                publicationRevision: session.publicationRevision
-            )) {
+            .task(id: loadKey) {
+                guard loadedKey != loadKey else { return }
+                let key = loadKey
                 await load()
+                if !Task.isCancelled && loadFinished { loadedKey = key }
             }
     }
 

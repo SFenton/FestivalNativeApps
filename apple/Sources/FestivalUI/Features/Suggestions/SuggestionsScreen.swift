@@ -17,6 +17,14 @@ struct SuggestionsScreen: View {
     let visibleInstruments: Set<Instrument>
     @State private var viewModel: SuggestionsViewModel
     @State private var filterPresented = false
+    /// Revisions already handled by the tasks below; a reappearance re-fires
+    /// `.task(id:)` even when the id value is unchanged (the same `NavigationStack`
+    /// root quirk Leaderboards hit, Lane W1), and `session.selectionRevision`'s task
+    /// calls the destructive `viewModel.invalidate()` — without this guard, popping
+    /// back from a suggestion's Song Detail wiped the already-loaded list back to a
+    /// loading spinner.
+    @State private var handledSelectionRevision: Int?
+    @State private var handledPublicationRevision: Int?
     @Environment(\.openProfile) private var openProfile
     @AppStorage(SuggestionFilterSettings.storageKey) private var filterData = Data()
 
@@ -80,11 +88,15 @@ struct SuggestionsScreen: View {
         }
         .task { viewModel.filter = SuggestionFilterSettings.decodeSaved(filterData) }
         .task(id: session.selectionRevision) {
+            guard handledSelectionRevision != session.selectionRevision else { return }
+            handledSelectionRevision = session.selectionRevision
             guard session.selectedPlayer != nil else { return }
             viewModel.invalidate()
             await viewModel.ensureLoaded(session: session)
         }
         .task(id: session.publicationRevision) {
+            guard handledPublicationRevision != session.publicationRevision else { return }
+            handledPublicationRevision = session.publicationRevision
             await viewModel.ensureLoaded(session: session)
         }
     }

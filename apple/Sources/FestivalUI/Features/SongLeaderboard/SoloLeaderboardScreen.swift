@@ -13,6 +13,7 @@ struct SoloLeaderboardScreen: View {
     @AppStorage("fst.settings.filterInvalidScores") private var filterInvalidScores = false
     @AppStorage("fst.settings.leeway") private var leeway = 1.0
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.deviceLayout) private var layout
     @Binding var path: [AppRoute]
     @State private var page: Int
     @State private var state: LoadState
@@ -107,6 +108,7 @@ struct SoloLeaderboardScreen: View {
                     }
                     .listStyle(.plain)
                     .scrollContentBackground(.hidden)
+                    .rankingsListRailClearance(layout)
                     selectedPlayerFooter(payload)
                     RankingsPagerView(
                         page: page, totalPages: payload.leaderboard.pageCount,
@@ -135,6 +137,16 @@ struct SoloLeaderboardScreen: View {
                 }
                 .accessibilityElement(children: .combine)
             }
+            #if os(iOS)
+            if case let .loaded(payload) = state {
+                RankingsPagerToolbarContent(
+                    page: page, totalPages: payload.leaderboard.pageCount,
+                    idPrefix: "fst.song-leaderboard"
+                ) { destination in
+                    move(to: destination)
+                }
+            }
+            #endif
         }
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)

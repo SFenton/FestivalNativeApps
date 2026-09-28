@@ -16,6 +16,7 @@ struct SongBandLeaderboardScreen: View {
     @State private var bandType: BandType
     @State private var page = 1
     @State private var state: RankLoadState<SongBandLeaderboardPayload> = .loading
+    @Environment(\.deviceLayout) private var layout
 
     private struct RequestKey: Equatable {
         let bandType: BandType
@@ -60,6 +61,7 @@ struct SongBandLeaderboardScreen: View {
                         }
                     }
                     .scrollContentBackground(.hidden)
+                    .rankingsListRailClearance(layout)
                     RankingsPagerView(
                         page: page, totalPages: payload.leaderboard.pageCount,
                         idPrefix: "fst.song-band-leaderboard"
@@ -74,6 +76,16 @@ struct SongBandLeaderboardScreen: View {
         .navigationTitle("\(bandType.label) Scores")
         .toolbar {
             ToolbarItem(placement: .primaryAction) { bandTypeMenu }
+            #if os(iOS)
+            if case let .loaded(payload) = state {
+                RankingsPagerToolbarContent(
+                    page: page, totalPages: payload.leaderboard.pageCount,
+                    idPrefix: "fst.song-band-leaderboard"
+                ) { destination in
+                    page = destination
+                }
+            }
+            #endif
         }
         .onChange(of: bandType) { _, _ in page = 1 }
         .task(id: requestKey) { await load() }

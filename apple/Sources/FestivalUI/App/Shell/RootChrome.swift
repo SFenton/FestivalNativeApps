@@ -42,6 +42,55 @@ extension EnvironmentValues {
     @Entry var openDrawer: OpenDrawerAction? = nil
 }
 
+// MARK: - Rail overflow ranking
+
+/// Rail overflow ranking for the shared tab-root chrome (operator decision,
+/// 2026-09-28): folded iPhone Duo with a profile selected only fits **two** root
+/// toolbar items plus the system "…" overflow in the vertical bar (5 tabs leave
+/// little room). Bell and Profile (``FestivalRootTrailingItems``) stay visible;
+/// the hamburger drawer button (``DrawerButton``) overflows into "…" as "Menu".
+/// Giving the hamburger `.high` priority too instead pushed the profile avatar
+/// into "…" — the wrong tradeoff, since the selected profile's identity is the
+/// more useful item to keep visible at a glance
+/// (`.agents/design/apple/duo.md` "Toolbar rules"). Anonymous sessions (3 tabs)
+/// have enough room that every item stays visible regardless of this ranking.
+///
+/// `FestivalRootChrome`/`FestivalRootTrailingItems` apply this as the real
+/// `visibilityPriority`, so ``RootChromeRailPriorityTests`` pins the decision
+/// against a regression, not just a comment.
+enum RootChromeRailItem: CaseIterable, Equatable {
+    case drawer
+    case bell
+    case profile
+
+    /// True when the system should keep this item visible ahead of same-bar
+    /// items with standard priority once the vertical bar runs out of room.
+    var staysVisibleAheadOfOthers: Bool {
+        switch self {
+        case .drawer: false
+        case .bell, .profile: true
+        }
+    }
+}
+
+#if os(iOS)
+@available(iOS 27.0, *)
+private extension ToolbarContent {
+    /// Applies ``RootChromeRailItem``'s ranking as the real `visibilityPriority`.
+    ///
+    /// - Parameter item: Which rail item this toolbar item represents.
+    /// - Returns: The toolbar content with the matching system priority.
+    @ToolbarContentBuilder
+    func railVisibilityPriority(_ item: RootChromeRailItem) -> some ToolbarContent {
+        if item.staysVisibleAheadOfOthers {
+            visibilityPriority(.high)
+        } else {
+            visibilityPriority(.automatic)
+        }
+    }
+}
+#endif
+
 // MARK: - Shared tab-root chrome
 
 extension View {
@@ -101,8 +150,15 @@ struct FestivalRootChrome: ViewModifier {
             .toolbar {
                 #if os(iOS)
                 if let openDrawer {
-                    ToolbarItem(placement: .topBarLeading) {
-                        DrawerButton { openDrawer() }
+                    if #available(iOS 27.0, *) {
+                        ToolbarItem(placement: .topBarLeading) {
+                            DrawerButton { openDrawer() }
+                        }
+                        .railVisibilityPriority(.drawer)
+                    } else {
+                        ToolbarItem(placement: .topBarLeading) {
+                            DrawerButton { openDrawer() }
+                        }
                     }
                 }
                 #endif
@@ -137,7 +193,7 @@ struct FestivalRootTrailingItems: ToolbarContent {
         if showsNotifications {
             if #available(iOS 27.0, *) {
                 ToolbarItem(placement: .topBarTrailing) { NotificationsButton(session: session) }
-                    .visibilityPriority(.high)
+                    .railVisibilityPriority(.bell)
             } else {
                 ToolbarItem(placement: .topBarTrailing) { NotificationsButton(session: session) }
             }
@@ -146,7 +202,7 @@ struct FestivalRootTrailingItems: ToolbarContent {
             ToolbarItem(placement: .topBarTrailing) {
                 RootProfileButton(session: session) { openProfile() }
             }
-            .visibilityPriority(.high)
+            .railVisibilityPriority(.profile)
         } else {
             ToolbarItem(placement: .topBarTrailing) {
                 RootProfileButton(session: session) { openProfile() }

@@ -19,6 +19,7 @@ struct PlayerBandsScreen: View {
     @State private var group: PlayerBandGroup = .all
     @State private var page = 1
     @State private var state: RankLoadState<PlayerBandListPayload> = .loading
+    @Environment(\.deviceLayout) private var layout
 
     /// Includes `accountId` so a reused view identity can never keep, or accept a
     /// late response for, another player's bands.
@@ -80,6 +81,7 @@ struct PlayerBandsScreen: View {
                         }
                         .scrollContentBackground(.hidden)
                         .listStyle(.plain)
+                        .rankingsListRailClearance(layout)
                         RankingsPagerView(
                             page: page,
                             totalPages: payload.list.pageCount(pageSize: 25),
@@ -94,6 +96,18 @@ struct PlayerBandsScreen: View {
         }
         .festivalBackground(.carousel, session: session)
         .navigationTitle(displayName.map { "\($0)'s Bands" } ?? "Bands")
+        .toolbar {
+            #if os(iOS)
+            if case let .loaded(payload) = state {
+                RankingsPagerToolbarContent(
+                    page: page, totalPages: payload.list.pageCount(pageSize: 25),
+                    idPrefix: "fst.player-bands"
+                ) { destination in
+                    page = destination
+                }
+            }
+            #endif
+        }
         .onChange(of: group) { _, _ in page = 1 }
         .task(id: requestKey) { await load() }
     }

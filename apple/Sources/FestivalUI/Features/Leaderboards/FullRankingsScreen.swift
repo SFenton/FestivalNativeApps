@@ -26,6 +26,7 @@ struct FullRankingsScreen: View {
     /// the current page — mirroring the web client's separate `playerRanking`
     /// query on `FullRankingsPage.tsx`.
     @State private var spotlightState: RankLoadState<PlayerInstrumentRankingPayload> = .loading
+    @Environment(\.deviceLayout) private var layout
 
     private struct SpotlightKey: Equatable {
         let instrument: Instrument
@@ -98,6 +99,7 @@ struct FullRankingsScreen: View {
                         }
                     }
                     .scrollContentBackground(.hidden)
+                    .rankingsListRailClearance(layout)
                     spotlightFooter(entries: payload.rankings.entries)
                     RankingsPagerView(
                         page: page, totalPages: payload.rankings.pageCount,
@@ -118,6 +120,16 @@ struct FullRankingsScreen: View {
                     RankByMenu(selection: $rankBy)
                 }
             }
+            #if os(iOS)
+            if case let .loaded(payload) = state {
+                RankingsPagerToolbarContent(
+                    page: page, totalPages: payload.rankings.pageCount,
+                    idPrefix: "fst.full-rankings"
+                ) { destination in
+                    page = destination
+                }
+            }
+            #endif
         }
         .onChange(of: instrument) { _, _ in page = 1 }
         .onChange(of: rankBy) { _, _ in page = 1 }
