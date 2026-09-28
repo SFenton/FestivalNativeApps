@@ -470,3 +470,4 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Android | and-rivals landed (incl. Compete); combo rankings endpoints recorded as pure reads; mock ranking/band accuracy scale fixed (`0212604`) |
 | 2026-09-28 | Apple tests | Wall-clock flakes fixed: Retry-After countdown (`\.serviceRetryClock`) and artwork dwell (`ArtworkBackground(clock:)`) run on an injected `ManualTestClock` in tests, with no wall-clock deadlines; see [hosted-snapshots](.agents/testing/apple/hosted-snapshots.md) |
 | 2026-09-28 | Android | and-profile landed (selection persists across cold starts) |
+| 2026-09-28 | Android | Launched and-profile2 (player-page Quick Links, top songs, tap-to-filter tiles, hinge padding, chart coverage, device journeys) |
