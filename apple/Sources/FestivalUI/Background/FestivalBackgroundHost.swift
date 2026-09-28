@@ -116,7 +116,7 @@ struct FestivalBackgroundHost: View {
                 satisfied: ArtworkNetworkStatus.shared.pathSatisfied
             ),
             reduceMotion: reduceMotion || systemReduceMotion,
-            disableAnimation: disableAnimation,
+            disableAnimation: disableAnimation || DebugAnimationOverride.stillBackground,
             reduceTransparency: lessTransparency || systemReduceTransparency,
             saveData: ArtworkNetworkStatus.shared.isConstrained,
             lowPower: lowPower, artCount: artCount

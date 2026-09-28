@@ -423,6 +423,9 @@ def cmd_drive(args: argparse.Namespace) -> int:
         launch_env["TEST_RUNNER_FST_DEBUG_TAB"] = args.tab
     if args.route:
         launch_env["TEST_RUNNER_FST_DEBUG_ROUTE"] = args.route
+    if not args.animate:
+        # Freeze the album carousel so XCUITest's idle waits don't time out per step.
+        launch_env["TEST_RUNNER_FST_DEBUG_STILL_BACKGROUND"] = "1"
     for pair in args.env or []:
         key, _, value = pair.partition("=")
         launch_env[f"TEST_RUNNER_{key}"] = value
@@ -450,10 +453,18 @@ def cmd_drive(args: argparse.Namespace) -> int:
             ]
             print("+", " ".join(cmd), file=sys.stderr)
             with open(log_path, "w") as log:
-                process = subprocess.run(
-                    cmd, cwd=APPLE_DIR, env=launch_env,
-                    stdout=log, stderr=subprocess.STDOUT, check=False,
-                )
+                try:
+                    process = subprocess.run(
+                        cmd, cwd=APPLE_DIR, env=launch_env,
+                        stdout=log, stderr=subprocess.STDOUT, check=False,
+                        timeout=args.timeout,
+                    )
+                except subprocess.TimeoutExpired:
+                    # Never let a hung run hold the shared simulator lock.
+                    _run(["xcrun", "simctl", "terminate", udid, BUNDLE_ID],
+                         check=False, capture_output=True)
+                    process = subprocess.CompletedProcess(cmd, 124)
+                    log.write(f"\nTIMEOUT after {args.timeout}s; killed.\n")
     finally:
         steps_path.unlink(missing_ok=True)
     elapsed = time.time() - start
@@ -507,6 +518,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     drive.add_argument("--device", default="iphone", help=f"alias {sorted(DEVICES)} or UDID")
     drive.add_argument("--tab", help="FST_DEBUG_TAB, applied at app launch")
+    drive.add_argument("--animate", action="store_true",
+                       help="keep the album carousel animating (default freezes it so steps don't wait for idle)")
+    drive.add_argument("--timeout", type=float, default=180.0,
+                       help="kill the run after this many seconds (default 180) so the sim lock is released")
     drive.add_argument("--route", help="FST_DEBUG_ROUTE, applied at app launch")
     drive.add_argument("--env", action="append", help="extra KEY=VALUE app launch environment")
     drive.add_argument("--steps", help="';'-separated step script, e.g. 'tap:x; shot:/tmp/a.png'")

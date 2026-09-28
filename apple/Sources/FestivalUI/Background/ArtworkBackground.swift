@@ -573,7 +573,7 @@ struct ArtworkBackground: View {
             activeScene: scenePhase == .active,
             visiblePage: visible && usablePath,
             reduceMotion: reduceMotion || systemReduceMotion,
-            disableAnimation: disableAnimation,
+            disableAnimation: disableAnimation || DebugAnimationOverride.stillBackground,
             reduceTransparency: lessTransparency || systemReduceTransparency,
             saveData: saveDataOverride ?? ArtworkNetworkStatus.shared.isConstrained,
             lowPower: lowPower, artCount: artCount
