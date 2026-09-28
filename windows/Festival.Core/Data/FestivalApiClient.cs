@@ -187,7 +187,19 @@ public sealed partial class FestivalApiClient
     /// <param name="maxBytes">Largest accepted body.</param>
     /// <param name="cancellationToken">Cancellation.</param>
     /// <returns>Verified body bytes.</returns>
-    internal async Task<byte[]> ReadPinnedAsync(Uri url, int maxBytes, CancellationToken cancellationToken)
+    internal async Task<byte[]> ReadPinnedAsync(Uri url, int maxBytes, CancellationToken cancellationToken) =>
+        (await ReadPinnedResponseAsync(url, maxBytes, acceptsSyncing: false, cancellationToken).ConfigureAwait(false)).Body;
+
+    /// <summary>
+    /// <see cref="ReadPinnedAsync"/> that also reports the status and served publication, and optionally
+    /// accepts a documented HTTP 202 syncing envelope (returned uncached, without publication checks).
+    /// </summary>
+    /// <param name="url">Allowlisted URL.</param>
+    /// <param name="maxBytes">Largest accepted body.</param>
+    /// <param name="acceptsSyncing">Whether the endpoint documents a 202 syncing envelope.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <returns>Verified body, status and the header-verified publication (if any).</returns>
+    internal async Task<PinnedRead> ReadPinnedResponseAsync(Uri url, int maxBytes, bool acceptsSyncing, CancellationToken cancellationToken)
     {
         var publication = await GetPublicationAsync(false, cancellationToken).ConfigureAwait(false);
         var key = url.AbsoluteUri;
@@ -204,12 +216,14 @@ public sealed partial class FestivalApiClient
         var responseId = ParsePublication(response.Header(PublicationHeader));
         if (response.Status == 304)
         {
-            if (cached is not null && responseId == publication.PublicationId) return cached.Body;
+            if (cached is not null && responseId == publication.PublicationId)
+                return new PinnedRead(cached.Body, 200, responseId, publication.PublicationId);
             response = await SendPinnedAsync(url, publication, null, maxBytes, cancellationToken).ConfigureAwait(false);
             responseId = ParsePublication(response.Header(PublicationHeader));
         }
 
-        RequestGate.MapStatus(response, acceptsSyncing: false);
+        if (RequestGate.MapStatus(response, acceptsSyncing) == GateStatus.Syncing)
+            return new PinnedRead(response.Body, 202, responseId, publication.PublicationId);
         if (responseId is { } served && served != publication.PublicationId)
         {
             if (publication.PinningEnabled || served < publication.PublicationId)
@@ -225,7 +239,7 @@ public sealed partial class FestivalApiClient
 
         if (responseId is not null)
             cache.Store(key, new ResponseCache.Entry(response.Body, publication.PublicationId, response.Header("ETag")));
-        return response.Body;
+        return new PinnedRead(response.Body, response.Status, responseId, publication.PublicationId);
     }
 
     /// <summary>Sends one pinned GET.</summary>
@@ -293,6 +307,15 @@ public sealed partial class FestivalApiClient
     }
     #endregion
 }
+#endregion
+
+#region Pinned read result
+/// <summary>A verified publication-bound response.</summary>
+/// <param name="Body">Body bytes.</param>
+/// <param name="Status">HTTP status (200 for a reused 304 body; 202 for an accepted syncing envelope).</param>
+/// <param name="PublicationId">Header-verified <c>X-FST-Publication-Id</c>, or <see langword="null"/> when headerless.</param>
+/// <param name="ObservedPublicationId">Generation the client observed for this read.</param>
+internal sealed record PinnedRead(byte[] Body, int Status, long? PublicationId, long ObservedPublicationId);
 #endregion
 
 #region Response cache

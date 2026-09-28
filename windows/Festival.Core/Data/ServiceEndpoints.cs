@@ -8,7 +8,7 @@ namespace Festival.Core.Data;
 /// Builds allowlisted keyless GET URLs from individually validated segments. Blocked routes
 /// (band search, <c>/api/bands/{id}</c>, player stats, band sync-status) have no builder here.
 /// </summary>
-public static class ServiceEndpoints
+public static partial class ServiceEndpoints
 {
     /// <summary><c>GET /api/publication</c>.</summary>
     /// <param name="baseUri">Validated origin.</param>
