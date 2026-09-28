@@ -14,6 +14,7 @@ import FestivalDesign
 /// `RivalsChooseProfileState`. See `.agents/pages/compete/ios.md`.
 struct CompeteScreen: View {
     let session: FestivalSession
+    @State private var quickLinks = QuickLinksController()
     @Environment(\.openProfile) private var openProfile
     private var visible = VisibleInstrumentsReader()
 
@@ -34,6 +35,11 @@ struct CompeteScreen: View {
         }
         .navigationTitle("Compete")
         .festivalBackground(.carousel, session: session)
+        .toolbar {
+            QuickLinksToolbarItem(quickLinks)
+            FestivalRootTrailingItems(session: session)
+        }
+        .festivalProvidesRootTrailingItems()
     }
 
     @ViewBuilder private var hub: some View {
@@ -44,6 +50,7 @@ struct CompeteScreen: View {
             }
             .padding(.vertical, 12)
         }
+        .quickLinks(quickLinks, title: "Quick Links")
     }
 
     // MARK: Leaderboards
@@ -75,6 +82,7 @@ struct CompeteScreen: View {
                 }
             }
         }
+        .quickLinkSection(id: "leaderboards", title: "Leaderboards", symbol: "trophy.fill")
     }
 
     // MARK: Rivals
@@ -88,10 +96,13 @@ struct CompeteScreen: View {
                     .padding(.horizontal, 16)
             } else {
                 ForEach(visible.instruments) { instrument in
-                    RivalInstrumentSongSection(session: session, instrument: instrument)
+                    RivalInstrumentSongSection(
+                        session: session, instrument: instrument, registersQuickLink: false
+                    )
                 }
             }
         }
+        .quickLinkSection(id: "rivals", title: "Rivals", symbol: "person.2.fill")
     }
 }
 

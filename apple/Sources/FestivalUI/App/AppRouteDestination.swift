@@ -66,12 +66,12 @@ struct AppRouteDestination: View {
         case .rivals:
             RivalsScreen(session: session)
                 .firstRun(.rivals, session: session)
-        case let .allRivals(category):
-            AllRivalsScreen(session: session, category: category)
-        case let .rivalDetail(rivalId, name):
-            RivalDetailScreen(session: session, rivalId: rivalId, name: name)
-        case let .rivalry(rivalId, mode, name):
-            RivalryScreen(session: session, rivalId: rivalId, mode: mode, name: name)
+        case let .allRivals(scope):
+            AllRivalsScreen(session: session, scope: scope)
+        case let .rivalDetail(rivalId, name, scope):
+            RivalDetailScreen(session: session, rivalId: rivalId, name: name, scope: scope)
+        case let .rivalry(rivalId, mode, name, scope):
+            RivalryScreen(session: session, rivalId: rivalId, mode: mode, name: name, scope: scope)
         case .statistics:
             StatisticsScreen(session: session)
                 .firstRun(.statistics, session: session)

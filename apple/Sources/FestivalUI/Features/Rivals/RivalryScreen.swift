@@ -6,13 +6,18 @@ import FestivalDesign
 
 /// `/rivals/:rivalId/rivalry?mode=` — full song list for one `RivalCategorization`
 /// bucket (e.g. "Closest Battles"), reached from `RivalDetailScreen`'s "See All".
+///
+/// `scope` is forwarded unchanged from the `.rivalDetail` push that reached this
+/// screen (native `AppRoute` carries it directly; there is no bridge to re-stash).
 struct RivalryScreen: View {
     let session: FestivalSession
     let rivalId: String
     let mode: String
     let name: String?
+    let scope: RivalScope?
     @State private var state: RivalsLoadState<RivalDetailResponse> = .loading
     @State private var songsById: [String: Song] = [:]
+    @State private var quickLinks = QuickLinksController()
     @Environment(\.openProfile) private var openProfile
     private var visible = VisibleInstrumentsReader()
 
@@ -23,11 +28,13 @@ struct RivalryScreen: View {
     ///   - rivalId: Rival account ID.
     ///   - mode: `RivalCategory.key` selecting which bucket to show.
     ///   - name: Rival display name, if known.
-    init(session: FestivalSession, rivalId: String, mode: String, name: String?) {
+    ///   - scope: Scope forwarded from the originating `RivalDetailScreen`.
+    init(session: FestivalSession, rivalId: String, mode: String, name: String?, scope: RivalScope?) {
         self.session = session
         self.rivalId = rivalId
         self.mode = mode
         self.name = name
+        self.scope = scope
     }
 
     private static let modeTitles: [String: String] = [
@@ -55,8 +62,9 @@ struct RivalryScreen: View {
                     Label("View Profile", systemImage: "person.crop.circle")
                 }
             }
+            QuickLinksToolbarItem(quickLinks)
         }
-        .task(id: RivalryTaskKey(rivalId: rivalId, mode: mode)) { await load() }
+        .task(id: RivalryTaskKey(rivalId: rivalId, mode: mode, scope: scope)) { await load() }
         .task { await loadSongLookup() }
     }
 
@@ -68,6 +76,7 @@ struct RivalryScreen: View {
     private struct RivalryTaskKey: Equatable {
         let rivalId: String
         let mode: String
+        let scope: RivalScope?
     }
 
     @ViewBuilder private var content: some View {
@@ -83,12 +92,18 @@ struct RivalryScreen: View {
             if let category, !category.songs.isEmpty {
                 ScrollView {
                     FestivalGlassSection {
-                        ForEach(category.songs) { song in
+                        ForEach(Array(category.songs.enumerated()), id: \.element.id) { index, song in
                             songRow(song, rivalName: detail.rival.displayName ?? name ?? "Rival")
+                                .quickLinkSection(QuickLinkSection(
+                                    id: "\(song.songId):\(song.instrument):\(index)",
+                                    title: song.title ?? song.songId,
+                                    icon: Instrument(rawValue: song.instrument).map(QuickLinkIcon.instrument)
+                                ))
                         }
                     }
                     .padding(16)
                 }
+                .quickLinks(quickLinks, title: "Quick Links")
             } else {
                 ContentUnavailableView(
                     "No Songs", systemImage: "music.note.list",
@@ -113,42 +128,14 @@ struct RivalryScreen: View {
     @MainActor
     private func load() async {
         state = .loading
-        let context = RivalNavigationBridge.shared.consume(forRivalId: rivalId)
-        // Re-stash immediately: `RivalDetailScreen` may still be on the stack and
-        // will re-run its own `.task` (e.g. after a pop back and forward) expecting
-        // the same context to still be available.
-        if let context {
-            RivalNavigationBridge.shared.stash(context, forRivalId: rivalId)
-        }
         do {
-            let detail: RivalDetailResponse
-            switch context?.source ?? .song {
-            case .leaderboard:
-                guard let raw = context?.instruments.first, let instrument = Instrument(rawValue: raw) else {
-                    detail = try await fallbackSongDetail()
-                    break
-                }
-                detail = try await session.leaderboardRivalDetail(
-                    instrument: instrument, rivalId: rivalId, rankBy: context?.rankBy ?? .totalscore
-                )
-            case .song:
-                let instruments = (context?.instruments ?? []).compactMap(Instrument.init(rawValue:))
-                detail = instruments.isEmpty ? try await fallbackSongDetail()
-                    : try await session.combinedRivalDetail(instruments: instruments, rivalId: rivalId)
-            }
-            state = .loaded(detail)
+            state = .loaded(try await session.rivalDetail(
+                forScope: scope, rivalId: rivalId, visibleInstruments: visible.instruments
+            ))
         } catch is CancellationError {
         } catch {
             state = .failed(error.localizedDescription)
         }
-    }
-
-    private func fallbackSongDetail() async throws -> RivalDetailResponse {
-        let instruments = visible.instruments
-        guard !instruments.isEmpty else {
-            return .empty(rivalId: rivalId, displayName: name)
-        }
-        return try await session.combinedRivalDetail(instruments: instruments, rivalId: rivalId)
     }
 
     private func loadSongLookup() async {

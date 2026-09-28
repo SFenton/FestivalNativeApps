@@ -50,12 +50,18 @@ enum AppRoute: Hashable {
     case bandRankings(bandType: String)
     /// `/rivals`
     case rivals
-    /// `/rivals/all?category=`
-    case allRivals(category: String)
-    /// `/rivals/:rivalId`
-    case rivalDetail(rivalId: String, name: String?)
-    /// `/rivals/:rivalId/rivalry?mode=`
-    case rivalry(rivalId: String, mode: String, name: String?)
+    /// `/rivals/all?category=&mode=&rankBy=`. `scope` carries the same
+    /// information the web's independent query parameters do, typed and
+    /// `Hashable` rather than encoded into one string (see `RivalScope`).
+    case allRivals(scope: RivalScope)
+    /// `/rivals/:rivalId`. `scope` is the combo/leaderboard/instrument context that
+    /// produced the tapped row, or `nil` when reached without one (deep link,
+    /// restored state); the destination screen then merges every Settings-visible
+    /// instrument instead of failing.
+    case rivalDetail(rivalId: String, name: String?, scope: RivalScope?)
+    /// `/rivals/:rivalId/rivalry?mode=`. `scope` is forwarded unchanged from the
+    /// `.rivalDetail` push that reached it.
+    case rivalry(rivalId: String, mode: String, name: String?, scope: RivalScope?)
 
     // MARK: Profile hubs (tabs on phone, pushable elsewhere)
     /// `/statistics`

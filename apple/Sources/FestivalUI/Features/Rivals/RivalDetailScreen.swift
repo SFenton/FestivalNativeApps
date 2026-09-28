@@ -12,16 +12,19 @@ import FestivalDesign
 /// fully browsable via `RivalryScreen`.
 ///
 /// The web learns which combo/leaderboard scope produced the tapped row from
-/// React Router `location.state`; this app has no such side channel on its
-/// value-typed `AppRoute`, so `RivalNavigationBridge` carries it for one push.
-/// Reached without a stashed context (deep link, cold start) this screen falls
-/// back to merging every Settings-visible instrument.
+/// React Router `location.state`. Native `AppRoute.rivalDetail` carries the same
+/// information directly as a typed `RivalScope?` payload, so this screen (and any
+/// other way of reaching this route — deep link, restored state, `DebugLaunchRoute`)
+/// always sees the same scope a tap would have stashed. A `nil` scope (no context
+/// at all) falls back to merging every Settings-visible instrument.
 struct RivalDetailScreen: View {
     let session: FestivalSession
     let rivalId: String
     let name: String?
+    let scope: RivalScope?
     @State private var state: RivalsLoadState<RivalDetailResponse> = .loading
     @State private var songsById: [String: Song] = [:]
+    @State private var quickLinks = QuickLinksController()
     @Environment(\.openProfile) private var openProfile
     private var visible = VisibleInstrumentsReader()
 
@@ -31,10 +34,13 @@ struct RivalDetailScreen: View {
     ///   - session: Shared app session (API client, selected profile, caches).
     ///   - rivalId: Rival account ID.
     ///   - name: Rival display name, if known.
-    init(session: FestivalSession, rivalId: String, name: String?) {
+    ///   - scope: Scope that produced the tapped row, or `nil` when reached
+    ///     without one.
+    init(session: FestivalSession, rivalId: String, name: String?, scope: RivalScope?) {
         self.session = session
         self.rivalId = rivalId
         self.name = name
+        self.scope = scope
     }
 
     var body: some View {
@@ -54,8 +60,9 @@ struct RivalDetailScreen: View {
                 }
                 .accessibilityIdentifier("fst.rival-detail.view-profile")
             }
+            QuickLinksToolbarItem(quickLinks)
         }
-        .task(id: rivalId) { await load() }
+        .task(id: RivalDetailTaskKey(rivalId: rivalId, scope: scope)) { await load() }
         .task { await loadSongLookup() }
     }
 
@@ -90,17 +97,21 @@ struct RivalDetailScreen: View {
                                 NavigationLink(
                                     value: AppRoute.rivalry(
                                         rivalId: rivalId, mode: category.key,
-                                        name: detail.rival.displayName ?? name
+                                        name: detail.rival.displayName ?? name, scope: scope
                                     )
                                 ) {
                                     RivalViewAllRow(title: "See All")
                                 }
                             }
                             .padding(.horizontal, 16)
+                            .quickLinkSection(
+                                id: "rival-category:\(category.key)", title: category.title
+                            )
                         }
                     }
                     .padding(.vertical, 12)
                 }
+                .quickLinks(quickLinks, title: "Quick Links")
             }
         }
     }
@@ -120,37 +131,14 @@ struct RivalDetailScreen: View {
     @MainActor
     private func load() async {
         state = .loading
-        let context = RivalNavigationBridge.shared.consume(forRivalId: rivalId)
         do {
-            let detail: RivalDetailResponse
-            switch context?.source ?? .song {
-            case .leaderboard:
-                guard let raw = context?.instruments.first, let instrument = Instrument(rawValue: raw) else {
-                    detail = try await fallbackSongDetail()
-                    break
-                }
-                detail = try await session.leaderboardRivalDetail(
-                    instrument: instrument, rivalId: rivalId, rankBy: context?.rankBy ?? .totalscore
-                )
-            case .song:
-                let instruments = (context?.instruments ?? []).compactMap(Instrument.init(rawValue:))
-                detail = instruments.isEmpty ? try await fallbackSongDetail()
-                    : try await session.combinedRivalDetail(instruments: instruments, rivalId: rivalId)
-            }
-            state = .loaded(detail)
+            state = .loaded(try await session.rivalDetail(
+                forScope: scope, rivalId: rivalId, visibleInstruments: visible.instruments
+            ))
         } catch is CancellationError {
         } catch {
             state = .failed(error.localizedDescription)
         }
-    }
-
-    /// Merge every Settings-visible instrument when no navigation context was stashed.
-    private func fallbackSongDetail() async throws -> RivalDetailResponse {
-        let instruments = visible.instruments
-        guard !instruments.isEmpty else {
-            return .empty(rivalId: rivalId, displayName: name)
-        }
-        return try await session.combinedRivalDetail(instruments: instruments, rivalId: rivalId)
     }
 
     private func loadSongLookup() async {
@@ -159,4 +147,11 @@ struct RivalDetailScreen: View {
             payload.catalog.songs.map { ($0.songId, $0) }, uniquingKeysWith: { first, _ in first }
         )
     }
+}
+
+/// Reload key for `RivalDetailScreen`'s detail read: both the rival and the
+/// scope that should be queried for it.
+private struct RivalDetailTaskKey: Equatable {
+    let rivalId: String
+    let scope: RivalScope?
 }

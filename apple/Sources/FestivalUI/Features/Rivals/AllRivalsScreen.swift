@@ -4,15 +4,14 @@ import FestivalDesign
 
 // MARK: - AllRivalsScreen
 
-/// `/rivals/all?category=` — full rival list for one scope.
+/// `/rivals/all?category=&mode=&rankBy=` — full rival list for one scope.
 ///
-/// The web's `AllRivalsPage` additionally supports a "common rivals" (shared
-/// across every visible instrument) and multi-instrument "combo" category; this
-/// native pass covers the single-instrument song and leaderboard scopes that
-/// `RivalsScreen`/`CompeteScreen` link to (see `RivalAllCategory`).
+/// The web's `AllRivalsPage` takes independent `category`/`mode`/`rankBy` query
+/// parameters; native `AppRoute.allRivals(scope:)` carries the same information as
+/// one typed, `Hashable` `RivalScope` instead (`song`, `leaderboard` or `combo`).
 struct AllRivalsScreen: View {
     let session: FestivalSession
-    let category: String
+    let scope: RivalScope
     @State private var state: RivalsLoadState<[AllRivalsRow]> = .loading
     @Environment(\.openProfile) private var openProfile
 
@@ -20,26 +19,35 @@ struct AllRivalsScreen: View {
     ///
     /// - Parameters:
     ///   - session: Shared app session (API client, selected profile, caches).
-    ///   - category: Encoded scope from `RivalAllCategory.encoded`.
-    init(session: FestivalSession, category: String) {
+    ///   - scope: Scope this list was reached under (`RivalsScreen`/`CompeteScreen`
+    ///     pass the same scope they used to load their own preview section).
+    init(session: FestivalSession, scope: RivalScope) {
         self.session = session
-        self.category = category
+        self.scope = scope
     }
 
-    private var scope: RivalAllCategory? { RivalAllCategory.decode(category) }
-
-    private var instrument: Instrument? {
+    /// The scope's constituent instruments, resolved from their raw values.
+    ///
+    /// A `.song` scope with 2+ instruments is "Common Rivals" (an intersection,
+    /// not a single list); everything else names exactly one queried scope.
+    private var instruments: [Instrument] {
         switch scope {
-        case let .song(raw), let .leaderboard(raw, _): Instrument(rawValue: raw)
-        case nil: nil
+        case let .song(raw): raw.compactMap(Instrument.init(rawValue:))
+        case let .leaderboard(raw, _): Instrument(rawValue: raw).map { [$0] } ?? []
+        case let .combo(_, raw): raw.compactMap(Instrument.init(rawValue:))
         }
+    }
+
+    private var isCommon: Bool {
+        if case let .song(raw) = scope { return raw.count > 1 }
+        return false
     }
 
     var body: some View {
         Group {
             if session.selectedPlayer == nil {
                 RivalsChooseProfileState { openProfile() }
-            } else if instrument == nil {
+            } else if instruments.isEmpty {
                 ContentUnavailableView(
                     "Unknown Category", systemImage: "questionmark.circle",
                     description: Text("This rivals list could not be identified.")
@@ -50,15 +58,21 @@ struct AllRivalsScreen: View {
         }
         .navigationTitle(title)
         .festivalBackground(.carousel, session: session)
-        .task(id: category) { await load() }
+        .task(id: scope) { await load() }
     }
 
     private var title: String {
-        guard let instrument else { return "Rivals" }
-        if case .leaderboard = scope {
-            return "\(instrument.label) Leaderboard Rivals"
+        switch scope {
+        case .leaderboard:
+            return "\(instruments.first?.label ?? "") Leaderboard Rivals"
+        case .song where isCommon:
+            return "Common Rivals"
+        case .song:
+            return "\(instruments.first?.label ?? "") Rivals"
+        case let .combo(token, _):
+            let label = token == RivalCombo.proDrumsToken ? "Pro Drums Family" : "Combo"
+            return "\(label) Rivals"
         }
-        return "\(instrument.label) Rivals"
     }
 
     @ViewBuilder private var content: some View {
@@ -77,26 +91,18 @@ struct AllRivalsScreen: View {
         case let .loaded(rows):
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    if let instrument {
-                        FestivalGlassSection(instrument.label) {
-                            ForEach(rows) { row in
-                                NavigationLink(
-                                    value: AppRoute.rivalDetail(
-                                        rivalId: row.accountId, name: row.displayName
-                                    )
-                                ) {
-                                    row.content
-                                }
-                                .simultaneousGesture(TapGesture().onEnded {
-                                    guard let scope else { return }
-                                    RivalNavigationBridge.shared.stash(
-                                        row.context(for: scope), forRivalId: row.accountId
-                                    )
-                                })
+                    FestivalGlassSection(title) {
+                        ForEach(rows) { row in
+                            NavigationLink(
+                                value: AppRoute.rivalDetail(
+                                    rivalId: row.accountId, name: row.displayName, scope: scope
+                                )
+                            ) {
+                                row.content
                             }
                         }
-                        .padding(.horizontal, 16)
                     }
+                    .padding(.horizontal, 16)
                 }
                 .padding(.vertical, 12)
             }
@@ -105,21 +111,41 @@ struct AllRivalsScreen: View {
 
     @MainActor
     private func load() async {
-        guard let scope, let instrument else {
+        guard !instruments.isEmpty else {
             state = .loaded([])
             return
         }
         state = .loading
         do {
             switch scope {
+            case .song where isCommon:
+                var lists: [RivalsListResponse] = []
+                for instrument in instruments {
+                    if let list = try? await session.rivalsList(instrument: instrument) {
+                        lists.append(list)
+                    }
+                }
+                let result = RivalCommonRivals.intersect(lists)
+                state = .loaded(
+                    result.above.map { AllRivalsRow($0, direction: .above) }
+                        + result.below.map { AllRivalsRow($0, direction: .below) }
+                )
             case .song:
+                guard let instrument = instruments.first else { state = .loaded([]); return }
                 let response = try await session.rivalsList(instrument: instrument)
                 state = .loaded(
                     response.above.map { AllRivalsRow($0, direction: .above) }
                         + response.below.map { AllRivalsRow($0, direction: .below) }
                 )
             case let .leaderboard(_, rankBy):
+                guard let instrument = instruments.first else { state = .loaded([]); return }
                 let response = try await session.leaderboardRivals(instrument: instrument, rankBy: rankBy)
+                state = .loaded(
+                    response.above.map { AllRivalsRow($0, direction: .above) }
+                        + response.below.map { AllRivalsRow($0, direction: .below) }
+                )
+            case let .combo(token, _):
+                let response = try await session.rivalsComboList(token: token)
                 state = .loaded(
                     response.above.map { AllRivalsRow($0, direction: .above) }
                         + response.below.map { AllRivalsRow($0, direction: .below) }
@@ -155,17 +181,4 @@ struct AllRivalsRow: Identifiable {
     }
 
     var id: String { accountId }
-
-    /// Rebuild the navigation context for this row under the page's active scope.
-    ///
-    /// - Parameter scope: The category this list was loaded for.
-    /// - Returns: Context stashed for the destination `RivalDetailScreen`/`RivalryScreen`.
-    func context(for scope: RivalAllCategory) -> RivalRouteContext {
-        switch scope {
-        case let .song(instrument):
-            return .song(instruments: [instrument])
-        case let .leaderboard(instrument, rankBy):
-            return .leaderboard(instrument: instrument, rankBy: rankBy)
-        }
-    }
 }

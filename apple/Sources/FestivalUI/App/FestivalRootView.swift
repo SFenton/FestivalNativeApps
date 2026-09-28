@@ -476,7 +476,10 @@ public struct FestivalRootView: View {
 /// Parses `FST_DEBUG_TAB` / `FST_DEBUG_ROUTE` so `tools/ios_sim.py` can open any page directly.
 ///
 /// Route syntax: `player:<accountId>`, `leaderboards`, `fullRankings:<Instrument rawValue>`,
-/// `shop`, `rivals`, `statistics`, `suggestions`, `compete`, `bands`, `licenses`.
+/// `shop`, `rivals`, `statistics`, `suggestions`, `compete`, `bands`, `licenses`,
+/// `allRivals:<scope>`, `rivalDetail:<rivalId>[:<scope>]`, `rivalry:<rivalId>:<mode>[:<scope>]`.
+/// `<scope>` is `RivalScope.debugToken`: `song:<instrument>[,<instrument>…]`,
+/// `leaderboard:<instrument>:<rankBy>` or `combo:<token>:<instrument>[,<instrument>…]`.
 /// Song routes need a loaded `Song`; the Songs lane handles `FST_DEBUG_SONG` itself.
 ///
 /// Shell extras: `FST_DEBUG_DRAWER=1` opens the hamburger drawer, `FST_DEBUG_SHEET=profile`
@@ -522,6 +525,28 @@ struct DebugLaunchRoute {
         case "bandRankings": route = .bandRankings(bandType: arg ?? "Band_Duets")
         case "shop": route = .shop
         case "rivals": route = .rivals
+        case "allRivals":
+            route = arg.flatMap(RivalScope.init(debugToken:)).map { .allRivals(scope: $0) }
+        case "rivalDetail":
+            if let arg {
+                let pieces = arg.split(separator: ":", maxSplits: 1).map(String.init)
+                let scope = pieces.count > 1 ? RivalScope(debugToken: pieces[1]) : nil
+                route = .rivalDetail(rivalId: pieces[0], name: nil, scope: scope)
+            } else {
+                route = nil
+            }
+        case "rivalry":
+            if let arg {
+                let pieces = arg.split(separator: ":", maxSplits: 2).map(String.init)
+                if pieces.count >= 2 {
+                    let scope = pieces.count > 2 ? RivalScope(debugToken: pieces[2]) : nil
+                    route = .rivalry(rivalId: pieces[0], mode: pieces[1], name: nil, scope: scope)
+                } else {
+                    route = nil
+                }
+            } else {
+                route = nil
+            }
         case "statistics": route = .statistics
         case "suggestions": route = .suggestions
         case "compete": route = .compete
