@@ -45,6 +45,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.songs.SongFilterDraft
@@ -71,7 +72,7 @@ import kotlin.math.roundToInt
  * @param onDismiss Close without applying.
  * @param content Form.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 private fun DraftSheet(
     title: String,
@@ -102,7 +103,7 @@ private fun DraftSheet(
         containerColor = BrandTokens.cardBackground,
         modifier = Modifier.testTag(tag),
     ) {
-        Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 16.dp)) {
+        Column(Modifier.semantics { testTagsAsResourceId = true }.padding(horizontal = 24.dp).padding(bottom = 16.dp)) {
             SectionHeader(title, Modifier.testTag("$tag.title"))
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).testTag("$tag.form")) { content() }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 12.dp)) {

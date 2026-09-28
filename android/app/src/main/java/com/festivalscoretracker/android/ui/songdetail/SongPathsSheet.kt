@@ -56,6 +56,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -92,7 +93,7 @@ import kotlin.math.max
  * @param onDontShowAgain Persist the permanent dismissal.
  * @param onDismiss Close.
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun SongPathsSheet(
     viewModel: SongPathsViewModel,
@@ -110,7 +111,7 @@ fun SongPathsSheet(
         containerColor = BrandTokens.cardBackground,
         modifier = Modifier.testTag("fst.song-detail.paths"),
     ) {
-        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp).verticalScroll(rememberScrollState())) {
+        Column(Modifier.semantics { testTagsAsResourceId = true }.padding(horizontal = 16.dp).padding(bottom = 16.dp).verticalScroll(rememberScrollState())) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Paths", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = Modifier.semantics { heading() })
@@ -220,16 +221,19 @@ private fun PathImage(image: SongPathImagePayload, description: String) {
         } else if (decoded == null) {
             Text("This path image couldn't be displayed.", color = BrandTokens.textSecondary, modifier = Modifier.padding(vertical = 24.dp).testTag("fst.paths.image-error"))
         } else {
-            BoxWithConstraints(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
-                Image(
-                    bitmap = decoded,
-                    contentDescription = description,
-                    contentScale = ContentScale.FillWidth,
-                    modifier = Modifier
-                        .width(maxWidth * zoom)
-                        .aspectRatio(image.width.toFloat() / image.height)
-                        .background(Color.White),
-                )
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val width = maxWidth * zoom
+                Box(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+                    Image(
+                        bitmap = decoded,
+                        contentDescription = description,
+                        contentScale = ContentScale.FillWidth,
+                        modifier = Modifier
+                            .width(width)
+                            .aspectRatio(image.width.toFloat() / image.height)
+                            .background(Color.White),
+                    )
+                }
             }
         }
     }
