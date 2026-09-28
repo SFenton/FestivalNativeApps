@@ -264,6 +264,13 @@ Not yet assigned:
 
 **Lane C — Apple cleanup + gates** (Opus) — ✅ landed `19c8f8f`…`1ccd78d`: coverage gate recursive-glob fix (UX gate was silently classifying ~1 of 104 FestivalUI files) · logic coverage 93.90%→95.81% · Rivals Common Rivals 503 fix · Compete honest empty state · Songs scrubber card inset · MarqueeText in Song Detail/Suggestions · Suggestions/PlayerHistory sheets to semantic toolbar placements · shared `FestivalApp` UITest launch helper (migrated 14 call sites) + found/fixed `MarqueeText` not honoring `FST_DEBUG_STILL_BACKGROUND` (root cause of Songs/Suggestions journey hangs) · retired `tools/apple_native_matrix.py` (stale single-file assumption, unused) · fixed `test_contrast_gate` for the color-only chip design · un-skipped all 3 `SettingsJourneyTests` (confirmed simulator contention, not a bug)
 
+### PWA reference lab (operator, 2026-09-28): "research is good, repro is better"
+
+Install the real PWA on every platform, record pages/animations/navigations, compare with native builds, and feed gaps back to lanes.
+- 🟨 **PWA-Apple** (Opus, Mac): Safari Add to Home Screen on iPhone 26.5 / iPad / Duo folded; macOS Add to Dock; scripted drive + video; `.agents/testing/pwa-reference/apple.md` + `apple-gaps.md`
+- 🟨 **FST-pwa-winandroid** (Windows host): Edge app on Windows (window-size presets), Chrome install on every `FST_` AVD (phone, book/passport fold, tri-fold, tablet); `windows.md`, `android.md`, `*-gaps.md`
+- Rule added to `AGENTS.md` change loop: reproduce against the installed PWA before implementing.
+
 ### Global search (operator, 2026-09-28) — all platforms, all layouts
 
 Web: a magnifier in the shell header on every page opens one search over songs (local catalogue), players and bands. Spec: [global-search/spec.md](.agents/controls/global-search/spec.md) (contract `global-search`, `fst.global-search.*`). Safety: players via `GET /api/account/search` (allowed); **band search writes → Bands scope shown but unavailable, with explanation and a Band Rankings link**; songs are local.
@@ -439,3 +446,4 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Orchestrator | Operator: global search on every page/platform/layout → R-search research lane + A2 Apple scope |
 | 2026-09-28 | Orchestrator | Global search spec landed + operator decisions; win-songs landed; launched win-search; verify_product root-ID rule (`78736f3`) |
 | 2026-09-28 | Windows lanes | win-profile landed; mock history accuracy scale fixed (`72b147e`) |
+| 2026-09-28 | Orchestrator | Operator: repro the installed PWA on all platforms → launched PWA-Apple (Mac) + FST-pwa-winandroid (Windows); AGENTS.md change-loop rule |
