@@ -1,0 +1,83 @@
+<Page
+    x:Class="Festival.App.Pages.BandsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Festival.App.Controls"
+    xmlns:vm="using:Festival.Core.ViewModels"
+    Background="Transparent">
+
+    <ScrollViewer AutomationProperties.AutomationId="fst.bands.screen">
+        <StackPanel Padding="24,12,24,32" Spacing="8" MaxWidth="1200" HorizontalAlignment="Stretch">
+            <TextBlock Text="Bands" Style="{StaticResource FSTPageTitleStyle}" AutomationProperties.HeadingLevel="Level1"
+                       AutomationProperties.AutomationId="fst.bands.title" />
+
+            <!-- The selected player's bands (hidden without a selected player). -->
+            <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.HasPlayer, Mode=OneWay}"
+                        AutomationProperties.AutomationId="fst.bands.your-bands-section">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{x:Bind ViewModel.YourBandsTitle, Mode=OneWay}" Style="{StaticResource FSTSectionHeaderStyle}"
+                               AutomationProperties.HeadingLevel="Level2" TextTrimming="CharacterEllipsis" />
+                    <HyperlinkButton Grid.Column="1" Content="{x:Bind ViewModel.ViewAllText, Mode=OneWay}" Click="OnViewAll"
+                                     VerticalAlignment="Center" AutomationProperties.AutomationId="fst.bands.your-bands" />
+                </Grid>
+                <ProgressRing IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Visibility="{x:Bind ViewModel.IsLoading, Mode=OneWay}"
+                              HorizontalAlignment="Left" Width="32" Height="32" AutomationProperties.Name="Loading bands" />
+                <TextBlock Text="No bands have been recorded for this player yet." Style="{StaticResource FSTSecondaryTextStyle}"
+                           Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" TextWrapping="Wrap"
+                           AutomationProperties.AutomationId="fst.bands.your-bands-empty" />
+                <controls:ServiceStatusView Status="{x:Bind ViewModel.Status}" HorizontalAlignment="Left"
+                                            Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}" />
+                <ItemsRepeater ItemsSource="{x:Bind ViewModel.YourBands, Mode=OneWay}" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
+                               AutomationProperties.AutomationId="fst.bands.your-bands-list">
+                    <ItemsRepeater.Layout>
+                        <UniformGridLayout MinItemWidth="300" MinRowSpacing="12" MinColumnSpacing="12" ItemsStretch="Fill" />
+                    </ItemsRepeater.Layout>
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="vm:PlayerBandCardViewModel">
+                            <controls:BandCardView Card="{x:Bind}" />
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
+            </StackPanel>
+
+            <!-- Public band rankings by size. -->
+            <TextBlock Text="Band Rankings" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
+            <ItemsRepeater ItemsSource="{x:Bind ViewModel.RankingLinks}">
+                <ItemsRepeater.Layout>
+                    <UniformGridLayout MinItemWidth="240" MinRowSpacing="12" MinColumnSpacing="12" ItemsStretch="Fill" />
+                </ItemsRepeater.Layout>
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate x:DataType="vm:BandRankingLink">
+                        <Button Tag="{x:Bind}" Click="OnRankingLink" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                Padding="16,12" CornerRadius="8" BorderThickness="1"
+                                Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}"
+                                AutomationProperties.Name="{x:Bind Announcement}" AutomationProperties.AutomationId="{x:Bind AutomationId}">
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <FontIcon Glyph="&#xE716;" FontSize="20" AutomationProperties.AccessibilityView="Raw" />
+                                <StackPanel Grid.Column="1" Spacing="2">
+                                    <TextBlock Text="{x:Bind Label}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                    <TextBlock Text="{x:Bind Description}" Style="{StaticResource FSTSecondaryTextStyle}" />
+                                </StackPanel>
+                                <FontIcon Grid.Column="2" Glyph="&#xE76C;" FontSize="12" AutomationProperties.AccessibilityView="Raw"
+                                          Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                            </Grid>
+                        </Button>
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+
+            <TextBlock Text="{x:Bind ViewModel.Footnote}" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"
+                       Foreground="{ThemeResource FSTSecondaryTextBrush}" Margin="0,12,0,0"
+                       AutomationProperties.AutomationId="fst.bands.footnote" />
+        </StackPanel>
+    </ScrollViewer>
+</Page>

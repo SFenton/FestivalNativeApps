@@ -1,0 +1,317 @@
+<Page
+    x:Class="Festival.App.Pages.BandsDetailPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Festival.App.Controls"
+    xmlns:pages="using:Festival.App.Pages"
+    xmlns:vm="using:Festival.Core.ViewModels"
+    Background="Transparent">
+    <Page.Resources>
+        <!-- Statistic cards: navigable ones are buttons, the rest are plain cards. -->
+        <DataTemplate x:Key="StatLinkTemplate" x:DataType="vm:BandStatCard">
+            <Button Tag="{x:Bind}" Click="OnStatClick" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                    HorizontalContentAlignment="Stretch" Padding="16,12" CornerRadius="8" BorderThickness="1"
+                    Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}"
+                    AutomationProperties.Name="{x:Bind Announcement}" AutomationProperties.AutomationId="{x:Bind AutomationId}">
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="{x:Bind Label}" Style="{StaticResource FSTSecondaryTextStyle}" />
+                        <TextBlock Text="{x:Bind Value}" Style="{StaticResource SubtitleTextBlockStyle}" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <FontIcon Grid.Column="1" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center"
+                              Foreground="{ThemeResource FSTSecondaryTextBrush}" AutomationProperties.AccessibilityView="Raw" />
+                </Grid>
+            </Button>
+        </DataTemplate>
+        <DataTemplate x:Key="StatPlainTemplate" x:DataType="vm:BandStatCard">
+            <Border Style="{StaticResource FSTCardStyle}" Padding="16,12" AutomationProperties.Name="{x:Bind Announcement}"
+                    AutomationProperties.AutomationId="{x:Bind AutomationId}">
+                <StackPanel Spacing="2">
+                    <TextBlock Text="{x:Bind Label}" Style="{StaticResource FSTSecondaryTextStyle}" />
+                    <TextBlock Text="{x:Bind Value}" Style="{StaticResource SubtitleTextBlockStyle}" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+        <pages:BandStatTemplateSelector x:Key="StatTemplates" Link="{StaticResource StatLinkTemplate}"
+                                        Plain="{StaticResource StatPlainTemplate}" />
+
+        <!-- Best/worst song rows: catalogue songs open Song Detail; unknown songs are plain. -->
+        <DataTemplate x:Key="SongLinkTemplate" x:DataType="vm:BandSongRow">
+            <Button Tag="{x:Bind}" Click="OnSongClick" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                    Padding="10,8" CornerRadius="8" BorderThickness="1"
+                    Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}"
+                    AutomationProperties.Name="{x:Bind Announcement}" AutomationProperties.AutomationId="{x:Bind AutomationId}">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <controls:BandsArtworkThumb Raw="{x:Bind AlbumArt}" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                        <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis"
+                                   TextWrapping="NoWrap" />
+                        <TextBlock Text="{x:Bind Subtitle}" Style="{StaticResource FSTSecondaryTextStyle}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="2">
+                        <Border CornerRadius="4" Padding="8,2" Background="{StaticResource FSTAccentPurpleBrush}" HorizontalAlignment="Right">
+                            <TextBlock Text="{x:Bind PercentileText}" FontSize="12" FontWeight="SemiBold" />
+                        </Border>
+                        <TextBlock Text="{x:Bind RankText}" FontSize="12" HorizontalAlignment="Right"
+                                   Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                    </StackPanel>
+                </Grid>
+            </Button>
+        </DataTemplate>
+        <DataTemplate x:Key="SongPlainTemplate" x:DataType="vm:BandSongRow">
+            <Border Style="{StaticResource FSTCardStyle}" Padding="10,8" AutomationProperties.Name="{x:Bind Announcement}"
+                    AutomationProperties.AutomationId="{x:Bind AutomationId}">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <controls:BandsArtworkThumb Raw="{x:Bind AlbumArt}" />
+                    <TextBlock Grid.Column="1" Text="{x:Bind Title}" VerticalAlignment="Center" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                    <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="2">
+                        <Border CornerRadius="4" Padding="8,2" Background="{StaticResource FSTAccentPurpleBrush}" HorizontalAlignment="Right">
+                            <TextBlock Text="{x:Bind PercentileText}" FontSize="12" FontWeight="SemiBold" />
+                        </Border>
+                        <TextBlock Text="{x:Bind RankText}" FontSize="12" HorizontalAlignment="Right"
+                                   Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
+        <pages:BandSongTemplateSelector x:Key="SongTemplates" Link="{StaticResource SongLinkTemplate}"
+                                        Plain="{StaticResource SongPlainTemplate}" />
+    </Page.Resources>
+
+    <Grid>
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup>
+                <!-- Wide windows get a quick-links rail (web desktop rail); narrower ones a pill bar under the title. -->
+                <VisualState x:Name="Wide">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="1280" />
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="Rail.Visibility" Value="Visible" />
+                        <Setter Target="PillBar.Visibility" Value="Collapsed" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="Narrow">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="0" />
+                    </VisualState.StateTriggers>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+
+        <!-- A bare band ID cannot be resolved safely (the by-ID endpoint writes on a GET). -->
+        <Border Style="{StaticResource FSTCardStyle}" MaxWidth="480" HorizontalAlignment="Center" VerticalAlignment="Center"
+                Visibility="{x:Bind ViewModel.ShowUnresolved}" AutomationProperties.AutomationId="fst.band.unresolved">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Band Not Available" Style="{StaticResource SubtitleTextBlockStyle}" AutomationProperties.HeadingLevel="Level1" />
+                <TextBlock Text="Open this band from a player's bands, Band Rankings or a song's band leaderboard to see its details."
+                           TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+
+        <ProgressRing IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Width="48" Height="48" AutomationProperties.Name="Loading band" />
+        <controls:ServiceStatusView Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
+                                    Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}" AutomationProperties.AutomationId="fst.band.error" />
+
+        <Grid Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <ScrollViewer x:Name="Scroller" AutomationProperties.AutomationId="fst.band.screen">
+                <StackPanel Padding="24,12,24,32" Spacing="8" MaxWidth="1200" HorizontalAlignment="Stretch">
+                    <TextBlock Text="{x:Bind ViewModel.Title, Mode=OneWay}" Style="{StaticResource FSTPageTitleStyle}" TextWrapping="Wrap"
+                               AutomationProperties.HeadingLevel="Level1" AutomationProperties.AutomationId="fst.band.title" />
+                    <TextBlock Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}"
+                               AutomationProperties.AutomationId="fst.band.subtitle" />
+                    <ScrollViewer x:Name="PillBar" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                                  HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled" Margin="0,4,0,0">
+                        <StackPanel x:Name="PillHost" Orientation="Horizontal" Spacing="8" AutomationProperties.Name="Quick Links"
+                                    AutomationProperties.AutomationId="fst.band.quick-links" />
+                    </ScrollViewer>
+
+                    <!-- Members -->
+                    <StackPanel x:Name="MembersSection" Spacing="8" AutomationProperties.AutomationId="fst.band.members-section">
+                        <TextBlock Text="Members" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
+                        <ItemsRepeater ItemsSource="{x:Bind ViewModel.Members, Mode=OneWay}">
+                            <ItemsRepeater.Layout>
+                                <UniformGridLayout MinItemWidth="260" MinRowSpacing="12" MinColumnSpacing="12" ItemsStretch="Fill" />
+                            </ItemsRepeater.Layout>
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="vm:BandMemberRow">
+                                    <Button Tag="{x:Bind}" Click="OnMemberClick" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                            HorizontalContentAlignment="Stretch" Padding="16,12" CornerRadius="8" BorderThickness="1"
+                                            Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}"
+                                            AutomationProperties.Name="{x:Bind Announcement}" AutomationProperties.AutomationId="{x:Bind AutomationId}">
+                                        <Grid ColumnSpacing="8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Spacing="8">
+                                                <TextBlock Text="{x:Bind Name}" Style="{StaticResource BodyLargeTextBlockStyle}" FontWeight="SemiBold"
+                                                           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                                <ItemsRepeater ItemsSource="{x:Bind Icons}">
+                                                    <ItemsRepeater.Layout>
+                                                        <StackLayout Orientation="Horizontal" Spacing="6" />
+                                                    </ItemsRepeater.Layout>
+                                                    <ItemsRepeater.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:BandInstrumentIcon">
+                                                            <controls:InstrumentIcon File="{x:Bind File}" Label="{x:Bind Label}" Width="32" Height="32" />
+                                                        </DataTemplate>
+                                                    </ItemsRepeater.ItemTemplate>
+                                                </ItemsRepeater>
+                                            </StackPanel>
+                                            <FontIcon Grid.Column="1" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center"
+                                                      Foreground="{ThemeResource FSTSecondaryTextBrush}" AutomationProperties.AccessibilityView="Raw" />
+                                        </Grid>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
+                    </StackPanel>
+
+                    <!-- Summary -->
+                    <StackPanel x:Name="SummarySection" Spacing="8" AutomationProperties.AutomationId="fst.band.summary-section">
+                        <TextBlock Text="Band Summary" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
+                        <ItemsRepeater ItemsSource="{x:Bind ViewModel.Summary, Mode=OneWay}" ItemTemplate="{StaticResource StatPlainTemplate}">
+                            <ItemsRepeater.Layout>
+                                <UniformGridLayout MinItemWidth="200" MinRowSpacing="12" MinColumnSpacing="12" ItemsStretch="Fill" />
+                            </ItemsRepeater.Layout>
+                        </ItemsRepeater>
+                    </StackPanel>
+
+                    <!-- Statistics -->
+                    <StackPanel x:Name="StatisticsSection" Spacing="8" AutomationProperties.AutomationId="fst.band.statistics-section">
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Band Statistics" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
+                            <ComboBox x:Name="RankBy" Grid.Column="1" VerticalAlignment="Center" MinWidth="160"
+                                      SelectionChanged="OnRankByChanged" AutomationProperties.Name="Rank By"
+                                      AutomationProperties.AutomationId="fst.band.rank-by">
+                                <x:String>Adjusted Skill</x:String>
+                                <x:String>Weighted</x:String>
+                                <x:String>FC Rate</x:String>
+                                <x:String>Total Score</x:String>
+                            </ComboBox>
+                        </Grid>
+                        <ItemsRepeater ItemsSource="{x:Bind ViewModel.Statistics, Mode=OneWay}" ItemTemplate="{StaticResource StatTemplates}">
+                            <ItemsRepeater.Layout>
+                                <UniformGridLayout MinItemWidth="200" MinRowSpacing="12" MinColumnSpacing="12" ItemsStretch="Fill" />
+                            </ItemsRepeater.Layout>
+                        </ItemsRepeater>
+                    </StackPanel>
+
+                    <!-- Rank history -->
+                    <StackPanel x:Name="HistorySection" Spacing="8" AutomationProperties.AutomationId="fst.band.history-section">
+                        <TextBlock Text="Band Rank History" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0,8,0,0"
+                                   AutomationProperties.HeadingLevel="Level2" />
+                        <TextBlock Text="{x:Bind ViewModel.HistoryHint, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" />
+                        <Border Style="{StaticResource FSTCardStyle}">
+                            <Grid>
+                                <ProgressRing IsActive="{x:Bind ViewModel.HistoryLoading, Mode=OneWay}" Width="32" Height="32"
+                                              Visibility="{x:Bind ViewModel.HistoryLoading, Mode=OneWay}" AutomationProperties.Name="Loading rank history" />
+                                <TextBlock Text="No band rank history yet." Style="{StaticResource FSTSecondaryTextStyle}"
+                                           Visibility="{x:Bind ViewModel.HistoryEmpty, Mode=OneWay}" AutomationProperties.AutomationId="fst.band.history-empty" />
+                                <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.HistoryFailed, Mode=OneWay}"
+                                            AutomationProperties.AutomationId="fst.service-status.inline">
+                                    <TextBlock Text="{x:Bind ViewModel.HistoryStatus.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                    <TextBlock Text="{x:Bind ViewModel.HistoryStatus.Message, Mode=OneWay}" TextWrapping="Wrap" />
+                                    <Button Content="{x:Bind ViewModel.HistoryStatus.RetryLabel, Mode=OneWay}" Command="{x:Bind ViewModel.HistoryStatus.RetryCommand}" />
+                                </StackPanel>
+                                <StackPanel Spacing="12" Visibility="{x:Bind ViewModel.ShowHistory, Mode=OneWay}">
+                                    <controls:BandRankHistoryChart Points="{x:Bind ViewModel.HistoryPoints, Mode=OneWay}" />
+                                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.HistoryRows, Mode=OneWay}">
+                                        <ItemsRepeater.Layout>
+                                            <StackLayout Spacing="2" />
+                                        </ItemsRepeater.Layout>
+                                        <ItemsRepeater.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:BandHistoryRow">
+                                                <Grid ColumnSpacing="12" Height="28" AutomationProperties.Name="{x:Bind Announcement}"
+                                                      AutomationProperties.AutomationId="{x:Bind AutomationId}">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="80" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{x:Bind Date}" VerticalAlignment="Center" Style="{StaticResource FSTSecondaryTextStyle}" />
+                                                    <TextBlock Grid.Column="1" Text="{x:Bind Rank}" VerticalAlignment="Center"
+                                                               Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                                    <TextBlock Grid.Column="2" Text="{x:Bind Value}" VerticalAlignment="Center" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsRepeater.ItemTemplate>
+                                    </ItemsRepeater>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Best and worst songs -->
+                    <StackPanel x:Name="SongsSection" Spacing="8" AutomationProperties.AutomationId="fst.band.songs-section">
+                        <TextBlock Text="Five Best Songs" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0,8,0,0"
+                                   AutomationProperties.HeadingLevel="Level2" />
+                        <TextBlock Text="{x:Bind ViewModel.BestDescription, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" />
+                        <ProgressRing IsActive="{x:Bind ViewModel.SongsLoading, Mode=OneWay}" Visibility="{x:Bind ViewModel.SongsLoading, Mode=OneWay}"
+                                      HorizontalAlignment="Left" Width="32" Height="32" AutomationProperties.Name="Loading band songs" />
+                        <Border Style="{StaticResource FSTCardStyle}" Visibility="{x:Bind ViewModel.SongsFailed, Mode=OneWay}"
+                                AutomationProperties.AutomationId="fst.service-status.inline">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="{x:Bind ViewModel.SongsStatus.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <TextBlock Text="{x:Bind ViewModel.SongsStatus.Message, Mode=OneWay}" TextWrapping="Wrap" />
+                                <TextBlock Text="{x:Bind ViewModel.SongsStatus.CountdownText, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <Button Content="{x:Bind ViewModel.SongsStatus.RetryLabel, Mode=OneWay}" Command="{x:Bind ViewModel.SongsStatus.RetryCommand}" />
+                            </StackPanel>
+                        </Border>
+                        <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.ShowSongs, Mode=OneWay}">
+                            <TextBlock Text="No ranked band songs yet." Style="{StaticResource FSTSecondaryTextStyle}"
+                                       Visibility="{x:Bind ViewModel.BestEmpty, Mode=OneWay}" />
+                            <ItemsRepeater ItemsSource="{x:Bind ViewModel.Best, Mode=OneWay}" ItemTemplate="{StaticResource SongTemplates}"
+                                           AutomationProperties.AutomationId="fst.band.best-songs">
+                                <ItemsRepeater.Layout>
+                                    <StackLayout Spacing="6" />
+                                </ItemsRepeater.Layout>
+                            </ItemsRepeater>
+                            <TextBlock Text="Five Worst Songs" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
+                            <TextBlock Text="{x:Bind ViewModel.WorstDescription, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" />
+                            <TextBlock Text="No additional ranked band songs yet." Style="{StaticResource FSTSecondaryTextStyle}"
+                                       Visibility="{x:Bind ViewModel.WorstEmpty, Mode=OneWay}" />
+                            <ItemsRepeater ItemsSource="{x:Bind ViewModel.Worst, Mode=OneWay}" ItemTemplate="{StaticResource SongTemplates}"
+                                           AutomationProperties.AutomationId="fst.band.worst-songs">
+                                <ItemsRepeater.Layout>
+                                    <StackLayout Spacing="6" />
+                                </ItemsRepeater.Layout>
+                            </ItemsRepeater>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Wide-window quick-links rail. -->
+            <StackPanel x:Name="Rail" Grid.Column="1" Width="200" Padding="0,24,24,0" Spacing="4" Visibility="Collapsed"
+                        AutomationProperties.Name="Quick Links" AutomationProperties.AutomationId="fst.band.quick-links-rail">
+                <TextBlock Text="Quick Links" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="12,0,0,8"
+                           AutomationProperties.HeadingLevel="Level2" />
+                <StackPanel x:Name="RailHost" Spacing="2" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Page>

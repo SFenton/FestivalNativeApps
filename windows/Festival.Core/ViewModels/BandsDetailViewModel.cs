@@ -335,11 +335,24 @@ public sealed partial class BandDetailViewModel : ObservableObject
 
 #region History rows
 /// <summary>A chart vertex: <c>X</c> 0–1 oldest to newest, <c>Y</c> 0–1 with the best rank at 0 (top).</summary>
-/// <param name="X">Horizontal position.</param>
-/// <param name="Y">Vertical position.</param>
-/// <param name="Rank">Rank at this snapshot.</param>
-public sealed record BandHistoryPoint(double X, double Y, int Rank)
+/// <remarks>Get-only properties: XAML type info generates setters for init accessors, which fails to compile.</remarks>
+public sealed record BandHistoryPoint
 {
+    /// <summary>Creates a vertex.</summary>
+    /// <param name="x">Horizontal position.</param>
+    /// <param name="y">Vertical position.</param>
+    /// <param name="rank">Rank at this snapshot.</param>
+    public BandHistoryPoint(double x, double y, int rank) => (X, Y, Rank) = (x, y, rank);
+
+    /// <summary>Horizontal position (0 oldest, 1 newest).</summary>
+    public double X { get; }
+
+    /// <summary>Vertical position (0 best rank).</summary>
+    public double Y { get; }
+
+    /// <summary>Rank at this snapshot.</summary>
+    public int Rank { get; }
+
     /// <summary>Normalizes ranked snapshots (oldest first) into chart space.</summary>
     /// <param name="ranked">Snapshots with a rank for the metric.</param>
     /// <param name="metric">Metric.</param>

@@ -91,7 +91,7 @@ public class BandsApiTests
         Assert.Equal(FestivalApiErrorKind.InvalidResponse, (await Fails(() => client.GetBandProfileAsync(BandType.Duets, BandWire.Team))).Kind);
         body = BandWire.Fixture("band-detail-demo");
         Assert.Equal(FestivalApiErrorKind.InvalidResponse, (await Fails(() => client.GetBandProfileAsync(BandType.Duets, "a:b"))).Kind);
-        Assert.Equal(FestivalApiErrorKind.InvalidResource, (await Fails(() => client.GetBandProfileAsync(BandType.Duets, "solo"))).Kind);
+        Assert.Equal(FestivalApiErrorKind.InvalidResource, (await Fails(() => client.GetBandProfileAsync(BandType.Duets, "bad key"))).Kind);
         Assert.Equal(FestivalApiErrorKind.InvalidResource, (await Fails(() => client.GetBandProfileAsync((BandType)7, BandWire.Team))).Kind);
     }
 
@@ -170,7 +170,7 @@ public class BandsApiTests
     [Theory]
     [InlineData("a:b", true)]
     [InlineData("a:b:c:d", true)]
-    [InlineData("a", false)]
+    [InlineData("fixture-team-1", true)]
     [InlineData("a:b:c:d:e", false)]
     [InlineData("a::b", false)]
     [InlineData("a:b/c", false)]

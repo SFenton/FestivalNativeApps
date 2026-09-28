@@ -1,0 +1,91 @@
+using System.ComponentModel;
+using Festival.App.Services;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Navigation;
+
+namespace Festival.App.Pages;
+
+#region Song band leaderboard page
+/// <summary><c>/songs/:songId/bands/:bandType</c>: a song's band scores with an in-place band-size switcher and paging.</summary>
+public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
+{
+    private CancellationTokenSource headerArt = new();
+
+    /// <summary>Creates the page.</summary>
+    public BandsSongLeaderboardPage() => InitializeComponent();
+
+    /// <summary>Page model (set on navigation).</summary>
+    public SongBandLeaderboardViewModel ViewModel { get; private set; } = null!;
+
+    /// <inheritdoc />
+    public bool UsesSongCover => true;
+
+    /// <inheritdoc />
+    public string? BackdropArt => ViewModel?.Song?.AlbumArt;
+
+    /// <inheritdoc />
+    protected override async void OnNavigatedTo(NavigationEventArgs e)
+    {
+        base.OnNavigatedTo(e);
+        ViewModel = new SongBandLeaderboardViewModel(App.Session, (AppRoute.SongBandLeaderboard)e.Parameter);
+        ViewModel.PropertyChanged += OnViewModelChanged;
+        Bindings.Update();
+        SizeBar.SelectedItem = SizeBar.Items[ViewModel.BandTypeIndex];
+        await ViewModel.LoadAsync();
+    }
+
+    /// <inheritdoc />
+    protected override void OnNavigatedFrom(NavigationEventArgs e)
+    {
+        headerArt.Cancel();
+        base.OnNavigatedFrom(e);
+    }
+
+    /// <summary>Applies the band-size choice in place.</summary>
+    /// <param name="sender">Selector bar.</param>
+    /// <param name="args">Unused.</param>
+    private void OnSizeChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    {
+        if (ViewModel is null || sender.SelectedItem is null) return;
+        ViewModel.BandTypeIndex = sender.Items.IndexOf(sender.SelectedItem);
+    }
+
+    /// <summary>Opens Band Detail for a row.</summary>
+    /// <param name="sender">List.</param>
+    /// <param name="e">Clicked row.</param>
+    private void OnRowClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is SongBandRow row) MainWindow.Instance?.Navigate(row.Route);
+    }
+
+    /// <summary>Opens Song Detail from the header title.</summary>
+    /// <param name="sender">Link.</param>
+    /// <param name="e">Unused.</param>
+    private void OnSongTitle(object sender, RoutedEventArgs e) =>
+        MainWindow.Instance?.Navigate(new AppRoute.SongDetail(ViewModel.SongId));
+
+    /// <summary>Loads header art and the backdrop once the song resolves; scrolls to top on a new page.</summary>
+    /// <param name="sender">View model.</param>
+    /// <param name="e">Changed property.</param>
+    private async void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SongBandLeaderboardViewModel.Rows))
+        {
+            // After x:Bind has swapped the items.
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (Rows.Items.Count > 0) Rows.ScrollIntoView(Rows.Items[0]);
+            });
+            return;
+        }
+        if (e.PropertyName != nameof(SongBandLeaderboardViewModel.Song) || ViewModel.Song is not { } song) return;
+        MainWindow.Instance?.RefreshBackdrop();
+        headerArt.Cancel();
+        headerArt = new CancellationTokenSource();
+        if (App.Session.Settings.SaveData || App.Options.NoArt) return;
+        var pixels = (int)Math.Ceiling(72 * (XamlRoot?.RasterizationScale ?? 1));
+        HeaderArt.Source = await ArtworkImages.LoadAsync(song.AlbumArt, pixels, headerArt.Token);
+    }
+}
+#endregion

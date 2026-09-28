@@ -190,11 +190,12 @@ public static class BandEndpoints
             [("top", Text(top)), ("offset", Text(offset))]);
     }
 
-    /// <summary>Whether a team key is a <c>:</c>-joined list of 2–4 valid account IDs.</summary>
+    /// <summary>Whether a team key is a <c>:</c>-joined list of 1–4 valid account IDs (the service joins the sorted
+    /// member IDs; fixtures may use one synthetic segment).</summary>
     /// <param name="teamKey">Candidate key.</param>
     /// <returns><see langword="true"/> when safe for a URL segment.</returns>
     public static bool IsValidTeamKey(string? teamKey) =>
-        teamKey is { Length: > 0 and <= 600 } && teamKey.Split(':') is { Length: >= 2 and <= 4 } parts &&
+        teamKey is { Length: > 0 and <= 600 } && teamKey.Split(':') is { Length: >= 1 and <= 4 } parts &&
         parts.All(ProfileText.IsValidAccountId);
 
     /// <summary>Rejects an undefined band type.</summary>

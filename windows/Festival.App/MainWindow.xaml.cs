@@ -93,6 +93,10 @@ public sealed partial class MainWindow : Window
     private static Type PageFor(AppRoute route) => route switch
     {
         AppRoute.SongDetail => typeof(SongDetailPage),
+        AppRoute.Bands => typeof(BandsPage),
+        AppRoute.PlayerBands => typeof(BandsPlayerBandsPage),
+        AppRoute.Band => typeof(BandsDetailPage),
+        AppRoute.SongBandLeaderboard => typeof(BandsSongLeaderboardPage),
         _ => typeof(PlaceholderPage),
     };
 

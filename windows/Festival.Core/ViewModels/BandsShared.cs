@@ -90,6 +90,12 @@ public sealed record BandMemberRow(BandMember Member)
     /// <summary><c>No observed instrument</c> hint when there are no icons.</summary>
     public string InstrumentsText => HasIcons ? string.Join(", ", Icons.Select(i => i.Label)) : "No observed instrument";
 
+    /// <summary>Per-song member score (song band leaderboards only), or empty.</summary>
+    public string ScoreText => Member.Score is { } score ? BandFormatting.Count(score) : "";
+
+    /// <summary>Whether a per-song member score is shown.</summary>
+    public bool HasScore => ScoreText.Length > 0;
+
     /// <summary>Player profile route, when the account ID is safe.</summary>
     public AppRoute? Route => Member.HasValidAccount ? new AppRoute.Player(Member.AccountId) : null;
 

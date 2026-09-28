@@ -161,7 +161,7 @@ public class BandDetailViewModelTests
     public async Task BareBandIdIsUnresolvedAndMakesNoRequest()
     {
         var bands = new BandService();
-        foreach (var route in new[] { Route(null, null), Route("Band_Nope"), Route(key: "solo") })
+        foreach (var route in new[] { Route(null, null), Route("Band_Nope"), Route(key: "a:b:c:d:e") })
         {
             var vm = new BandDetailViewModel(bands.Service.Session(), route);
             Assert.False(vm.IsResolvable);
@@ -369,6 +369,9 @@ public class SongBandLeaderboardViewModelTests
         Assert.True(row.HasAccuracy && row.IsFullCombo && row.HasStars);
         Assert.Equal("★ 6", row.Stars);
         Assert.Equal(2, row.Members.Count);
+        Assert.Equal("500", row.Members[0].ScoreText);
+        Assert.True(row.Members[0].HasScore);
+        Assert.False(row.Members[1].HasScore);
         Assert.Equal(new AppRoute.Band("sb1", "Band_Trios", "t1a:t1b"), row.Route);
         Assert.Equal("fst.song-band-leaderboard.row.sb1:1", row.AutomationId);
         Assert.Equal("Rank 1, Lead 1 + Unknown User, 99,999 points, 99.0% accuracy, full combo, 6 stars", row.Announcement);
