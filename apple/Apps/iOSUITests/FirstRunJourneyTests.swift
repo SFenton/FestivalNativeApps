@@ -8,6 +8,24 @@ import XCTest
 /// wiring (`.firstRun(page:session:)`) and Settings replay navigation that only a
 /// live app session can exercise.
 final class FirstRunJourneyTests: XCTestCase {
+    /// A Songs row, found by identifier regardless of accessibility role.
+    ///
+    /// **Testability note found (out of this lane's files, `Features/Songs`):**
+    /// `fst.songs.row.<songId>` is currently reported on a `StaticText`, not a
+    /// `Button` (confirmed via `tools/ios_sim.py drive`'s `tree:` dump), while the
+    /// legacy `FestivalMobileUITests.swift` suite still queries it with
+    /// `app.buttons[...]` throughout. A role-agnostic query sidesteps this here so
+    /// dismissal/navigation past First-Run can still be asserted.
+    ///
+    /// - Parameters:
+    ///   - app: The running application.
+    ///   - songId: Fixture song id.
+    /// - Returns: The row element, whatever its role.
+    @MainActor
+    private func songsRow(_ app: XCUIApplication, _ songId: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(identifier: "fst.songs.row.\(songId)").firstMatch
+    }
+
     @MainActor
     private func fixtureApp() -> XCUIApplication {
         let app = XCUIApplication()
@@ -57,7 +75,7 @@ final class FirstRunJourneyTests: XCTestCase {
         XCTAssertTrue(app.buttons["fst.first-run.skip"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["fst.first-run.next"].exists)
         app.buttons["fst.first-run.skip"].tap()
-        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
+        XCTAssertTrue(songsRow(app, "fixture-pulse").waitForExistence(timeout: 15))
     }
 
     /// Skip dismisses the carousel immediately from the first slide.
@@ -69,7 +87,7 @@ final class FirstRunJourneyTests: XCTestCase {
         let skip = app.buttons["fst.first-run.skip"]
         XCTAssertTrue(skip.waitForExistence(timeout: 15))
         skip.tap()
-        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
+        XCTAssertTrue(songsRow(app, "fixture-pulse").waitForExistence(timeout: 15))
     }
 
     /// Settings' "First-Run Guides" replay reopens the full Songs slide catalog
@@ -83,7 +101,7 @@ final class FirstRunJourneyTests: XCTestCase {
         let skip = app.buttons["fst.first-run.skip"]
         XCTAssertTrue(skip.waitForExistence(timeout: 15))
         skip.tap()
-        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
+        XCTAssertTrue(songsRow(app, "fixture-pulse").waitForExistence(timeout: 15))
 
         app.tabBars.buttons["Settings"].tap()
         let replayRow = app.descendants(matching: .any)

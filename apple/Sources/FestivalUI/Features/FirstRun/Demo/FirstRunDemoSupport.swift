@@ -24,7 +24,7 @@ private struct FirstRunPulse: ViewModifier {
         content
             .shadow(color: tint.opacity(lit ? 0.55 : 0.12), radius: lit ? 10 : 3)
             .onAppear {
-                guard !reduceMotion else { return }
+                guard !reduceMotion, !DebugAnimationOverride.stillBackground else { return }
                 withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) {
                     lit = true
                 }
