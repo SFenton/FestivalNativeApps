@@ -74,134 +74,22 @@ struct SettingsScreen: View {
     }
 
     var body: some View {
-        Form {
-            Section {
-                Text("Additional options become available as their native pages are built.")
-                    .font(.footnote)
-                    .foregroundStyle(BrandTokens.textSecondary)
-                Toggle("Show Instrument Icons", isOn: $showInstrumentIcons)
-                    .accessibilityHint(
-                        "Shows score and full combo status for each enabled chart on "
-                            + "unfiltered Songs cards when a player is selected"
-                    )
-                    .accessibilityIdentifier("fst.settings.show-instrument-icons")
-                Text("Star: full combo · Check: scored · Minus: no score · "
-                     + "Slash: not charted · Exclamation: inconsistent score")
-                    .font(.footnote)
-                    .foregroundStyle(BrandTokens.textSecondary)
-                Toggle("Filter Invalid Scores", isOn: $filterInvalidScores)
-                if filterInvalidScores {
-                    VStack(alignment: .leading) {
-                        Text("Max Score Leeway: \(ScoreFormatting.leeway(leeway))")
-                        Slider(
-                            value: Binding(
-                                get: { leeway },
-                                set: { leeway = min(5, max(-5, ($0 * 10).rounded() / 10)) }
-                            ), in: -5...5, step: 0.1
-                        )
-                            .accessibilityLabel("Max Score Leeway")
-                            .accessibilityValue(ScoreFormatting.leeway(leeway))
-                            .accessibilityIdentifier("fst.settings.leeway")
-                    }
-                }
-                Picker("CHOpt Path Default View", selection: $pathDefaultView) {
-                    Text("Image").tag(PathDisplayMode.image)
-                    Text("Text").tag(PathDisplayMode.text)
-                }
-                .accessibilityValue(pathDefaultView.label)
-                .accessibilityIdentifier("fst.settings.path-default-view")
-                Toggle("Experimental Ranks", isOn: $experimentalRanks)
-                    .disabled(true)
-                    .accessibilityHint("Experimental ranks are not yet available")
-            } header: {
-                Text("App Settings").foregroundStyle(BrandTokens.textSecondary)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 28) {
+                appSettings
+                accessibility
+                itemShop
+                instruments
+                metadata
+                service
+                about
+                reset
             }
-            Section {
-                Toggle("Reduce Motion", isOn: $reduceMotion)
-                    .accessibilityIdentifier("fst.settings.reduce-motion")
-                Toggle("Disable Animated Artwork", isOn: $disableAnimatedArtwork)
-                    .accessibilityIdentifier("fst.settings.disable-artwork-animation")
-                Toggle("Increase Contrast", isOn: $moreContrast)
-                    .accessibilityIdentifier("fst.settings.more-contrast")
-                Toggle("Reduce Transparency", isOn: $lessTransparency)
-                    .accessibilityIdentifier("fst.settings.less-transparency")
-                Text(
-                    "Off follows system appearance; On adds an app override. "
-                    + "VoiceOver and text size are managed in device Settings."
-                )
-                    .font(.footnote)
-                    .foregroundStyle(BrandTokens.textSecondary)
-            } header: {
-                Text("Accessibility").foregroundStyle(BrandTokens.textSecondary)
-            }
-            Section {
-                Text("Hiding the shop also hides its entry. Your highlight preference is retained.")
-                    .font(.footnote)
-                    .foregroundStyle(BrandTokens.textSecondary)
-                Toggle("Hide Item Shop", isOn: $hideShop)
-                    .accessibilityIdentifier("fst.settings.hide-shop")
-                Toggle(
-                    "Highlight Shop Items",
-                    isOn: Binding(
-                        get: { !disableShopHighlighting },
-                        set: { disableShopHighlighting = !$0 }
-                    )
-                )
-                .disabled(hideShop)
-                .accessibilityIdentifier("fst.settings.shop-highlights")
-            } header: {
-                Text("Item Shop").foregroundStyle(BrandTokens.textSecondary)
-            }
-            Section {
-                ForEach(Instrument.allCases) { instrument in
-                    let shown = instrumentBinding(for: instrument)
-                    Toggle(instrument.label, isOn: shown)
-                        .disabled(shown.wrappedValue && visibleInstrumentCount <= 1)
-                        .accessibilityIdentifier(
-                            "fst.settings.instrument.\(instrument.rawValue)"
-                        )
-                }
-            } header: {
-                Text("Show Instruments").foregroundStyle(BrandTokens.textSecondary)
-            }
-            Section {
-                Text(session.selectedPlayer == nil
-                    ? "Select a player to customize score metadata."
-                    : showInstrumentIcons
-                        ? "With icons and All instruments, status chips replace score "
-                            + "metadata. Turn icons off or filter one chart to show these fields."
-                        : "Visible score fields update Songs cards. The source's "
-                            + "metadata ordering and Last Played sort are still being ported.")
-                    .font(.footnote)
-                    .foregroundStyle(BrandTokens.textSecondary)
-                ForEach(MetadataField.allCases) { field in
-                    Toggle(field.label, isOn: metadataBinding(for: field))
-                        .disabled(session.selectedPlayer == nil && field != .intensity)
-                        .accessibilityHint(metadataHint(for: field))
-                        .accessibilityIdentifier("fst.settings.metadata.\(field.rawValue)")
-                }
-            } header: {
-                Text("Show Metadata").foregroundStyle(BrandTokens.textSecondary)
-            }
-            Section {
-                Button("Check Publication") { Task { await refreshService() } }
-                if let serviceStatus {
-                    Text(serviceStatus)
-                        .accessibilityIdentifier("fst.settings.publication-status")
-                }
-            } header: {
-                Text("Service").foregroundStyle(BrandTokens.textSecondary)
-            }
-            Section {
-                Button("Reset App Settings", role: .destructive) {
-                    resetPending = true
-                }
-                .accessibilityIdentifier("fst.settings.reset")
-            } header: {
-                Text("Reset").foregroundStyle(BrandTokens.textSecondary)
-            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 32)
         }
-        .scrollContentBackground(.hidden)
+        .scrollDismissesKeyboard(.interactively)
         .festivalBackground(.carousel, session: session, visible: isVisible)
         .navigationTitle("Settings")
         .confirmationDialog(
@@ -212,6 +100,196 @@ struct SettingsScreen: View {
             Button("Reset App Settings", role: .destructive) { resetAppSettings() }
         } message: {
             Text("Your profile, song filters and navigation history will remain.")
+        }
+    }
+
+    // MARK: - Sections
+
+    private var appSettings: some View {
+        FestivalGlassSection(
+            "App Settings", subtitle: "General Festival Score Tracker app settings."
+        ) {
+            Toggle(isOn: $showInstrumentIcons) {
+                SettingLabel(
+                    "Show Instrument Icons",
+                    detail: "Star: full combo · Check: scored · Minus: no score · "
+                        + "Slash: not charted · Exclamation: inconsistent score"
+                )
+            }
+            .accessibilityHint(
+                "Shows score and full combo status for each enabled chart on "
+                    + "unfiltered Songs cards when a player is selected"
+            )
+            .accessibilityIdentifier("fst.settings.show-instrument-icons")
+            Toggle(isOn: $filterInvalidScores) {
+                SettingLabel(
+                    "Filter Invalid Scores",
+                    detail: "Hide scores that exceed the CHOpt maximum by more than the leeway."
+                )
+            }
+            if filterInvalidScores {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Max Score Leeway: \(ScoreFormatting.leeway(leeway))")
+                        .foregroundStyle(BrandTokens.textPrimary)
+                    Slider(
+                        value: Binding(
+                            get: { leeway },
+                            set: { leeway = min(5, max(-5, ($0 * 10).rounded() / 10)) }
+                        ), in: -5...5, step: 0.1
+                    )
+                    .accessibilityLabel("Max Score Leeway")
+                    .accessibilityValue(ScoreFormatting.leeway(leeway))
+                    .accessibilityIdentifier("fst.settings.leeway")
+                }
+            }
+            LabeledContent {
+                Picker("CHOpt Path Default View", selection: $pathDefaultView) {
+                    Text("Image").tag(PathDisplayMode.image)
+                    Text("Text").tag(PathDisplayMode.text)
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .accessibilityValue(pathDefaultView.label)
+                .accessibilityIdentifier("fst.settings.path-default-view")
+            } label: {
+                SettingLabel("CHOpt Path Default View")
+            }
+            Toggle(isOn: $experimentalRanks) {
+                SettingLabel(
+                    "Experimental Ranks",
+                    detail: "More ranking mechanisms for Leaderboards. Not yet available."
+                )
+            }
+            .disabled(true)
+            .accessibilityHint("Experimental ranks are not yet available")
+        }
+    }
+
+    private var accessibility: some View {
+        FestivalGlassSection(
+            "Accessibility",
+            subtitle: "Off follows your device; On adds an app override. "
+                + "VoiceOver and text size are managed in device Settings."
+        ) {
+            Toggle(isOn: $reduceMotion) { SettingLabel("Reduce Motion") }
+                .accessibilityIdentifier("fst.settings.reduce-motion")
+            Toggle(isOn: $disableAnimatedArtwork) { SettingLabel("Disable Animated Artwork") }
+                .accessibilityIdentifier("fst.settings.disable-artwork-animation")
+            Toggle(isOn: $moreContrast) { SettingLabel("Increase Contrast") }
+                .accessibilityIdentifier("fst.settings.more-contrast")
+            Toggle(isOn: $lessTransparency) {
+                SettingLabel("Reduce Transparency", detail: "Replaces glass with solid surfaces.")
+            }
+            .accessibilityIdentifier("fst.settings.less-transparency")
+        }
+    }
+
+    private var itemShop: some View {
+        FestivalGlassSection(
+            "Item Shop", subtitle: "Control how Item Shop availability is displayed."
+        ) {
+            Toggle(isOn: $hideShop) {
+                SettingLabel(
+                    "Hide Item Shop",
+                    detail: "Also hides its menu entry. Your highlight preference is retained."
+                )
+            }
+            .accessibilityIdentifier("fst.settings.hide-shop")
+            Toggle(
+                isOn: Binding(
+                    get: { !disableShopHighlighting },
+                    set: { disableShopHighlighting = !$0 }
+                )
+            ) {
+                SettingLabel("Highlight Shop Items")
+            }
+            .disabled(hideShop)
+            .accessibilityIdentifier("fst.settings.shop-highlights")
+        }
+    }
+
+    private var instruments: some View {
+        FestivalGlassSection(
+            "Show Instruments",
+            subtitle: "Choose which instruments to display throughout the app."
+        ) {
+            ForEach(Instrument.allCases) { instrument in
+                let shown = instrumentBinding(for: instrument)
+                Toggle(isOn: shown) {
+                    HStack(spacing: 12) {
+                        InstrumentIcon(instrument, size: 28)
+                            .accessibilityHidden(true)
+                        SettingLabel(instrument.label)
+                    }
+                }
+                .disabled(shown.wrappedValue && visibleInstrumentCount <= 1)
+                .accessibilityLabel(instrument.label)
+                .accessibilityIdentifier("fst.settings.instrument.\(instrument.rawValue)")
+            }
+        }
+    }
+
+    private var metadata: some View {
+        FestivalGlassSection(
+            "Show Instrument Metadata",
+            subtitle: session.selectedPlayer == nil
+                ? "Select a player to customize score metadata."
+                : showInstrumentIcons
+                    ? "With icons and All instruments, status chips replace score "
+                        + "metadata. Turn icons off or filter one chart to show these fields."
+                    : "Visible score fields update Songs cards. The source's "
+                        + "metadata ordering and Last Played sort are still being ported."
+        ) {
+            ForEach(MetadataField.allCases) { field in
+                Toggle(isOn: metadataBinding(for: field)) { SettingLabel(field.label) }
+                    .disabled(session.selectedPlayer == nil && field != .intensity)
+                    .accessibilityHint(metadataHint(for: field))
+                    .accessibilityIdentifier("fst.settings.metadata.\(field.rawValue)")
+            }
+        }
+    }
+
+    private var service: some View {
+        FestivalGlassSection("Service", subtitle: "Check the live score publication.") {
+            Button("Check Publication") { Task { await refreshService() } }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if let serviceStatus {
+                Text(serviceStatus)
+                    .font(.subheadline)
+                    .foregroundStyle(BrandTokens.textSecondary)
+                    .accessibilityIdentifier("fst.settings.publication-status")
+            }
+        }
+    }
+
+    private var about: some View {
+        FestivalGlassSection("Licenses", subtitle: "Open source package license details.") {
+            NavigationLink(value: AppRoute.licenses) {
+                HStack {
+                    SettingLabel("View Licenses")
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(BrandTokens.textMuted)
+                        .accessibilityHidden(true)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("fst.settings.licenses")
+        }
+    }
+
+    private var reset: some View {
+        FestivalGlassSection(
+            "Reset Settings", subtitle: "Restore all settings to their default values."
+        ) {
+            Button("Reset App Settings", role: .destructive) {
+                resetPending = true
+            }
+            .tint(.red)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier("fst.settings.reset")
         }
     }
 
@@ -346,6 +424,37 @@ struct SettingsScreen: View {
         disableAnimatedArtwork = false
         moreContrast = false
         lessTransparency = false
+    }
+}
+
+// MARK: - Row label
+
+/// Title plus optional muted description, the web's setting-row layout.
+struct SettingLabel: View {
+    let title: String
+    let detail: String?
+
+    /// Create a label.
+    ///
+    /// - Parameters:
+    ///   - title: Title Case setting name.
+    ///   - detail: Optional sentence-case explanation.
+    init(_ title: String, detail: String? = nil) {
+        self.title = title
+        self.detail = detail
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .foregroundStyle(BrandTokens.textPrimary)
+            if let detail {
+                Text(detail)
+                    .font(.footnote)
+                    .foregroundStyle(BrandTokens.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 }
 
