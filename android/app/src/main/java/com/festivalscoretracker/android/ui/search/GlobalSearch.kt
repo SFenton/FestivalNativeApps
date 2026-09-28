@@ -49,6 +49,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.key.Key
@@ -69,6 +70,7 @@ import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -234,7 +236,7 @@ private class BoundsHolder {
  * @param onOpen Navigate to a result's destination (after collapsing).
  * @param onBandRankings Open Band Rankings from the Bands explanation.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
 fun GlobalSearchHost(
     viewModel: GlobalSearchViewModel,
@@ -304,7 +306,8 @@ fun GlobalSearchHost(
             onBandRankings = { collapseThen(onBandRankings) },
         )
     }
-    val surfaceModifier = Modifier.testTag(GlobalSearchTags.SURFACE).semantics { isTraversalGroup = true }
+    // The expanded bar lives in its own dialog/popup window, so it re-enables resource-id tags there.
+    val surfaceModifier = Modifier.testTag(GlobalSearchTags.SURFACE).semantics { isTraversalGroup = true; testTagsAsResourceId = true }
     when (presentation) {
         SearchPresentation.FullScreen -> ExpandedFullScreenSearchBar(
             state = searchState,

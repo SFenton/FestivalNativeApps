@@ -116,6 +116,9 @@ import com.festivalscoretracker.android.ui.songdetail.SongLeaderboardScreen
 import com.festivalscoretracker.android.ui.songs.SongsScreen
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.FestivalTheme
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.statusBars
@@ -153,6 +156,7 @@ import com.festivalscoretracker.android.ui.search.GlobalSearchHost
  * @param launch Debug launch extras for this activity creation.
  * @param shortcuts Activity key shortcuts (Ctrl+K, Search key, Ctrl+F) routed to the shell.
  */
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun FestivalApp(container: AppContainer, launch: DebugLaunch, shortcuts: ShellShortcutBridge = remember { ShellShortcutBridge() }) {
     val shellViewModel: ShellViewModel = viewModel { ShellViewModel(container.settings, launch) }
@@ -160,7 +164,8 @@ fun FestivalApp(container: AppContainer, launch: DebugLaunch, shortcuts: ShellSh
     FestivalTheme(appIncreaseContrast = settings?.increaseContrast == true, appReduceMotion = settings?.reduceMotion == true) {
         LaunchedEffect(Unit) { container.background.start(this) }
         LaunchedEffect(Unit) { container.selectedProfile.start(this, shellViewModel.settings.map { it?.selectedPlayer }) }
-        Box(Modifier.fillMaxSize()) {
+        // Compose test tags double as UIAutomator resource ids for `device.py drive` journeys.
+        Box(Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
             ArtworkBackground(container.background, forceStill = launch.stillBackground)
             settings?.let { FestivalShell(container, shellViewModel, it, launch, shortcuts) }
         }

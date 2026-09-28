@@ -71,13 +71,15 @@ Handle them at the activity root (`onPreviewKeyEvent` on the scaffold, plus `onK
 - Focus restoration: collapsing returns accessibility focus to the search action / bar.
 - Respect font scale (field and rows grow; chips wrap), system animation scale (no custom stagger), dark/high-contrast text.
 
-## Implementation plan (lane `and-search`, after the Android foundation lands)
+## Implementation and evidence (`android/app/src/main/java/com/festivalscoretracker/android/`)
 
-| Area | Files (owned) |
+| Area | Where / decision |
 |---|---|
-| Core | `android/core/.../search/GlobalSearchModel.kt` (query/scope/debounce/cancel/per-scope state, pure + JUnit), reuse the Songs text matcher and the account-search client from the foundation |
-| UI | `android/app/.../search/GlobalSearch.kt` (`GlobalSearchAction`, `GlobalSearchBar`, `GlobalSearchContent`, adaptive switch), `SearchKeyboardShortcuts.kt`; one call site in the shell scaffold owned by the shell lane (request the seam) |
-| Routes | Typed route destinations only (no Search route: the surface is an overlay, not a destination) |
-| Tests | JUnit for the model (same list as Windows); Compose UI tests with `testTag`s from [spec](spec.md#test-ids) + `testTagsAsResourceId`; `device.py drive` journeys on `FST_Phone`, `FST_Book_Fold` (folded/unfolded/tabletop), `FST_Passport_Fold`, `FST_TriFold` (3 states), `FST_Tablet`, `FST_Resizable` presets; TalkBack pass with `talkback:on` |
-
-Exact module/package paths depend on the foundation layout: TODO(orchestrator) once `android/` lands.
+| Engine | `core/search/GlobalSearch.kt`: `SearchScope`, `GlobalSearchResults` (limits, `SongSearch` port, selected player → `SearchDestination.Section(Statistics)`, announcement), `GlobalSearchLayout` (presentation by **window** width; anchor geometry), `ShellShortcuts`. `presentation/search/GlobalSearchViewModel.kt`: activity-scoped, `SavedStateHandle` (query/scope/open), songs first then players, scrape-freeze countdown via the shared `ServiceRetryBackoff` |
+| Surface | `ui/search/GlobalSearch.kt`: `GlobalSearchEntry` (top-bar icon, or a persistent search pill when the window is ≥ 840 dp **and** the screen's own pane is ≥ 400 dp; one per window), `GlobalSearchHost` (one shell-level invisible anchor the M3 bar grows from, then `ExpandedFullScreenSearchBar` / `ExpandedDockedSearchBar`), `GlobalSearchContent` |
+| Anchor | Material positions the docked popup at `SearchBarState.collapsedCoords`. The shell owns that anchor (never a screen's node, which may be disposed mid-animation): full screen grows from the tapped icon; docked is end-aligned to the requester, ≤ 720 dp, never across a separating vertical hinge; a persistent pill docks over itself (≥ 360 dp); a tabletop hinge caps the panel above the fold |
+| Open/close | The view model owns "open"; a collapse Material makes itself (back, scrim, Escape) closes it. Closing **resets** query and scope ([spec](spec.md#query-scopes-and-fetching): web resets on close); posture/size changes never close it, so text, scope and results survive every fold/rotate/resize (activity handles those config changes) |
+| Shell seam | `ShellActions.search: SearchChrome` + `FestivalScreen` actions: page actions → search → `notifications` slot → avatar. `ui/shell/ShellKeyboard.kt`: `ShellShortcutBridge` (from `MainActivity.dispatchKeyEvent`, listed via `onProvideKeyboardShortcuts`) and `RegisterPageFind { … }` for Ctrl+F (no page registers one yet → global search) |
+| Test tags | Compose tags are UIAutomator ids (`testTagsAsResourceId` on the app root **and** on the search surface, which is its own dialog/popup window) |
+| Unit/UI tests | `src/test/.../search/GlobalSearchCoreTest.kt`, `GlobalSearchViewModelTest.kt`, `src/test/.../ui/search/GlobalSearchUiTest.kt` (Robolectric phone + expanded; fake transport asserts no `/api/bands/search`) |
+| Journeys | `python tools/android/search_journey.py [names]`: logging fixture (paths only) + one `device.py drive` hold per form factor; fails on any `/api/bands/search`. The shared fixture's `fixture-player-*` IDs are not 32-hex and the Android client rejects them, so the journey fixture remaps search rows to synthetic hex IDs. TODO(orchestrator): give `tools/mock_service.py` 32-hex fixture account IDs |
