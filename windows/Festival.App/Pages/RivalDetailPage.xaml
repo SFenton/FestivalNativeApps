@@ -6,7 +6,7 @@
     xmlns:vm="using:Festival.Core.ViewModels"
     Background="Transparent">
 
-    <Grid>
+    <Grid x:Name="Root">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -44,6 +44,8 @@
                 <TextBlock Text="{x:Bind ViewModel.Summary, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}"
                            Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" AutomationProperties.AutomationId="fst.rival-detail.summary" />
             </StackPanel>
+            <!-- Quick Links: compact windows only (the web offers Rival Detail links on mobile only). -->
+            <controls:QuickLinksMenuButton x:Name="QuickLinksMenu" Grid.Row="1" Grid.Column="1" HorizontalAlignment="Right" />
             <Button x:Name="ProfileButton" Grid.Column="1" VerticalAlignment="Top" Click="OnViewProfile"
                     AutomationProperties.Name="{x:Bind ViewModel.ViewProfileLabel, Mode=OneWay}"
                     AutomationProperties.AutomationId="fst.rival-detail.view-profile">
@@ -63,7 +65,7 @@
                 <ItemsRepeater.ItemTemplate>
                     <DataTemplate x:DataType="vm:RivalCategoryItem">
                         <!-- Named UIA group: a song in several categories is not an ambiguous sibling. -->
-                        <controls:AccessibleGroup AutomationProperties.Name="{x:Bind Title}">
+                        <controls:AccessibleGroup AutomationProperties.Name="{x:Bind Title}" controls:QuickLinkAnchor.Id="{x:Bind QuickLinkId}">
                             <Border Style="{StaticResource FSTCardStyle}" Padding="8,12,8,8">
                                 <StackPanel Spacing="4">
                                     <StackPanel Padding="8,0" Spacing="2">

@@ -283,8 +283,8 @@ public sealed partial class RivalsHubViewModel : ObservableObject
     /// <summary>Whether the empty state is shown.</summary>
     public bool ShowEmpty => State == RivalsHubState.Empty;
 
-    /// <summary>Whether Jump To is offered (web quick links need at least two sections).</summary>
-    public bool ShowJump => Sections.Count >= 2;
+    /// <summary>Quick Links: one per visible section (web <c>common</c>, <c>combo</c>, instrument keys); two or more to show.</summary>
+    public QuickLinksViewModel QuickLinks { get; } = new("Quick Links");
 
     /// <summary>Whether the no-player state is shown.</summary>
     public bool ShowNoPlayer => State == RivalsHubState.NoPlayer;
@@ -458,10 +458,17 @@ public sealed partial class RivalsHubViewModel : ObservableObject
         UpdateState();
     }
 
+    /// <summary>People glyph for Common Rivals (web <c>IoPeople</c>).</summary>
+    public const string CommonGlyph = "\uE716";
+
+    /// <summary>Music glyph for the combo section (web <c>IoMusicalNotes</c>).</summary>
+    public const string ComboGlyph = "\uE8D6";
+
     /// <summary>Loading while anything loads and nothing shows; Empty once every section settled empty.</summary>
     private void UpdateState()
     {
-        OnPropertyChanged(nameof(ShowJump));
+        QuickLinks.SetSections(Sections.Select(s => new QuickLinkSection(s.Id, s.Title,
+            s.Icon is null ? s.Id == "common" ? CommonGlyph : ComboGlyph : null, s.Icon)));
         if (all.Count > 0 && all.All(s => s.State == LoadState.Empty)) State = RivalsHubState.Empty;
         else if (all.Count == 0) State = RivalsHubState.Empty;
         else State = all.Any(s => s.State is LoadState.Loaded or LoadState.Failed) ? RivalsHubState.Loaded : RivalsHubState.Loading;

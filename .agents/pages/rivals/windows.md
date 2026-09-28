@@ -20,7 +20,7 @@ Rivals reads are unpinned operational GETs through `RequestGate` (see [service-s
 
 ## Layout
 
-- **Hub** (`RivalsPage`, cached): title + Find Rival `AutoSuggestBox` (Ctrl+F); `SelectorBar` Song Rivals / Leaderboard Rivals; rank-by `ComboBox` only with experimental ranks; Jump To menu (web quick links). Sections: Common Rivals (2+ visible charts), Combined / Pro Drums Family, then one per visible chart; 3 above + 3 below, See All. Cards use `MasonryLayout` (min 360 epx columns: 1 compact, 2 medium, 3–4 wide) so short cards don't stretch. Empty sections are removed; all empty → web empty state.
+- **Hub** (`RivalsPage`, cached): title + Find Rival `AutoSuggestBox` (Ctrl+F); `SelectorBar` Song Rivals / Leaderboard Rivals; rank-by `ComboBox` only with experimental ranks; [Quick Links](../../controls/quick-links/windows.md) (header menu, or a pane from 1150 epx of page area; replaced the old Jump To menu). Sections: Common Rivals (2+ visible charts), Combined / Pro Drums Family, then one per visible chart; 3 above + 3 below, See All. Cards use `MasonryLayout` (min 360 epx columns: 1 compact, 2 medium, 3–4 wide) so short cards don't stretch. Empty sections are removed; all empty → web empty state.
 - **Rows** (`RivalRowView`): win/lose tint bar, `#rank` for leaderboard rivals, name, shared count, "N songs ahead" (rival's `behindCount`) and "N songs behind" (`aheadCount`) pills in a wrap panel.
 - **All Rivals**: virtualized `ListView`, centred to 960 epx; subtitle shows leaderboard metric + your rank, or the Common/Combined charts.
 - **Rival Detail**: name, scope label, head-to-head summary (web `rivals.detail.summary`), View Profile (`AppRoute.Player`); web categories (`RivalCategorization`, same keys/thresholds/descriptions) as masonry cards with 5 compact songs and "View all N songs".
@@ -34,7 +34,7 @@ Rivals reads are unpinned operational GETs through `RequestGate` (see [service-s
 | Layer | Where |
 |---|---|
 | Core | `RivalsCoreTests` (models, endpoints, client, scope/combos/categories/formatting), `RivalsViewModelTests` (hub, Find Rival, pages, session merge, cache), route round-trips in `RoutingSettingsLaunchTests` |
-| UI journeys | `python tools/windows/rivals_journey.py [--shots DIR] [--sizes compact,medium,wide] [--exe <Release-aot exe>]` (app args, not `FST_DEBUG_*`, so the NativeAOT ship build runs too; `--first-run=off` because the modal carousel swallows clicks): populated hub → both tabs → Jump To → detail → rivalry sort → All Rivals, empty (`fixture-player-empty`), scrape freeze (`fixture-player-503`), no player (`FST_DEBUG_ANONYMOUS`), `/compete` |
+| UI journeys | `python tools/windows/rivals_journey.py [--shots DIR] [--sizes compact,medium,wide] [--exe aot]` (app args, not `FST_DEBUG_*`, so the NativeAOT ship build runs too; `--first-run=off` because the modal carousel swallows clicks): populated hub → both tabs → detail → rivalry sort → All Rivals, `quick-links` (menu at medium, pane at wide), empty (`fixture-player-empty`), scrape freeze (`fixture-player-503`), no player (`FST_DEBUG_ANONYMOUS`), `/compete` |
 | Fixture | `tools/windows/rivals_fixture.py` = `tools/mock_service.py` with anonymized rival names (committable screenshots) |
 | Screenshots | `windows/reports/screenshots/rivals-*-{compact,medium,wide}.png` (fixture mode) |
 | Last measured | Idle hub, NativeAOT, wide, still background (`uiwin.py perf-sample --seconds 15`): 0.01% machine CPU (max 0.1%), 0% GPU, 72 MB private working set |

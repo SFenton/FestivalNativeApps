@@ -14,6 +14,7 @@ namespace Festival.App.Controls;
 public sealed partial class QuickLinksMenuButton : DropDownButton
 {
     private QuickLinksViewModel? model;
+    private bool suppressed;
 
     /// <summary>Creates the button.</summary>
     public QuickLinksMenuButton()
@@ -38,6 +39,18 @@ public sealed partial class QuickLinksMenuButton : DropDownButton
             if (model is not null) model.PropertyChanged -= OnModelChanged;
             model = value;
             if (model is not null) model.PropertyChanged += OnModelChanged;
+            Sync();
+        }
+    }
+
+    /// <summary>Hides the button while a page shows the pane instead (or has no desktop Quick Links).</summary>
+    public bool IsSuppressed
+    {
+        get => suppressed;
+        set
+        {
+            if (suppressed == value) return;
+            suppressed = value;
             Sync();
         }
     }
@@ -73,7 +86,7 @@ public sealed partial class QuickLinksMenuButton : DropDownButton
     /// <summary>Applies availability and the accessible name ("Quick Links, current section …").</summary>
     private void Sync()
     {
-        Visibility = model?.IsAvailable == true ? Visibility.Visible : Visibility.Collapsed;
+        Visibility = !suppressed && model?.IsAvailable == true ? Visibility.Visible : Visibility.Collapsed;
         AutomationProperties.SetName(this, model?.EntryName ?? "Quick Links");
         ToolTipService.SetToolTip(this, model?.ActiveTitle is { Length: > 0 } active ? $"Quick Links: {active}" : "Quick Links");
     }

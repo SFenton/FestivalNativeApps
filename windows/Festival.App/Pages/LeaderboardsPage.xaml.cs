@@ -1,3 +1,4 @@
+using Festival.App.Controls;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -15,6 +16,7 @@ public sealed partial class LeaderboardsPage : Page
     {
         ViewModel = new LeaderboardsViewModel(App.Session);
         InitializeComponent();
+        _ = new QuickLinksHost(Root, Scroller, ViewModel.QuickLinks, QuickLinksMenu, Pane);
     }
 
     /// <summary>Page model.</summary>

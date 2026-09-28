@@ -1,3 +1,4 @@
+using Festival.App.Controls;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -8,8 +9,8 @@ namespace Festival.App.Pages;
 
 #region Band detail page
 /// <summary>
-/// <c>/bands/:bandId</c>: members, summary, statistics, rank history and best/worst songs, with quick links (a rail
-/// on wide windows, a pill bar otherwise). Resolved only from the type and team key its originating row carried.
+/// <c>/bands/:bandId</c>: members, summary, statistics, rank history and best/worst songs, with Quick Links (a
+/// persistent pane on wide pages, a header menu otherwise). Resolved only from the type and team key its originating row carried.
 /// </summary>
 public sealed partial class BandsDetailPage : Page
 {
@@ -18,10 +19,12 @@ public sealed partial class BandsDetailPage : Page
     {
         InitializeComponent();
         SizeChanged += (_, e) => ApplyWidth(e.NewSize.Width);
+        QuickLinks.SetSections(BandDetailViewModel.QuickLinkSections);
+        _ = new QuickLinksHost(ContentGrid, Scroller, QuickLinks, QuickLinksMenu, Pane);
     }
 
-    /// <summary>Page width from which the quick-links rail replaces the pill bar.</summary>
-    private const double RailWidth = 1100;
+    /// <summary>Page Quick Links (web <c>BandPage</c>: members, summary, statistics, rank history, songs).</summary>
+    public QuickLinksViewModel QuickLinks { get; } = new("Quick Links");
 
     /// <summary>Page model (set on navigation).</summary>
     public BandDetailViewModel ViewModel { get; private set; } = null!;
@@ -34,77 +37,14 @@ public sealed partial class BandsDetailPage : Page
         ScreenReader.Attach(this, [ViewModel], () => ViewModel.IsLoading, () => ViewModel.ShowContent ? "Band details loaded" : null, "Loading band");
         Bindings.Update();
         RankBy.SelectedIndex = ViewModel.MetricIndex;
-        BuildQuickLinks();
         await ViewModel.LoadAsync();
     }
 
     #region Quick links
-    /// <summary>Shows the rail on wide pages and the pill bar otherwise; compacts the title on narrow pages.</summary>
+    /// <summary>Compacts the title on narrow pages (the Quick Links host picks menu or pane).</summary>
     /// <param name="width">Page width in epx.</param>
-    private void ApplyWidth(double width)
-    {
-        var wide = width >= RailWidth;
-        Rail.Visibility = wide ? Visibility.Visible : Visibility.Collapsed;
-        PillBar.Visibility = wide ? Visibility.Collapsed : Visibility.Visible;
+    private void ApplyWidth(double width) =>
         TitleText.Style = (Style)Application.Current.Resources[width < 560 ? "SubtitleTextBlockStyle" : "FSTPageTitleStyle"];
-    }
-
-    /// <summary>Adds one quick link per section to both the pill bar and the rail.</summary>
-    private void BuildQuickLinks()
-    {
-        (string Id, string Label, string Glyph, FrameworkElement Target)[] links =
-        [
-            ("members", "Members", "", MembersSection),
-            ("summary", "Summary", "", SummarySection),
-            ("statistics", "Statistics", "", StatisticsSection),
-            ("rank-history", "Rank History", "", HistorySection),
-            ("songs", "Songs", "", SongsSection),
-        ];
-        PillHost.Children.Clear();
-        RailHost.Children.Clear();
-        foreach (var (id, label, glyph, target) in links)
-        {
-            PillHost.Children.Add(Link(id, label, glyph, target, "fst.band.quick-link.", pill: true));
-            RailHost.Children.Add(Link(id, label, glyph, target, "fst.band.rail-link.", pill: false));
-        }
-    }
-
-    /// <summary>Creates one quick-link button that scrolls its section into view.</summary>
-    /// <param name="id">Section ID.</param>
-    /// <param name="label">Label.</param>
-    /// <param name="glyph">Segoe Fluent Icons glyph.</param>
-    /// <param name="target">Section element.</param>
-    /// <param name="idPrefix">Automation ID prefix.</param>
-    /// <param name="pill">Pill (compact) or rail row style.</param>
-    /// <returns>The button.</returns>
-    private static Button Link(string id, string label, string glyph, FrameworkElement target, string idPrefix, bool pill)
-    {
-        var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        content.Children.Add(new FontIcon { Glyph = glyph, FontSize = 14 });
-        content.Children.Add(new TextBlock { Text = label });
-        var button = new Button
-        {
-            Content = content,
-            CornerRadius = new CornerRadius(pill ? 16 : 6),
-            Padding = pill ? new Thickness(12, 4, 12, 4) : new Thickness(12, 6, 12, 6),
-            HorizontalAlignment = pill ? HorizontalAlignment.Left : HorizontalAlignment.Stretch,
-            HorizontalContentAlignment = HorizontalAlignment.Left,
-        };
-        if (!pill)
-        {
-            button.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
-            button.BorderThickness = new Thickness(0);
-        }
-        AutomationProperties.SetName(button, label);
-        AutomationProperties.SetAutomationId(button, idPrefix + id);
-        button.Click += (_, _) => target.StartBringIntoView(new BringIntoViewOptions
-        {
-            VerticalAlignmentRatio = 0,
-            VerticalOffset = -12,
-            AnimationDesired = true,
-        });
-        return button;
-    }
     #endregion
 
     #region Navigation

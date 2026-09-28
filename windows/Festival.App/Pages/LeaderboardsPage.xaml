@@ -10,6 +10,11 @@
         <KeyboardAccelerator Key="F5" Invoked="OnRefreshInvoked" />
     </Page.KeyboardAccelerators>
 
+    <Grid x:Name="Root">
+    <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+    </Grid.ColumnDefinitions>
     <ScrollViewer x:Name="Scroller" AutomationProperties.AutomationId="fst.leaderboards">
         <VisualStateManager.VisualStateGroups>
             <VisualStateGroup>
@@ -24,8 +29,8 @@
                     </VisualState.StateTriggers>
                     <VisualState.Setters>
                         <Setter Target="PageContent.Padding" Value="12,8,12,24" />
-                        <Setter Target="RankByButton.(Grid.Row)" Value="1" />
-                        <Setter Target="RankByButton.(Grid.Column)" Value="0" />
+                        <Setter Target="HeaderActions.(Grid.Row)" Value="1" />
+                        <Setter Target="HeaderActions.(Grid.Column)" Value="0" />
                     </VisualState.Setters>
                 </VisualState>
             </VisualStateGroup>
@@ -43,7 +48,8 @@
                 </Grid.RowDefinitions>
                 <TextBlock Text="Leaderboards" Style="{StaticResource FSTPageTitleStyle}" AutomationProperties.HeadingLevel="Level1"
                            VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
-                <DropDownButton x:Name="RankByButton" Grid.Column="1" VerticalAlignment="Center"
+                <StackPanel x:Name="HeaderActions" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <DropDownButton x:Name="RankByButton" VerticalAlignment="Center"
                                 AutomationProperties.Name="{x:Bind ViewModel.MetricButtonName, Mode=OneWay}"
                                 AutomationProperties.AutomationId="fst.rankings.rank-by-menu">
                     <StackPanel Orientation="Horizontal" Spacing="8">
@@ -54,6 +60,8 @@
                         <MenuFlyout x:Name="MetricMenu" Placement="BottomEdgeAlignedRight" Opening="OnMetricMenuOpening" />
                     </DropDownButton.Flyout>
                 </DropDownButton>
+                <controls:QuickLinksMenuButton x:Name="QuickLinksMenu" />
+                </StackPanel>
             </Grid>
 
             <ItemsRepeater ItemsSource="{x:Bind ViewModel.InstrumentCards, Mode=OneWay}">
@@ -63,7 +71,7 @@
                 <ItemsRepeater.ItemTemplate>
                     <DataTemplate x:DataType="vm:RankingCardViewModel">
                         <!-- Named UIA group: Narrator announces the chart; equal row names in different cards are not siblings. -->
-                        <controls:AccessibleGroup AutomationProperties.Name="{x:Bind Title}">
+                        <controls:AccessibleGroup AutomationProperties.Name="{x:Bind Title}" controls:QuickLinkAnchor.Id="{x:Bind QuickLinkId}">
                             <Border Style="{StaticResource FSTCardStyle}">
                                 <StackPanel Spacing="8">
                                     <Grid ColumnSpacing="10">
@@ -127,7 +135,7 @@
                 <ItemsRepeater.ItemTemplate>
                     <DataTemplate x:DataType="vm:BandRankingCardViewModel">
                         <!-- Named UIA group: Narrator announces the chart; equal row names in different cards are not siblings. -->
-                        <controls:AccessibleGroup AutomationProperties.Name="{x:Bind Title}">
+                        <controls:AccessibleGroup AutomationProperties.Name="{x:Bind Title}" controls:QuickLinkAnchor.Id="{x:Bind QuickLinkId}">
                             <Border Style="{StaticResource FSTCardStyle}">
                                 <StackPanel Spacing="8">
                                     <Grid ColumnSpacing="10">
@@ -178,4 +186,6 @@
             </ItemsRepeater>
         </StackPanel>
     </ScrollViewer>
+    <controls:QuickLinksPane x:Name="Pane" Grid.Column="1" Width="240" Margin="0,64,24,24" Visibility="Collapsed" />
+    </Grid>
 </Page>

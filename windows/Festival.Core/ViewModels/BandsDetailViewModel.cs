@@ -18,6 +18,16 @@ public sealed partial class BandDetailViewModel : ObservableObject
     /// <summary>Songs per best/worst list (web default).</summary>
     public const int SongLimit = 5;
 
+    /// <summary>Quick Links sections (web <c>BandPage.tsx:385-441</c> IDs and labels, in page order).</summary>
+    public static IReadOnlyList<QuickLinkSection> QuickLinkSections { get; } =
+    [
+        new("members", "Members", "\uE716"),
+        new("summary", "Summary", "\uE8A5"),
+        new("statistics", "Statistics", "\uE9D2"),
+        new("rank-history", "Rank History", "\uE81C"),
+        new("songs", "Songs", "\uE8D6"),
+    ];
+
     /// <summary>Most recent snapshots listed under the chart.</summary>
     public const int RecentHistoryRows = 10;
 

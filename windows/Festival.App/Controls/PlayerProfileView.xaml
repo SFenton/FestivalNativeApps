@@ -21,8 +21,12 @@
         </DataTemplate>
     </UserControl.Resources>
 
-    <Grid>
-        <ScrollViewer Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" AutomationProperties.AutomationId="fst.player.available">
+    <Grid x:Name="Root">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <ScrollViewer x:Name="Scroller" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" AutomationProperties.AutomationId="fst.player.available">
             <StackPanel Padding="24,12,24,32" Spacing="12" MaxWidth="1280">
                 <!-- Header -->
                 <Border Style="{StaticResource FSTCardStyle}">
@@ -59,6 +63,7 @@
                                 <Button Content="Deselect Profile" Click="OnDeselectClick" MinHeight="32"
                                         Visibility="{x:Bind ViewModel.CanDeselect, Mode=OneWay}"
                                         AutomationProperties.AutomationId="fst.player.deselect" />
+                                <controls:QuickLinksMenuButton x:Name="QuickLinksMenu" MinHeight="32" />
                             </StackPanel>
                             <TextBlock Text="{x:Bind ViewModel.IdentityNotice, Mode=OneWay}" TextWrapping="Wrap"
                                        Foreground="{ThemeResource FSTGoldBrush}"
@@ -74,7 +79,7 @@
 
                 <!-- Overview -->
                 <TextBlock Text="Overview" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2"
-                           AutomationProperties.AutomationId="fst.player.overview" />
+                           AutomationProperties.AutomationId="fst.player.overview" controls:QuickLinkAnchor.Id="global" />
                 <Border Style="{StaticResource FSTCardStyle}">
                     <ItemsRepeater ItemsSource="{x:Bind ViewModel.Overview, Mode=OneWay}" ItemTemplate="{StaticResource StatTileTemplate}">
                         <ItemsRepeater.Layout>
@@ -90,7 +95,7 @@
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="vm:PlayerInstrumentViewModel">
-                            <StackPanel Spacing="4">
+                            <StackPanel Spacing="4" controls:QuickLinkAnchor.Id="{x:Bind QuickLinkId}">
                                 <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,8,0,4">
                                     <controls:InstrumentIcon File="{x:Bind IconFile}" Label="{x:Bind Label}" Width="28" Height="28"
                                                              AutomationProperties.AccessibilityView="Raw" />
@@ -194,15 +199,17 @@
                 </ItemsRepeater>
 
                 <HyperlinkButton Content="{x:Bind ViewModel.BandsLabel, Mode=OneWay}" Click="OnBandsClick" Margin="0,8,0,0"
-                                 AutomationProperties.AutomationId="fst.player.bands-link" />
+                                 AutomationProperties.AutomationId="fst.player.bands-link" controls:QuickLinkAnchor.Id="bands" />
             </StackPanel>
         </ScrollViewer>
 
-        <ProgressRing IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Width="48" Height="48"
+        <controls:QuickLinksPane x:Name="Pane" Grid.Column="1" Width="240" Margin="0,12,24,24" Visibility="Collapsed" />
+
+        <ProgressRing Grid.ColumnSpan="2" IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Width="48" Height="48"
                       AutomationProperties.Name="Loading profile" AutomationProperties.AutomationId="fst.player.loading" />
 
         <!-- 202: scores still syncing (never an empty profile) -->
-        <Border Style="{StaticResource FSTCardStyle}" MaxWidth="480" HorizontalAlignment="Center" VerticalAlignment="Center"
+        <Border Grid.ColumnSpan="2" Style="{StaticResource FSTCardStyle}" MaxWidth="480" HorizontalAlignment="Center" VerticalAlignment="Center"
                 Visibility="{x:Bind ViewModel.IsSyncing, Mode=OneWay}">
             <StackPanel Spacing="12">
                 <TextBlock Text="Scores Are Syncing" Style="{StaticResource SubtitleTextBlockStyle}" AutomationProperties.HeadingLevel="Level2"
@@ -212,11 +219,11 @@
             </StackPanel>
         </Border>
 
-        <controls:ServiceStatusView Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
+        <controls:ServiceStatusView Grid.ColumnSpan="2" Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
                                     Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}" />
 
         <!-- Statistics with no selection (brief window between deselect and the section hiding) -->
-        <TextBlock Text="Select a player profile to see statistics." HorizontalAlignment="Center" VerticalAlignment="Center"
+        <TextBlock Grid.ColumnSpan="2" Text="Select a player profile to see statistics." HorizontalAlignment="Center" VerticalAlignment="Center"
                    Style="{StaticResource FSTSecondaryTextStyle}" Visibility="{x:Bind controls:PlayerProfileView.Not(ViewModel.HasAccount), Mode=OneWay}"
                    AutomationProperties.AutomationId="fst.player.no-profile" />
     </Grid>

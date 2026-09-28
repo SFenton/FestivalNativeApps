@@ -6,7 +6,7 @@
     xmlns:vm="using:Festival.Core.ViewModels"
     Background="Transparent">
 
-    <Grid>
+    <Grid x:Name="Root">
         <ScrollViewer x:Name="Scroller" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}"
                       AutomationProperties.AutomationId="fst.song-detail">
             <StackPanel Padding="24,12,24,32" Spacing="8" MaxWidth="1200" HorizontalAlignment="Stretch">
@@ -31,6 +31,8 @@
                                        AutomationProperties.AutomationId="fst.song-detail.shop-badge" />
                         </Border>
                         <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+                            <!-- Quick Links: compact windows only (the web offers Song Detail links on mobile only). -->
+                            <controls:QuickLinksMenuButton x:Name="QuickLinksMenu" />
                             <Button Click="OnPathsClick" Visibility="{x:Bind ViewModel.HasPaths, Mode=OneWay}" Style="{StaticResource AccentButtonStyle}"
                                     AutomationProperties.Name="Paths" AutomationProperties.AutomationId="fst.song-detail.paths">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
@@ -53,7 +55,8 @@
                 <InfoBar IsOpen="{x:Bind ViewModel.HasShopIssue, Mode=OneWay}" IsClosable="False" Severity="Warning"
                          Message="{x:Bind ViewModel.ShopIssueText, Mode=OneWay}" AutomationProperties.AutomationId="fst.song-detail.shop-error" />
 
-                <TextBlock Text="Intensity" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
+                <TextBlock Text="Intensity" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2"
+                           controls:QuickLinkAnchor.Id="intensity" />
                 <Border Style="{StaticResource FSTCardStyle}" AutomationProperties.AutomationId="fst.song-detail.intensity">
                     <ItemsRepeater ItemsSource="{x:Bind ViewModel.Intensity, Mode=OneWay}">
                         <ItemsRepeater.Layout>
@@ -99,7 +102,7 @@
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="vm:LeaderboardPreviewViewModel">
-                            <Border Style="{StaticResource FSTCardStyle}" MinHeight="120">
+                            <Border Style="{StaticResource FSTCardStyle}" MinHeight="120" controls:QuickLinkAnchor.Id="{x:Bind QuickLinkId}">
                                 <StackPanel Spacing="10">
                                     <StackPanel Orientation="Horizontal" Spacing="10">
                                         <controls:InstrumentIcon File="{x:Bind IconFile}" Label="{x:Bind Title}" Width="28" Height="28" />

@@ -60,6 +60,7 @@ public class PlayerProfileViewModelTests
         var session = fake.Session();
         using var vm = new PlayerProfileViewModel(session, PlayerWire.Id, "Route Name");
         Assert.True(vm.IsLoading);
+        Assert.Empty(vm.QuickLinkSections);
         Assert.Equal("Route Name", vm.DisplayName);
         Assert.Equal(PlayerIdentityAction.None, vm.IdentityAction);
         await vm.LoadAsync();
@@ -74,6 +75,11 @@ public class PlayerProfileViewModelTests
         Assert.False(vm.HasIdentityNotice);
         Assert.Equal(5, vm.Overview.Count);
         Assert.Equal(9, vm.Instruments.Count);
+        Assert.Equal(11, vm.QuickLinkSections.Count);
+        Assert.Equal(("global", "Global Statistics"), (vm.QuickLinkSections[0].Id, vm.QuickLinkSections[0].Title));
+        Assert.Equal("instrument:" + vm.Instruments[0].Instrument.ServiceId(), vm.QuickLinkSections[1].Id);
+        Assert.Equal(vm.Instruments[0].QuickLinkId, vm.QuickLinkSections[1].Id);
+        Assert.Equal("bands", vm.QuickLinkSections[^1].Id);
         Assert.Equal(new AppRoute.PlayerBands(PlayerWire.Id), vm.BandsRoute);
         Assert.Equal("View Fixture One's Bands", vm.BandsLabel);
         Assert.Contains("Fixture One", vm.SwitchMessage);

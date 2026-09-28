@@ -110,7 +110,7 @@
         <controls:ServiceStatusView Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
                                     Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}" AutomationProperties.AutomationId="fst.band.error" />
 
-        <Grid Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}">
+        <Grid x:Name="ContentGrid" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -122,14 +122,10 @@
                                AutomationProperties.HeadingLevel="Level1" AutomationProperties.AutomationId="fst.band.title" />
                     <TextBlock Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}"
                                AutomationProperties.AutomationId="fst.band.subtitle" />
-                    <ScrollViewer x:Name="PillBar" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
-                                  HorizontalScrollMode="Enabled" VerticalScrollMode="Disabled" Margin="0,4,0,0">
-                        <StackPanel x:Name="PillHost" Orientation="Horizontal" Spacing="8" AutomationProperties.Name="Quick Links"
-                                    AutomationProperties.AutomationId="fst.band.quick-links" />
-                    </ScrollViewer>
+                    <controls:QuickLinksMenuButton x:Name="QuickLinksMenu" HorizontalAlignment="Left" Margin="0,4,0,0" />
 
                     <!-- Members -->
-                    <StackPanel x:Name="MembersSection" Spacing="8" AutomationProperties.AutomationId="fst.band.members-section">
+                    <StackPanel x:Name="MembersSection" controls:QuickLinkAnchor.Id="members" Spacing="8" AutomationProperties.AutomationId="fst.band.members-section">
                         <TextBlock Text="Members" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
                         <ItemsRepeater ItemsSource="{x:Bind ViewModel.Members, Mode=OneWay}">
                             <ItemsRepeater.Layout>
@@ -170,7 +166,7 @@
                     </StackPanel>
 
                     <!-- Summary -->
-                    <StackPanel x:Name="SummarySection" Spacing="8" AutomationProperties.AutomationId="fst.band.summary-section">
+                    <StackPanel x:Name="SummarySection" controls:QuickLinkAnchor.Id="summary" Spacing="8" AutomationProperties.AutomationId="fst.band.summary-section">
                         <TextBlock Text="Band Summary" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
                         <ItemsRepeater ItemsSource="{x:Bind ViewModel.Summary, Mode=OneWay}" ItemTemplate="{StaticResource StatPlainTemplate}">
                             <ItemsRepeater.Layout>
@@ -180,7 +176,7 @@
                     </StackPanel>
 
                     <!-- Statistics -->
-                    <StackPanel x:Name="StatisticsSection" Spacing="8" AutomationProperties.AutomationId="fst.band.statistics-section">
+                    <StackPanel x:Name="StatisticsSection" controls:QuickLinkAnchor.Id="statistics" Spacing="8" AutomationProperties.AutomationId="fst.band.statistics-section">
                         <Grid ColumnSpacing="12">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -204,7 +200,7 @@
                     </StackPanel>
 
                     <!-- Rank history -->
-                    <StackPanel x:Name="HistorySection" Spacing="8" AutomationProperties.AutomationId="fst.band.history-section">
+                    <StackPanel x:Name="HistorySection" controls:QuickLinkAnchor.Id="rank-history" Spacing="8" AutomationProperties.AutomationId="fst.band.history-section">
                         <TextBlock Text="Band Rank History" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0,8,0,0"
                                    AutomationProperties.HeadingLevel="Level2" />
                         <TextBlock Text="{x:Bind ViewModel.HistoryHint, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" />
@@ -250,7 +246,7 @@
                     </StackPanel>
 
                     <!-- Best and worst songs -->
-                    <StackPanel x:Name="SongsSection" Spacing="8" AutomationProperties.AutomationId="fst.band.songs-section">
+                    <StackPanel x:Name="SongsSection" controls:QuickLinkAnchor.Id="songs" Spacing="8" AutomationProperties.AutomationId="fst.band.songs-section">
                         <TextBlock Text="Five Best Songs" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0,8,0,0"
                                    AutomationProperties.HeadingLevel="Level2" />
                         <TextBlock Text="{x:Bind ViewModel.BestDescription, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" />
@@ -289,13 +285,8 @@
                 </StackPanel>
             </ScrollViewer>
 
-            <!-- Wide-window quick-links rail. -->
-            <StackPanel x:Name="Rail" Grid.Column="1" Width="200" Padding="0,24,24,0" Spacing="4" Visibility="Collapsed"
-                        AutomationProperties.Name="Quick Links" AutomationProperties.AutomationId="fst.band.quick-links-rail">
-                <TextBlock Text="Quick Links" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="12,0,0,8"
-                           AutomationProperties.HeadingLevel="Level2" />
-                <StackPanel x:Name="RailHost" Spacing="2" />
-            </StackPanel>
+            <!-- Quick Links: header menu below 1150 epx of page area, this pane from it. -->
+            <controls:QuickLinksPane x:Name="Pane" Grid.Column="1" Width="240" Margin="0,24,24,24" Visibility="Collapsed" />
         </Grid>
     </Grid>
 </Page>

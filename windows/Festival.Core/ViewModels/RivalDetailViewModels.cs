@@ -393,6 +393,9 @@ public sealed record RivalCategoryItem(RivalCategory Category, List<RivalSongIte
 
     /// <summary>UIA automation ID.</summary>
     public string AutomationId => "fst.rival-detail.category." + Category.Key;
+
+    /// <summary>Quick Links section ID (web <c>rival-category:&lt;key&gt;</c>).</summary>
+    public string QuickLinkId => "rival-category:" + Category.Key;
 }
 
 /// <summary><c>/rivals/:rivalId</c>: shared songs against one rival, grouped into web categories.</summary>
@@ -425,7 +428,11 @@ public sealed partial class RivalDetailViewModel : RivalPageViewModel
 
     /// <summary>Category cards.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(QuickLinkSections))]
     private List<RivalCategoryItem> categories = [];
+
+    /// <summary>Quick Links: one per non-empty category (web <c>RivalDetailPage.tsx:136-168</c>; the web offers them on mobile only).</summary>
+    public List<QuickLinkSection> QuickLinkSections => [.. Categories.Select(c => new QuickLinkSection(c.QuickLinkId, c.Title))];
 
     /// <summary>Heading.</summary>
     public string Title => RivalName ?? "Rival";

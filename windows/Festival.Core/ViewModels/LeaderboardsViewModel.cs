@@ -44,6 +44,9 @@ public sealed partial class LeaderboardsViewModel : ObservableObject
     [ObservableProperty]
     private List<BandRankingCardViewModel> bandCards = [];
 
+    /// <summary>Quick Links: one per card in page order (web <c>instrument:&lt;key&gt;</c>, <c>band:&lt;type&gt;</c>).</summary>
+    public QuickLinksViewModel QuickLinks { get; } = new("Leaderboards Quick Links");
+
     /// <summary>Picker label.</summary>
     public string MetricLabel => Metric.Label();
 
@@ -107,10 +110,15 @@ public sealed partial class LeaderboardsViewModel : ObservableObject
         var bands = BandTypeInfo.All.Select(b => new BandRankingCardViewModel(session, b, Metric.ToBandMetric())).ToList();
         InstrumentCards = cards;
         BandCards = bands;
+        QuickLinks.SetSections(cards.Select(c => new QuickLinkSection(c.QuickLinkId, c.Title, Instrument: c.Instrument))
+            .Concat(bands.Select(b => new QuickLinkSection(b.QuickLinkId, b.Title, BandQuickLinkGlyph))));
         using var gate = new SemaphoreSlim(MaxConcurrentLoads);
         await Task.WhenAll(cards.Select(c => Throttled(gate, () => c.LoadAsync(token)))
             .Concat(bands.Select(b => Throttled(gate, () => b.LoadAsync(token)))));
     }
+
+    /// <summary>People glyph for band sections (web <c>IoPeople</c>).</summary>
+    public const string BandQuickLinkGlyph = "\uE716";
 
     /// <summary>Card reads in flight at once (twelve cards would otherwise open twelve connections together).</summary>
     public const int MaxConcurrentLoads = 4;
@@ -200,6 +208,9 @@ public sealed partial class RankingCardViewModel : ObservableObject
 
     /// <summary>Card automation ID.</summary>
     public string AutomationId => "fst.leaderboards.card." + Instrument.ServiceId();
+
+    /// <summary>Quick Links section ID (web <c>instrumentQuickLinkId</c>).</summary>
+    public string QuickLinkId => "instrument:" + Instrument.ServiceId();
 
     /// <summary>"View All" automation ID.</summary>
     public string ViewAllAutomationId => AutomationId + ".view-all";
@@ -308,6 +319,9 @@ public sealed partial class BandRankingCardViewModel : ObservableObject
 
     /// <summary>Card automation ID.</summary>
     public string AutomationId => "fst.leaderboards.band-card." + BandType.ServiceId();
+
+    /// <summary>Quick Links section ID (web <c>bandQuickLinkId</c>).</summary>
+    public string QuickLinkId => "band:" + BandType.ServiceId();
 
     /// <summary>"View All" automation ID.</summary>
     public string ViewAllAutomationId => AutomationId + ".view-all";

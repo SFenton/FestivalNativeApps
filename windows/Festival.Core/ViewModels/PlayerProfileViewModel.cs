@@ -67,7 +67,7 @@ public sealed partial class PlayerProfileViewModel : ObservableObject, IDisposab
 
     /// <summary>Load lifecycle (Empty = syncing).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsLoading), nameof(ShowContent), nameof(ShowError), nameof(IsSyncing))]
+    [NotifyPropertyChangedFor(nameof(IsLoading), nameof(ShowContent), nameof(ShowError), nameof(IsSyncing), nameof(QuickLinkSections))]
     private LoadState state = LoadState.Idle;
 
     /// <summary>Validated read backing the page.</summary>
@@ -81,7 +81,19 @@ public sealed partial class PlayerProfileViewModel : ObservableObject, IDisposab
 
     /// <summary>One section per Settings-visible chart.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(QuickLinkSections))]
     private List<PlayerInstrumentViewModel> instruments = [];
+
+    /// <summary>
+    /// Quick Links sections while the profile shows (web <c>PlayerContent</c>): <c>global</c> "Global Statistics", one
+    /// <c>instrument:&lt;key&gt;</c> per chart, <c>bands</c>. The web's <c>top-songs</c> has no Windows section yet.
+    /// </summary>
+    public List<QuickLinkSection> QuickLinkSections => !ShowContent || Instruments.Count == 0 ? [] :
+    [
+        new("global", "Global Statistics", "\uE9D2"),
+        .. Instruments.Select(i => new QuickLinkSection(i.QuickLinkId, i.Label, Instrument: i.Instrument)),
+        new("bands", "Bands", "\uE716"),
+    ];
 
     /// <summary>Why the last Select failed.</summary>
     [ObservableProperty]
@@ -431,6 +443,9 @@ public sealed partial class PlayerInstrumentViewModel : ObservableObject
 
     /// <summary>Instrument name.</summary>
     public string Label => Instrument.Label();
+
+    /// <summary>Quick Links section ID (web <c>instrument:&lt;key&gt;</c>).</summary>
+    public string QuickLinkId => "instrument:" + Instrument.ServiceId();
 
     /// <summary>Icon file.</summary>
     public string IconFile => Instrument.IconFile();

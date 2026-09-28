@@ -17,8 +17,14 @@ public sealed partial class PlayerProfileView : UserControl
     /// <summary>Card width below which charts move back under the stats (hysteresis against scrollbar-width oscillation).</summary>
     private const double StackedWidth = 740;
 
-    /// <summary>Creates the view.</summary>
-    public PlayerProfileView() => InitializeComponent();
+    private readonly QuickLinksViewModel quickLinks = new("Quick Links");
+
+    /// <summary>Creates the view with its Quick Links (the page model is replaced per navigation; the links stay).</summary>
+    public PlayerProfileView()
+    {
+        InitializeComponent();
+        _ = new QuickLinksHost(Root, Scroller, quickLinks, QuickLinksMenu, Pane);
+    }
 
     /// <summary>Page model; set before <see cref="Bind"/>.</summary>
     public PlayerProfileViewModel ViewModel { get; private set; } = null!;
@@ -31,8 +37,20 @@ public sealed partial class PlayerProfileView : UserControl
     /// <param name="model">Page model.</param>
     public void Bind(PlayerProfileViewModel model)
     {
+        if (ViewModel is not null) ViewModel.PropertyChanged -= OnModelChanged;
         ViewModel = model;
+        model.PropertyChanged += OnModelChanged;
+        quickLinks.SetSections(model.QuickLinkSections);
         Bindings.Update();
+    }
+
+    /// <summary>Mirrors the model's Quick Links sections.</summary>
+    /// <param name="sender">Model.</param>
+    /// <param name="e">Change.</param>
+    private void OnModelChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PlayerProfileViewModel.QuickLinkSections) && sender is PlayerProfileViewModel model)
+            quickLinks.SetSections(model.QuickLinkSections);
     }
 
     /// <summary>UIA group peer for the view root.</summary>

@@ -60,6 +60,12 @@ public sealed class QuickLinksBinder
         model.JumpRequested += (_, id) => Jump(id);
     }
 
+    /// <summary>
+    /// Realizes a section that is not in the tree yet (a virtualized card far below the viewport), e.g.
+    /// <c>ItemsRepeater.GetOrCreateElement</c>; <see langword="null"/> when the page has no virtualized sections.
+    /// </summary>
+    public Func<string, FrameworkElement?>? Resolve { get; set; }
+
     /// <summary>Whether Windows or the app asks for reduced motion.</summary>
     /// <param name="appReduceMotion">In-app override.</param>
     /// <returns><see langword="true"/> when animations should be skipped.</returns>
@@ -70,6 +76,13 @@ public sealed class QuickLinksBinder
     {
         anchors.Clear();
         if (scroller.Content is DependencyObject root) Walk(root);
+    }
+
+    /// <summary>Re-reads anchors and reports their frames (after data-driven sections were laid out).</summary>
+    public void Refresh()
+    {
+        Collect();
+        Report(false);
     }
 
     /// <summary>Measures anchors and reports them.</summary>
@@ -92,7 +105,12 @@ public sealed class QuickLinksBinder
     private void Jump(string id)
     {
         if (anchors.Count == 0) Collect();
-        if (!anchors.TryGetValue(id, out var element)) return;
+        if (!anchors.TryGetValue(id, out var element))
+        {
+            if (Resolve?.Invoke(id) is not { } realized) return;
+            realized.UpdateLayout();
+            anchors[id] = element = realized;
+        }
         var top = element.TransformToVisual(scroller).TransformPoint(default).Y;
         var target = Math.Clamp(scroller.VerticalOffset + top - LandingMargin, 0, scroller.ScrollableHeight);
         if (Math.Abs(target - scroller.VerticalOffset) < 0.5)

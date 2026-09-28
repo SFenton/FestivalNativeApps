@@ -19,6 +19,16 @@ public class SongDetailSongsLaneTests
     }
 
     [Fact]
+    public async Task QuickLinks_IntensityThenOneSectionPerLeaderboardCard()
+    {
+        var (_, _, vm) = await Open("s3");
+        Assert.NotEmpty(vm.Leaderboards);
+        Assert.Equal("intensity", vm.QuickLinkSections[0].Id);
+        Assert.Equal(vm.Leaderboards.Select(c => "instrument-" + c.Instrument.ServiceId()), vm.QuickLinkSections.Skip(1).Select(s => s.Id));
+        Assert.Equal(vm.Leaderboards[0].Instrument, vm.QuickLinkSections[1].Instrument);
+    }
+
+    [Fact]
     public async Task ShopOffer_AddsBadgeAndOfficialLink()
     {
         var (_, session, vm) = await Open("s3");

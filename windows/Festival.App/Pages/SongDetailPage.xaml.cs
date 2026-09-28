@@ -12,10 +12,19 @@ namespace Festival.App.Pages;
 /// <summary>Song Detail: header, Intensity for every charted instrument and a top-10 card per visible chart.</summary>
 public sealed partial class SongDetailPage : Page, IBackdropPage
 {
+    private readonly QuickLinksViewModel quickLinks = new("Quick Links");
     private CancellationTokenSource headerArt = new();
 
-    /// <summary>Creates the page.</summary>
-    public SongDetailPage() => InitializeComponent();
+    /// <summary>Creates the page; its Quick Links menu shows on compact windows only.</summary>
+    public SongDetailPage()
+    {
+        InitializeComponent();
+        var host = new QuickLinksHost(Root, Scroller, quickLinks, QuickLinksMenu, pane: null, menuMaxWidth: 640);
+        // Cards far below the viewport are not realized yet (virtualizing grid): realize one on demand for a jump.
+        host.Binder.Resolve = id => ViewModel?.Leaderboards.FindIndex(c => c.QuickLinkId == id) is >= 0 and var index
+            ? Boards.GetOrCreateElement(index) as FrameworkElement
+            : null;
+    }
 
     /// <summary>Page model (set on navigation).</summary>
     public SongDetailViewModel ViewModel { get; private set; } = null!;
@@ -50,6 +59,7 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     private async void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(SongDetailViewModel.ShopHighlight)) ApplyShopBadge();
+        if (e.PropertyName == nameof(SongDetailViewModel.QuickLinkSections)) quickLinks.SetSections(ViewModel.QuickLinkSections);
         if (e.PropertyName != nameof(SongDetailViewModel.Song) || ViewModel.Song is not { } song) return;
         MainWindow.Instance?.RefreshBackdrop();
         headerArt.Cancel();

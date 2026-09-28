@@ -75,7 +75,10 @@ public class RivalsViewModelTests
         await Async.Until(() => hub.State == RivalsHubState.Loaded && hub.Sections.All(s => s.State == LoadState.Loaded));
 
         Assert.Equal(["common", "combo", "Solo_Guitar", "Solo_Bass"], hub.Sections.Select(s => s.Id));
-        Assert.True(hub.ShowJump);
+        Assert.True(hub.QuickLinks.IsAvailable);
+        Assert.Equal(["common", "combo", "Solo_Guitar", "Solo_Bass"], hub.QuickLinks.Items.Select(i => i.Section.Id));
+        Assert.Equal([RivalsHubViewModel.CommonGlyph, RivalsHubViewModel.ComboGlyph, "", ""], hub.QuickLinks.Items.Select(i => i.Glyph));
+        Assert.Equal(Instrument.Bass, hub.QuickLinks.Items[3].Section.Instrument);
         Assert.Equal(["Common Rivals", "Combined Rivals", "Lead Rivals", "Bass Rivals"], hub.Sections.Select(s => s.Title));
         var lead = hub.Sections[2];
         Assert.Equal(6, lead.Rows.Count);
@@ -108,7 +111,7 @@ public class RivalsViewModelTests
         hub.Activate();
         await Async.Until(() => hub.State == RivalsHubState.Empty);
         Assert.Empty(hub.Sections);
-        Assert.False(hub.ShowJump);
+        Assert.False(hub.QuickLinks.IsAvailable);
         Assert.True(hub.ShowEmpty);
         Assert.StartsWith("Not enough data", hub.EmptyTitle);
         Assert.Contains("instruments", hub.EmptySubtitle);
@@ -387,6 +390,9 @@ public class RivalsViewModelTests
         Assert.Equal("Lead", detail.ScopeLabel);
         Assert.Equal("4 shared songs · 2 ahead / 1 behind", detail.Summary);
         Assert.Equal(["closest_battles", "almost_passed", "barely_winning", "pulling_forward"], detail.Categories.Select(c => c.Category.Key));
+        Assert.Equal(["rival-category:closest_battles", "rival-category:almost_passed", "rival-category:barely_winning", "rival-category:pulling_forward"],
+            detail.QuickLinkSections.Select(s => s.Id));
+        Assert.Equal(detail.Categories[0].Title, detail.QuickLinkSections[0].Title);
         var closest = detail.Categories[0];
         Assert.Equal("View all 4 songs", closest.SeeAllText);
         Assert.Equal("View 1 song", detail.Categories[1].SeeAllText);

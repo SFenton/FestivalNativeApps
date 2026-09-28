@@ -1,3 +1,4 @@
+using Festival.App.Controls;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
@@ -14,9 +15,12 @@ public sealed partial class RivalDetailPage : Page
     {
         InitializeComponent();
         SizeChanged += (_, e) => VisualStateManager.GoToState(this, e.NewSize.Width < 640 ? "Narrow" : "Wide", false);
+        _ = new QuickLinksHost(Root, Scroller, quickLinks, QuickLinksMenu, pane: null, menuMaxWidth: 640);
         KeyboardAccelerators.Add(RivalsPage.Accelerator(Windows.System.VirtualKey.F5, Windows.System.VirtualKeyModifiers.None,
             () => ViewModel.RefreshCommand.Execute(null)));
     }
+
+    private readonly QuickLinksViewModel quickLinks = new("Quick Links");
 
     /// <summary>Page model (set on navigation).</summary>
     public RivalDetailViewModel ViewModel { get; private set; } = null!;
@@ -28,6 +32,10 @@ public sealed partial class RivalDetailPage : Page
         ViewModel = new RivalDetailViewModel(App.Session, (AppRoute.RivalDetail)e.Parameter);
         ScreenReader.Attach(this, [ViewModel], () => ViewModel.IsLoading,
             () => ViewModel.ShowContent ? $"{ViewModel.Title} loaded" : ViewModel.ShowEmpty ? ViewModel.EmptyTitle : null, "Loading rival");
+        ViewModel.PropertyChanged += (_, change) =>
+        {
+            if (change.PropertyName == nameof(RivalDetailViewModel.QuickLinkSections)) quickLinks.SetSections(ViewModel.QuickLinkSections);
+        };
         Bindings.Update();
         ViewModel.Activate();
     }

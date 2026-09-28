@@ -95,6 +95,11 @@ public sealed class LeaderboardsOverviewTests
         Assert.Equal("fst.leaderboards.band-card.Band_Quad.view-all", band.ViewAllAutomationId);
         Assert.Equal(new AppRoute.BandRankings("Band_Quad"), band.ViewAllRoute);
         Assert.Equal("View all Quads rankings", band.ViewAllName);
+        Assert.Equal("Leaderboards Quick Links", vm.QuickLinks.Title);
+        Assert.Equal(["instrument:Solo_Guitar", "instrument:Solo_Bass", "band:Band_Duets", "band:Band_Trios", "band:Band_Quad"],
+            vm.QuickLinks.Items.Select(i => i.Section.Id));
+        Assert.Equal(Instrument.Lead, vm.QuickLinks.Items[0].Section.Instrument);
+        Assert.Equal(LeaderboardsViewModel.BandQuickLinkGlyph, vm.QuickLinks.Items[4].Glyph);
         Assert.All(fake.Service.Handler.Requests.Where(r => r.Uri.AbsolutePath.StartsWith("/api/rankings", StringComparison.Ordinal)),
             r => Assert.Contains("pageSize=10", r.Uri.Query, StringComparison.Ordinal));
 

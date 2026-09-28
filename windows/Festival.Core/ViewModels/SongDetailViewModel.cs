@@ -59,7 +59,18 @@ public sealed partial class SongDetailViewModel : ObservableObject
 
     /// <summary>Leaderboard previews for visible charted instruments.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(QuickLinkSections))]
     private List<LeaderboardPreviewViewModel> leaderboards = [];
+
+    /// <summary>
+    /// Quick Links (web <c>SongDetailPage.tsx:528-602</c>, offered on mobile only): <c>intensity</c>, then one
+    /// <c>instrument-&lt;key&gt;</c> per leaderboard card. Score history and band sections have no Windows section yet.
+    /// </summary>
+    public List<QuickLinkSection> QuickLinkSections => Leaderboards.Count == 0 ? [] :
+    [
+        new("intensity", "Intensity", "\uE9D9"),
+        .. Leaderboards.Select(c => new QuickLinkSection(c.QuickLinkId, c.Title, Instrument: c.Instrument)),
+    ];
 
     /// <summary>Validated offer for this song (none while the Shop is hidden).</summary>
     [ObservableProperty]
@@ -223,6 +234,9 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
 
     /// <summary>Card title.</summary>
     public string Title => Instrument.Label();
+
+    /// <summary>Quick Links section ID (web <c>instrument-&lt;key&gt;</c>).</summary>
+    public string QuickLinkId => "instrument-" + Instrument.ServiceId();
 
     /// <summary>Icon file.</summary>
     public string IconFile => Instrument.IconFile(Song.UsesKeyboardIcon);
