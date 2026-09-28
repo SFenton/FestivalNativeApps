@@ -28,6 +28,32 @@ extension FestivalSession {
         try await client().rivalsList(accountId: requireSelectedAccountId(), instrument: instrument)
     }
 
+    /// A cross-instrument "combo" or Pro Drums family scope's rivals for the
+    /// selected player (`RivalCombo.deriveScope`).
+    ///
+    /// - Parameter token: `RivalComboScope.token`.
+    /// - Returns: Rivals ahead of and behind the player under this scope.
+    /// - Throws: No selected player, or a `RivalsAPIError`/transport failure.
+    func rivalsComboList(token: String) async throws -> RivalsListResponse {
+        try await client().rivalsComboList(accountId: requireSelectedAccountId(), token: token)
+    }
+
+    /// A combo/Pro-Drums-family rival's shared-song comparison.
+    ///
+    /// - Parameters:
+    ///   - token: `RivalComboScope.token`.
+    ///   - rivalId: Target rival's account ID.
+    ///   - sort: `closest`, `they_lead` or `you_lead`.
+    /// - Returns: Compared songs for this scope.
+    /// - Throws: No selected player, or a `RivalsAPIError`/transport failure.
+    func rivalComboDetail(
+        token: String, rivalId: String, sort: String = "closest"
+    ) async throws -> RivalDetailResponse {
+        try await client().rivalComboDetail(
+            accountId: requireSelectedAccountId(), token: token, rivalId: rivalId, sort: sort
+        )
+    }
+
     /// One rival's shared-song comparison on one instrument.
     ///
     /// - Parameters:
@@ -96,6 +122,53 @@ extension FestivalSession {
             totalSongs: songs.count, offset: 0, limit: 0, sort: base.sort,
             songs: songs, songsToCompete: nil, yourExclusiveSongs: nil
         )
+    }
+
+    /// Resolve a rival detail read for a typed `RivalScope`, falling back to
+    /// merging every Settings-visible instrument when no scope is known (a rival
+    /// route reached without one: deep link, restored state, cold `DebugLaunchRoute`).
+    ///
+    /// Shared by `RivalDetailScreen` and `RivalryScreen` so both resolve a pushed
+    /// `AppRoute.rivalDetail`/`.rivalry`'s optional scope identically.
+    ///
+    /// - Parameters:
+    ///   - scope: The route's carried scope, or `nil`.
+    ///   - rivalId: Target rival's account ID.
+    ///   - visibleInstruments: Settings-visible instruments, used only as the
+    ///     fallback merge set when `scope` is `nil` or names no valid instrument.
+    /// - Returns: Compared songs for the resolved scope.
+    /// - Throws: No selected player, or a `RivalsAPIError`/transport failure.
+    func rivalDetail(
+        forScope scope: RivalScope?, rivalId: String, visibleInstruments: [Instrument]
+    ) async throws -> RivalDetailResponse {
+        switch scope {
+        case let .leaderboard(instrumentRaw, rankBy):
+            guard let instrument = Instrument(rawValue: instrumentRaw) else {
+                return try await fallbackRivalDetail(rivalId: rivalId, visibleInstruments: visibleInstruments)
+            }
+            return try await leaderboardRivalDetail(instrument: instrument, rivalId: rivalId, rankBy: rankBy)
+        case let .song(instrumentsRaw):
+            let instruments = instrumentsRaw.compactMap(Instrument.init(rawValue:))
+            guard !instruments.isEmpty else {
+                return try await fallbackRivalDetail(rivalId: rivalId, visibleInstruments: visibleInstruments)
+            }
+            return try await combinedRivalDetail(instruments: instruments, rivalId: rivalId)
+        case let .combo(token, _):
+            return try await rivalComboDetail(token: token, rivalId: rivalId)
+        case nil:
+            return try await fallbackRivalDetail(rivalId: rivalId, visibleInstruments: visibleInstruments)
+        }
+    }
+
+    /// Merge every Settings-visible instrument's rivals detail (the fallback path
+    /// of `rivalDetail(forScope:rivalId:visibleInstruments:)`).
+    private func fallbackRivalDetail(
+        rivalId: String, visibleInstruments: [Instrument]
+    ) async throws -> RivalDetailResponse {
+        guard !visibleInstruments.isEmpty else {
+            return .empty(rivalId: rivalId, displayName: nil)
+        }
+        return try await combinedRivalDetail(instruments: visibleInstruments, rivalId: rivalId)
     }
 
     /// One instrument's global-leaderboard rivals for the selected player.

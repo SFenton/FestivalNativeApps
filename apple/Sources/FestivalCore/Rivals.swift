@@ -35,7 +35,7 @@ public enum RivalsAPIError: LocalizedError, Equatable, Sendable {
 /// Mirrors the web's `RankingMetric` union (`packages/core/src/api/serverTypes.ts`);
 /// kept as its own small enum rather than depending on the Leaderboards lane's
 /// (not yet landed) shared type.
-public enum RivalRankMetric: String, CaseIterable, Sendable, Identifiable, Equatable {
+public enum RivalRankMetric: String, CaseIterable, Sendable, Identifiable, Equatable, Hashable {
     case totalscore
     case adjusted
     case weighted
@@ -359,118 +359,228 @@ public enum RivalCategorization {
     }
 }
 
-// MARK: - Cross-push navigation context
+// MARK: - Rival scope (typed `AppRoute` payload)
 
-/// Which flow produced a rival row — the song/combo rivals list, or a global
-/// instrument leaderboard — mirroring the web's `RivalRouteState.source`.
-public enum RivalRouteSource: String, Sendable, Equatable {
-    case song
-    case leaderboard
-}
-
-/// Context a Rivals hub or Compete row stashes immediately before pushing
-/// `AppRoute.rivalDetail`/`.rivalry`, so the detail screen knows which combo or
-/// leaderboard instrument produced the tapped row.
+/// Which flow/scope produced a rival row or list, carried directly as a typed,
+/// `Hashable` payload on `AppRoute.allRivals`/`.rivalDetail`/`.rivalry`.
 ///
-/// The web carries this through React Router's `location.state`; native
-/// `AppRoute` cases are plain `Hashable` values with no side channel, so
-/// `RivalNavigationBridge` fills the gap for exactly one push at a time.
-public struct RivalRouteContext: Sendable, Equatable {
-    public let source: RivalRouteSource
-    /// Instrument raw values to merge results from (song source), or a single
-    /// leaderboard instrument (leaderboard source).
-    public let instruments: [String]
-    public let rankBy: RivalRankMetric
-
-    /// Create a song-scope context for one or more instrument keys.
-    public static func song(instruments: [String]) -> RivalRouteContext {
-        RivalRouteContext(source: .song, instruments: instruments, rankBy: .totalscore)
-    }
-
-    /// Create a leaderboard-scope context for one instrument.
-    public static func leaderboard(
-        instrument: String, rankBy: RivalRankMetric
-    ) -> RivalRouteContext {
-        RivalRouteContext(source: .leaderboard, instruments: [instrument], rankBy: rankBy)
-    }
-}
-
-/// Process-lifetime, `MainActor`-confined bridge for `RivalRouteContext`.
-///
-/// Keyed by rival account ID and consumed once; a screen reached without a
-/// stashed context (deep link, cold navigation) falls back to its own default
-/// rather than failing, per the app's "everything player-only degrades
-/// gracefully" rule.
-@MainActor
-public final class RivalNavigationBridge {
-    public static let shared = RivalNavigationBridge()
-
-    private var pending: [String: RivalRouteContext] = [:]
-
-    private init() {}
-
-    /// Record scope context immediately before pushing a rival route.
-    ///
-    /// - Parameters:
-    ///   - context: Scope that produced the tapped row.
-    ///   - rivalId: Target rival account ID.
-    public func stash(_ context: RivalRouteContext, forRivalId rivalId: String) {
-        pending[rivalId] = context
-    }
-
-    /// Consume (remove) any stashed context for a rival, once.
-    ///
-    /// - Parameter rivalId: Rival account ID the destination screen is showing.
-    /// - Returns: The stashed context, if one was set for this exact push.
-    public func consume(forRivalId rivalId: String) -> RivalRouteContext? {
-        pending.removeValue(forKey: rivalId)
-    }
-}
-
-// MARK: - `AllRivals` category encoding
-
-/// Encodes/decodes the `category` string carried by `AppRoute.allRivals(category:)`.
-///
-/// The web's all-rivals route takes independent `category`/`mode`/`rankBy` query
-/// parameters; native `AppRoute.allRivals` has a single `category: String` (an
-/// orchestrator-owned seam this lane cannot extend), so the scope and source are
-/// packed into one colon-separated token here instead.
-public enum RivalAllCategory: Sendable, Equatable {
-    case song(instrument: String)
+/// The web learns this from React Router's `location.state`, a side channel
+/// `AppRoute`'s plain value-typed cases don't have. Earlier native passes filled
+/// that gap with a process-lifetime `RivalNavigationBridge` singleton keyed by
+/// rival account ID — but a singleton stash breaks deep links (a route restored
+/// from state restoration, a universal link, or `DebugLaunchRoute` never stashed
+/// anything) and can desync across independent navigation stacks. `RivalScope`
+/// replaces it: the scope now travels as part of the route itself, so any way of
+/// reaching a rival route (tap, deep link, restored state) carries the same
+/// information the destination screen needs.
+public enum RivalScope: Hashable, Sendable {
+    /// One or more solo-chart instruments whose "shared songs" rivals lists are
+    /// merged client-side (`FestivalSession.combinedRivalDetail`). A single
+    /// instrument is the common case (one `RivalsScreen`/`CompeteScreen` row);
+    /// two or more is "Common Rivals" — every instrument's rivals list intersected
+    /// (`RivalCommonRivals.intersect`).
+    case song(instruments: [String])
+    /// A global per-instrument leaderboard's neighboring rivals.
     case leaderboard(instrument: String, rankBy: RivalRankMetric)
+    /// A server-computed cross-instrument "combo" or Pro Drums family scope
+    /// (`RivalCombo.deriveScope`), queried as a single distinct rival list rather
+    /// than merged client-side. `instruments` are the scope's constituent charts,
+    /// kept alongside `token` for display and for the fallback merge path.
+    case combo(token: String, instruments: [String])
+}
 
+extension RivalScope {
     private static let songPrefix = "song:"
     private static let leaderboardPrefix = "leaderboard:"
+    private static let comboPrefix = "combo:"
 
-    /// Pack a scope into the single string `AppRoute.allRivals(category:)` carries.
-    public var encoded: String {
+    /// Compact colon-separated token used only by `DebugLaunchRoute`
+    /// (`FST_DEBUG_ROUTE`) to open a rival route with a specific scope; `AppRoute`
+    /// itself carries `RivalScope` directly and never encodes it as a string.
+    public var debugToken: String {
         switch self {
-        case let .song(instrument):
-            return Self.songPrefix + instrument
+        case let .song(instruments):
+            Self.songPrefix + instruments.joined(separator: ",")
         case let .leaderboard(instrument, rankBy):
-            return Self.leaderboardPrefix + instrument + ":" + rankBy.rawValue
+            Self.leaderboardPrefix + instrument + ":" + rankBy.rawValue
+        case let .combo(token, instruments):
+            Self.comboPrefix + token + ":" + instruments.joined(separator: ",")
         }
     }
 
-    /// Decode a category string produced by `encoded`.
+    /// Parse a token produced by `debugToken`.
     ///
-    /// - Parameter category: Raw `AppRoute.allRivals` category payload.
-    /// - Returns: The scope it encodes, or `nil` for an unrecognized token
-    ///   (e.g. a future deep link); callers show an empty/error state rather
-    ///   than guessing.
-    public static func decode(_ category: String) -> RivalAllCategory? {
-        if category.hasPrefix(leaderboardPrefix) {
-            let rest = category.dropFirst(leaderboardPrefix.count)
+    /// - Parameter debugToken: Raw scope segment of a debug launch route.
+    /// - Returns: The scope it encodes, or `nil` for a malformed token.
+    public init?(debugToken: String) {
+        if debugToken.hasPrefix(Self.leaderboardPrefix) {
+            let rest = debugToken.dropFirst(Self.leaderboardPrefix.count)
             let parts = rest.split(separator: ":", maxSplits: 1)
             guard parts.count == 2, let rankBy = RivalRankMetric(rawValue: String(parts[1])) else {
                 return nil
             }
-            return .leaderboard(instrument: String(parts[0]), rankBy: rankBy)
+            self = .leaderboard(instrument: String(parts[0]), rankBy: rankBy)
+            return
         }
-        if category.hasPrefix(songPrefix) {
-            return .song(instrument: String(category.dropFirst(songPrefix.count)))
+        if debugToken.hasPrefix(Self.comboPrefix) {
+            let rest = debugToken.dropFirst(Self.comboPrefix.count)
+            let parts = rest.split(separator: ":", maxSplits: 1)
+            guard parts.count == 2 else { return nil }
+            self = .combo(token: String(parts[0]), instruments: parts[1].split(separator: ",").map(String.init))
+            return
         }
-        // Back-compat: a bare instrument raw value with no prefix is a song scope.
-        return .song(instrument: category)
+        if debugToken.hasPrefix(Self.songPrefix) {
+            let rest = debugToken.dropFirst(Self.songPrefix.count)
+            self = .song(instruments: rest.split(separator: ",").map(String.init))
+            return
+        }
+        return nil
+    }
+}
+
+// MARK: - Cross-instrument combo scope (native port of `comboUtils.ts`/`combos.ts`)
+
+/// A cross-instrument scope the Rivals hub derives from Settings' visible
+/// instruments, mirroring the web's `deriveRivalScopeFromSettings`.
+public enum RivalComboScope: Sendable, Equatable {
+    /// A within-group hex-bitmask combo (e.g. Lead+Bass, or all four OG-band charts).
+    case instruments(comboId: String, instruments: [Instrument])
+    /// The Pro Drums family special case (Pro Cymbals + Pro Drums), which is not a
+    /// bitmask combo on the server (`PRO_DRUMS_RIVAL_SCOPE`).
+    case proDrumsFamily
+
+    /// Path segment sent to the server in place of a single instrument.
+    public var token: String {
+        switch self {
+        case let .instruments(comboId, _): comboId
+        case .proDrumsFamily: RivalCombo.proDrumsToken
+        }
+    }
+
+    /// The scope's constituent instruments, in canonical order.
+    public var instruments: [Instrument] {
+        switch self {
+        case let .instruments(_, instruments): instruments
+        case .proDrumsFamily: [.proCymbals, .proDrums]
+        }
+    }
+
+    /// User-facing label, mirroring the web's `comboDisplayLabel`.
+    public var label: String {
+        switch self {
+        case .proDrumsFamily: "Pro Drums Family"
+        case .instruments: "Combo"
+        }
+    }
+}
+
+/// Native port of `comboUtils.ts`/`combos.ts`'s bitmask combo-ID system.
+public enum RivalCombo {
+    /// The Pro Drums family's non-bitmask scope token (`PRO_DRUMS_RIVAL_SCOPE`).
+    public static let proDrumsToken = "pro_drums"
+
+    /// Instrument groups a combo may be drawn from; only within-group combos are
+    /// supported (native `INSTRUMENT_GROUPS`: `0x0f` OG band, `0x30` Pro Strings).
+    private static let groups: [Set<Instrument>] = [
+        [.lead, .bass, .drums, .vocals],
+        [.proLead, .proBass],
+    ]
+    private static let proDrumsFamily: Set<Instrument> = [.proCymbals, .proDrums]
+
+    /// Bit position of an instrument in the canonical combo mask. `Instrument`'s
+    /// case order matches the web's `SERVER_INSTRUMENT_KEYS`/`COMBO_INSTRUMENTS`.
+    private static func bit(for instrument: Instrument) -> Int {
+        Instrument.allCases.firstIndex(of: instrument) ?? 0
+    }
+
+    /// Compute the hex bitmask combo ID for a set of instruments (native
+    /// `comboIdFromInstruments`), zero-padded to at least 2 digits.
+    ///
+    /// - Parameter instruments: Instruments to encode.
+    /// - Returns: Lowercase hex combo ID.
+    public static func comboId(for instruments: [Instrument]) -> String {
+        var mask = 0
+        for instrument in instruments { mask |= 1 << bit(for: instrument) }
+        let hex = String(mask, radix: 16)
+        return hex.count < 2 ? String(repeating: "0", count: 2 - hex.count) + hex : hex
+    }
+
+    /// Whether every instrument in the set belongs to a single supported group
+    /// (native `isWithinGroupCombo`); a combo needs 2+ instruments.
+    private static func isWithinGroup(_ instruments: [Instrument]) -> Bool {
+        guard instruments.count >= 2 else { return false }
+        let set = Set(instruments)
+        return groups.contains { $0.isSuperset(of: set) }
+    }
+
+    /// Derive the single cross-instrument rival scope the Rivals hub shows,
+    /// mirroring `deriveRivalScopeFromSettings`: the Pro Drums family special case
+    /// first, then a within-group bitmask combo, else `nil`.
+    ///
+    /// - Parameter instruments: Settings-visible instruments, in any order.
+    /// - Returns: The derived scope, or `nil` when the visible set doesn't qualify
+    ///   (fewer than two instruments, or a cross-group mix).
+    public static func deriveScope(visible instruments: [Instrument]) -> RivalComboScope? {
+        let set = Set(instruments)
+        if set == proDrumsFamily { return .proDrumsFamily }
+        guard isWithinGroup(instruments) else { return nil }
+        return .instruments(comboId: comboId(for: instruments), instruments: instruments)
+    }
+}
+
+// MARK: - Common Rivals (native port of `RivalsPage.tsx`'s `commonRivals` memo)
+
+/// Rivals present in every one of several loaded per-instrument rivals lists.
+public enum RivalCommonRivals {
+    /// Intersect two or more instruments' rivals lists, mirroring the web's
+    /// `commonRivals` `useMemo` in `RivalsPage.tsx`: a rival must appear
+    /// (above or below) in *every* supplied list to qualify. Direction is decided
+    /// by majority vote across the lists the rival appeared in, ties favoring
+    /// "above"; the highest-`sharedSongCount` entry represents the rival.
+    ///
+    /// - Parameter perInstrument: Each loaded instrument's rivals list. Fewer than
+    ///   two lists trivially produce no common rivals.
+    /// - Returns: Above/below groups, each sorted by `rivalScore` descending.
+    public static func intersect(
+        _ perInstrument: [RivalsListResponse]
+    ) -> (above: [RivalSummary], below: [RivalSummary]) {
+        guard perInstrument.count >= 2 else { return ([], []) }
+
+        var counts: [String: Int] = [:]
+        var aboveByAccount: [String: [RivalSummary]] = [:]
+        var belowByAccount: [String: [RivalSummary]] = [:]
+        for list in perInstrument {
+            var seen = Set<String>()
+            let isAbove = Set(list.above.map(\.accountId))
+            for rival in list.above + list.below where seen.insert(rival.accountId).inserted {
+                counts[rival.accountId, default: 0] += 1
+                if isAbove.contains(rival.accountId) {
+                    aboveByAccount[rival.accountId, default: []].append(rival)
+                } else {
+                    belowByAccount[rival.accountId, default: []].append(rival)
+                }
+            }
+        }
+
+        let threshold = perInstrument.count
+        var above: [RivalSummary] = []
+        var below: [RivalSummary] = []
+        for (accountId, count) in counts where count >= threshold {
+            let aboveEntries = aboveByAccount[accountId] ?? []
+            let belowEntries = belowByAccount[accountId] ?? []
+            let allEntries = aboveEntries + belowEntries
+            guard let first = allEntries.first else { continue }
+            let best = allEntries.dropFirst().reduce(first) { current, next in
+                current.sharedSongCount >= next.sharedSongCount ? current : next
+            }
+            if aboveEntries.count >= belowEntries.count {
+                above.append(best)
+            } else {
+                below.append(best)
+            }
+        }
+        above.sort { $0.rivalScore > $1.rivalScore }
+        below.sort { $0.rivalScore > $1.rivalScore }
+        return (above, below)
     }
 }
