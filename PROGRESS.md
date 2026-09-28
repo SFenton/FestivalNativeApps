@@ -134,7 +134,7 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 **Lane R — Rivals & Compete** (Sonnet) — ✅ landed `6bfa5da`…`8a3ab84`
 - ✅ Compete hub · ✅ Rivals hub · ✅ All rivals · ✅ Rival detail · ✅ Rivalry (read-only endpoints verified)
 
-**Lane G — Suggestions** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/suggestions`
+**Lane G — Suggestions** (Sonnet) — ✅ landed `36da85d`, `2e76e59`, `1b81517`
 - ⬜ Port suggestion algorithms to Core (unit-tested) · ⬜ Suggestions screen + filter sheet
 
 **Lane N — Bands** (Sonnet) — ✅ landed `917ada3`…`7d91e9d`
@@ -171,6 +171,9 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 
 **Lane D2 — FRE live demos** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/fredemos`
 - ⬜ Live mini-demos for the 31 non-Songs slides (Song Info, History, Statistics, Suggestions, Leaderboards, Compete, Rivals, Shop)
+
+Queued:
+- ⬜ **Suggestions follow-up:** `near_max_*` families (needs `Song.maxScores` — Lane S exposing it), rival-driven suggestions (after Lane R2), band suggestions (needs band identity); pass `visibleInstruments` from root instead of re-reading `@AppStorage`
 
 ### Wave 3 — UX tests (started for completed features)
 
@@ -250,3 +253,4 @@ Not yet assigned:
 | 2026-09-28 | Orchestrator | Avatar-rightmost toolbar rule, implicit test-ID families, app versioning; launched Lanes R2, P2 |
 | 2026-09-28 | Lane F | FREs: 44 slides / 9 pages, versioned+hashed seen state (only new slides show), gates, Settings replay; 36 Core tests |
 | 2026-09-28 | Orchestrator | Launched Lane D2 (FRE demos) and Lane U (Wave 3 UX tests for completed features) |
+| 2026-09-28 | Lane G | Suggestions: full generator port (seeded PRNG, 11 families + decades, 61 tests, ~96% Core coverage), filter sheet, incremental loading; fixed direct-landing load hang |
