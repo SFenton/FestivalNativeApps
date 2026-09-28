@@ -239,7 +239,7 @@ struct SongScorePreview: View {
     private func previewRow(_ entry: LeaderboardEntry, highlighted: Bool) -> some View {
         if highlighted {
             SongLeaderboardEntryRow(entry: entry)
-                .padding(.vertical, 6)
+                .padding(.vertical, 11)
                 .padding(.horizontal, 8)
                 .background(
                     BrandTokens.accentPurple.opacity(0.18),
@@ -250,8 +250,9 @@ struct SongScorePreview: View {
                         .stroke(BrandTokens.accentPurple, lineWidth: 1)
                 )
         } else {
+            // ~44pt rows, close to the web's 48px `entryRowHeight`.
             SongLeaderboardEntryRow(entry: entry)
-                .padding(.vertical, 6)
+                .padding(.vertical, 11)
         }
     }
 
