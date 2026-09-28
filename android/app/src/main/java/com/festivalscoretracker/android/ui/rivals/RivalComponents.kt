@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -309,7 +308,6 @@ fun RivalsMessage(title: String, subtitle: String?, tag: String, action: (() -> 
  * @param playerName Selected player's name.
  * @param rivalName Rival's name.
  * @param onClick Opens Song Detail.
- * @param compact Single-line layout for narrow columns.
  * @param modifier Modifier.
  */
 @Composable
@@ -320,7 +318,6 @@ fun RivalSongRow(
     playerName: String?,
     rivalName: String?,
     onClick: () -> Unit,
-    compact: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val format = NumberFormat.getIntegerInstance()
@@ -364,14 +361,12 @@ fun RivalSongRow(
             )
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    if (!compact) {
-                        AsyncImage(
-                            model = artUrl,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)).background(BrandTokens.surfaceMuted),
-                        )
-                    }
+                    AsyncImage(
+                        model = artUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)).background(BrandTokens.surfaceMuted),
+                    )
                     Column(Modifier.weight(1f)) {
                         Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = BrandTokens.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(
@@ -397,7 +392,7 @@ fun RivalSongRow(
                     CompareEntry(you, song.userRank, song.userScore, win = delta > 0, alignEnd = false, modifier = Modifier.weight(1f))
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         RivalPill(rankText, win = if (delta == 0) null else delta > 0)
-                        if (!compact) RivalPill(scoreText, win = if (scoreDiff == 0L) null else scoreDiff > 0)
+                        RivalPill(scoreText, win = if (scoreDiff == 0L) null else scoreDiff > 0)
                     }
                     CompareEntry(them, song.rivalRank, song.rivalScore, win = delta < 0, alignEnd = true, modifier = Modifier.weight(1f))
                 }
@@ -428,9 +423,5 @@ private fun CompareEntry(name: String, rank: Int, score: Long?, win: Boolean, al
  * @return Text color.
  */
 internal fun categoryColor(sentiment: RivalSentiment): Color = sentimentColor(sentiment)
-
-/** Vertical spacer used between stacked cards outside grids. */
-@Composable
-internal fun CardGap() = Spacer(Modifier.height(8.dp))
 
 // endregion

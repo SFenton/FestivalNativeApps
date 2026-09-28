@@ -227,7 +227,6 @@ fun RivalDetailScreen(viewModel: RivalDetailViewModel, route: RivalDetailRoute, 
                                             playerName = player,
                                             rivalName = content.rivalName ?: name,
                                             onClick = { shell.navigate(SongDetailRoute(song.songId)) },
-                                            compact = false,
                                         )
                                     }
                                 }
@@ -331,7 +330,6 @@ fun RivalryScreen(viewModel: RivalDetailViewModel, rivalId: String, mode: String
                             playerName = player,
                             rivalName = content.rivalName ?: name,
                             onClick = { shell.navigate(SongDetailRoute(song.songId)) },
-                            compact = false,
                         )
                     }
                 }
