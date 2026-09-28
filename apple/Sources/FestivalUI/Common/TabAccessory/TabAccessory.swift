@@ -69,8 +69,8 @@ extension View {
     /// Apply once, directly on the iPhone `TabView`. Active only on iOS 26.1+ with a
     /// horizontal tab bar (`DeviceLayout.sectionChrome == .tabBar`); on the iPhone Duo
     /// vertical bar, iPad and earlier iOS it publishes no registry, so Search falls back to
-    /// a toolbar button and page actions to toolbar items. The tab bar minimizes on scroll
-    /// and the accessory moves inline beside it, as in Music.
+    /// a toolbar button and page actions to toolbar items. The tab bar does not minimize
+    /// (see the body), so the accessory stays expanded above it.
     ///
     /// - Returns: The tab view with the accessory host attached.
     func festivalTabAccessoryHost() -> some View {
@@ -94,7 +94,10 @@ struct TabAccessoryHost: ViewModifier {
                         TabAccessoryBar(page: registry.active?.content) { openGlobalSearch() }
                     }
                 }
-                .tabBarMinimizeBehavior(supported ? .onScrollDown : .never)
+                // Never minimized: a collapsed bar hides the other tabs' labels on every
+                // scroll app-wide (and journeys then cannot find them). Music minimizes;
+                // TODO(orchestrator): opt in with `.onScrollDown` if the operator wants it.
+                .tabBarMinimizeBehavior(.never)
                 .environment(\.tabAccessoryRegistry, supported ? registry : nil)
         } else {
             content

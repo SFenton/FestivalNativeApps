@@ -27,7 +27,7 @@
 3. **Every accessory item has a fallback.** `@Environment(\.isTabAccessoryAvailable)` is false before iOS 26.1, in the Duo vertical bar and on iPad/Mac. Then Search is a toolbar button (roots and pushed pages) and page actions are `Label` toolbar items (vertical bars need the symbol, overflow needs the title).
 4. **No glass on glass.** The system draws the accessory's glass; buttons inside use flat `.borderedProminent`/`.bordered` fills.
 5. **Tab roots keep the avatar rightmost** ([app-navigation/ios.md](../../controls/app-navigation/ios.md)): page actions use `.topBarTrailing` and the page ends its toolbar with `FestivalRootTrailingItems` (declare it in `FestivalRootView.rootProvidesTrailingItems`).
-6. The tab bar minimizes on scroll while the accessory is shown, as in Music.
+6. The tab bar does **not** minimize on scroll (`.never`): a collapsed bar hides the other tabs' labels on every page and broke 6 Songs journeys that switch tabs after scrolling. `TODO(orchestrator)`: Music minimizes (`.onScrollDown`, accessory goes inline); opt in only with the operator's go-ahead and a test helper that expands a collapsed bar.
 
 ## Decisions per page
 

@@ -121,6 +121,7 @@ enum SongsUITestSupport {
     private static let fixtureDisplayNames = [
         "fixture-player-1": "Fixture Player 1",
         "fixture-player-2": "Fixture Player 2",
+        "fixture-edge": "Fixture Edge Player",  // contracts/fixtures/metadata-edge.json
     ]
 
     /// Select (or switch to) the player page ``viewFixturePlayer(_:query:in:)`` just

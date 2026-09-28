@@ -6,7 +6,7 @@
 
 | Layout | Entry point (every page, root or pushed) | Surface |
 |---|---|---|
-| iPhone iOS 26.1+, horizontal tab bar | **Tab-bar bottom accessory** (Music's mini-player slot): a field-shaped "Search" button, with the page's own action after it when it has one (player Select/Switch/Deselect). The tab bar minimizes on scroll and the accessory goes inline | `GlobalSearchSheet` |
+| iPhone iOS 26.1+, horizontal tab bar | **Tab-bar bottom accessory** (Music's mini-player slot): a field-shaped "Search" button, with the page's own action after it when it has one (player Select/Switch/Deselect). The tab bar stays expanded (no minimize-on-scroll) | `GlobalSearchSheet` |
 | iPhone iOS 17–26.0 | Toolbar **Search** button (`magnifyingglass`): before the bell + avatar on tab roots (`FestivalRootTrailingItems`), `.primaryAction` on pushed pages (`FestivalTabStack` destinations) | `GlobalSearchSheet` |
 | iPhone Duo (vertical bar) | Same toolbar button; the system places it in the rail (no accessory in a vertical bar) | `GlobalSearchSheet` |
 | Any, hardware keyboard | ⌘K or ⌘F | `GlobalSearchSheet` |
