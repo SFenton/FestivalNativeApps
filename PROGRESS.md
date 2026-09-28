@@ -161,8 +161,8 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 - ⬜ Feasibility + native design decision (HIG + Fluent) → `.agents/controls/quick-links/` · ⬜ Reusable `Common/QuickLinks` API (toolbar jump menu, active section, VoiceOver rotor) · ⬜ Adopt on Leaderboards
 - 🟨 Adoption: Songs/Song Detail (Lane S), Player/Statistics/Band/Settings (Lane P2), Compete/Rivals/Rivalry/Rival Detail (Lane R2)
 
-**Lane R2 — Rivals follow-ups** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/rivals2`
-- ⬜ Replace `RivalNavigationBridge` singleton with typed `AppRoute` scope · ⬜ Common/combo rivals · ⬜ Find Rival · ⬜ Quick Links on Compete/Rivals/Rivalry/Rival Detail · ⬜ Re-check rival detail 503s
+**Lane R2 — Rivals follow-ups** (Sonnet) — ✅ landed 2026-09-28
+- ✅ Replaced `RivalNavigationBridge` singleton with typed `RivalScope` carried directly on `AppRoute.allRivals(scope:)`/`.rivalDetail(rivalId:name:scope:)`/`.rivalry(rivalId:mode:name:scope:)` · ✅ Common Rivals (`RivalCommonRivals.intersect`) + cross-instrument Combo/Pro-Drums-family scope (`RivalCombo`), ported to Core with unit tests · ✅ Find Rival (`FindRivalSheet`, reuses the allowlisted account-search GET) · ✅ Quick Links on Compete/Rivals/Rivalry/Rival Detail · ✅ Re-checked rival detail endpoints: live 200 outside an active scrape window; 503 during one now carries `x-fst-public-read-freeze-reason: scrape`
 
 **Lane P2 — Profile / Statistics / Band / Settings follow-ups** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/profile2`
 - ⬜ Global ranks via `/api/rankings/{instrument}/{accountId}` · ⬜ Profile sheet dismiss → push on active tab · ⬜ `FST_DEBUG_PROFILE` in-memory only · ⬜ Quick Links on Player/Statistics/Band/Settings · ⬜ Band song rows show catalog titles
@@ -184,7 +184,6 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 
 **Lane U — UX tests: shell, leaderboards, background, history, notifications, first-run, licenses** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/uxtests`
 - ⬜ Hosted snapshot per declared control state · ⬜ Per-feature XCUITest journeys against the loopback mock (batched on the shared simulator) · ⬜ Per-feature UX coverage → `.agents/testing/apple/coverage.md`
-
 
 Not yet assigned:
 - ⬜ Statistics = selected player's profile page (assigned to Lane P)
@@ -208,7 +207,7 @@ Not yet assigned:
 - **Test-ID families are implicit:** `verify_product.py` accepts `fst.<page-or-control-id>.*` for every declared page/control.
 - **Not ported (by design / blocked):** Settings Export ZIP + profile-name refresh (POST-only); live Service Progress and `/api/version` (not on the verified-read allowlist); "select as band profile" (needs session band identity).
 
-- **Rivals detail endpoints** (`/rivals/{combo}/{rivalId}`, `/leaderboard-rivals/{instrument}/{rivalId}`) returned 503 "not yet published" for the sample account during development; the app shows an explicit unavailable state. Re-check later.
+- **Rivals detail endpoints re-checked (2026-09-28):** `/rivals/{combo}/{rivalId}` and `/leaderboard-rivals/{instrument}/{rivalId}` return HTTP 200 for the sample account outside an active scrape window (verified live, both via `curl` and a loaded `RivalDetailScreen` in the simulator). They still 503 during one — now with an explicit `x-fst-public-read-freeze-reason: scrape` response header (`Retry-After: 30`) instead of the earlier bare 503 — while the list endpoints (`/rivals/{instrument}`, `/leaderboard-rivals/{instrument}`) keep returning 200 through the same freeze. The app's existing `ServiceUnavailableView` + retry already handles this correctly; no code change needed, just confirmation the condition is transient (scrape-scoped), not a permanent block.
 - **Load ceiling:** ~9 concurrent lanes pushed load to 170+ on the 10-core Mac; don't add lanes above ~100 load.
 
 - **Simulator queue stall (fixed `c3b55f3`):** XCUITest waits for app idle before each action; the always-animating carousel never idles, so a 10-step `drive` held the sim lock 8+ min with 7 jobs queued. `drive` now sets `FST_DEBUG_STILL_BACKGROUND=1` by default (`--animate` opts out) and enforces `--timeout` (180 s).
@@ -264,3 +263,4 @@ Not yet assigned:
 | 2026-09-28 | Lane D2 | FRE live demos: all 42 catalog slides now render a live native mini-demo (was Songs-only, 9/42); found a likely pre-existing TabView initial-tab race in debug launch + force mode for non-default tabs (see Lane D2 entry above) |
 | 2026-09-28 | Lane D2 | Live demos for all 42 FRE slides (coverage test enforces no fallback) |
 | 2026-09-28 | Orchestrator | Fixed empty FRE carousel on non-default launch tab (`.sheet(item:)`, `95d799e`); native FRE copy; demo slot clipping |
+| 2026-09-28 | Lane R2 | Rivals follow-up: removed `RivalNavigationBridge`, typed `RivalScope` on `AppRoute`; Common Rivals + Combo/Pro-Drums scope ported to Core; Find Rival search; Quick Links on Compete/Rivals/Rivalry/Rival Detail; re-verified rival detail endpoints live (200 outside an active scrape freeze; new `freeze-reason: scrape` header explains the earlier 503) |
