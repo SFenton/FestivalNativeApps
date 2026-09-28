@@ -11,7 +11,9 @@ import com.festivalscoretracker.android.data.ForcedFreezeTransport
 import com.festivalscoretracker.android.data.HttpTransport
 import com.festivalscoretracker.android.data.OkHttpTransport
 import com.festivalscoretracker.android.data.SettingsRepository
+import com.festivalscoretracker.android.data.profile.playerProfile
 import com.festivalscoretracker.android.presentation.BackgroundController
+import com.festivalscoretracker.android.presentation.profile.SelectedProfileStore
 import okhttp3.OkHttpClient
 
 // region Container
@@ -50,6 +52,9 @@ class AppContainer(
 
     /** Shared animated backdrop state. */
     val background = BackgroundController(loadCatalog = { api.catalog() }, artworkUrl = api::artworkUrl)
+
+    /** Selected player's process-only scores (Songs, Statistics and the player page read this). */
+    val selectedProfile = SelectedProfileStore(read = { api.playerProfile(it) }, publications = api.publicationChanges, backoff = backoff)
 }
 
 // endregion

@@ -115,6 +115,7 @@ import com.festivalscoretracker.android.ui.songdetail.SongLeaderboardScreen
 import com.festivalscoretracker.android.ui.songs.SongsScreen
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.FestivalTheme
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 // region Root
@@ -131,6 +132,7 @@ fun FestivalApp(container: AppContainer, launch: DebugLaunch) {
     val settings by shellViewModel.settings.collectAsStateWithLifecycle()
     FestivalTheme(appIncreaseContrast = settings?.increaseContrast == true, appReduceMotion = settings?.reduceMotion == true) {
         LaunchedEffect(Unit) { container.background.start(this) }
+        LaunchedEffect(Unit) { container.selectedProfile.start(this, shellViewModel.settings.map { it?.selectedPlayer }) }
         Box(Modifier.fillMaxSize()) {
             ArtworkBackground(container.background, forceStill = launch.stillBackground)
             settings?.let { FestivalShell(container, shellViewModel, it, launch) }
