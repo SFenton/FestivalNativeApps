@@ -11,6 +11,7 @@ Captures live outside the repo in `C:\Users\sfent\workspace\showcase\pwa\android
 | `setup --avd A [--force]` | Chrome first run, then install. Idempotent: skips when the home screens already show the **FST** icon |
 | `launch --avd A [--posture P] [--reset-storage] [--route /x] [--record clip.mp4] [--shot x.png]` | Opens the app from its home-screen icon; `--reset-storage` is a cold start (HOME, `am kill`, icon) plus cleared web storage |
 | `drive --avd A [--posture P] [--reset-storage] --steps …\|--steps-file f [--out-dir D] [--record clip.mp4] [--log f.json]` | Shared journey steps ([windows.md](windows.md#lab-toolswindowspwapy)) with touch input, plus `shot:` (physical display, includes system bars), `back`, `home`, `posture:`, `rotate:`, `relaunch`, `record:start:`/`record:stop` |
+| `native --avd A [--posture P] --out-dir D [--pages …]` | Installs the Debug APK and shoots the native counterparts of the sweep (`FST_DEBUG_ROUTE`, anonymous, first run off) in one hold |
 | `motion raw.mp4 [--crop]` | Frame-difference bursts, as on Windows |
 
 Every command holds the `emulator` lock (≤300 s, `device.py` helpers) and boots the AVD if needed. Holds run with system animations at 1× and restore 0 afterwards.
@@ -23,6 +24,10 @@ Every command holds the `emulator` lock (≤300 s, `device.py` helpers) and boot
 | Icon placement | The pinned icon lands on the next free home page; `find_icon` pages right from HOME |
 | Reduced motion | Chrome reports `prefers-reduced-motion: reduce` when `animator_duration_scale` is 0 — the FST AVDs' default. PWA captures must run at 1× |
 | Cold start | `am kill` after HOME, not `am force-stop` (leaves Chrome "stopped") |
+| Real touch | Taps and flings go through `adb input`, mapped from CSS px via Chrome's accessibility `android.webkit.WebView` bounds × `devicePixelRatio` (DevTools-synthesized touch is the fallback) |
+| Launcher tutorials | Large screens show "Swipe up slowly to show the Taskbar" (fold) or a "Do more with the Taskbar" card (tablet) over apps; the lab performs the swipe / taps Next |
+| UI dumps | `device.py`'s `dump_tree` decodes with the Windows code page and fails on non-ASCII player names; the lab reads dumps as UTF-8 |
+| One display per clip | `screenrecord` follows one physical display: record cover and inner postures separately |
 | DevTools | `adb forward tcp:9444 localabstract:chrome_devtools_remote`; the webapp page is a normal page target of Chrome |
 
 ## Standalone chrome and launch
@@ -58,7 +63,16 @@ The web app has no fold or posture logic: it only reacts to the new viewport wid
 | Book Fold half-open | same as unfolded | Identical to unfolded (no tabletop/book layout) |
 | Book Fold / Passport folded (cover) | phone widths | Phone layout; status bar tinted `#1A0830` again |
 | Passport unfolded (2208×1840 @ 420, fold x=1104) | ~841×701 CSS px | As Book Fold; landscape proportions show only ~5 song rows above the dock |
+| Tri-fold folded / partial / unfolded (720 / 1440 / 2160 × 1584 @ 320, folds at x=720 and 1440) | 360 / 720 / 1080 × ~740 CSS px | Phone layout on one panel; wider single column on two and three panels, rows crossing both hinges (`FST_TriFold-postures/*.png`, `FST_TriFold-unfolded/`) |
+| Tablet (2560×1600 @ 320) | 1280×~740 CSS px | Mobile shell; leaderboards two cards per row, Item Shop 6-column art grid (`FST_Tablet/`) |
 | Large screens (unfolded, tablet) | — | Status bar **not** tinted (light bar with dark icons); the Pixel launcher's taskbar tutorial covers apps until dismissed (the lab completes it) |
 | Posture change | — | The page reflows in place and keeps its route (`*-postures/postures.log.json`); `screenrecord` follows one physical display, so `posture-change.mp4` shows the cover display and `posture-inner.mp4` the inner one |
 
 Measured animations are identical to Windows (same CSS): background 6 s pan/zoom + 1 s crossfade, rows `fadeInUp` 400 ms / 125 ms stagger, Song Detail and Settings sections 300 ms, sheets 250–300 ms, bottom-tab colour 150 ms, shop pulse 2 s (`FST_Phone/*.anims.json`). `prefers-reduced-motion` is false only because the lab runs at 1× system animation scale.
+
+## Last measured
+
+| Item | Value |
+|---|---|
+| Captures | 268 PWA screenshots (FST_Phone 55; Book Fold unfolded 36, folded 18, half 7, postures 4; Passport unfolded 36, folded/half 12, postures 3; Tablet 46; TriFold 51), 13 clips (phone launch/nav/search/songs/song-detail/leaderboards/rotate, tablet nav/song-detail, posture changes); 31 native screenshots (phone all pages, Book Fold + Tablet key pages) |
+| Environment | 2026-09-28, Chrome 149.0.7827.5 on API 37 `google_apis_ps16k` x86_64 (swiftshader), live production data, system animations 1× |

@@ -15,6 +15,7 @@ Captures live outside the repo in `C:\Users\sfent\workspace\showcase\pwa\windows
 | `resize <preset\|WxH>` / `window` | `Browser.setWindowBounds` in DIPs on the **secondary monitor**, same presets as `uiwin.py` |
 | `shot out.png [--content]` | Window incl. title bar via gdigrab (window raised topmost for the grab), or page pixels only |
 | `drive --steps …\|--steps-file f [--out-dir D] [--record clip.mp4] [--fps N] [--log f.json]` | Shared journey steps (below) |
+| `native <exe> [--route] [--tab] --preset P --steps "<uiwin steps>" --record clip.mp4` | Native app beside the PWA: isolated settings file (anonymous), same monitor/preset/clip format, `uiwin` UIA steps, one desktop hold |
 | `motion raw.mp4 [--crop w:h:x:y]` | Frame-difference bursts (mean luma delta > 0.04 between consecutive frames) |
 | `contact DIR out.png [--glob]` | Contact sheet for review |
 
@@ -83,5 +84,5 @@ The installed app always uses the **mobile shell**: `useIsMobileChrome()` is tru
 
 | Item | Value |
 |---|---|
-| Captures | 222 PWA screenshots over 8 presets, 15 clips (compact + wide journeys, launch, resize); 48 native screenshots |
+| Captures | 204 PWA screenshots over 8 presets, 15 clips (compact + wide journeys, launch, resize); 54 native screenshots and 4 native clips (`windows-native\`) |
 | Environment | 2026-09-28, Edge 155.0.4283.18 Beta, Windows 11 25H2 (26220), 150 % scale, live production data |
