@@ -17,8 +17,12 @@ struct FirstRunPageModifier: ViewModifier {
     @AppStorage("fst.settings.hideShop") private var hideShop = false
     @AppStorage("fst.settings.disableShopHighlighting") private var disableShopHighlighting = false
     @AppStorage("fst.settings.experimentalRanks") private var experimentalRanks = false
-    @State private var presented = false
-    @State private var activeSlides: [FirstRunSlide] = []
+    /// The presented carousel, carried as one value so the sheet never renders with a stale,
+    /// empty slide list. `.sheet(isPresented:)` plus a separate `@State` array raced when a
+    /// non-default tab was the launch tab (the sheet showed "page 1 of 0").
+    @State private var presentation: FirstRunPresentation?
+    /// Slides shown by the current/last presentation, marked seen on dismiss.
+    @State private var shownSlides: [FirstRunSlide] = []
 
     func body(content: Content) -> some View {
         content
@@ -28,8 +32,8 @@ struct FirstRunPageModifier: ViewModifier {
             .onChange(of: disableShopHighlighting) { _, _ in evaluate() }
             .onChange(of: experimentalRanks) { _, _ in evaluate() }
             .onDisappear { center.release(page.rawValue) }
-            .sheet(isPresented: $presented, onDismiss: finish) {
-                FirstRunCarouselView(page: page, slides: activeSlides) { presented = false }
+            .sheet(item: $presentation, onDismiss: finish) { shown in
+                FirstRunCarouselView(page: page, slides: shown.slides) { presentation = nil }
             }
     }
 
@@ -51,7 +55,7 @@ struct FirstRunPageModifier: ViewModifier {
     /// Recompute which slides (if any) should show, and claim the shared "one carousel at a
     /// time" slot if so.
     private func evaluate() {
-        guard center.debugMode != .off, !presented else { return }
+        guard center.debugMode != .off, presentation == nil else { return }
         let catalog = FirstRunCatalog.slides(for: page)
         let ctx = context
         let slides = ctx.alwaysShow
@@ -60,18 +64,24 @@ struct FirstRunPageModifier: ViewModifier {
                 catalog, context: ctx, seen: center.store.load()
             )
         guard !slides.isEmpty, center.claim(page.rawValue) else { return }
-        activeSlides = slides
-        presented = true
+        shownSlides = slides
+        presentation = FirstRunPresentation(slides: slides)
     }
 
     /// The displayed slides are marked seen and the shared slot released exactly once, whether
     /// the sheet closed via Skip/Done or a swipe-to-dismiss.
     private func finish() {
-        guard !activeSlides.isEmpty else { return }
-        center.store.markSeen(activeSlides)
+        guard !shownSlides.isEmpty else { return }
+        center.store.markSeen(shownSlides)
         center.release(page.rawValue)
-        activeSlides = []
+        shownSlides = []
     }
+}
+
+/// One carousel presentation; a fresh identity per presentation.
+struct FirstRunPresentation: Identifiable {
+    let id = UUID()
+    let slides: [FirstRunSlide]
 }
 
 extension View {
