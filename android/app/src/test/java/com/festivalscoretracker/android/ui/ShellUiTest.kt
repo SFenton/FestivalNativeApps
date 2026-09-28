@@ -78,7 +78,7 @@ class ShellUiTest {
         rule.onNodeWithTag("fst.nav.tab.leaderboards").assertIsDisplayed()
         rule.onNodeWithTag("fst.nav.tab.settings").assertIsDisplayed()
         assertEquals(0, rule.onAllNodesWithTag("fst.nav.tab.statistics").fetchSemanticsNodes().size)
-        assertEquals(0, rule.onAllNodesWithTag("fst.songs.filter").fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithTag("fst.songs.filter.open").fetchSemanticsNodes().size)
         rule.onNodeWithContentDescription("Choose profile").assertIsDisplayed()
     }
 
@@ -97,12 +97,13 @@ class ShellUiTest {
         waitForTag("fst.songs.empty")
         rule.onNodeWithContentDescription("Clear search").performClick()
         settle(600)
-        rule.onNodeWithTag("fst.songs.sort").performClick()
-        settle()
-        rule.onNodeWithTag("fst.songs.sort.artist").performClick()
-        rule.onNodeWithText("Descending").performClick()
+        rule.onNodeWithTag("fst.songs.sort.open").performClick()
         settle()
         rule.onNodeWithText("Sort Songs").assertIsDisplayed()
+        rule.onNodeWithTag("fst.songs.sort.artist").performClick()
+        rule.onNodeWithText("Descending").performClick()
+        rule.onNodeWithTag("fst.songs.sort.apply").performClick()
+        settle()
     }
 
     @Test
@@ -135,9 +136,10 @@ class ShellUiTest {
         rule.onNodeWithTag("fst.nav.tab.compete").assertIsDisplayed()
         rule.onNodeWithTag("fst.nav.tab.statistics").assertIsDisplayed()
         rule.onNodeWithContentDescription("Profile: Synthetic Player").assertIsDisplayed()
-        rule.onNodeWithTag("fst.songs.filter").performClick()
+        rule.onNodeWithTag("fst.songs.filter.open").performClick()
         settle()
-        rule.onNodeWithText("Pro Drums").performClick()
+        rule.onNodeWithTag("fst.songs.filter.instrument.Solo_PeripheralDrums").performClick()
+        rule.onNodeWithTag("fst.songs.filter.apply").performClick()
         settle()
         rule.onNodeWithTag("fst.nav.tab.statistics").performClick()
         waitForTag("fst.statistics")

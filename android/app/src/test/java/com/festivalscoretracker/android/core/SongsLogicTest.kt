@@ -5,7 +5,7 @@ import com.festivalscoretracker.android.core.format.ScoreFormatting
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.songs.SongCatalogSort
 import com.festivalscoretracker.android.core.songs.SongListPipeline
-import com.festivalscoretracker.android.core.songs.SongListQuery
+import com.festivalscoretracker.android.core.songs.SongListInputs
 import com.festivalscoretracker.android.core.songs.SongSearch
 import com.festivalscoretracker.android.core.songs.SongSectionIndex
 import com.festivalscoretracker.android.core.songs.SongSortMode
@@ -58,20 +58,21 @@ class SongsLogicTest {
         assertEquals(listOf("4", "5", "3", "1", "2"), ids(SongSortMode.Year))
         assertEquals(listOf("2", "4", "1", "5", "3"), ids(SongSortMode.Duration))
         assertEquals(SongSortMode.Duration, SongSortMode.fromStored("Duration"))
-        assertEquals(SongSortMode.Title, SongSortMode.fromStored("Shop"))
+        assertEquals(SongSortMode.Shop, SongSortMode.fromStored("Shop"))
+        assertEquals(SongSortMode.Title, SongSortMode.fromStored("Removed"))
         assertEquals(SongSortMode.Title, SongSortMode.fromStored(null))
-        assertEquals(listOf("Title", "Artist", "Year", "Duration"), SongSortMode.entries.map { it.label })
+        assertEquals(listOf("Title", "Artist", "Year", "Duration", "Item Shop"), SongSortMode.entries.map { it.label })
     }
 
     @Test
     fun pipelineFiltersSearchesAndSorts() {
-        val all = SongListPipeline.apply(songs, SongListQuery(), sorter)
+        val all = SongListPipeline.run(SongListInputs(songs), sorter).songs
         assertEquals(5, all.size)
-        val lead = SongListPipeline.apply(songs, SongListQuery(instrument = Instrument.Lead), sorter)
+        val lead = SongListPipeline.run(SongListInputs(songs, filter = com.festivalscoretracker.android.core.songs.SongFilter(Instrument.Lead)), sorter).songs
         assertEquals(listOf("1", "2", "3", "5"), lead.map { it.songId })
-        val searched = SongListPipeline.apply(songs, SongListQuery(query = "oyster", sort = SongSortMode.Year, ascending = false), sorter)
+        val searched = SongListPipeline.run(SongListInputs(songs, search = "oyster", sort = SongSortMode.Year, ascending = false), sorter).songs
         assertEquals(listOf("5"), searched.map { it.songId })
-        assertEquals(5, SongListPipeline.apply(songs, SongListQuery()).size)
+        assertEquals(5, SongListPipeline.run(SongListInputs(songs)).songs.size)
     }
 
     // endregion

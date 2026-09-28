@@ -43,6 +43,7 @@ import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
  * @param modifier Modifier.
  * @param shape Card shape.
  * @param onClick Optional tap action; the whole card becomes the target.
+ * @param accent Optional 2 dp accent border (e.g. Shop New/Leaving highlights).
  * @param content Card content.
  */
 @Composable
@@ -50,12 +51,17 @@ fun GlassCard(
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(12.dp),
     onClick: (() -> Unit)? = null,
+    accent: Color? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val accessibility = LocalFestivalAccessibility.current
     val contrast = accessibility.increaseContrast
     val color = if (contrast || accessibility.reduceTransparency) BrandTokens.cardBackground else BrandTokens.surfaceFrosted
-    val border = BorderStroke(if (contrast) 2.dp else 1.dp, if (contrast) BrandTokens.textPrimary else BrandTokens.glassBorder)
+    val border = when {
+        accent != null -> BorderStroke(2.dp, accent)
+        contrast -> BorderStroke(2.dp, BrandTokens.textPrimary)
+        else -> BorderStroke(1.dp, BrandTokens.glassBorder)
+    }
     if (onClick != null) {
         Surface(onClick = onClick, modifier = modifier, shape = shape, color = color, border = border) {
             Column(content = content)

@@ -88,7 +88,6 @@ import com.festivalscoretracker.android.presentation.ProfileSearchViewModel
 import com.festivalscoretracker.android.presentation.ShellViewModel
 import com.festivalscoretracker.android.presentation.SongDetailViewModel
 import com.festivalscoretracker.android.presentation.SongLeaderboardViewModel
-import com.festivalscoretracker.android.presentation.SongsViewModel
 import com.festivalscoretracker.android.ui.background.ArtworkBackground
 import com.festivalscoretracker.android.ui.bands.bandsDestinations
 import com.festivalscoretracker.android.ui.common.ComingSoonScreen
@@ -115,7 +114,8 @@ import com.festivalscoretracker.android.ui.notifications.NotificationsSheet
 import com.festivalscoretracker.android.ui.songdetail.SongDetailScreen
 import com.festivalscoretracker.android.ui.songdetail.SongLeaderboardScreen
 import com.festivalscoretracker.android.ui.suggestions.suggestionsDestinations
-import com.festivalscoretracker.android.ui.songs.SongsScreen
+import com.festivalscoretracker.android.ui.songs.SongsRoute
+import com.festivalscoretracker.android.data.songs.watchDeselection
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.FestivalTheme
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -170,6 +170,7 @@ fun FestivalApp(container: AppContainer, launch: DebugLaunch, shortcuts: ShellSh
     ) {
         LaunchedEffect(Unit) { container.background.start(this) }
         LaunchedEffect(Unit) { container.selectedProfile.start(this, shellViewModel.settings.map { it?.selectedPlayer }) }
+        LaunchedEffect(Unit) { container.songsPreferences.watchDeselection(this, shellViewModel.settings.map { it?.selectedPlayer }) }
         // Compose test tags double as UIAutomator resource ids for `device.py drive` journeys.
         Box(Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
             ArtworkBackground(container.background, forceStill = launch.stillBackground || settings?.disableAnimatedArtwork == true)
@@ -522,21 +523,11 @@ private fun FestivalNavHost(
     val openLeaderboard = { songId: String, instrument: Instrument -> navController.navigate(SongLeaderboardRoute(songId, instrument.wireId)) }
     NavHost(navController = navController, startDestination = SongsTab, modifier = Modifier.fillMaxSize()) {
         composable<SongsTab> {
-            val songsViewModel: SongsViewModel = viewModel {
-                SongsViewModel(loadCatalog = { api.catalog(it) }, settings = shellViewModel.settings, backoff = container.backoff)
-            }
             if (twoPane) {
                 var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
                 Row(Modifier.fillMaxSize()) {
                     Box(Modifier.width(listPaneWidth.dp)) {
-                        SongsScreen(
-                            viewModel = songsViewModel,
-                            visibleInstruments = settings.visibleInstruments,
-                            artworkUrl = api::artworkUrl,
-                            onSortChange = shellViewModel::setSongSort,
-                            onSongClick = { selectedId = it.songId },
-                            selectedSongId = selectedId,
-                        )
+                        SongsRoute(container, shellViewModel, settings, onSongClick = { selectedId = it.songId }, selectedSongId = selectedId)
                     }
                     VerticalDivider(color = BrandTokens.glassBorder)
                     Box(Modifier.weight(1f).fillMaxHeight().testTag("fst.songs.detail-pane")) {
@@ -559,13 +550,7 @@ private fun FestivalNavHost(
                     }
                 }
             } else {
-                SongsScreen(
-                    viewModel = songsViewModel,
-                    visibleInstruments = settings.visibleInstruments,
-                    artworkUrl = api::artworkUrl,
-                    onSortChange = shellViewModel::setSongSort,
-                    onSongClick = { navController.navigate(SongDetailRoute(it.songId)) },
-                )
+                SongsRoute(container, shellViewModel, settings, onSongClick = { navController.navigate(SongDetailRoute(it.songId)) })
             }
         }
         composable<SongDetailRoute> { entry ->

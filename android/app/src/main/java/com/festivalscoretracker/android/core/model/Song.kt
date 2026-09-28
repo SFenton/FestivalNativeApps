@@ -59,6 +59,7 @@ data class Song(
     val difficulty: SongDifficulty? = null,
     val sig: String? = null,
     val maxScores: Map<String, Int>? = null,
+    val pathArtifactGenerationId: String? = null,
 ) {
     /** Whether Lead/Pro Lead should use the keys icon variant. */
     val usesKeyboardIcon: Boolean get() = sig == "Keyboard"

@@ -181,58 +181,6 @@ class PresentationTest {
 
     // endregion
 
-    // region Songs
-
-    private fun TestScope.songsViewModel(settings: MutableStateFlow<AppSettings?>, load: suspend (Boolean) -> CatalogPayload = { payload }) =
-        SongsViewModel(load, settings, ServiceRetryBackoff(), computeDispatcher = main.dispatcher)
-
-    @Test
-    fun songsListDerivesSortsSearchesAndFilters() = runTest(main.dispatcher) {
-        val settings = MutableStateFlow<AppSettings?>(AppSettings())
-        var loads = 0
-        val viewModel = songsViewModel(settings) { loads++; payload }
-        advanceUntilIdle()
-        assertEquals(listOf("a", "b", "c"), viewModel.uiState.value.songs.map { it.songId })
-        assertEquals(listOf("A", "B", "G"), viewModel.uiState.value.sections.map { it.label })
-        assertEquals(3, viewModel.uiState.value.totalSongs)
-
-        viewModel.onSearchChange("gam")
-        assertEquals("gam", viewModel.searchInput.value)
-        advanceTimeBy(100)
-        assertEquals(3, viewModel.uiState.value.songs.size)
-        advanceUntilIdle()
-        assertEquals(listOf("c"), viewModel.uiState.value.songs.map { it.songId })
-        viewModel.onSearchChange("")
-        advanceUntilIdle()
-
-        viewModel.setInstrumentFilter(Instrument.Lead)
-        advanceUntilIdle()
-        assertNull(viewModel.uiState.value.query.instrument)
-        settings.value = AppSettings(selectedPlayer = SelectedPlayer(Fixtures.ACCOUNT_A, "P"), songSort = SongSortMode.Year, songSortAscending = false)
-        advanceUntilIdle()
-        assertEquals(Instrument.Lead, viewModel.uiState.value.query.instrument)
-        assertEquals(listOf("a", "b"), viewModel.uiState.value.songs.map { it.songId })
-        settings.value = settings.value!!.copy(visibleInstruments = setOf(Instrument.Bass))
-        advanceUntilIdle()
-        assertNull(viewModel.uiState.value.query.instrument)
-
-        viewModel.refresh()
-        advanceUntilIdle()
-        viewModel.retry()
-        advanceUntilIdle()
-        assertEquals(3, loads)
-    }
-
-    @Test
-    fun songsFailureSurfacesIssue() = runTest(main.dispatcher) {
-        val viewModel = songsViewModel(MutableStateFlow(AppSettings())) { throw FestivalApiException.HttpStatus(404) }
-        advanceUntilIdle()
-        assertEquals(LoadState.Failed(ServiceIssue.NotFound), viewModel.uiState.value.catalog)
-        assertTrue(viewModel.uiState.value.songs.isEmpty())
-    }
-
-    // endregion
-
     // region Song detail and leaderboard
 
     @Test

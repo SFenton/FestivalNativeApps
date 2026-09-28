@@ -17,6 +17,9 @@ import com.festivalscoretracker.android.data.ForcedFreezeTransport
 import com.festivalscoretracker.android.data.HttpTransport
 import com.festivalscoretracker.android.data.OkHttpTransport
 import com.festivalscoretracker.android.data.SettingsRepository
+import com.festivalscoretracker.android.data.shop.shop
+import com.festivalscoretracker.android.data.songs.SongsPreferences
+import com.festivalscoretracker.android.presentation.shop.ShopStore
 import com.festivalscoretracker.android.data.profile.playerProfile
 import com.festivalscoretracker.android.data.rankings.LeaderboardPreferences
 import com.festivalscoretracker.android.data.rivals.RivalsRepository
@@ -85,6 +88,12 @@ class AppContainer(
 
     /** Selected player's process-only scores (Songs, Statistics and the player page read this). */
     val selectedProfile = SelectedProfileStore(read = { api.playerProfile(it) }, publications = api.publicationChanges, backoff = backoff)
+
+    /** Shared Item Shop feed (Shop page, Songs and Song Detail). */
+    val shop = ShopStore(load = { api.shop() }, publications = api.publicationChanges, backoff = backoff)
+
+    /** Saved Songs filters and Shop layout. */
+    val songsPreferences = SongsPreferences(settings)
 }
 
 // endregion

@@ -53,6 +53,9 @@ object SettingsRegistry {
     const val FIRST_RUN_SEEN = "fst.firstRun.seen.v1"
     const val NOTIFICATIONS_SEEN = "fst.notifications.seen.v1"
     const val SUGGESTIONS_FILTER = "fst.suggestions.filter"
+    const val SONG_FILTERS = "fst.songs.filters"
+    const val SONG_PLAYER_SCORE_FILTERS = "fst.songs.playerScoreFilters"
+    const val SHOP_VIEW_MODE = "fst.shop.viewMode"
 
     /** Every registered key. */
     val entries: List<RegisteredSetting> = listOf(
@@ -82,6 +85,9 @@ object SettingsRegistry {
         RegisteredSetting(FIRST_RUN_SEEN, ResetPolicy.Kept, "first-run"),
         RegisteredSetting(NOTIFICATIONS_SEEN, ResetPolicy.Kept, "notifications"),
         RegisteredSetting(SUGGESTIONS_FILTER, ResetPolicy.AppSetting, "suggestions"),
+        RegisteredSetting(SONG_FILTERS, ResetPolicy.Kept, "songs"),
+        RegisteredSetting(SONG_PLAYER_SCORE_FILTERS, ResetPolicy.Kept, "songs"),
+        RegisteredSetting(SHOP_VIEW_MODE, ResetPolicy.Kept, "shop"),
     )
 
     /** Keys Reset removes. */

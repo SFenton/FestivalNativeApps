@@ -23,6 +23,7 @@ import java.io.IOException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
 // region Settings repository
@@ -128,6 +129,18 @@ class SettingsRepository(private val store: DataStore<Preferences>) {
     suspend fun readBlob(key: String): String? {
         require(SettingsRegistry.isRegistered(key)) { "Unregistered key $key" }
         return safeData.first()[stringPreferencesKey(key)]
+    }
+
+    /**
+     * Observe a registered string blob.
+     *
+     * @param key Registered key name.
+     * @return Stored value stream (null when absent or unreadable), without repeats.
+     */
+    fun blob(key: String): Flow<String?> {
+        require(SettingsRegistry.isRegistered(key)) { "Unregistered key $key" }
+        val prefKey = stringPreferencesKey(key)
+        return safeData.map { it[prefKey] }.distinctUntilChanged()
     }
 
     /**
