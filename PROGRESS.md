@@ -172,6 +172,8 @@ Not yet assigned:
 
 ## 5. Known issues / decisions
 
+- **Simulator queue stall (fixed `c3b55f3`):** XCUITest waits for app idle before each action; the always-animating carousel never idles, so a 10-step `drive` held the sim lock 8+ min with 7 jobs queued. `drive` now sets `FST_DEBUG_STILL_BACKGROUND=1` by default (`--animate` opts out) and enforces `--timeout` (180 s).
+
 - **Manual is deprecated** (operator, 2026-09-27): not ported. Route, drawer item, placeholder screen, contract entries and docs removed.
 
 - **Leaderboards follow-ups:** no "your rank" spotlight row, no rank-history chart, no band-combo filter on the overview; per-card loads are sequential.
@@ -204,3 +206,4 @@ Not yet assigned:
 | 2026-09-27 | Orchestrator | Dropped deprecated Manual (route, drawer item, contracts, docs) per operator |
 | 2026-09-27 | Orchestrator | Split FREs into dedicated Lane F per operator (versioned/hashed seen state, replay settings) |
 | 2026-09-27 | Orchestrator | Launched Lane Q (Quick Links) per operator |
+| 2026-09-27 | Orchestrator | Unstuck simulator queue: frozen carousel for drives + drive timeout (`c3b55f3`) |
