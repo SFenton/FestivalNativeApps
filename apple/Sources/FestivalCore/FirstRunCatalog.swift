@@ -187,20 +187,21 @@ public enum FirstRunCatalog {
         ),
         FirstRunSlide(
             id: "playerhistory-sort", version: 1, title: "Sort Scores",
-            description: "Tap the sort button in the action menu to reorder by date, score, "
+            description: "Tap the sort button in the toolbar to reorder by date, score, "
                 + "accuracy, or season — ascending or descending.",
             contentKey: "playerhistory-sort"
         ),
     ]
 
     // MARK: Statistics (6 slides — ported from `pages/player/firstRun/`)
+    // Copy is adapted to native chrome: the web's FAB menu, action menu and `?` metric
+    // icons don't exist in the app. `contentKey` keeps seen state stable across wording.
 
     static let statistics: [FirstRunSlide] = [
         FirstRunSlide(
             id: "statistics-select-profile", version: 1, title: "Select Player Profile",
-            description: "Press the pulsing player profile button at the top of the screen, or "
-                + "the dedicated button inside the FAB menu, to select this player profile and "
-                + "see all of their tracked data.",
+            description: "Tap Select Profile on this page, or the profile button in the top-right "
+                + "corner, to make this your selected profile and see all of their tracked data.",
             contentKey: "statistics-select-profile"
         ),
         FirstRunSlide(
@@ -271,8 +272,8 @@ public enum FirstRunCatalog {
             title: "Experimental Ranking Metrics",
             description: "Sort by Adjusted Percentile, Popularity-Weighted Percentile, FC "
                 + "Rate, or Max Score %. These experimental metrics estimate performance from "
-                + "rank percentiles, score counts, and population weighting — tap the ? icon "
-                + "on any metric for details.",
+                + "rank percentiles, score counts, and population weighting. Choose one from "
+                + "the Rank By menu in the toolbar.",
             gate: .experimentalRanksEnabled
         ),
         FirstRunSlide(

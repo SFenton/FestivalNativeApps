@@ -113,8 +113,11 @@ private struct FirstRunSlideView: View {
 
     var body: some View {
         VStack(spacing: 20) {
+            // Demos vary (a 5-row leaderboard is ~260 pt); give them room below the close
+            // button and clip so nothing ever draws over the sheet chrome.
             FirstRunDemoContent(page: page, slide: slide)
-                .frame(maxWidth: .infinity, minHeight: 190, idealHeight: 220, maxHeight: 240)
+                .frame(maxWidth: .infinity, minHeight: 190, idealHeight: 260, maxHeight: 320)
+                .clipped()
                 .padding(.horizontal, 20)
             VStack(spacing: 8) {
                 Text(slide.title)
@@ -130,7 +133,7 @@ private struct FirstRunSlideView: View {
             .padding(.horizontal, 28)
             Spacer(minLength: 0)
         }
-        .padding(.top, 8)
+        .padding(.top, 52)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(slide.title). \(slide.description)")
