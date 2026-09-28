@@ -272,6 +272,7 @@ public class PlayerProfileViewModelTests
         Assert.True(lead.RankUnranked);
         Assert.Contains("Lead", lead.UnrankedText);
         Assert.True(lead.RankHistoryFailed);
+        Assert.StartsWith("Rank history unavailable", lead.RankHistoryError);
         Assert.False(lead.HasRankHistory);
 
         fake.RankStatus = HttpStatusCode.ServiceUnavailable;

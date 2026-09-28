@@ -575,7 +575,7 @@ public sealed partial class PlayerInstrumentViewModel : ObservableObject
         {
             if (token.IsCancellationRequested) return;
             RankHistory = null;
-            RankHistoryError = ServiceIssue.From(error).Message;
+            RankHistoryError = $"Rank history unavailable: {ServiceIssue.From(error).Message}";
         }
     }
 }
