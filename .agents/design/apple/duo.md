@@ -17,8 +17,9 @@
 | Folded landscape, either rotation (678×466, compact) | Same, on the camera's edge; the tab bar kept, toolbar items overflow (`.automatic` compression) | One column, wider rows. No custom 3-tab trim | Short height: pinned footers become toolbar items (see Leaderboards) |
 | Folded upside down (466×678, bar leading) | Vertical bar on leading edge | As portrait | Drawer must start after `overlayInsets.leading`; camera bottom-left |
 | Unfolded landscape (951×669, regular) | `TabView` stays in the trailing vertical bar, as folded (continuity) | **List/detail** `NavigationSplitView` pages (below); dashboards use 2-column grids | Regular section set: Leaderboards + Rivals replace Compete (web ≥ 600 px). Operator 2026-09-28: only the Duo inner display and iPad get it; large iPhones in landscape keep portrait tabs |
-| Unfolded portrait (669×951, regular) | System horizontal tab bar | List/detail. The system may overlay the list column in portrait; accept it | Horizontal bars allowed by HIG here |
-| Partially folded (inner, active division) | As unfolded | `NavigationSplitView` equalises columns at the fold itself; custom grids use an even column count; nothing interactive in `foldFrame` | Laptop pose (horizontal fold): no custom arrangement; system containers adapt |
+| Unfolded portrait (669×951, regular) | System horizontal tab bar | **Dual-source** (below): top region = the page, bottom = a related source, split 58/42. Compact section set (Compete) | Replaced W2's portrait list/detail (two ~330 pt columns) on 2026-09-28 |
+| Partially folded, portrait (horizontal fold) | As unfolded portrait | **Dual-source**, divided exactly on the fold (the division reserved region); nothing interactive in the gutter | Operator request 2026-09-28 |
+| Partially folded, landscape (book, vertical fold) | As unfolded landscape | `NavigationSplitView` equalises columns at the fold itself; custom grids use an even column count; nothing interactive in `foldFrame` | — |
 
 Why `TabView` rather than a sections sidebar when unfolded: HIG asks that controls keep their relative positions across poses, and the inner display keeps the vertical bar in landscape exactly where the folded tabs were. A permanent sections sidebar would spend a column on navigation instead of content. The iPad sidebar shell is unchanged until the iPadOS phase.
 
@@ -36,11 +37,38 @@ Why `TabView` rather than a sections sidebar when unfolded: HIG asks that contro
 - The selected row is the detail's root route, taken from the same per-section `AppRoute` path. Folding keeps the path, so the detail is simply pushed on the compact stack, and unfolding lifts the first detail route into the column. With nothing selected the detail column shows a quiet "Select a song" style placeholder over the shared background (no auto-selection).
 - Controls stay with the pane they affect (HIG, Mail example). List actions go in the list column's bar; detail actions (Quick Links, Paths) go in the detail's vertical bar.
 - ✅ W2 as built (`App/Layout/ListDetail{Policy,Stack}.swift`):
-  - **Gate.** `ListDetailPolicy.usesSplit`: `contentArrangement == .listDetail && pose != .standard`, so only the Duo inner display (unfolded, portrait or partially folded) splits. A large iPhone in landscape and iPad (`.standard`) keep one stack; iPad joins in its own phase, which must decide how this nests in the sections sidebar.
+  - **Gate.** `ListDetailPolicy.usesSplit`: `contentArrangement == .listDetail && pose != .standard`, so only the Duo inner display in landscape (flat or book) splits; portrait is dual-source (above). A large iPhone in landscape and iPad (`.standard`) keep one stack; iPad joins in its own phase, which must decide how this nests in the sections sidebar.
   - **List pages by route.** The Songs root, the Rivals root, `.fullRankings`, `.rivals` and `.allRivals` are list pages. The detail starts at the first route pushed directly from a list page that it accepts (`.songDetail`, `.player`, `.rivalDetail`). With no detail route the path splits with an empty detail only while a list page is on top: Shop, the Leaderboards overview and a player opened from an overview card stay one full-width stack. By route, a Compete › Rivals › Rival path carried into Leaderboards on unfold still splits.
   - **Rows select, they don't push.** `ListDetailLink` is a `NavigationLink` everywhere except a split's list column, where it is a `Button` writing `list + [route]`. A `NavigationLink` there (even with a binding that redirects the write) visibly started a push in the list column and reverted it about 0.5 s later, as recorded on iOS 27.1. `listDetailSelectable(_:)` adds an accent overlay, a leading bar and `.isSelected`.
   - **Environment per list page.** Custom environment values set on the list column's `NavigationStack` did not reach its pushed destinations (Full Rankings rows fell back to chevron links), so `ListDetailStack` applies them to the root and to every list-column destination.
   - Switching between stack and split (fold, or pushing Full Rankings or Shop) rebuilds the section's screens. The path, and so the selection, is kept; scroll position and per-screen `@State` are not.
+
+## Dual-source half-fold layouts
+
+Operator, 2026-09-28: *"Are we taking advantage of the partially-open screen?"* In inner-display **portrait** every page with a natural companion becomes two stacked sources of related information: the **top region is the page as usual**, the **bottom region a second source**, usually a horizontally swipeable carousel. Rule of thumb: the axis of the split follows the fold. Landscape (vertical fold) = list/detail side by side; portrait (horizontal fold) = page above companion.
+
+| Page | Top (primary) | Bottom (secondary) | Anonymous / empty | Status |
+|---|---|---|---|---|
+| Compete | Leaderboards carousel: Top 5 per visible instrument + Overview card (title inline) | Rivals carousel, one card per instrument | Choose Profile (page) | ✅ `CompeteDualSource.swift` |
+| Rivals hub, All Rivals | The list; rows **select** (no push) | Selected rival's rivalry: one card per category (Closest Battles, …), See All → Rival Detail | "Select a Rival" | ✅ `RivalsDualSource.swift` |
+| Player profile, Statistics | Header, overview, per-instrument stats (inline graphs omitted) | Graphs carousel: Rank History, then Percentiles, per played instrument | "No Graphs Yet" | ✅ `PlayerProfileDualSource.swift` |
+| Suggestions | Categories | Item Shop picks (suggestions restricted to shop songs) | Page shows Choose Profile | ✅ `SuggestionsDualSource.swift` |
+| Songs | Songs list | Suggestions carousel, endless (generator pages load near the end; end card = Start New Mix) | "No Profile Selected" + Choose Profile | ⏳ after A2 |
+| Song Detail | The song | Selected player's score history for this song, one chart card per visible instrument | Choose Profile | ⏳ after PD |
+| Item Shop | The shop | Item Shop picks (same pane as Suggestions) | Choose Profile; "Item Shop Hidden" when Hide Item Shop | ⏳ after PD |
+| Leaderboards overview | Boards | Your rank history per instrument (Rank History cards) | Choose Profile | ⏳ after PB |
+| Settings, Bands, Full Rankings, song leaderboards, sheets | Unchanged: no companion earns the space | — | — | Deliberately single |
+
+Rules (`App/Layout/DualSource{Policy,Layout}.swift`, `Common/HorizontalCarousel.swift`):
+
+- **Gate.** `DeviceLayout.contentArrangement == .dualSource` ⇔ Duo inner display (pose `.unfolded`/`.partiallyFolded`), portrait, fold (if any) horizontal, not the sidebar shell. It also turns off list/detail (`ListDetailPolicy.usesSplit`) and keeps the compact section set, so Compete (the two-source hub) is a tab in portrait; landscape keeps Leaderboards + Rivals.
+- **Split.** At the fold: primary ends at `fold.minY`, secondary starts at `fold.maxY` (a hairline division widens to 8 pt, centred). Flat: 58 % / 12 pt / 42 %. A fold that leaves < 120 pt on a side falls back to the flat split; a container < 252 pt shows one region. First placement is not animated; fold ↔ flat animates the divider (none with Reduce Motion).
+- **Identity.** The primary keeps its identity across poses (only the secondary appears); Compete is the exception (its primary becomes a carousel). Pages that move content into the secondary (Profile graphs) read `DualSourcePolicy.isActive` to avoid showing it twice.
+- **Selection.** `dualSourceSelection(_:section:)` reuses the list/detail `ListDetailLink` contract: while split, rows write a local selection shown by the secondary; otherwise the environment passes through (a landscape split keeps its own).
+- **Carousel.** Snaps per card (`.viewAligned`), cards ≥ 300 pt (1 per outer-width region, 2 on the inner display), each card scrolls vertically if taller than the region, content clipped out of the safe area. Indicator: dots for 2–10 finite cards, else "n / N(+)"; one adjustable VoiceOver element ("Graphs, Page 2 of 6"). Endless sources pass `hasMore` + `onNearEnd`. Automation id `fst.carousel.<title-slug>`.
+- **Secondary chrome.** `DualSourcePane` (Title Case header + optional See All push onto the page's own stack; `fst.dual.<id>`), `DualSourceMessage` for loading/empty/paused/error. Secondaries own their loads; no navigation containers inside.
+- **Shop picks.** `SuggestionsViewModel.restrictCandidates(to:publicationId:)` filters the generator's candidate songs client-side (no service change). A Shop feed from a different observed publication than the catalogue **pauses** the pane ("Picks Paused"), never re-labels rows (Shop invariant, [AGENTS.md](../../../AGENTS.md)).
+- **Evidence.** Device Hub poses need the Accessibility grant (not yet given), so native captures use `FST_DEBUG_DUO_POSE` ([platforms/apple/duo.md](../../platforms/apple/duo.md#simulator-alias-duo)) on the outer display: correct regions and behaviour at outer-display size inside the vertical-bar chrome, not inner-display pixels. TODO(orchestrator): re-capture every row natively once poses can be scripted.
 
 ## Toolbar rules (all Duo poses)
 
@@ -64,6 +92,7 @@ Why `TabView` rather than a sections sidebar when unfolded: HIG asks that contro
 | `Shell/ShellPresentation.swift` (W1) | Pure `ShellPresentation.resolve(layout:usesSidebarShell:)` → navigation (`.tabs` / `.sidebar`, from the idiom so it never flips on the first geometry pass) + section set; `FestivalShellContent` reads `\.deviceLayout` inside the publisher |
 | `Shell/FestivalDrawer.swift` `DrawerPlacement` (W1) | Pure drawer geometry: iPhone keeps its exact original placement; Duo insets the panel by `overlayInsets` and pads the scrim off the vertical bar |
 | `Tests/FestivalUITests/ShellPresentationTests.swift` (W1) | Section set per pose (iPhone, large iPhone landscape, 4 folded rotations, inner display, iPad), drawer placement clear of bar/camera in all 4 rotations, profile item per chrome |
+| `DualSourcePolicy.swift` / `DualSourceLayout.swift` (W4 duo-dual) | Pure pose → regions (`mode`, `regions`), the two-region view, `DualSourcePane`/`DualSourceMessage`, `dualSourceSelection`; `Common/HorizontalCarousel.swift` + pure `CarouselPaging`. Tests: `DualSourcePolicyTests`, `HorizontalCarouselTests`, `DualSourcePagesTests`, `DuoDualSourceHostedTests` |
 | `ListDetailPolicy.swift` / `ListDetailStack.swift` (W2) | Pure path split and column writes; the `NavigationSplitView`, placeholder (`fst.nav.detail-placeholder`), `ListDetailLink`, `listDetailSelectable` |
 | `Tests/FestivalUITests/ListDetailPolicyTests.swift`, `ListDetailStackHostedTests.swift` (W2) | Gate per layout, split per section, round-trip and fold/unfold selection, column writes; hosted split vs stack by injecting `\.deviceLayout`, placeholder per list page, selected-row treatment |
 

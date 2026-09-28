@@ -56,6 +56,7 @@ The project wraps all of these in `App/Layout` ([design/apple/duo.md](../../desi
 | `simctl io … screenConfig power off` | Blanks a panel; **not** a pose | — |
 | Which panel is lit | `python3 tools/ios_sim.py pose` (screenshots both panels, unlit = black) | Yes (read-only) |
 | Capture a panel | `shot --device duo --display outer\|inner\|auto`; `--pose folded\|unfolded\|half` fails with exit 3 and instructions if Device Hub is in another pose (`--set-pose` fixes it by scripting) | Yes |
+| Preview a portrait inner pose | `--env FST_DEBUG_DUO_POSE=half-portrait\|unfolded-portrait` (Debug builds): replaces only the hinge and fold (a 24 pt division across the middle for `half-portrait`), keeping the real window, size class and bar. Dual-source layout evidence at outer-display size, not an inner-display capture | Yes |
 | Record a transition | `drive --record file.mov --display outer\|inner` (`simctl io recordVideo` for the run) | Yes |
 | After a Duo session | `python3 tools/ios_sim.py shutdown --device duo` (one product simulator at a time) | Yes |
 

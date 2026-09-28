@@ -30,6 +30,15 @@ struct CompeteLeaderboardsCarousel: View {
     }
 
     var body: some View {
+        pane
+            #if os(iOS)
+            // The primary region no longer scrolls vertically, so a large title
+            // would never collapse; keep the fold region for the cards.
+            .toolbarTitleDisplayMode(.inline)
+            #endif
+    }
+
+    private var pane: some View {
         DualSourcePane(
             "Leaderboards", systemImage: "trophy.fill", seeAll: .leaderboards,
             identifier: "compete.leaderboards"

@@ -148,6 +148,11 @@ struct HorizontalCarousel<Item: Identifiable, Card: View>: View {
 
     private var reduceMotion: Bool { systemReduceMotion || appReduceMotion }
 
+    /// `fst.carousel.<title-slug>`, e.g. `fst.carousel.item-shop-picks` (UI automation).
+    private var scrollIdentifier: String {
+        "fst.carousel." + title.lowercased().split(separator: " ").joined(separator: "-")
+    }
+
     var body: some View {
         VStack(spacing: 6) {
             ScrollView(.horizontal) {
@@ -173,6 +178,10 @@ struct HorizontalCarousel<Item: Identifiable, Card: View>: View {
             .scrollTargetBehavior(.viewAligned)
             .scrollPosition(id: $position)
             .contentMargins(.horizontal, margin, for: .scrollContent)
+            // Keep peeking cards out of the safe area (the Duo vertical bar): a
+            // horizontal scroll view otherwise draws its content under it.
+            .clipped()
+            .accessibilityIdentifier(scrollIdentifier)
             .onGeometryChange(for: CGFloat.self, of: { $0.size.width.rounded() }) { width = $0 }
 
             if items.count > columns || hasMore {
