@@ -76,3 +76,60 @@ hosted/logic coverage only, not the separate device `xcodebuild test` path.
 | Quick Links (`Common/QuickLinks`, shared) | 255/333 | 76.6% | Below target but shared across every adopting page (Leaderboards, Songs, Song Detail); `QuickLinksToolbar.swift` (67.5%) is mostly the `Menu`/`Picker` body a hosted AppKit test can't open (see `hosted-snapshots.md` pitfalls) — needs a device test asserting `fst.quick-links.open`'s value after a jump, which this lane's new `testSongsItemShopSortQuickLinksJump` XCUITest exercises on-device but that path isn't SwiftPM-measured either. |
 
 **XCUITest journeys added this pass** (`apple/Apps/iOSUITests/{SongsJourneyTests,SongDetailJourneyTests,ShopJourneyTests,SuggestionsJourneyTests}.swift`, 41 tests total): verified a representative subset against the real simulator post-fix (anonymous Sort apply/discard/reset/relaunch, public Shop offers→Song Detail hand-off, the new Item Shop Quick Links jump); the remaining tests were migrated verbatim from a previously-passing legacy suite plus mechanically updated for two redesign-driven identifier changes (see coverage-adjacent bug notes in the lane's final report) but not all individually re-run against the device this session — the shared simulator lock is now bounded to ≤5 minutes per hold per operator guidance, so a full 41-test device pass needs several more short batches than this session had time for.
+
+## Lane U3 — Rivals/Compete UX coverage (2026-09-28)
+
+Measured via `swift test --package-path apple --enable-code-coverage` (full
+package, all three SwiftPM bundles) + `xcrun llvm-cov report`, filtered to the
+Rivals/Compete feature files (`FestivalUI/App/FestivalSession+Rivals.swift`,
+`FestivalUI/Features/Compete/CompeteScreen.swift`,
+`FestivalUI/Features/Rivals/{AllRivalsScreen,FindRivalSheet,RivalDetailScreen,
+RivalryScreen,RivalsScreen,RivalsSupport}.swift`). `FestivalCore/Rivals.swift`
+and `FestivalCore/FestivalAPI+Rivals.swift` (non-UX) were already well-tested
+by Lane R/R2's `RivalsTests.swift` before this lane started.
+
+| File | Lines covered / total | % |
+|---|---|---|
+| `FestivalSession+Rivals.swift` | 87/102 | 85.3% |
+| `Compete/CompeteScreen.swift` | 247/255 | 96.9% |
+| `Rivals/AllRivalsScreen.swift` | 202/221 | 91.4% |
+| `Rivals/FindRivalSheet.swift` | 210/318 | 66.0% |
+| `Rivals/RivalDetailScreen.swift` | 211/226 | 93.4% |
+| `Rivals/RivalryScreen.swift` | 148/163 | 90.8% |
+| `Rivals/RivalsScreen.swift` | 537/625 | 85.9% |
+| `Rivals/RivalsSupport.swift` | 298/301 | 99.0% |
+| **Combined (this lane's UI files)** | **1940/2211** | **87.8%** |
+| `FestivalCore/Rivals.swift` (non-UX) | 258/268 | 96.3% |
+| `FestivalCore/FestivalAPI+Rivals.swift` (non-UX) | 152/170 | 89.4% |
+
+Below the 90% UX target mainly because of `FindRivalSheet.swift`: its
+remaining uncovered lines are almost entirely the real
+`NavigationLink`/`AppRouteDestination` push when a search result is tapped.
+SwiftUI result buttons expose no `NSButton` on a hosted `NSHostingView`
+(`hosted-snapshots.md`'s documented limitation), so that push can only be
+proven by `RivalsJourneyTests.testFindRivalSearchThenSelectPushesToRivalDetail`
+on-device — which this measurement, being SwiftPM-only, does not count.
+Coverage numbers vary run-to-run under this machine's concurrent-lane load
+(observed ±3–5 points on `RivalsScreen.swift`/`FindRivalSheet.swift` between
+otherwise-identical runs); the table above is one representative pass, not a
+certified minimum.
+
+Hosted snapshot tests: `apple/Tests/FestivalUITests/RivalsRenderTests.swift`
+(29 tests: no-profile, loading, empty-instruments, song tab with Common
+Rivals + Combo, leaderboard tab, per-section and Common/Combo 503 errors,
+All Rivals loaded/empty/unavailable/combo/common/unknown-category, Rival
+Detail categorized/no-songs/unavailable/nil-scope-fallback/leaderboard-scope,
+Rivalry closest-battles ordering + empty category, Find Rival's five search
+states) and `CompeteRenderTests.swift` (6 tests: no-profile, no-instruments,
+loaded Leaderboards+Rivals together, Rivals-section-error-with-Leaderboards-
+still-loaded, Rivals-section-empty). All 35 pass.
+
+`RivalsRenderTests.swift`/`CompeteRenderTests.swift` needed a different fixture
+strategy than every other domain's hosted tests: `FestivalAPI+Rivals.swift`
+documents that Rivals reads bypass the injectable `HTTPTransport` and issue
+real `URLSession` requests straight at `FestivalAPI.baseURL`, so an in-memory
+`HTTPTransport` actor (`HostedRankingsTransport`-style) can't intercept them.
+`RivalsMockService.swift` (new) launches the real `tools/mock_service.py`
+loopback process (extended by this lane — see its own header comment and the
+XCUITest section below) on an OS-assigned port (`--port 0`, also newly
+accepted by `mock_service.py`) for the test binary's lifetime.
