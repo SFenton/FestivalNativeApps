@@ -39,7 +39,7 @@ class ProfileSongsPresetsTest {
     }
 
     @Test
-    fun instrumentPresetKeepsSortAndRepairsACorruptPlayerFilter() = runTest {
+    fun instrumentPresetSortsByScoreAndRepairsACorruptPlayerFilter() = runTest {
         repository.setSongSort(SongSortMode.Duration, false)
         repository.writeBlob(SettingsRegistry.SONG_PLAYER_SCORE_FILTERS, "{corrupt")
         assertEquals(null, prefs.state.first().playerFilter)
@@ -48,7 +48,7 @@ class ProfileSongsPresetsTest {
         assertEquals(SongFilter(Instrument.Drums), saved.filter)
         assertEquals(SongPlayerScoreFilter(hasFCs = setOf(Instrument.Drums)), saved.playerFilter)
         val app = repository.settings.first()
-        assertEquals(SongSortMode.Duration, app.songSort)
-        assertEquals(false, app.songSortAscending)
+        assertEquals(SongSortMode.Score, app.songSort)
+        assertTrue(app.songSortAscending)
     }
 }

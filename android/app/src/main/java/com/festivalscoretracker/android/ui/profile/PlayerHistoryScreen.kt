@@ -63,6 +63,7 @@ import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
+import com.festivalscoretracker.android.ui.design.StarRating
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 
 // region Screen
@@ -174,13 +175,7 @@ private fun HistoryRow(row: ScoreHistoryRow) {
                     color = if (row.isHighScore) BrandTokens.gold else BrandTokens.textPrimary,
                     modifier = Modifier.weight(1f),
                 )
-                if (row.stars > 0) {
-                    Text(
-                        "★".repeat(minOf(5, row.stars)),
-                        color = if (row.stars >= 6) BrandTokens.gold else BrandTokens.textPrimary,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
+                StarRating(row.stars, Modifier.testTag("fst.history.stars"))
             }
             Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -214,7 +209,7 @@ private fun HistoryMessage(title: String, body: String, padding: PaddingValues, 
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = Modifier.semantics { heading() })
-        Text(body, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
+        Text(body, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
         if (onRetry != null) Button(onClick = onRetry, modifier = Modifier.padding(top = 16.dp).testTag("fst.history.retry")) { Text("Retry") }
     }
 }

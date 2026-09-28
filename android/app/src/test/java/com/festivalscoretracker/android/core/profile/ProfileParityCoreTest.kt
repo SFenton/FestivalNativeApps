@@ -91,7 +91,7 @@ class ProfileParityCoreTest {
     }
 
     @Test
-    fun instrumentPresetsClearOnlyThatChartAndKeepShopAndSort() {
+    fun instrumentPresetsClearOnlyThatChartKeepShopAndSortByScore() {
         val current = SongsFilterState(
             filter = SongFilter(Instrument.Bass, 2, 5),
             shopFilter = SongShopFilter(inShop = true, leavingTomorrow = true),
@@ -107,8 +107,9 @@ class ProfileParityCoreTest {
         assertEquals(SongFilter(Instrument.Lead), next.filter)
         assertEquals(current.shopFilter, next.shopFilter)
         assertEquals(SongPlayerScoreFilter(hasScores = setOf(Instrument.Lead), missingFCs = setOf(Instrument.Drums)), next.playerFilter)
-        assertEquals(SongSortMode.Year, next.sort)
-        assertFalse(next.ascending)
+        // Web instSongsPlayedUpdater sorts by score, ascending.
+        assertEquals(SongSortMode.Score, next.sort)
+        assertTrue(next.ascending)
         val fcs = SongsPreset.ForInstrument(SongScoreFilterKind.HasFCs, Instrument.Drums).apply(current)
         assertEquals(setOf(Instrument.Lead, Instrument.Drums), fcs.playerFilter.hasFCs)
         assertEquals(emptySet<Instrument>(), fcs.playerFilter.missingFCs - Instrument.Lead)
@@ -121,6 +122,20 @@ class ProfileParityCoreTest {
         val rankings = PlayerTileAction.OpenRankings(Instrument.Bass)
         assertFalse(rankings.requiresSelection)
         assertEquals(RankingMetric.TotalScore, rankings.metric)
+    }
+
+    @Test
+    fun averageStarsAndTwoDecimals() {
+        val rows = listOf(
+            ProfileFixtures.score("a", "01", stars = 6),
+            ProfileFixtures.score("b", "01", stars = 5),
+            ProfileFixtures.score("c", "01", stars = 0),
+        )
+        assertEquals(5.5, PlayerStatistics.forInstrument(profile(rows), Instrument.Lead).averageStars!!, 0.0)
+        assertNull(PlayerStatistics.forInstrument(profile(rows), Instrument.Bass).averageStars)
+        assertEquals("5.5", ProfileFormatting.twoDecimals(5.5, java.util.Locale.US))
+        assertEquals("4.33", ProfileFormatting.twoDecimals(13.0 / 3, java.util.Locale.US))
+        assertEquals("5", ProfileFormatting.twoDecimals(5.0, java.util.Locale.US))
     }
 
     // endregion

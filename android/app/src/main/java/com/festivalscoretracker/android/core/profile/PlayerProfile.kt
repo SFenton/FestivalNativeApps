@@ -289,6 +289,7 @@ data class PlayerProfilePayload(
  * @property goldStarCount Rows with 6 stars.
  * @property fiveStarCount Rows with exactly 5 stars.
  * @property averageAccuracy Mean positive expanded accuracy.
+ * @property averageStars Mean stars over rows with at least one star (web `averageStars`), or null.
  * @property bestRank Best positive rank.
  * @property bestRankSongId Song holding [bestRank].
  * @property bestRankInstrument Chart holding [bestRank].
@@ -303,6 +304,7 @@ data class PlayerStats(
     val bestRank: Int?,
     val bestRankSongId: String?,
     val bestRankInstrument: Instrument?,
+    val averageStars: Double? = null,
 )
 
 /**
@@ -374,6 +376,7 @@ object PlayerStatistics {
         val fcPercent = if (rows.isEmpty()) 0.0 else Math.floor(fc.toDouble() / rows.size * 1_000) / 10
         val accuracies = rows.mapNotNull { it.accuracy }.filter { it > 0 }
         val best = rows.filter { (it.rank ?: 0) > 0 }.minByOrNull { it.rank!! }
+        val starred = rows.mapNotNull { it.stars }.filter { it > 0 }
         return PlayerStats(
             songsPlayed = songsPlayed,
             fullComboCount = fc,
@@ -384,6 +387,7 @@ object PlayerStatistics {
             bestRank = best?.rank,
             bestRankSongId = best?.songId,
             bestRankInstrument = best?.instrument,
+            averageStars = if (starred.isEmpty()) null else starred.average(),
         )
     }
 }

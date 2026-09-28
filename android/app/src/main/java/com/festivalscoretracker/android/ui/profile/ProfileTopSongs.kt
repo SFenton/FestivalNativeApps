@@ -81,7 +81,7 @@ internal fun TopSongsCard(top: PlayerTopSongs, displayName: String, state: Playe
                 Text(
                     "Play some songs on ${instrument.label} to see your stats appear here.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = BrandTokens.textSecondary,
+                    color = BrandTokens.textPrimary,
                 )
                 return@Column
             }

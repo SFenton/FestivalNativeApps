@@ -194,12 +194,12 @@ private fun SearchSection(viewModel: ProfileSearchViewModel, onOpen: (PlayerSear
     Box(Modifier.fillMaxWidth().heightIn(min = 180.dp).padding(top = 12.dp)) {
         when (val current = state) {
             ProfileSearchState.BandsUnavailable -> Row(Modifier.testTag("fst.profile.bands-unavailable"), verticalAlignment = Alignment.Top) {
-                Icon(Icons.Outlined.Groups, contentDescription = null, tint = BrandTokens.textSecondary)
+                Icon(Icons.Outlined.Groups, contentDescription = null, tint = BrandTokens.textPrimary)
                 Text(
                     "Band search isn't available: the service's band search can change stored data, so this app doesn't call it. " +
                         "Open a band from a player's Bands list or from Band Rankings.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = BrandTokens.textSecondary,
+                    color = BrandTokens.textPrimary,
                     modifier = Modifier.padding(start = 12.dp),
                 )
             }
@@ -214,7 +214,7 @@ private fun SearchSection(viewModel: ProfileSearchViewModel, onOpen: (PlayerSear
             is ProfileSearchState.Results -> Column(Modifier.testTag("fst.profile.results")) {
                 if (current.results.isEmpty()) {
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("No players found", color = BrandTokens.textSecondary, modifier = Modifier.padding(8.dp))
+                        Text("No players found", color = BrandTokens.textPrimary, modifier = Modifier.padding(8.dp))
                         TextButton(onClick = viewModel::retry, modifier = Modifier.testTag("fst.profile.retry")) { Text("Retry") }
                     }
                 }

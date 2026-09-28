@@ -116,8 +116,15 @@ sealed interface ProfilePhase {
  * @property value Value text.
  * @property gold Gold tint (gold stars, full combos, top 5%).
  * @property action What tapping does (web `StatBox.onClick`), or null for a flat tile.
+ * @property stars Show this many star images instead of [value] (6 = five gold stars; web `GoldStars`).
  */
-data class PlayerStatTile(val label: String, val value: String, val gold: Boolean = false, val action: PlayerTileAction? = null) {
+data class PlayerStatTile(
+    val label: String,
+    val value: String,
+    val gold: Boolean = false,
+    val action: PlayerTileAction? = null,
+    val stars: Int? = null,
+) {
     /** Screen-reader text. */
     val announcement: String get() = "$label: $value"
 }
@@ -201,7 +208,7 @@ sealed interface RankHistoryLoad {
  *
  * @property accountId Shown account ("" when Statistics has no selection).
  * @property displayName Server name, else the selected/route name, else the account ID.
- * @property isSelected Whether this is the selected player ("This Is Me").
+ * @property isSelected Whether this is the selected player (shown only through the Deselect action).
  * @property phase Page phase.
  * @property identity Header action.
  * @property overview Overview tiles.
@@ -229,9 +236,6 @@ data class PlayerProfileUiState(
      */
     fun canRun(action: PlayerTileAction): Boolean =
         isSelected || identity == PlayerIdentityAction.Select || identity == PlayerIdentityAction.Switch || !action.requiresSelection
-
-    /** "This Is Me" or "Public Profile". */
-    val subtitle: String get() = if (isSelected) "This Is Me" else "Public Profile"
 
     /** Select button label. */
     val selectLabel: String get() = if (identity == PlayerIdentityAction.Switch) "Switch to This Profile" else "Select Profile"
@@ -628,6 +632,7 @@ class PlayerProfileViewModel(
                     PlayerStatTile("Gold Stars", ProfileFormatting.count(chart.goldStarCount.toLong()), gold = true),
                     PlayerStatTile("5 Stars", ProfileFormatting.count(chart.fiveStarCount.toLong())),
                     PlayerStatTile("Avg Accuracy", accuracyText(chart)),
+                    averageStarsTile(chart),
                     PlayerStatTile("Best Rank", chart.bestRank?.let(ProfileFormatting::rank) ?: "—", action = bestRankAction(chart)),
                 ),
                 percentiles = PercentileBar.build(PlayerStatistics.percentileBuckets(profile, instrument)),
@@ -643,6 +648,13 @@ class PlayerProfileViewModel(
         val result = Instrument.entries.filter { it in visible }.map { PlayerTopSongs.build(profile, it, songs, artworkUrl) }
         topMemo = Triple(profile, visible, songs to result)
         return result
+    }
+
+    /** Web "Avg Stars": five gold star images at a perfect 6, else two trimmed decimals. */
+    private fun averageStarsTile(stats: PlayerStats): PlayerStatTile {
+        val average = stats.averageStars ?: return PlayerStatTile("Avg Stars", "—")
+        if (average >= 6.0) return PlayerStatTile("Avg Stars", "Gold stars", gold = true, stars = 6)
+        return PlayerStatTile("Avg Stars", ProfileFormatting.twoDecimals(average))
     }
 
     private fun bestRankAction(stats: PlayerStats): PlayerTileAction? {

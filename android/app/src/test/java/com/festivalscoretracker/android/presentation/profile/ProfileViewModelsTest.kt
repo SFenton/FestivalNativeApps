@@ -116,7 +116,6 @@ class ProfileViewModelsTest {
         var state = vm.state.value
         assertEquals(ProfilePhase.Loaded, state.phase)
         assertEquals("Synthetic Player", state.displayName)
-        assertEquals("Public Profile", state.subtitle)
         assertEquals(PlayerIdentityAction.Select, state.identity)
         assertEquals("Select Profile", state.selectLabel)
         assertEquals(listOf("Songs Played", "Full Combos", "Gold Stars", "Avg Accuracy", "Best Rank"), state.overview.map { it.label })
@@ -139,7 +138,6 @@ class ProfileViewModelsTest {
         assertEquals(listOf<SelectedPlayer?>(playerA), selected)
         state = vm.state.value
         assertTrue(state.isSelected)
-        assertEquals("This Is Me", state.subtitle)
         assertEquals(PlayerIdentityAction.Deselect, state.identity)
         assertEquals(SelectedProfileStatus.Available, store.state.value.status)
         assertEquals(1, profileReads.size)

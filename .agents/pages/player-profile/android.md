@@ -31,7 +31,10 @@ None of these navigate. Selecting adds the profile tabs in place; deselecting on
 
 - `ProfileGrid` (`ui/profile/ProfileGrid.kt`): a `LazyVerticalStaggeredGrid` whose columns come from `ProfileColumns` (`core/profile/ProfileLayout.kt`, reusing the Rivals lane's `HingeColumns`): one column per 340 dp (max 3), or one column per panel with the gaps on every separating vertical hinge (book fold half-open; a partly folded tri-fold). When split at a fold, the full-width rows (header, Overview, Top Songs heading, Bands) become single-lane so nothing straddles the hinge; flat folds (unfolded book, FST_TriFold) are not separating and use width rules.
 - Rows (`ProfileSections.rows`, web `PlayerContent.tsx` order): header, Overview, one card per Settings-visible chart, "Top Songs Per Instrument", one top-songs card per chart, Bands link.
-- Instrument card: stat tiles (`FlowRow`), Global Rank, Rank History (Canvas rank line over Total Score bars, #1 on top), Percentiles (horizontal bars, top 5% gold). Rank and history reads start in the card's `LaunchedEffect`, so unrealized cards read nothing; unplayed charts show a footnote and read nothing.
+- Header: avatar and name only — selection state shows only through the Select/Switch/Deselect control (the web header has no "This Is Me"/"Public Profile" line).
+- Text is white (`textPrimary`/onSurface) by default; gray (`textSecondary`/`textMuted`) only for de-emphasis: section descriptions, top-song subtitles, history dates, chart axes.
+- Stars use the web's images (`res/drawable-nodpi/star_white.png`, `star_gold.png`) through the shared `ui/design/StarRating` (score-history rows; the "Avg Stars" tile shows five gold stars at a perfect 6, else two trimmed decimals, web `formatClamped2`).
+- Instrument card: stat tiles (`FlowRow`: Songs Played, Full Combos, Gold Stars, 5 Stars, Avg Accuracy, Avg Stars, Best Rank), Global Rank, Rank History (Canvas rank line over Total Score bars, #1 on top), Percentiles (horizontal bars, top 5% gold). Rank and history reads start in the card's `LaunchedEffect`, so unrealized cards read nothing; unplayed charts show a footnote and read nothing.
 - Charts draw `ChartGeometry` output (`core/profile/PlayerCharts.kt`: bar widths/rects, point and label positions) with no logic in the draw lambdas and no per-frame work; each chart is one accessibility element carrying the trend summary.
 
 ## Quick Links
@@ -49,10 +52,10 @@ Tiles carry `PlayerTileAction` (web `StatBox.onClick`); `PlayerProfileViewModel.
 | Tile | Action (web source) |
 |---|---|
 | Overview Songs Played / Full Combos | Reset Songs filters, Title ascending, Has Scores / Has FCs on every visible chart (`songsPlayedUpdater`, `fullCombosUpdater`) |
-| Chart Songs Played / Full Combos (FCs > 0) | That chart only, its checks and difficulty cleared, then Has Scores / Has FCs; other charts' checks, Shop filter and sort kept (`cleanFilters` + `instSongsPlayedUpdater`/`instFCsUpdater`; the web's score sort has no Android mode) |
+| Chart Songs Played / Full Combos (FCs > 0) | That chart only, its checks (incl. Over CHOpt Threshold) and difficulty cleared, then Has Scores / Has FCs, Score ascending; other charts' checks and the Shop filter kept (`cleanFilters` + `instSongsPlayedUpdater`/`instFCsUpdater`) |
 | Best Rank (overview and chart) | Song Detail (`navigateToSongDetail`) |
 | Global Rank (Total Score) | Full Rankings, Total Score (`navigateToLeaderboard`; no page jump yet) |
-| Gold/5 Stars, Avg Accuracy, Percentile | Flat: star, percentile and CHOpt-threshold Songs filters/sorts are not ported (Songs lane) |
+| Gold/5 Stars, Avg Accuracy, Avg Stars | Flat: the web's star presets need a Songs stars filter (not ported); Avg Accuracy/Avg Stars are flat on the web too |
 
 Presets are written through the Songs lane's stores (`data/profile/ProfileSongsPresets.kt`: `SongsPreferences.setFilters` + `SettingsRepository.setSongSort`), then the shell switches to the Songs tab (a tab-root route now selects the tab instead of pushing a copy). While selection is paused (unverified/changed publication) Songs tiles are flat; song/rankings tiles still navigate without selecting. The web also clears the Songs search text; Android's search text lives in the Songs view model and is kept.
 
@@ -62,7 +65,7 @@ Not shown. The web adds Adjusted/Weighted/FC Rate/Max Score rank tiles only when
 
 ## IDs
 
-`fst.player`, `fst.player.{loading,syncing,no-profile,retry,available,header,name,subtitle,select,deselect,identity-notice,action-error,overview,bands-link,top-songs}`, `fst.player.switch-confirm[.ok|.cancel]`, `fst.player.deselect-confirm[.ok|.cancel]`, `fst.player.action-switch-confirm[.ok|.cancel]`, `fst.player.instrument.<wire>`, `fst.player.instrument-empty.<wire>`, `fst.player.global-rank.<wire>.{loading,unranked,available,error}`, `fst.player.rank-history.<wire>`, `fst.player.percentiles.<wire>`, `fst.player.tile.<overview|wire|rank.wire>.<label-slug>`, `fst.player.top-songs.<wire>`, `fst.player.top-songs-empty.<wire>`, `fst.player.{top,bottom}-song.<wire>.<songId>`.
+`fst.player`, `fst.player.{loading,syncing,no-profile,retry,available,header,name,select,deselect,identity-notice,action-error,overview,bands-link,top-songs}`, `fst.player.switch-confirm[.ok|.cancel]`, `fst.player.deselect-confirm[.ok|.cancel]`, `fst.player.action-switch-confirm[.ok|.cancel]`, `fst.player.instrument.<wire>`, `fst.player.instrument-empty.<wire>`, `fst.player.global-rank.<wire>.{loading,unranked,available,error}`, `fst.player.rank-history.<wire>`, `fst.player.percentiles.<wire>`, `fst.player.tile.<overview|wire|rank.wire>.<label-slug>`, `fst.player.top-songs.<wire>`, `fst.player.top-songs-empty.<wire>`, `fst.player.{top,bottom}-song.<wire>.<songId>`.
 
 ## Tests
 
@@ -72,7 +75,7 @@ Not shown. The web adds Adjusted/Weighted/FC Rate/Max Score rank tiles only when
 
 ## Gaps
 
-- Star, percentile and CHOpt-threshold tiles stay flat until Songs has those filters/sorts; Global Rank opens rankings page 1 (Full Rankings has no page argument); Song Detail opens without the web's `?instrument=` focus (Songs lane route).
+- Star tiles stay flat until Songs has a stars filter; no Over CHOpt Threshold, 4/3/2/1-star or Percentile tiles yet (web `InstrumentStatsSection`); Global Rank opens rankings page 1 (Full Rankings has no page argument); Song Detail opens without the web's `?instrument=` focus (Songs lane route).
 - No family (pad/pro strings/pro drums) Global Statistics cards or embedded player bands: both need player-stats (blocked, [service-safety](../../platforms/service-safety.md)).
 - No chart scrubbing; stats ignore the invalid-score leeway filter (as before).
 - Web behaviour was taken from source: the production web player page itself calls player-stats and sync-status, so it is not captured from the installed PWA.

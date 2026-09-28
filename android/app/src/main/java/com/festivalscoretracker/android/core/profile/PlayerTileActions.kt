@@ -56,9 +56,8 @@ sealed interface SongsPreset {
 
     /**
      * An instrument's "Songs Played"/"FCs": that chart only, its checks and difficulty
-     * cleared, then one check set; other charts' checks and the Shop filter are kept (web
-     * `cleanFilters` + `instSongsPlayedUpdater`/`instFCsUpdater`). The web also sorts by
-     * score, which Android Songs has no mode for, so the saved sort is kept.
+     * cleared, then one check set, sorted by Score ascending; other charts' checks and the
+     * Shop filter are kept (web `cleanFilters` + `instSongsPlayedUpdater`/`instFCsUpdater`).
      *
      * @property kind [SongScoreFilterKind.HasScores] or [SongScoreFilterKind.HasFCs].
      * @property instrument Chart.
@@ -66,7 +65,12 @@ sealed interface SongsPreset {
     data class ForInstrument(val kind: SongScoreFilterKind, val instrument: Instrument) : SongsPreset {
         override fun apply(current: SongsFilterState): SongsFilterState {
             val cleared = SongScoreFilterKind.entries.fold(current.playerFilter) { filter, check -> filter.with(check, instrument, false) }
-            return current.copy(filter = SongFilter(instrument = instrument), playerFilter = cleared.with(kind, instrument, true))
+            return current.copy(
+                filter = SongFilter(instrument = instrument),
+                playerFilter = cleared.with(kind, instrument, true),
+                sort = SongSortMode.Score,
+                ascending = true,
+            )
         }
     }
 }

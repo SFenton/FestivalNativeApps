@@ -31,6 +31,19 @@ object ProfileFormatting {
     fun rank(rank: Int, locale: Locale = Locale.getDefault()): String = "#" + count(rank.toLong(), locale)
 
     /**
+     * Up to two decimals with trailing zeros dropped (`4.5`, `4.25`, `5`; web `formatClamped2`).
+     *
+     * @param value Number.
+     * @param locale Locale.
+     * @return Text.
+     */
+    fun twoDecimals(value: Double, locale: Locale = Locale.getDefault()): String = NumberFormat.getNumberInstance(locale).apply {
+        minimumFractionDigits = 0
+        maximumFractionDigits = 2
+        roundingMode = java.math.RoundingMode.HALF_UP
+    }.format(value)
+
+    /**
      * One decimal only when needed (`40` or `40.5`).
      *
      * @param value Percent.

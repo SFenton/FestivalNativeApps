@@ -87,6 +87,7 @@ import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.SectionHeader
+import com.festivalscoretracker.android.ui.design.StarRating
 import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
 import com.festivalscoretracker.android.ui.quicklinks.QuickLinksPane
 import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
@@ -107,7 +108,7 @@ fun PlayerProfileScreen(viewModel: PlayerProfileViewModel) {
 }
 
 /**
- * The Statistics tab root: the selected player's profile ("This Is Me").
+ * The Statistics tab root: the selected player's profile.
  *
  * @param viewModel Page model following the selection.
  * @param isRoot Whether shown as the tab root (else pushed from the drawer or Compete).
@@ -326,7 +327,6 @@ private fun Header(state: PlayerProfileUiState, onSelect: () -> Unit, onDeselect
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.testTag("fst.player.name").semantics { heading() },
                     )
-                    Text(state.subtitle, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary, modifier = Modifier.testTag("fst.player.subtitle"))
                 }
             }
             when (state.identity) {
@@ -342,8 +342,8 @@ private fun Header(state: PlayerProfileUiState, onSelect: () -> Unit, onDeselect
             }
             state.identityNotice?.let { notice ->
                 Row(Modifier.padding(top = 12.dp).testTag("fst.player.identity-notice"), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Info, contentDescription = null, tint = BrandTokens.textSecondary, modifier = Modifier.size(18.dp))
-                    Text(notice, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary, modifier = Modifier.padding(start = 8.dp))
+                    Icon(Icons.Outlined.Info, contentDescription = null, tint = BrandTokens.textPrimary, modifier = Modifier.size(18.dp))
+                    Text(notice, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textPrimary, modifier = Modifier.padding(start = 8.dp))
                 }
             }
             state.actionError?.let {
@@ -388,7 +388,7 @@ private fun InstrumentCard(
                 Text(
                     "No ${instrument.label} scores recorded yet.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = BrandTokens.textSecondary,
+                    color = BrandTokens.textPrimary,
                     modifier = Modifier.padding(top = 12.dp).testTag("fst.player.instrument-empty.${instrument.wireId}"),
                 )
                 return@Column
@@ -438,7 +438,7 @@ private fun GlobalRank(instrument: Instrument, rank: RankLoad?, state: PlayerPro
         RankLoad.Unranked -> Text(
             "Not yet ranked globally on ${instrument.label}.",
             style = MaterialTheme.typography.bodyMedium,
-            color = BrandTokens.textSecondary,
+            color = BrandTokens.textPrimary,
             modifier = Modifier.testTag("$tag.unranked"),
         )
         is RankLoad.Available -> Box(Modifier.testTag("$tag.available")) { TileFlow(rank.tiles, "rank.${instrument.wireId}", state, onAction) }
@@ -494,14 +494,19 @@ internal fun actionLabel(action: PlayerTileAction): String = when (action) {
 private fun StatTile(tile: PlayerStatTile, onClick: (() -> Unit)?, modifier: Modifier = Modifier) {
     val content: @Composable () -> Unit = {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-            Text(
-                tile.value,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = if (tile.gold) BrandTokens.gold else BrandTokens.textPrimary,
-                maxLines = 2,
-            )
-            Text(tile.label, style = MaterialTheme.typography.labelSmall, color = BrandTokens.textMuted, maxLines = 1)
+            val stars = tile.stars
+            if (stars != null) {
+                StarRating(stars, Modifier.heightIn(min = 24.dp), size = 18.dp)
+            } else {
+                Text(
+                    tile.value,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (tile.gold) BrandTokens.gold else BrandTokens.textPrimary,
+                    maxLines = 2,
+                )
+            }
+            Text(tile.label, style = MaterialTheme.typography.labelSmall, color = BrandTokens.textPrimary, maxLines = 1)
         }
     }
     val color = BrandTokens.surfaceSubtle.copy(alpha = 0.7f)
@@ -532,7 +537,7 @@ private fun Message(title: String, body: String, padding: PaddingValues, modifie
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = Modifier.semantics { heading() })
-        Text(body, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
+        Text(body, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
         if (onRetry != null) {
             Button(onClick = onRetry, modifier = Modifier.padding(top = 16.dp).testTag("fst.player.retry")) { Text("Retry") }
         }

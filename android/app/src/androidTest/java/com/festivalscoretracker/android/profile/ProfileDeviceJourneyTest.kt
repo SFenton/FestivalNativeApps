@@ -109,13 +109,11 @@ class ProfileDeviceJourneyTest {
         launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
         tap("fst.player.select")
         waitForTag("fst.player.deselect")
-        rule.onNodeWithText("This Is Me").assertIsDisplayed()
         waitForTag("fst.player.overview")
         assertNothingStraddles("fst.player.header", "fst.player.overview", "fst.player.instrument.Solo_Guitar", "fst.player.instrument.Solo_Bass")
         tap("fst.player.deselect")
         tap("fst.player.deselect-confirm.ok")
         waitForTag("fst.player.select")
-        rule.onNodeWithText("Public Profile").assertIsDisplayed()
         waitForTag("fst.player")
     }
 

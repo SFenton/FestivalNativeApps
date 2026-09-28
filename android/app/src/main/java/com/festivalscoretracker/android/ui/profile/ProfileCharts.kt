@@ -52,7 +52,7 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
 fun RankHistoryChart(chart: RankHistoryChartModel, modifier: Modifier = Modifier) {
     Column(modifier.clearAndSetSemantics { contentDescription = "Rank history. ${chart.headline}. ${chart.summary}" }) {
         Text(chart.headline, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)
-        chart.totalScoreLine?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary) }
+        chart.totalScoreLine?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textPrimary) }
         Row(Modifier.fillMaxWidth().padding(top = 12.dp)) {
             AxisLabels(chart.rankTicks, Modifier.width(52.dp).height(CHART_HEIGHT.dp))
             Canvas(Modifier.weight(1f).height(CHART_HEIGHT.dp)) {
@@ -95,7 +95,7 @@ fun PercentileBars(bars: List<PercentileBar>, modifier: Modifier = Modifier) {
                 Text(
                     bar.label,
                     style = MaterialTheme.typography.labelMedium,
-                    color = if (bar.gold) BrandTokens.gold else BrandTokens.textSecondary,
+                    color = if (bar.gold) BrandTokens.gold else BrandTokens.textPrimary,
                     modifier = Modifier.width(76.dp),
                 )
                 Box(Modifier.weight(1f).height(14.dp)) {

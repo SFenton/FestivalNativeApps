@@ -113,7 +113,9 @@ class ProfileActionsTest {
         val leadTiles = state.instruments.first { it.instrument == Instrument.Lead }.stats
         assertEquals(PlayerTileAction.FilterSongs(lead), leadTiles[0].action)
         assertEquals(PlayerTileAction.FilterSongs(SongsPreset.ForInstrument(SongScoreFilterKind.HasFCs, Instrument.Lead)), leadTiles[1].action)
-        assertEquals(PlayerTileAction.OpenSong("s-alpha", Instrument.Lead), leadTiles[5].action)
+        // Avg Stars: a 6-star and a 5-star row average 5.5 (web formatClamped2).
+        assertEquals(PlayerStatTile("Avg Stars", "5.5"), leadTiles[5])
+        assertEquals(PlayerTileAction.OpenSong("s-alpha", Instrument.Lead), leadTiles[6].action)
         // Bass has no full combo, so its FC tile is flat (the web omits the card).
         val bassTiles = state.instruments.first { it.instrument == Instrument.Bass }.stats
         assertNull(bassTiles[1].action)

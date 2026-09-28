@@ -184,6 +184,17 @@ class ProfileParityUiTest {
     }
 
     @Test
+    fun perfectAverageShowsGoldStarImages() {
+        val gold = listOf(ProfileFixtures.score("s-alpha", "01", stars = 6), ProfileFixtures.score("s-beta", "01", stars = 6))
+        journey.transport.on("/api/player/${Fixtures.ACCOUNT_B}", headers = mapOf("X-FST-Publication-Id" to "7")) {
+            ProfileFixtures.profile(Fixtures.ACCOUNT_B, rows = gold)
+        }
+        journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_B), stillBackground = true))
+        journey.scrollTo("fst.player.tile.Solo_Guitar.avg-stars")
+        rule.onNodeWithTag("fst.player.tile.Solo_Guitar.avg-stars").assert(hasContentDescription("Avg Stars: Gold stars"))
+    }
+
+    @Test
     fun pausedSelectionLeavesSongsTilesFlat() {
         journey.transport.on("/api/player/${Fixtures.ACCOUNT_B}") { ProfileFixtures.profile(Fixtures.ACCOUNT_B) }
         journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_B), stillBackground = true))

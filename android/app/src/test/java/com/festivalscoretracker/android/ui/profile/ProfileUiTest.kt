@@ -7,6 +7,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -97,8 +98,9 @@ class ProfileUiTest {
 
         // A result views the player; nothing is selected yet.
         waitForTag("fst.player.select")
-        rule.onNodeWithTag("fst.player.subtitle").assertIsDisplayed()
-        rule.onNodeWithText("Public Profile").assertIsDisplayed()
+        // Selection state shows only through the header action (no "Public Profile" line, as on the web).
+        assertEquals(0, rule.onAllNodesWithText("Public Profile").fetchSemanticsNodes().size)
+        rule.onNodeWithTag("fst.player.select").assertIsDisplayed()
         assertEquals(0, rule.onAllNodesWithTag("fst.nav.tab.statistics").fetchSemanticsNodes().size)
         rule.onNodeWithTag("fst.player.available").performScrollToNode(hasTestTag("fst.player.global-rank.Solo_Guitar.available"))
         waitForTag("fst.player.rank-history.Solo_Guitar")
@@ -110,7 +112,7 @@ class ProfileUiTest {
         tap("fst.player.select")
         waitForTag("fst.player.deselect")
         waitForTag("fst.nav.tab.statistics")
-        rule.onNodeWithText("This Is Me").assertIsDisplayed()
+        assertEquals(0, rule.onAllNodesWithText("This Is Me").fetchSemanticsNodes().size)
         assertEquals(1, transport.sent("/api/player/${Fixtures.ACCOUNT_A}").size)
 
         // Statistics shows the same selected profile without another read.
