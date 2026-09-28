@@ -46,13 +46,6 @@
                                 <TextBlock Text="{x:Bind ViewModel.DisplayName, Mode=OneWay}" Style="{StaticResource FSTPageTitleStyle}"
                                            TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level1"
                                            AutomationProperties.AutomationId="fst.player.name" />
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <FontIcon Glyph="&#xE73E;" FontSize="14" Foreground="{ThemeResource FSTAccentBlueBrush}"
-                                              Visibility="{x:Bind ViewModel.IsSelected, Mode=OneWay}"
-                                              AutomationProperties.AccessibilityView="Raw" />
-                                    <TextBlock Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}"
-                                               AutomationProperties.AutomationId="fst.player.subtitle" />
-                            </StackPanel>
                         </StackPanel>
                         <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Spacing="8">
                             <StackPanel Orientation="Horizontal" Spacing="8">

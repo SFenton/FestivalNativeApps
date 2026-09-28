@@ -67,7 +67,6 @@ public class PlayerProfileViewModelTests
         Assert.True(vm.ShowContent);
         Assert.False(vm.IsSelected);
         Assert.Equal("Fixture One", vm.DisplayName);
-        Assert.Equal("Public Profile", vm.Subtitle);
         Assert.Equal(PlayerIdentityAction.Select, vm.IdentityAction);
         Assert.True(vm.CanSelect);
         Assert.False(vm.SelectNeedsConfirmation);
@@ -88,7 +87,6 @@ public class PlayerProfileViewModelTests
 
         vm.Select();
         Assert.True(vm.IsSelected);
-        Assert.Equal("This Is Me", vm.Subtitle);
         Assert.Equal(PlayerIdentityAction.Deselect, vm.IdentityAction);
         Assert.True(vm.CanDeselect);
         Assert.Equal(SelectedProfileStatus.Available, session.SelectedProfileStatus);
@@ -369,8 +367,7 @@ public class PlayerHistoryViewModelTests
         Assert.True(best.HasAccuracy);
         Assert.Equal("Season 9", best.Season);
         Assert.EndsWith(" · Season 9", best.Detail);
-        Assert.Equal("★★★★★", best.Stars);
-        Assert.False(best.GoldStars);
+        Assert.Equal(new StarRating(5, false), StarRating.From(best.StarCount));
         Assert.Contains("personal best", best.Announcement);
         Assert.Contains("full combo", best.Announcement);
         Assert.NotEmpty(best.Date);
@@ -437,9 +434,8 @@ public class PlayerHistoryViewModelTests
         Assert.False(row.HasAccuracy);
         Assert.Equal("", row.Season);
         Assert.Equal(row.Date, row.Detail);
-        Assert.True(row.GoldStars);
-        Assert.Equal("★★★★★", row.Stars);
-        Assert.Equal("", new ScoreHistoryRow(new ScoreHistoryEntry { ChangedAt = "x" }, false).Stars);
+        Assert.Equal(new StarRating(5, true), StarRating.From(row.StarCount));
+        Assert.Equal(0, new ScoreHistoryRow(new ScoreHistoryEntry { ChangedAt = "x" }, false).StarCount);
         Assert.DoesNotContain("personal best", row.Announcement);
     }
 }

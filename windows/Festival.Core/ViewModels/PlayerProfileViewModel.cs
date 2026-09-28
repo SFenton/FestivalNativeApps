@@ -126,9 +126,6 @@ public sealed partial class PlayerProfileViewModel : ObservableObject, IDisposab
         Payload?.Profile.DisplayName ??
         (IsSelected ? session.SelectedPlayer!.DisplayName : null) ?? routeDisplayName ?? AccountId;
 
-    /// <summary>"This Is Me" or "Public Profile".</summary>
-    public string Subtitle => IsSelected ? "This Is Me" : "Public Profile";
-
     /// <summary>Syncing message.</summary>
     public string SyncingMessage => $"{DisplayName}'s public scores are still syncing. Try again shortly.";
 
@@ -339,7 +336,7 @@ public sealed partial class PlayerProfileViewModel : ObservableObject, IDisposab
     /// <summary>Raises every identity-derived property.</summary>
     private void RefreshIdentity()
     {
-        foreach (var name in (string[])[nameof(IsSelected), nameof(Subtitle), nameof(DisplayName), nameof(IdentityAction),
+        foreach (var name in (string[])[nameof(IsSelected), nameof(DisplayName), nameof(IdentityAction),
                      nameof(CanSelect), nameof(CanDeselect), nameof(SelectNeedsConfirmation), nameof(SelectLabel),
                      nameof(IdentityNotice), nameof(HasIdentityNotice), nameof(SwitchMessage), nameof(BandsLabel),
                      nameof(SyncingMessage)])

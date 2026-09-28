@@ -17,7 +17,7 @@ Never player-stats: overview/instrument stats and percentile buckets are compute
 - One `ScrollViewer` (max 1280 epx): header card, Overview tiles, one titled card per Settings-visible instrument, then the Bands link. Tiles are an `ItemsRepeater` + `UniformGridLayout` (min 112×84 epx so a long value can wrap to two lines above its label), reflowing from one column (compact) to five (wide).
 - Instrument card: stats + Global Rank on the left; Rank History (rank line with #1 on top over Total Score bars, `RankHistoryChart`) and Percentiles (horizontal bars, top 5% gold) on the right once the card is at least 780 epx wide and back below under 740 epx (hysteresis: a vertical scrollbar appearing near one threshold could otherwise oscillate) (`OnInstrumentCardSizeChanged`). Rank/history reads start when the card is realized; unplayed charts read nothing.
 - Charts are static XAML shapes (`PlayerLineChart`) redrawn only on data or size change, with no per-frame work. Each chart is one UIA `Image` named with the trend summary.
-- Header: `PersonPicture`, name (H1), "This Is Me"/"Public Profile"; the action row sits under the avatar row so it never clips on narrow windows.
+- Header: `PersonPicture`, name (H1) with no subtitle (the web has none; operator 2026-09-28): selection state shows only through Select/Deselect; the action row sits under the avatar row so it never clips on narrow windows.
 
 ## Identity actions (never navigate away)
 

@@ -23,7 +23,7 @@ public sealed partial class PlayerProfilePage : Page
         Profile.Bind(model);
         var profile = model;
         ScreenReader.Attach(this, [profile], () => profile.IsLoading,
-            () => profile.ShowContent ? $"{profile.DisplayName}, {profile.Subtitle}" : null, "Loading profile");
+            () => profile.ShowContent ? profile.DisplayName : null, "Loading profile");
         await model.LoadCommand.ExecuteAsync(null);
     }
 
