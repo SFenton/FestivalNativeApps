@@ -40,6 +40,11 @@ Row content details: SongInfo appends a positive formatted duration after artist
 - Never project a newer Shop feed or selected-player score index onto retained older rows; show a readable paused state ([AGENTS.md invariants](../../../AGENTS.md)).
 - Zero score = "no score", never "Score 0". HTTP 200 does not prove an account is registered.
 
+## Operator decisions (all platforms)
+
+- 2026-09-28: **Year** sort sections are decades ("1970s"…, "Unknown Year"; web `songQuickLinks.ts:184-190`) and Year sort shows **no quick-scrub/section-index control**.
+- 2026-09-28: **Duration** buckets deviate from the web's `<2m…5m+`: "Under 1 Minute", "1–2 Minutes" … "9–10 Minutes", "Over 10 Minutes", plus "Unknown Duration" — for list sections and Quick Links.
+
 ## Accessibility order (target)
 
 Header profile, search, notifications → page title → search, Sort, conditional Filter → section headers and rows (warning buttons separate) → quick-link index → tab navigation.
