@@ -15,6 +15,7 @@
 |---|---|
 | Build iOS app for this worktree | `python3 tools/ios_sim.py build` |
 | Screenshot a tab/route (takes the global sim lock) | `python3 tools/ios_sim.py shot --out /tmp/x.png --tab leaderboards` / `--route player:<id>` / `--device ipad` |
+| Script taps/swipes/scrolls/sheets, then screenshot ([simulator-driver.md](simulator-driver.md)) | `python3 tools/ios_sim.py drive --tab settings --steps "tap:fst.shell.drawer.open; shot:/tmp/x.png"` |
 | Integrate to `master` (rebase, `swift build --build-tests`, iOS build, push, retry ×5) | `tools/lane_integrate.sh` (`--test` also runs `swift test`) |
 | Check docs structure | `python3 .agents/_tools/check_docs.py` |
 
