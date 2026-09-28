@@ -59,8 +59,8 @@
                 </AutoSuggestBox.ItemTemplate>
             </AutoSuggestBox>
 
-            <StackPanel x:Name="Commands" Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="12"
-                        Visibility="{x:Bind controls:RivalsUi.Not(ViewModel.ShowNoPlayer), Mode=OneWay}">
+            <controls:WrapPanel x:Name="Commands" Grid.Row="1" Grid.ColumnSpan="2" HorizontalSpacing="12" VerticalSpacing="8"
+                                Visibility="{x:Bind controls:RivalsUi.Not(ViewModel.ShowNoPlayer), Mode=OneWay}">
                 <SelectorBar x:Name="TabBar" SelectionChanged="OnTabChanged" AutomationProperties.AutomationId="fst.rivals.tab">
                     <SelectorBarItem x:Name="SongTab" Text="Song Rivals" IsSelected="True"
                                      AutomationProperties.AutomationId="fst.rivals.tab.song">
@@ -89,7 +89,7 @@
                         <MenuFlyout x:Name="JumpMenu" Placement="BottomEdgeAlignedLeft" Opening="OnJumpMenuOpening" />
                     </DropDownButton.Flyout>
                 </DropDownButton>
-            </StackPanel>
+            </controls:WrapPanel>
         </Grid>
 
         <ScrollViewer x:Name="Scroller" Grid.Row="1" Padding="24,0,24,32" AutomationProperties.AutomationId="fst.rivals">
@@ -101,8 +101,7 @@
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="vm:RivalSectionViewModel">
-                            <Border Style="{StaticResource FSTCardStyle}" Padding="8,8,8,12"
-                                    AutomationProperties.AutomationId="{x:Bind AutomationId}">
+                            <Border Style="{StaticResource FSTCardStyle}" Padding="8,8,8,12">
                                 <StackPanel Spacing="4">
                                     <Grid Padding="8,0,0,0" ColumnSpacing="10" MinHeight="40">
                                         <Grid.ColumnDefinitions>
@@ -114,7 +113,7 @@
                                                                  Visibility="{x:Bind HasIcon}" AutomationProperties.AccessibilityView="Raw" />
                                         <TextBlock Grid.Column="1" Text="{x:Bind Title}" Style="{StaticResource FSTSectionHeaderStyle}"
                                                    Margin="0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                                                   AutomationProperties.HeadingLevel="Level2" />
+                                                   AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="{x:Bind AutomationId}" />
                                         <HyperlinkButton Grid.Column="2" Content="See All" Tag="{x:Bind ViewAllRoute}" Click="OnRouteClick"
                                                          AutomationProperties.Name="{x:Bind SeeAllName}"
                                                          AutomationProperties.AutomationId="fst.rivals.see-all" />
@@ -125,9 +124,9 @@
                                         <Rectangle Height="44" RadiusX="6" RadiusY="6" Fill="{ThemeResource FSTRivalTieFillBrush}" />
                                         <Rectangle Height="44" RadiusX="6" RadiusY="6" Fill="{ThemeResource FSTRivalTieFillBrush}" />
                                     </StackPanel>
-                                    <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8" Padding="8,4"
-                                                AutomationProperties.AutomationId="fst.service-status.inline">
-                                        <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" TextWrapping="Wrap" />
+                                    <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8" Padding="8,4">
+                                        <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" TextWrapping="Wrap"
+                                                   AutomationProperties.AutomationId="fst.service-status.inline" />
                                         <TextBlock Text="{x:Bind Status.Message, Mode=OneWay}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
                                         <TextBlock Text="{x:Bind Status.CountdownText, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
                                                    AutomationProperties.Name="{x:Bind Status.CountdownAnnouncement, Mode=OneWay}" />
@@ -154,19 +153,19 @@
                 </ItemsRepeater>
 
                 <StackPanel Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" MaxWidth="480" Spacing="8" Margin="0,64,0,0"
-                            HorizontalAlignment="Center" AutomationProperties.AutomationId="fst.rivals.empty">
+                            HorizontalAlignment="Center">
                     <FontIcon Glyph="&#xE716;" FontSize="40" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
                     <TextBlock Text="{x:Bind ViewModel.EmptyTitle}" Style="{StaticResource SubtitleTextBlockStyle}" TextAlignment="Center"
-                               TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level2" />
+                               TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.rivals.empty" />
                     <TextBlock Text="{x:Bind ViewModel.EmptySubtitle, Mode=OneWay}" TextAlignment="Center" TextWrapping="Wrap"
                                Foreground="{ThemeResource FSTSecondaryTextBrush}" />
                 </StackPanel>
 
                 <StackPanel Visibility="{x:Bind ViewModel.ShowNoPlayer, Mode=OneWay}" MaxWidth="480" Spacing="12" Margin="0,64,0,0"
-                            HorizontalAlignment="Center" AutomationProperties.AutomationId="fst.rivals.chooseProfile">
+                            HorizontalAlignment="Center">
                     <FontIcon Glyph="&#xE77B;" FontSize="40" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
                     <TextBlock Text="No Player Selected" Style="{StaticResource SubtitleTextBlockStyle}" TextAlignment="Center"
-                               AutomationProperties.HeadingLevel="Level2" />
+                               AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.rivals.chooseProfile" />
                     <TextBlock Text="Track a player to see their rivals." TextAlignment="Center" TextWrapping="Wrap"
                                Foreground="{ThemeResource FSTSecondaryTextBrush}" />
                     <Button Content="Select Player" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Center"

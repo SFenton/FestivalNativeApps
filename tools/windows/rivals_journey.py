@@ -32,13 +32,14 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
         "/rivals",
         [
             "waitfor:id=fst.rivals.section.common@20",
-            "waitfor:id=fst.rivals.section.Solo_Guitar",
+            f"waitfor:id=fst.rivals.row.{RIVAL}@10",
             "{shot:hub}",
             "click:id=fst.rivals.jump",
             "waitfor:id=fst.rivals.jump.Solo_Bass",
             "click:id=fst.rivals.jump.Solo_Bass",
             "click:id=fst.rivals.tab.leaderboard",
             "waitfor:id=fst.rivals.section.Solo_Guitar@10",
+            "waitfor:name=#2@10",
             "{shot:hub-leaderboard}",
             "click:id=fst.rivals.tab.song",
             "waitfor:id=fst.rivals.section.common@10",
@@ -82,7 +83,7 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
     "compete": (
         {"FST_DEBUG_PROFILE": "fixture-player-1:Demo Player"},
         "/compete",
-        ["waitfor:id=fst.rivals.title@20", "waitfor:id=fst.rivals.section.Solo_Guitar@20"],
+        ["waitfor:id=fst.rivals.title@20", "waitfor:id=fst.rivals.section.common@20"],
     ),
 }
 

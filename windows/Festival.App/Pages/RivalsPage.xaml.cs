@@ -50,8 +50,13 @@ public sealed partial class RivalsPage : Page
     /// <summary>Applies the SelectorBar choice.</summary>
     /// <param name="sender">Selector bar.</param>
     /// <param name="args">Unused.</param>
-    private void OnTabChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args) =>
-        ViewModel.Tab = sender.SelectedItem == LeaderboardTab ? RivalsTab.Leaderboard : RivalsTab.Song;
+    private void OnTabChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    {
+        var tab = sender.SelectedItem == LeaderboardTab ? RivalsTab.Leaderboard : RivalsTab.Song;
+        if (tab == ViewModel.Tab) return;
+        ViewModel.Tab = tab;
+        Scroller.ChangeView(null, 0, null, disableAnimation: true);
+    }
 
     /// <summary>Keeps the SelectorBar in step with the model.</summary>
     private void SyncTab()

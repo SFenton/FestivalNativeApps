@@ -61,11 +61,12 @@
                 </ItemsRepeater.Layout>
                 <ItemsRepeater.ItemTemplate>
                     <DataTemplate x:DataType="vm:RivalCategoryItem">
-                        <Border Style="{StaticResource FSTCardStyle}" Padding="8,12,8,8" AutomationProperties.AutomationId="{x:Bind AutomationId}">
+                        <Border Style="{StaticResource FSTCardStyle}" Padding="8,12,8,8">
                             <StackPanel Spacing="4">
                                 <StackPanel Padding="8,0" Spacing="2">
                                     <TextBlock Text="{x:Bind Title}" Style="{StaticResource SubtitleTextBlockStyle}"
-                                               Foreground="{x:Bind controls:RivalsUi.Sentiment(Sentiment)}" AutomationProperties.HeadingLevel="Level2" />
+                                               Foreground="{x:Bind controls:RivalsUi.Sentiment(Sentiment)}" AutomationProperties.HeadingLevel="Level2"
+                                               AutomationProperties.AutomationId="{x:Bind AutomationId}" />
                                     <TextBlock Text="{x:Bind Subtitle}" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"
                                                Foreground="{ThemeResource FSTSecondaryTextBrush}" />
                                 </StackPanel>

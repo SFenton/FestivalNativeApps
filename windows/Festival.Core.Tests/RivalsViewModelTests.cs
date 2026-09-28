@@ -506,6 +506,41 @@ public class RivalsViewModelTests
     }
 
     [Fact]
+    public async Task Session_LimitsConcurrentRivalReads()
+    {
+        var fake = new RivalsFakeService();
+        var inFlight = 0;
+        var peak = 0;
+        var release = new TaskCompletionSource();
+        fake.Service.Handler.Responder = async (request, _) =>
+        {
+            if (!request.RequestUri!.AbsolutePath.StartsWith("/api/player/", StringComparison.Ordinal))
+                return Wire.Ok(Wire.Publication());
+            var now = Interlocked.Increment(ref inFlight);
+            InterlockedMax(ref peak, now);
+            await release.Task;
+            Interlocked.Decrement(ref inFlight);
+            return Wire.Ok(RivalsCoreTests.Fixture("rivals-list-demo"));
+        };
+        var session = fake.Session();
+        var reads = InstrumentInfo.All.Select(i => session.GetRivalsListAsync(i.ServiceId())).ToList();
+        await Async.Until(() => Volatile.Read(ref inFlight) == FestivalSession.RivalsConcurrency);
+        await Async.Settle();
+        Assert.Equal(FestivalSession.RivalsConcurrency, Volatile.Read(ref peak));
+        release.SetResult();
+        await Task.WhenAll(reads);
+        Assert.Equal(FestivalSession.RivalsConcurrency, peak);
+    }
+
+    private static void InterlockedMax(ref int target, int value)
+    {
+        int current;
+        while ((current = Volatile.Read(ref target)) < value && Interlocked.CompareExchange(ref target, value, current) != current)
+        {
+        }
+    }
+
+    [Fact]
     public async Task Cache_SharesInFlightReadsAndExpires()
     {
         var time = new FakeTimeProvider();

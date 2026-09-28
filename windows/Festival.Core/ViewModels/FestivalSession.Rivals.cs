@@ -7,6 +7,10 @@ namespace Festival.Core.ViewModels;
 /// </summary>
 public sealed partial class FestivalSession
 {
+    /// <summary>Concurrent Rivals requests allowed (the hub starts up to eleven sections at once).</summary>
+    public const int RivalsConcurrency = 4;
+
+    private readonly SemaphoreSlim rivalsThrottle = new(RivalsConcurrency);
     private RivalsReadCache? rivalsCache;
 
     /// <summary>Shared, bounded Rivals read cache.</summary>
@@ -26,7 +30,7 @@ public sealed partial class FestivalSession
     public Task<RivalsListResponse> GetRivalsListAsync(string scope, CancellationToken cancellationToken = default)
     {
         var account = RequireAccount();
-        return RivalsCache.GetAsync($"list|{account}|{scope}", () => Api.GetRivalsListAsync(account, scope), cancellationToken);
+        return RivalsCache.GetAsync($"list|{account}|{scope}", () => Throttled(() => Api.GetRivalsListAsync(account, scope)), cancellationToken);
     }
 
     /// <summary>Global-leaderboard neighbours on one chart.</summary>
@@ -39,7 +43,7 @@ public sealed partial class FestivalSession
     {
         var account = RequireAccount();
         return RivalsCache.GetAsync($"lb|{account}|{instrument.ServiceId()}|{rankBy.ServiceId()}",
-            () => Api.GetLeaderboardRivalsAsync(account, instrument, rankBy), cancellationToken);
+            () => Throttled(() => Api.GetLeaderboardRivalsAsync(account, instrument, rankBy)), cancellationToken);
     }
 
     /// <summary>Loads the lists behind Common Rivals and intersects them.</summary>
@@ -81,7 +85,7 @@ public sealed partial class FestivalSession
         return scope?.Resolve(Settings.VisibleInstruments) switch
         {
             RivalScope.Leaderboard l => RivalsCache.GetAsync($"lbd|{account}|{l.Instrument.ServiceId()}|{rivalId}|{l.RankBy.ServiceId()}",
-                () => Api.GetLeaderboardRivalDetailAsync(account, l.Instrument, rivalId, l.RankBy), cancellationToken),
+                () => Throttled(() => Api.GetLeaderboardRivalDetailAsync(account, l.Instrument, rivalId, l.RankBy)), cancellationToken),
             RivalScope.Combo c => Detail(account, c.Token, rivalId, cancellationToken),
             RivalScope.Song s => MergedDetailAsync(account, s.Instruments, rivalId, cancellationToken),
             _ => MergedDetailAsync(account, Settings.VisibleInstruments, rivalId, cancellationToken),
@@ -95,7 +99,7 @@ public sealed partial class FestivalSession
     /// <param name="cancellationToken">Cancellation.</param>
     /// <returns>Detail.</returns>
     private Task<RivalDetailResponse> Detail(string account, string scope, string rivalId, CancellationToken cancellationToken) =>
-        RivalsCache.GetAsync($"detail|{account}|{scope}|{rivalId}", () => Api.GetRivalDetailAsync(account, scope, rivalId), cancellationToken);
+        RivalsCache.GetAsync($"detail|{account}|{scope}|{rivalId}", () => Throttled(() => Api.GetRivalDetailAsync(account, scope, rivalId)), cancellationToken);
 
     /// <summary>Merges per-chart details like the web's <c>fetchCombinedRivalDetail</c>.</summary>
     /// <param name="account">Selected player.</param>
@@ -128,6 +132,23 @@ public sealed partial class FestivalSession
             TotalSongs = songs.Count,
             Songs = songs,
         };
+    }
+
+    /// <summary>Runs a read under the Rivals concurrency limit (polite to the public rate limit).</summary>
+    /// <typeparam name="T">Result.</typeparam>
+    /// <param name="read">Read to start once a slot is free.</param>
+    /// <returns>Result.</returns>
+    private async Task<T> Throttled<T>(Func<Task<T>> read)
+    {
+        await rivalsThrottle.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            return await read().ConfigureAwait(false);
+        }
+        finally
+        {
+            rivalsThrottle.Release();
+        }
     }
 
     /// <summary>The selected account, or a typed failure.</summary>
