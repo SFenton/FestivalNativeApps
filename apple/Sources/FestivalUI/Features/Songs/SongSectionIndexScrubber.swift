@@ -14,7 +14,7 @@ import UIKit
 /// Artist or Year); the caller animates it in and out as the sort changes.
 struct SongSectionIndexScrubber: View {
     let sections: [SongSection]
-    let onSelect: (String) -> Void
+    let onSelect: (Int) -> Void
     @State private var activeIndex: Int = 0
     @State private var isActive = false
     #if os(iOS)

@@ -23,7 +23,7 @@ private func fixtureSong(title: String, artist: String = "Artist", year: Int? = 
         fixtureSong(title: "Beta"), fixtureSong(title: "1999"),
     ]
     let sections = SongSectionIndex.sections(songs, mode: .title)
-    #expect(sections.map(\.id) == ["A", "B", "#"])
+    #expect(sections.map(\.label) == ["A", "B", "#"])
     #expect(sections[0].songs.count == 2)
     #expect(sections[1].songs.map(\.title) == ["Beta"])
 }
@@ -35,7 +35,7 @@ private func fixtureSong(title: String, artist: String = "Artist", year: Int? = 
         fixtureSong(title: "Song Three", artist: "Ada"),
     ]
     let sections = SongSectionIndex.sections(songs, mode: .artist)
-    #expect(sections.map(\.id) == ["Z", "A"])
+    #expect(sections.map(\.label) == ["Z", "A"])
 }
 
 @Test func sectionsGroupByExactYearIncludingMissing() throws {
@@ -44,7 +44,23 @@ private func fixtureSong(title: String, artist: String = "Artist", year: Int? = 
         fixtureSong(title: "C", year: 2024), fixtureSong(title: "D", year: nil),
     ]
     let sections = SongSectionIndex.sections(songs, mode: .year)
-    #expect(sections.map(\.id) == ["2023", "2024", "—"])
+    #expect(sections.map(\.label) == ["2023", "2024", "—"])
+}
+
+/// A raw-string sort can put a numeral-prefixed title's derived letter far
+/// from other titles that share it; sections must never merge those runs.
+@Test func sectionsNeverMergeNonAdjacentRunsOfTheSameLabel() throws {
+    let songs = try [
+        fixtureSong(title: "24K Magic"), // sorts first by raw string; derived label "K"
+        fixtureSong(title: "Alpha"),
+        fixtureSong(title: "Kryptonite"), // unrelated later "K" title
+    ]
+    let sections = SongSectionIndex.sections(songs, mode: .title)
+    #expect(sections.map(\.label) == ["K", "A", "K"])
+    #expect(sections[0].songs.map(\.title) == ["24K Magic"])
+    #expect(sections[2].songs.map(\.title) == ["Kryptonite"])
+    // Distinct chunks must have distinct ids even when their labels repeat.
+    #expect(Set(sections.map(\.id)).count == sections.count)
 }
 
 @Test func sectionsAreEmptyForModesWithoutAMeaningfulKey() throws {

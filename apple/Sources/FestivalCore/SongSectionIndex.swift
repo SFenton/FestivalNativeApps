@@ -2,13 +2,15 @@ import Foundation
 
 /// One nonempty jump-to bucket for the right-edge Songs index scrubber.
 ///
-/// Sections are built from an already-sorted song array, so grouping only needs
-/// to notice when the section key changes; it never re-sorts its input.
+/// Sections are built from an already-sorted song array by chunking on
+/// consecutive key changes, so `id` is a stable position index rather than the
+/// letter/year itself: the same `label` can legitimately recur in two separate,
+/// non-adjacent chunks (see `SongSectionIndex.sections`), and `ForEach`/
+/// `ScrollViewReader` both need a genuinely unique identifier per chunk.
 public struct SongSection: Identifiable, Equatable, Sendable {
-    /// Stable key: an uppercase letter, "#" for non-letters, or a year string.
-    public let id: String
-    /// Short scrubber label; currently identical to `id`.
-    public var label: String { id }
+    public let id: Int
+    /// Uppercase letter, "#" for non-letters, or a year string.
+    public let label: String
     public let songs: [Song]
 }
 
@@ -19,10 +21,18 @@ public struct SongSection: Identifiable, Equatable, Sendable {
 public enum SongSectionIndex {
     /// Group an already-sorted, already-filtered song list into jump sections.
     ///
+    /// Chunks by **consecutive** key changes rather than by unique key: a title
+    /// sorted by raw string (e.g. `"24K Magic"`) can land far from other titles
+    /// that share its first *letter* once digits are skipped (e.g. `"Kryptonite"`).
+    /// Merging by unique key would silently pull a later, unrelated `"K"` run
+    /// into an earlier one and misplace real rows; chunking instead accepts an
+    /// occasional extra one-song section (and an occasional repeated scrubber
+    /// label) for such titles, never wrong grouping.
+    ///
     /// - Parameters:
     ///   - songs: Songs in their final on-screen order (after search/filter/sort).
     ///   - mode: The active catalogue sort; only Title, Artist and Year group.
-    /// - Returns: Nonempty, first-seen-ordered sections; empty for other modes
+    /// - Returns: Nonempty, order-preserving sections; empty for other modes
     ///   or fewer than two songs.
     public static func sections(_ songs: [Song], mode: SongSortMode) -> [SongSection] {
         guard songs.count > 1 else { return [] }
@@ -33,17 +43,25 @@ public enum SongSectionIndex {
         case .year: key = { $0.year.map { String($0) } ?? "—" }
         case .duration, .shop: return []
         }
-        var order: [String] = []
-        var buckets: [String: [Song]] = [:]
+        var result: [SongSection] = []
+        var currentLabel: String?
+        var currentSongs: [Song] = []
         for song in songs {
-            let bucketKey = key(song)
-            if buckets[bucketKey] == nil {
-                order.append(bucketKey)
-                buckets[bucketKey] = []
+            let label = key(song)
+            if label == currentLabel {
+                currentSongs.append(song)
+            } else {
+                if let currentLabel {
+                    result.append(SongSection(id: result.count, label: currentLabel, songs: currentSongs))
+                }
+                currentLabel = label
+                currentSongs = [song]
             }
-            buckets[bucketKey]?.append(song)
         }
-        return order.map { SongSection(id: $0, songs: buckets[$0] ?? []) }
+        if let currentLabel {
+            result.append(SongSection(id: result.count, label: currentLabel, songs: currentSongs))
+        }
+        return result
     }
 
     /// First letter of a title or artist, uppercased; "#" for anything else.
