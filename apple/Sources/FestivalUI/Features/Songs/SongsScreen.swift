@@ -37,6 +37,7 @@ struct SongsScreen: View {
     @State private var debugPushedSong: Song?
     @State private var quickLinks = QuickLinksController()
     @Environment(\.openProfile) private var openProfile
+    @Environment(\.deviceLayout) private var deviceLayout
     @AppStorage("fst.songs.sortMode") private var sortMode = SongSortMode.title
     @AppStorage("fst.songs.sortAscending") private var sortAscending = true
     @AppStorage("fst.songs.filterInShop") private var filterInShop = false
@@ -754,6 +755,14 @@ struct SongsScreen: View {
     ///   - visible: Songs after search, filters and sort have been applied.
     ///   - effectiveMode: Sort mode actually in effect (paused sorts fall back to Title).
     /// - Returns: A scrollable List, with a trailing jump scrubber when applicable.
+    /// Width to keep clear of the trailing `SongSectionIndexScrubber`: its own
+    /// 22pt-wide capsule, the same Duo vertical-bar margin it insets by
+    /// (`.agents/design/apple/duo.md`'s B4), and a small visual gap so a row's
+    /// trailing content doesn't sit flush against the capsule's edge.
+    private var scrubberTrailingReserve: CGFloat {
+        22 + max(2, deviceLayout.overlayInsets.trailing) + 8
+    }
+
     private func populatedList(
         payload: CatalogPayload, visible: [Song], effectiveMode: SongSortMode
     ) -> some View {
@@ -818,6 +827,14 @@ struct SongsScreen: View {
                 .listStyle(.plain)
                 .accessibilityIdentifier("fst.songs.list")
                 .scrollContentBackground(.hidden)
+                // Reserve room for the trailing section-index scrubber so its glass
+                // capsule never overlaps a row's own trailing content (difficulty
+                // meter, Shop badge, instrument-status chips) — the scrubber is an
+                // overlay in this ZStack, not part of the List's own layout, so
+                // without this a row's trailing edge sits directly underneath it.
+                .safeAreaInset(edge: .trailing, spacing: 0) {
+                    Color.clear.frame(width: showsIndex ? scrubberTrailingReserve : 0)
+                }
                 .refreshable { await reload() }
                 .quickLinks(
                     quickLinks, title: "\(effectiveMode.label) Quick Links",
