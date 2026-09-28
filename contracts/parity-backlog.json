@@ -257,7 +257,6 @@
       "dependsOn": ["apple-songs-cards", "apple-chopt-paths"],
       "sourceRefs": [
         "FortniteFestivalWeb/src/pages/settings/SettingsPage.tsx:513",
-        "FortniteFestivalWeb/src/pages/manual/ManualPage.tsx:222",
         "FortniteFestivalWeb/src/pages/settings/LicensesPage.tsx:27"
       ],
       "acceptance": [
@@ -293,7 +292,7 @@
         "FortniteFestivalWeb/src/components/notifications/useProfileNotificationsFeed.tsx:1"
       ],
       "acceptance": [
-        "Page-specific first-run carousels, replay, manual screenshots and changelog have accessible focus/exit states.",
+        "Page-specific first-run carousels, replay and changelog have accessible focus/exit states.",
         "Reproduce the source's first-run Filter Songs interception of selected Songs, with dismiss/replay and unobstructed follow-up state on phone/tablet; matched source WebKit fixtures already demonstrate this native gap.",
         "Profile-scoped notifications show real freshness, unread badges, filtered destinations and connection failures.",
         "No background activity or cross-profile notification data survives an identity change."
@@ -349,7 +348,6 @@
     {"id": "statistics", "apple": "absent", "epics": ["apple-statistics-history", "apple-band-flows"], "gap": "No guarded player/band selected-profile hub, score charts, rank summaries or selected-state effects."},
     {"id": "suggestions", "apple": "absent", "epics": ["apple-suggestions-compete"], "gap": "No player/band categories, search/filter modal, incremental load or score-driven suggestions."},
     {"id": "shop", "apple": "partial", "epics": ["apple-shop"], "gap": "Apple reads a real public feed with list/grid, badges, official links, status on Songs/Detail and conditional anonymous Songs sorting/status sections; PWA-wide sidebar, websocket rotation, Shop filtering, quick-link navigation, complete focus/performance and other platforms remain pending."},
-    {"id": "manual", "apple": "absent", "epics": ["apple-settings-manual", "apple-first-run-notifications"], "gap": "No feature-flagged manual or replayable page guidance."},
     {"id": "leaderboards", "apple": "placeholder", "epics": ["apple-rankings"], "gap": "Tab renders migration message, not solo/band top-ten cards, rank history or selection spotlight."},
     {"id": "full-rankings", "apple": "absent", "epics": ["apple-rankings"], "gap": "No page/metric/instrument/combo/family rankings or player/band footer."},
     {"id": "band-rankings", "apple": "absent", "epics": ["apple-rankings", "apple-band-flows"], "gap": "No band ranking pagination, combo filters, selected member/team footer or band links."},

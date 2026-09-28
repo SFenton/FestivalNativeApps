@@ -465,7 +465,7 @@ public struct FestivalRootView: View {
 /// Parses `FST_DEBUG_TAB` / `FST_DEBUG_ROUTE` so `tools/ios_sim.py` can open any page directly.
 ///
 /// Route syntax: `player:<accountId>`, `leaderboards`, `fullRankings:<Instrument rawValue>`,
-/// `shop`, `rivals`, `statistics`, `suggestions`, `compete`, `bands`, `manual`, `licenses`.
+/// `shop`, `rivals`, `statistics`, `suggestions`, `compete`, `bands`, `licenses`.
 /// Song routes need a loaded `Song`; the Songs lane handles `FST_DEBUG_SONG` itself.
 ///
 /// Shell extras: `FST_DEBUG_DRAWER=1` opens the hamburger drawer, `FST_DEBUG_SHEET=profile`
@@ -516,7 +516,6 @@ struct DebugLaunchRoute {
         case "compete": route = .compete
         case "bands": route = .bands
         case "band": route = arg.map { .band(bandId: $0, name: nil) }
-        case "manual": route = .manual
         case "licenses": route = .licenses
         default: route = nil
         }

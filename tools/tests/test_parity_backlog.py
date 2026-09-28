@@ -19,7 +19,7 @@ class ParityBacklogTests(unittest.TestCase):
     def test_all_product_routes_have_real_gap_and_feature_owner(self):
         """No static native placeholder may be mistaken for migrated content."""
         self.assertEqual(validate(self.backlog, self.product), [])
-        self.assertEqual(len(self.backlog["routes"]), 24)
+        self.assertEqual(len(self.backlog["routes"]), 23)  # Manual is deprecated
         self.assertTrue(all(route["apple"] != "verified" for route in self.backlog["routes"]))
 
     def test_new_or_missing_route_must_enter_the_backlog(self):
@@ -88,7 +88,8 @@ class ParityBacklogTests(unittest.TestCase):
     def test_blocked_epic_must_name_the_actual_external_gate(self):
         """An external 403 or powered-off host may not look like ready work."""
         draft = copy.deepcopy(self.backlog)
-        draft["epics"][0]["blockedOn"] = ""
+        blocked = next(e for e in draft["epics"] if e["status"] == "blocked")
+        blocked["blockedOn"] = ""
         self.assertTrue(any("blocked work needs an explicit blocker" in error
                             for error in validate(draft, self.product)))
 

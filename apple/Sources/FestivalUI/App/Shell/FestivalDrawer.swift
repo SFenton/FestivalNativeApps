@@ -66,7 +66,6 @@ enum DrawerMenu {
 
     /// Rows for the "More" group (web sidebar footer).
     static let more: [DrawerItem] = [
-        DrawerItem(id: "manual", title: "Manual", symbol: "safari", intent: .push(.manual)),
         DrawerItem(id: "settings", title: "Settings", symbol: "gearshape", intent: .select(.settings)),
         DrawerItem(id: "licenses", title: "Licenses", symbol: "doc.text", intent: .push(.licenses)),
     ]

@@ -72,10 +72,10 @@ func bandSections(regularWidth: Bool) {
     #expect(!items.contains { $0.id == "shop" })
 }
 
-/// Settings switches tabs; Manual and Licenses push onto the current stack.
+/// Settings switches tabs; Licenses pushes onto the current stack.
 @Test func drawerMoreIntents() {
     #expect(DrawerMenu.more.map(\.intent) == [
-        .push(.manual), .select(.settings), .push(.licenses),
+        .select(.settings), .push(.licenses),
     ])
 }
 

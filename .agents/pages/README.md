@@ -13,7 +13,7 @@ Status of record: [contracts/parity-backlog.json](../../contracts/parity-backlog
 | song-band-leaderboard | `/songs/:songId/bands/:bandType` | none | absent | [spec (stub)](song-band-leaderboard/spec.md) | — |
 | song-leaderboard | `/songs/:songId/:instrument` | none | partial | [spec](song-leaderboard/spec.md) | [ios](song-leaderboard/ios.md) · [ipados](song-leaderboard/ipados.md) |
 | player-history | `/songs/:songId/:instrument/history` | none | absent | [spec (stub)](player-history/spec.md) | — |
-| player-profile | `/player/:accountId` | none | absent | [spec (stub)](player-profile/spec.md) | — |
+| player-profile | `/player/:accountId` | none | absent | [spec (stub)](player-profile/spec.md) | [ios](player-profile/ios.md) |
 | rivals | `/rivals` | player | absent | [spec (stub)](rivals/spec.md) | — |
 | all-rivals | `/rivals/all` | player | absent | [spec (stub)](all-rivals/spec.md) | — |
 | rival-detail | `/rivals/:rivalId` | player | absent | [spec (stub)](rival-detail/spec.md) | — |
@@ -21,7 +21,6 @@ Status of record: [contracts/parity-backlog.json](../../contracts/parity-backlog
 | statistics | `/statistics` | selection | absent | [spec (stub)](statistics/spec.md) | — |
 | suggestions | `/suggestions` | selection | absent | [spec (stub)](suggestions/spec.md) | — |
 | shop | `/shop` | none | partial | [spec](shop/spec.md) | [ios](shop/ios.md) · [ipados](shop/ipados.md) |
-| manual | `/manual` | feature | absent | [spec (stub)](manual/spec.md) | — |
 | leaderboards | `/leaderboards` | none | placeholder | [spec (stub)](leaderboards/spec.md) | [ios](leaderboards/ios.md) |
 | full-rankings | `/leaderboards/all` | none | absent | [spec (stub)](full-rankings/spec.md) | [ios](full-rankings/ios.md) |
 | band-rankings | `/leaderboards/bands/:bandType` | none | absent | [spec (stub)](band-rankings/spec.md) | — |

@@ -73,8 +73,6 @@ struct AppRouteDestination: View {
             CompeteScreen(session: session)
         case .shop:
             ShopScreen(session: session, isVisible: isVisible && path.last == .shop)
-        case .manual:
-            ManualScreen(session: session)
         case .licenses:
             LicensesScreen(session: session)
         }

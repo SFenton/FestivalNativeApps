@@ -32,7 +32,7 @@ apple/Sources/FestivalUI/
   Features/Profile                                                  → Lane P (Profile)
   Features/Leaderboards, SongLeaderboard                            → Lane L (Leaderboards)
   Features/Settings                                                 → Lane A
-  Features/Rivals, Statistics, Suggestions, Compete, Bands, Manual  → Wave 2 lanes
+  Features/Rivals, Statistics, Suggestions, Compete, Bands  → Wave 2 lanes
 apple/Sources/FestivalCore/   new domain files per lane (FestivalAPI+<Domain>.swift); edit an existing file only if your lane owns that domain
 apple/Tests/**                tests for your own files only
 apple/Apps/iOSUITests/**      frozen during Wave 1 (UX tests come at feature completion)
@@ -140,8 +140,8 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 **Lane N — Bands** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/bands`
 - ⬜ Band detail · ⬜ Player bands · ⬜ Bands landing (no band search — it writes) · ⬜ Per-song band leaderboard
 
-**Lane M — Settings completion, Manual, Licenses** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/settings`
-- ⬜ Every web Settings section · ⬜ Licenses · ⬜ Manual (text; screenshots deferred)
+**Lane M — Settings completion, Licenses** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/settings`
+- ⬜ Every web Settings section · ⬜ Licenses
 
 **Lane X — Player history, first-run carousels, notifications** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/extras`
 - ⬜ Player history · ⬜ First-run carousels (+ replay API) · ⬜ Notifications sheet + bell
@@ -162,6 +162,8 @@ Not yet assigned:
 ---
 
 ## 5. Known issues / decisions
+
+- **Manual is deprecated** (operator, 2026-09-27): not ported. Route, drawer item, placeholder screen, contract entries and docs removed.
 
 - **Leaderboards follow-ups:** no "your rank" spotlight row, no rank-history chart, no band-combo filter on the overview; per-card loads are sequential.
 - **Background follow-ups:** the brief's plan of drawing once behind transparent pages failed (the iPhone TabView keeps an opaque layer over anything drawn behind it), so each page draws a synced mirror of one shared state. Open issues: a cancelled swipe-back on pages without a `visible` flag briefly fades; going back fades rather than shrinking the art into its tile; the tap-and-push flow is unverified.
@@ -190,3 +192,4 @@ Not yet assigned:
 | 2026-09-27 | Orchestrator | Launched Lanes N (Bands), M (Settings/Manual/Licenses); Remote Control enabled for this session |
 | 2026-09-27 | Lane T | `ios_sim.py drive` — scripted tap/swipe/type/tree/screenshot via XCUITest driver (~11–24 s/run); build lock |
 | 2026-09-27 | Orchestrator | Launched Lane X (history, first-run, notifications) |
+| 2026-09-27 | Orchestrator | Dropped deprecated Manual (route, drawer item, contracts, docs) per operator |

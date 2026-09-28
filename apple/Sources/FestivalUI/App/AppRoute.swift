@@ -60,8 +60,6 @@ enum AppRoute: Hashable {
     // MARK: Misc
     /// `/shop`
     case shop
-    /// `/manual`
-    case manual
     /// `/settings/licenses`
     case licenses
 }
