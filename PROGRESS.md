@@ -295,6 +295,7 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 
 ## 5. Known issues / decisions
 
+- **Operator decision (Duo rail, 2026-09-28):** folded Duo with a profile (5 tabs) keeps **Bell + Profile** visible in the vertical rail; hamburger moves into "…".
 - **Operator decisions (Duo, 2026-09-28):** (1) **UI scripting allowed** for Device Hub poses — operator grants macOS Accessibility permission (agents never change security settings); (2) split Leaderboards/Rivals tabs **only on Duo unfolded + iPad**; large iPhones keep portrait tabs in landscape.
 
 - **One simulator booted at a time (`ad76e5e`):** `ios_sim.py` shuts down other FST simulators before booting a device (Duo lane had both iPhone and Duo booted).
@@ -408,3 +409,4 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Lane WIN | Windows foundation landed from Windows; C# NativeAOT decision with evidence |
 | 2026-09-28 | Orchestrator | Launched 7 Windows feature lanes as Remote Control sessions (`FST-win-*`); web source cloned read-only on Windows |
 | 2026-09-28 | Lane C | Coverage gate recursive-glob fix (UX gate was silently classifying ~1 of 104 FestivalUI files as 97%); logic coverage 93.90%→95.81%; Rivals Common Rivals 503 fix; Compete honest empty state; Songs scrubber card inset; MarqueeText in Song Detail/Suggestions; Suggestions/PlayerHistory sheets to semantic toolbar placements; shared `FestivalApp` UITest launch helper (14 call sites) + found/fixed `MarqueeText` not honoring `FST_DEBUG_STILL_BACKGROUND` (root cause of Songs/Suggestions journey hangs); retired `tools/apple_native_matrix.py` (stale single-file assumption post-monolith-split, unused elsewhere); fixed `test_contrast_gate` for the color-only chip design; un-skipped all 3 `SettingsJourneyTests` (confirmed simulator contention, not a bug — individually 68–282s) |
+| 2026-09-28 | Lanes W1, C | Duo shell + Apple cleanup landed; master green (`671ff23`); launched W2, W3 |
