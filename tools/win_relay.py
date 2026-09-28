@@ -2,10 +2,9 @@
 """Relay git history and Claude Code lanes between this Mac and the Windows host.
 
 The Windows host (``sfenton-primary``) builds and runs the Android and Windows
-apps, but it has no working GitHub credentials over SSH (Git Credential Manager
-cannot use the Windows credential store in a non-interactive session). This Mac
-is therefore the only machine that talks to GitHub: it ships ``origin/master``
-to Windows as a git bundle and collects Windows lane branches back the same way.
+apps and pushes to GitHub directly (see ``.agents/workflow/windows-relay.md``).
+This tool creates lane worktrees there, runs headless Claude Code lanes, and
+keeps ``collect``/``integrate`` as a bundle-based fallback if GitHub auth breaks.
 
 Layout on Windows::
 
@@ -116,27 +115,14 @@ def scp_from(win_path: str, local_path: Path) -> None:
 
 
 def cmd_sync(_: argparse.Namespace) -> int:
-    """Ship ``origin/master`` to Windows and fast-forward the main clone.
+    """Fast-forward the Windows main clone to GitHub ``origin/master``.
 
-    The bundle carries a single branch, ``relay-master``; Windows maps it to
-    ``refs/remotes/origin/master`` so lane worktrees can rebase on ``origin/master``.
+    The Windows host has direct GitHub access (gh file-stored token), so this is
+    a plain fetch + reset of the main clone; lane worktrees rebase themselves.
 
     Returns:
         Process exit code.
     """
-    local(["git", "-C", str(REPO_ROOT), "fetch", "-q", "origin", "master"])
-    local(["git", "-C", str(REPO_ROOT), "branch", "-q", "-f", "relay-master", "origin/master"])
-    with tempfile.TemporaryDirectory() as tmp:
-        bundle = Path(tmp) / "master.bundle"
-        local(["git", "-C", str(REPO_ROOT), "bundle", "create", "-q", str(bundle), "relay-master"])
-        remote(f"if not exist {win(WIN_ROOT + '/relay')} mkdir {win(WIN_ROOT + '/relay')}")
-        scp_to(bundle, WIN_BUNDLE)
-    exists = remote(f"if exist {win(WIN_REPO + '/.git')} (echo yes) else (echo no)", capture=True)
-    if "yes" not in exists.stdout:
-        remote(f"git clone -q -b relay-master {WIN_BUNDLE} {win(WIN_REPO)}")
-        remote(f"git -C {win(WIN_REPO)} checkout -q -B master")
-    remote(f"git -C {win(WIN_REPO)} remote set-url origin {WIN_BUNDLE}")
-    remote(f"git -C {win(WIN_REPO)} config remote.origin.fetch +refs/heads/relay-master:refs/remotes/origin/master")
     remote(f"git -C {win(WIN_REPO)} fetch -q origin")
     remote(f"git -C {win(WIN_REPO)} checkout -q master")
     remote(f"git -C {win(WIN_REPO)} reset -q --hard origin/master")
