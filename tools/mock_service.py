@@ -99,6 +99,10 @@ EMPTY_ETAG = '"fst-fixture-empty-v1"'
 SHOP_ETAG = '"fst-fixture-shop-v1"'
 LEADERBOARD = re.compile(r"^/api/leaderboard/(fixture-[a-z]+)/([A-Za-z_]+)$")
 PLAYER = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)$")
+PLAYER_HISTORY = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)/history$")
+PLAYER_NOTIFICATIONS = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)/notifications$")
+RANKINGS = re.compile(r"^/api/rankings/([A-Za-z_]+)$")
+BAND_RANKINGS = re.compile(r"^/api/rankings/bands/([A-Za-z_]+)$")
 PATH_ARTIFACT = re.compile(
     r"^/api/paths/(fixture-[a-z]+)/([A-Za-z_]+)/([a-z]+)(/data)?$"
 )
@@ -107,6 +111,58 @@ INSTRUMENTS = frozenset({
     "Solo_PeripheralGuitar", "Solo_PeripheralBass", "Solo_PeripheralVocals",
     "Solo_PeripheralCymbals", "Solo_PeripheralDrums",
 })
+BAND_TYPES = frozenset({"Band_Duets", "Band_Trios", "Band_Quad"})
+
+
+def _ranking_entry(rank: int, account_id: str, display_name: str) -> dict:
+    """One deterministic `/api/rankings/{instrument}` row for the UX-test fixtures.
+
+    Args:
+        rank: 1-based rank; also seeds every metric's numeric spread.
+        account_id: Fixture player id (reuse a `player-demo` id to let a rankings
+            row navigate to a real profile).
+        display_name: Row's display name.
+
+    Returns:
+        A JSON-ready `AccountRankingEntry` object.
+    """
+    return {
+        "accountId": account_id, "displayName": display_name,
+        "songsPlayed": 40 - rank, "totalChartedSongs": 50,
+        "coverage": 0.8, "rawSkillRating": 0.05 - rank * 0.01,
+        "adjustedSkillRating": 0.05 - rank * 0.01, "adjustedSkillRank": rank,
+        "weightedRating": 0.06 - rank * 0.01, "weightedRank": rank,
+        "fcRate": max(0.1, 0.6 - rank * 0.1), "fcRateRank": rank,
+        "totalScore": 90_000_000 - rank * 1_000_000, "totalScoreRank": rank,
+        "maxScorePercent": max(0.5, 0.99 - rank * 0.02), "maxScorePercentRank": rank,
+        "avgAccuracy": 0.99, "fullComboCount": max(0, 20 - rank),
+        "avgStars": 4.9, "bestRank": 1, "avgRank": float(rank),
+    }
+
+
+def _band_ranking_entry(rank: int) -> dict:
+    """One deterministic `/api/rankings/bands/{bandType}` row for the UX-test fixtures.
+
+    Args:
+        rank: 1-based rank; also seeds every metric's numeric spread.
+
+    Returns:
+        A JSON-ready `BandRankingEntry` object.
+    """
+    return {
+        "bandId": f"fixture-band-{rank}", "teamKey": f"fixture-team-{rank}",
+        "teamMembers": [
+            {"accountId": f"fixture-band-{rank}-a", "displayName": f"Band {rank} Member A"},
+            {"accountId": f"fixture-band-{rank}-b", "displayName": f"Band {rank} Member B"},
+        ],
+        "songsPlayed": 30 - rank, "totalChartedSongs": 50, "coverage": 0.6,
+        "rawSkillRating": 0.04 - rank * 0.01, "adjustedSkillRating": 0.04 - rank * 0.01,
+        "adjustedSkillRank": rank, "weightedRating": 0.05 - rank * 0.01, "weightedRank": rank,
+        "fcRate": max(0.1, 0.4 - rank * 0.1), "fcRateRank": rank,
+        "totalScore": 50_000_000 - rank * 500_000, "totalScoreRank": rank,
+        "avgAccuracy": 0.95, "fullComboCount": max(0, 10 - rank),
+        "avgStars": 4.5, "bestRank": 1, "avgRank": float(rank),
+    }
 
 
 class FixtureServer(ThreadingHTTPServer):
@@ -578,6 +634,159 @@ class FixtureHandler(BaseHTTPRequestHandler):
                     else term in player["displayName"].casefold())
             ]
             self._json(200, {"results": matches[:limit]})
+        elif match := PLAYER_HISTORY.fullmatch(path):
+            account_id = match.group(1)
+            if set(query) - {"songId", "instrument"}:
+                self._json(400, {"status": "invalid_player_history_query"})
+                return
+            pin = self.headers.get("X-FST-Publication-Id")
+            if pin is not None and pin != str(self.fixture.publication_id):
+                self._json(409, {"status": "publication_changed"})
+                return
+            if account_id == "fixture-syncing":
+                self._json(202, {
+                    "accountId": account_id, "count": 0, "history": [],
+                    "status": "syncing", "notYetPublished": True,
+                })
+            elif account_id == "fixture-player-1":
+                self._json(200, {
+                    "accountId": account_id, "count": 2, "history": [
+                        {
+                            "songId": "fixture-pulse", "instrument": "Solo_Guitar",
+                            "oldScore": 700000, "newScore": 850000,
+                            "oldRank": 9, "newRank": 4, "accuracy": 0.9912,
+                            "isFullCombo": True, "stars": 5, "season": 40,
+                            "scoreAchievedAt": "2024-01-05T00:00:00Z",
+                            "changedAt": "2024-01-05T00:00:00Z",
+                        },
+                        {
+                            "songId": "fixture-pulse", "instrument": "Solo_Guitar",
+                            "oldScore": None, "newScore": 700000,
+                            "oldRank": None, "newRank": 9, "accuracy": 0.9545,
+                            "isFullCombo": False, "stars": 4, "season": 39,
+                            "scoreAchievedAt": "2024-01-01T00:00:00Z",
+                            "changedAt": "2024-01-01T00:00:00Z",
+                        },
+                    ],
+                })
+            else:
+                # Every other fixture account is "unregistered" (never tracked for
+                # history): the real service 404s and `FestivalAPI.playerHistory`
+                # translates that into `PlayerHistoryState.unregistered`.
+                self._json(404, {"status": "unknown_history_player"})
+        elif match := PLAYER_NOTIFICATIONS.fullmatch(path):
+            account_id = match.group(1)
+            limits = query.get("limit", ["50"])
+            if set(query) - {"limit"} or len(limits) != 1:
+                self._json(400, {"status": "invalid_notifications_query"})
+                return
+            try:
+                limit = int(limits[0])
+            except ValueError:
+                self._json(400, {"status": "invalid_notifications_query"})
+                return
+            if not 1 <= limit <= 200:
+                self._json(400, {"status": "invalid_notifications_query"})
+                return
+            pin = self.headers.get("X-FST-Publication-Id")
+            if pin is not None and pin != str(self.fixture.publication_id):
+                self._json(409, {"status": "publication_changed"})
+                return
+            if account_id == "fixture-player-1":
+                self._json(200, {
+                    "generatedAt": "2024-01-05T00:00:00Z", "expiresAfterHours": 72,
+                    "sourceRunId": 1, "sourceCompletedAt": "2024-01-05T00:00:00Z",
+                    "notificationsGenerated": True, "items": [
+                        {
+                            "eventId": 1, "notificationGuid": "fixture-notif-1",
+                            "accountId": account_id,
+                            "eventKind": "player_song_rank_improved",
+                            "songId": "fixture-pulse", "instrument": "Solo_Guitar",
+                            "oldRank": 9, "newRank": 4,
+                            "detectedAt": "2024-01-05T00:00:00Z",
+                            "expiresAt": "2024-02-05T00:00:00Z",
+                        },
+                        {
+                            "eventId": 2, "notificationGuid": "fixture-notif-2",
+                            "accountId": account_id, "eventKind": "player_fc_achieved",
+                            "songId": "fixture-pulse", "instrument": "Solo_Guitar",
+                            "detectedAt": "2024-01-04T00:00:00Z",
+                            "expiresAt": "2024-02-04T00:00:00Z",
+                        },
+                    ][:limit],
+                })
+            else:
+                # An unregistered/unknown account gets an empty *generated* envelope,
+                # never a 404 (`FestivalAPI+Notifications.swift`'s doc comment).
+                self._json(200, {
+                    "generatedAt": "2024-01-05T00:00:00Z", "expiresAfterHours": 72,
+                    "sourceRunId": None, "sourceCompletedAt": None,
+                    "notificationsGenerated": False, "items": [],
+                })
+        elif match := BAND_RANKINGS.fullmatch(path):
+            band_type = match.group(1)
+            if band_type not in BAND_TYPES:
+                self._json(404, {"status": "unknown_band_type"})
+                return
+            pin = self.headers.get("X-FST-Publication-Id")
+            if pin is not None and pin != str(self.fixture.publication_id):
+                self._json(409, {"status": "publication_changed"})
+                return
+            rank_by = query.get("rankBy", ["totalscore"])[0]
+            try:
+                page = int(query.get("page", ["1"])[0])
+                page_size = int(query.get("pageSize", ["10"])[0])
+            except ValueError:
+                self._json(400, {"status": "invalid_pagination"})
+                return
+            if page < 1 or not 1 <= page_size <= 200:
+                self._json(400, {"status": "invalid_pagination"})
+                return
+            total = 2
+            start = (page - 1) * page_size
+            entries = [
+                _band_ranking_entry(rank)
+                for rank in range(start + 1, min(start + page_size, total) + 1)
+            ]
+            self._json(200, {
+                "bandType": band_type, "rankBy": rank_by, "page": page,
+                "pageSize": page_size, "totalTeams": total, "entries": entries,
+            })
+        elif match := RANKINGS.fullmatch(path):
+            instrument = match.group(1)
+            if instrument not in INSTRUMENTS:
+                self._json(404, {"status": "unknown_instrument"})
+                return
+            pin = self.headers.get("X-FST-Publication-Id")
+            if pin is not None and pin != str(self.fixture.publication_id):
+                self._json(409, {"status": "publication_changed"})
+                return
+            rank_by = query.get("rankBy", ["totalscore"])[0]
+            try:
+                page = int(query.get("page", ["1"])[0])
+                page_size = int(query.get("pageSize", ["10"])[0])
+            except ValueError:
+                self._json(400, {"status": "invalid_pagination"})
+                return
+            if page < 1 or not 1 <= page_size <= 200:
+                self._json(400, {"status": "invalid_pagination"})
+                return
+            roster = [
+                ("fixture-player-1", "Fixture Player 1"),
+                ("fixture-player-2", "Fixture Player 2"),
+                ("fixture-rank-3", "Fixture Rank 3"),
+            ]
+            total = len(roster)
+            start = (page - 1) * page_size
+            entries = [
+                _ranking_entry(rank, account_id, display_name)
+                for rank, (account_id, display_name)
+                in enumerate(roster[start:start + page_size], start=start + 1)
+            ]
+            self._json(200, {
+                "instrument": instrument, "rankBy": rank_by, "page": page,
+                "pageSize": page_size, "totalAccounts": total, "entries": entries,
+            })
         elif match := PLAYER.fullmatch(path):
             account_id = match.group(1)
             if query:
