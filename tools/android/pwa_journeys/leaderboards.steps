@@ -1,0 +1,18 @@
+# Leaderboards: overview, full rankings, pagination, band rankings, back.
+route:/leaderboards
+wait:3
+anims:start
+scroll:600
+wait:1.2
+scroll:-600
+?click:contains=View all rankings@3
+wait:2.5
+shot:{out}/full-rankings-enter.png
+?click:aria=Next page@3
+wait:2
+shot:{out}/full-rankings-page2.png
+back
+wait:2
+back
+wait:2
+anims:stop:{out}/leaderboards.anims.json

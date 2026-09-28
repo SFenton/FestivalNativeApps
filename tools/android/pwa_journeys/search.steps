@@ -1,0 +1,15 @@
+# Global search and profile sheet: open/close only. Typing would query /api/bands/search (blocked).
+route:/songs
+wait:2.5
+anims:start
+click:testid=mobile-header-search
+wait:1.5
+shot:{out}/search-open.png
+key:escape
+wait:1.2
+click:testid=mobile-header-profile
+wait:1.5
+shot:{out}/profile-sheet.png
+key:escape
+wait:1.2
+anims:stop:{out}/search.anims.json

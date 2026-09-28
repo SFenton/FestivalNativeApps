@@ -385,6 +385,9 @@ class Lab:
         scale = window_scale(hwnd)
         title = ctypes.create_unicode_buffer(512)
         user32.GetWindowTextW(hwnd, title, 512)
+        if self.state.get("rect") != [left, top, right, bottom]:
+            self.state["rect"] = [left, top, right, bottom]
+            save_state(self.state)
         return {"title": title.value, "rect_px": [left, top, right, bottom],
                 "size_px": [right - left, bottom - top],
                 "size_epx": [round((right - left) / scale), round((bottom - top) / scale)],
@@ -430,15 +433,18 @@ def save_state(state: dict) -> None:
 class Recorder:
     """gdigrab recording of the app window into a raw H.264 file."""
 
-    def __init__(self, lab: Lab, out: Path, fps: int, lock: HostLock):
+    def __init__(self, lab: Lab, out: Path, fps: int, lock: HostLock,
+                 rect: tuple[int, int, int, int] | None = None):
+        """Record the app window, or a fixed screen ``rect`` (before the window exists)."""
         self.lab, self.out, self.fps = lab, out, fps
         self.raw = RAW_DIR / out.parent.name / (out.stem + ".raw.mp4")
         self.raw.parent.mkdir(parents=True, exist_ok=True)
-        hwnd = lab.hwnd()
-        foreground(hwnd, topmost=True)
-        time.sleep(0.3)
-        self.hwnd = hwnd
-        rect = window_rect(hwnd)
+        self.hwnd = None
+        if rect is None:
+            self.hwnd = lab.hwnd()
+            foreground(self.hwnd, topmost=True)
+            time.sleep(0.3)
+            rect = window_rect(self.hwnd)
         cmd = [cdp.ffmpeg_path(), "-hide_banner", "-loglevel", "error", "-y",
                *gdigrab_args(rect, fps), "-c:v", "libx264", "-preset", "ultrafast",
                "-crf", "18", "-pix_fmt", "yuv420p", str(self.raw)]
@@ -452,7 +458,8 @@ class Recorder:
             self.proc.communicate(b"q", timeout=30)
         except subprocess.TimeoutExpired:
             self.proc.kill()
-        foreground(self.hwnd, topmost=False)
+        if self.hwnd:
+            foreground(self.hwnd, topmost=False)
         return cdp.finalize_clip(self.raw, self.out)
 
 # endregion
@@ -541,9 +548,7 @@ def launch_app(lab: "Lab", fresh: bool, timeout: float = 30.0) -> str:
     if not app_id:
         raise RuntimeError("PWA not installed: run `pwa.py install`")
     if fresh:
-        for target in page_targets(lab):
-            lab.cdp.send("Target.closeTarget", {"targetId": target["targetId"]})
-        time.sleep(1.0)
+        launch_app_close(lab)
     before = {t["targetId"] for t in page_targets(lab)}
     subprocess.Popen([str(edge_path()), f"--user-data-dir={PROFILE_DIR}",
                       "--profile-directory=Default", f"--app-id={app_id}"],
@@ -560,12 +565,25 @@ def launch_app(lab: "Lab", fresh: bool, timeout: float = 30.0) -> str:
     raise RuntimeError("app window did not open")
 
 
+def launch_app_close(lab: "Lab") -> None:
+    """Close every app/site page (the next launch is cold for the window)."""
+    for target in page_targets(lab):
+        lab.cdp.send("Target.closeTarget", {"targetId": target["targetId"]})
+    time.sleep(1.0)
+
+
 def cmd_launch(args: argparse.Namespace) -> int:
     """Open the installed app window (optionally at a route), resize and screenshot."""
     lab = Lab()
     with _lock(args, "launch") as lock:
+        recorder = None
+        if args.record and args.fresh and lab.state.get("rect"):
+            # The app window reopens at its last bounds: record that region from
+            # before launch so the splash and first paint are in the clip.
+            recorder = Recorder(lab, Path(args.record), args.fps, lock, tuple(lab.state["rect"]))
+            launch_app_close(lab)
         started = time.monotonic()
-        target = launch_app(lab, args.fresh)
+        target = launch_app(lab, args.fresh and not recorder)
         opened = round(time.monotonic() - started, 2)
         hwnd = lab.hwnd()
         page = cdp.PageDriver(lab.cdp, target)
@@ -574,7 +592,8 @@ def cmd_launch(args: argparse.Namespace) -> int:
             page.navigate(SITE)
         if args.preset:
             lab.resize(args.preset)
-        recorder = Recorder(lab, Path(args.record), args.fps, lock) if args.record else None
+        if args.record and not recorder:
+            recorder = Recorder(lab, Path(args.record), args.fps, lock)
         if args.route:
             page.navigate(SITE + "#" + args.route)
         if args.ready:

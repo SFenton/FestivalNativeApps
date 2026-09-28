@@ -1,0 +1,23 @@
+# Shell navigation: bottom tabs, drawer, route transitions. Record with --record.
+?click:text=Dismiss@1
+route:/songs
+wait:2
+anims:start
+click:testid=bottom-nav-leaderboards
+wait:2.5
+shot:{out}/nav-leaderboards.png
+click:testid=bottom-nav-settings
+wait:2.5
+click:testid=bottom-nav-songs
+wait:2.5
+click:aria=Open navigation
+wait:1.5
+shot:{out}/nav-drawer.png
+key:escape
+wait:1.5
+?click:aria=Open navigation
+?wait:1.2
+?click:contains=Shop@2
+wait:2.5
+shot:{out}/nav-drawer-shop.png
+anims:stop:{out}/nav.anims.json

@@ -1,0 +1,28 @@
+# Songs list: scroll, sort modal, quick links, local FAB search (songs only; never the global/profile search).
+route:/songs
+wait:2.5
+anims:start
+scroll:2500
+wait:1.5
+shot:{out}/songs-scrolled.png
+scroll:-2500
+wait:1.5
+click:aria=Sort Songs
+wait:1.5
+shot:{out}/songs-sort.png
+key:escape
+wait:1.2
+click:aria=Quick Links
+wait:1.5
+shot:{out}/songs-quick-links.png
+key:escape
+wait:1.2
+click:testid=fab-search-toggle
+wait:1
+type:love
+wait:1.5
+shot:{out}/songs-search.png
+?click:aria=Clear search@1
+key:escape
+wait:1.2
+anims:stop:{out}/songs.anims.json
