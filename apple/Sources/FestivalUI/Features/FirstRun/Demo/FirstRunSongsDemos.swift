@@ -32,7 +32,7 @@ private struct FirstRunDemoArt: View {
             .fill(BrandTokens.surfaceMuted)
             .overlay(
                 Image(systemName: "music.note")
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
             )
             .frame(width: 44, height: 44)
             .accessibilityHidden(true)
@@ -50,9 +50,9 @@ struct FirstRunSongListDemo: View {
                 HStack(spacing: 12) {
                     FirstRunDemoArt()
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(song.title).font(.headline).foregroundStyle(BrandTokens.textPrimary)
+                        Text(song.title).font(.headline).foregroundStyle(FestivalText.primary)
                         Text("\(song.artist) · \(song.year)")
-                            .font(.subheadline).foregroundStyle(BrandTokens.textSecondary)
+                            .font(.subheadline).foregroundStyle(FestivalText.primary)
                     }
                     Spacer(minLength: 0)
                 }
@@ -74,23 +74,23 @@ struct FirstRunSortDemo: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Sort By").font(.caption.weight(.semibold))
-                .foregroundStyle(BrandTokens.textSecondary)
+                .foregroundStyle(FestivalText.primary)
             ForEach(modes, id: \.self) { mode in
                 HStack {
                     Image(systemName: mode == modes.first ? "largecircle.fill.circle" : "circle")
                         .foregroundStyle(
-                            mode == modes.first ? BrandTokens.accentBlue : BrandTokens.textMuted
+                            mode == modes.first ? BrandTokens.accentBlue : FestivalText.deemphasized
                         )
-                    Text(mode).foregroundStyle(BrandTokens.textPrimary)
+                    Text(mode).foregroundStyle(FestivalText.primary)
                     Spacer(minLength: 0)
                 }
             }
             HStack {
                 Image(systemName: "arrow.up").foregroundStyle(BrandTokens.accentBlue)
-                Text("Ascending").foregroundStyle(BrandTokens.textPrimary)
+                Text("Ascending").foregroundStyle(FestivalText.primary)
                 Spacer(minLength: 0)
-                Image(systemName: "arrow.down").foregroundStyle(BrandTokens.textMuted)
-                Text("Descending").foregroundStyle(BrandTokens.textSecondary)
+                Image(systemName: "arrow.down").foregroundStyle(FestivalText.deemphasized)
+                Text("Descending").foregroundStyle(FestivalText.primary)
             }
             .padding(.top, 4)
         }
@@ -119,7 +119,7 @@ struct FirstRunNavigationDemo: View {
                         .font(.title3)
                     Text(tab.0).font(.caption2)
                 }
-                .foregroundStyle(index == 0 ? BrandTokens.accentBlue : BrandTokens.textMuted)
+                .foregroundStyle(index == 0 ? BrandTokens.accentBlue : FestivalText.deemphasized)
                 .frame(maxWidth: .infinity)
             }
         }
@@ -160,7 +160,7 @@ struct FirstRunFilterDemo: View {
 
     private func filterRow(_ label: String, on: Bool) -> some View {
         HStack {
-            Text(label).foregroundStyle(BrandTokens.textPrimary)
+            Text(label).foregroundStyle(FestivalText.primary)
             Spacer(minLength: 0)
             Capsule()
                 .fill(on ? BrandTokens.accentBlue : BrandTokens.surfaceMuted)
@@ -182,8 +182,8 @@ struct FirstRunSongIconsDemo: View {
     private let entries: [(Instrument, String?, Color)] = [
         (.lead, nil, BrandTokens.gold),
         (.bass, "checkmark", BrandTokens.statusGreen),
-        (.drums, "minus", BrandTokens.textMuted),
-        (.vocals, "slash.circle", BrandTokens.textDisabled),
+        (.drums, "minus", FestivalText.deemphasized),
+        (.vocals, "slash.circle", FestivalText.disabled),
     ]
 
     var body: some View {
@@ -225,16 +225,16 @@ struct FirstRunMetadataDemo: View {
             HStack(spacing: 12) {
                 FirstRunDemoArt()
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Neon Skyline").font(.headline).foregroundStyle(BrandTokens.textPrimary)
+                    Text("Neon Skyline").font(.headline).foregroundStyle(FestivalText.primary)
                     Text("2,481,920").font(.subheadline)
-                        .foregroundStyle(BrandTokens.textSecondary)
+                        .foregroundStyle(FestivalText.primary)
                 }
             }
             HStack(spacing: 8) {
                 ForEach(pills, id: \.self) { pill in
                     Text(pill)
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(BrandTokens.textPrimary)
+                        .foregroundStyle(FestivalText.primary)
                         .padding(.horizontal, 10).padding(.vertical, 5)
                         .background(BrandTokens.surfaceMuted, in: Capsule())
                 }
@@ -272,14 +272,14 @@ struct FirstRunShopBadgeDemo: View {
         HStack(spacing: 12) {
             FirstRunDemoArt()
             VStack(alignment: .leading, spacing: 2) {
-                Text("Neon Skyline").font(.headline).foregroundStyle(BrandTokens.textPrimary)
+                Text("Neon Skyline").font(.headline).foregroundStyle(FestivalText.primary)
                 Text("The Voltage · 2023").font(.subheadline)
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
             }
             Spacer(minLength: 0)
             Image(systemName: symbol)
                 .font(.subheadline)
-                .foregroundStyle(kind == .leaving ? BrandTokens.textPrimary : tint)
+                .foregroundStyle(kind == .leaving ? FestivalText.primary : tint)
                 .frame(width: 30, height: 30)
                 .background(kind == .leaving ? BrandTokens.statusRed : BrandTokens.appBackground, in: Circle())
         }

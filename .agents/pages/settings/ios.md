@@ -24,7 +24,7 @@
 ## Decisions and gotchas
 
 - Section order follows the web: … Version · Service Info · First Run Guides · Licenses · Reset.
-- Row labels: title in primary white, detail in `.subheadline` `textSecondary` with 4 pt spacing (HIG list-row subtitle; operator 2026-09-28).
+- Row labels: title and detail both `FestivalText.primary` (white-text rule), detail in `.subheadline` with 4 pt spacing (HIG list-row subtitle; operator 2026-09-28). Settings, First Run and What's New use `FestivalText` tokens only; chevrons are `deemphasized`.
 - Indeterminate progress is a static empty track plus "In progress — total not yet known", not the web's looping shimmer (a `repeatForever` animation stalls XCUITest idling and adds no information).
 
 - Section headers use `textSecondary` (not system gray) over translucent artwork gaps; three visible headers pass rendered-pixel ≥4.5:1 on `art-white`.

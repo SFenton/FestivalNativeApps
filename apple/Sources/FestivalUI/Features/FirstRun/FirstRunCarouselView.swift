@@ -48,7 +48,7 @@ struct FirstRunCarouselView: View {
             Button(action: onFinish) {
                 Image(systemName: "xmark.circle.fill")
                     .font(.title2)
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
             }
             .accessibilityLabel("Close")
             .accessibilityIdentifier("fst.first-run.close")
@@ -62,7 +62,7 @@ struct FirstRunCarouselView: View {
     private var controls: some View {
         HStack {
             Button("Skip", action: onFinish)
-                .foregroundStyle(BrandTokens.textPrimary)
+                .foregroundStyle(FestivalText.primary)
                 .opacity(isLastSlide ? 0 : 1)
                 .disabled(isLastSlide)
                 .accessibilityHidden(isLastSlide)
@@ -122,11 +122,11 @@ private struct FirstRunSlideView: View {
             VStack(spacing: 8) {
                 Text(slide.title)
                     .font(.title2.bold())
-                    .foregroundStyle(BrandTokens.textPrimary)
+                    .foregroundStyle(FestivalText.primary)
                     .multilineTextAlignment(.center)
                 Text(slide.description)
                     .font(.subheadline)
-                    .foregroundStyle(BrandTokens.textPrimary)
+                    .foregroundStyle(FestivalText.primary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }

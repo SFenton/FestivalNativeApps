@@ -15,7 +15,7 @@ struct FirstRunShopOverviewDemo: View {
                     .fill(BrandTokens.accentPurple.opacity(0.35))
                     .overlay(
                         Image(systemName: "music.note")
-                            .foregroundStyle(BrandTokens.textSecondary)
+                            .foregroundStyle(FestivalText.primary)
                     )
                     .aspectRatio(1, contentMode: .fit)
             }
@@ -36,10 +36,10 @@ private struct FirstRunShopRow: View {
             FirstRunAlbumArtPlaceholder()
             VStack(alignment: .leading, spacing: 2) {
                 Text(song.title).font(.subheadline.weight(.semibold))
-                    .foregroundStyle(BrandTokens.textPrimary)
+                    .foregroundStyle(FestivalText.primary)
                     .lineLimit(1)
                 Text(song.artist).font(.caption)
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
                     .lineLimit(1)
             }
             Spacer(minLength: 0)

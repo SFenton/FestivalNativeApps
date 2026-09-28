@@ -37,14 +37,14 @@ struct FirstRunLeaderboardsExperimentalMetricsDemo: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Rank By").font(.caption.weight(.semibold))
-                .foregroundStyle(BrandTokens.textSecondary)
+                .foregroundStyle(FestivalText.primary)
             ForEach(Array(metrics.enumerated()), id: \.offset) { index, metric in
                 HStack {
                     Image(systemName: index == 0 ? "largecircle.fill.circle" : "circle")
-                        .foregroundStyle(index == 0 ? BrandTokens.accentBlue : BrandTokens.textMuted)
+                        .foregroundStyle(index == 0 ? BrandTokens.accentBlue : FestivalText.deemphasized)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(metric.0).foregroundStyle(BrandTokens.textPrimary)
-                        Text(metric.1).font(.caption2).foregroundStyle(BrandTokens.textMuted)
+                        Text(metric.0).foregroundStyle(FestivalText.primary)
+                        Text(metric.1).font(.caption2).foregroundStyle(FestivalText.deemphasized)
                     }
                     Spacer(minLength: 0)
                 }

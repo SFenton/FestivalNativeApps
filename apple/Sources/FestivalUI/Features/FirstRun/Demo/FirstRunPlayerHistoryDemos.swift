@@ -13,15 +13,15 @@ struct FirstRunPlayerHistoryScoreListDemo: View {
                 HStack(spacing: 16) {
                     Text(entry.name)
                         .font(.subheadline)
-                        .foregroundStyle(BrandTokens.textPrimary)
+                        .foregroundStyle(FestivalText.primary)
                     Spacer(minLength: 0)
                     Text(entry.score.formatted())
                         .font(.subheadline.weight(.semibold))
                         .monospacedDigit()
-                        .foregroundStyle(BrandTokens.textPrimary)
+                        .foregroundStyle(FestivalText.primary)
                     Text("\(entry.accuracyPercent)%")
                         .font(.caption)
-                        .foregroundStyle(BrandTokens.textSecondary)
+                        .foregroundStyle(FestivalText.primary)
                     if entry.isFullCombo {
                         FirstRunStar(gold: true, size: 13)
                     }
@@ -51,21 +51,21 @@ struct FirstRunPlayerHistorySortDemo: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Sort By").font(.caption.weight(.semibold))
-                .foregroundStyle(BrandTokens.textSecondary)
+                .foregroundStyle(FestivalText.primary)
             ForEach(modes, id: \.self) { mode in
                 HStack {
                     Image(systemName: mode == "Score" ? "largecircle.fill.circle" : "circle")
-                        .foregroundStyle(mode == "Score" ? BrandTokens.accentBlue : BrandTokens.textMuted)
-                    Text(mode).foregroundStyle(BrandTokens.textPrimary)
+                        .foregroundStyle(mode == "Score" ? BrandTokens.accentBlue : FestivalText.deemphasized)
+                    Text(mode).foregroundStyle(FestivalText.primary)
                     Spacer(minLength: 0)
                 }
             }
             HStack {
                 Image(systemName: "arrow.down").foregroundStyle(BrandTokens.accentBlue)
-                Text("Descending").foregroundStyle(BrandTokens.textPrimary)
+                Text("Descending").foregroundStyle(FestivalText.primary)
                 Spacer(minLength: 0)
-                Image(systemName: "arrow.up").foregroundStyle(BrandTokens.textMuted)
-                Text("Ascending").foregroundStyle(BrandTokens.textSecondary)
+                Image(systemName: "arrow.up").foregroundStyle(FestivalText.deemphasized)
+                Text("Ascending").foregroundStyle(FestivalText.primary)
             }
             .padding(.top, 4)
         }

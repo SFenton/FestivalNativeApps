@@ -66,21 +66,21 @@ struct LicensesScreen: View {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(entry.name)
-                        .foregroundStyle(BrandTokens.textPrimary)
+                        .foregroundStyle(FestivalText.primary)
                     Text(entry.versionOrRole)
                         .font(.footnote)
-                        .foregroundStyle(BrandTokens.textSecondary)
+                        .foregroundStyle(FestivalText.primary)
                 }
                 Spacer(minLength: 8)
                 Text(entry.licenseType)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(BrandTokens.surfaceFrosted, in: Capsule())
                 Image(systemName: "chevron.right")
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(BrandTokens.textMuted)
+                    .foregroundStyle(FestivalText.deemphasized)
                     .accessibilityHidden(true)
             }
             .contentShape(Rectangle())
@@ -108,7 +108,7 @@ private struct LicenseDetailSheet: View {
                     }
                     Text(entry.licenseText)
                         .font(.system(.footnote, design: .monospaced))
-                        .foregroundStyle(BrandTokens.textSecondary)
+                        .foregroundStyle(FestivalText.primary)
                         .textSelection(.enabled)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

@@ -17,7 +17,7 @@ struct FirstRunSongInfoChartDemo: View {
                     .annotation(position: .top) {
                         Text(point.score.formatted())
                             .font(.caption2.weight(.semibold))
-                            .foregroundStyle(BrandTokens.textSecondary)
+                            .foregroundStyle(FestivalText.primary)
                     }
             }
             .chartYScale(domain: 0...100)
@@ -36,7 +36,7 @@ struct FirstRunSongInfoChartDemo: View {
             legendItem("Full Combo", BrandTokens.gold)
         }
         .font(.caption2)
-        .foregroundStyle(BrandTokens.textMuted)
+        .foregroundStyle(FestivalText.deemphasized)
     }
 
     private func legendItem(_ label: String, _ tint: Color) -> some View {
@@ -75,15 +75,15 @@ struct FirstRunSongInfoBarSelectDemo: View {
             HStack(spacing: 16) {
                 Text(selected.label)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(BrandTokens.textPrimary)
+                    .foregroundStyle(FestivalText.primary)
                 Spacer(minLength: 0)
                 Text(selected.score.formatted())
                     .font(.subheadline.weight(.semibold))
                     .monospacedDigit()
-                    .foregroundStyle(BrandTokens.textPrimary)
+                    .foregroundStyle(FestivalText.primary)
                 Text("\(Int(selected.accuracy))%")
                     .font(.subheadline)
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
                 if selected.isFullCombo {
                     FirstRunStar(gold: true, size: 16)
                 }
@@ -119,15 +119,15 @@ struct FirstRunSongInfoViewAllDemo: View {
         HStack(spacing: 16) {
             Text(entry.name)
                 .font(.subheadline)
-                .foregroundStyle(BrandTokens.textPrimary)
+                .foregroundStyle(FestivalText.primary)
             Spacer(minLength: 0)
             Text(entry.score.formatted())
                 .font(.subheadline.weight(.semibold))
                 .monospacedDigit()
-                .foregroundStyle(BrandTokens.textPrimary)
+                .foregroundStyle(FestivalText.primary)
             Text("\(entry.accuracyPercent)%")
                 .font(.caption)
-                .foregroundStyle(BrandTokens.textSecondary)
+                .foregroundStyle(FestivalText.primary)
             if entry.isFullCombo {
                 FirstRunStar(gold: true, size: 13)
             }
@@ -150,16 +150,16 @@ struct FirstRunSongInfoTopScoresDemo: View {
                 HStack(spacing: 14) {
                     Text("#\(entry.rank)")
                         .font(.subheadline).monospacedDigit()
-                        .foregroundStyle(BrandTokens.textSecondary)
+                        .foregroundStyle(FestivalText.primary)
                         .frame(minWidth: 24, alignment: .trailing)
                     Text(entry.name)
                         .font(.subheadline)
-                        .foregroundStyle(BrandTokens.textPrimary)
+                        .foregroundStyle(FestivalText.primary)
                     Spacer(minLength: 0)
                     Text(entry.score.formatted())
                         .font(.subheadline.weight(.semibold))
                         .monospacedDigit()
-                        .foregroundStyle(BrandTokens.textPrimary)
+                        .foregroundStyle(FestivalText.primary)
                     if entry.isFullCombo {
                         FirstRunStar(gold: true, size: 13)
                     }
@@ -201,7 +201,7 @@ struct FirstRunSongInfoPathsDemo: View {
                     Text(difficulty)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(
-                            difficulty == "Expert" ? BrandTokens.textPrimary : BrandTokens.textSecondary
+                            difficulty == "Expert" ? FestivalText.primary : FestivalText.primary
                         )
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
@@ -219,7 +219,7 @@ struct FirstRunSongInfoPathsDemo: View {
                             .font(.title2)
                         Text("Path Preview").font(.caption)
                     }
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
                 )
                 .frame(maxWidth: .infinity, minHeight: 90)
         }
@@ -253,7 +253,7 @@ struct FirstRunSongInfoShopPillDemo: View {
             Image(systemName: "bag.fill")
             Text("Item Shop").font(.subheadline.weight(.semibold))
         }
-        .foregroundStyle(BrandTokens.textPrimary)
+        .foregroundStyle(FestivalText.primary)
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
         .background(tint, in: Capsule())

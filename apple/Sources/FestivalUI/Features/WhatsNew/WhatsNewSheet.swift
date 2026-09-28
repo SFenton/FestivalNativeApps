@@ -85,16 +85,16 @@ private struct WhatsNewSectionView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(section.displayTitle)
                 .font(.headline)
-                .foregroundStyle(BrandTokens.textPrimary)
+                .foregroundStyle(FestivalText.primary)
                 .accessibilityAddTraits(.isHeader)
             ForEach(Array(section.items.enumerated()), id: \.offset) { _, item in
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text("•")
-                        .foregroundStyle(BrandTokens.textSecondary)
+                        .foregroundStyle(FestivalText.primary)
                         .accessibilityHidden(true)
                     Text(item)
                         .font(.subheadline)
-                        .foregroundStyle(BrandTokens.textPrimary)
+                        .foregroundStyle(FestivalText.primary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }

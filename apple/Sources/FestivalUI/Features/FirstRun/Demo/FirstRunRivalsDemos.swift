@@ -9,11 +9,11 @@ import FestivalDesign
 struct FirstRunRivalsOverviewDemo: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Above You").font(.subheadline.weight(.bold)).foregroundStyle(BrandTokens.textPrimary)
+            Text("Above You").font(.subheadline.weight(.bold)).foregroundStyle(FestivalText.primary)
             ForEach(Array(FirstRunDemoPool.rivalsAbove.enumerated()), id: \.element.id) { index, rival in
                 FirstRunRivalRow(rival: rival, direction: .above).firstRunStagger(index)
             }
-            Text("Below You").font(.subheadline.weight(.bold)).foregroundStyle(BrandTokens.textPrimary)
+            Text("Below You").font(.subheadline.weight(.bold)).foregroundStyle(FestivalText.primary)
             ForEach(Array(FirstRunDemoPool.rivalsBelow.enumerated()), id: \.element.id) { index, rival in
                 FirstRunRivalRow(rival: rival, direction: .below).firstRunStagger(index + FirstRunDemoPool.rivalsAbove.count)
             }
@@ -53,7 +53,7 @@ struct FirstRunRivalsInstrumentsDemo: View {
 struct FirstRunRivalsDetailDemo: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Closest Battles").font(.subheadline.weight(.bold)).foregroundStyle(BrandTokens.textPrimary)
+            Text("Closest Battles").font(.subheadline.weight(.bold)).foregroundStyle(FestivalText.primary)
             ForEach(FirstRunDemoPool.closestBattles) { comparison in
                 comparisonRow(comparison)
             }
@@ -66,7 +66,7 @@ struct FirstRunRivalsDetailDemo: View {
             FirstRunAlbumArtPlaceholder()
             VStack(alignment: .leading, spacing: 2) {
                 Text(comparison.title).font(.subheadline.weight(.semibold))
-                    .foregroundStyle(BrandTokens.textPrimary)
+                    .foregroundStyle(FestivalText.primary)
                     .lineLimit(1)
                 HStack(spacing: 10) {
                     Label("#\(comparison.userRank)", systemImage: "person.fill")

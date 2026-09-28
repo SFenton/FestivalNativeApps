@@ -63,7 +63,7 @@
 
 - **Slot sharing:** the launch What's New sheet claims `FirstRunCenter` slot `whats-new`, so a
   carousel and the changelog never present together ([whats-new](../whats-new/ios.md)).
-- **Stars:** demos use the web's `star_white`/`star_gold` images (`Resources/Stars.xcassets`,
+- **Stars:** demos use the web's `star_white`/`star_gold` images (shared `Design/StarRating.swift`, wrapped by
   `Demo/FirstRunStar.swift`), never SF Symbol stars. Text is primary white; position is announced
   only through VoiceOver's `accessibilityValue` beside the page dots (no visible "Slide x of y").
 

@@ -25,10 +25,10 @@ struct SettingsChoiceRow<Value: Hashable & Identifiable>: View {
                 SettingLabel(title)
                 Spacer(minLength: 8)
                 Text(label(selection))
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
                 Image(systemName: "chevron.right")
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(BrandTokens.textMuted)
+                    .foregroundStyle(FestivalText.deemphasized)
                     .accessibilityHidden(true)
             }
             .contentShape(Rectangle())
@@ -64,7 +64,7 @@ struct SettingsChoiceList<Value: Hashable & Identifiable>: View {
                     } label: {
                         HStack {
                             Text(label(option))
-                                .foregroundStyle(BrandTokens.textPrimary)
+                                .foregroundStyle(FestivalText.primary)
                             Spacer(minLength: 8)
                             if option == selection {
                                 Image(systemName: "checkmark")

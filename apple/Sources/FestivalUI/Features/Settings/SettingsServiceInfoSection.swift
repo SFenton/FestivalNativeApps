@@ -189,7 +189,7 @@ struct SettingsServiceInfoSection<Footer: View>: View {
             HStack(spacing: 8) {
                 Text(rows.processState.label)
                     .font(.headline)
-                    .foregroundStyle(BrandTokens.textPrimary)
+                    .foregroundStyle(FestivalText.primary)
                 if rows.processState == .loading || rows.processState == .updating {
                     ProgressView()
                         .controlSize(.small)
@@ -204,16 +204,16 @@ struct SettingsServiceInfoSection<Footer: View>: View {
     private func phaseRow(title: String, rows: ServiceInfoRows) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .foregroundStyle(BrandTokens.textPrimary)
+                .foregroundStyle(FestivalText.primary)
             if let barPercent = rows.barPercent {
                 ServiceProgressBar(percent: barPercent, reduceMotion: reduceMotion)
                 Text(rows.progressText ?? "")
                     .font(.footnote)
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
                 if let units = rows.unitsText {
                     Text(units)
                         .font(.footnote)
-                        .foregroundStyle(BrandTokens.textSecondary)
+                        .foregroundStyle(FestivalText.primary)
                 }
             }
         }

@@ -44,11 +44,11 @@ struct FirstRunCompeteLeaderboardsDemo: View {
 struct FirstRunCompeteRivalsDemo: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Above You").font(.subheadline.weight(.bold)).foregroundStyle(BrandTokens.textPrimary)
+            Text("Above You").font(.subheadline.weight(.bold)).foregroundStyle(FestivalText.primary)
             ForEach(FirstRunDemoPool.rivalsAbove.prefix(2)) { rival in
                 FirstRunRivalRow(rival: rival, direction: .above)
             }
-            Text("Below You").font(.subheadline.weight(.bold)).foregroundStyle(BrandTokens.textPrimary)
+            Text("Below You").font(.subheadline.weight(.bold)).foregroundStyle(FestivalText.primary)
             ForEach(FirstRunDemoPool.rivalsBelow.prefix(2)) { rival in
                 FirstRunRivalRow(rival: rival, direction: .below)
             }

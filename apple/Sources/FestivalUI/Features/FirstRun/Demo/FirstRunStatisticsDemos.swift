@@ -12,7 +12,7 @@ struct FirstRunStatsSelectProfileDemo: View {
             Image(systemName: "person.crop.circle.badge.checkmark")
             Text("Select This Player").font(.subheadline.weight(.semibold))
         }
-        .foregroundStyle(BrandTokens.textPrimary)
+        .foregroundStyle(FestivalText.primary)
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
         .background(BrandTokens.accentPurple.opacity(0.8), in: Capsule())
@@ -27,7 +27,7 @@ struct FirstRunStatsSelectProfileDemo: View {
 private struct FirstRunStatCard: View {
     let label: String
     let value: String
-    var tint: Color = BrandTokens.textPrimary
+    var tint: Color = FestivalText.primary
     var chevron = false
 
     var body: some View {
@@ -35,12 +35,12 @@ private struct FirstRunStatCard: View {
             HStack {
                 Text(label)
                     .font(.caption)
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
                 Spacer(minLength: 0)
                 if chevron {
                     Image(systemName: "chevron.right")
                         .font(.caption2.weight(.semibold))
-                        .foregroundStyle(BrandTokens.textMuted)
+                        .foregroundStyle(FestivalText.deemphasized)
                 }
             }
             Text(value)
@@ -122,19 +122,19 @@ struct FirstRunStatsPercentilesDemo: View {
                 Spacer()
                 Text("Songs").font(.caption.weight(.semibold))
             }
-            .foregroundStyle(BrandTokens.textSecondary)
+            .foregroundStyle(FestivalText.primary)
             .padding(.horizontal, 14)
             .frame(height: 32)
             ForEach(Array(FirstRunDemoPool.percentileBuckets.enumerated()), id: \.element.id) { index, bucket in
                 HStack {
                     Text("Top \(bucket.percent)%")
                         .font(.subheadline)
-                        .foregroundStyle(BrandTokens.textPrimary)
+                        .foregroundStyle(FestivalText.primary)
                     Spacer()
                     Text("\(bucket.count)")
                         .font(.subheadline.weight(.semibold))
                         .monospacedDigit()
-                        .foregroundStyle(BrandTokens.textPrimary)
+                        .foregroundStyle(FestivalText.primary)
                 }
                 .padding(.horizontal, 14)
                 .frame(height: 40)
@@ -161,9 +161,9 @@ struct FirstRunStatsTopSongsDemo: View {
                     FirstRunAlbumArtPlaceholder()
                     VStack(alignment: .leading, spacing: 2) {
                         Text(song.title).font(.subheadline.weight(.semibold))
-                            .foregroundStyle(BrandTokens.textPrimary)
+                            .foregroundStyle(FestivalText.primary)
                         Text(song.artist).font(.caption)
-                            .foregroundStyle(BrandTokens.textSecondary)
+                            .foregroundStyle(FestivalText.primary)
                     }
                     Spacer(minLength: 0)
                     Text("Top \(percentiles[index], specifier: "%.1f")%")

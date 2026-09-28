@@ -13,19 +13,19 @@ struct FirstRunSuggestionsCategoryCardDemo: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Almost Full Combo")
                     .font(.headline)
-                    .foregroundStyle(BrandTokens.textPrimary)
+                    .foregroundStyle(FestivalText.primary)
                 Text("Songs where you're just a few notes from a full combo.")
                     .font(.caption)
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
             }
             ForEach(Array(FirstRunDemoPool.songs.prefix(2).enumerated()), id: \.element.id) { index, song in
                 HStack(spacing: 12) {
                     InstrumentIcon(.lead, size: 26)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(song.title).font(.subheadline.weight(.semibold))
-                            .foregroundStyle(BrandTokens.textPrimary)
+                            .foregroundStyle(FestivalText.primary)
                         Text(song.artist).font(.caption)
-                            .foregroundStyle(BrandTokens.textSecondary)
+                            .foregroundStyle(FestivalText.primary)
                     }
                     Spacer(minLength: 0)
                     Text("\(98 - index * 2)%")
@@ -61,7 +61,7 @@ struct FirstRunSuggestionsGlobalFilterDemo: View {
 
     private func toggleRow(_ label: String) -> some View {
         HStack {
-            Text(label).foregroundStyle(BrandTokens.textPrimary).font(.subheadline)
+            Text(label).foregroundStyle(FestivalText.primary).font(.subheadline)
             Spacer(minLength: 0)
             Capsule()
                 .fill(BrandTokens.accentBlue)
@@ -94,7 +94,7 @@ struct FirstRunSuggestionsInstrumentFilterDemo: View {
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(types, id: \.self) { type in
                     HStack {
-                        Text(type).foregroundStyle(BrandTokens.textPrimary).font(.subheadline)
+                        Text(type).foregroundStyle(FestivalText.primary).font(.subheadline)
                         Spacer(minLength: 0)
                         Capsule()
                             .fill(BrandTokens.accentBlue)
@@ -128,7 +128,7 @@ struct FirstRunSuggestionsInfiniteScrollDemo: View {
                 HStack(spacing: 10) {
                     InstrumentIcon(instrument, size: 22)
                     Text(title).font(.subheadline.weight(.semibold))
-                        .foregroundStyle(BrandTokens.textPrimary)
+                        .foregroundStyle(FestivalText.primary)
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 12)

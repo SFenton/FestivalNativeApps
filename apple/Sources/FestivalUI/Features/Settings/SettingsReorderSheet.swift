@@ -21,7 +21,7 @@ struct SettingsReorderSheet<Item: Identifiable & Hashable>: View {
                 Section {
                     ForEach(items) { item in
                         Text(label(item))
-                            .foregroundStyle(BrandTokens.textPrimary)
+                            .foregroundStyle(FestivalText.primary)
                             .listRowBackground(Color.white.opacity(0.06))
                     }
                     .onMove { indices, destination in

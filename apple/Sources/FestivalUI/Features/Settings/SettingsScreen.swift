@@ -210,10 +210,10 @@ struct SettingsScreen: View {
             if filterInvalidScores {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Max Score Leeway: \(ScoreFormatting.leeway(leeway))")
-                        .foregroundStyle(BrandTokens.textPrimary)
+                        .foregroundStyle(FestivalText.primary)
                     Text("Scores up to \(maxEffectiveScore) count as valid before filtering.")
                         .font(.footnote)
-                        .foregroundStyle(BrandTokens.textSecondary)
+                        .foregroundStyle(FestivalText.primary)
                     Slider(
                         value: Binding(
                             get: { leeway },
@@ -395,7 +395,7 @@ struct SettingsScreen: View {
             SettingLabel(label)
             Spacer(minLength: 8)
             Text(value)
-                .foregroundStyle(BrandTokens.textSecondary)
+                .foregroundStyle(FestivalText.primary)
         }
     }
 
@@ -409,7 +409,7 @@ struct SettingsScreen: View {
                 if let serviceStatus {
                     Text(serviceStatus)
                         .font(.subheadline)
-                        .foregroundStyle(BrandTokens.textSecondary)
+                        .foregroundStyle(FestivalText.primary)
                         .accessibilityIdentifier("fst.settings.publication-status")
                 }
             }
@@ -429,7 +429,7 @@ struct SettingsScreen: View {
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(BrandTokens.textMuted)
+                    .foregroundStyle(FestivalText.deemphasized)
                     .accessibilityHidden(true)
             }
             .contentShape(Rectangle())
@@ -454,7 +454,7 @@ struct SettingsScreen: View {
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(BrandTokens.textMuted)
+                    .foregroundStyle(FestivalText.deemphasized)
                     .accessibilityHidden(true)
             }
             .contentShape(Rectangle())
@@ -735,11 +735,11 @@ struct SettingLabel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
-                .foregroundStyle(BrandTokens.textPrimary)
+                .foregroundStyle(FestivalText.primary)
             if let detail {
                 Text(detail)
                     .font(.subheadline)
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }

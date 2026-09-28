@@ -80,17 +80,17 @@ struct FirstRunRankRow: View {
             Text("#\(entry.rank)")
                 .font(.body)
                 .monospacedDigit()
-                .foregroundStyle(BrandTokens.textSecondary)
+                .foregroundStyle(FestivalText.primary)
                 .frame(minWidth: 32, alignment: .trailing)
             Text(entry.name)
                 .font(.body.weight(entry.isPlayer ? .semibold : .regular))
-                .foregroundStyle(BrandTokens.textPrimary)
+                .foregroundStyle(FestivalText.primary)
                 .lineLimit(1)
             Spacer(minLength: 8)
             Text(entry.rating)
                 .font(.body.weight(.semibold))
                 .monospacedDigit()
-                .foregroundStyle(BrandTokens.textPrimary)
+                .foregroundStyle(FestivalText.primary)
         }
         .padding(.horizontal, 14)
         .frame(height: 44)
@@ -123,7 +123,7 @@ struct FirstRunRivalRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(rival.name)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(BrandTokens.textPrimary)
+                    .foregroundStyle(FestivalText.primary)
                     .lineLimit(1)
                 HStack(spacing: 6) {
                     pill("\(rival.ahead) ahead", BrandTokens.statusGreen)
@@ -134,10 +134,10 @@ struct FirstRunRivalRow: View {
             VStack(alignment: .trailing, spacing: 0) {
                 Text("\(rival.shared)")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(BrandTokens.textPrimary)
+                    .foregroundStyle(FestivalText.primary)
                 Text("shared")
                     .font(.caption2)
-                    .foregroundStyle(BrandTokens.textMuted)
+                    .foregroundStyle(FestivalText.deemphasized)
             }
         }
         .padding(.horizontal, 12)
@@ -162,7 +162,7 @@ struct FirstRunViewAllRow: View {
     var body: some View {
         Text(title)
             .font(.subheadline.weight(.semibold))
-            .foregroundStyle(BrandTokens.textPrimary)
+            .foregroundStyle(FestivalText.primary)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
             .festivalGlass(.card, cornerRadius: 12)
@@ -179,7 +179,7 @@ struct FirstRunInstrumentHeader: View {
             InstrumentIcon(instrument, size: 22)
             Text(instrument.label)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(BrandTokens.textPrimary)
+                .foregroundStyle(FestivalText.primary)
         }
     }
 }
@@ -191,7 +191,7 @@ struct FirstRunAlbumArtPlaceholder: View {
             .fill(BrandTokens.surfaceMuted)
             .overlay(
                 Image(systemName: "music.note")
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
             )
             .frame(width: 44, height: 44)
     }
