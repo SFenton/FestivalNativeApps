@@ -1,0 +1,256 @@
+package com.festivalscoretracker.android.ui.compete
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridScope
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Explore
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.festivalscoretracker.android.core.compete.CompeteScope
+import com.festivalscoretracker.android.core.compete.CompeteText
+import com.festivalscoretracker.android.core.nav.AppRoute
+import com.festivalscoretracker.android.core.nav.FullRankingsRoute
+import com.festivalscoretracker.android.core.rankings.RankingMetric
+import com.festivalscoretracker.android.core.rankings.RankingNavigation
+import com.festivalscoretracker.android.core.rankings.RankingSpotlight
+import com.festivalscoretracker.android.core.rivals.RivalRoutes
+import com.festivalscoretracker.android.core.rivals.RivalText
+import com.festivalscoretracker.android.presentation.LoadState
+import com.festivalscoretracker.android.presentation.compete.CompeteBoard
+import com.festivalscoretracker.android.presentation.compete.CompeteSection
+import com.festivalscoretracker.android.presentation.compete.CompeteViewModel
+import com.festivalscoretracker.android.ui.common.FestivalScreen
+import com.festivalscoretracker.android.ui.common.LocalShellActions
+import com.festivalscoretracker.android.ui.common.ServiceStatusView
+import com.festivalscoretracker.android.ui.design.GlassCard
+import com.festivalscoretracker.android.ui.design.InstrumentIcon
+import com.festivalscoretracker.android.ui.leaderboards.AccountRankingRow
+import com.festivalscoretracker.android.ui.leaderboards.RankingsSkeletonRows
+import com.festivalscoretracker.android.ui.rivals.AdaptiveCardGrid
+import com.festivalscoretracker.android.ui.rivals.RivalCardFailure
+import com.festivalscoretracker.android.ui.rivals.RivalCardLoading
+import com.festivalscoretracker.android.ui.rivals.RivalPreviewRows
+import com.festivalscoretracker.android.ui.theme.BrandTokens
+import kotlinx.coroutines.launch
+
+// region Compete
+
+/**
+ * Compete hub (`/compete`, web `CompetePage`): a Leaderboards group (Top 10 Total
+ * Score per supported scope with the player's own row) and a Rivals group (3 above /
+ * 3 below per scope), with a Quick Links menu for the two groups.
+ *
+ * @param viewModel Page logic.
+ * @param isRoot Whether shown as the phone tab root.
+ */
+@Composable
+fun CompeteScreen(viewModel: CompeteViewModel, isRoot: Boolean) {
+    val shell = LocalShellActions.current
+    val content by viewModel.content.collectAsStateWithLifecycle()
+    val gridState = rememberLazyStaggeredGridState()
+    val scope = rememberCoroutineScope()
+    var jumpOpen by rememberSaveable { mutableStateOf(false) }
+    val rivalsIndex = 1 + content.sections.size
+    FestivalScreen(
+        title = CompeteText.TITLE,
+        isRoot = isRoot,
+        actions = {
+            Box {
+                IconButton(onClick = { jumpOpen = true }, modifier = Modifier.testTag("fst.compete.jump")) {
+                    Icon(Icons.Outlined.Explore, contentDescription = "Quick Links")
+                }
+                DropdownMenu(expanded = jumpOpen, onDismissRequest = { jumpOpen = false }) {
+                    listOf(CompeteText.LEADERBOARDS to 0, CompeteText.RIVALS to rivalsIndex).forEach { (label, index) ->
+                        DropdownMenuItem(
+                            text = { Text(label) },
+                            onClick = {
+                                jumpOpen = false
+                                scope.launch { gridState.animateScrollToItem(index) }
+                            },
+                            modifier = Modifier.testTag("fst.compete.jump.${label.lowercase()}"),
+                        )
+                    }
+                }
+            }
+        },
+    ) { padding ->
+        val issue = content.fullPageIssue
+        if (issue != null) {
+            ServiceStatusView(issue, "Compete unavailable", content.countdown, viewModel::retryFailed, contentPadding = padding)
+            return@FestivalScreen
+        }
+        val selected = shell.selectedPlayer?.accountId
+        AdaptiveCardGrid(
+            contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding() + 24.dp),
+            state = gridState,
+            testTag = "fst.compete.grid",
+        ) {
+            groupHeader("leaderboards", CompeteText.LEADERBOARDS)
+            content.sections.forEach { section ->
+                item(key = "board:${section.scope.key}") {
+                    BoardCard(section, selected, viewModel, shell.navigate)
+                }
+            }
+            groupHeader("rivals", CompeteText.RIVALS)
+            content.sections.forEach { section ->
+                item(key = "rivals:${section.scope.key}") {
+                    RivalsCard(section, viewModel, shell.navigate)
+                }
+            }
+        }
+    }
+}
+
+private fun LazyStaggeredGridScope.groupHeader(id: String, title: String) {
+    item(key = "header:$id", span = StaggeredGridItemSpan.FullLine) {
+        Text(
+            title,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = BrandTokens.textPrimary,
+            modifier = Modifier.padding(top = 8.dp).testTag("fst.compete.section.$id").semantics { heading() },
+        )
+    }
+}
+
+@Composable
+private fun ScopeHeader(scope: CompeteScope, onSeeAll: (() -> Unit)?, tag: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            scope.instruments.forEach { InstrumentIcon(it, size = 28.dp, decorative = true) }
+        }
+        Text(
+            scope.label,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = BrandTokens.textPrimary,
+            modifier = Modifier.weight(1f).semantics { heading() },
+        )
+        if (onSeeAll != null) {
+            TextButton(
+                onClick = onSeeAll,
+                modifier = Modifier.heightIn(min = 48.dp).testTag(tag).semantics { contentDescription = "${RivalText.SEE_ALL}: ${scope.label}" },
+            ) { Text(RivalText.SEE_ALL) }
+        }
+    }
+}
+
+@Composable
+private fun EmptyCard(title: String, subtitle: String) {
+    GlassCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = BrandTokens.textPrimary)
+            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary)
+        }
+    }
+}
+
+@Composable
+private fun BoardCard(section: CompeteSection, selected: String?, viewModel: CompeteViewModel, navigate: (AppRoute) -> Unit) {
+    val scope = section.scope
+    val board = (section.board as? LoadState.Loaded<CompeteBoard>)?.value
+    // Only single charts have a native full board; combo boards stay previews.
+    val fullBoard: (() -> Unit)? = (scope as? CompeteScope.Single)?.takeIf { board?.hasNavigation == true }?.let {
+        { navigate(FullRankingsRoute(it.instrument.wireId, RankingMetric.TotalScore.wireId)) }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("fst.compete.leaderboard-card.${scope.key}")) {
+        ScopeHeader(scope, fullBoard, "fst.compete.board.see-all.${scope.key}")
+        when (val state = section.board) {
+            LoadState.Loading -> GlassCard(Modifier.fillMaxWidth()) { RankingsSkeletonRows(5) }
+            is LoadState.Failed -> RivalCardFailure(state.issue, "${scope.label} unavailable", state.countdown) { viewModel.retryBoard(scope.key) }
+            is LoadState.Loaded -> {
+                val value = state.value
+                if (!value.hasNavigation) {
+                    EmptyCard(CompeteText.NO_RANKINGS_TITLE, CompeteText.noRankings(scope.label))
+                } else {
+                    GlassCard(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(vertical = 6.dp)) {
+                            value.entries.forEach { entry ->
+                                AccountRankingRow(
+                                    entry = entry,
+                                    metric = RankingMetric.TotalScore,
+                                    isSelected = RankingSpotlight.isSelected(selected, entry.accountId),
+                                    route = RankingNavigation.playerRoute(entry.accountId, entry.displayName, selected),
+                                    onOpen = navigate,
+                                    tag = "fst.compete.rank.${scope.key}.${entry.key}",
+                                )
+                            }
+                            value.spotlight?.let { own ->
+                                HorizontalDivider(color = BrandTokens.glassBorder, modifier = Modifier.padding(vertical = 4.dp))
+                                AccountRankingRow(
+                                    entry = own,
+                                    metric = RankingMetric.TotalScore,
+                                    isSelected = true,
+                                    route = RankingNavigation.playerRoute(own.accountId, own.displayName, selected),
+                                    onOpen = navigate,
+                                    tag = "fst.compete.spotlight.${scope.key}",
+                                )
+                            }
+                        }
+                    }
+                    if (fullBoard != null) {
+                        OutlinedButton(onClick = fullBoard, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Text(CompeteText.VIEW_FULL_LEADERBOARDS) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RivalsCard(section: CompeteSection, viewModel: CompeteViewModel, navigate: (AppRoute) -> Unit) {
+    val scope = section.scope
+    val rows = (section.rivals as? LoadState.Loaded)?.value
+    val seeAll: (() -> Unit)? = rows?.takeIf { it.isNotEmpty() }?.let { { navigate(RivalRoutes.allRivals(scope.rivalScope)) } }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("fst.compete.rivals-card.${scope.key}")) {
+        ScopeHeader(scope, seeAll, "fst.compete.rivals.see-all.${scope.key}")
+        when (val state = section.rivals) {
+            null -> EmptyCard(CompeteText.NO_RIVALS_TITLE, CompeteText.trackForRivals(scope.label))
+            LoadState.Loading -> RivalCardLoading("Loading ${scope.label} rivals")
+            is LoadState.Failed -> RivalCardFailure(state.issue, "${scope.label} rivals unavailable", state.countdown) { viewModel.retryRivals(scope.key) }
+            is LoadState.Loaded -> if (state.value.isEmpty()) {
+                EmptyCard(CompeteText.NO_RIVALS_TITLE, CompeteText.noRivals(scope.label))
+            } else {
+                RivalPreviewRows(
+                    rows = state.value,
+                    onRival = { entry -> navigate(RivalRoutes.detail(entry.rival.accountId, entry.rival.displayName, scope.rivalScope)) },
+                    onViewAll = seeAll,
+                    viewAllLabel = CompeteText.VIEW_ALL_RIVALS,
+                )
+            }
+        }
+    }
+}
+
+// endregion

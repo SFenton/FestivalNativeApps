@@ -68,8 +68,6 @@ import com.festivalscoretracker.android.AppContainer
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.nav.AdaptiveLayoutPolicy
 import com.festivalscoretracker.android.core.nav.AppRoute
-import com.festivalscoretracker.android.core.nav.CompeteRoute
-import com.festivalscoretracker.android.core.nav.CompeteTab
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.core.nav.FestivalSection
 import com.festivalscoretracker.android.core.nav.FestivalTabPolicy
@@ -96,6 +94,7 @@ import com.festivalscoretracker.android.ui.bands.bandsDestinations
 import com.festivalscoretracker.android.ui.common.ComingSoonScreen
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ShellActions
+import com.festivalscoretracker.android.ui.compete.competeDestinations
 import com.festivalscoretracker.android.ui.leaderboards.leaderboardsGraph
 import com.festivalscoretracker.android.ui.profile.PlayerHistoryScreen
 import com.festivalscoretracker.android.ui.profile.PlayerProfileScreen
@@ -602,7 +601,6 @@ private fun FestivalNavHost(
         }
         suggestionsDestinations(container, shellViewModel.settings)
         composable<LicensesRoute> { LicensesScreen() }
-        placeholder<CompeteTab>("Compete", isRoot = true)
         composable<StatisticsTab> {
             StatisticsScreen(profileViewModel(container, shellViewModel, accountId = null, name = null))
         }
@@ -619,7 +617,7 @@ private fun FestivalNavHost(
         }
         bandsDestinations(container)
         rivalsDestinations(container, settings)
-        placeholder<CompeteRoute>("Compete")
+        competeDestinations(container, settings)
         placeholder<ShopRoute>("Item Shop")
     }
 }
