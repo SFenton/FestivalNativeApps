@@ -1,0 +1,10 @@
+# rivalry (`/rivals/:rivalId/rivalry`) — iPhone notes
+
+> **What:** iPhone implementation state and decisions for the full song list of one rivalry category. **Read when:** changing this page on iPhone. Behavior: [spec.md](spec.md) (stub — this file is the source of truth for what's actually built until spec.md is promoted).
+
+Source: `FortniteFestivalWeb/src/pages/rivals/RivalryPage.tsx`. Reached from `RivalDetailScreen`'s "See All" via `AppRoute.rivalry(rivalId:mode:name:)`, where `mode` is a `RivalCategory.key` (`closest_battles`, `almost_passed`, `slipping_away`, `barely_winning`, `pulling_forward`, `dominating_them`) — see [rival-detail/ios.md](../rival-detail/ios.md).
+
+- Implemented: `RivalryScreen` (`Features/Rivals/RivalryScreen.swift`) re-fetches the same rival detail as `RivalDetailScreen` (same `RivalNavigationBridge` consume-and-re-stash pattern, so popping back to `RivalDetailScreen` and pushing a different category still works), re-runs `RivalCategorization.categorize` and renders every song in the requested bucket inside one `FestivalGlassSection` (no 5-song cap). Toolbar "View Profile" pushes `AppRoute.player`; song rows push `AppRoute.songDetail` when resolvable against the loaded catalogue, same as the detail page.
+- Re-stashing rationale: `RivalNavigationBridge.consume` removes the context on read (it's meant to survive exactly one push). Since `RivalDetailScreen` may still be on the navigation stack above `RivalryScreen` and could re-run its own `.task` later (e.g. after a pop-forward), `RivalryScreen` immediately re-stashes whatever context it consumed so the sibling screen doesn't silently fall back to "merge all visible instruments" on its next load.
+- Simplified vs. web this pass: no sort control (the web's `RivalDetailPage`/`RivalryPage` don't expose one either at this route — sorting is a `rivalDetailFetch` parameter this app doesn't currently vary from `closest`).
+- Tests: covered by `RivalsTests.swift`'s `RivalCategorization`/`RivalDetailResponse` coverage (see [rival-detail/ios.md](../rival-detail/ios.md)); no rivalry-specific Core logic beyond category lookup by key.
