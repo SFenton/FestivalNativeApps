@@ -26,12 +26,20 @@ struct PlayerProfileContent: View {
     let session: FestivalSession
     let accountId: String
     let routeDisplayName: String?
+    /// True only for the Statistics tab root: it then ends its own `.toolbar` with
+    /// `FestivalRootTrailingItems` (bell + avatar) after the Quick Links button,
+    /// per `.agents/controls/app-navigation/ios.md`'s toolbar-order rule, and reports
+    /// that to `festivalRootChrome` so it does not add a second copy. The pushed
+    /// `/player/:accountId` route (`PlayerProfileScreen`) leaves this false: pushed
+    /// pages never show that chrome.
+    var showsRootTrailingItems: Bool = false
 
     @State private var phase = PlayerProfilePhase.loading
     @State private var retryRevision = 0
     @State private var switchPending = false
     @State private var deselectPending = false
     @State private var actionError: String?
+    @State private var quickLinks = QuickLinksController()
     @AppStorage("fst.settings.showLead") private var showLead = true
     @AppStorage("fst.settings.showBass") private var showBass = true
     @AppStorage("fst.settings.showDrums") private var showDrums = true
@@ -54,10 +62,15 @@ struct PlayerProfileContent: View {
     ///   - session: Shared app session (client, selected profile, publication).
     ///   - accountId: Public account being viewed (may or may not be selected).
     ///   - routeDisplayName: Name known before the response arrives, if any.
-    init(session: FestivalSession, accountId: String, routeDisplayName: String?) {
+    ///   - showsRootTrailingItems: Pass `true` only from the Statistics tab root.
+    init(
+        session: FestivalSession, accountId: String, routeDisplayName: String?,
+        showsRootTrailingItems: Bool = false
+    ) {
         self.session = session
         self.accountId = accountId
         self.routeDisplayName = routeDisplayName
+        self.showsRootTrailingItems = showsRootTrailingItems
     }
 
     /// Settings-visible solo charts, matching the Songs tab's own policy.
@@ -108,6 +121,13 @@ struct PlayerProfileContent: View {
             } message: {
                 Text("Scores and profile-only content will be hidden; app Settings stay saved.")
             }
+            .toolbar {
+                QuickLinksToolbarItem(quickLinks)
+                if showsRootTrailingItems {
+                    FestivalRootTrailingItems(session: session)
+                }
+            }
+            .preference(key: FestivalRootTrailingProvidedKey.self, value: showsRootTrailingItems)
     }
 
     @ViewBuilder private var content: some View {
@@ -138,6 +158,7 @@ struct PlayerProfileContent: View {
                 }
                 .padding(16)
             }
+            .quickLinks(quickLinks, title: "Quick Links")
             .accessibilityIdentifier("fst.player.available")
         }
     }
@@ -240,6 +261,7 @@ struct PlayerProfileContent: View {
             ])
         }
         .accessibilityIdentifier("fst.player.overview")
+        .quickLinkSection(id: "global", title: "Global Statistics", symbol: "chart.bar.fill")
     }
 
     // MARK: Per-instrument
@@ -270,9 +292,13 @@ struct PlayerProfileContent: View {
                     ("Avg Accuracy", accuracyText(stats.averageAccuracy), nil),
                     ("Best Rank", stats.bestRank.map { "#\($0)" } ?? "—", nil),
                 ])
+                InstrumentGlobalRankView(session: session, accountId: accountId, instrument: instrument)
             }
         }
         .accessibilityIdentifier("fst.player.instrument.\(instrument.rawValue)")
+        .quickLinkSection(QuickLinkSection(
+            id: "instrument:\(instrument.rawValue)", title: instrument.label, icon: .instrument(instrument)
+        ))
     }
 
     // MARK: Bands
@@ -295,6 +321,7 @@ struct PlayerProfileContent: View {
             .frame(minHeight: 44)
         }
         .accessibilityIdentifier("fst.player.bands-link")
+        .quickLinkSection(id: "bands", title: "Bands", symbol: "person.3.fill")
     }
 
     // MARK: Formatting
@@ -329,6 +356,123 @@ struct PlayerProfileContent: View {
         } catch {
             guard !Task.isCancelled else { return }
             phase = .failed(ServiceIssue(error))
+        }
+    }
+}
+
+// MARK: - InstrumentGlobalRankView
+
+/// One instrument's global-rankings-board read, independent of the profile load
+/// above it. Loading, unranked and error states; success shows Total Score Rank
+/// (the web's un-experimental `DEFAULT_METRICS`), its rating and a rank-derived
+/// percentile — see `.agents/pages/player-profile/ios.md` for why this reads
+/// `GET /api/rankings/{instrument}/{accountId}` and never player-stats.
+private enum InstrumentRankPhase {
+    case loading
+    case unranked
+    case available(PlayerInstrumentRanking)
+    case failed(String)
+}
+
+private struct InstrumentGlobalRankView: View {
+    let session: FestivalSession
+    let accountId: String
+    let instrument: Instrument
+
+    @State private var phase = InstrumentRankPhase.loading
+    @State private var retryRevision = 0
+
+    private struct LoadKey: Hashable {
+        let accountId: String
+        let instrument: Instrument
+        let retry: Int
+        let publicationRevision: Int
+    }
+
+    var body: some View {
+        content
+            .task(id: LoadKey(
+                accountId: accountId, instrument: instrument, retry: retryRevision,
+                publicationRevision: session.publicationRevision
+            )) {
+                await load()
+            }
+    }
+
+    @ViewBuilder private var content: some View {
+        switch phase {
+        case .loading:
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                Text("Loading Global Rank")
+                    .font(.caption)
+                    .foregroundStyle(BrandTokens.textSecondary)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("fst.player.global-rank.\(instrument.rawValue).loading")
+        case .unranked:
+            FestivalFootnote("Not yet ranked globally on \(instrument.label).")
+                .accessibilityIdentifier("fst.player.global-rank.\(instrument.rawValue).unranked")
+        case let .failed(message):
+            HStack(spacing: 8) {
+                Text("Global rank unavailable: \(message)")
+                    .font(.caption)
+                    .foregroundStyle(BrandTokens.textSecondary)
+                Button("Retry") { retryRevision += 1 }
+                    .font(.caption.weight(.semibold))
+            }
+            .accessibilityIdentifier("fst.player.global-rank.\(instrument.rawValue).error")
+        case let .available(ranking):
+            statGrid(items: [
+                ("Global Rank", "#\(ranking.entry.rank(for: .totalscore).formatted())", nil),
+                (
+                    "Total Score",
+                    RankingFormatting.wholeNumber(ranking.entry.ratingValue(for: .totalscore)), nil
+                ),
+                percentileTile(ranking),
+            ])
+            .accessibilityIdentifier("fst.player.global-rank.\(instrument.rawValue).available")
+        }
+    }
+
+    /// "Top N%" derived from rank/field-size, since Total Score has no native
+    /// Bayesian percentile on the wire (only Adjusted/Weighted do).
+    ///
+    /// - Parameter ranking: Current validated single-account ranking row.
+    /// - Returns: A stat-grid item; gold-tinted for a top-5% placement.
+    private func percentileTile(_ ranking: PlayerInstrumentRanking) -> (label: String, value: String, tint: Color?) {
+        guard let fraction = ranking.percentile(for: .totalscore) else {
+            return ("Percentile", "—", nil)
+        }
+        let isTopFive = fraction * 100 <= 5
+        return ("Percentile", RankingFormatting.percentile(fraction), isTopFive ? BrandTokens.gold : nil)
+    }
+
+    /// Read the pure per-instrument rankings-board fallback, never player-stats.
+    private func load() async {
+        phase = .loading
+        do {
+            let payload = try await session.playerInstrumentRanking(
+                instrument: instrument, accountId: accountId
+            )
+            try Task.checkCancellation()
+            switch payload.state {
+            case .available:
+                guard let ranking = payload.ranking else {
+                    phase = .unranked
+                    return
+                }
+                phase = .available(ranking)
+            case .unranked:
+                phase = .unranked
+            }
+        } catch is CancellationError {
+            return
+        } catch let error as URLError where error.code == .cancelled {
+            return
+        } catch {
+            guard !Task.isCancelled else { return }
+            phase = .failed(error.localizedDescription)
         }
     }
 }

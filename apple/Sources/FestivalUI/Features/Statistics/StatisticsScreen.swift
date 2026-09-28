@@ -28,7 +28,7 @@ struct StatisticsScreen: View {
             if let selected = session.selectedPlayer {
                 PlayerProfileContent(
                     session: session, accountId: selected.accountId,
-                    routeDisplayName: selected.displayName
+                    routeDisplayName: selected.displayName, showsRootTrailingItems: true
                 )
             } else {
                 ContentUnavailableView {
