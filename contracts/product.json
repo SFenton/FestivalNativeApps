@@ -261,6 +261,7 @@
     "fst.paths.zoom-out": "chopt-paths",
     "fst.paths.text-summary": "chopt-paths",
     "fst.paths.activation.*": "chopt-paths",
+    "fst.paths.*": "chopt-paths",
     "fst.shop.view-toggle": "shop-offers",
     "fst.shop.empty": "shop-offers",
     "fst.shop.offline": "shop-offers",

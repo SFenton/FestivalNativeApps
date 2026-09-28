@@ -234,7 +234,10 @@ def validate_product(manifest: Any, *, root: Path, strict: bool = False) -> list
         if isinstance(item, dict) and isinstance(item.get("id"), str):
             implicit[f"fst.{item['id']}.*"] = item["id"]
             implicit[f"fst.{item['id']}"] = item["id"]  # page/control root element
-    errors.extend(unregistered_native_ids(root, {**implicit, **ids}))
+    registry = {**implicit, **ids}
+    # A registered family `fst.x.*` also covers its bare root element `fst.x`.
+    registry.update({key[:-2]: owner for key, owner in list(registry.items()) if key.endswith(".*")})
+    errors.extend(unregistered_native_ids(root, registry))
     return errors
 
 
