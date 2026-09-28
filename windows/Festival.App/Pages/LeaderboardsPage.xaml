@@ -1,0 +1,175 @@
+<Page
+    x:Class="Festival.App.Pages.LeaderboardsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Festival.App.Controls"
+    xmlns:vm="using:Festival.Core.ViewModels"
+    NavigationCacheMode="Required"
+    Background="Transparent">
+    <Page.KeyboardAccelerators>
+        <KeyboardAccelerator Key="F5" Invoked="OnRefreshInvoked" />
+    </Page.KeyboardAccelerators>
+
+    <ScrollViewer x:Name="Scroller" AutomationProperties.AutomationId="fst.leaderboards">
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup>
+                <VisualState x:Name="Wide">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="760" />
+                    </VisualState.StateTriggers>
+                </VisualState>
+                <VisualState x:Name="Compact">
+                    <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="0" />
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="PageContent.Padding" Value="12,8,12,24" />
+                        <Setter Target="RankByButton.(Grid.Row)" Value="1" />
+                        <Setter Target="RankByButton.(Grid.Column)" Value="0" />
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+        <StackPanel x:Name="PageContent" Padding="24,12,24,32" Spacing="12" MaxWidth="1800">
+            <!-- Title and the page action (Rank By). -->
+            <Grid ColumnSpacing="12" RowSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock Text="Leaderboards" Style="{StaticResource FSTPageTitleStyle}" AutomationProperties.HeadingLevel="Level1"
+                           VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                <DropDownButton x:Name="RankByButton" Grid.Column="1" VerticalAlignment="Center"
+                                AutomationProperties.Name="{x:Bind ViewModel.MetricButtonName, Mode=OneWay}"
+                                AutomationProperties.AutomationId="fst.rankings.rank-by-menu">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE8CB;" FontSize="14" />
+                        <TextBlock Text="{x:Bind ViewModel.MetricLabel, Mode=OneWay}" />
+                    </StackPanel>
+                    <DropDownButton.Flyout>
+                        <MenuFlyout x:Name="MetricMenu" Placement="BottomEdgeAlignedRight" Opening="OnMetricMenuOpening" />
+                    </DropDownButton.Flyout>
+                </DropDownButton>
+            </Grid>
+
+            <ItemsRepeater ItemsSource="{x:Bind ViewModel.InstrumentCards, Mode=OneWay}">
+                <ItemsRepeater.Layout>
+                    <controls:LeaderboardsCardGridLayout MinColumnWidth="360" MaxColumns="4" Spacing="16" />
+                </ItemsRepeater.Layout>
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate x:DataType="vm:RankingCardViewModel">
+                        <Border Style="{StaticResource FSTCardStyle}">
+                            <StackPanel Spacing="8">
+                                <Grid ColumnSpacing="10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <controls:InstrumentIcon File="{x:Bind IconFile}" Label="{x:Bind Title}" Width="28" Height="28"
+                                                             VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="{x:Bind Title}" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0"
+                                                   AutomationProperties.HeadingLevel="Level2"
+                                                   AutomationProperties.AutomationId="{x:Bind AutomationId}" />
+                                        <TextBlock Text="{x:Bind Subtitle}" Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                                    </StackPanel>
+                                </Grid>
+                                <controls:LeaderboardsSkeleton Visibility="{x:Bind IsLoading, Mode=OneWay}" />
+                                <TextBlock Text="{x:Bind EmptyText}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}"
+                                           Style="{StaticResource FSTSecondaryTextStyle}" />
+                                <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8"
+                                            AutomationProperties.AutomationId="fst.service-status.inline">
+                                    <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                    <TextBlock Text="{x:Bind Status.Message, Mode=OneWay}" TextWrapping="Wrap" />
+                                    <TextBlock Text="{x:Bind Status.CountdownText, Mode=OneWay}"
+                                               AutomationProperties.Name="{x:Bind Status.CountdownAnnouncement, Mode=OneWay}" />
+                                    <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
+                                </StackPanel>
+                                <ItemsRepeater ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}">
+                                    <ItemsRepeater.Layout>
+                                        <StackLayout Spacing="2" />
+                                    </ItemsRepeater.Layout>
+                                    <ItemsRepeater.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:RankingRowViewModel">
+                                            <controls:LeaderboardsRankingRow Row="{x:Bind}" />
+                                        </DataTemplate>
+                                    </ItemsRepeater.ItemTemplate>
+                                </ItemsRepeater>
+                                <controls:LeaderboardsSpotlight Spotlight="{x:Bind Spotlight}" IdPrefix="{x:Bind SpotlightAutomationId}"
+                                                                Visibility="{x:Bind ShowRows, Mode=OneWay}" />
+                                <HyperlinkButton Content="View All" Tag="{x:Bind}" Click="OnViewAll" HorizontalAlignment="Stretch"
+                                                 HorizontalContentAlignment="Center" Visibility="{x:Bind ShowRows, Mode=OneWay}"
+                                                 AutomationProperties.Name="{x:Bind ViewAllName}"
+                                                 AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+
+            <Grid Margin="0,12,0,0">
+                <TextBlock Text="Bands" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
+                <HyperlinkButton Content="Browse Bands" HorizontalAlignment="Right" VerticalAlignment="Center" Click="OnBrowseBands"
+                                 AutomationProperties.AutomationId="fst.leaderboards.bands-link" />
+            </Grid>
+            <ItemsRepeater ItemsSource="{x:Bind ViewModel.BandCards, Mode=OneWay}">
+                <ItemsRepeater.Layout>
+                    <controls:LeaderboardsCardGridLayout MinColumnWidth="360" MaxColumns="3" Spacing="16" />
+                </ItemsRepeater.Layout>
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate x:DataType="vm:BandRankingCardViewModel">
+                        <Border Style="{StaticResource FSTCardStyle}">
+                            <StackPanel Spacing="8">
+                                <Grid ColumnSpacing="10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <FontIcon Glyph="&#xE716;" FontSize="22" Width="28" VerticalAlignment="Center"
+                                              Foreground="{ThemeResource FSTSecondaryTextBrush}" AutomationProperties.AccessibilityView="Raw" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="{x:Bind Title}" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0"
+                                                   AutomationProperties.HeadingLevel="Level2"
+                                                   AutomationProperties.AutomationId="{x:Bind AutomationId}" />
+                                        <TextBlock Text="{x:Bind Subtitle}" Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                                    </StackPanel>
+                                </Grid>
+                                <controls:LeaderboardsSkeleton Visibility="{x:Bind IsLoading, Mode=OneWay}" />
+                                <TextBlock Text="{x:Bind EmptyText}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}"
+                                           Style="{StaticResource FSTSecondaryTextStyle}" />
+                                <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8"
+                                            AutomationProperties.AutomationId="fst.service-status.inline">
+                                    <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                    <TextBlock Text="{x:Bind Status.Message, Mode=OneWay}" TextWrapping="Wrap" />
+                                    <TextBlock Text="{x:Bind Status.CountdownText, Mode=OneWay}"
+                                               AutomationProperties.Name="{x:Bind Status.CountdownAnnouncement, Mode=OneWay}" />
+                                    <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
+                                </StackPanel>
+                                <ItemsRepeater ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}">
+                                    <ItemsRepeater.Layout>
+                                        <StackLayout Spacing="2" />
+                                    </ItemsRepeater.Layout>
+                                    <ItemsRepeater.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:BandRankingRowViewModel">
+                                            <controls:LeaderboardsRankingRow Row="{x:Bind}" />
+                                        </DataTemplate>
+                                    </ItemsRepeater.ItemTemplate>
+                                </ItemsRepeater>
+                                <HyperlinkButton Content="View All" Tag="{x:Bind}" Click="OnViewAll" HorizontalAlignment="Stretch"
+                                                 HorizontalContentAlignment="Center" Visibility="{x:Bind ShowRows, Mode=OneWay}"
+                                                 AutomationProperties.Name="{x:Bind ViewAllName}"
+                                                 AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

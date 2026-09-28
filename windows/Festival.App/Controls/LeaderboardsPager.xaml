@@ -1,0 +1,28 @@
+<UserControl
+    x:Class="Festival.App.Controls.LeaderboardsPager"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- First / Previous / "page / total" / Next / Last on an opaque plate (Fluent command buttons, 36 px min height). -->
+    <Border Style="{StaticResource FSTCardStyle}" Padding="8" HorizontalAlignment="Center">
+        <StackPanel Orientation="Horizontal" Spacing="4">
+            <Button x:Name="First" MinHeight="36" MinWidth="44" ToolTipService.ToolTip="First page"
+                    AutomationProperties.Name="First page">
+                <FontIcon Glyph="&#xE892;" FontSize="14" />
+            </Button>
+            <Button x:Name="Previous" MinHeight="36" MinWidth="44" ToolTipService.ToolTip="Previous page"
+                    AutomationProperties.Name="Previous page">
+                <FontIcon Glyph="&#xE76B;" FontSize="14" />
+            </Button>
+            <TextBlock x:Name="Info" VerticalAlignment="Center" Margin="12,0" MinWidth="72" TextAlignment="Center"
+                       Style="{StaticResource BodyStrongTextBlockStyle}" AutomationProperties.LiveSetting="Polite" />
+            <Button x:Name="Next" MinHeight="36" MinWidth="44" ToolTipService.ToolTip="Next page"
+                    AutomationProperties.Name="Next page">
+                <FontIcon Glyph="&#xE76C;" FontSize="14" />
+            </Button>
+            <Button x:Name="Last" MinHeight="36" MinWidth="44" ToolTipService.ToolTip="Last page"
+                    AutomationProperties.Name="Last page">
+                <FontIcon Glyph="&#xE893;" FontSize="14" />
+            </Button>
+        </StackPanel>
+    </Border>
+</UserControl>

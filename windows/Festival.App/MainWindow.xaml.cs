@@ -101,6 +101,10 @@ public sealed partial class MainWindow : Window
         AppRoute.SongBandLeaderboard => typeof(BandsSongLeaderboardPage),
         AppRoute.Player => typeof(PlayerProfilePage),
         AppRoute.PlayerHistory => typeof(PlayerHistoryPage),
+        AppRoute.SongLeaderboard => typeof(LeaderboardsSongPage),
+        AppRoute.Leaderboards => typeof(LeaderboardsPage),
+        AppRoute.FullRankings => typeof(LeaderboardsFullRankingsPage),
+        AppRoute.BandRankings => typeof(LeaderboardsBandRankingsPage),
         _ => typeof(PlaceholderPage),
     };
 
@@ -135,6 +139,7 @@ public sealed partial class MainWindow : Window
         AppSection.Songs => typeof(SongsPage),
         AppSection.Settings => typeof(SettingsPage),
         AppSection.Statistics => typeof(StatisticsPage),
+        AppSection.Leaderboards => typeof(LeaderboardsPage),
         _ => typeof(PlaceholderPage),
     };
 
