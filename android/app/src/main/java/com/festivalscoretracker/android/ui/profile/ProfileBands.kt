@@ -27,6 +27,7 @@ import com.festivalscoretracker.android.presentation.profile.PlayerProfileUiStat
 import com.festivalscoretracker.android.ui.bands.PlayerBandCard
 import com.festivalscoretracker.android.ui.bands.bandRouteFor
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
+import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 
@@ -67,7 +68,9 @@ internal fun ProfileBandsSection(state: PlayerProfileUiState, bands: BandsLoad?,
                         Text("Band lineups will appear here once this player posts band scores.", style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textPrimary)
                     }
                 } else {
-                    bands.bands.entries.forEach { entry -> PlayerBandCard(entry, onClick = { onNavigate(bandRouteFor(entry)) }) }
+                    bands.bands.entries.forEach { entry ->
+                        PlayerBandCard(entry, onClick = { onNavigate(bandRouteFor(entry)) }, modifier = Modifier.festivalFadeIn(isLoaded = true))
+                    }
                     if (bands.bands.totalCount > bands.bands.entries.size) {
                         TextButton(onClick = { onNavigate(all) }, modifier = Modifier.heightIn(min = 48.dp).testTag("fst.player.bands.view-all")) {
                             Text("View all bands (${ProfileFormatting.count(bands.bands.totalCount.toLong())})")

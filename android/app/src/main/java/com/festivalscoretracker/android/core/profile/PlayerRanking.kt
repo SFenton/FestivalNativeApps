@@ -31,6 +31,28 @@ object ProfileFormatting {
     fun rank(rank: Int, locale: Locale = Locale.getDefault()): String = "#" + count(rank.toLong(), locale)
 
     /**
+     * Short axis label: `950`, `12K`, `1.2M` (one decimal below ten of a unit).
+     *
+     * @param value Non-negative number.
+     * @param locale Locale.
+     * @return Text.
+     */
+    fun compact(value: Long, locale: Locale = Locale.getDefault()): String {
+        val (scaled, suffix) = when {
+            value >= 1_000_000_000 -> value / 1e9 to "B"
+            value >= 1_000_000 -> value / 1e6 to "M"
+            value >= 1_000 -> value / 1e3 to "K"
+            else -> return count(value, locale)
+        }
+        val digits = if (scaled < 10) 1 else 0
+        return NumberFormat.getNumberInstance(locale).apply {
+            minimumFractionDigits = 0
+            maximumFractionDigits = digits
+            roundingMode = java.math.RoundingMode.DOWN
+        }.format(scaled) + suffix
+    }
+
+    /**
      * Up to two decimals with trailing zeros dropped (`4.5`, `4.25`, `5`; web `formatClamped2`).
      *
      * @param value Number.

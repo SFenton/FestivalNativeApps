@@ -12,8 +12,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
@@ -31,6 +29,7 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.DockedSearchBar
 import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -38,8 +37,6 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,7 +50,6 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -163,34 +159,37 @@ private fun SearchSection(viewModel: ProfileSearchViewModel, onOpen: (PlayerSear
         }
     }
     val bands = scope == ProfileSearchScope.Bands
-    val colors = SearchBarDefaults.colors()
-    TextField(
-        value = query,
-        onValueChange = viewModel::onQueryChange,
-        enabled = !bands,
-        singleLine = true,
-        placeholder = { Text(scope.placeholder) },
-        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-        trailingIcon = {
-            if (query.isNotEmpty() && !bands) {
-                IconButton(onClick = { viewModel.onQueryChange("") }, modifier = Modifier.testTag("fst.profile.clear")) {
-                    Icon(Icons.Filled.Close, contentDescription = "Clear search")
-                }
-            }
+    // Native M3 docked search bar (neutral container, no custom fill).
+    val colors = SearchBarDefaults.colors(containerColor = BrandTokens.surfaceMuted)
+    DockedSearchBar(
+        inputField = {
+            SearchBarDefaults.InputField(
+                query = query,
+                onQueryChange = viewModel::onQueryChange,
+                onSearch = { (state as? ProfileSearchState.Results)?.results?.firstOrNull()?.let(onOpen) },
+                expanded = false,
+                onExpandedChange = {},
+                enabled = !bands,
+                placeholder = { Text(scope.placeholder) },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                trailingIcon = if (query.isNotEmpty() && !bands) {
+                    {
+                        IconButton(onClick = { viewModel.onQueryChange("") }, modifier = Modifier.testTag("fst.profile.clear")) {
+                            Icon(Icons.Filled.Close, contentDescription = "Clear search")
+                        }
+                    }
+                } else {
+                    null
+                },
+                colors = colors.inputFieldColors,
+                modifier = Modifier.fillMaxWidth().testTag("fst.profile.search"),
+            )
         },
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        keyboardActions = KeyboardActions(onSearch = { (state as? ProfileSearchState.Results)?.results?.firstOrNull()?.let(onOpen) }),
-        shape = SearchBarDefaults.inputFieldShape,
-        colors = TextFieldDefaults.colors(
-            focusedContainerColor = colors.containerColor,
-            unfocusedContainerColor = colors.containerColor,
-            disabledContainerColor = colors.containerColor.copy(alpha = 0.5f),
-            focusedIndicatorColor = Color.Transparent,
-            unfocusedIndicatorColor = Color.Transparent,
-            disabledIndicatorColor = Color.Transparent,
-        ),
-        modifier = Modifier.fillMaxWidth().padding(top = 12.dp).testTag("fst.profile.search"),
-    )
+        expanded = false,
+        onExpandedChange = {},
+        colors = colors,
+        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+    ) {}
     Box(Modifier.fillMaxWidth().heightIn(min = 180.dp).padding(top = 12.dp)) {
         when (val current = state) {
             ProfileSearchState.BandsUnavailable -> Row(Modifier.testTag("fst.profile.bands-unavailable"), verticalAlignment = Alignment.Top) {

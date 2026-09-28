@@ -5,7 +5,15 @@ import android.graphics.Canvas
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.test.assertContentDescriptionContains
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasContentDescription
@@ -182,6 +190,41 @@ class ProfileParityUiTest {
             rule.onAllNodesWithTag("fst.player.available").fetchSemanticsNodes().isEmpty()
         }
         rule.onNodeWithText("Lead Rankings").assertIsDisplayed()
+    }
+
+    @Test
+    fun rankHistoryPagesSelectsAndSwipes() {
+        val days = (1..12).joinToString(",") { d ->
+            """{"snapshotDate":"2026-09-%02d","totalScoreRank":${30 - d},"totalScore":${d * 100000},"rankedAccountCount":500}""".format(d)
+        }
+        journey.transport.on("/api/rankings/Solo_Guitar/${Fixtures.ACCOUNT_A}/history") {
+            """{"instrument":"Solo_Guitar","accountId":"${Fixtures.ACCOUNT_A}","history":[$days]}"""
+        }
+        journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
+        journey.scrollTo("fst.player.rank-history.Solo_Guitar")
+        journey.scrollTo("fst.player.rank-history.forward-page")
+        rule.onNodeWithTag("fst.player.rank-history.forward-entry").assertIsNotEnabled()
+        rule.onNodeWithTag("fst.player.rank-history.back-entry").assertIsEnabled()
+        rule.onNodeWithTag("fst.player.rank-history.back-entry").assertContentDescriptionContains("Back one entry")
+        journey.tap("fst.player.rank-history.back-page")
+        journey.tap("fst.player.rank-history.back-entry")
+        rule.onNodeWithTag("fst.player.rank-history.forward-entry").assertIsEnabled()
+        journey.tap("fst.player.rank-history.forward-page")
+        // Tap the newest bar: its details appear; tap again to close.
+        journey.scrollTo("fst.player.rank-history.plot")
+        rule.onNodeWithTag("fst.player.rank-history.plot").performTouchInput { click(Offset(width - 4f, height / 2f)) }
+        journey.waitForTag("fst.player.rank-history.detail")
+        rule.onNodeWithTag("fst.player.rank-history.detail", useUnmergedTree = true).assertExists()
+        journey.tap("fst.player.rank-history.back-entry")
+        journey.tap("fst.player.rank-history.back-page")
+        journey.tap("fst.player.rank-history.forward-page")
+        rule.onNodeWithTag("fst.player.rank-history.plot").performTouchInput { swipeRight() }
+        journey.settle()
+        rule.onNodeWithTag("fst.player.rank-history.plot").performTouchInput { swipeLeft() }
+        journey.settle()
+        // The five newest snapshots are listed, newest first.
+        journey.scrollTo("fst.player.rank-history.row.2026-09-08")
+        rule.onNodeWithTag("fst.player.rank-history.row.2026-09-12", useUnmergedTree = true).assertExists()
     }
 
     @Test

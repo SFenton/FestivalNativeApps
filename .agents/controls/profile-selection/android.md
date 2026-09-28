@@ -6,8 +6,8 @@
 
 - Opened from the top-bar avatar (`fst.nav.profile`) on every tab root; a `ModalBottomSheet` titled "Profiles".
 - Selected summary (`fst.profile.selected`): avatar, name, **View Profile** (`fst.profile.view-selected`) and **Deselect** (`fst.profile.deselect`, confirmed by `fst.profile.deselect-confirm`).
-- "Find a Profile": a `SingleChoiceSegmentedButtonRow` Players/Bands (`fst.profile.scope.{players,bands}`) and an M3 search field (`SearchBarDefaults` shape and colors, `fst.profile.search`, clear button). Bands disables the field and explains that band search can change stored data (`fst.profile.bands-unavailable`); no band request is made ([service-safety](../../platforms/service-safety.md)).
-- Search: 250 ms debounce, 2-character minimum, centered hint (`fst.profile.hint`), results as `ListItem`s with initials (`fst.profile.result.<accountId>`), Retry after an error or an empty envelope (`fst.profile.retry`). IME Search opens the first result.
+- "Find a Profile": a `SingleChoiceSegmentedButtonRow` Players/Bands (`fst.profile.scope.{players,bands}`) and a native M3 `DockedSearchBar` + `SearchBarDefaults.InputField` on a neutral container (no custom purple fill; `fst.profile.search`, clear button). Bands disables the field and explains that band search can change stored data (`fst.profile.bands-unavailable`); no band request is made ([service-safety](../../platforms/service-safety.md)).
+- Search: 250 ms debounce, 2-character minimum, centered hint text with no container (`fst.profile.hint`), results as `ListItem`s with initials (`fst.profile.result.<accountId>`), Retry after an error or an empty envelope (`fst.profile.retry`). IME Search opens the first result.
 - A result **views** the player: the sheet dismisses, then `PlayerRoute(id, name)` is pushed on the current tab. Selecting happens on the player page.
 
 ## Session

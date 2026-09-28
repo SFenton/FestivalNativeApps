@@ -80,6 +80,7 @@ import com.festivalscoretracker.android.presentation.profile.ProfilePhase
 import com.festivalscoretracker.android.presentation.profile.RankHistoryLoad
 import com.festivalscoretracker.android.presentation.profile.RankLoad
 import com.festivalscoretracker.android.ui.common.FestivalScreen
+import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
@@ -215,6 +216,7 @@ private fun LoadedProfile(viewModel: PlayerProfileViewModel, state: PlayerProfil
         rows.forEach { row ->
             val span = if (row.fullWidth && !split) StaggeredGridItemSpan.FullLine else StaggeredGridItemSpan.SingleLane
             item(key = row.key, span = span) {
+                Box(Modifier.festivalFadeIn(isLoaded = true)) {
                 when (row) {
                     ProfileRow.Header -> Header(state, onSelect = {
                         if (state.identity == PlayerIdentityAction.Switch) confirm = PlayerIdentityAction.Switch else viewModel.select()
@@ -243,6 +245,7 @@ private fun LoadedProfile(viewModel: PlayerProfileViewModel, state: PlayerProfil
                         LaunchedEffect(state.accountId) { viewModel.ensureBands() }
                         ProfileBandsSection(state, bands, onRetry = viewModel::retryBands, onNavigate = shell.navigate)
                     }
+                }
                 }
             }
         }
@@ -363,36 +366,38 @@ private fun InstrumentCard(
     onRetryHistory: () -> Unit,
 ) {
     val instrument = section.instrument
-    GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            InstrumentHeading(instrument, "fst.player.instrument.${instrument.wireId}")
-            if (!section.hasScores) {
-                Text(
-                    "No ${instrument.label} scores recorded yet.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = BrandTokens.textPrimary,
-                    modifier = Modifier.padding(top = 12.dp).testTag("fst.player.instrument-empty.${instrument.wireId}"),
-                )
-                return@Column
-            }
-            Spacer(Modifier.size(12.dp))
-            TileFlow(section.stats, instrument.wireId, state, onAction)
-            SubHeader("Global Rank")
-            GlobalRank(instrument, rank, state, onAction, onRetryRank)
-            when (history) {
-                is RankHistoryLoad.Loaded -> history.chart?.let { chart ->
-                    SubHeader("Rank History")
-                    RankHistoryChart(chart, Modifier.testTag("fst.player.rank-history.${instrument.wireId}"))
+    Column(Modifier.fillMaxWidth()) {
+        // Web: the instrument header sits above its cards, never inside them.
+        InstrumentHeading(instrument, "fst.player.instrument.${instrument.wireId}")
+        GlassCard(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp)) {
+                if (!section.hasScores) {
+                    Text(
+                        "No ${instrument.label} scores recorded yet.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = BrandTokens.textPrimary,
+                        modifier = Modifier.testTag("fst.player.instrument-empty.${instrument.wireId}"),
+                    )
+                    return@Column
                 }
-                is RankHistoryLoad.Failed -> {
-                    SubHeader("Rank History")
-                    ServiceStatusInline(history.issue, "Rank history unavailable", null, onRetryHistory)
+                TileFlow(section.stats, instrument.wireId, state, onAction)
+                SubHeader("Global Rank")
+                GlobalRank(instrument, rank, state, onAction, onRetryRank)
+                when (history) {
+                    is RankHistoryLoad.Loaded -> history.chart?.let { chart ->
+                        SubHeader("Rank History")
+                        RankHistoryChart(chart, Modifier.festivalFadeIn(isLoaded = true).testTag("fst.player.rank-history.${instrument.wireId}"))
+                    }
+                    is RankHistoryLoad.Failed -> {
+                        SubHeader("Rank History")
+                        ServiceStatusInline(history.issue, "Rank history unavailable", null, onRetryHistory)
+                    }
+                    else -> Unit
                 }
-                else -> Unit
-            }
-            if (section.percentiles.isNotEmpty()) {
-                SubHeader("Percentiles")
-                PercentileBars(section.percentiles, Modifier.testTag("fst.player.percentiles.${instrument.wireId}"))
+                if (section.percentiles.isNotEmpty()) {
+                    SubHeader("Percentiles")
+                    PercentileBars(section.percentiles, Modifier.testTag("fst.player.percentiles.${instrument.wireId}"))
+                }
             }
         }
     }
@@ -400,7 +405,7 @@ private fun InstrumentCard(
 
 @Composable
 internal fun InstrumentHeading(instrument: Instrument, tag: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.testTag(tag)) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp).testTag(tag)) {
         InstrumentIcon(instrument, size = 32.dp, decorative = true)
         Text(
             instrument.label,
@@ -423,19 +428,19 @@ private fun GlobalRank(instrument: Instrument, rank: RankLoad?, state: PlayerPro
             color = BrandTokens.textPrimary,
             modifier = Modifier.testTag("$tag.unranked"),
         )
-        is RankLoad.Available -> Box(Modifier.testTag("$tag.available")) { TileFlow(rank.tiles, "rank.${instrument.wireId}", state, onAction) }
+        is RankLoad.Available -> Box(Modifier.festivalFadeIn(isLoaded = true).testTag("$tag.available")) { TileFlow(rank.tiles, "rank.${instrument.wireId}", state, onAction) }
         is RankLoad.Failed -> Box(Modifier.testTag("$tag.error")) { ServiceStatusInline(rank.issue, "Global rank unavailable", null, onRetry) }
     }
 }
 
 @Composable
-internal fun SubHeader(text: String) {
+internal fun SubHeader(text: String, first: Boolean = false) {
     Text(
         text,
         style = MaterialTheme.typography.titleSmall,
         fontWeight = FontWeight.Bold,
         color = BrandTokens.textPrimary,
-        modifier = Modifier.padding(top = 20.dp, bottom = 8.dp).semantics { heading() },
+        modifier = Modifier.padding(top = if (first) 0.dp else 20.dp, bottom = 8.dp).semantics { heading() },
     )
 }
 

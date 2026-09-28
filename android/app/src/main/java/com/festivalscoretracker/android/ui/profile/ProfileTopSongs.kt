@@ -67,27 +67,29 @@ internal fun TopSongsHeading(displayName: String) {
 @Composable
 internal fun TopSongsCard(top: PlayerTopSongs, displayName: String, state: PlayerProfileUiState, onAction: (PlayerTileAction) -> Unit) {
     val instrument = top.instrument
-    GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            InstrumentHeading(instrument, "fst.player.top-songs.${instrument.wireId}")
-            if (top.isEmpty) {
-                Text(
-                    "No scores yet",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = BrandTokens.textPrimary,
-                    modifier = Modifier.padding(top = 12.dp).testTag("fst.player.top-songs-empty.${instrument.wireId}"),
-                )
-                Text(
-                    "Play some songs on ${instrument.label} to see your stats appear here.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = BrandTokens.textPrimary,
-                )
-                return@Column
-            }
-            SongList("Top Five Songs", "$displayName's top ranked competitive songs on ${instrument.label}, sorted by percentile.", top.top, "top", state, onAction)
-            if (top.bottom.isNotEmpty()) {
-                SongList("Bottom Five Songs", "$displayName's lowest-ranked competitive songs on ${instrument.label}, sorted by percentile.", top.bottom, "bottom", state, onAction)
+    Column(Modifier.fillMaxWidth()) {
+        InstrumentHeading(instrument, "fst.player.top-songs.${instrument.wireId}")
+        GlassCard(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp)) {
+                if (top.isEmpty) {
+                    Text(
+                        "No scores yet",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = BrandTokens.textPrimary,
+                        modifier = Modifier.testTag("fst.player.top-songs-empty.${instrument.wireId}"),
+                    )
+                    Text(
+                        "Play some songs on ${instrument.label} to see your stats appear here.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = BrandTokens.textPrimary,
+                    )
+                    return@Column
+                }
+                SongList("Top Five Songs", "$displayName's top ranked competitive songs on ${instrument.label}, sorted by percentile.", top.top, "top", state, onAction)
+                if (top.bottom.isNotEmpty()) {
+                    SongList("Bottom Five Songs", "$displayName's lowest-ranked competitive songs on ${instrument.label}, sorted by percentile.", top.bottom, "bottom", state, onAction)
+                }
             }
         }
     }
@@ -102,7 +104,7 @@ private fun SongList(
     state: PlayerProfileUiState,
     onAction: (PlayerTileAction) -> Unit,
 ) {
-    SubHeader(title)
+    SubHeader(title, first = kind == "top")
     Text(description, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary, modifier = Modifier.padding(bottom = 8.dp))
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         rows.forEach { row ->

@@ -34,7 +34,10 @@ None of these navigate. Selecting adds the profile tabs in place; deselecting on
 - Header: avatar and name only — selection state shows only through the Select/Switch/Deselect control (the web header has no "This Is Me"/"Public Profile" line).
 - Text is white (`textPrimary`/onSurface) by default; gray (`textSecondary`/`textMuted`) only for de-emphasis: section descriptions, top-song subtitles, history dates, chart axes.
 - Stars use the web's images (`res/drawable-nodpi/star_white.png`, `star_gold.png`) through the shared `ui/design/StarRating` (score-history rows; the "Avg Stars" tile shows five gold stars at a perfect 6, else two trimmed decimals, web `formatClamped2`).
-- Instrument card: stat tiles (`FlowRow`: Songs Played, Full Combos, Gold Stars, 5 Stars, Avg Accuracy, Avg Stars, Best Rank), Global Rank, Rank History (Canvas rank line over Total Score bars, #1 on top), Percentiles (horizontal bars, top 5% gold). Rank and history reads start in the card's `LaunchedEffect`, so unrealized cards read nothing; unplayed charts show a footnote and read nothing.
+- Instrument header (icon + name) sits **above** its card, never inside (instrument stats and top songs).
+- Instrument card: stat tiles (`FlowRow`: Songs Played, Full Combos, Gold Stars, 5 Stars, Avg Accuracy, Avg Stars, Best Rank), Global Rank, Rank History (below), Percentiles (horizontal bars, top 5% gold).
+- Content fades in (and lifts 8 dp) as it loads, like the web's `FadeIn`: `ui/common/FadeInOnLoad.kt` `Modifier.festivalFadeIn(isLoaded)` on every row, loaded ranks, the chart and band cards; draw-phase only, instant under Remove animations. Rank and history reads start in the card's `LaunchedEffect`, so unrealized cards read nothing; unplayed charts show a footnote and read nothing.
+- **Rank History** (`ui/profile/RankHistoryCard.kt`, web `RankHistoryChart` + `GraphCard` + `useChartPagination`): one chart with Total Score bars coloured by rank (`rankColor`: red→green by `1 - rank/field`, 80% opacity) and the rank line + dots (#4C7DFF) on the web's padded reversed domain (`getRankHistoryDomain`), score axis left, rank axis right, legend. `RankHistoryWindow` (pure) shows the bars that fit (40 dp slots; the web's 96 px slots beside two axes leave phones one bar); swipe the plot or use ◀◀ ◀ ▶ ▶▶ ("Back one page", "Back one entry", "Forward one entry", "Forward one page", 48 dp) to move; tap a bar to select it (details card, polite live region), tap again to clear; with a selection the buttons move the selection. The five newest snapshots are listed below (newest highlighted). Total Score only (see Experimental metrics).
 - Charts draw `ChartGeometry` output (`core/profile/PlayerCharts.kt`: bar widths/rects, point and label positions) with no logic in the draw lambdas and no per-frame work; each chart is one accessibility element carrying the trend summary.
 
 ## Quick Links
@@ -69,7 +72,7 @@ Not shown. The web adds Adjusted/Weighted/FC Rate/Max Score rank tiles only when
 
 ## IDs
 
-`fst.player`, `fst.player.{loading,syncing,no-profile,retry,available,header,name,select,deselect,identity-notice,action-error,overview,bands,bands-link,bands.loading,bands.empty,bands.view-all,top-songs}`, `fst.player.switch-confirm[.ok|.cancel]`, `fst.player.deselect-confirm[.ok|.cancel]`, `fst.player.action-switch-confirm[.ok|.cancel]`, `fst.player.instrument.<wire>`, `fst.player.instrument-empty.<wire>`, `fst.player.global-rank.<wire>.{loading,unranked,available,error}`, `fst.player.rank-history.<wire>`, `fst.player.percentiles.<wire>`, `fst.player.tile.<overview|wire|rank.wire>.<label-slug>`, `fst.player.top-songs.<wire>`, `fst.player.top-songs-empty.<wire>`, `fst.player.{top,bottom}-song.<wire>.<songId>`.
+`fst.player`, `fst.player.{loading,syncing,no-profile,retry,available,header,name,select,deselect,identity-notice,action-error,overview,bands,bands-link,bands.loading,bands.empty,bands.view-all,top-songs}`, `fst.player.switch-confirm[.ok|.cancel]`, `fst.player.deselect-confirm[.ok|.cancel]`, `fst.player.action-switch-confirm[.ok|.cancel]`, `fst.player.instrument.<wire>`, `fst.player.instrument-empty.<wire>`, `fst.player.global-rank.<wire>.{loading,unranked,available,error}`, `fst.player.rank-history.<wire>`, `fst.player.rank-history.{plot,detail,back-page,back-entry,forward-entry,forward-page}`, `fst.player.rank-history.row.<yyyy-MM-dd>`, `fst.player.percentiles.<wire>`, `fst.player.tile.<overview|wire|rank.wire>.<label-slug>`, `fst.player.top-songs.<wire>`, `fst.player.top-songs-empty.<wire>`, `fst.player.{top,bottom}-song.<wire>.<songId>`.
 
 ## Tests
 
@@ -81,5 +84,5 @@ Not shown. The web adds Adjusted/Weighted/FC Rate/Max Score rank tiles only when
 
 - Star tiles stay flat until Songs has a stars filter; no Over CHOpt Threshold, 4/3/2/1-star or Percentile tiles yet (web `InstrumentStatsSection`); Global Rank opens rankings page 1 (Full Rankings has no page argument); Song Detail opens without the web's `?instrument=` focus (Songs lane route).
 - No family (pad/pro strings/pro drums) Global Statistics cards or embedded player bands: both need player-stats (blocked, [service-safety](../../platforms/service-safety.md)).
-- No chart scrubbing; stats ignore the invalid-score leeway filter (as before).
+- Rank History has no instrument picker (each card is one chart) and no metric picker; stats ignore the invalid-score leeway filter (as before).
 - Web behaviour was taken from source: the production web player page itself calls player-stats and sync-status, so it is not captured from the installed PWA.

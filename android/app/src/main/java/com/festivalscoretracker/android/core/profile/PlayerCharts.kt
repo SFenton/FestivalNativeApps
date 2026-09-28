@@ -126,6 +126,38 @@ object ChartGeometry {
      */
     fun labelTop(tick: ChartTick, chartHeight: Float, labelHeight: Float): Float = tick.y * (chartHeight - labelHeight)
 
+    /** Share of each band a category bar fills (web `barCategoryGap="10%"`). */
+    const val BAND_FILL = 0.8f
+
+    /**
+     * A category bar centred in its band, bottom-aligned (rank-history chart).
+     *
+     * @param bar Unit bar (x = band centre).
+     * @param count Bands.
+     * @param width Canvas width.
+     * @param height Canvas height.
+     * @param maxWidth Widest bar in pixels.
+     * @return Pixel rectangle.
+     */
+    fun bandBar(bar: ChartBar, count: Int, width: Float, height: Float, maxWidth: Float): ChartRect {
+        val w = minOf(width / count.coerceAtLeast(1) * BAND_FILL, maxWidth)
+        val h = bar.height * height
+        return ChartRect(bar.x * width - w / 2, height - h, w, h)
+    }
+
+    /**
+     * The band under a horizontal position (tap hit-testing).
+     *
+     * @param x Pixel x.
+     * @param count Bands.
+     * @param width Canvas width.
+     * @return Band index, or null outside the canvas.
+     */
+    fun bandAt(x: Float, count: Int, width: Float): Int? {
+        if (count <= 0 || width <= 0f || x < 0f || x > width) return null
+        return (x / width * count).toInt().coerceIn(0, count - 1)
+    }
+
     /**
      * Visible share of a percentile bar's track (never zero, never over full).
      *
@@ -152,6 +184,8 @@ object ChartGeometry {
  * @property startLabel First day.
  * @property endLabel Last day.
  * @property summary Screen-reader trend sentence.
+ * @property snapshots Ranked snapshots, oldest first (the interactive chart's data).
+ * @property totalAccounts Latest ranked field size (bar colours), or 0 when unknown.
  */
 data class RankHistoryChartModel(
     val rankLine: List<ChartPoint>,
@@ -162,6 +196,8 @@ data class RankHistoryChartModel(
     val startLabel: String,
     val endLabel: String,
     val summary: String,
+    val snapshots: List<PlayerRankHistorySnapshot> = emptyList(),
+    val totalAccounts: Int = 0,
 ) {
     companion object {
         /**
@@ -227,6 +263,8 @@ data class RankHistoryChartModel(
                 startLabel = label(ranked.first()),
                 endLabel = label(latest),
                 summary = rankTrend(ranked, locale),
+                snapshots = ranked,
+                totalAccounts = latest.rankedAccountCount ?: 0,
             )
         }
     }

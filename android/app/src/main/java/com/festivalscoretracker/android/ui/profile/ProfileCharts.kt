@@ -16,9 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -27,54 +25,14 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.profile.ChartGeometry
 import com.festivalscoretracker.android.core.profile.ChartPoint
 import com.festivalscoretracker.android.core.profile.ChartTick
 import com.festivalscoretracker.android.core.profile.PercentileBar
-import com.festivalscoretracker.android.core.profile.RankHistoryChartModel
 import com.festivalscoretracker.android.core.profile.ScoreHistoryChartModel
 import com.festivalscoretracker.android.ui.theme.BrandTokens
-
-// region Rank history
-
-/**
- * Rank line (#1 on top) over Total Score bars on one date axis. Geometry is
- * precomputed ([RankHistoryChartModel]); the canvas only redraws on data or size
- * change. One accessibility element carrying the trend summary.
- *
- * @param chart Geometry.
- * @param modifier Modifier.
- */
-@Composable
-fun RankHistoryChart(chart: RankHistoryChartModel, modifier: Modifier = Modifier) {
-    Column(modifier.clearAndSetSemantics { contentDescription = "Rank history. ${chart.headline}. ${chart.summary}" }) {
-        Text(chart.headline, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)
-        chart.totalScoreLine?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textPrimary) }
-        Row(Modifier.fillMaxWidth().padding(top = 12.dp)) {
-            AxisLabels(chart.rankTicks, Modifier.width(52.dp).height(CHART_HEIGHT.dp))
-            Canvas(Modifier.weight(1f).height(CHART_HEIGHT.dp)) {
-                gridLines(chart.rankTicks)
-                val barWidth = ChartGeometry.barWidth(chart.scoreBars.size, size.width, 24.dp.toPx())
-                chart.scoreBars.forEach { bar ->
-                    val rect = ChartGeometry.bar(bar, size.width, size.height, barWidth, 8.dp.toPx())
-                    drawRoundRect(
-                        BrandTokens.accentBlue.copy(alpha = 0.35f),
-                        topLeft = Offset(rect.left, rect.top),
-                        size = Size(rect.width, rect.height),
-                        cornerRadius = CornerRadius(3.dp.toPx()),
-                    )
-                }
-                line(chart.rankLine, BrandTokens.accentPurple, highlight = BrandTokens.gold)
-            }
-        }
-        DateAxis(chart.startLabel, chart.endLabel)
-    }
-}
-
-// endregion
 
 // region Percentiles
 
