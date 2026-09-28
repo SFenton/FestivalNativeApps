@@ -124,9 +124,9 @@ class SongsParityTest {
     @Test
     fun catalogueSortsGroupOrIndexWithoutScores() {
         val duration = SongListPipeline.run(SongListInputs(songs, sort = SongSortMode.Duration), sorter)
-        assertEquals(listOf("Unknown Duration", "<2m", "2-3m", "5m+"), duration.headers.map { it.label })
-        assertEquals("fst.songs.section.duration.lt2", duration.headers[1].testTag)
-        assertEquals("Under 2 minutes", duration.headers[1].quickLink.accessibleTitle)
+        assertEquals(listOf("Unknown Duration", "1–2 Minutes", "2–3 Minutes", "6–7 Minutes"), duration.headers.map { it.label })
+        assertEquals("fst.songs.section.duration.1to2", duration.headers[1].testTag)
+        assertEquals("1 to 2 minutes", duration.headers[1].quickLink.accessibleTitle)
         assertNull(duration.sortChart)
         val title = SongListPipeline.run(SongListInputs(songs), sorter)
         assertTrue(title.headers.isEmpty())
@@ -227,7 +227,7 @@ class SongsParityTest {
         assertEquals("unknown", SongQuickLinkBuckets.bucket(a.copy(year = null), context).token)
         assertEquals(SongBucket("#", "#", "Numbers and symbols"), SongQuickLinkBuckets.bucket(a.copy(title = "99 Luftballons"), context.copy(mode = SongSortMode.Title)))
         assertEquals("z", SongQuickLinkBuckets.bucket(a.copy(artist = "Zed"), context.copy(mode = SongSortMode.Artist)).token)
-        listOf(90 to "lt2", 150 to "2to3", 200 to "3to4", 250 to "4to5", 300 to "gte5", 0 to "unknown").forEach { (seconds, token) ->
+        listOf(30 to "lt1", 90 to "1to2", 150 to "2to3", 599 to "9to10", 600 to "gt10", 0 to "unknown").forEach { (seconds, token) ->
             assertEquals(token, SongQuickLinkBuckets.bucket(a.copy(durationSeconds = seconds), context.copy(mode = SongSortMode.Duration)).token)
         }
         assertEquals(SongBucket("3", "4", "Difficulty 4 of 7"), bucket(SongSortMode.Intensity, null))

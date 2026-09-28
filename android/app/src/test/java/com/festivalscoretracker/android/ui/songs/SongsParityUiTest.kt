@@ -92,7 +92,7 @@ class SongsParityUiTest {
     @Test
     fun durationSortOpensQuickLinksSheetOnPhone() {
         launch(DebugLaunch(stillBackground = true), prefs(stringPreferencesKey(SettingsRegistry.SONG_SORT) to "Duration"))
-        waitForTag("fst.songs.section.duration.lt2")
+        waitForTag("fst.songs.section.duration.1to2")
         assertTrue(exists("fst.songs.section.duration.4to5"))
         assertTrue(!exists("fst.songs.section-index"))
         click("fst.quick-links.open")

@@ -260,11 +260,14 @@ class SongsCoreTest {
     }
 
     @Test
-    fun sectionsSkipShopAndDurationAndLabelUnknownYears() {
+    fun yearSortUsesDecadeHeadersInsteadOfTheIndex() {
         assertTrue(SongSectionIndex.sections(songs, SongSortMode.Shop).isEmpty())
-        val years = SongSectionIndex.sections(listOf(a.copy(year = null), b.copy(year = 0), c), SongSortMode.Year)
-        assertEquals(listOf(SongSectionIndex.UNKNOWN_YEAR, "1999"), years.map { it.label })
+        assertTrue(SongSectionIndex.sections(songs, SongSortMode.Year).isEmpty())
         assertTrue(SongSectionIndex.chunk(emptyList()) { it.title }.isEmpty())
+        val result = SongListPipeline.run(SongListInputs(songs + a.copy(songId = "u", year = null), sort = SongSortMode.Year), sorter)
+        assertTrue(result.sections.isEmpty())
+        assertEquals(listOf("Unknown Year", "1990s", "2000s", "2010s"), result.headers.map { it.label })
+        assertEquals(listOf("year:unknown", "year:1990", "year:2000", "year:2010"), result.headers.map { it.id })
     }
 
     // endregion

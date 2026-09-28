@@ -146,13 +146,18 @@ object SongQuickLinkBuckets {
         return SongBucket("$decade", "${decade}s")
     }
 
-    private fun duration(seconds: Int?): SongBucket = when {
-        seconds == null || seconds <= 0 -> SongBucket("unknown", "Unknown Duration")
-        seconds < 120 -> SongBucket("lt2", "<2m", "Under 2 minutes")
-        seconds < 180 -> SongBucket("2to3", "2-3m", "2 to 3 minutes")
-        seconds < 240 -> SongBucket("3to4", "3-4m", "3 to 4 minutes")
-        seconds < 300 -> SongBucket("4to5", "4-5m", "4 to 5 minutes")
-        else -> SongBucket("gte5", "5m+", "5 minutes or more")
+    /**
+     * Minute buckets (operator decision, deviating from the web's `lt2…gte5`):
+     * Under 1 Minute, 1–2 … 9–10 Minutes, Over 10 Minutes, Unknown Duration.
+     */
+    private fun duration(seconds: Int?): SongBucket {
+        if (seconds == null || seconds <= 0) return SongBucket("unknown", "Unknown Duration")
+        val minutes = seconds / 60
+        return when {
+            minutes < 1 -> SongBucket("lt1", "Under 1 Minute")
+            minutes < 10 -> SongBucket("${minutes}to${minutes + 1}", "$minutes–${minutes + 1} Minutes", "$minutes to ${minutes + 1} minutes")
+            else -> SongBucket("gt10", "Over 10 Minutes")
+        }
     }
 
     private fun lastPlayed(raw: String?, now: Long): SongBucket {

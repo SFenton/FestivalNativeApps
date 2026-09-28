@@ -59,8 +59,8 @@ enum class SongSortMode(
     /** Whether the mode needs a single-chart filter. */
     val needsChart: Boolean get() = group == SongSortGroup.SingleChart
 
-    /** Whether the right-edge section index (not Quick Links) navigates this sort. */
-    val usesSectionIndex: Boolean get() = this == Title || this == Artist || this == Year
+    /** Whether the right-edge section index (not Quick Links) navigates this sort (Year uses decade headers, operator rule). */
+    val usesSectionIndex: Boolean get() = this == Title || this == Artist
 
     /** Whether the mode compares the max-score metric (score / max primary pill). */
     val isMaxScoreMode: Boolean get() = this == MaxDistance || this == MaxScoreDiff
@@ -259,16 +259,13 @@ class SongCatalogSort(private val collator: Collator = Collator.getInstance(Loca
  */
 data class SongSection(val id: Int, val label: String, val firstIndex: Int, val count: Int)
 
-/** Contacts-style drag-to-jump index for Title/Artist/Year (Apple `SongSectionIndex`). */
+/** Contacts-style drag-to-jump index for Title/Artist (Apple `SongSectionIndex`). */
 object SongSectionIndex {
-    /** Label for songs with no year. */
-    const val UNKNOWN_YEAR = "—"
-
     /**
      * Chunk an already-sorted list on **consecutive** key changes.
      *
      * @param songs Songs in on-screen order.
-     * @param mode Active sort; only Title, Artist and Year group.
+     * @param mode Active sort; only Title and Artist group (Year uses decade headers).
      * @return Order-preserving sections; empty for other modes or fewer than two songs.
      */
     fun sections(songs: List<Song>, mode: SongSortMode): List<SongSection> {
@@ -276,7 +273,6 @@ object SongSectionIndex {
         val key: (Song) -> String = when (mode) {
             SongSortMode.Title -> { song -> firstLetter(song.title) }
             SongSortMode.Artist -> { song -> firstLetter(song.artist) }
-            SongSortMode.Year -> { song -> song.year?.takeIf { it != 0 }?.toString() ?: UNKNOWN_YEAR }
             else -> return emptyList()
         }
         return chunk(songs, key)
