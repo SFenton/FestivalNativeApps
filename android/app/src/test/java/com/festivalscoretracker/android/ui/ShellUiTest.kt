@@ -162,8 +162,9 @@ class ShellUiTest {
         rule.onNodeWithTag("fst.nav.drawer").performClick()
         waitForTag("fst.nav.drawer.shop")
         rule.onNodeWithTag("fst.nav.drawer.shop").performSemanticsAction(SemanticsActions.OnClick)
-        waitForTag("fst.coming-soon")
-        rule.onNodeWithText("Item Shop is coming to Android soon").assertExists()
+        waitForTag("fst.shop.list")
+        waitForTag("fst.shop.song.s-alpha")
+        rule.onNodeWithTag("fst.shop.badge.leaving.s-alpha", useUnmergedTree = true).assertExists()
     }
 
     @Test

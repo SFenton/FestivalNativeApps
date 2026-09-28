@@ -140,6 +140,7 @@ class FakeTransport(private val routes: MutableMap<String, (HttpRequest) -> Http
         fun standard(): FakeTransport = FakeTransport().apply {
             on("/api/publication") { Fixtures.publication() }
             on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7", "ETag" to "W/\"songs\"")) { Fixtures.songsJson }
+            on("/api/shop", headers = mapOf("X-FST-Publication-Id" to "7")) { SongsFixtures.shopJson }
             listOf("s-alpha", "s-beta", "s-gamma").forEach { id ->
                 listOf("Solo_Guitar", "Solo_Bass", "Solo_Drums", "Solo_Vocals", "Solo_PeripheralGuitar", "Solo_PeripheralBass", "Solo_PeripheralVocals", "Solo_PeripheralCymbals", "Solo_PeripheralDrums").forEach { instrument ->
                     on("/api/leaderboard/$id/$instrument", headers = mapOf("X-FST-Publication-Id" to "7")) { request ->

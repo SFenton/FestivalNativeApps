@@ -187,7 +187,7 @@ class PresentationTest {
     fun songDetailResolvesByIdOrTitleAndLoadsPreviewsLazily() = runTest(main.dispatcher) {
         val api = FestivalApi("https://fixture.test", FakeTransport.standard())
         var boardCalls = 0
-        val load: suspend (String, Instrument, Int, Int) -> com.festivalscoretracker.android.data.LeaderboardPayload = { id, instrument, page, top ->
+        val load: suspend (String, Instrument, Int, Int, Double?) -> com.festivalscoretracker.android.data.LeaderboardPayload = { id, instrument, page, top, _ ->
             boardCalls++
             api.leaderboard(id, instrument, page, top)
         }

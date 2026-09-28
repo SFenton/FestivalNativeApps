@@ -42,22 +42,31 @@ object SongResolver {
  *
  * @param songKey Route song ID (or debug title).
  * @param loadCatalog Catalogue read.
- * @param loadLeaderboard Leaderboard page read `(songId, instrument, page, top)`.
+ * @param loadLeaderboard Leaderboard page read `(songId, instrument, page, top, leeway)`.
  * @property backoff Shared retry backoff.
+ * @param leeway Invalid-score leeway while Filter Invalid Scores is on, else null;
+ *   previews are keyed by it so a change re-reads.
  */
 class SongDetailViewModel(
     songKey: String,
     loadCatalog: suspend (refresh: Boolean) -> CatalogPayload,
-    private val loadLeaderboard: suspend (String, Instrument, Int, Int) -> LeaderboardPayload,
+    private val loadLeaderboard: suspend (String, Instrument, Int, Int, Double?) -> LeaderboardPayload,
     private val backoff: ServiceRetryBackoff,
+    private val leeway: () -> Double? = { null },
 ) : ViewModel() {
+    private val catalogPublicationFlow = MutableStateFlow<Int?>(null)
     private val songLoader = RetryingLoader(viewModelScope, "song:$songKey", backoff) { refresh ->
-        SongResolver.resolve(loadCatalog(refresh).catalog.songs, songKey)
+        val payload = loadCatalog(refresh)
+        catalogPublicationFlow.value = payload.publicationId
+        SongResolver.resolve(payload.catalog.songs, songKey)
     }
-    private val previews = mutableMapOf<Instrument, RetryingLoader<LeaderboardPayload>>()
+    private val previews = mutableMapOf<Pair<Instrument, Double?>, RetryingLoader<LeaderboardPayload>>()
 
     /** The resolved song. */
     val song: StateFlow<LoadState<Song>> = songLoader.state
+
+    /** Generation observed for the catalogue the song was resolved from. */
+    val catalogPublication: StateFlow<Int?> = catalogPublicationFlow.asStateFlow()
 
     init {
         songLoader.ensureStarted()
@@ -71,9 +80,10 @@ class SongDetailViewModel(
      * @return Preview state.
      */
     fun preview(song: Song, instrument: Instrument): StateFlow<LoadState<LeaderboardPayload>> {
-        val loader = previews.getOrPut(instrument) {
+        val current = leeway()
+        val loader = previews.getOrPut(instrument to current) {
             RetryingLoader(viewModelScope, "preview:${song.songId}:${instrument.wireId}", backoff) {
-                loadLeaderboard(song.songId, instrument, 1, LeaderboardPaging.PREVIEW_SIZE)
+                loadLeaderboard(song.songId, instrument, 1, LeaderboardPaging.PREVIEW_SIZE, current)
             }
         }
         loader.ensureStarted()
@@ -86,7 +96,7 @@ class SongDetailViewModel(
      * @param instrument Chart.
      */
     fun retryPreview(instrument: Instrument) {
-        previews[instrument]?.retry()
+        previews[instrument to leeway()]?.retry()
     }
 
     /** Retry resolving the song. */

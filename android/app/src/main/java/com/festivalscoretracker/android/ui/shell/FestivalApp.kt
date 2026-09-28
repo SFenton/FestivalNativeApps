@@ -86,7 +86,6 @@ import com.festivalscoretracker.android.core.nav.StatisticsTab
 import com.festivalscoretracker.android.core.settings.AppSettings
 import com.festivalscoretracker.android.presentation.ProfileSearchViewModel
 import com.festivalscoretracker.android.presentation.ShellViewModel
-import com.festivalscoretracker.android.presentation.SongDetailViewModel
 import com.festivalscoretracker.android.presentation.SongLeaderboardViewModel
 import com.festivalscoretracker.android.ui.background.ArtworkBackground
 import com.festivalscoretracker.android.ui.bands.bandsDestinations
@@ -111,10 +110,11 @@ import com.festivalscoretracker.android.ui.firstrun.FirstRunHost
 import com.festivalscoretracker.android.ui.firstrun.firstRunPage
 import com.festivalscoretracker.android.ui.notifications.NotificationsBell
 import com.festivalscoretracker.android.ui.notifications.NotificationsSheet
-import com.festivalscoretracker.android.ui.songdetail.SongDetailScreen
+import com.festivalscoretracker.android.ui.songdetail.SongDetailRouteScreen
 import com.festivalscoretracker.android.ui.songdetail.SongLeaderboardScreen
 import com.festivalscoretracker.android.ui.suggestions.suggestionsDestinations
 import com.festivalscoretracker.android.ui.songs.SongsRoute
+import com.festivalscoretracker.android.ui.shop.ShopRouteScreen
 import com.festivalscoretracker.android.data.songs.watchDeselection
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.FestivalTheme
@@ -520,7 +520,6 @@ private fun FestivalNavHost(
     listPaneWidth: Int,
 ) {
     val api = container.api
-    val openLeaderboard = { songId: String, instrument: Instrument -> navController.navigate(SongLeaderboardRoute(songId, instrument.wireId)) }
     NavHost(navController = navController, startDestination = SongsTab, modifier = Modifier.fillMaxSize()) {
         composable<SongsTab> {
             if (twoPane) {
@@ -540,12 +539,7 @@ private fun FestivalNavHost(
                                 modifier = Modifier.align(Alignment.Center),
                             )
                         } else {
-                            val detailViewModel: SongDetailViewModel = viewModel(key = "detail:$id") {
-                                SongDetailViewModel(id, { api.catalog(it) }, api::leaderboard, container.backoff)
-                            }
-                            SongDetailScreen(detailViewModel, settings.visibleInstruments, api::artworkUrl, container.background, embedded = true) { song, instrument ->
-                                openLeaderboard(song.songId, instrument)
-                            }
+                            SongDetailRouteScreen(container, shellViewModel, settings, id, embedded = true)
                         }
                     }
                 }
@@ -555,12 +549,7 @@ private fun FestivalNavHost(
         }
         composable<SongDetailRoute> { entry ->
             val route = entry.toRoute<SongDetailRoute>()
-            val detailViewModel: SongDetailViewModel = viewModel {
-                SongDetailViewModel(route.songId, { api.catalog(it) }, api::leaderboard, container.backoff)
-            }
-            SongDetailScreen(detailViewModel, settings.visibleInstruments, api::artworkUrl, container.background, embedded = false) { song, instrument ->
-                openLeaderboard(song.songId, instrument)
-            }
+            SongDetailRouteScreen(container, shellViewModel, settings, route.songId, embedded = false)
         }
         composable<SongLeaderboardRoute> { entry ->
             val route = entry.toRoute<SongLeaderboardRoute>()
@@ -603,7 +592,7 @@ private fun FestivalNavHost(
         bandsDestinations(container)
         rivalsDestinations(container, settings)
         competeDestinations(container, settings)
-        placeholder<ShopRoute>("Item Shop")
+        composable<ShopRoute> { ShopRouteScreen(container, shellViewModel) }
     }
 }
 

@@ -1,24 +1,38 @@
 package com.festivalscoretracker.android.ui.songdetail
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ShowChart
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Route
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -31,20 +45,32 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import com.festivalscoretracker.android.core.bands.BandType
 import com.festivalscoretracker.android.core.format.ScoreFormatting
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.LeaderboardEntry
+import com.festivalscoretracker.android.core.model.LeaderboardPaging
 import com.festivalscoretracker.android.core.model.Song
+import com.festivalscoretracker.android.core.nav.AppRoute
+import com.festivalscoretracker.android.core.nav.PlayerHistoryRoute
+import com.festivalscoretracker.android.core.nav.SongBandLeaderboardRoute
+import com.festivalscoretracker.android.core.nav.SongLeaderboardRoute
+import com.festivalscoretracker.android.core.rankings.RankingNavigation
+import com.festivalscoretracker.android.core.rankings.RankingSpotlight
+import com.festivalscoretracker.android.core.shop.ShopHighlight
 import com.festivalscoretracker.android.presentation.BackgroundController
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.SongDetailViewModel
+import com.festivalscoretracker.android.presentation.songs.ChartScoreSummary
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LoadingView
 import com.festivalscoretracker.android.ui.common.LocalShellActions
@@ -54,29 +80,58 @@ import com.festivalscoretracker.android.ui.design.DifficultyMeter
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.SectionHeader
+import com.festivalscoretracker.android.ui.shop.ShopDetailAction
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+
+// region Extras
+
+/**
+ * Song Detail inputs beyond the song itself, computed by the route from shared
+ * Shop, selected-profile and Settings state.
+ *
+ * @property visibleInstruments Settings-visible charts.
+ * @property selectedAccountId Selected player, or null.
+ * @property summaries Per-chart "Your score" lines (empty without a player).
+ * @property shopHighlight Effective Shop badge.
+ * @property shopUrl Validated official Shop URL for this song, or null.
+ * @property shopError A Shop read failed (the offer can't be confirmed).
+ * @property pathInstruments Path-capable charts; empty hides Paths.
+ */
+data class SongDetailExtras(
+    val visibleInstruments: Set<Instrument> = Instrument.entries.toSet(),
+    val selectedAccountId: String? = null,
+    val summaries: Map<Instrument, ChartScoreSummary> = emptyMap(),
+    val shopHighlight: ShopHighlight? = null,
+    val shopUrl: String? = null,
+    val shopError: Boolean = false,
+    val pathInstruments: List<Instrument> = emptyList(),
+)
+
+// endregion
 
 // region Song detail
 
 /**
- * Song Detail: header, Intensity for every charted instrument (even hidden ones),
- * then a lazily-loaded ten-row preview card per visible chart.
+ * Song Detail: header (art, title, Shop badge/action, Paths), Intensity for every
+ * charted instrument (even hidden ones), band leaderboard links, then a lazily
+ * loaded ten-row preview per visible chart with the selected player's summary,
+ * highlighted row, off-preview rank link and score-history link.
  *
  * @param viewModel Detail logic.
- * @param visibleInstruments Settings-visible charts.
+ * @param extras Shop, player and Settings inputs.
  * @param artworkUrl Artwork resolver.
  * @param background Shared backdrop (receives this song's static cover).
  * @param embedded True inside a two-pane layout (no own top bar).
- * @param onOpenLeaderboard Open the full chart leaderboard.
+ * @param onOpenPaths Open the CHOpt Paths sheet.
  */
 @Composable
 fun SongDetailScreen(
     viewModel: SongDetailViewModel,
-    visibleInstruments: Set<Instrument>,
+    extras: SongDetailExtras,
     artworkUrl: (String?) -> String?,
     background: BackgroundController,
     embedded: Boolean,
-    onOpenLeaderboard: (Song, Instrument) -> Unit,
+    onOpenPaths: (Song) -> Unit,
 ) {
     val songState by viewModel.song.collectAsStateWithLifecycle()
     val song = (songState as? LoadState.Loaded)?.value
@@ -88,7 +143,7 @@ fun SongDetailScreen(
         when (val state = songState) {
             LoadState.Loading -> LoadingView("Loading song", Modifier.padding(padding))
             is LoadState.Failed -> ServiceStatusView(state.issue, "Song unavailable", state.countdown, viewModel::retry, contentPadding = padding)
-            is LoadState.Loaded -> SongDetailContent(state.value, viewModel, visibleInstruments, artworkUrl(state.value.albumArt), padding, onOpenLeaderboard)
+            is LoadState.Loaded -> SongDetailContent(state.value, viewModel, extras, artworkUrl(state.value.albumArt), padding, onOpenPaths)
         }
     }
     if (embedded) {
@@ -104,21 +159,24 @@ fun SongDetailScreen(
 private fun SongDetailContent(
     song: Song,
     viewModel: SongDetailViewModel,
-    visibleInstruments: Set<Instrument>,
+    extras: SongDetailExtras,
     artUrl: String?,
     padding: PaddingValues,
-    onOpenLeaderboard: (Song, Instrument) -> Unit,
+    onOpenPaths: (Song) -> Unit,
 ) {
+    val navigate = LocalShellActions.current.navigate
     val charted = Instrument.entries.filter(song::supports)
-    val cards = charted.filter { it in visibleInstruments }
+    val cards = charted.filter { it in extras.visibleInstruments }
     LazyColumn(
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 24.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.fillMaxSize().testTag("fst.song-detail.list"),
     ) {
         item(key = "header") { SongHeader(song, artUrl) }
+        item(key = "actions") { HeaderActions(song, extras, onOpenPaths) }
         item(key = "intensity-header") { SectionHeader("Intensity") }
         item(key = "intensity") { IntensityCard(song, charted) }
+        item(key = "bands") { BandLinks(song, navigate) }
         items(cards, key = { it.wireId }) { instrument ->
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 12.dp, bottom = 6.dp)) {
@@ -131,7 +189,7 @@ private fun SongDetailContent(
                         modifier = Modifier.padding(start = 8.dp).semantics { heading() },
                     )
                 }
-                PreviewCard(song, instrument, viewModel, onOpenLeaderboard)
+                PreviewCard(song, instrument, viewModel, extras, navigate)
             }
         }
     }
@@ -156,6 +214,30 @@ private fun SongHeader(song: Song, artUrl: String?) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun HeaderActions(song: Song, extras: SongDetailExtras, onOpenPaths: (Song) -> Unit) {
+    val hasShop = extras.shopUrl != null
+    if (extras.pathInstruments.isEmpty() && !hasShop && !extras.shopError) return
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (extras.pathInstruments.isNotEmpty()) {
+                FilledTonalButton(onClick = { onOpenPaths(song) }, modifier = Modifier.testTag("fst.song-detail.paths.open")) {
+                    Icon(Icons.Filled.Route, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text("Paths", modifier = Modifier.padding(start = 6.dp))
+                }
+            }
+            extras.shopUrl?.let { ShopDetailAction(extras.shopHighlight, it, song.songId) }
+        }
+        if (extras.shopError) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.testTag("fst.song-detail.shop-error")) {
+                Icon(Icons.Filled.Warning, contentDescription = null, tint = BrandTokens.gold, modifier = Modifier.size(16.dp))
+                Text("Item Shop availability couldn't be checked", style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary, modifier = Modifier.padding(start = 6.dp))
+            }
+        }
+    }
+}
+
 @Composable
 private fun IntensityCard(song: Song, charted: List<Instrument>) {
     GlassCard(Modifier.fillMaxWidth().testTag("fst.song-detail.intensity")) {
@@ -171,11 +253,31 @@ private fun IntensityCard(song: Song, charted: List<Instrument>) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun PreviewCard(song: Song, instrument: Instrument, viewModel: SongDetailViewModel, onOpenLeaderboard: (Song, Instrument) -> Unit) {
+private fun BandLinks(song: Song, navigate: (AppRoute) -> Unit) {
+    Column {
+        SectionHeader("Band Leaderboards")
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("fst.song-detail.bands")) {
+            BandType.entries.forEach { type ->
+                AssistChip(
+                    onClick = { navigate(SongBandLeaderboardRoute(song.songId, type.wireId)) },
+                    label = { Text(type.label) },
+                    leadingIcon = { Icon(Icons.Filled.Groups, contentDescription = null, modifier = Modifier.size(AssistChipDefaults.IconSize)) },
+                    modifier = Modifier.testTag("fst.song-detail.band.${type.wireId}"),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PreviewCard(song: Song, instrument: Instrument, viewModel: SongDetailViewModel, extras: SongDetailExtras, navigate: (AppRoute) -> Unit) {
     val state by viewModel.preview(song, instrument).collectAsStateWithLifecycle()
+    val summary = extras.summaries[instrument]
     GlassCard(Modifier.fillMaxWidth().testTag("fst.song-detail.preview.${instrument.wireId}")) {
         Column(Modifier.padding(vertical = 6.dp)) {
+            summary?.let { YourScore(it, song, instrument, navigate) }
             when (val preview = state) {
                 LoadState.Loading -> Box(Modifier.fillMaxWidth().heightIn(min = 96.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(Modifier.size(28.dp))
@@ -190,15 +292,70 @@ private fun PreviewCard(song: Song, instrument: Instrument, viewModel: SongDetai
                     if (entries.isEmpty()) {
                         Text("No scores yet", color = BrandTokens.textSecondary, modifier = Modifier.padding(16.dp))
                     } else {
-                        entries.forEach { ScoreRow(it) }
+                        entries.forEach { entry ->
+                            PreviewRow(
+                                entry = entry,
+                                isSelected = RankingSpotlight.isSelected(extras.selectedAccountId, entry.accountId),
+                                route = RankingNavigation.playerRoute(entry.accountId, entry.displayName, extras.selectedAccountId),
+                                instrument = instrument,
+                                onOpen = navigate,
+                            )
+                        }
                         TextButton(
-                            onClick = { onOpenLeaderboard(song, instrument) },
+                            onClick = { navigate(SongLeaderboardRoute(song.songId, instrument.wireId)) },
                             modifier = Modifier.padding(horizontal = 4.dp).heightIn(min = 48.dp).testTag("fst.song-detail.view-all.${instrument.wireId}"),
                         ) { Text("View Full Leaderboard") }
                     }
                 }
             }
+            if (extras.selectedAccountId != null) {
+                TextButton(
+                    onClick = { navigate(PlayerHistoryRoute(song.songId, instrument.wireId)) },
+                    modifier = Modifier.padding(horizontal = 4.dp).heightIn(min = 48.dp).testTag("fst.song-detail.history.${instrument.wireId}"),
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.ShowChart, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text("View ${instrument.label} Score History", modifier = Modifier.padding(start = 6.dp))
+                }
+            }
         }
+    }
+}
+
+/**
+ * The selected player's gold summary line; a rank outside the ten-row preview
+ * links to the leaderboard page that contains it.
+ */
+@Composable
+private fun YourScore(summary: ChartScoreSummary, song: Song, instrument: Instrument, navigate: (AppRoute) -> Unit) {
+    val rank = summary.rank
+    Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp).testTag("fst.song-detail.your-score.${instrument.wireId}")) {
+        Text(
+            summary.text,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (summary.scored) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (summary.scored) BrandTokens.gold else BrandTokens.textSecondary,
+        )
+        if (rank != null && rank > LeaderboardPaging.PREVIEW_SIZE) {
+            TextButton(
+                onClick = { navigate(SongLeaderboardRoute(song.songId, instrument.wireId, LeaderboardPaging.pageForRank(rank))) },
+                modifier = Modifier.heightIn(min = 48.dp).testTag("fst.song-detail.your-rank.${instrument.wireId}"),
+            ) { Text("Show My Rank") }
+        }
+    }
+}
+
+@Composable
+private fun PreviewRow(entry: LeaderboardEntry, isSelected: Boolean, route: AppRoute?, instrument: Instrument, onOpen: (AppRoute) -> Unit) {
+    val shape = RoundedCornerShape(10.dp)
+    var modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp).clip(shape)
+    if (isSelected) modifier = modifier.background(BrandTokens.accentPurple.copy(alpha = 0.18f)).border(BorderStroke(1.dp, BrandTokens.accentPurple), shape)
+    modifier = if (route != null) {
+        modifier.clickable(role = Role.Button, onClickLabel = "Open profile") { onOpen(route) }
+    } else {
+        modifier.semantics { stateDescription = "Profile unavailable" }
+    }
+    Box(modifier.testTag("fst.song-detail.preview-row.${instrument.wireId}.${entry.accountId.ifEmpty { "rank-${entry.rank}" }}")) {
+        ScoreRow(entry)
     }
 }
 
@@ -208,6 +365,7 @@ private fun PreviewCard(song: Song, instrument: Instrument, viewModel: SongDetai
 
 /**
  * One leaderboard row: rank, name, accuracy (or FC) and score, read as one stop.
+ * Anonymous rows (no account) read "Unknown User".
  *
  * @param entry Wire row.
  */
@@ -223,7 +381,7 @@ fun ScoreRow(entry: LeaderboardEntry) {
     ) {
         Text("#${entry.rank}", style = MaterialTheme.typography.labelLarge, color = BrandTokens.textMuted, modifier = Modifier.width(56.dp))
         Text(
-            entry.displayName ?: "Unknown player",
+            entry.displayName?.takeIf { it.isNotBlank() && entry.accountId.isNotEmpty() } ?: "Unknown User",
             color = BrandTokens.textPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
