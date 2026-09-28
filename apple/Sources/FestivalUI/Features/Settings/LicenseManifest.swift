@@ -47,5 +47,18 @@ enum LicenseManifest {
                 """,
             url: nil
         ),
+        SoftwareLicense(
+            id: "star-rating-artwork",
+            name: "Star Rating Artwork",
+            versionOrRole: "Bundled artwork · Stars.xcassets",
+            licenseType: "First-party",
+            licenseText: """
+                The white and gold star images are the operator's own artwork, copied \
+                from the companion website's public/star_white.png and \
+                public/star_gold.png (the same origin as this app's service). They are \
+                not third-party assets and are not licensed from another rights holder.
+                """,
+            url: nil
+        ),
     ]
 }

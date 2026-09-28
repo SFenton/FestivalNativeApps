@@ -10,11 +10,11 @@ import Testing
 
 /// `/settings/licenses` renders its "no external dependencies" footnote (this build
 /// currently has zero third-party SwiftPM packages) alongside the bundled-assets
-/// section, which always has at least the instrument iconography entry.
+/// section, which lists the instrument iconography and star artwork.
 @MainActor
 @Test func licensesScreenRendersEmptyThirdPartyAndBundledAssetsSections() async throws {
     #expect(LicenseManifest.thirdPartySoftware.isEmpty)
-    #expect(LicenseManifest.bundledAssets.count == 1)
+    #expect(LicenseManifest.bundledAssets.map(\.id) == ["instrument-iconography", "star-rating-artwork"])
     let session = FestivalSession(factory: { throw FestivalAPIError.invalidResource })
     let size = CGSize(width: 402, height: 700)
     let host = nativeHostedView(
