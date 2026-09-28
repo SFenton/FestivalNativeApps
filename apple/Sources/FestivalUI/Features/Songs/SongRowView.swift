@@ -122,16 +122,17 @@ struct SongRowView: View {
         return subtitle
     }
 
+    /// Title/artist·year·duration, ported to `MarqueeText` (web `SongInfo.tsx` does
+    /// the same) so a long combination auto-scrolls on one line instead of wrapping
+    /// to a second line — the previous `.fixedSize(horizontal: false, vertical:
+    /// true)` explicitly allowed that wrap, which is what grew rows like "6 Foot
+    /// 7 Foot" tall on folded Duo's narrower card width.
     private var songInfo: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(song.title)
-                .font(.headline)
+            MarqueeText(song.title, font: .headline)
                 .foregroundStyle(BrandTokens.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
-            Text(songSubtitle)
-                .font(.subheadline)
+            MarqueeText(songSubtitle, font: .subheadline)
                 .foregroundStyle(BrandTokens.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

@@ -15,38 +15,65 @@ import UIKit
 struct SongSectionIndexScrubber: View {
     let sections: [SongSection]
     let onSelect: (Int) -> Void
+    @Environment(\.deviceLayout) private var deviceLayout
     @State private var activeIndex: Int = 0
     @State private var isActive = false
+    /// The strip's own rendered height, read back only to map a touch's Y position
+    /// to a section — never fed back into the strip's own frame. Using the List's
+    /// proposed height there (previously `GeometryReader { geometry in … .frame(height:
+    /// geometry.size.height) }`) stretched the capsule to the full list height and
+    /// re-measured it whenever that height changed, e.g. when a large title collapses
+    /// and hands the List more room: the strip grew and its centered content visibly
+    /// crept upward, spilling past the first/last label and over the rows underneath.
+    @State private var measuredHeight: CGFloat = 0
     #if os(iOS)
     private let feedback = UISelectionFeedbackGenerator()
     #endif
 
+    /// Keep the strip clear of iPhone Duo's system vertical bar (folded, or inner
+    /// landscape), which does not show up in the safe area the List itself sees.
+    private var trailingMargin: CGFloat {
+        max(2, deviceLayout.overlayInsets.trailing)
+    }
+
     var body: some View {
-        GeometryReader { geometry in
-            VStack(spacing: 1) {
-                ForEach(Array(sections.enumerated()), id: \.offset) { index, section in
-                    Text(section.label)
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .frame(maxWidth: .infinity)
-                        .foregroundStyle(
-                            isActive && index == activeIndex
-                                ? BrandTokens.gold : BrandTokens.textSecondary
-                        )
-                }
+        VStack(spacing: 1) {
+            ForEach(Array(sections.enumerated()), id: \.offset) { index, section in
+                Text(section.label)
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .frame(maxWidth: .infinity)
+                    .foregroundStyle(
+                        isActive && index == activeIndex
+                            ? BrandTokens.gold : BrandTokens.textSecondary
+                    )
             }
-            .padding(.vertical, 6)
-            .frame(width: 22, height: geometry.size.height, alignment: .center)
-            .festivalGlassCapsule(.control)
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        update(for: value.location.y, height: geometry.size.height)
-                    }
-                    .onEnded { _ in isActive = false }
-            )
         }
+        .padding(.vertical, 6)
+        // Intrinsic size — as tall as its own letters, never the full list height.
+        // The caller's `ZStack(alignment: .trailing)` centers this vertically, which
+        // is what keeps it anchored to the content area and stable across a
+        // collapsing/expanding large title (neither changes this view's own size).
         .frame(width: 22)
+        .festivalGlassCapsule(.control)
+        .contentShape(Rectangle())
+        .background(
+            GeometryReader { geometry in
+                Color.clear
+                    .onAppear { measuredHeight = geometry.size.height }
+                    .onChange(of: geometry.size.height) { _, newValue in
+                        measuredHeight = newValue
+                    }
+            }
+        )
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { value in
+                    update(for: value.location.y, height: measuredHeight)
+                }
+                .onEnded { _ in isActive = false }
+        )
+        .padding(.vertical, 8)
+        .padding(.trailing, trailingMargin)
         .accessibilityElement()
         .accessibilityLabel("Jump to section")
         .accessibilityValue(sections[safeIndex: activeIndex]?.label ?? "")
@@ -64,7 +91,8 @@ struct SongSectionIndexScrubber: View {
     ///
     /// - Parameters:
     ///   - y: Vertical touch position relative to the scrubber's own frame.
-    ///   - height: Current measured height of the scrubber strip.
+    ///   - height: Current measured height of the scrubber's own content (not the
+    ///     enclosing list), so the mapping stays accurate at its intrinsic size.
     private func update(for y: CGFloat, height: CGFloat) {
         guard !sections.isEmpty else { return }
         let ratio = min(max(y / max(height, 1), 0), 0.999)

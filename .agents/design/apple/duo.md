@@ -71,7 +71,7 @@ Exact edits, in order, to `App/FestivalRootView.swift` unless noted:
 | B1 | Root chrome, profile selected | The avatar is a custom-view item, so the system keeps a horizontal top bar just for it (floating beside the "Songs" title) and overflows the bell into `…` |
 | B2 | Full Rankings | Instrument/sort capsule is horizontal-only. The custom pagination footer (First/Previous/`1 / 34,770`/Next/Last) takes ≈ 150 of 678 pt, leaving 5 rows visible |
 | B3 | Songs, profile selected | 9 instrument chips wrap 5 + 4 in the ≈ 290 pt row width, doubling row height |
-| B4 | Songs | The A–Z scrubber (x ≈ 368–392 pt) abuts the vertical bar (from ≈ 396 pt): two adjacent vertical control columns |
+| B4 | Songs | ~~The A–Z scrubber (x ≈ 368–392 pt) abuts the vertical bar (from ≈ 396 pt): two adjacent vertical control columns~~ **Fixed 2026-09-28 (Lane S2):** the scrubber now pads its trailing edge by `deviceLayout.overlayInsets.trailing` and no longer stretches to the List's full height (it also chased the large title's collapse, "creeping" up over rows — see [songs-section-index/ios.md](../../controls/songs-section-index/ios.md)). Re-verify the exact clearance once Device Hub can be driven for a fresh folded capture |
 | B5 | Drawer (predicted) | A full-height leading overlay. Fine in portrait, but in upside-down and camera-top-left landscape the bar and camera are leading, so it would cover both |
 | B6 | Song rows | Accessibility frames span 0–466 pt, under the vertical bar (cards end ≈ 375 pt); audits may flag obscured elements |
 | B7 | Shell (from code) | Unfolded Duo is still `.phone` idiom: compact section set, drawer, one column, so a 951 pt window is wasted. Unfolded capture is blocked until Device Hub is unfolded |

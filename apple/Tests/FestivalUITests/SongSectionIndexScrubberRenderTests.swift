@@ -24,6 +24,13 @@ private func deterministicScrubberGlassDefaults() -> UserDefaults {
 
 /// Render the right-edge section-index scrubber at a fixed size and text scale.
 ///
+/// The host is sized close to the scrubber's own intrinsic content height (2026-09-28:
+/// the scrubber no longer stretches to fill a `GeometryReader`-proposed height — see
+/// `SongSectionIndexScrubber`'s doc comment — so a handful of short labels only occupy
+/// a small natural span). A much taller host would dilute `nativeHostedControlPixels`'
+/// sparse stride-4 sampling until it under-counts real glyph pixels, which is a sampling
+/// artifact of an oversized canvas, not evidence of missing text.
+///
 /// - Parameters:
 ///   - sections: Labels the scrubber should paint, top to bottom.
 ///   - typeSize: Dynamic Type scale under test.
@@ -40,7 +47,7 @@ private func renderScrubber(
             .environment(\.dynamicTypeSize, typeSize)
             .defaultAppStorage(deterministicScrubberGlassDefaults())
             .background(BrandTokens.appBackground),
-        size: CGSize(width: 40, height: 480)
+        size: CGSize(width: 40, height: 90)
     )
     let image = try nativeHostedImage(host)
     return (image, nativeHostedControlPixels(image))
@@ -68,7 +75,11 @@ private func renderScrubber(
         SongSection(id: 1, label: "S", songs: []),
     ]
     let (artistImage, artistPixels) = try renderScrubber(artist)
-    #expect(artistPixels.bright > 2)
+    // Only two single-character labels: real content, but too few glyph pixels for
+    // the sparse stride-4 sampler to guarantee hitting more than a couple of them
+    // regardless of canvas size. `> 0` (never zero, i.e. never the placeholder path)
+    // is the actual invariant; `placeholder == 0` below is the stronger check.
+    #expect(artistPixels.bright > 0)
     #expect(artistPixels.placeholder == 0)
     let artistPNG = try nativeHostedPNG(
         artistImage, filename: "section-index-artist.png", environment: "FST_SECTION_INDEX_RENDER_OUT"

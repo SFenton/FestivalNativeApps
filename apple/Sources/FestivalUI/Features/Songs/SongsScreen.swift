@@ -282,6 +282,7 @@ struct SongsScreen: View {
             case .loading:
                 ProgressView("Loading songs")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .transition(.opacity)
             case let .failed(issue):
                 ServiceStatusView(issue, title: "Songs unavailable") {
                     Task { await reload() }
@@ -771,20 +772,26 @@ struct SongsScreen: View {
                     }
                     if let shopSections, shopSections.count > 1 {
                         ForEach(shopSections) { section in
-                            shopSectionHeader(section)
-                            ForEach(section.songs) { song in
-                                songLink(
-                                    for: song, catalogueObservation: payload.observedPublicationId
-                                )
+                            Section {
+                                ForEach(section.songs) { song in
+                                    songLink(
+                                        for: song, catalogueObservation: payload.observedPublicationId
+                                    )
+                                }
+                            } header: {
+                                shopSectionHeader(section)
                             }
                         }
                     } else if let durationSections, durationSections.count > 1 {
                         ForEach(durationSections) { section in
-                            durationSectionHeader(section)
-                            ForEach(section.songs) { song in
-                                songLink(
-                                    for: song, catalogueObservation: payload.observedPublicationId
-                                )
+                            Section {
+                                ForEach(section.songs) { song in
+                                    songLink(
+                                        for: song, catalogueObservation: payload.observedPublicationId
+                                    )
+                                }
+                            } header: {
+                                durationSectionHeader(section)
                             }
                         }
                     } else if showsIndex {
@@ -824,7 +831,6 @@ struct SongsScreen: View {
                             scrollProxy.scrollTo(id, anchor: .top)
                         }
                     }
-                    .padding(.trailing, 2)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
             }
@@ -857,43 +863,40 @@ struct SongsScreen: View {
     }
 
     /// Shop bucket header, also the quick-link jump target for its section.
+    ///
+    /// Plain text on the List's own pinned-header material — matching
+    /// ``sectionIndexHeader(_:)`` — rather than an opaque card `.background()`.
+    /// This used to be inserted as an ordinary **row** (a sibling of the song rows
+    /// in the same `ForEach`, not a real `Section` header), decorated with
+    /// `.listRowBackground`/`.listRowInsets`/`.listRowSeparator`: modifiers that
+    /// only mean something on a row. Once wrapped in a real `Section(header:)`
+    /// (now the caller in `populatedList`), that leftover opaque rounded-rect
+    /// background sat inside the List's own default pinned-header backing — which
+    /// is not fully transparent — producing a visibly different "card" floating
+    /// over a plain dark bar. Dropping the custom background and the row-only
+    /// modifiers lets the header blend like the A–Z/Year headers already do.
     private func shopSectionHeader(_ section: SongShopSection) -> some View {
-        HStack {
-            Text(section.kind.label.uppercased())
-                .font(.headline)
-                .foregroundStyle(BrandTokens.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityLabel(section.kind.label)
-                .accessibilityAddTraits(.isHeader)
-                .accessibilityIdentifier("fst.songs.shop-section." + section.kind.rawValue)
-            Spacer(minLength: 0)
-        }
-        .padding(8)
-        .background(BrandTokens.cardBackground, in: RoundedRectangle(cornerRadius: 8))
-        .listRowSeparator(.hidden)
-        .listRowBackground(Color.clear)
-        .listRowInsets(songRowInsets)
-        .quickLinkSection(id: "shop:\(section.kind.rawValue)", title: section.kind.label)
+        Text(section.kind.label.uppercased())
+            .font(.caption.bold())
+            .foregroundStyle(BrandTokens.textSecondary)
+            .accessibilityLabel(section.kind.label)
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityIdentifier("fst.songs.shop-section." + section.kind.rawValue)
+            .quickLinkSection(id: "shop:\(section.kind.rawValue)", title: section.kind.label)
     }
 
     /// Duration bucket header, also the quick-link jump target for its section.
+    ///
+    /// See ``shopSectionHeader(_:)`` for why this is now plain text rather than a
+    /// card-style `.background()`.
     private func durationSectionHeader(_ section: SongDurationSection) -> some View {
-        HStack {
-            Text(section.bucket.label.uppercased())
-                .font(.headline)
-                .foregroundStyle(BrandTokens.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityLabel(section.bucket.label)
-                .accessibilityAddTraits(.isHeader)
-                .accessibilityIdentifier("fst.songs.duration-section.\(section.bucket.rawValue)")
-            Spacer(minLength: 0)
-        }
-        .padding(8)
-        .background(BrandTokens.cardBackground, in: RoundedRectangle(cornerRadius: 8))
-        .listRowSeparator(.hidden)
-        .listRowBackground(Color.clear)
-        .listRowInsets(songRowInsets)
-        .quickLinkSection(id: "duration:\(section.bucket.rawValue)", title: section.bucket.label)
+        Text(section.bucket.label.uppercased())
+            .font(.caption.bold())
+            .foregroundStyle(BrandTokens.textSecondary)
+            .accessibilityLabel(section.bucket.label)
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityIdentifier("fst.songs.duration-section.\(section.bucket.rawValue)")
+            .quickLinkSection(id: "duration:\(section.bucket.rawValue)", title: section.bucket.label)
     }
 
     /// Keep every grouped and ungrouped Song row on the same navigation path.
@@ -957,6 +960,18 @@ struct SongsScreen: View {
             .accessibilityIdentifier("fst.songs.section.\(section.id)")
     }
 
+    /// Rows primed before the very first reveal, and how long priming may block it.
+    ///
+    /// Native-only addition (2026-09-28): the web app has no equivalent gate — its
+    /// `SongsPage` reveals rows as soon as the catalogue/player data queries settle
+    /// and fades each row's `<img>` in independently once it loads (`AlbumArt.tsx`).
+    /// On a virtualized native `List`, that per-row fade instead reads as a page of
+    /// spinning-placeholder art that pops in piecemeal while scrolling settles, so
+    /// natives hold the loading state a little longer and prime the first visible
+    /// slice's artwork before the first reveal, then cross-fade in once.
+    private static let artworkPrimeCount = 12
+    private static let artworkPrimeTimeout = Duration.milliseconds(900)
+
     /// Refresh the public catalogue, preserving the last-viewed process cache.
     private func reload() async {
         let prior: CatalogPayload?
@@ -969,7 +984,13 @@ struct SongsScreen: View {
         do {
             let updated = try await session.catalog()
             try Task.checkCancellation()
-            state = .loaded(updated)
+            if prior == nil {
+                await primeFirstArtwork(for: updated)
+                try Task.checkCancellation()
+            }
+            withAnimation(.easeInOut(duration: 0.2)) {
+                state = .loaded(updated)
+            }
             refreshFailure = nil
         } catch is CancellationError {
             return
@@ -983,6 +1004,47 @@ struct SongsScreen: View {
             } else {
                 state = .failed(ServiceIssue(error))
             }
+        }
+    }
+
+    /// Decode the first visible rows' artwork before the very first reveal.
+    ///
+    /// Approximates the row order the just-loaded catalogue will render in (current
+    /// instrument filter and sort/direction; search is always empty this early) and
+    /// warms ``FestivalSession/preparedArtwork(raw:maxPixels:)`` for its first
+    /// ``artworkPrimeCount`` rows at the same `maxPixels` ``ArtworkTile`` requests, so
+    /// those rows hit the in-memory cache instantly once shown — no spinner flash.
+    /// Bounded by ``artworkPrimeTimeout`` so slow or unreachable art can never block
+    /// the reveal; whichever rows haven't decoded yet just show their own placeholder.
+    ///
+    /// - Parameter payload: Just-fetched catalogue, not yet published to `state`.
+    private func primeFirstArtwork(for payload: CatalogPayload) async {
+        let filtered = payload.catalog.songs.filter { song in
+            instrument.map(song.supports) ?? true
+        }
+        let ordered = (try? SongCatalogSort.sorted(
+            filtered, mode: sortMode == .shop ? .title : sortMode,
+            ascending: sortAscending
+        )) ?? filtered
+        let artworkPaths = ordered.prefix(Self.artworkPrimeCount)
+            .compactMap { $0.albumArt?.isEmpty == false ? $0.albumArt : nil }
+        guard !artworkPaths.isEmpty else { return }
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask {
+                await withTaskGroup(of: Void.self) { downloads in
+                    for raw in artworkPaths {
+                        downloads.addTask {
+                            _ = try? await session.preparedArtwork(raw: raw, maxPixels: 132)
+                        }
+                    }
+                    await downloads.waitForAll()
+                }
+            }
+            group.addTask {
+                try? await Task.sleep(for: Self.artworkPrimeTimeout)
+            }
+            await group.next()
+            group.cancelAll()
         }
     }
 
