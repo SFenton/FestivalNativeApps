@@ -2,6 +2,18 @@ package com.festivalscoretracker.android.ui.settings
 
 import com.festivalscoretracker.android.ui.design.popupTestTags
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.selected
+import com.festivalscoretracker.android.core.quicklinks.QuickLinks
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -74,39 +86,72 @@ fun LicensesScreen(loadManifest: (suspend () -> LicenseManifest)? = null) {
         }
     }
     var openId by rememberSaveable { mutableStateOf<String?>(null) }
-    FestivalScreen(title = "Licenses", isRoot = false) { padding ->
-        val current = manifest
-        if (current == null) {
-            androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            return@FestivalScreen
-        }
-        LazyColumn(
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize().testTag("fst.licenses.list"),
-        ) {
-            item(key = "software-header") {
-                Header(
-                    "Open Source Software",
-                    if (current.packages.isEmpty()) {
-                        "This build includes no third-party packages."
-                    } else {
-                        "This app includes ${current.packages.size} open source packages from its release build. Tap one to read its license."
-                    },
-                )
+    val listState = rememberLazyListState()
+    val scrolled by remember(listState) { derivedStateOf { listState.canScrollBackward } }
+    val split = rememberHingeSplit()
+    val density = LocalDensity.current
+    BoxWithConstraints(Modifier.fillMaxSize().then(split.modifier)) {
+        val hinge = split.value
+        // List-detail on a book-posture hinge or a wide page; a sheet otherwise.
+        val detailPane = hinge != null || QuickLinks.usesPane(maxWidth.value.toInt())
+        FestivalScreen(title = "Licenses", isRoot = false, scrolled = scrolled) { padding ->
+            val current = manifest
+            if (current == null) {
+                Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                return@FestivalScreen
             }
-            items(current.packages, key = { it.id }) { item -> PackageRow(item) { openId = item.id } }
-            item(key = "assets-header") { Header("Bundled Assets", "Artwork and icons shipped inside the app.") }
-            items(BundledAssets.all, key = { it.id }) { asset ->
-                GlassCard(Modifier.fillMaxWidth().widthIn(max = 840.dp).testTag("fst.licenses.asset.${asset.id}")) {
-                    Column(Modifier.padding(16.dp).semantics(mergeDescendants = true) {}) {
-                        Text(asset.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)
-                        Text(asset.detail, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary)
+            val open = current.packages.firstOrNull { it.id == openId }
+            Row(Modifier.fillMaxSize()) {
+                LazyColumn(
+                    state = listState,
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = when {
+                        hinge != null -> Modifier.width(with(density) { hinge.first.toDp() })
+                        detailPane -> Modifier.weight(0.45f)
+                        else -> Modifier.weight(1f)
+                    }.fillMaxHeight().testTag("fst.licenses.list"),
+                ) {
+                    item(key = "software-header") {
+                        Header(
+                            "Open Source Software",
+                            if (current.packages.isEmpty()) {
+                                "This build includes no third-party packages."
+                            } else {
+                                "This app includes ${current.packages.size} open source packages from its release build. Tap one to read its license."
+                            },
+                        )
+                    }
+                    items(current.packages, key = { it.id }) { item -> PackageRow(item, selected = detailPane && item.id == openId) { openId = item.id } }
+                    item(key = "assets-header") { Header("Bundled Assets", "Artwork and icons shipped inside the app.") }
+                    items(BundledAssets.all, key = { it.id }) { asset ->
+                        GlassCard(Modifier.fillMaxWidth().widthIn(max = 840.dp).testTag("fst.licenses.asset.${asset.id}")) {
+                            Column(Modifier.padding(16.dp).semantics(mergeDescendants = true) {}) {
+                                Text(asset.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)
+                                Text(asset.detail, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary)
+                            }
+                        }
+                    }
+                }
+                if (detailPane) {
+                    if (hinge != null) Spacer(Modifier.width(with(density) { hinge.second.toDp() }))
+                    Box(
+                        Modifier
+                            .weight(if (hinge != null) 1f else 0.55f)
+                            .fillMaxHeight()
+                            .padding(top = padding.calculateTopPadding(), start = 16.dp, end = 16.dp, bottom = padding.calculateBottomPadding())
+                            .testTag("fst.licenses.detail-pane"),
+                    ) {
+                        if (open == null) {
+                            Text("Select a package to read its license.", color = BrandTokens.textSecondary, modifier = Modifier.align(Alignment.Center))
+                        } else {
+                            LicenseDetail(open, current.text(open), Modifier.fillMaxSize().verticalScroll(rememberScrollState()))
+                        }
                     }
                 }
             }
+            if (!detailPane && open != null) LicenseSheet(open, current.text(open)) { openId = null }
         }
-        current.packages.firstOrNull { it.id == openId }?.let { item -> LicenseSheet(item, current.text(item)) { openId = null } }
     }
 }
 
@@ -126,8 +171,8 @@ private fun Header(title: String, hint: String) {
 }
 
 @Composable
-private fun PackageRow(item: LicensedPackage, onOpen: () -> Unit) {
-    GlassCard(Modifier.fillMaxWidth().widthIn(max = 840.dp)) {
+private fun PackageRow(item: LicensedPackage, selected: Boolean, onOpen: () -> Unit) {
+    GlassCard(Modifier.fillMaxWidth().widthIn(max = 840.dp).then(if (selected) Modifier.border(2.dp, BrandTokens.accentPurple, RoundedCornerShape(12.dp)) else Modifier)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
@@ -138,6 +183,7 @@ private fun PackageRow(item: LicensedPackage, onOpen: () -> Unit) {
                 .testTag("fst.licenses.row.${item.id}")
                 .semantics(mergeDescendants = true) {
                     role = Role.Button
+                    this.selected = selected
                     contentDescription = "${item.name}, ${item.version}, ${item.licenses.joinToString(" and ")}"
                 },
         ) {
@@ -160,29 +206,41 @@ private fun PackageRow(item: LicensedPackage, onOpen: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LicenseSheet(item: LicensedPackage, text: String, onDismiss: () -> Unit) {
-    val uri = LocalUriHandler.current
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = BrandTokens.cardBackground,
         modifier = Modifier.popupTestTags().testTag("fst.licenses.detail").semantics { paneTitle = item.name },
     ) {
-        Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 24.dp)) {
-            Text(item.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = Modifier.semantics { heading() })
-            Text("${item.subtitle} · ${item.licenses.joinToString(", ")}", style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary)
-            item.url?.let { url ->
-                TextButton(onClick = { runCatching { uri.openUri(url) } }, modifier = Modifier.testTag("fst.licenses.project-link")) { Text("Project Website") }
-            }
-            HorizontalDivider(color = BrandTokens.glassBorder, modifier = Modifier.padding(vertical = 8.dp))
-            SelectionContainer {
-                Text(
-                    text,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace,
-                    color = BrandTokens.textSecondary,
-                    modifier = Modifier.verticalScroll(rememberScrollState()).testTag("fst.licenses.text"),
-                )
-            }
+        LicenseDetail(item, text, Modifier.padding(horizontal = 24.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState()))
+    }
+}
+
+/**
+ * License name, coordinates, project link and the full selectable text (sheet or detail pane).
+ *
+ * @param item Package.
+ * @param text Full license text.
+ * @param modifier Modifier (callers add scrolling).
+ */
+@Composable
+private fun LicenseDetail(item: LicensedPackage, text: String, modifier: Modifier) {
+    val uri = LocalUriHandler.current
+    Column(modifier) {
+        Text(item.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = Modifier.semantics { heading() })
+        Text("${item.subtitle} \u00B7 ${item.licenses.joinToString(", ")}", style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary)
+        item.url?.let { url ->
+            TextButton(onClick = { runCatching { uri.openUri(url) } }, modifier = Modifier.testTag("fst.licenses.project-link")) { Text("Project Website") }
+        }
+        HorizontalDivider(color = BrandTokens.glassBorder, modifier = Modifier.padding(vertical = 8.dp))
+        SelectionContainer {
+            Text(
+                text,
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
+                color = BrandTokens.textSecondary,
+                modifier = Modifier.testTag("fst.licenses.text"),
+            )
         }
     }
 }

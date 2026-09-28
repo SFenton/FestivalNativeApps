@@ -38,6 +38,14 @@ class QuickLinksTest {
     }
 
     @Test
+    fun hingeSplitKeepsRowsOffTheFold() {
+        assertEquals(938f to 20f, QuickLinks.hingeSplit(100f, 2000f, 1038f, 1058f))
+        assertNull(QuickLinks.hingeSplit(1100f, 900f, 1038f, 1058f))
+        assertNull(QuickLinks.hingeSplit(0f, 1000f, 1038f, 1058f))
+        assertNull(QuickLinks.hingeSplit(0f, 2000f, 1058f, 1038f))
+    }
+
+    @Test
     fun naturalActiveSkipsUnknownAndStopsPastTheLine() {
         assertNull(QuickLinks.naturalActive(emptyList(), emptyMap(), 16f))
         assertEquals("a", QuickLinks.naturalActive(sections, frames("a" to 100f, "b" to 400f), 16f))

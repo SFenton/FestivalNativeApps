@@ -85,6 +85,23 @@ object QuickLinks {
     fun usesSheet(windowWidthDp: Int): Boolean = windowWidthDp < SHEET_MAXIMUM_WINDOW_WIDTH_DP
 
     /**
+     * Where a separating vertical hinge splits a page (book posture): the page
+     * becomes list | hinge | supporting pane, so no row straddles the fold.
+     *
+     * @param pageLeft Page left edge in window pixels.
+     * @param pageWidth Page width in pixels.
+     * @param hingeLeft Hinge left edge in window pixels.
+     * @param hingeRight Hinge right edge in window pixels.
+     * @return (start pane width, hinge width) in pixels, or null when the hinge is outside the page.
+     */
+    fun hingeSplit(pageLeft: Float, pageWidth: Float, hingeLeft: Float, hingeRight: Float): Pair<Float, Float>? {
+        val start = hingeLeft - pageLeft
+        val end = hingeRight - pageLeft
+        if (start <= 0f || end >= pageWidth || end < start) return null
+        return start to (end - start)
+    }
+
+    /**
      * Remove duplicate IDs, keeping first occurrences in order.
      *
      * @param sections Candidate sections.

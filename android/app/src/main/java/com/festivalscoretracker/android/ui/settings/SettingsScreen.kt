@@ -7,7 +7,10 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -38,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.adaptive.currentWindowSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -136,15 +140,18 @@ fun SettingsScreen(
     var confirmReset by rememberSaveable { mutableStateOf(false) }
     val service by viewModel.service.collectAsStateWithLifecycle()
 
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-        val pane = QuickLinks.usesPane(maxWidth.value.toInt())
-        FestivalScreen(title = "Settings", isRoot = true, actions = { if (!pane) QuickLinksAction(quickLinks, windowWidthDp) }) { padding ->
+    val scrolled by remember(listState) { derivedStateOf { listState.canScrollBackward } }
+    val split = rememberHingeSplit()
+    BoxWithConstraints(Modifier.fillMaxSize().then(split.modifier)) {
+        val hinge = split.value
+        val pane = hinge != null || QuickLinks.usesPane(maxWidth.value.toInt())
+        FestivalScreen(title = "Settings", isRoot = true, scrolled = scrolled, actions = { if (!pane) QuickLinksAction(quickLinks, windowWidthDp) }) { padding ->
             Row(Modifier.fillMaxSize()) {
                 LazyColumn(
                     state = listState,
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 24.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp),
-                    modifier = Modifier.weight(1f).fillMaxSize().testTag("fst.settings.list"),
+                    modifier = (if (hinge != null) Modifier.width(with(density) { hinge.first.toDp() }) else Modifier.weight(1f)).fillMaxHeight().testTag("fst.settings.list"),
                 ) {
                     sections.forEach { section ->
                         item(key = section.id) {
@@ -168,7 +175,12 @@ fun SettingsScreen(
                         }
                     }
                 }
-                if (pane) QuickLinksPane(quickLinks, Modifier.padding(top = padding.calculateTopPadding()))
+                if (hinge != null) {
+                    Spacer(Modifier.width(with(density) { hinge.second.toDp() }))
+                    QuickLinksPane(quickLinks, Modifier.weight(1f).padding(top = padding.calculateTopPadding()), fill = true)
+                } else if (pane) {
+                    QuickLinksPane(quickLinks, Modifier.padding(top = padding.calculateTopPadding()))
+                }
             }
         }
     }

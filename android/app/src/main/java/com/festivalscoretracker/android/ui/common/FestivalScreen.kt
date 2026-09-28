@@ -109,6 +109,8 @@ val LocalShellActions = staticCompositionLocalOf { ShellActions() }
  * @param isRoot Whether this is a tab root.
  * @param modifier Modifier.
  * @param actions Screen actions, placed before search and the avatar.
+ * @param scrolled Content sits under the bar even without a nested-scroll event
+ *   (e.g. after a programmatic Quick Links jump), so the bar shows its scrolled color.
  * @param content Content given padding that clears the top bar and bottom chrome.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -118,6 +120,7 @@ fun FestivalScreen(
     isRoot: Boolean,
     modifier: Modifier = Modifier,
     actions: @Composable RowScope.() -> Unit = {},
+    scrolled: Boolean = false,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val shell = LocalShellActions.current
@@ -150,7 +153,7 @@ fun FestivalScreen(
                     if (isRoot) ProfileAvatarButton(shell.selectedPlayer, shell.openProfile)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
+                    containerColor = if (scrolled) BrandTokens.surfaceFrosted else Color.Transparent,
                     scrolledContainerColor = BrandTokens.surfaceFrosted,
                     titleContentColor = BrandTokens.textPrimary,
                     navigationIconContentColor = BrandTokens.textPrimary,
