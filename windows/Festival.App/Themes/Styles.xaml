@@ -52,6 +52,11 @@
 
     <services:InverseVisibilityConverter x:Key="FSTInverseVisibility" />
 
+    <!-- MenuFlyout presenters are UIA Menus and need a name (Axe); the invoking button already names the choice. -->
+    <Style TargetType="MenuFlyoutPresenter">
+        <Setter Property="AutomationProperties.Name" Value="Options" />
+    </Style>
+
     <!-- Fluent card: 8 px corner radius, 1 px stroke, 16 px padding. -->
     <Style x:Key="FSTCardStyle" TargetType="Border">
         <Setter Property="Background" Value="{ThemeResource FSTCardSurfaceBrush}" />

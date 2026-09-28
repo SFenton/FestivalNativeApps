@@ -26,7 +26,15 @@ public sealed partial class QuickLinksMenuButton : DropDownButton
             Children = { new FontIcon { Glyph = "", FontSize = 14 }, new TextBlock { Text = "Quick Links" } },
         };
         AutomationProperties.SetAutomationId(this, "fst.quick-links.open");
-        Flyout = new MenuFlyout { Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.BottomEdgeAlignedRight };
+        Flyout = new MenuFlyout
+        {
+            Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.BottomEdgeAlignedRight,
+            // The presenter is the UIA Menu: Narrator reads its name on open (Axe requires one).
+            MenuFlyoutPresenterStyle = new Style(typeof(MenuFlyoutPresenter))
+            {
+                Setters = { new Setter(AutomationProperties.NameProperty, "Quick Links") },
+            },
+        };
         Flyout.Opening += (_, _) => Populate();
     }
 

@@ -243,5 +243,25 @@
       "key:esc",
       "wait:0.5"
     ]
+  },
+  {
+    "name": "rank-by-menu",
+    "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "sizes": [
+      "medium"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.full-rankings.page-info@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.rankings.rank-by-menu",
+      "key:enter",
+      "waitfor:id=fst.rankings.rank-by.fcrate@5"
+    ],
+    "teardown": [
+      "key:esc",
+      "wait:0.5"
+    ]
   }
 ]
