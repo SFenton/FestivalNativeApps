@@ -1,22 +1,14 @@
 package com.festivalscoretracker.android.ui.shop
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.runtime.remember
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
 import com.festivalscoretracker.android.core.shop.ShopPulse
 import com.festivalscoretracker.android.ui.songs.SongsTokens
 import com.festivalscoretracker.android.ui.songs.pulseOutline
+import com.festivalscoretracker.android.ui.songs.rememberShopBreathe
 import com.festivalscoretracker.android.ui.songs.rememberShopPulse
-import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -379,7 +371,8 @@ private fun ShopListRow(item: ShopOfferItem, artUrl: String?, pulse: () -> Float
 @Composable
 fun ShopDetailAction(highlight: ShopHighlight?, url: String, songId: String, pulse: ShopPulse? = null) {
     val uri = LocalUriHandler.current
-    val breathe = rememberShopBreathe(pulse)
+    val fraction = rememberShopBreathe(active = pulse != null)
+    val breathe: (() -> Color)? = pulse?.let { status -> { SongsTokens.breathe(status, fraction()) } }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("fst.song-detail.shop")) {
         highlight?.let { ShopBadgeLabel(it, songId, Modifier.testTag("fst.song-detail.shop-badge")) }
         Button(
@@ -396,32 +389,5 @@ fun ShopDetailAction(highlight: ShopHighlight?, url: String, songId: String, pul
         }
     }
 }
-
-/**
- * The Song Detail Shop button's breathing fill.
- *
- * @param pulse Effective pulse, or null for none.
- * @return Fill provider, or null.
- */
-@Composable
-private fun rememberShopBreathe(pulse: ShopPulse?): (() -> Color)? {
-    if (pulse == null) return null
-    val target = when (pulse) {
-        ShopPulse.InShop -> SongsTokens.statusGreenStroke
-        ShopPulse.New -> SongsTokens.goldStroke
-        ShopPulse.LeavingTomorrow -> BrandTokens.statusRed
-    }
-    if (LocalFestivalAccessibility.current.reduceMotion) return remember(target) { { target } }
-    val fraction = rememberInfiniteTransition(label = "shopBreathe").animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(1_500, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "shopBreatheFraction",
-    )
-    return remember(target, fraction) { { lerp(SHOP_BREATHE_BASE, target, fraction.value) } }
-}
-
-/** Web `--shop-pulse-base` (rgb 18 24 38 / 96%). */
-private val SHOP_BREATHE_BASE = Color(red = 18, green = 24, blue = 38, alpha = 245)
 
 // endregion

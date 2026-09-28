@@ -309,6 +309,7 @@ private fun SongList(
     val leading = 1 + state.notices.size
     val showIndex = state.sections.size > 1
     val pulse = rememberShopPulse(active = state.rows.any { it.pulse != null || it.warning != null })
+    val breathe = rememberShopBreathe(active = state.rows.any { it.pulse != null })
     // Scroll back to the top only when the sort or filters reshape the list (not on returning to it).
     val shape = "${state.effectiveSort}:${state.ascending}:${state.prefs.hashCode()}"
     var lastShape by rememberSaveable { mutableStateOf<String?>(null) }
@@ -346,7 +347,7 @@ private fun SongList(
                 Column {
                     headersByIndex[index]?.let { BucketHeader(it) }
                     SongRow(
-                        row, artworkUrl(row.song.albumArt), selected = row.song.songId == selectedSongId, pulse = pulse,
+                        row, artworkUrl(row.song.albumArt), selected = row.song.songId == selectedSongId, pulse = pulse, breathe = breathe,
                         onWarning = row.warning?.let { shown -> { onWarning(shown) } },
                     ) { onSongClick(row.song) }
                 }
@@ -400,6 +401,32 @@ internal const val SHOP_PULSE_PEAK = 0.7f
 private const val SHOP_PULSE_HALF_MS = 1_000
 
 private val STILL_PULSE: () -> Float = { SHOP_PULSE_PEAK }
+
+/**
+ * One shared Shop "breathe" for filled Shop indicators (web `shopBreathe*`: the
+ * fill eases between the dark surface and the status color over 3 s). Read in the
+ * draw phase only; reduced motion holds the status color (fraction 1), like the web.
+ *
+ * @param active Whether anything breathes.
+ * @return Fraction provider (0 = surface, 1 = status color).
+ */
+@Composable
+internal fun rememberShopBreathe(active: Boolean): () -> Float {
+    val still = LocalFestivalAccessibility.current.reduceMotion
+    if (!active || still) return STILL_BREATHE
+    val fraction = rememberInfiniteTransition(label = "shopBreathe").animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(SHOP_BREATHE_HALF_MS, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "shopBreatheFraction",
+    )
+    return remember(fraction) { { fraction.value } }
+}
+
+/** Half of the web's 3 s breathe. */
+private const val SHOP_BREATHE_HALF_MS = 1_500
+
+private val STILL_BREATHE: () -> Float = { 1f }
 
 /**
  * Section containing the first visible row.

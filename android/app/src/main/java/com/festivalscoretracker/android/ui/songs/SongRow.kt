@@ -21,7 +21,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.PauseCircle
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material3.IconButton
@@ -54,7 +57,6 @@ import coil3.compose.AsyncImage
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.settings.MetadataField
 import com.festivalscoretracker.android.core.model.Song
-import com.festivalscoretracker.android.core.shop.ShopHighlight
 import com.festivalscoretracker.android.core.shop.ShopPulse
 import com.festivalscoretracker.android.core.songs.InvalidScoreWarning
 import com.festivalscoretracker.android.core.songs.SongLastPlayed
@@ -113,6 +115,26 @@ internal object SongsTokens {
         ShopPulse.LeavingTomorrow -> BrandTokens.statusRed
     }
 
+    /** Web `--shop-pulse-base` (rgb 18 24 38 / 96%). */
+    val breatheBase = Color(red = 18, green = 24, blue = 38, alpha = 245)
+
+    /**
+     * Filled Shop indicator color at a breathe fraction (web `shopBreathe*` targets:
+     * green stroke in Shop, gold stroke New, leaving red).
+     *
+     * @param pulse Status.
+     * @param fraction 0 = surface, 1 = status color.
+     * @return Fill.
+     */
+    fun breathe(pulse: ShopPulse, fraction: Float): Color {
+        val target = when (pulse) {
+            ShopPulse.InShop -> statusGreenStroke
+            ShopPulse.New -> goldStroke
+            ShopPulse.LeavingTomorrow -> BrandTokens.statusRed
+        }
+        return lerp(breatheBase, target, fraction.coerceIn(0f, 1f))
+    }
+
     /**
      * Web `maxScoreColor`: red at 0% of the CHOpt maximum to green at 100%.
      *
@@ -139,6 +161,7 @@ internal object SongsTokens {
  * @param artUrl Resolved artwork, or null.
  * @param selected Highlighted in two-pane layouts.
  * @param pulse Shared Shop outline alpha, read only while drawing.
+ * @param breathe Shared Shop badge breathe fraction, read only while drawing.
  * @param onWarning Open the invalid-score alert (shown when the row has a warning).
  * @param onClick Open the song.
  */
@@ -148,6 +171,7 @@ fun SongRow(
     artUrl: String?,
     selected: Boolean = false,
     pulse: () -> Float = { 0f },
+    breathe: () -> Float = { 1f },
     onWarning: (() -> Unit)? = null,
     onClick: () -> Unit,
 ) {
@@ -200,7 +224,7 @@ fun SongRow(
                     }
                     val raw = row.chartRaw
                     if (row.metadata.isEmpty() && maxScore == null && raw != null) DifficultyMeter(raw)
-                    row.highlight?.let { ShopBadge(it, song.songId) }
+                    row.pulse?.let { ShopBadge(it, song.songId, breathe) }
                 }
                 if (row.chips.isNotEmpty()) StatusChips(row.chips, song.songId, song.usesKeyboardIcon)
                 val rest = if (row.lastPlayed == null && row.maxScore == null) row.metadata.drop(1) else row.metadata
@@ -317,20 +341,27 @@ internal fun MarqueeLine(text: String, style: TextStyle, color: Color) {
 /** Dwell at each end, like the web keyframe's pauses. */
 private const val MARQUEE_DWELL_MS = 1_200
 
+/**
+ * The row's Item Shop indicator: a circle breathing in the status color (green in
+ * Shop, gold New, red Leaving Tomorrow) with a clock, sparkle or bag glyph.
+ */
 @Composable
-private fun ShopBadge(highlight: ShopHighlight, songId: String) {
-    val leaving = highlight == ShopHighlight.LeavingTomorrow
+private fun ShopBadge(pulse: ShopPulse, songId: String, breathe: () -> Float) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .size(30.dp)
-            .background(if (leaving) BrandTokens.statusRed else BrandTokens.appBackground, CircleShape)
+            .drawBehind { drawCircle(SongsTokens.breathe(pulse, breathe())) }
             .testTag("fst.songs.shop-badge.$songId"),
     ) {
         Icon(
-            if (leaving) Icons.Filled.Schedule else Icons.Filled.AutoAwesome,
+            when (pulse) {
+                ShopPulse.LeavingTomorrow -> Icons.Filled.Schedule
+                ShopPulse.New -> Icons.Filled.AutoAwesome
+                ShopPulse.InShop -> Icons.Filled.ShoppingBag
+            },
             contentDescription = null,
-            tint = if (leaving) BrandTokens.textPrimary else BrandTokens.gold,
+            tint = BrandTokens.textPrimary,
             modifier = Modifier.size(18.dp),
         )
     }
