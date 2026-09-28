@@ -1,31 +1,26 @@
-# Solo song leaderboard (`/songs/:songId/:instrument`) - not yet certified
+# Solo song leaderboard (`/songs/:songId/:instrument`) — spec
 
-Source: `FortniteFestivalWeb/src/pages/leaderboard/global/LeaderboardPage.tsx:49-535`, `src/components/leaderboard/LeaderboardPaginationFooter.tsx:35-172`, `src/components/common/Paginator.tsx:62-97`.
+> **What:** platform-neutral web behavior of the paginated solo chart: query, paging, states, reading order. **Read when:** changing the Solo leaderboard on any platform. Platform notes: [ios.md](ios.md) · [ipados.md](ipados.md).
 
-**Query:** `GET /api/leaderboard/{song}/{instrument}?top=25&offset=(page-1)×25`; include `leeway` only with enabled invalid-score filtering. Decode `count` as this page's row count and calculate page count from `localEntries ?? totalEntries`, **not** from `entries.length`; 25 rows with 26 local entries has two pages. Entry rows carry rank, name, score, accuracy, FC, stars, season and difficulty. Optional totals-display flag controls the subtitle only; hidden totals do not remove pagination. The header song title returns to Detail; selected player row goes to Statistics, another to Player.
+Source: `FortniteFestivalWeb/src/pages/leaderboard/global/LeaderboardPage.tsx:49-535`, `src/components/leaderboard/LeaderboardPaginationFooter.tsx:35-172`, `src/components/common/Paginator.tsx:62-97`. Audit ref for Solo/band paging: `LeaderboardPage.tsx:114-184`.
 
-**Navigation and states:** an explicit incoming deep-link page overrides the in-process cached page, then the page is corrected after total rows arrive. Next/Previous/First/Last disable at boundaries; the current native ID family is `fst.song-leaderboard.page-{first,previous,info,next,last}`. On Apple, an opaque two-row Fluent plate keeps native labels, ≥44-point actions and a visible disabled state readable over animated artwork; native tests assert enabled/disabled behavior on first and last pages. The source PWA uses icon-only portal controls, so this is an intentional native/Fluent deviation, **not** proven pixel parity. An announced page change and stable VoiceOver focus are still pending validation. Update native route/deep-link state when paging; this intentionally corrects the PWA's local-only page changes and stale-link override. A selected-player/band footer uses effective valid score and goes to Statistics. `navToPlayer` targets the highlighted row after it appears, not before async rows settle.
+## Query
 
-**Test matrix:** no selection/player/band; first/middle/last and empty/out-of-range page; `localEntries` present/missing; 25 vs 26 rows; totals shown/hidden; loading/error/empty/offline; selected row on/off this page; static art, narrow/wide row columns and focused paginator. Screen-reader order: Back -> header -> rows -> selected-profile footer -> pagination -> native tab/sidebar; unlike PWA portaled DOM order. No production POST is needed. The Apple chart cache retains only typed/validated unpinned responses in a distinct bounded process-only channel keyed by the full chart query; a connectivity failure can show **"Offline - last seen scores (publication unverified)"** without treating observed bootstrap generation as response proof. A verified pinned snapshot retains its different offline banner, and changing publication clears both channels. Mac hosted visuals and Core transport fixtures cover these distinctions. A one-shot keyless fixture on port 8772 now proves an actual score-connection refusal, retained warm score rows, an unwaived normal-size Solo audit and cold expiry in **targeted iPhone/iPadOS 26.5 tests**.
+- `GET /api/leaderboard/{song}/{instrument}?top=25&offset=(page-1)×25`; include `leeway` only when invalid-score filtering is enabled.
+- `count` is this page's row count; page count comes from `localEntries ?? totalEntries`, **not** `entries.length` (25 rows with 26 local entries = two pages).
+- Entry rows carry rank, name, score, accuracy, FC, stars, season and difficulty ([score accuracy](../../controls/score-accuracy/spec.md)). The optional totals flag controls the subtitle only; hidden totals keep pagination.
 
-For AccessibilityXXXL the iPhone's fixed song header had left no usable List viewport, and putting the raw score beside an expanded accuracy label wrapped digits (`99,900` into `99,90` + `0`). The native header/disclosure now scroll above scores in the same List; row values stack on full-width lines at accessibility sizes. Targeted iPhone26.5/iPadOS26.5 tests assert first/last score reachability, whole numeric text via measured line height and page actions; normal-size 25-row/one-row audits are unwaived. A supplementary iPad `.all` audit **launched directly at AccessibilityXXXL** returned three nil-element `Text clipped` findings, so this launch state is not audit-certified. The dedicated `bash tools/apple_live_service_smoke.sh --read-public-live` probe decoded **one real 25-row Lead chart** via `FestivalAPI` on 2026-09-25; it does not yet demonstrate tapping into a live Solo page on device or certify selected-player/band flows, VoiceOver focus, full parity or the broader state matrix.
+## Navigation and states
 
-**Accuracy/full-combo correction (WIP):** The shared score row now
-keeps a non-FC percentage in the source's 25%-opaque graded pill and
-uses a gold outline with visible `FC` text only for an explicitly
-true `isFullCombo`. An absent FC flag never implies one; explicit FC
-without an accuracy value says "Full combo; accuracy unavailable"
-rather than inventing 0%. The full List retains separately exposed
-row and `fst.score.accuracy.*` accessibility IDs; rank/name, whole
-numeric score and a spoken badge remain distinct at AccessibilityXXXL.
-Selected synthetic iPhone/iPad tests, a hosted five-state renderer and
-Core gradient tests are documented in
-[the score accuracy spec](../controls/score-accuracy.md).
-On iPadOS 26.5 an initial 30pt badge increased ordinary List row
-height and failed the normal page-one `.all` audit with an unnamed
-contrast warning; a 24pt badge with the same scored pixels restored
-the unwaived first/last-page audits. This does not clear the separate
-AccessibilityXXXL nil-element clipped-text probe.
-Rows still cannot open viewed player profiles until that native route
-exists; selected-profile footers and full-device focus/coverage gates
-remain pending.
+- Header song title → Detail; the selected player's row → Statistics; another player → Player profile.
+- An explicit deep-link page overrides the cached page, then is corrected once totals arrive. First/Previous/Next/Last disable at boundaries; native ID family `fst.song-leaderboard.page-{first,previous,info,next,last}`.
+- Selected-player/band footer uses the effective valid score and opens Statistics. `navToPlayer` targets the highlighted row after rows settle.
+- **Native correction (all platforms):** update route/deep-link state when paging; the PWA changes pages locally and a stale link can override.
+
+## Accessibility order (target)
+
+Back → header → rows → selected-profile footer → pagination → tab/sidebar (the PWA portals its paginator, so DOM order differs).
+
+## Test matrix
+
+No selection / player / band; first, middle, last, empty and out-of-range pages; `localEntries` present/missing; 25 vs 26 rows; totals shown/hidden; loading/error/empty; selected row on/off this page; static art; narrow/wide row columns; focused paginator; announced page change.

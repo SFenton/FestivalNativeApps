@@ -1,9 +1,19 @@
-# Fluent 2 with platform-native chrome
+# Fluent 2 tokens with platform-native chrome
 
-Use Fluent's [global and semantic alias tokens](https://fluent2.microsoft.design/) for content surfaces, typography, spacing, shape, focus and high contrast. The initial brand palette is pinned to `packages/theme/src/colors.ts:1-65` in [contracts/fluent-tokens.json](../../contracts/fluent-tokens.json). `python3 tools/generate_tokens.py` generates SwiftUI Color, Compose Color and WinUI Color/Brush resources; run `--check` to detect drift. Do not hardcode duplicate colors in pages. System high-contrast themes override brand colors wherever contrast would suffer. Prefer native SF Symbols where system navigation requires them; map Fluent System Icons to stable semantic IDs for bespoke content and check redistribution rights.
+> **What:** the cross-platform design contract: tokens, colours, branded content vs system chrome. **Read when:** adding colours, typography, spacing or any branded visual on any platform. Per-platform chrome lives in [apple/](apple/README.md), [android.md](android.md), [windows.md](windows.md).
 
-Apple `TabView`, toolbars, sheets and split navigation handle Liquid Glass and Duo reserved regions more reliably than a hand-built tab lane. Android should use native window-size/posture-aware Compose navigation; Windows uses WinUI 3 `NavigationView`, surfaces and system focus conventions. Fluent Apple controls are primarily UIKit/AppKit, not a replacement for SwiftUI navigation. Fluent Android supplies Compose controls; select them when their behavior and accessibility match the platform.
+## Tokens
 
-The **difficulty meter and artwork motion** are branded content, not system chrome: replicate the meter's 62×20 geometry and intended foreground states; preserve 5-second images/1-second crossfades, with reduced motion, data saving and invisibility handling. See the original `FortniteFestivalWeb/src/components/songs/metadata/DifficultyBars.tsx:15-37` and `FortniteFestivalWeb/src/components/shell/AnimatedBackground.tsx:7-85`. Do not require byte-identical pixels for Apple/Android/Windows system bars.
+- Use Fluent [global and semantic alias tokens](https://fluent2.microsoft.design/) for content surfaces, typography, spacing, shape, focus and high contrast.
+- Brand palette is pinned to `packages/theme/src/colors.ts:1-65` in [contracts/fluent-tokens.json](../../contracts/fluent-tokens.json). `python3 tools/generate_tokens.py` generates SwiftUI, Compose and WinUI resources; `--check` detects drift. Never hardcode duplicate colours in pages.
+- `python3 -m tools.contrast_gate` requires ≥4.5:1 over worst-case white artwork for **only** `textPrimary`, `textSecondary` and `gold` (primary 8.45:1, secondary 6.24:1, gold 6.03:1 at 0.7 dim), plus the status-chip/badge pairs. Muted text and accent blue **fail** on art: keep them on opaque cards or use `textSecondary`. The gate does not certify rendered labels.
+- System high-contrast themes override brand colours wherever contrast would suffer.
+- Icons: native system symbols where system navigation needs them; map Fluent System Icons to stable semantic IDs for bespoke content and check redistribution rights. Instrument icons come from the operator's own web app (`public/instruments/`, downscaled to 144 px).
+
+## Branded content vs system chrome
+
+- **Branded content** (replicate precisely): the difficulty meter's 62×20 geometry and states ([difficulty-meter](../controls/difficulty-meter/spec.md)); artwork motion — 5-second images, 1-second crossfades, reduced-motion / data-saving / invisibility handling ([artwork-background](../controls/artwork-background/spec.md)). Source: `FortniteFestivalWeb/src/components/songs/metadata/DifficultyBars.tsx:15-37`, `FortniteFestivalWeb/src/components/shell/AnimatedBackground.tsx:7-85`.
+- **System chrome** (use the platform's own): tabs, toolbars, sheets, split views, safe areas, focus. Never require byte-identical pixels for system bars; never copy web device-pixel heuristics.
+- Fluent Apple controls are UIKit/AppKit and do not replace SwiftUI navigation; Fluent Android Compose controls may be used when behavior and accessibility match the platform.
 
 Evidence: [Fluent 2](https://fluent2.microsoft.design/), [Apple Duo design](https://developer.apple.com/videos/play/tech-talks/111466/), [Windows development path](https://learn.microsoft.com/en-us/windows/apps/get-started/).

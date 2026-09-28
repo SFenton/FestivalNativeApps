@@ -1,26 +1,42 @@
-# Agent knowledge map
+# Agent knowledge router
 
-| If the task is about… | Read / update |
+> **What:** the entry map for `.agents`. **Read when:** always, right after [AGENTS.md](../AGENTS.md); jump straight to the one file your task needs (≤2 hops).
+
+## By task
+
+| Task | Read |
 |---|---|
-| Fluent vs native chrome, color, motion | [design/fluent.md](design/fluent.md) |
-| SwiftUI, Duo, Liquid Glass, classic iOS, macOS | [platforms/apple.md](platforms/apple.md) |
-| Android compact, passport, book, tablet, tri-fold | [platforms/android.md](platforms/android.md) |
-| WinUI 3, game-alongside performance | [platforms/windows.md](platforms/windows.md) |
-| Specific screen, guard, modal or deep link | `pages/<page-id>.md` and [contracts/product.json](../contracts/product.json) |
-| Control geometry, state, interaction | `controls/<control-id>.md` and [contracts/product.json](../contracts/product.json) |
-| Songs Sort draft, direction and state propagation | [controls/songs-sort.md](controls/songs-sort.md) |
-| Selected-player Songs Filter draft and validated Shop toggles | [controls/songs-filter.md](controls/songs-filter.md) |
-| Safe player search, viewed vs selected identity and band-read gate | [controls/profile-selection.md](controls/profile-selection.md) |
-| Selected-player Songs chips, status colors, instrument Settings and responsive flow | [controls/instrument-status-chips.md](controls/instrument-status-chips.md) |
-| Selected-player score/FC/percentile/stars/season/Intensity pill geometry | [controls/song-score-metadata.md](controls/song-score-metadata.md) |
-| Solo score accuracy and full-combo states | [controls/score-accuracy.md](controls/score-accuracy.md) |
-| CHOpt Paths image/text, chart selectors and stale loading | [controls/chopt-paths.md](controls/chopt-paths.md) |
-| Shop route, public offers and visibility/highlight rules | [pages/shop.md](pages/shop.md), [controls/shop-offers.md](controls/shop-offers.md) |
-| Unit/UI/visual/a11y/serial runtime evidence | [testing/quality-gates.md](testing/quality-gates.md) |
-| Real macOS picker/List snapshots and deterministic visual fixtures | [testing/native-hosted-snapshots.md](testing/native-hosted-snapshots.md) |
-| Repeated page migration | [skills/port-page.md](skills/port-page.md) and `tools/verify_product.py` |
-| Prioritized React-to-native gap list and dependencies | [parity-audit.md](parity-audit.md), [contracts/parity-backlog.json](../contracts/parity-backlog.json), `python3 tools/parity_backlog.py --list` |
+| Port or change a page | [pages/README.md](pages/README.md) → `pages/<id>/spec.md` + your platform file; procedure: [skills/port-page.md](skills/port-page.md) |
+| Port or change a control | [controls/README.md](controls/README.md) → `controls/<id>/spec.md` + your platform file; procedure: [skills/add-control.md](skills/add-control.md) |
+| Call a service endpoint | [platforms/service-safety.md](platforms/service-safety.md) (blocked endpoints, headers, keys) |
+| Visual check vs the web app | [skills/screenshot-compare.md](skills/screenshot-compare.md) |
+| Decide what tests to write now | [testing/strategy.md](testing/strategy.md) (phases) |
+| Lane ownership, integrate, simulator | [workflow/lanes.md](workflow/lanes.md) |
+| Edit these docs | [workflow/docs-conventions.md](workflow/docs-conventions.md); check with `python3 .agents/_tools/check_docs.py` |
+| Web source, snapshots, parity backlog | [workflow/source-of-truth.md](workflow/source-of-truth.md) |
 
-Add a page/control spec **as it is investigated**, not from a route name alone. Mark its contract status `pending` until every documented reachable state and navigation edge has native evidence. Include original source path/line and, where practical, a fixture-backed visual reference. `contracts/source-snapshot.json` hashes the reviewed dirty source files; on the Mac, `python3 tools/source_snapshot.py --source <FST-repo>` checks for drift and fully qualified backlog/`.agents` citation bounds; `--write` refreshes hashes after a new review. A valid line number does **not** prove the cited semantics; review them against source. A commit hash alone does not represent the dirty Duo worktree. Update `contracts/product.json` after the website revision is stabilized.
+## By platform
 
-Use executable checks instead of multiplying prose: contract uniqueness/coverage in `tools/verify_product.py`; platform tests and measured reports for line coverage and performance. Unsupported emulator poses and test-runner limitations must remain explicit gaps.
+| Platform / form factor | Design | Architecture & runtime | Testing |
+|---|---|---|---|
+| iPhone (iOS 26 Liquid Glass; iOS 17 classic) | [design/apple/iphone.md](design/apple/iphone.md) | [platforms/apple/architecture.md](platforms/apple/architecture.md), [build-and-run](platforms/apple/build-and-run.md), [simulators](platforms/apple/simulators.md) | [testing/apple/](testing/apple/README.md) |
+| iPhone Duo | [design/apple/duo.md](design/apple/duo.md) | [platforms/apple/duo.md](platforms/apple/duo.md) | [testing/apple/](testing/apple/README.md) |
+| iPadOS | [design/apple/ipados.md](design/apple/ipados.md) | [platforms/apple/architecture.md](platforms/apple/architecture.md) | [testing/apple/](testing/apple/README.md) |
+| macOS | [design/apple/macos.md](design/apple/macos.md) | [platforms/apple/macos.md](platforms/apple/macos.md) | [testing/apple/hosted-snapshots.md](testing/apple/hosted-snapshots.md) |
+| Android (phone, foldables, tablet, tri-fold) | [design/android.md](design/android.md) | [platforms/android.md](platforms/android.md) | [testing/android.md](testing/android.md) |
+| Windows (WinUI 3) — host paused | [design/windows.md](design/windows.md) | [platforms/windows.md](platforms/windows.md) | [testing/windows.md](testing/windows.md) |
+
+Cross-platform: [design/fluent.md](design/fluent.md) (tokens), [testing/fixtures.md](testing/fixtures.md) (mock service), [testing/web-reference.md](testing/web-reference.md) (PWA captures).
+
+## Folders
+
+| Folder | Holds |
+|---|---|
+| [workflow/](workflow/README.md) | How we work: lanes, change loop, source of truth, doc rules |
+| [design/](design/README.md) | Fluent tokens + per-platform design/HIG decisions |
+| [platforms/](platforms/README.md) | Architecture, build/run, devices, service safety |
+| [pages/](pages/README.md) | One folder per web route: `spec.md` + per-platform notes |
+| [controls/](controls/README.md) | One folder per control: `spec.md` + per-platform notes |
+| [testing/](testing/README.md) | Test phases, fixtures, per-platform test tooling |
+| [skills/](skills/README.md) | Repeatable step-by-step procedures |
+| [_tools/](_tools/README.md) | `check_docs.py`: enforces this structure |

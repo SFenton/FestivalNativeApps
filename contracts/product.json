@@ -8,10 +8,10 @@
   "platforms": ["ios", "macos", "android", "windows"],
   "pages": [
     {"id": "home-redirect", "path": "/", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:55"},
-    {"id": "songs", "path": "/songs", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:56", "spec": ".agents/pages/songs.md"},
-    {"id": "song-detail", "path": "/songs/:songId", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:57", "spec": ".agents/pages/song-detail.md"},
+    {"id": "songs", "path": "/songs", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:56", "spec": ".agents/pages/songs/spec.md"},
+    {"id": "song-detail", "path": "/songs/:songId", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:57", "spec": ".agents/pages/song-detail/spec.md"},
     {"id": "song-band-leaderboard", "path": "/songs/:songId/bands/:bandType", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:58"},
-    {"id": "song-leaderboard", "path": "/songs/:songId/:instrument", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:59", "spec": ".agents/pages/song-leaderboard.md"},
+    {"id": "song-leaderboard", "path": "/songs/:songId/:instrument", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:59", "spec": ".agents/pages/song-leaderboard/spec.md"},
     {"id": "player-history", "path": "/songs/:songId/:instrument/history", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:60"},
     {"id": "player-profile", "path": "/player/:accountId", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:61"},
     {"id": "rivals", "path": "/rivals", "guard": "player", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:63"},
@@ -29,7 +29,7 @@
     {"id": "bands", "path": "/bands", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:125"},
     {"id": "band-detail", "path": "/bands/:bandId", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:126"},
     {"id": "compete", "path": "/compete", "guard": "player", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:128"},
-    {"id": "settings", "path": "/settings", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:137", "spec": ".agents/pages/settings.md"},
+    {"id": "settings", "path": "/settings", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:137", "spec": ".agents/pages/settings/spec.md"},
     {"id": "licenses", "path": "/settings/licenses", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:138"}
   ],
   "controls": [
@@ -53,7 +53,7 @@
       "source": "FortniteFestivalWeb/src/pages/songs/modals/SortModal.tsx:44",
       "states": ["default", "changed-mode", "changed-direction", "reset-draft", "discard-confirm", "applied", "relaunch-persisted", "instrument-filtered", "profile", "band", "shop-loaded", "shop-sectioned", "shop-one-bucket", "shop-empty", "shop-unavailable", "shop-hidden", "large-text"],
       "testId": "fst.songs.sort",
-      "spec": ".agents/controls/songs-sort.md"
+      "spec": ".agents/controls/songs-sort/spec.md"
     },
     {
       "id": "songs-filter",
@@ -61,7 +61,7 @@
       "source": "FortniteFestivalWeb/src/pages/songs/modals/FilterModal.tsx:169",
       "states": ["anonymous-hidden", "player-loaded", "player-unavailable", "player-loading-shop-active", "band-pending", "shop-draft", "leaving-draft", "discard-confirm", "reset-draft", "applied", "relaunch-persisted", "shop-hidden-paused", "shop-unavailable-paused", "shop-validated-empty", "publication-mismatch-paused", "shop-sort-badges-suppressed", "deselected-paused", "reselected-restored-native", "normal-audit", "largest-text", "focus-return", "score", "full-combo", "instrument", "season", "percentile", "stars", "intensity", "band-member"],
       "testId": "fst.songs.filter",
-      "spec": ".agents/controls/songs-filter.md"
+      "spec": ".agents/controls/songs-filter/spec.md"
     },
     {
       "id": "score-accuracy",
@@ -69,7 +69,7 @@
       "source": "FortniteFestivalWeb/src/components/songs/metadata/AccuracyDisplay.tsx:13",
       "states": ["absent", "graded-low", "graded-mid", "graded-high", "full-combo", "full-combo-no-accuracy", "invalid", "aligned-columns", "missing-accuracy-aligned", "badge-contrast", "normal-audit", "preview", "full-chart", "large-text", "sidebar-transition", "offscreen-targets"],
       "testId": "fst.score.accuracy.*",
-      "spec": ".agents/controls/score-accuracy.md"
+      "spec": ".agents/controls/score-accuracy/spec.md"
     },
     {
       "id": "chopt-paths",
@@ -77,7 +77,7 @@
       "source": "FortniteFestivalWeb/src/pages/songinfo/components/path/PathsModal.tsx:110",
       "states": ["image-loading", "image-loaded", "text-loading", "text-loaded", "missing", "offline", "instrument-switch", "difficulty-switch", "warning", "zoomed", "column-reorder", "large-text"],
       "testId": "fst.song-detail.paths",
-      "spec": ".agents/controls/chopt-paths.md"
+      "spec": ".agents/controls/chopt-paths/spec.md"
     },
     {
       "id": "shop-offers",
@@ -85,7 +85,7 @@
       "source": "FortniteFestivalWeb/src/pages/shop/ShopPage.tsx:41",
       "states": ["hidden", "loading", "empty", "failed", "populated", "new", "leaving", "grid", "list", "offline", "unverified", "official-link", "song-detail", "highlight-disabled"],
       "testId": "fst.songs.shop",
-      "spec": ".agents/controls/shop-offers.md"
+      "spec": ".agents/controls/shop-offers/spec.md"
     },
     {
       "id": "app-navigation",
@@ -93,7 +93,7 @@
       "source": "FortniteFestivalWeb/src/components/shell/mobile/BottomNav.tsx:45",
       "states": ["songs", "leaderboards", "settings", "player", "band", "reselect"],
       "testId": "fst.nav.*",
-      "spec": ".agents/controls/app-navigation.md"
+      "spec": ".agents/controls/app-navigation/spec.md"
     },
     {
       "id": "profile-selection",
@@ -101,7 +101,7 @@
       "source": "FortniteFestivalWeb/src/components/search/SearchModal.tsx:495",
       "states": ["anonymous", "debouncing", "loading", "results", "empty-envelope", "http-error", "viewed", "syncing", "selected-syncing-retry", "unpinned-profile", "selected-player", "switch-confirm", "deselect-confirm", "band-blocked", "profile-reload", "publication-changed", "large-text"],
       "testId": "fst.profile.*",
-      "spec": ".agents/controls/profile-selection.md"
+      "spec": ".agents/controls/profile-selection/spec.md"
     },
     {
       "id": "songs-instrument-status-chips",
@@ -109,7 +109,7 @@
       "source": "FortniteFestivalWeb/src/components/display/InstrumentIcons.tsx:117",
       "states": ["anonymous", "loading", "syncing", "failed", "available-empty", "full-combo", "scored", "no-score", "not-charted", "inconsistent-zero-fc", "instrument-hidden", "chart-filtered", "icons-off", "invalid-filter-paused", "compact", "wide", "largest-text", "high-contrast", "screen-reader", "keyboard-variant", "band-blocked"],
       "testId": "fst.songs.instrument-status.*",
-      "spec": ".agents/controls/instrument-status-chips.md"
+      "spec": ".agents/controls/songs-instrument-status-chips/spec.md"
     },
     {
       "id": "song-score-metadata",
@@ -117,7 +117,7 @@
       "source": "FortniteFestivalWeb/src/pages/songs/components/SongRow.tsx:43",
       "states": ["anonymous", "loading", "syncing", "failed", "no-score", "score-primary", "score-hidden-accuracy-primary", "fc", "fc-only", "graded-accuracy", "missing-accuracy", "top-one", "top-five", "ordinary-percentile", "five-gold-stars", "ax-star-count", "current-season", "old-season", "catalogue-intensity", "game-difficulty", "last-played-native-deviation", "non-lead-chart-named", "ax5-wrapped-date-trailing", "filtered-chart", "invalid-filter-paused", "shop-badge", "narrow", "regular", "accessibility-text", "sidebar-transition", "contrast", "band-blocked"],
       "testId": "fst.songs.metadata.*",
-      "spec": ".agents/controls/song-score-metadata.md"
+      "spec": ".agents/controls/song-score-metadata/spec.md"
     }
   ],
   "testIds": {

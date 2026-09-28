@@ -1,7 +1,31 @@
-# Native app navigation (`fst.nav.*`)
+# App navigation (`fst.nav.*`) — spec
 
-Source: `FortniteFestivalWeb/src/components/shell/mobile/BottomNav.tsx:45-100` and `src/hooks/ui/useTabNavigation.ts:12-35,151-179`. No selected profile: Songs, aggregate Leaderboards, Settings. A selected player or band adds Suggestions and Statistics; player can substitute Compete, and wider player layouts show Rivals separately. Re-tapping the current tab returns to its root; returning to another tab restores its prior nested route except Statistics. A player page reached from search is not itself a tab.
+> **What:** platform-neutral web tab/shell rules and the cross-cutting shell controls. **Read when:** changing tabs, sidebars, drawers, deep links or shell chrome on any platform. Platform notes: [ios.md](ios.md) · [ipados.md](ipados.md). Per-platform chrome: [design/](../../design/README.md).
 
-Native systems own chrome and safe areas: compact iPhone uses `TabView` (classic under 26, system Liquid Glass at 26+), the current iPadOS 26.5 build uses `NavigationSplitView` for its audited Dynamic Type sidebar, and macOS uses split/sidebar. The custom iPad sidebar Buttons keep **all** rows on opaque Fluent cards and show selection with a 3-point accent-blue leading bar, semibold label and `.isSelected` accessibility trait; a native screenshot-pixel test verifies that the accent moves with Songs → Settings → Leaderboards and the manufacturer Songs audit runs without a contrast exception. Android uses Compose adaptive bar/rail and Windows uses WinUI 3 `NavigationView`. The dedicated Duo simulator currently places its system navigation vertically on the outer screen, but inner/posture/rotation behavior remains unverified. Retain accessible tab names, selected state, keyboard focus and per-tab path history. Do not port the dirty PWA's iPhone Duo pixel detector or guess fold/camera positions.
+Source: `FortniteFestivalWeb/src/components/shell/mobile/BottomNav.tsx:45-100`, `src/hooks/ui/useTabNavigation.ts:12-35,151-179`. Audit refs: `BottomNav.tsx:41-100`, `MobileHeader.tsx:53-131`, `App.tsx:1011-1107`; header/sidebar profile actions `FortniteFestivalWeb/src/components/shell/HeaderActions.tsx:59-105`, `FortniteFestivalWeb/src/components/shell/desktop/PinnedSidebar.tsx:85-113`.
 
-Current native foundation retains the three no-profile sections even after a player is selected; Suggestions/Statistics/Compete/Rivals navigation is **not** yet added. Matched fixture-only source WebKit phone/tablet selected-player captures (2/2) visibly add conditional destinations while native still shows three sections. Apple now exposes a shared profile action from Songs, Settings and the placeholder Leaderboards root, and iPad/macOS pin a **visibly named** current-player action at the bottom of the native sidebar. The selected iPhone/iPad fixture journey proves the modal can open/close from each root without changing the active section and that the iPad name changes on select/deselect. The source wide-sidebar name links to Statistics, but native currently opens the same selection/switch sheet because Statistics does not exist; this is an intentional WIP behavior gap, not navigation parity. A verified generation change currently clears retained `Song`-valued routes **with a persistent visible explanation**, rather than preserving the PWA URL; an identity switch also clears those routes before showing different player's data. Replace routes with song IDs and resolve them against the new catalogue before restoring the destination. Guarded profile tabs, reselect behavior, deep links, nested-route profile actions, orientation matrix and screen-reader order are **pending**. The `fst.nav.*` test-ID family reserves each semantic section while the source scanner requires every literal ID family to be registered.
+## Tab rules (web)
+
+| Selection | Tabs |
+|---|---|
+| None | Songs, Leaderboards (aggregate), Settings |
+| Player or band | + Suggestions, Statistics |
+| Player | Compete may substitute; wider player layouts show Rivals separately |
+
+- Re-tapping the current tab returns to its root; returning to another tab restores its prior nested route (except Statistics).
+- A player page reached from search is not itself a tab. The wide-sidebar selected name links to Statistics.
+
+## Native rules (all platforms)
+
+- System navigation owns chrome and safe areas; keep accessible tab names, selected state, keyboard focus and per-tab path history.
+- Never port the web's Duo pixel detector or guess fold/camera positions.
+- A verified publication change or identity switch must not leave routes pointing at stale data: resolve routes by song ID against the new catalogue, or clear them with a persistent visible explanation.
+- The `fst.nav.*` family reserves each semantic section (the source scanner requires every literal ID family to be registered).
+
+## Cross-cutting shell controls (no own route)
+
+Global search, notices, FAB actions, quick-link rail/sheet, filters, confirmation/draft dismissal, reduced motion, high contrast and screen-reader focus in all layouts (`App.tsx:1405-1474`, `pages/Page.tsx:330-353`, `components/modals/Modal.tsx`, `components/firstRun/FirstRunCarousel.tsx`).
+
+## States
+
+`songs`, `leaderboards`, `settings`, `player`, `band`, `reselect` (see `contracts/product.json`). Pending everywhere: guarded profile tabs, reselect, deep links, nested-route profile actions, orientation matrix, reading order.

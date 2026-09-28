@@ -1,9 +1,19 @@
-# Difficulty meter (`fst.songs.difficulty-meter`)
+# Difficulty meter (`fst.songs.difficulty-meter`) — spec
 
-Source: `FortniteFestivalWeb/src/components/songs/metadata/DifficultyBars.tsx:15-37` and `packages/core/src/api/serverTypes.ts:69-95`. This branded content must match the web shape rather than being replaced by a platform progress bar.
+> **What:** exact geometry, value mapping and accessibility of the branded seven-bar meter. **Read when:** drawing the meter on any platform. Platform notes: [ios.md](ios.md).
 
-Seven 8×20 parallelograms sit one unit apart. Bar `i` starts at `x = i × 9` and has vertices `(x+2,0) (x+8,0) (x+6,20) (x,20)`, making the canvas 62×20. Filled is sRGB white `#FFFFFF`; unfilled is `#666666`. For a raw 0–6 level, truncate then clamp to 0–6 and add one. A display 1–7 level clamps without truncation: 3.5 fills 3 bars but is announced as “Difficulty 3.5 of 7”. Web raw 5.9 fills 6; out-of-range raw 99 fills 7. Non-finite values are excluded from song chart support; the native control additionally renders “Difficulty unavailable” instead of claiming a valid level.
+Source: `FortniteFestivalWeb/src/components/songs/metadata/DifficultyBars.tsx:15-37`, `packages/core/src/api/serverTypes.ts:69-95`. Branded content: match the web shape; never substitute a platform progress bar.
 
-States: one through seven visible bars and invalid/unavailable. A visible chart change updates the shape, the accessible value and any parent row/card announcement together. Do not rely on color alone; attach an image-like single accessible element and hide decorative child polygons. Keep native test ID `fst.songs.difficulty-meter` stable; the invalid state uses `fst.songs.difficulty-unavailable`.
+## Geometry
 
-Current evidence: SwiftUI Canvas geometry and all seven rendered states are exercised by `apple/Tests/FestivalDesignTests/DifficultyMeterTests.swift` (62×20, seven center pixels in source color space). Android and Windows controls and cross-platform screenshots are pending; the registry status remains `pending` until all platforms, invalid/fractional states and accessibility order are verified.
+Seven 8×20 parallelograms one unit apart. Bar `i` starts at `x = i × 9` with vertices `(x+2,0) (x+8,0) (x+6,20) (x,20)`; canvas 62×20. Filled sRGB `#FFFFFF`, unfilled `#666666`.
+
+## Values
+
+- Raw 0–6 level: truncate, clamp to 0–6, add one (raw 5.9 → 6 bars; raw 99 → 7).
+- Display 1–7 level: clamp without truncation (3.5 fills 3 bars, announced "Difficulty 3.5 of 7").
+- Non-finite values are excluded from chart support; natives render "Difficulty unavailable" instead of a fake level.
+
+## States and accessibility
+
+`one` … `seven`, `invalid`. A chart change updates shape, accessible value and any parent row/card announcement together. One image-like accessible element; decorative polygons hidden; never colour alone. IDs: `fst.songs.difficulty-meter`, invalid `fst.songs.difficulty-unavailable`.

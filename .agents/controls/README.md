@@ -1,0 +1,21 @@
+# Controls router
+
+> **What:** one row per contract control with its platform-neutral spec and per-platform notes. **Read when:** working on a control. Open the `spec` first, then only your platform's file.
+
+All controls are `pending` until every platform has state/visual/accessibility evidence ([strategy](../testing/strategy.md)). Test IDs and states come from [contracts/product.json](../../contracts/product.json).
+
+<!-- BEGIN GENERATED: check_docs.py --fix -->
+| Control | Test ID | States | Status | Spec | Platform files |
+|---|---|---|---|---|---|
+| difficulty-meter | `fst.songs.difficulty-meter` | 8 | pending | [spec](difficulty-meter/spec.md) | [ios](difficulty-meter/ios.md) |
+| artwork-background | `fst.shell.artwork-background` | 5 | pending | [spec](artwork-background/spec.md) | [ios](artwork-background/ios.md) |
+| songs-sort | `fst.songs.sort` | 17 | pending | [spec](songs-sort/spec.md) | [ios](songs-sort/ios.md) · [ipados](songs-sort/ipados.md) |
+| songs-filter | `fst.songs.filter` | 29 | pending | [spec](songs-filter/spec.md) | [ios](songs-filter/ios.md) |
+| score-accuracy | `fst.score.accuracy.*` | 16 | pending | [spec](score-accuracy/spec.md) | [ios](score-accuracy/ios.md) · [ipados](score-accuracy/ipados.md) |
+| chopt-paths | `fst.song-detail.paths` | 12 | pending | [spec](chopt-paths/spec.md) | [ios](chopt-paths/ios.md) · [ipados](chopt-paths/ipados.md) |
+| shop-offers | `fst.songs.shop` | 14 | pending | [spec](shop-offers/spec.md) | [ios](shop-offers/ios.md) |
+| app-navigation | `fst.nav.*` | 6 | pending | [spec](app-navigation/spec.md) | [ios](app-navigation/ios.md) · [ipados](app-navigation/ipados.md) |
+| profile-selection | `fst.profile.*` | 17 | pending | [spec](profile-selection/spec.md) | [ios](profile-selection/ios.md) · [ipados](profile-selection/ipados.md) |
+| songs-instrument-status-chips | `fst.songs.instrument-status.*` | 21 | pending | [spec](songs-instrument-status-chips/spec.md) | [ios](songs-instrument-status-chips/ios.md) · [ipados](songs-instrument-status-chips/ipados.md) |
+| song-score-metadata | `fst.songs.metadata.*` | 32 | pending | [spec](song-score-metadata/spec.md) | [ios](song-score-metadata/ios.md) · [ipados](song-score-metadata/ipados.md) |
+<!-- END GENERATED -->

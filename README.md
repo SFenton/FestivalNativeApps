@@ -14,7 +14,8 @@ The source-of-truth website and service are in `SFenton/FortniteFestivalLeaderbo
 - [Machine-checkable product inventory](contracts/product.json)
 - [Deterministic inventory validator](tools/verify_product.py)
 - [Every React route and 18 dependent native feature gaps](contracts/parity-backlog.json)
-- [Source-backed parity findings](.agents/parity-audit.md) and [deterministic backlog validator](tools/parity_backlog.py)
+- [Per-page specs and parity status](.agents/pages/README.md) and [deterministic backlog validator](tools/parity_backlog.py)
+- [Plan, lanes and progress](PROGRESS.md)
 
 Run `python3 tools/parity_backlog.py --list` for prioritized work and every route's native gap. Its default mode checks the 24-route contract in CI; `python3 tools/verify_product.py` separately checks control IDs and certification evidence. Use focused tests during feature work, then full native/coverage gates before certifying a release. `python3 tools/verify_product.py --strict` still requires every page/control state on all four platforms.
 

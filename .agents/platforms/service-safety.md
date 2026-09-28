@@ -1,243 +1,34 @@
-# React-to-native parity audit (WIP)
+# Service safety (all platforms)
 
-The source of truth is the **current, independently dirty** `SFenton/FortniteFestivalLeaderboardScraper/FortniteFestivalWeb` checkout. `python3 tools/source_snapshot.py --source <FST-repo>` matches the pinned source files (including fully qualified agent-doc citations) and labels independently uncommitted inputs; the source tree is not edited. [The route manifest](../contracts/product.json) lists all 24 PWA routes; [the executable backlog](../contracts/parity-backlog.json) owns every route and 18 feature epics. Run `python3 tools/parity_backlog.py --list` to see every explicit gap, source citation, dependency and next action. `python3 tools/parity_backlog.py` rejects missing route ownership and cyclic/uncited feature work in CI. None of the 24 routes is certified.
+> **What:** the single home for live-service rules: keys, headers, side-effecting GETs, endpoint allowlist and live probes. **Read when:** adding or changing any network call, fixture or live probe on any platform. [AGENTS.md](../../AGENTS.md) holds the one-paragraph summary.
 
-**Observed Apple WIP through the selected-player slice:** `FestivalRootView.swift`
-still has three root sections, with a pushed Shop subroute and a
-**placeholder** Leaderboards page. Songs has a title/art/search
-catalogue, four anonymous sorts plus conditional Item Shop sort,
-a selected-player Shop and per-chart score/FC Filter draft, one visible-chart
-selected-player score/FC row and partial Solo
-previews/pager. `ProfileSelectionSheet.swift` can search and view
-players separately, then explicitly select/switch/deselect a
-publication-proven account; identity alone persists across cold
-launch. Settings metadata now changes a selected Songs row.
-`SongPathsSheet.swift` still has partial image/text paths, and
-`ShopScreen.swift` has a partial public list/grid. There is no
-native selected-band flow, full player-profile route, global
-ranking card, Rivals, Suggestions, Statistics or Manual.
-Root, Songs, Detail, Solo, Shop and Settings remain **partial**;
-Leaderboards remains a **placeholder**, and the other **17 route
-families are absent**. Android and Windows review branches are
-not integrated; Windows remains off until the operator resumes it.
-The score/FC Filter addition still lacks source season, percentile,
-stars, difficulty, CHOpt threshold, conditional selected-instrument
-and band/member sections; its matched fixture evidence does not
-certify Songs or the Filter control.
+## Hard rules
 
-**Matched fixture observation:** source WebKit phone-portrait Songs
-and Detail were captured by the selected `tools/visual/pages.spec.ts`
-page-layout test; matching anonymous native iPhone captures were
-exported from the Song Detail and Solo journeys. The PWA Songs
-header owns profile/add and global search actions above the rows;
-Search/Sort live in the lower dock
-(`FortniteFestivalWeb/src/App.tsx:1011-1107`,
-`FortniteFestivalWeb/src/pages/songs/SongsPage.tsx:1112-1150`).
-Native now has a shared profile action across all three root
-sections, a large-title search and top-right Sort/instrument
-controls. PWA Detail has chart icons and a mobile FAB Paths action
-(`FortniteFestivalWeb/src/pages/songinfo/SongDetailPage.tsx:663-731`);
-native has real partial scores in Fluent cards and Paths in the
-top toolbar, but still lacks selected/band Detail rows. Existing
-web/native screenshots use different synthetic score values, so
-they support a structural gap comparison, not pixel/score parity.
+- **Never embed, request or log the privileged `X-API-Key`.** Debug and Release default to keyless public `https://festivalscoretracker.com`; fixture tests must explicitly select a loopback origin. Never spoof client headers or bypass the edge.
+- **Never send selected-profile headers.** The web client adds them to every GET (`FortniteFestivalWeb/src/api/client.ts:73-112`); service middleware touches registrations after responses, and cached responses repeat that path (`FSTService/Api/SelectedProfileActivityMiddleware.cs:47-103`, `FSTService/Api/PublicApiResponseCacheMiddleware.cs:635-653`).
+- **Side-effecting GETs are blocked** until the service owner grants a mutation-free policy. Do not infer safety from the HTTP method, a cache hit or the website's usage:
+  - band search: when its projection is absent it deletes/rebuilds/upserts membership state (`FSTService/Persistence/GlobalLeaderboardPersistence.cs:3954-3971,4433-4453`, `FSTService/Persistence/BandLeaderboardPersistence.cs:905-947`);
+  - player stats GET can compute and store tiers; band sync-status GET registers bands (`FSTService/Api/PlayerEndpoints.cs:508-546,815-830`, `FSTService/Api/BandSyncEndpoints.cs:10-43`).
+  These are source-backed potential effects, not proof they fired in production.
+- Never run profile tracking, name refresh, scrape, maintenance, export or load tests against production. POSTs are fixture-only.
+- Never open a real Shop purchase link in automation; validate the official host instead. Never bundle third-party album art.
+- Never copy production payloads, titles or account IDs into fixtures or committed docs.
 
-**Matched Sort observation:** Two fixture-only WebKit tests capture the PWA anonymous Sort modal at phone 390x844 and tablet 820x1180, both default and Artist/Descending draft. Named iPhone/iPadOS 26.5 XCTest screenshots capture the native default and direction draft with the same synthetic Songs; these are structural comparisons at nearby but not identical native display sizes. A selected third source WebKit test proves Item Shop membership sorting **and In Shop/Not In Shop heading order** in both directions against a one-offer synthetic feed; a native selected test checks that order on both form factors, plus Leaving Tomorrow, hiding/failed/empty feed and preference restoration. The first native ascending screenshot **lacked both source section headings**; a second matched native iPad capture shows In Shop/Not In Shop headings, though native has a sidebar/opaque cards instead of the web dock and row geometry. Source headings only appear with at least two first-seen groups; native now mirrors the Leaving/In/Not rule without implementing the quick-link rail. PWA phone anchors a bottom sheet over the page and tablet centers a wide dialog; native iPhone uses a full-height system sheet and iPad a narrower centered sheet. PWA offers Title/Artist/Year/Duration/**Item Shop/Has FC**, radio dots, arrow direction with hints and red Reset; native offers four catalogue-backed modes and shows a fifth Shop choice when Shop is visible, disabled until a validated feed is loaded. No feed after a cold failure pauses an applied Shop sort with an explicit Title-order notice; an already validated warm feed remains usable with a separate update-error warning. A known empty validated feed is sortable. Fixed native Cancel/Apply preserve explicit draft/discard semantics; the initial iPad Reset cell is partially below the visible Form and can be scrolled above the footer before tapping. `SongCatalogSort` preserves source membership order, ties and optional numeric field semantics; the iPhone's default/draft/new-choice `.all` audits passed, but an unnamed iPad "Potentially inaccessible text" full-audit finding remains. [The Sort control spec](controls/songs-sort.md) tracks unported modes and states; neither page nor control is certified.
+## Endpoint allowlist
 
-**Score-row correction:** A new native Solo accuracy control uses
-source-like graded 25%-opaque non-FC fill and reserves a gold outline
-for explicitly true full combos. It adds visible `FC` text and a spoken
-full-combo label; source web shows a skewed gold badge without that
-prefix. An independent Sol/Opus diff review exposed a shifted native
-score column; a scaled 96pt outer badge and invisible empty slot
-now align equal-digit FC/non-FC scores within 1pt on selected
-iPhone/iPad Detail and Solo fixtures. Native intentionally omits
-source's synthetic `0%` on absent accuracy rather than inventing
-data. Removing SwiftUI padding from that badge also fixed a
-repeatable iPad Hide Sidebar layout hang proven against the pushed
-baseline. Tightening the ordinary badge from 30pt to 24pt preserved
-FC/non-FC styling and restored iPad Solo's normal unwaived audits;
-the full Detail tab-edge finding remains. Under a headerless
-iPhone preview the PWA-bottom-positioned View Full action became
-an offscreen AX auto-scroll/layout trap; native now places its
-single View Full link above the ten rows. An isolated direct
-tap reaches the full chart and warm offline, but this top-first
-action is a deliberate native visual/focus-order difference,
-not full-source parity. Selected synthetic
-screenshots and Core/hosted tests
-cover only these states, not player-row navigation,
-selection footers, missing band scores, or the documented full Detail
-audit failure. See [control](controls/score-accuracy.md) and
-[Solo page](pages/song-leaderboard.md); no route is certified.
-
-**Matched CHOpt Paths observation:** Two selected fixture-only WebKit tests open the source modal on phone 390x844 and tablet 820x1180 with the same synthetic PNG/JSON as the native iPhone/iPadOS 26.5 paths cases. Phone PWA has a translucent bottom sheet, bottom accordions and concise fret/beat/time/OD/score cards; desktop/tablet PWA has a wide image/text dialog with draggable text columns. Native uses an opaque full-height iPhone/centered iPad system sheet, top menu/segments, high-contrast zoom controls and activation cards with fret colors/OD plus extra structured instructions. These screenshots prove independent image/text content and expose significant geometry/control differences, **not** pixel or full UX parity. The new control spec [tracks the missing table, focus, warning and audit states](controls/chopt-paths.md). A focused iPhone `.all` audit passes image and text; iPad's unwaived `.all` fails with unnamed "Potentially inaccessible text" while selected title/Close/summary pixels meet the visible contrast check. No waiver was added.
-
-**Matched Item Shop observation:** Two selected source WebKit tests captured Shop at phone 390x844 (compact bordered art/title/shop-action rows) and tablet 820x1180 (full-bleed square art with title scrim), using the original two-song fixture. Native matched iPhone/iPad captures initially exposed oversized list rows and inset grid art; the revised native layout uses compact red/gold bordered rows and full-art grid cards, with an intentional extra in-app Detail action and system back/tab/sidebar chrome. Native wide grid reflows to a readable list at large text rather than clipping labels. Two further source WebKit phone/tablet screenshots prove the PWA's red/gold **Songs** borders when Shop flags are loaded; native Songs draws the same state borders plus accessible status icons and Detail's official Shop action. The selected iPhone/iPad test changes Settings highlights and proves all three surfaces update; a Shop-specific 503 surfaces explicitly on Songs/Detail while the catalogue remains populated. `ShopScreen` still distinguishes an approved official HTTPS URL from a native Song route. The route remains **partial** because the PWA-wide Shop sidebar, WebSocket updates, Shop filtering, quick-link navigation and selected-profile score cards are absent. [Page](pages/shop.md) and [control](controls/shop-offers.md) specs retain the visual/state differences, not a pixel-parity claim.
-
-| Dependency or missing control | React behavior and source | Native acceptance still required |
+| Endpoint (keyless GET) | Status | Notes |
 |---|---|---|
-| Profile selection and search | `App.tsx:760-834`, `SearchModal.tsx:495-590`, `state/selectedProfile.ts:10-175`; player vs band identity, persistence, switch and deselect | Native header/sheet for both targets, errors and cancellation, guarded tabs; profile change invalidates dependent rows/routes. Avoid implicit production tracking POSTs. |
-| Adaptive shell/navigation | `BottomNav.tsx:41-100`, `MobileHeader.tsx:53-131`, `App.tsx:1011-1107`; no profile has three tabs, selected player/band adds Suggestions and Statistics, player enables Compete/Rivals | Native tab/sidebar selection, reselect, deep links, focus, safe areas, notifications and quick links in compact/wide layouts. |
-| Songs rows, filter and sort | `SongsPage.tsx:370-485,622-855,1112-1360`, `SongRow.tsx:173-511`, `SortModal.tsx:44-213`, `FilterModal.tsx:169-373` | Anonymous title/artist/year/duration sorting and conditional Shop New/Leaving row accents work on Apple; selected default chips have source WebKit 4/4 and native 10/10-per-device named proofs. Icons-off/filtered selected cards now have typed source-order score/metadata pills and a separate pinned long-title Shop fixture with narrow native proof. Duration **display**, bands, invalid fallbacks, full geometry/contrast/metadata order, conditional profile/FC sorts, Shop filter drafts and warning action remain. |
-| Song Detail and Paths | `SongDetailPage.tsx:191-279,663-731`, `InstrumentCard.tsx:24-291`, `PathsModal.tsx:110-190,550-652` | Ten-row Solo previews, official Shop link/status and first path image/text states exist on Apple; selected/off-page score, history/band cards, path column reorder/layout, rapid-request race, warning persistence and complete focus/a11y remain. |
-| Rankings and Solo/Band paging | `LeaderboardsOverviewPage.tsx:137-240,443-488`, `FullRankingsPage.tsx:169-244`, `BandRankingsPage.tsx:155-285`, `LeaderboardPage.tsx:114-184` | Replace placeholder with data-backed solo+band cards, selection spotlight, metrics/rank history, full scope pagination and band combo filters; retain Solo progress honestly. |
-| Player, bands and stats | `PlayerPage.tsx:38-153`, `PlayerContent.tsx:214-292`, `BandPage.tsx:80-158,299-393`, `PlayerBandsPage.tsx:29-85` | Distinguish viewed vs selected account, expose stats and score/history, band members/configurations/songs, selected-team song cards and player-band group modal. |
-| Rivals, Suggestions and Compete | `RivalsPage.tsx:58-140`, `AllRivalsPage.tsx:35-97`, `RivalryPage.tsx:54-105`, `SuggestionsPage.tsx:68-130`, `CompetePage.tsx:85-142` | Player-only guards, rival scope intersections and head-to-head, selection-aware suggestion categories/filters, Compete ranking/rival drill-down. |
-| Shop, Settings, onboarding, licenses | `ShopPage.tsx:41-178`, `SettingsPage.tsx:513-895`, `ManualPage.tsx:222-300`, `LicensesPage.tsx:27-73` | Public Shop list/grid, validated external links, conditional Songs sort and saved hide/highlight across Shop/Songs/Detail now work on Apple; Shop WebSocket/filter, other settings, first-run replay/manual and licenses remain. |
-| Cross-cutting control states | `App.tsx:1405-1474`, `pages/Page.tsx:330-353`, `components/modals/Modal.tsx`, `components/firstRun/FirstRunCarousel.tsx` | Global search, notices, FAB actions, quick-link rail/sheet, filters, confirmation/draft dismissal, reduced motion, high contrast and screen-reader focus in all layouts. |
+| `/api/publication`, `/api/songs` | allowed | Songs ETag/304 valid only within the observed publication |
+| `/api/leaderboard/{song}/{instrument}?top=&offset=[&leeway=]` | allowed | `leeway` only with invalid-score filtering on |
+| `/api/leaderboard/{song}/all?top=10` | 403 on 2026-09-25 | TODO(orchestrator): re-probe; natives use per-chart `top=10` meanwhile |
+| `/api/paths/{song}/{instrument}/{difficulty}` and `/data` | allowed (200) | PNG and schema-2 JSON |
+| `/api/shop` | allowed (200) | Validate outbound URLs are `https://www.fortnite.com/item-shop/jam-tracks/…` |
+| `/api/rankings/*` | allowed (200, re-probed 2026-09-27) | Earlier Cloudflare 1010 denial no longer applies |
+| `/api/account/search?q=&limit=10` | 403 on 2026-09-25 | TODO(orchestrator): re-probe. Publication-bound (`FSTService/Api/ApiPublicationClassification.cs:78-84`). An empty envelope is also returned after a logged DB timeout (`FSTService/Persistence/MetaDatabase.cs:3495-3517,3523-3537`) — never proof of no match |
+| `/api/player/{accountId}` | allowed, not yet probed live | 202 = syncing; 200 ≠ registered/published (`FSTService/Api/PlayerEndpoints.cs:31-51,85-103`, `FSTService/Scraping/ScrapeTimePrecomputer.cs:911-953,2442-2476`) |
+| band search, player stats, band sync-status | **blocked** | See hard rules |
 
-**Service boundary:** the app reads keyless HTTPS publication, Songs, one song-specific Solo leaderboard, two public CHOpt path routes and Item Shop (`FestivalAPI.swift`, `SongPaths.swift`, `ShopCatalog.swift`). One bounded read each of deployed `/api/account/search`, `/api/bands/search`, `/api/rankings/Solo_Guitar`, `/api/rankings/overview` and `/api/leaderboard/{songId}/all` returned **HTTP 403** on 2026-09-25, although the service source marks these as public GETs (`FSTService/Api/AccountEndpoints.cs:44-61`, `RankingsEndpoints.cs:187-270,1261-1336`, `PublicationRouteSurfaceContract.cs:25-42,143-219`). The ranking response identified **Cloudflare Error 1010: Access denied**; this is an edge-access boundary, not evidence that the service requires a privileged API key or that rankings are empty. Do **not** spoof client headers, bypass the edge or embed `X-API-Key`. The service owner needs a legitimate public-native-client policy before profile/Leaderboards/band parity can be claimed. The first native implementation slice uses the working song-specific Solo GET for ten real Detail preview rows per visible chart; `top=10`/`top=25` have separate query/ETag keys. The opt-in Swift smoke decoded one live ten-row Lead preview. Separately, bounded native Swift reads of `/api/paths/{song}/{chart}/expert` and `/data` returned **HTTP 200** with one real 1024x3736 PNG and schema-2 JSON; a public Shop GET returned **HTTP 200** and the typed Swift client decoded 133 validated official Shop offers (one New, one Leaving Tomorrow). All were keyless with response provenance; no song IDs, offer URLs or raw content were logged. This independent path/shop access does not imply rankings or profile search is available. Synthetic native tests cover preview, Shop error/empty/offline/settings, score warm-offline and path selector states; they do not prove selected-player/band behavior. Do not run scraping, tracking, name refresh, exports or load tests on production.
+## Live probes
 
-**Profile-read safety discovery:** React adds selected-profile headers to
-every GET, and service activity middleware can touch registrations
-even when a public response is cached. A separate band-search GET
-fallback rebuilds membership summaries and writes inside a
-transaction when the search projection is absent; player stats and
-band sync-status GETs have other write paths
-(`FSTService/Api/SelectedProfileActivityMiddleware.cs:47-103`,
-`FSTService/Api/PublicApiResponseCacheMiddleware.cs:635-653`,
-`FSTService/Persistence/GlobalLeaderboardPersistence.cs:3954-3971,4433-4453`,
-`FSTService/Persistence/BandLeaderboardPersistence.cs:905-947`,
-`FSTService/Api/PlayerEndpoints.cs:508-546,815-830`,
-`FSTService/Api/BandSyncEndpoints.cs:10-43`).
-These are source-backed potential effects, not proof that they fired
-on any production read. Native Apple Core and loopback fixtures now
-validate bounded, **headerless** account search plus compact player
-score decoding across two synthetic identities, 202 syncing, empty
-and denied states. These two profile identities now agree with both
-synthetic Lead song leaderboards on score, rank, FC and quantized
-accuracy; a selected band's score model remains absent. An HTTP 200
-player profile can reflect an **unregistered** current-state read,
-not proof that a player is tracked or fully published
-(`FSTService/Api/PlayerEndpoints.cs:31-51,85-103`,
-`FSTService/Scraping/ScrapeTimePrecomputer.cs:911-953,2442-2476`).
-The new native sheet calls only those two keyless reads when a
-player is searched/viewed or a saved identity is refreshed;
-neither endpoint was probed on production during this iteration.
-The service classifies the search GET as publication-bound,
-but this initial client does not pin it or cache account identities
-(`FSTService/Api/ApiPublicationClassification.cs:78-84`).
-An empty search envelope is not reliable proof of no matches: the
-service also returns one after a logged DB timeout
-(`FSTService/Persistence/MetaDatabase.cs:3495-3517,3523-3537`).
-Actual live authorization, band search, complete profile-dependent
-cards and full player routes remain blocked or pending. See the
-[profile-selection contract](controls/profile-selection.md).
-
-**Selected-player fixture evidence, not parity:** one frozen
-iPhone/iPadOS 26.5 matrix passed **3/3 on each** for
-search/view/select/switch/deselect, distinct 99,900/99,800 score
-cards and explicit FC, Settings Score/Percentage/Hide Lead changes,
-cold identity-only restoration, and 403/syncing/empty/band-blocked
-states. A second frozen **3/3 on each** proved the profile
-action is reachable from Songs, Settings and placeholder
-Leaderboards without leaving a root section, the selected iPad
-sidebar shows an actual name, and the prior Paths sidebar
-journey still works. Actual named phone/tablet captures show
-legible native cards and sheet status text. Source mobile uses
-an accessible icon-only profile action; wide source UI names
-the selected account in its sidebar
-(`FortniteFestivalWeb/src/components/shell/HeaderActions.tsx:59-105`,
-`FortniteFestivalWeb/src/components/shell/desktop/PinnedSidebar.tsx:85-113`).
-Native search keeps targets at the top instead of the PWA's
-mobile bottom target row, and its result opens an in-sheet preview
-instead of a full player route. Matched synthetic-account PWA
-WebKit captures now pass **2/2 at phone/tablet widths** for
-results, first-run Filter Songs interception and unobstructed
-selected Songs; matching native device journeys and screenshots
-show different card structure, not visual parity. The WebKit
-comparison **turns off source instrument icons** so the selected
-card shows 99,800 at the right edge, a skewed gold 97.9% badge
-and Top 10% bucket. In the source's unfiltered default with
-icons enabled, instrument chips replace per-chart score metadata
-(`FortniteFestivalWeb/src/pages/songs/components/SongRow.tsx:191-200,264-271`).
-Native's icons-off row now places first-visible-chart
-Score top-trailing with FC/accuracy, tiered Top bucket,
-stars, season, Song Intensity and player game-difficulty
-pills. Its independently spoken FC and separate Shop action
-still differ from the source skew/geometry. It omits the
-first-run Filter Songs overlay and keeps
-only three tabs where the source adds player-only destinations.
-The default-icons-on native status-chip WIP is backed by
-Core policy/render tests, **4/4 fixture-only WebKit cases**
-and a serial **10/10 iPhone + 10/10 iPad** named device
-matrix, followed by a separate **4/4 on each** post-review
-matrix for the changed AX, exact-label, deselect and
-anonymous-row paths. The source WebKit tablet shows nine chips in
-one row, while native iPad wraps them into two in its
-system split-detail pane; native initials/marks replace
-source PNGs of unresolved rights. These differences
-are not pixel or complete accessibility parity.
-An additional source-frozen **10/10 per-device** Apple
-matrix passed the structured icons-off/filtered pills,
-the distinct pinned long-title/Shop fixture and the
-unchanged selected/anonymous chip, Bass and Detail
-journeys. This is selected-state proof, not full Songs,
-coverage, iPad `.all` or platform parity.
-Post-review selected-player evidence now separately
-names a positive **Drums chart** rather than implying Lead,
-keeps four painted badge-text inset pixels at xLarge/AX3/
-AX5, and uses one star plus a count at accessibility sizes.
-The isolated dated Shop fixture initially exposed a
-14pt iPhone/57pt iPad AX5 date-to-Shop right-edge gap;
-measuring each wrapped pill's actual fitted width fixed
-both focused device journeys. The PWA Title card still
-omits Last Played, while native retains the switch/date,
-and the source phone still clips the long title where
-native wraps it. The preceding 10/10 pair predates
-these review fixes; a fresh source-frozen pair now passes
-**10/10 on each** iPhone/iPadOS 26.5 simulator, with
-**6/6** source WebKit comparisons and both Apple Release
-builds. A subsequent test-only AppKit host pass on
-real Profile/CHOpt/Shop states raised measured
-SwiftPM logic to **1761/1843 (95.55%, pass)** and
-UX to **7994/8874 (90.08%, pass)** after genuine
-selected Songs and profile search/band/sync/error
-states; two full runs passed on that unchanged app source.
-After adding source-formatted Song-row duration, a
-selected-player Shop-only Filter and one shared Shop
-publication join, a new full run passes at
-**1798/1880 (95.64%) logic** and **8491/9399
-(90.34%) UX**. A temporary Shop Retry
-restyle was reverted after real iPhone AX5/pixel tests
-isolated narrowly scoped XCTest audit false positives.
-The last passing selected
-paired iOS UI/app subset predates duration and still fails
-at **3166/4419 (71.65%)**. Passing hosted line
-coverage is not a proxy for complete accessibility,
-macOS GUI, PWA pixel or all-route parity.
-The source's mobile target row is below results; the native phone
-uses a top scope. Source screenshots live in private session
-evidence, not the repository.
-
-A paired **2/2 per-device** native rerun additionally proved
-Retry is offered for error/empty states, not for populated
-results. One unwaived iPhone selected preview/Songs `.all`
-audit passes, and named visible iPad text meets 4.5:1 contrast,
-but the iPad full `.all` audit still reports unnamed
-"Potentially inaccessible text"; iPad focus bounds and full
-screen-reader order remain unverified. At largest text, Select
-actually grows by >1.35x and sheet actions remain reachable on
-both devices. Do not infer pixel, all-state UX/a11y, macOS or
-coverage parity. Anonymous Songs, Shop and Detail remain partial.
-
-**Latest source-frozen selected regressions:** a serial
-**7/7 on each iOS 26.5 device** verified profile journeys,
-cold relaunch, 403/202 preview, the selected phone `.all` /
-tablet named-contrast paths, and Detail navigation. Two
-new journeys prove fresh test launches cannot inherit a
-persisted selected identity and that anonymous users can
-hide and restore the filtered Songs meter from Settings.
-Hosted tests prove source-bucketed Top 10%, `vlp` date
-priority, no misleading Score 0, unpinned selection refusal,
-and that a selected 202 can recover after an explicit session
-refresh. A device gesture through this particular selected
-202→200 Retry transition is still pending. Both devices performed
-a scoped test-product clean after UITest source hash drift;
-neither simulator was reset. These named states do **not**
-close the open iPad full `.all`, visual, coverage or live
-edge gates.
-
-**Audit boundary still open:** the new iPhone Detail full `.all` audit fails for score text at y=792/849 underneath the Liquid Glass tab bar beginning at y=791 (and sometimes partially visible row 5); the result is saved as private named xcresult evidence. Hard scroll-edge styling, a bottom safe-area inset, geometry limiting and a fixed footer did not remove the overlapping accessibility nodes, so those changes were reverted. A focused native test **does** assert ≥4.5:1 rendered contrast on a fully visible preview row and verifies the top-ten-to-full-chart navigation; this is *not* a full-page accessibility pass or a waiver. Correct tab-edge score reachability and the additional large-type Intensity warnings before changing `song-detail` to certified.
-
-**Execution order:** (1) keyless per-song scores, public CHOpt and Shop/Songs/Detail offer status plus anonymous Shop sorting, each now in a partial native slice; (2) legitimate native public-client edge policy before live player/band search, selected-profile state or rankings; (3) profile-aware Songs cards, remaining score/FC/profile sorting, Shop filtering, real solo/band overview and full rankings; (4) complete path table, Rivals, Suggestions/Compete, remaining Shop/Settings and shell modals/onboarding; (5) Android/Windows integration after host access; (6) matched visual/state/a11y/performance/coverage gates for every platform. Dependencies are enforced by `tools/parity_backlog.py`; this ordering is not a parity certification. During this iteration run only **changed or added** tests and narrowly affected regressions. Preserve one product simulator at a time and keep macOS GUI automation and unsupported Duo/iOS18 states explicitly pending.
+- `bash tools/apple_live_service_smoke.sh --read-public-live` — opt-in, three public GETs (publication, Songs, ten Lead rows) through the real Swift client; prints aggregate counts and provenance only. Never run in automated fixture/coverage suites.
+- Record live observations with a date; counts and pinning state change. Automated UI tests use [fixtures](../testing/fixtures.md), not production.

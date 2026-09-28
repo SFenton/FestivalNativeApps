@@ -1,82 +1,22 @@
-# Public Shop offers (`fst.songs.shop`) - partial Apple control
+# Public Shop offers (`fst.songs.shop`) — spec
 
-Source: `FortniteFestivalWeb/src/pages/shop/ShopPage.tsx:41-178`,
-`src/pages/shop/components/ShopCard.tsx:18-105`,
-`src/hooks/data/useShopState.ts:1-61`,
-`src/contexts/ShopContext.tsx:30-129`,
-`src/pages/songs/components/SongRow.tsx:348-364`,
-`src/pages/songinfo/SongDetailPage.tsx:322-323,634-638`,
-`FSTService/Api/ShopCacheService.cs:48-92`, and
-`FSTService/Scraping/ShopUrlHelper.cs:10-34`. The service and web source
-files are hashed, including dirty React inputs.
+> **What:** platform-neutral contract for Shop offer data, badges and highlight effects across Shop, Songs and Detail. **Read when:** touching Shop membership, badges, row borders or the official Shop link on any platform. Platform notes: [ios.md](ios.md). Route: [pages/shop](../../pages/shop/spec.md).
 
-**Data/control contract:** The exact public `/api/shop` feed is
-independent of profile search and rankings. Shop membership, New and
-Leaving Tomorrow flags are validated; a missing/invalid envelope or
-untrusted outbound URL produces an explicit error. The Shop badge and
-border reflect **effective** highlighting: hiding Shop or disabling
-highlights suppresses both but preserves the saved highlight preference.
-Never treat "empty," "data unavailable," "catalogue details unavailable"
-and "last-seen offline" as interchangeable.
+Source: `FortniteFestivalWeb/src/pages/shop/ShopPage.tsx:41-178`, `src/pages/shop/components/ShopCard.tsx:18-105`, `src/hooks/data/useShopState.ts:1-61`, `src/contexts/ShopContext.tsx:30-129`, `src/pages/songs/components/SongRow.tsx:348-364`, `src/pages/songinfo/SongDetailPage.tsx:322-323,634-638`, `FSTService/Api/ShopCacheService.cs:48-92`, `FSTService/Scraping/ShopUrlHelper.cs:10-34`.
 
-| Action/state | Native expectation and present proof |
+## Contract
+
+- `/api/shop` is independent of profile search and rankings. Membership, New and Leaving Tomorrow flags are validated; a missing/invalid envelope or untrusted outbound URL is an explicit error.
+- Badges and borders reflect **effective** highlighting: hiding Shop or disabling highlights suppresses both but keeps the saved highlight preference.
+- Never treat "empty", "data unavailable" and "catalogue details unavailable" as interchangeable.
+- Decorate Songs rows only with flags from the **same observed publication** as the loaded catalogue; retained older Songs get no newer badges.
+
+| Action / state | Expectation |
 |---|---|
-| Show Shop | Songs top toolbar pushes a route, retaining exactly three no-profile iPhone tabs; Settings Hide Shop removes the action |
-| List/grid | iPhone always uses compact rows; iPad/macOS use adaptive, persistent grid/list; native forces list at accessibility text sizes rather than clipping grid labels |
-| Offer | Original cover, title/artist/year, New or Leaving badge, independent in-app Detail (only with validated catalog song) and official HTTPS Shop link |
-| Hide/highlight | While Shop is hidden, a pushed route returns to Songs with an explicit notice; highlight control is disabled, its preference retained, and offers reappear after re-enable |
-| Empty/failure | True `count=0` shows a scalable empty card; HTTP 503 shows unavailable/Retry, never a populated or success-shaped empty page |
-| Offline/cold | Real one-shot local connection loss keeps typed offers **and already painted cover pixels** warm with unverified provenance, then fails explicitly after process termination |
-| Songs/Detail | Validated **same-observed-generation** flags paint Songs red/gold row borders and announced icons; a retained older Songs catalogue receives no new Shop badges after rollover. Detail independently exposes the official action, availability badge and explicit Shop-fetch error; disabled highlighting suppresses badges without hiding the valid outbound link |
+| Offer | Cover, title/artist/year, New or Leaving badge, official HTTPS Shop link, optional in-app Detail (validated catalogue song only) |
+| Hide / highlight | Hidden: Shop route returns to Songs with a notice, highlight control disabled but retained |
+| Empty / failure | True `count=0` → scalable empty card; HTTP 503 → unavailable/Retry, never success-shaped empty |
+| Songs / Detail | Same-generation flags paint Songs red (Leaving) / gold (New) row borders; Detail shows the official action, availability badge and explicit Shop-fetch error; highlights off hides badges but keeps the link |
+| Cancellation | A cancelled older Shop reply must not overwrite a newer offer or poison the next 304/ETag |
 
-The pinned iPhone 26.5 old-Songs/new-Shop/failed-Songs
-fixture passes **1/1**, and a related **4/4** native
-matrix confirms both old rows remain reachable without
-new Shop badge IDs. The separate matching-generation
-Shop badge/instrument check passes **2/2**; none of
-these prove iPad/Duo, Detail's entire accessibility
-state machine or live edge access.
-
-`contracts/product.json` registers `fst.songs.shop`,
-`fst.shop.{view-toggle,empty,offline,song-details-error}`,
-`fst.shop.{song,external,badge.new,badge.leaving}.*` and the two Settings
-IDs, plus `fst.songs.shop-{badge.*,error,retry,offline}` and
-`fst.song-detail.shop{-badge,-error,-offline}`. Never automate a real Shop link: tests validate the official host
-and inspect native actions, but do not open a third-party site.
-`ArtworkCache` has an evictable 32 MB raw-byte tier plus a strongly held
-16 MB/64-URL recent tier, both in process and invalidated on a known
-publication change; decoded UI images remain bounded independently.
-`detailShopLoadsAfterCancelledSongsRequestWithoutStalePromotion`
-also proves a canceled, cancellation-ignoring public reply cannot
-overwrite the newer Detail offer or poison a subsequent 304/ETag.
-`canceledPublicCacheWritesNeverPromoteOldResponses` checks this at
-the cache actor boundary. Device-speed gesture racing is still open.
-
-**Accessibility and visual evidence:** Source PWA and native fixture
-phone/tablet screenshots are generated by selected WebKit/XCTest
-cases. Album art is decorative; titles/badges/actions have their own
-labels. iPhone/iPad **Shop-page** populated, empty, error and warm-offline
-surfaces pass selected unwaived `.all` audits with list reflow at
-large Dynamic Type. A separate iPhone Songs warm-offline audit
-flagged the visible "Retry Item Shop status" label despite a
-measured 18.72:1 white-on-opaque text contrast. The
-one-shot fixture now pins `shop-error` to ensure the button
-exists; native assertions require ≥4.5:1 rendered text and
->1.35x real AX5 glyph growth. Short in-list drags bring the
-action above the phone tab; full swipes jumped past it.
-Only the exact identifier/label's contrast and Dynamic Type
-audit reports on iOS 26.5 receive a **scoped exception**;
-all other issues still fail. The combined iPhone states
-pass **3/3**, not as an unwaived screen certification.
-The iPad Songs audit is still pending. The
-one-shot test checks that the original art gradient
-is visible **before** sending the test-only local shutdown signal and
-again after route reentry on real connection refusal. Full large-text
-launch, VoiceOver focus order, landscape, macOS GUI, Windows/Android,
-Shop filtering and profile-dependent sorting, full Detail audit and full line
-coverage remain open. The matching source/native Songs screenshots
-demonstrate red/gold borders on phone/tablet; native adds compact
-status icons rather than communicating offer state by border alone.
-The [initial selected-player Songs Filter](songs-filter.md) can now
-stage In Shop/Leaving Tomorrow using the same validated feed; all
-other Filter sections and Shop WebSocket states remain pending.
+Album art is decorative; titles, badges and actions carry their own labels. Registered IDs: `fst.songs.shop`, `fst.shop.{view-toggle,empty,offline,song-details-error}`, `fst.shop.{song,external,badge.new,badge.leaving}.*`, `fst.songs.shop-{badge.*,error,retry,offline}`, `fst.song-detail.shop{,-badge,-error,-offline}` plus the two Settings IDs.
