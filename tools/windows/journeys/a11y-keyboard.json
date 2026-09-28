@@ -110,5 +110,36 @@
       "key:alt+left",
       "waitfor:id=fst.songs.row.fixture-pulse@15"
     ]
+  },
+  {
+    "name": "kb-paths-dialog-esc",
+    "route": "/songs/fixture-pulse",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.song-detail.paths@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.song-detail.paths",
+      "key:enter",
+      "waitfor:id=fst.paths.instrument@10",
+      "key:esc",
+      "wait:1",
+      "assertfocus:id=fst.song-detail.paths@3"
+    ]
+  },
+  {
+    "name": "kb-first-run-esc",
+    "tab": "songs",
+    "first_run": "force",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.first-run.dialog@20"
+    ],
+    "after_ready": [
+      "key:esc",
+      "wait:1",
+      "key:ctrl+f",
+      "assertfocus:name=Search songs@3"
+    ]
   }
 ]

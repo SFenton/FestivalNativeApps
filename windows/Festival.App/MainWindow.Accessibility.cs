@@ -1,7 +1,9 @@
 using Festival.Core.Domain;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Windows.System;
 using Windows.UI.ViewManagement;
 
@@ -21,7 +23,14 @@ public sealed partial class MainWindow
     /// <summary>Registers the section accelerators and landmarks (called once from the constructor).</summary>
     private void InitializeAccessibility()
     {
-        accessibilitySettings.HighContrastChanged += (_, _) => DispatcherQueue.TryEnqueue(UpdateBackdropPolicy);
+        // AccessibilitySettings.HighContrastChanged needs a CoreWindow (subscribing throws 0x80070490 in a desktop app);
+        // switching contrast themes raises ColorValuesChanged, after which HighContrast is re-read.
+        uiSettings.ColorValuesChanged += (_, _) => DispatcherQueue.TryEnqueue(() =>
+        {
+            ApplyContrastBackground();
+            UpdateBackdropPolicy();
+        });
+        ApplyContrastBackground();
         uiSettings.TextScaleFactorChanged += (_, _) => DispatcherQueue.TryEnqueue(ApplyTextScale);
         ApplyTextScale();
         for (var digit = 1; digit <= 7; digit++)
@@ -45,6 +54,11 @@ public sealed partial class MainWindow
             if (e.Key == VirtualKey.Left && e.KeyStatus.IsMenuKeyDown && GoBack()) e.Handled = true;
         };
     }
+
+    /// <summary>Under a contrast theme the backdrop's brand base colour gives way to the theme's window colour.</summary>
+    private void ApplyContrastBackground() => Backdrop.Background = accessibilitySettings.HighContrast
+        ? new SolidColorBrush(uiSettings.UIElementColor(UIElementType.Window))
+        : (Brush)Application.Current.Resources["FSTAppBackgroundBrush"];
 
     /// <summary>
     /// At large Windows text sizes (≥150%) the title-bar caption text would squeeze the global search box to a sliver; the

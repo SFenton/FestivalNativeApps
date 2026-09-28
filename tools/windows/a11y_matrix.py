@@ -11,7 +11,8 @@ previous values are always restored before it is released.
 
 Modes: ``normal``; ``hc-aquatic``, ``hc-desert``, ``hc-dusk``, ``hc-night-sky`` (contrast themes);
 ``text-150``, ``text-225`` (text size); ``no-animations`` (Animation effects off); ``no-transparency``;
-``app-reduced`` (in-app Reduce Motion + Disable Animated Artwork + Save Data).
+``app-reduced`` (in-app Reduce Motion + Disable Animated Artwork + Save Data); ``app-contrast`` (in-app
+More Contrast + Less Transparency).
 
 Outputs in ``--out``: ``<page>-<size>[-<mode>].png``, ``results.json`` and ``summary.md`` (page × size:
 Axe errors, tab stops, stops outside the app, repeated stops). Exit code 1 when any page failed to load
@@ -59,6 +60,7 @@ MODES: dict[str, dict] = {
     "no-animations": {"system": {"animations": False}},
     "no-transparency": {"system": {"transparency": False}},
     "app-reduced": {"app": {"reduceMotion": True, "disableAnimatedArtwork": True, "saveData": True}},
+    "app-contrast": {"app": {"moreContrast": True, "lessTransparency": True}},
 }
 
 

@@ -177,7 +177,7 @@
     "name": "licenses",
     "route": "/settings/licenses",
     "ready": [
-      "waitfor:id=fst.licenses.packages@20"
+      "waitfor:id=fst.licenses.summary@20"
     ]
   },
   {
