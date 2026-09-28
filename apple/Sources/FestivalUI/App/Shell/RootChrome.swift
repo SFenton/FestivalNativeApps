@@ -53,36 +53,84 @@ extension View {
 }
 
 /// Implementation of `festivalRootChrome(session:)`.
+///
+/// Toolbar items from an outer modifier are laid out *before* the page's own items,
+/// so a page with trailing actions would push the profile avatar away from the
+/// top-right corner. Such pages instead end their own `.toolbar` with
+/// `FestivalRootTrailingItems(session:)` and mark themselves with
+/// `.festivalProvidesRootTrailingItems()`; the chrome then only adds the drawer button.
 struct FestivalRootChrome: ViewModifier {
     let session: FestivalSession
     let showsNotifications: Bool
-    @Environment(\.openProfile) private var openProfile
     @Environment(\.openDrawer) private var openDrawer
+    @State private var pageProvidesTrailing = false
 
     func body(content: Content) -> some View {
-        content.toolbar {
-            #if os(iOS)
-            if let openDrawer {
-                ToolbarItem(placement: .topBarLeading) {
-                    DrawerButton { openDrawer() }
+        content
+            .onPreferenceChange(FestivalRootTrailingProvidedKey.self) { provided in
+                pageProvidesTrailing = provided
+            }
+            .toolbar {
+                #if os(iOS)
+                if let openDrawer {
+                    ToolbarItem(placement: .topBarLeading) {
+                        DrawerButton { openDrawer() }
+                    }
+                }
+                #endif
+                if !pageProvidesTrailing {
+                    FestivalRootTrailingItems(session: session, showsNotifications: showsNotifications)
                 }
             }
-            if showsNotifications {
-                ToolbarItem(placement: .topBarTrailing) { NotificationsButton(session: session) }
-            }
-            if #available(iOS 26.0, *) {
-                // Keep the profile avatar in its own glass bubble, apart from page actions.
-                ToolbarSpacer(.fixed, placement: .topBarTrailing)
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                RootProfileButton(session: session) { openProfile() }
-            }
-            #else
-            ToolbarItem(placement: .primaryAction) {
-                RootProfileButton(session: session) { openProfile() }
-            }
-            #endif
+    }
+}
+
+// MARK: - Shared trailing items
+
+/// The notifications bell and profile avatar as one glass capsule at the top-right.
+///
+/// Pages with their own trailing actions list this **last** inside their `.toolbar`
+/// and apply `.festivalProvidesRootTrailingItems()`, so the avatar stays rightmost.
+struct FestivalRootTrailingItems: ToolbarContent {
+    let session: FestivalSession
+    var showsNotifications: Bool = true
+    @Environment(\.openProfile) private var openProfile
+
+    var body: some ToolbarContent {
+        #if os(iOS)
+        if #available(iOS 26.0, *) {
+            ToolbarSpacer(.fixed, placement: .topBarTrailing)
         }
+        if showsNotifications {
+            ToolbarItem(placement: .topBarTrailing) { NotificationsButton(session: session) }
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            RootProfileButton(session: session) { openProfile() }
+        }
+        #else
+        ToolbarItem(placement: .primaryAction) {
+            RootProfileButton(session: session) { openProfile() }
+        }
+        #endif
+    }
+}
+
+/// Set by pages that place `FestivalRootTrailingItems` in their own toolbar.
+struct FestivalRootTrailingProvidedKey: PreferenceKey {
+    static let defaultValue = false
+
+    /// Any page in the subtree providing the items suppresses the chrome's copy.
+    static func reduce(value: inout Bool, nextValue: () -> Bool) {
+        value = value || nextValue()
+    }
+}
+
+extension View {
+    /// Declare that this tab root already ends its toolbar with `FestivalRootTrailingItems`.
+    ///
+    /// - Returns: The view, tagged so `festivalRootChrome` skips its own trailing items.
+    func festivalProvidesRootTrailingItems() -> some View {
+        preference(key: FestivalRootTrailingProvidedKey.self, value: true)
     }
 }
 

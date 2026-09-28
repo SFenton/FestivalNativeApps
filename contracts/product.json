@@ -12,7 +12,7 @@
     {"id": "song-detail", "path": "/songs/:songId", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:57", "spec": ".agents/pages/song-detail/spec.md"},
     {"id": "song-band-leaderboard", "path": "/songs/:songId/bands/:bandType", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:58"},
     {"id": "song-leaderboard", "path": "/songs/:songId/:instrument", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:59", "spec": ".agents/pages/song-leaderboard/spec.md"},
-    {"id": "player-history", "path": "/songs/:songId/:instrument/history", "guard": "none", "status": "partial", "source": "FortniteFestivalWeb/src/App.tsx:60", "spec": ".agents/pages/player-history/spec.md"},
+    {"id": "player-history", "path": "/songs/:songId/:instrument/history", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:60", "spec": ".agents/pages/player-history/spec.md"},
     {"id": "player-profile", "path": "/player/:accountId", "guard": "none", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:61"},
     {"id": "rivals", "path": "/rivals", "guard": "player", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:63"},
     {"id": "all-rivals", "path": "/rivals/all", "guard": "player", "status": "pending", "source": "FortniteFestivalWeb/src/App.tsx:72"},
@@ -120,18 +120,35 @@
     },
     {
       "id": "notifications",
-      "status": "partial",
+      "status": "pending",
       "source": "FortniteFestivalWeb/src/components/notifications/MobileNotificationsModal.tsx:86",
       "states": ["empty-generated", "empty-not-generated", "loaded", "unread-section", "older-section", "tap-navigate-song", "tap-navigate-rankings", "no-profile"],
       "testId": "fst.notifications.*",
       "spec": ".agents/controls/notifications/spec.md"
+    },
+    {
+      "id": "quick-links",
+      "status": "pending",
+      "source": "FortniteFestivalWeb/src/components/page/PageQuickLinks.tsx:1",
+      "states": ["hidden-single-section", "menu-closed", "menu-open", "active-section", "jumped"],
+      "testId": "fst.quick-links.*",
+      "spec": ".agents/controls/quick-links/spec.md"
+    },
+    {
+      "id": "songs-section-index",
+      "status": "pending",
+      "source": "FortniteFestivalWeb/src/pages/songs/SongsPage.tsx:1",
+      "states": ["hidden", "title", "artist", "year", "scrubbing"],
+      "testId": "fst.songs.section-index.*",
+      "spec": ".agents/controls/songs-section-index/spec.md"
     }
   ],
   "testIds": {
     "fst.shell.*": "app-navigation",
     "fst.history.*": "player-history",
     "fst.notifications.*": "notifications",
-    "fst.quick-links.*": "app-navigation",
+    "fst.quick-links.*": "quick-links",
+    "fst.songs.section-index.*": "songs-section-index",
     "fst.placeholder.*": "app-navigation",
     "fst.settings.*": "settings",
     "fst.leaderboards.*": "leaderboards",
@@ -139,6 +156,7 @@
     "fst.full-rankings.*": "full-rankings",
     "fst.band-rankings.*": "band-rankings",
     "fst.rivals.*": "rivals",
+    "fst.rival-detail.*": "rival-detail",
     "fst.rivalry.*": "rivalry",
     "fst.compete.*": "compete",
     "fst.suggestions.*": "suggestions",
@@ -149,6 +167,7 @@
     "fst.song-detail.*": "song-detail",
     "fst.song-leaderboard.*": "song-leaderboard",
     "fst.bands.*": "bands",
+    "fst.band.*": "band-detail",
     "fst.licenses.*": "licenses",
     "fst.background.*": "artwork-background",
     "fst.songs.difficulty-meter": "difficulty-meter",

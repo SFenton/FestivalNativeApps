@@ -52,7 +52,7 @@ struct RivalDetailScreen: View {
                 NavigationLink(value: AppRoute.player(accountId: rivalId, displayName: displayName)) {
                     Label("View Profile", systemImage: "person.crop.circle")
                 }
-                .accessibilityIdentifier("fst.rivalDetail.viewProfile")
+                .accessibilityIdentifier("fst.rival-detail.view-profile")
             }
         }
         .task(id: rivalId) { await load() }

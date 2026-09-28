@@ -7,3 +7,13 @@
 - The profile avatar opens the selection sheet without changing the active section ([profile-selection/ios.md](../profile-selection/ios.md)). Debug: `FST_DEBUG_DRAWER`, `FST_DEBUG_SHEET=profile`, `FST_DEBUG_PROFILE`, `FST_DEBUG_ANONYMOUS`.
 - A verified generation change currently **clears** retained `Song`-valued routes with a persistent visible explanation; an identity switch also clears them. TODO: carry song IDs and re-resolve against the new catalogue.
 - Open: drawer swipe / VoiceOver dismissal and tab re-tap are untested on device; band tab rules are unit-tested only ([PROGRESS.md](../../../PROGRESS.md)).
+
+## Toolbar order rule (tab roots)
+
+Profile avatar must be the **rightmost** item, with the bell beside it in one glass capsule (web header parity).
+SwiftUI lays out items from an outer `.toolbar` modifier (the root chrome) *before* the page's own items, so:
+
+- A tab root **with** its own trailing actions ends its `.toolbar { … }` with `FestivalRootTrailingItems(session: session)` and applies `.festivalProvidesRootTrailingItems()`; the chrome then adds only the drawer button.
+- Use `placement: .topBarTrailing` (iOS only — wrap in `#if os(iOS)`, `.primaryAction` on macOS) for page actions on tab roots. `.primaryAction` is pinned to the far trailing edge and would land after the avatar.
+- Tab roots **without** their own actions do nothing; `festivalRootChrome` adds the bell + avatar itself.
+- Pushed pages never show the chrome, so `.primaryAction` is fine there.

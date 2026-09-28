@@ -76,6 +76,16 @@ struct LeaderboardsScreen: View {
         QuickLinkSection(id: "band:\(bandType.rawValue)", title: bandType.label, icon: .system("person.3.fill"))
     }
 
+    /// Tab-root page actions must precede the shared bell/avatar capsule; iOS pins
+    /// `.primaryAction` to the trailing edge, so use `.topBarTrailing` there.
+    private static var pageActionPlacement: ToolbarItemPlacement {
+        #if os(iOS)
+        .topBarTrailing
+        #else
+        .primaryAction
+        #endif
+    }
+
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 20) {
@@ -93,11 +103,13 @@ struct LeaderboardsScreen: View {
         .festivalBackground(.carousel, session: session)
         .navigationTitle("Leaderboards")
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: Self.pageActionPlacement) {
                 RankByMenu(selection: rankByBinding)
             }
             QuickLinksToolbarItem(quickLinks)
+            FestivalRootTrailingItems(session: session)
         }
+        .festivalProvidesRootTrailingItems()
         .task(id: reloadKey) { await loadAll() }
     }
 
