@@ -9,7 +9,7 @@ namespace Festival.Core.Data;
 /// Publication-aware, read-only client for the public service. Online-only: the in-process
 /// ETag cache only speeds up conditional GETs within one publication and is cleared when it changes.
 /// </summary>
-public sealed class FestivalApiClient
+public sealed partial class FestivalApiClient
 {
     /// <summary>Keyless public production origin.</summary>
     public static readonly Uri ProductionBaseUri = new("https://festivalscoretracker.com/");

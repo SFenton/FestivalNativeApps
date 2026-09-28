@@ -73,7 +73,7 @@ public static class ServiceEndpoints
     /// <param name="segments">Unescaped path segments.</param>
     /// <param name="query">Unescaped query pairs.</param>
     /// <returns>Absolute URL.</returns>
-    private static Uri Build(Uri baseUri, string[] segments, IReadOnlyList<(string Key, string Value)>? query = null)
+    internal static Uri Build(Uri baseUri, string[] segments, IReadOnlyList<(string Key, string Value)>? query = null)
     {
         var builder = new StringBuilder(baseUri.GetLeftPart(UriPartial.Authority));
         foreach (var segment in segments) builder.Append('/').Append(Uri.EscapeDataString(segment));
