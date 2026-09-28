@@ -80,13 +80,13 @@ public sealed record SongPlayerScoreFilter
     public static SongPlayerScoreFilter None { get; } = new();
 
     /// <summary>Charts requiring no positive score.</summary>
-    [JsonPropertyName("missingScores")] public IReadOnlyList<Instrument> MissingScores { get; init; } = [];
+    [JsonPropertyName("missingScores")] public IReadOnlyList<Instrument> MissingScores { get; set; } = [];
     /// <summary>Charts requiring a positive score.</summary>
-    [JsonPropertyName("hasScores")] public IReadOnlyList<Instrument> HasScores { get; init; } = [];
+    [JsonPropertyName("hasScores")] public IReadOnlyList<Instrument> HasScores { get; set; } = [];
     /// <summary>Charts without an explicit FC.</summary>
-    [JsonPropertyName("missingFCs")] public IReadOnlyList<Instrument> MissingFCs { get; init; } = [];
+    [JsonPropertyName("missingFCs")] public IReadOnlyList<Instrument> MissingFCs { get; set; } = [];
     /// <summary>Charts with an explicit FC.</summary>
-    [JsonPropertyName("hasFCs")] public IReadOnlyList<Instrument> HasFCs { get; init; } = [];
+    [JsonPropertyName("hasFCs")] public IReadOnlyList<Instrument> HasFCs { get; set; } = [];
 
     /// <summary>Whether any check is set.</summary>
     [JsonIgnore]

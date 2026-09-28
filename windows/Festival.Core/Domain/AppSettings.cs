@@ -38,110 +38,110 @@ public sealed record AppSettings
     public const int CurrentVersion = 1;
 
     /// <summary>Schema version.</summary>
-    [JsonPropertyName("version")] public int Version { get; init; } = CurrentVersion;
+    [JsonPropertyName("version")] public int Version { get; set; } = CurrentVersion;
 
     /// <summary>Explicitly selected player, restored across restarts.</summary>
-    [JsonPropertyName("selectedPlayer")] public SelectedPlayer? SelectedPlayer { get; init; }
+    [JsonPropertyName("selectedPlayer")] public SelectedPlayer? SelectedPlayer { get; set; }
 
     /// <summary>Applied Songs sort mode.</summary>
-    [JsonPropertyName("songSort")] public SongSortMode SongSort { get; init; } = SongSortMode.Title;
+    [JsonPropertyName("songSort")] public SongSortMode SongSort { get; set; } = SongSortMode.Title;
 
     /// <summary>Applied Songs sort direction.</summary>
-    [JsonPropertyName("songSortAscending")] public bool SongSortAscending { get; init; } = true;
+    [JsonPropertyName("songSortAscending")] public bool SongSortAscending { get; set; } = true;
 
     /// <summary>Applied Songs filter.</summary>
-    [JsonPropertyName("songFilter")] public SongFilter SongFilter { get; init; } = SongFilter.None;
+    [JsonPropertyName("songFilter")] public SongFilter SongFilter { get; set; } = SongFilter.None;
 
     /// <summary>Settings-visible charts (never empty).</summary>
-    [JsonPropertyName("visibleInstruments")] public IReadOnlyList<Instrument> VisibleInstruments { get; init; } = InstrumentInfo.All;
+    [JsonPropertyName("visibleInstruments")] public IReadOnlyList<Instrument> VisibleInstruments { get; set; } = InstrumentInfo.All;
 
     /// <summary>In-app additive override: stop artwork animation even when the system allows it.</summary>
-    [JsonPropertyName("disableAnimatedArtwork")] public bool DisableAnimatedArtwork { get; init; }
+    [JsonPropertyName("disableAnimatedArtwork")] public bool DisableAnimatedArtwork { get; set; }
 
     /// <summary>In-app additive override: reduce motion.</summary>
-    [JsonPropertyName("reduceMotion")] public bool ReduceMotion { get; init; }
+    [JsonPropertyName("reduceMotion")] public bool ReduceMotion { get; set; }
 
     /// <summary>In-app additive override: no artwork at all (data saving).</summary>
-    [JsonPropertyName("saveData")] public bool SaveData { get; init; }
+    [JsonPropertyName("saveData")] public bool SaveData { get; set; }
 
     /// <summary>Known Leaderboards Rank By metrics (web <c>RANKING_METRICS</c>).</summary>
     public static readonly IReadOnlyList<string> RankingMetrics = ["totalscore", "adjusted", "weighted", "fcrate", "maxscore"];
 
     /// <summary>Last Leaderboards Rank By metric (web <c>fst:leaderboardSettings</c>; navigation state, kept by Reset).</summary>
-    [JsonPropertyName("leaderboardRankBy")] public string LeaderboardRankBy { get; init; } = "totalscore";
+    [JsonPropertyName("leaderboardRankBy")] public string LeaderboardRankBy { get; set; } = "totalscore";
 
     #region App settings (Settings page; restored by Reset)
     /// <summary>Show per-chart status icons on unfiltered Songs rows.</summary>
-    [JsonPropertyName("showInstrumentIcons")] public bool ShowInstrumentIcons { get; init; } = true;
+    [JsonPropertyName("showInstrumentIcons")] public bool ShowInstrumentIcons { get; set; } = true;
 
     /// <summary>Song-row metadata order is independent of sort priority.</summary>
-    [JsonPropertyName("enableVisualOrder")] public bool EnableVisualOrder { get; init; }
+    [JsonPropertyName("enableVisualOrder")] public bool EnableVisualOrder { get; set; }
 
     /// <summary>Song-row metadata display order (every field exactly once).</summary>
-    [JsonPropertyName("songRowVisualOrder")] public IReadOnlyList<MetadataField> SongRowVisualOrder { get; init; } = SettingsOrder.Normalize<MetadataField>(null);
+    [JsonPropertyName("songRowVisualOrder")] public IReadOnlyList<MetadataField> SongRowVisualOrder { get; set; } = SettingsOrder.Normalize<MetadataField>(null);
 
     /// <summary>CHOpt text-path column order (every column exactly once).</summary>
-    [JsonPropertyName("pathColumnOrder")] public IReadOnlyList<PathColumnKey> PathColumnOrder { get; init; } = SettingsOrder.Normalize<PathColumnKey>(null);
+    [JsonPropertyName("pathColumnOrder")] public IReadOnlyList<PathColumnKey> PathColumnOrder { get; set; } = SettingsOrder.Normalize<PathColumnKey>(null);
 
     /// <summary>Hide scores above the CHOpt maximum plus leeway.</summary>
-    [JsonPropertyName("filterInvalidScores")] public bool FilterInvalidScores { get; init; }
+    [JsonPropertyName("filterInvalidScores")] public bool FilterInvalidScores { get; set; }
 
     /// <summary>Invalid-score leeway percent, −5…+5 in 0.1 steps.</summary>
-    [JsonPropertyName("leeway")] public double Leeway { get; init; } = ScoreLeeway.Default;
+    [JsonPropertyName("leeway")] public double Leeway { get; set; } = ScoreLeeway.Default;
 
     /// <summary>How CHOpt paths open by default.</summary>
-    [JsonPropertyName("pathDefaultView")] public PathDisplayMode PathDefaultView { get; init; } = PathDisplayMode.Image;
+    [JsonPropertyName("pathDefaultView")] public PathDisplayMode PathDefaultView { get; set; } = PathDisplayMode.Image;
 
     /// <summary>The Paths unavailable-chart warning was dismissed.</summary>
-    [JsonPropertyName("pathUnavailableWarningDismissed")] public bool PathUnavailableWarningDismissed { get; init; }
+    [JsonPropertyName("pathUnavailableWarningDismissed")] public bool PathUnavailableWarningDismissed { get; set; }
 
     /// <summary>Experimental leaderboard ranks (not yet available: always sanitized to off).</summary>
-    [JsonPropertyName("experimentalRanks")] public bool ExperimentalRanks { get; init; }
+    [JsonPropertyName("experimentalRanks")] public bool ExperimentalRanks { get; set; }
 
     /// <summary>Hide the Item Shop (navigation and highlights; the highlight preference is kept).</summary>
-    [JsonPropertyName("hideShop")] public bool HideShop { get; init; }
+    [JsonPropertyName("hideShop")] public bool HideShop { get; set; }
 
     /// <summary>Stop highlighting Shop songs.</summary>
-    [JsonPropertyName("disableShopHighlighting")] public bool DisableShopHighlighting { get; init; }
+    [JsonPropertyName("disableShopHighlighting")] public bool DisableShopHighlighting { get; set; }
 
     /// <summary>Debug-only tap diagnostics.</summary>
-    [JsonPropertyName("tapDiagnostics")] public bool TapDiagnostics { get; init; }
+    [JsonPropertyName("tapDiagnostics")] public bool TapDiagnostics { get; set; }
 
     /// <summary>Debug-only tap telemetry (requires diagnostics).</summary>
-    [JsonPropertyName("tapTelemetry")] public bool TapTelemetry { get; init; }
+    [JsonPropertyName("tapTelemetry")] public bool TapTelemetry { get; set; }
 
     /// <summary>Show the Score metadata field.</summary>
-    [JsonPropertyName("metadataScore")] public bool MetadataScore { get; init; } = true;
+    [JsonPropertyName("metadataScore")] public bool MetadataScore { get; set; } = true;
     /// <summary>Show the Percentage metadata field.</summary>
-    [JsonPropertyName("metadataPercentage")] public bool MetadataPercentage { get; init; } = true;
+    [JsonPropertyName("metadataPercentage")] public bool MetadataPercentage { get; set; } = true;
     /// <summary>Show the Percentile metadata field.</summary>
-    [JsonPropertyName("metadataPercentile")] public bool MetadataPercentile { get; init; } = true;
+    [JsonPropertyName("metadataPercentile")] public bool MetadataPercentile { get; set; } = true;
     /// <summary>Show the Season Achieved metadata field.</summary>
-    [JsonPropertyName("metadataSeason")] public bool MetadataSeason { get; init; } = true;
+    [JsonPropertyName("metadataSeason")] public bool MetadataSeason { get; set; } = true;
     /// <summary>Show the Intensity metadata field.</summary>
-    [JsonPropertyName("metadataIntensity")] public bool MetadataIntensity { get; init; } = true;
+    [JsonPropertyName("metadataIntensity")] public bool MetadataIntensity { get; set; } = true;
     /// <summary>Show the Game Difficulty metadata field.</summary>
-    [JsonPropertyName("metadataDifficulty")] public bool MetadataDifficulty { get; init; } = true;
+    [JsonPropertyName("metadataDifficulty")] public bool MetadataDifficulty { get; set; } = true;
     /// <summary>Show the Stars metadata field.</summary>
-    [JsonPropertyName("metadataStars")] public bool MetadataStars { get; init; } = true;
+    [JsonPropertyName("metadataStars")] public bool MetadataStars { get; set; } = true;
     /// <summary>Show the Last Played metadata field.</summary>
-    [JsonPropertyName("metadataLastPlayed")] public bool MetadataLastPlayed { get; init; } = true;
+    [JsonPropertyName("metadataLastPlayed")] public bool MetadataLastPlayed { get; set; } = true;
 
     /// <summary>In-app additive override: stronger text and strokes.</summary>
-    [JsonPropertyName("moreContrast")] public bool MoreContrast { get; init; }
+    [JsonPropertyName("moreContrast")] public bool MoreContrast { get; set; }
 
     /// <summary>In-app additive override: opaque surfaces.</summary>
-    [JsonPropertyName("lessTransparency")] public bool LessTransparency { get; init; }
+    [JsonPropertyName("lessTransparency")] public bool LessTransparency { get; set; }
 
     #region Songs-owned state (kept by Reset)
     /// <summary>Applied Songs Item Shop filter.</summary>
-    [JsonPropertyName("songShopFilter")] public SongShopFilter ShopFilter { get; init; } = SongShopFilter.None;
+    [JsonPropertyName("songShopFilter")] public SongShopFilter ShopFilter { get; set; } = SongShopFilter.None;
 
     /// <summary>Applied selected-player score/FC filter (cleared on confirmed deselection).</summary>
-    [JsonPropertyName("songPlayerScoreFilter")] public SongPlayerScoreFilter PlayerScoreFilter { get; init; } = SongPlayerScoreFilter.None;
+    [JsonPropertyName("songPlayerScoreFilter")] public SongPlayerScoreFilter PlayerScoreFilter { get; set; } = SongPlayerScoreFilter.None;
 
     /// <summary>Item Shop grid/list preference.</summary>
-    [JsonPropertyName("shopViewMode")] public ShopViewMode ShopViewMode { get; init; } = ShopViewMode.Grid;
+    [JsonPropertyName("shopViewMode")] public ShopViewMode ShopViewMode { get; set; } = ShopViewMode.Grid;
     #endregion
 
     /// <summary>Whether Shop songs are highlighted (Shop visible and highlighting on).</summary>

@@ -78,6 +78,21 @@ public class SongListFilterTests
     }
 
     [Fact]
+    public void Settings_MinimalFileKeepsDefaults()
+    {
+        var json = """{"version":1,"hideShop":true,"songFilter":{"Instrument":"Lead","MinDifficulty":1,"MaxDifficulty":7}}"""u8.ToArray();
+        var loaded = JsonSerializer.Deserialize(json, FestivalJsonContext.Default.AppSettings)!.Sanitized();
+        Assert.Equal((true, true, true, SongSortMode.Title), (loaded.SongSortAscending, loaded.ShowInstrumentIcons, loaded.MetadataScore, loaded.SongSort));
+        Assert.True(loaded.HideShop);
+        Assert.Equal(Instrument.Lead, loaded.SongFilter.Instrument);
+        Assert.Equal(SongShopFilter.None, loaded.ShopFilter);
+        var partialFilter = JsonSerializer.Deserialize("""{"songPlayerScoreFilter":{"hasScores":["Lead"]}}"""u8.ToArray(),
+            FestivalJsonContext.Default.AppSettings)!.Sanitized();
+        Assert.True(partialFilter.PlayerScoreFilter.IsValid);
+        Assert.Equal([Instrument.Lead], partialFilter.PlayerScoreFilter.HasScores);
+    }
+
+    [Fact]
     public void Settings_RoundTripSongsOwnedFieldsAndResetKeepsThem()
     {
         var settings = new AppSettings
