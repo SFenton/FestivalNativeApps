@@ -3,6 +3,9 @@ package com.festivalscoretracker.android.bands
 import com.festivalscoretracker.android.core.bands.BandDetail
 import com.festivalscoretracker.android.core.bands.BandDetailProjection
 import com.festivalscoretracker.android.core.bands.BandFormatting
+import com.festivalscoretracker.android.core.bands.SongBandLeaderboardEntry
+import com.festivalscoretracker.android.core.bands.BandSongExtremesResponse
+import com.festivalscoretracker.android.core.bands.PlayerBandEntry
 import com.festivalscoretracker.android.core.bands.BandLayout
 import com.festivalscoretracker.android.core.bands.BandMember
 import com.festivalscoretracker.android.core.bands.BandPaging
@@ -146,6 +149,20 @@ class BandsCoreTest {
     }
 
     // endregion
+
+    @Test
+    fun wireModelDefaultsAreEmptyAndSafe() {
+        assertEquals("", PlayerBandEntry().key)
+        assertEquals("Band", PlayerBandEntry().membersLabel)
+        assertNull(BandProfileEnvelope().selectedBandEntry)
+        assertTrue(BandRankHistoryResponse().history.isEmpty())
+        assertEquals(0, BandSongPerformance().rank)
+        assertTrue(BandSongExtremesResponse().best.isEmpty() && BandSongExtremesResponse().worst.isEmpty())
+        assertEquals(":0", SongBandLeaderboardEntry().key)
+        assertEquals(1, SongBandLeaderboardResponse().pageCount(25))
+        assertEquals(BandMember.UNKNOWN_USER, BandMember().resolvedName)
+        assertFalse(BandMember().isLinkable)
+    }
 
     // region Formatting
 
