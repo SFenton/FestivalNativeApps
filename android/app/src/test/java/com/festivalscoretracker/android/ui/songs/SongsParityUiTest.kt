@@ -16,6 +16,7 @@ import androidx.datastore.preferences.core.mutablePreferencesOf
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.AppContainer
+import com.festivalscoretracker.android.bands.BandFixtures
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.core.nav.SongLeaderboardRoute
@@ -197,6 +198,18 @@ class SongsParityUiTest {
         rule.onNodeWithText("Your score: 80,000", substring = true, useUnmergedTree = true).assertExists()
         rule.onNodeWithText("next valid score", substring = true, useUnmergedTree = true).assertExists()
         assertEquals(1, rule.onAllNodesWithTag("fst.song-detail.shop-breathe.LeavingTomorrow", useUnmergedTree = true).fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun songDetailBandLinksOpenTheSongBandLeaderboard() {
+        BandFixtures.install(transport)
+        launch(DebugLaunch(songQuery = "s-alpha", stillBackground = true))
+        waitForTag("fst.song-detail.list")
+        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.band.Band_Duets"))
+        click("fst.song-detail.band.Band_Duets")
+        waitForTag("fst.song-band-leaderboard.screen")
+        waitForTag("fst.song-band-leaderboard.row.band-1:1", unmerged = true)
+        assertTrue(transport.sent("/api/leaderboard/s-alpha/bands/Band_Duets").isNotEmpty())
     }
 
     @Test

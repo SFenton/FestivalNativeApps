@@ -22,7 +22,6 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.PauseCircle
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.ShoppingBag
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.material.icons.filled.Warning
@@ -69,6 +68,7 @@ import com.festivalscoretracker.android.core.songs.SongRowModel
 import com.festivalscoretracker.android.ui.design.DifficultyMeter
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
+import com.festivalscoretracker.android.ui.design.StarRating
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import kotlin.math.ceil
@@ -475,11 +475,7 @@ fun MetadataPill(pill: SongMetadataPill, songId: String) {
             SongPercentileTier.TopFive -> PillBox(pill.text, Color.Transparent, BrandTokens.gold, BrandTokens.gold, tag)
             SongPercentileTier.Ordinary -> PillBox(pill.text, BrandTokens.surfaceMuted, null, BrandTokens.textPrimary, tag)
         }
-        MetadataField.Stars -> Row(tag) {
-            repeat(pill.starCount) {
-                Icon(Icons.Filled.Star, contentDescription = null, tint = if (pill.goldStars) BrandTokens.gold else BrandTokens.textPrimary, modifier = Modifier.size(16.dp))
-            }
-        }
+        MetadataField.Stars -> StarRating(if (pill.goldStars) 6 else pill.starCount, tag)
         MetadataField.Season -> PillBox(
             pill.text,
             if (pill.currentSeason) BrandTokens.textPrimary else BrandTokens.surfaceMuted,

@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -47,6 +46,7 @@ import com.festivalscoretracker.android.presentation.suggestions.SuggestionCard
 import com.festivalscoretracker.android.presentation.suggestions.SuggestionRow
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
+import com.festivalscoretracker.android.ui.design.StarRating
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 
 // region Card
@@ -176,9 +176,7 @@ private fun RowMetadata(p: SuggestionRowPresentation, keyboard: Boolean, modifie
                 }
                 SuggestionRowLayout.Season -> p.seasonText?.let { Pill(it, BrandTokens.surfaceMuted, fill = 1f) }
                 SuggestionRowLayout.Percentile -> p.percentileText?.let { PercentilePill(it, p.percentileTier) }
-                SuggestionRowLayout.SingleInstrument -> repeat(p.starCount) {
-                    Icon(Icons.Filled.Star, contentDescription = null, tint = if (p.goldStars) BrandTokens.gold else BrandTokens.textPrimary, modifier = Modifier.size(14.dp))
-                }
+                SuggestionRowLayout.SingleInstrument -> StarRating(if (p.goldStars) 6 else p.starCount, size = 14.dp)
                 else -> Unit
             }
             p.instrument?.let { InstrumentIcon(it, keyboard = keyboard, size = 24.dp, decorative = true) }

@@ -211,7 +211,7 @@ private fun SongHeader(song: Song, artUrl: String?) {
             Text(song.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = Modifier.semantics { heading() })
             Text(song.subtitle, style = MaterialTheme.typography.bodyLarge, color = BrandTokens.textSecondary)
             song.album?.takeIf { it.isNotBlank() }?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textMuted)
+                Text(it, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary)
             }
         }
     }
@@ -382,7 +382,7 @@ fun ScoreRow(entry: LeaderboardEntry) {
             .padding(horizontal = 12.dp)
             .semantics(mergeDescendants = true) { },
     ) {
-        Text("#${entry.rank}", style = MaterialTheme.typography.labelLarge, color = BrandTokens.textMuted, modifier = Modifier.width(56.dp))
+        Text("#${entry.rank}", style = MaterialTheme.typography.labelLarge, color = BrandTokens.textPrimary, modifier = Modifier.width(56.dp))
         Text(
             entry.displayName?.takeIf { it.isNotBlank() && entry.accountId.isNotEmpty() } ?: "Unknown User",
             color = BrandTokens.textPrimary,
