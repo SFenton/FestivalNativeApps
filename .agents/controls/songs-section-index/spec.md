@@ -13,9 +13,9 @@ No web equivalent exists to source line numbers from: the web app has no section
 ## Sectioning rules
 
 - Sections are computed from the **already sorted** row list; the control never re-sorts or re-filters.
-- A section is a maximal **run of consecutive** rows sharing the same key (first letter, or exact year); it is not a merge of every row that shares a key anywhere in the list. A title sorted by raw string can land far from other titles that would share its derived key (for example, a numeral-led title's first letter, once digits are skipped), so runs of the same key that are not adjacent in the sorted list must stay separate sections, never merge into one displayed group. Merging by key alone silently pulls a later, unrelated run out of its sorted position.
+- A section is a maximal **run of consecutive** rows sharing the same key (first letter, or exact year); it is not a merge of every row that shares a key anywhere in the list. Runs of the same key that are not adjacent in the sorted list must stay separate sections, never merge into one displayed group — merging by key alone would silently pull a later, unrelated run out of its sorted position.
 - Missing year sorts and sections as its own explicit bucket, not folded into an adjacent year.
-- A title or artist that does not begin with a letter (after trimming whitespace, skipping past leading punctuation to the first actual letter) sections under a single non-letter marker; it does not attempt further script- or locale-specific classification.
+- Title/Artist labeling follows the native Contacts convention: the label is the diacritic-folded first character (after trimming leading whitespace) only when that character is a letter A–Z; every other leading character — punctuation, a digit, a symbol, a non-Latin script — shares one non-letter marker. It never skips past a non-letter prefix to reach "a real letter" deeper in the string: since the underlying sort already places every non-letter-leading title before any letter-led one, that gives one contiguous leading section rather than scattering those titles under unrelated, out-of-order labels.
 
 ## Interaction
 

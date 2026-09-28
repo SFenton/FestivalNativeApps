@@ -43,4 +43,6 @@ Done for this page: Songs (and Song Detail/SongScorePreview/SongPathsSheet/Shop)
 
 ## Open (iPhone)
 
-Grouped-Songs full audit (intermittent nil-element Dynamic Type) and saved-Shop-sort + failed-Shop contrast ([accessibility](../../testing/apple/accessibility.md)); landscape and largest type across modes; quick links; selected-profile sorting; band rows; invalid-score action; keyboard/pro-keys `InstrumentIcon` variant (song model has no `sig` field yet); the new section-index scrubber has no XCUITest coverage yet (unit-tested in Core only).
+Grouped-Songs full audit (intermittent nil-element Dynamic Type) and saved-Shop-sort + failed-Shop contrast ([accessibility](../../testing/apple/accessibility.md)); landscape and largest type across modes; quick links; selected-profile sorting; band rows; invalid-score action; the new section-index scrubber has no XCUITest coverage yet (unit-tested in Core only).
+
+`Song.sig` (`"Guitar"`/`"Keyboard"`, `Song.usesKeyboardIcon`) is now decoded and drives the keyboard/pro-keys `InstrumentIcon` variant in the instrument status chips.

@@ -14,10 +14,10 @@ Status of record: [contracts/parity-backlog.json](../../contracts/parity-backlog
 | song-leaderboard | `/songs/:songId/:instrument` | none | partial | [spec](song-leaderboard/spec.md) | [ios](song-leaderboard/ios.md) · [ipados](song-leaderboard/ipados.md) |
 | player-history | `/songs/:songId/:instrument/history` | none | absent | [spec](player-history/spec.md) | [ios](player-history/ios.md) |
 | player-profile | `/player/:accountId` | none | absent | [spec (stub)](player-profile/spec.md) | [ios](player-profile/ios.md) |
-| rivals | `/rivals` | player | absent | [spec (stub)](rivals/spec.md) | — |
-| all-rivals | `/rivals/all` | player | absent | [spec (stub)](all-rivals/spec.md) | — |
-| rival-detail | `/rivals/:rivalId` | player | absent | [spec (stub)](rival-detail/spec.md) | — |
-| rivalry | `/rivals/:rivalId/rivalry` | player | absent | [spec (stub)](rivalry/spec.md) | — |
+| rivals | `/rivals` | player | absent | [spec (stub)](rivals/spec.md) | [ios](rivals/ios.md) |
+| all-rivals | `/rivals/all` | player | absent | [spec (stub)](all-rivals/spec.md) | [ios](all-rivals/ios.md) |
+| rival-detail | `/rivals/:rivalId` | player | absent | [spec (stub)](rival-detail/spec.md) | [ios](rival-detail/ios.md) |
+| rivalry | `/rivals/:rivalId/rivalry` | player | absent | [spec (stub)](rivalry/spec.md) | [ios](rivalry/ios.md) |
 | statistics | `/statistics` | selection | absent | [spec (stub)](statistics/spec.md) | — |
 | suggestions | `/suggestions` | selection | absent | [spec (stub)](suggestions/spec.md) | — |
 | shop | `/shop` | none | partial | [spec](shop/spec.md) | [ios](shop/ios.md) · [ipados](shop/ipados.md) |
@@ -27,7 +27,7 @@ Status of record: [contracts/parity-backlog.json](../../contracts/parity-backlog
 | player-bands | `/bands/player/:accountId` | none | absent | [spec (stub)](player-bands/spec.md) | [ios](player-bands/ios.md) |
 | bands | `/bands` | none | absent | [spec (stub)](bands/spec.md) | [ios](bands/ios.md) |
 | band-detail | `/bands/:bandId` | none | absent | [spec (stub)](band-detail/spec.md) | [ios](band-detail/ios.md) |
-| compete | `/compete` | player | absent | [spec (stub)](compete/spec.md) | — |
+| compete | `/compete` | player | absent | [spec (stub)](compete/spec.md) | [ios](compete/ios.md) |
 | settings | `/settings` | none | partial | [spec](settings/spec.md) | [ios](settings/ios.md) |
 | licenses | `/settings/licenses` | none | absent | [spec](licenses/spec.md) | [ios](licenses/ios.md) |
 <!-- END GENERATED -->

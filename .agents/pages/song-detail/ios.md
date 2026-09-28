@@ -8,7 +8,8 @@
 - Hidden chart removes its card but keeps its charted Intensity; the invalid-score leeway changes each preview request.
 - Shared score row with the [score accuracy](../../controls/score-accuracy/ios.md) badge (explicit FC vs graded).
 - Top-toolbar Paths action when any non-Karaoke path chart is enabled ([chopt-paths/ios.md](../../controls/chopt-paths/ios.md)); official Shop action/badge when validated.
-- Intensity card now shows the real `InstrumentIcon` per charted instrument instead of its text label (the icon carries `instrument.label` as its own accessibility label, so nothing is lost for VoiceOver), and both the Intensity card and each `SongScorePreview` card use `festivalGlass(.card)`. "Intensity" and each chart's own heading use the shared white Title Case `FestivalSectionHeader`, not raw `Text(...).font(.title2.bold())`.
+- Intensity card now shows the real `InstrumentIcon` per charted instrument instead of its text label (the icon carries `instrument.label` as its own accessibility label, so nothing is lost for VoiceOver), and both the Intensity card and each `SongScorePreview` card use `festivalGlass(.card)`. "Intensity" and each chart's own heading use the shared white Title Case `FestivalSectionHeader`, not raw `Text(...).font(.title2.bold())`. Lead/Pro Lead's icon (chips too) now uses the keys variant when `Song.usesKeyboardIcon` (`sig == "Keyboard"`).
+- `SongScorePreview` adds a "View `<chart>` score history" action, shown only when a player is selected, pushing `AppRoute.playerHistory(song, instrument)`. Web's only route to `/history` is a "View all scores" action under the selected player's own score-history graph (`ScoreHistoryChart.tsx`, `SongDetailPage.tsx:675`), gated on that player having history for the song; that graph is not ported, so this per-chart action is the interim equivalent, gated only on player selection rather than on having history data. The web solo leaderboard page has no `/history` link of its own to mirror.
 
 ## Native decisions
 
@@ -22,5 +23,5 @@
 ## Open (iPhone)
 
 - Full-page `.all` audit fails: score rows under the Liquid Glass tab (y≈792/849 vs tab y=791) and large-type Intensity labels; edge/inset/footer/geometry attempts did not fix it and were reverted ([accessibility](../../testing/apple/accessibility.md)). Fix before certifying. Re-check after the glass/icon change above, since neither the audit nor a screen reader pass has been re-run against it.
-- Missing: selected-player/member spotlight and history, band cards, per-row profile navigation, full Paths.
+- Missing: selected-player/member spotlight, the score-history graph itself (only its entry point exists so far), band cards, per-row profile navigation, full Paths.
 - Done: warm-offline preview/path banners no longer render (`OfflineDisclosure`/`isStale`) per the online-only decision; the unrelated "unverified live" notice is unchanged.
