@@ -73,17 +73,76 @@ enum WhatsNewGate {
     }
 }
 
+// MARK: - Launcher
+
+/// Once-per-process launch state for the sheet: resolves the gate once (a `.fresh` reset or a
+/// presentation happens once per launch, not once per root re-creation), claims the shared
+/// first-run slot to present, and records dismissal.
+@MainActor
+final class WhatsNewLauncher {
+    /// The app's launcher; tests create their own.
+    static let shared = WhatsNewLauncher()
+
+    private let store: ChangelogSeenStore
+    private let environment: [String: String]
+    private(set) var resolved = false
+    private(set) var pending = false
+
+    /// Create a launcher.
+    ///
+    /// - Parameters:
+    ///   - store: Dismissal persistence.
+    ///   - environment: Launch environment for `WhatsNewDebugMode`.
+    init(
+        store: ChangelogSeenStore = ChangelogSeenStore(),
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) {
+        self.store = store
+        self.environment = environment
+    }
+
+    /// Resolve the gate the first time only.
+    ///
+    /// - Returns: Whether the sheet is still owed this launch.
+    @discardableResult
+    func resolveIfNeeded() -> Bool {
+        if !resolved {
+            resolved = true
+            let mode = WhatsNewDebugMode.resolve(environment: environment)
+            if mode == .fresh { store.reset() }
+            pending = WhatsNewGate.isPending(mode: mode, hasUnseenChangelog: store.shouldShow())
+        }
+        return pending
+    }
+
+    /// Claim the one-sheet slot and consume the pending presentation.
+    ///
+    /// - Parameter center: Session first-run coordinator.
+    /// - Returns: True when the caller should present now.
+    func claim(in center: FirstRunCenter) -> Bool {
+        guard pending, center.claim(WhatsNewGate.slotKey) else { return false }
+        pending = false
+        return true
+    }
+
+    /// Persist dismissal (the web writes `{ version, hash }` on Dismiss) and free the slot.
+    ///
+    /// - Parameters:
+    ///   - center: Session first-run coordinator.
+    ///   - version: App version shown in the sheet.
+    func finish(in center: FirstRunCenter, version: String = WhatsNewGate.appVersion()) {
+        store.markSeen(version: version)
+        center.release(WhatsNewGate.slotKey)
+    }
+}
+
 // MARK: - Launch presentation
 
 /// Presents "What's New" once per changelog after the launch page's first-run carousel, and
 /// persists dismissal. Applied once at the app root (`FestivalRootView`).
 struct WhatsNewLaunchModifier: ViewModifier {
     let session: FestivalSession
-
-    /// Process-wide so a `.fresh` reset or a presentation happens once per launch, not once per
-    /// root re-creation (scene reconnects re-run `init`).
-    @MainActor private static var launchResolved = false
-    @MainActor private static var pending = false
+    var launcher: WhatsNewLauncher = .shared
 
     @State private var presented = false
 
@@ -94,7 +153,7 @@ struct WhatsNewLaunchModifier: ViewModifier {
                 guard key == nil else { return }
                 Task { await presentWhenSettled() }
             }
-            .sheet(isPresented: $presented, onDismiss: finish) {
+            .sheet(isPresented: $presented, onDismiss: { launcher.finish(in: session.firstRunCenter) }) {
                 WhatsNewSheet(
                     version: WhatsNewGate.appVersion(),
                     entries: Changelog.displayEntries()
@@ -102,27 +161,12 @@ struct WhatsNewLaunchModifier: ViewModifier {
             }
     }
 
-    /// Resolve the gate once per process, wait for the launch carousel to claim the slot, then
-    /// present if nothing else holds it.
+    /// Wait for the launch carousel to claim the slot, then present if nothing else holds it.
     @MainActor private func presentWhenSettled() async {
-        if !Self.launchResolved {
-            Self.launchResolved = true
-            let mode = WhatsNewDebugMode.resolve(environment: ProcessInfo.processInfo.environment)
-            let store = ChangelogSeenStore()
-            if mode == .fresh { store.reset() }
-            Self.pending = WhatsNewGate.isPending(mode: mode, hasUnseenChangelog: store.shouldShow())
-        }
-        guard Self.pending, !presented else { return }
+        guard launcher.resolveIfNeeded(), !presented else { return }
         try? await Task.sleep(for: WhatsNewGate.settleDelay)
-        guard Self.pending, !presented, session.firstRunCenter.claim(WhatsNewGate.slotKey) else { return }
-        Self.pending = false
+        guard !presented, launcher.claim(in: session.firstRunCenter) else { return }
         presented = true
-    }
-
-    /// Persist dismissal (the web writes `{ version, hash }` on Dismiss) and free the slot.
-    @MainActor private func finish() {
-        ChangelogSeenStore().markSeen(version: WhatsNewGate.appVersion())
-        session.firstRunCenter.release(WhatsNewGate.slotKey)
     }
 }
 

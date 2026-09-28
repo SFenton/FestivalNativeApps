@@ -46,6 +46,47 @@ import FestivalDesign
     #expect(center.activeKey == nil)
 }
 
+private func launcherDefaults() -> UserDefaults {
+    let name = "whats-new-launcher-\(UUID().uuidString)"
+    return UserDefaults(suiteName: name)!
+}
+
+@MainActor
+@Test func whatsNewLauncherPresentsOnceAndPersistsDismissal() {
+    let store = ChangelogSeenStore(defaults: launcherDefaults())
+    let center = FirstRunCenter(debugMode: .normal)
+    let launcher = WhatsNewLauncher(store: store, environment: ["FST_DEBUG_WHATS_NEW": "on"])
+    #expect(launcher.resolveIfNeeded())
+    // A carousel holds the slot: wait.
+    #expect(center.claim("songs"))
+    #expect(!launcher.claim(in: center))
+    #expect(launcher.pending)
+    center.release("songs")
+    #expect(launcher.claim(in: center))
+    #expect(!launcher.pending)
+    #expect(!launcher.claim(in: center))
+    launcher.finish(in: center, version: "3.0")
+    #expect(center.activeKey == nil)
+    #expect(store.load()?.version == "3.0")
+    // Next launch with the real gate: nothing owed.
+    let next = WhatsNewLauncher(store: store, environment: ["FST_DEBUG_WHATS_NEW": "on"])
+    #expect(!next.resolveIfNeeded())
+}
+
+@MainActor
+@Test func whatsNewLauncherFreshResetsOnceAndOffNeverPresents() {
+    let store = ChangelogSeenStore(defaults: launcherDefaults())
+    store.markSeen(version: "1")
+    let fresh = WhatsNewLauncher(store: store, environment: ["FST_DEBUG_WHATS_NEW": "fresh"])
+    #expect(fresh.resolveIfNeeded())
+    #expect(fresh.resolved)
+    store.markSeen(version: "1")
+    #expect(fresh.resolveIfNeeded())  // resolved once; stays pending until claimed
+    let off = WhatsNewLauncher(store: ChangelogSeenStore(defaults: launcherDefaults()), environment: [:])
+    #expect(!off.resolveIfNeeded())
+    #expect(!off.claim(in: FirstRunCenter(debugMode: .normal)))
+}
+
 // MARK: - First Run Guides order
 
 @MainActor
@@ -242,5 +283,82 @@ private struct Boom: Error {}
     let image = try await nativeHostedSettle(host, untilText: expected)
     _ = try nativeHostedPNG(image, filename: "service-info-updating.png", environment: "FST_SETTINGS_RENDER_OUT")
     assertRendersContent(host, image: image, containing: expected)
+}
+@MainActor
+@Test func settingsChoiceRowAndListRenderCurrentValue() async throws {
+    let size = CGSize(width: 402, height: 300)
+    var mode = PathDisplayMode.text
+    let binding = Binding(get: { mode }, set: { mode = $0 })
+    let host = nativeHostedView(
+        NavigationStack {
+            VStack {
+                SettingsChoiceRow(
+                    title: "CHOpt Path Default View", options: PathDisplayMode.allCases,
+                    label: \.label, selection: binding, identifier: "fst.settings.path-default-view"
+                )
+                SettingsChoiceList(
+                    title: "CHOpt Path Default View", options: PathDisplayMode.allCases,
+                    label: \.label, selection: binding, identifier: "fst.settings.path-default-view"
+                )
+            }
+        }
+        .frame(width: size.width, height: size.height)
+        .background(BrandTokens.cardBackground)
+        .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let expected = ["CHOpt Path Default View", "Image"]
+    let image = try await nativeHostedSettle(host, untilText: expected)
+    assertRendersContent(host, image: image, containing: expected)
+}
+
+@MainActor
+@Test func firstRunStarsUseWebArtwork() async throws {
+    #expect(FirstRunStar.assetName(gold: true) == "star_gold")
+    #expect(FirstRunStar.assetName(gold: false) == "star_white")
+    let size = CGSize(width: 200, height: 60)
+    let host = nativeHostedView(
+        HStack { FirstRunStarRow(count: 6); FirstRunStarRow(count: 3); FirstRunStarRow(count: 0) }
+            .frame(width: size.width, height: size.height)
+            .background(BrandTokens.cardBackground),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    host.layoutSubtreeIfNeeded()
+    let image = try nativeHostedImage(host)
+    #expect(image.width > 0)
+}
+@MainActor
+@Test func whatsNewModifierPresentsFromInjectedLauncher() async throws {
+    let session = FestivalSession(factory: { throw FestivalAPIError.invalidResource })
+    let launcher = WhatsNewLauncher(
+        store: ChangelogSeenStore(defaults: launcherDefaults()),
+        environment: ["FST_DEBUG_WHATS_NEW": "force"]
+    )
+    let size = CGSize(width: 300, height: 200)
+    let host = nativeHostedView(
+        Text("Root").modifier(WhatsNewLaunchModifier(session: session, launcher: launcher))
+            .frame(width: size.width, height: size.height),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    for _ in 0..<40 where launcher.pending || !launcher.resolved {
+        try await Task.sleep(for: .milliseconds(50))
+    }
+    #expect(launcher.resolved)
+    #expect(!launcher.pending)
+    #expect(session.firstRunCenter.activeKey == WhatsNewGate.slotKey)
+
+    // The app-root form uses the shared launcher, which stays off under the test environment.
+    let rootHost = nativeHostedView(Text("Root").whatsNew(session: session), size: size)
+    let rootWindow = nativeHostedWindow(rootHost, size: size)
+    defer { rootWindow.orderOut(nil) }
+    rootHost.layoutSubtreeIfNeeded()
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(WhatsNewLauncher.shared.pending == false)
 }
 #endif
