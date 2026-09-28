@@ -21,22 +21,28 @@ final class LeaderboardsJourneyTests: XCTestCase {
     /// A rankings row navigates to the player's profile (`fixture-player-1`, seeded
     /// by `mock_service.py`'s rankings roster to overlap `player-demo`).
     ///
-    /// **Real bug found:** `AccountRankingRow`'s own `fst.rankings.row.<accountId>`
-    /// accessibility identifier never reaches the actual accessibility tree — every
-    /// row (and the "View All" link) under a card reports the *card's* identifier
-    /// instead (`fst.leaderboards.card.<instrument>`), confirmed via
-    /// `tools/ios_sim.py drive`'s `tree:` dump. Rows stay reachable by their (still
-    /// correct and unique) label text, which this test uses instead.
+    /// **Fixed bug:** `AccountRankingRow`'s own `fst.rankings.row.<accountId>`
+    /// accessibility identifier used to never reach the actual accessibility tree —
+    /// every row (and the "View All" link) under a card reported the *card's*
+    /// identifier instead, because the card's `.accessibilityIdentifier` shadowed
+    /// its children (a container needs `.accessibilityElement(children: .contain)`
+    /// before an identifier of its own, or the identifier silently propagates to
+    /// every descendant). `LeaderboardsScreen.swift`'s `instrumentCard`/`bandCard`
+    /// now set `.contain` first, so the row's own identifier is reachable directly.
+    ///
+    /// `fixture-player-1` ranks #1 on every instrument in the fixture roster, so
+    /// `fst.rankings.row.fixture-player-1` alone matches once per card; scope the
+    /// query to the Solo Guitar card specifically (`.descendants` under its own
+    /// now-reachable-but-still-present container identifier) rather than the page.
     @MainActor
     func testRankingRowNavigatesToPlayerProfile() throws {
         continueAfterFailure = false
         let app = fixtureApp()
         app.launch()
         XCTAssertTrue(app.navigationBars["Leaderboards"].waitForExistence(timeout: 15))
-        let row = app.buttons.matching(NSPredicate(
-            format: "identifier == %@ AND label BEGINSWITH %@",
-            "fst.leaderboards.card.Solo_Guitar", "#1, Fixture Player 1,"
-        )).firstMatch
+        let card = app.descendants(matching: .any)
+            .matching(identifier: "fst.leaderboards.card.Solo_Guitar").firstMatch
+        let row = card.buttons["fst.rankings.row.fixture-player-1"]
         XCTAssertTrue(row.waitForExistence(timeout: 15))
         row.tap()
         XCTAssertTrue(
@@ -51,15 +57,16 @@ final class LeaderboardsJourneyTests: XCTestCase {
     /// Band cards are the last three of twelve in a `LazyVStack`: they aren't
     /// constructed (or their rankings loaded) until scrolled near, so this scrolls
     /// down first rather than assuming `waitForExistence` alone will find them.
+    /// Uses `viewAllLink`'s own per-card identifier
+    /// (`fst.leaderboards.band-card.<type>.view-all`), now that the card container
+    /// no longer shadows its children's identifiers (see the bug fix note above).
     @MainActor
     func testBandCardViewAllReachesBandRankings() throws {
         continueAfterFailure = false
         let app = fixtureApp()
         app.launch()
         XCTAssertTrue(app.navigationBars["Leaderboards"].waitForExistence(timeout: 15))
-        let viewAll = app.buttons.matching(NSPredicate(
-            format: "identifier == %@ AND label == 'View All'", "fst.leaderboards.band-card.Band_Duets"
-        )).firstMatch
+        let viewAll = app.buttons["fst.leaderboards.band-card.Band_Duets.view-all"]
         for _ in 0..<15 where !viewAll.isHittable {
             app.swipeUp()
         }

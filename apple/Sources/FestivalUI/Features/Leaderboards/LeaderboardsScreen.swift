@@ -138,12 +138,22 @@ struct LeaderboardsScreen: View {
                             AccountRankingRow(entry: entry, metric: rankBy)
                         }
                     }
-                    viewAllLink(AppRoute.fullRankings(instrument: instrument, rankBy: rankByRaw))
+                    viewAllLink(
+                        AppRoute.fullRankings(instrument: instrument, rankBy: rankByRaw),
+                        id: "fst.leaderboards.card.\(instrument.rawValue).view-all"
+                    )
                 }
             }
         }
         .padding(16)
         .festivalGlass(.card)
+        // `.contain` must precede `.accessibilityIdentifier` on a container that
+        // wraps interactive children (rows, "View All"): without it, the
+        // container's own identifier shadows every descendant's, and
+        // `AccountRankingRow`'s `fst.rankings.row.<accountId>` never reaches the
+        // accessibility tree. `.contain` keeps each child its own element while
+        // still letting the card itself carry an identifier.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.leaderboards.card.\(instrument.rawValue)")
         .quickLinkSection(Self.quickLink(for: instrument))
     }
@@ -177,12 +187,18 @@ struct LeaderboardsScreen: View {
                             BandRankingRow(entry: entry, metric: metric, bandType: bandType)
                         }
                     }
-                    viewAllLink(AppRoute.bandRankings(bandType: bandType.rawValue))
+                    viewAllLink(
+                        AppRoute.bandRankings(bandType: bandType.rawValue),
+                        id: "fst.leaderboards.band-card.\(bandType.rawValue).view-all"
+                    )
                 }
             }
         }
         .padding(16)
         .festivalGlass(.card)
+        // See the matching comment in `instrumentCard`: `.contain` keeps
+        // `BandRankingRow`'s own identifier from being shadowed by the card's.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.leaderboards.band-card.\(bandType.rawValue)")
         .quickLinkSection(Self.quickLink(for: bandType))
     }
@@ -195,7 +211,7 @@ struct LeaderboardsScreen: View {
             .foregroundStyle(BrandTokens.textSecondary)
     }
 
-    private func viewAllLink(_ route: AppRoute) -> some View {
+    private func viewAllLink(_ route: AppRoute, id: String) -> some View {
         NavigationLink(value: route) {
             Text("View All")
                 .font(.subheadline.weight(.semibold))
@@ -203,6 +219,7 @@ struct LeaderboardsScreen: View {
                 .padding(.vertical, 8)
         }
         .foregroundStyle(BrandTokens.accentBlue)
+        .accessibilityIdentifier(id)
     }
 
     // MARK: Loading
