@@ -11,7 +11,7 @@ Status of record: [contracts/parity-backlog.json](../../contracts/parity-backlog
 | songs | `/songs` | none | partial | [spec](songs/spec.md) | [ios](songs/ios.md) · [ipados](songs/ipados.md) · [windows](songs/windows.md) |
 | song-detail | `/songs/:songId` | none | partial | [spec](song-detail/spec.md) | [ios](song-detail/ios.md) · [ipados](song-detail/ipados.md) · [windows](song-detail/windows.md) |
 | song-band-leaderboard | `/songs/:songId/bands/:bandType` | none | absent | [spec (stub)](song-band-leaderboard/spec.md) | [ios](song-band-leaderboard/ios.md) · [windows](song-band-leaderboard/windows.md) |
-| song-leaderboard | `/songs/:songId/:instrument` | none | partial | [spec](song-leaderboard/spec.md) | [ios](song-leaderboard/ios.md) · [ipados](song-leaderboard/ipados.md) |
+| song-leaderboard | `/songs/:songId/:instrument` | none | partial | [spec](song-leaderboard/spec.md) | [ios](song-leaderboard/ios.md) · [ipados](song-leaderboard/ipados.md) · [windows](song-leaderboard/windows.md) |
 | player-history | `/songs/:songId/:instrument/history` | none | absent | [spec](player-history/spec.md) | [ios](player-history/ios.md) |
 | player-profile | `/player/:accountId` | none | absent | [spec (stub)](player-profile/spec.md) | [ios](player-profile/ios.md) |
 | rivals | `/rivals` | player | absent | [spec (stub)](rivals/spec.md) | [ios](rivals/ios.md) |
@@ -21,9 +21,9 @@ Status of record: [contracts/parity-backlog.json](../../contracts/parity-backlog
 | statistics | `/statistics` | selection | absent | [spec (stub)](statistics/spec.md) | — |
 | suggestions | `/suggestions` | selection | absent | [spec (stub)](suggestions/spec.md) | [ios](suggestions/ios.md) · [windows](suggestions/windows.md) |
 | shop | `/shop` | none | partial | [spec](shop/spec.md) | [ios](shop/ios.md) · [ipados](shop/ipados.md) |
-| leaderboards | `/leaderboards` | none | placeholder | [spec (stub)](leaderboards/spec.md) | [ios](leaderboards/ios.md) |
-| full-rankings | `/leaderboards/all` | none | absent | [spec (stub)](full-rankings/spec.md) | [ios](full-rankings/ios.md) |
-| band-rankings | `/leaderboards/bands/:bandType` | none | absent | [spec (stub)](band-rankings/spec.md) | — |
+| leaderboards | `/leaderboards` | none | placeholder | [spec (stub)](leaderboards/spec.md) | [ios](leaderboards/ios.md) · [windows](leaderboards/windows.md) |
+| full-rankings | `/leaderboards/all` | none | absent | [spec (stub)](full-rankings/spec.md) | [ios](full-rankings/ios.md) · [windows](full-rankings/windows.md) |
+| band-rankings | `/leaderboards/bands/:bandType` | none | absent | [spec (stub)](band-rankings/spec.md) | [windows](band-rankings/windows.md) |
 | player-bands | `/bands/player/:accountId` | none | absent | [spec (stub)](player-bands/spec.md) | [ios](player-bands/ios.md) · [windows](player-bands/windows.md) |
 | bands | `/bands` | none | absent | [spec (stub)](bands/spec.md) | [ios](bands/ios.md) · [windows](bands/windows.md) |
 | band-detail | `/bands/:bandId` | none | absent | [spec (stub)](band-detail/spec.md) | [ios](band-detail/ios.md) · [windows](band-detail/windows.md) |

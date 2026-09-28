@@ -1,0 +1,42 @@
+# Leaderboards UI journey (fixture mode). Every waitfor fails the run when its element never appears.
+# Run: start tools/mock_service.py on a free loopback port, then
+#   python tools/windows/uiwin.py launch <exe> --tab leaderboards --extra FST_BASE_URL=http://127.0.0.1:<port>/ --preset wide
+#   python tools/windows/uiwin.py drive --steps-file tools/windows/journeys/leaderboards.steps
+# Overview: cards for instruments and band sizes, rows with their IDs.
+waitfor:id=fst.leaderboards.card.Solo_Guitar@15
+waitfor:id=fst.rankings.row.fixture-player-1@15
+# Rank By: switch to FC Rate and back to Total Score (persisted setting).
+invoke:id=fst.rankings.rank-by-menu
+waitfor:id=fst.rankings.rank-by.fcrate@5
+invoke:id=fst.rankings.rank-by.fcrate
+waitfor:id=fst.leaderboards.card.Solo_Guitar.view-all@15
+invoke:id=fst.rankings.rank-by-menu
+waitfor:id=fst.rankings.rank-by.totalscore@5
+invoke:id=fst.rankings.rank-by.totalscore
+waitfor:id=fst.leaderboards.card.Solo_Guitar.view-all@15
+# Full Rankings: pager, instrument switcher, back.
+invoke:id=fst.leaderboards.card.Solo_Guitar.view-all
+waitfor:id=fst.full-rankings.page-info@15
+waitfor:id=fst.full-rankings.page-first@5
+invoke:id=fst.full-rankings.instrument-menu
+waitfor:id=fst.full-rankings.instrument.Solo_Bass@5
+invoke:id=fst.full-rankings.instrument.Solo_Bass
+waitfor:id=fst.rankings.row.fixture-player-1@15
+key:alt+left
+# Band Rankings from the Duos card, band-size switcher, back.
+waitfor:id=fst.leaderboards.card.Solo_Guitar.view-all@15
+scroll:down
+scroll:down
+scroll:down
+scroll:down
+scroll:down
+scroll:down
+waitfor:id=fst.leaderboards.band-card.Band_Duets@10
+invoke:id=fst.leaderboards.band-card.Band_Duets.view-all
+waitfor:id=fst.band-rankings.page-info@15
+invoke:id=fst.band-rankings.band-type-menu
+waitfor:id=fst.band-rankings.band-type.Band_Quad@5
+invoke:id=fst.band-rankings.band-type.Band_Quad
+waitfor:id=fst.band-rankings.row.fixture-team-1@15
+key:alt+left
+waitfor:id=fst.leaderboards.band-card.Band_Duets.view-all@15

@@ -30,6 +30,7 @@ SSH runs in session 0 (no desktop). `_common.ps1` runs GUI work through a one-sh
 - Locate elements by `AutomationProperties.AutomationId` from the `product.json` test-ID registry (`drive … invoke:id=fst.nav.settings`), never by pixel coordinates except as a last resort.
 - Window-size evidence: capture each surface at `compact`, `medium`, `wide`, `snap-left`/`snap-right`, `maximized`, `full-screen` and `portrait-tablet`. The `.json` sidecar records px/epx size, DPI scale and monitor. Real touch and tablet posture need touch hardware.
 - In-process automated UI tests (FlaUI in a test project) are the Windows lane's choice; `FstUia` is a lab driver, not a test framework.
+- Feature UI journeys live in `tools/windows/journeys/<feature>.steps` (`uiwin.py drive --steps-file`; every `waitfor` fails the run when its element never appears). `invoke`/`waitfor` need the element on screen: resize or `scroll` first. Fixture runs: start `tools/mock_service.py --port <free port>` and pass `--extra FST_BASE_URL=http://127.0.0.1:<port>/` (its listen backlog is 5, so bursts of parallel reads can be refused).
 - Tool unit tests: `python -m unittest discover -s tools/windows/tests` (not yet part of CI's `tools/tests` discovery; TODO(orchestrator): wire in).
 ## Accessibility
 
