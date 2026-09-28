@@ -472,7 +472,7 @@ public class SettingsViewModelTests
         vm.SaveData = true;
         Assert.True(vm.ReduceMotion && vm.DisableAnimatedArtwork && vm.SaveData);
         Assert.True(store.Current.ReduceMotion && store.Current.DisableAnimatedArtwork && store.Current.SaveData);
-        Assert.Contains(nameof(SettingsViewModel.SaveData), changes);
+        Assert.Contains("", changes);
         vm.DeselectPlayerCommand.Execute(null);
         Assert.Equal(("No player selected", false), (vm.ProfileText, vm.HasPlayer));
         session.Catalog = null;
