@@ -1,0 +1,55 @@
+<!--
+    Rivals content styles: win/lose tints (web rivalGreen*/rivalRed*), pills and flat row buttons. The lose text
+    uses a lighter red than FSTStatusRed so small text keeps contrast on the dark card surface. High contrast maps to
+    system colours.
+-->
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Default">
+            <SolidColorBrush x:Key="FSTRivalWinFillBrush" Color="#264CAF50" />
+            <SolidColorBrush x:Key="FSTRivalWinStrokeBrush" Color="#664CAF50" />
+            <SolidColorBrush x:Key="FSTRivalWinTextBrush" Color="#FF5ED68A" />
+            <SolidColorBrush x:Key="FSTRivalLoseFillBrush" Color="#26F44336" />
+            <SolidColorBrush x:Key="FSTRivalLoseStrokeBrush" Color="#66F44336" />
+            <SolidColorBrush x:Key="FSTRivalLoseTextBrush" Color="#FFFF8A80" />
+            <SolidColorBrush x:Key="FSTRivalTieFillBrush" Color="#1FFFFFFF" />
+            <SolidColorBrush x:Key="FSTRivalTieTextBrush" Color="#FFD7DEE8" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="HighContrast">
+            <SolidColorBrush x:Key="FSTRivalWinFillBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="FSTRivalWinStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTRivalWinTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTRivalLoseFillBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="FSTRivalLoseStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTRivalLoseTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTRivalTieFillBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="FSTRivalTieTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+        </ResourceDictionary>
+    </ResourceDictionary.ThemeDictionaries>
+
+    <!-- Flat full-width row: the card is the container, rows only show a subtle hover/press fill. -->
+    <Style x:Key="FSTRivalRowButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="10,6" />
+        <Setter Property="CornerRadius" Value="6" />
+    </Style>
+
+    <Style x:Key="FSTRivalPillStyle" TargetType="Border">
+        <Setter Property="CornerRadius" Value="4" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="6,1" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style x:Key="FSTRivalPillTextStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+    </Style>
+</ResourceDictionary>

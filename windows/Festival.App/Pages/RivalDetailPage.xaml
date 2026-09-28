@@ -1,0 +1,97 @@
+<Page
+    x:Class="Festival.App.Pages.RivalDetailPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Festival.App.Controls"
+    xmlns:vm="using:Festival.Core.ViewModels"
+    Background="Transparent">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup>
+                <VisualState x:Name="Wide" />
+                <VisualState x:Name="Narrow">
+                    <VisualState.Setters>
+                        <Setter Target="ProfileButton.(Grid.Row)" Value="1" />
+                        <Setter Target="ProfileButton.(Grid.Column)" Value="0" />
+                        <Setter Target="ProfileButton.HorizontalAlignment" Value="Left" />
+                        <Setter Target="Header.Padding" Value="16,8,16,8" />
+                        <Setter Target="Scroller.Padding" Value="16,0,16,24" />
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+
+        <Grid x:Name="Header" Padding="24,12,24,8" ColumnSpacing="16" RowSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <StackPanel Spacing="2">
+                <TextBlock Text="{x:Bind ViewModel.Title, Mode=OneWay}" Style="{StaticResource FSTPageTitleStyle}" TextWrapping="Wrap"
+                           AutomationProperties.HeadingLevel="Level1" AutomationProperties.AutomationId="fst.rival-detail.title" />
+                <TextBlock Text="{x:Bind ViewModel.ScopeLabel, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}"
+                           AutomationProperties.AutomationId="fst.rival-detail.scope" />
+                <TextBlock Text="{x:Bind ViewModel.Summary, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}"
+                           Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" AutomationProperties.AutomationId="fst.rival-detail.summary" />
+            </StackPanel>
+            <Button x:Name="ProfileButton" Grid.Column="1" VerticalAlignment="Top" Click="OnViewProfile"
+                    AutomationProperties.AutomationId="fst.rival-detail.view-profile">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon Glyph="&#xE77B;" FontSize="16" />
+                    <TextBlock Text="{x:Bind ViewModel.ViewProfileLabel, Mode=OneWay}" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+            </Button>
+        </Grid>
+
+        <ScrollViewer x:Name="Scroller" Grid.Row="1" Padding="24,0,24,32" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}"
+                      AutomationProperties.AutomationId="fst.rival-detail">
+            <ItemsRepeater ItemsSource="{x:Bind ViewModel.Categories, Mode=OneWay}" MaxWidth="1600" Margin="0,4,0,0">
+                <ItemsRepeater.Layout>
+                    <controls:MasonryLayout MinColumnWidth="400" ColumnSpacing="16" RowSpacing="16" />
+                </ItemsRepeater.Layout>
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate x:DataType="vm:RivalCategoryItem">
+                        <Border Style="{StaticResource FSTCardStyle}" Padding="8,12,8,8" AutomationProperties.AutomationId="{x:Bind AutomationId}">
+                            <StackPanel Spacing="4">
+                                <StackPanel Padding="8,0" Spacing="2">
+                                    <TextBlock Text="{x:Bind Title}" Style="{StaticResource SubtitleTextBlockStyle}"
+                                               Foreground="{x:Bind controls:RivalsUi.Sentiment(Sentiment)}" AutomationProperties.HeadingLevel="Level2" />
+                                    <TextBlock Text="{x:Bind Subtitle}" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"
+                                               Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                                </StackPanel>
+                                <ItemsRepeater ItemsSource="{x:Bind Preview}">
+                                    <ItemsRepeater.Layout>
+                                        <StackLayout Spacing="2" />
+                                    </ItemsRepeater.Layout>
+                                    <ItemsRepeater.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:RivalSongItem">
+                                            <Button Style="{StaticResource FSTRivalRowButtonStyle}" Tag="{x:Bind Route}" Click="OnRouteClick"
+                                                    AutomationProperties.Name="{x:Bind AccessibleName}"
+                                                    AutomationProperties.AutomationId="{x:Bind AutomationId}">
+                                                <controls:RivalSongRowView Item="{x:Bind}" Compact="True" />
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsRepeater.ItemTemplate>
+                                </ItemsRepeater>
+                                <HyperlinkButton Content="{x:Bind SeeAllText}" Tag="{x:Bind SeeAllRoute}" Click="OnRouteClick" Margin="4,0,0,0"
+                                                 AutomationProperties.AutomationId="fst.rival-detail.see-all" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+        </ScrollViewer>
+
+        <controls:RivalPageStates Grid.Row="1" Page="{x:Bind ViewModel}" />
+    </Grid>
+</Page>

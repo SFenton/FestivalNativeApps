@@ -1,0 +1,178 @@
+<Page
+    x:Class="Festival.App.Pages.RivalsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Festival.App.Controls"
+    xmlns:data="using:Festival.Core.Data"
+    xmlns:vm="using:Festival.Core.ViewModels"
+    NavigationCacheMode="Enabled"
+    Background="Transparent">
+
+    <Grid x:Name="Root">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup x:Name="WidthStates">
+                <VisualState x:Name="Wide" />
+                <VisualState x:Name="Narrow">
+                    <VisualState.Setters>
+                        <Setter Target="FindRivalBox.(Grid.Row)" Value="1" />
+                        <Setter Target="FindRivalBox.(Grid.Column)" Value="0" />
+                        <Setter Target="FindRivalBox.(Grid.ColumnSpan)" Value="2" />
+                        <Setter Target="FindRivalBox.Width" Value="NaN" />
+                        <Setter Target="FindRivalBox.Margin" Value="0,4,0,0" />
+                        <Setter Target="Commands.(Grid.Row)" Value="2" />
+                        <Setter Target="Header.Padding" Value="16,8,16,8" />
+                        <Setter Target="Scroller.Padding" Value="16,0,16,24" />
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+
+        <!-- Header: title + Find Rival; tab switcher, rank-by and Jump To. -->
+        <Grid x:Name="Header" Padding="24,12,24,8" ColumnSpacing="16" RowSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <TextBlock Text="Rivals" Style="{StaticResource FSTPageTitleStyle}" VerticalAlignment="Center"
+                       AutomationProperties.HeadingLevel="Level1" AutomationProperties.AutomationId="fst.rivals.title" />
+            <AutoSuggestBox x:Name="FindRivalBox" Grid.Column="1" Width="280" PlaceholderText="Find Rival" QueryIcon="Find"
+                            VerticalAlignment="Center" UpdateTextOnSelect="False"
+                            ItemsSource="{x:Bind ViewModel.FindRival.Results, Mode=OneWay}"
+                            TextChanged="OnFindTextChanged" QuerySubmitted="OnFindSubmitted"
+                            AutomationProperties.Name="Find Rival"
+                            AutomationProperties.HelpText="{x:Bind ViewModel.FindRival.Hint, Mode=OneWay}"
+                            AutomationProperties.AutomationId="fst.rivals.findRival">
+                <AutoSuggestBox.ItemTemplate>
+                    <DataTemplate x:DataType="data:PlayerSearchResult">
+                        <TextBlock Text="{x:Bind DisplayName}" />
+                    </DataTemplate>
+                </AutoSuggestBox.ItemTemplate>
+            </AutoSuggestBox>
+
+            <StackPanel x:Name="Commands" Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="12"
+                        Visibility="{x:Bind controls:RivalsUi.Not(ViewModel.ShowNoPlayer), Mode=OneWay}">
+                <SelectorBar x:Name="TabBar" SelectionChanged="OnTabChanged" AutomationProperties.AutomationId="fst.rivals.tab">
+                    <SelectorBarItem x:Name="SongTab" Text="Song Rivals" IsSelected="True"
+                                     AutomationProperties.AutomationId="fst.rivals.tab.song">
+                        <SelectorBarItem.Icon>
+                            <FontIcon Glyph="&#xE8D6;" />
+                        </SelectorBarItem.Icon>
+                    </SelectorBarItem>
+                    <SelectorBarItem x:Name="LeaderboardTab" Text="Leaderboard Rivals"
+                                     AutomationProperties.AutomationId="fst.rivals.tab.leaderboard">
+                        <SelectorBarItem.Icon>
+                            <FontIcon Glyph="&#xE9F9;" />
+                        </SelectorBarItem.Icon>
+                    </SelectorBarItem>
+                </SelectorBar>
+                <ComboBox ItemsSource="{x:Bind ViewModel.MetricLabels}" SelectedIndex="{x:Bind ViewModel.MetricIndex, Mode=TwoWay}"
+                          VerticalAlignment="Center" MinWidth="150" Header="{x:Null}" PlaceholderText="Rank by"
+                          Visibility="{x:Bind ViewModel.ShowMetricPicker, Mode=OneWay}"
+                          AutomationProperties.Name="Rank by" AutomationProperties.AutomationId="fst.rivals.rankBy" />
+                <DropDownButton x:Name="JumpButton" VerticalAlignment="Center" AutomationProperties.Name="Jump to section"
+                                AutomationProperties.AutomationId="fst.rivals.jump" ToolTipService.ToolTip="Jump to section">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE8FD;" FontSize="14" />
+                        <TextBlock Text="Jump To" />
+                    </StackPanel>
+                    <DropDownButton.Flyout>
+                        <MenuFlyout x:Name="JumpMenu" Placement="BottomEdgeAlignedLeft" Opening="OnJumpMenuOpening" />
+                    </DropDownButton.Flyout>
+                </DropDownButton>
+            </StackPanel>
+        </Grid>
+
+        <ScrollViewer x:Name="Scroller" Grid.Row="1" Padding="24,0,24,32" AutomationProperties.AutomationId="fst.rivals">
+            <Grid>
+                <ItemsRepeater x:Name="SectionsRepeater" ItemsSource="{x:Bind ViewModel.Sections}" MaxWidth="1600"
+                               HorizontalAlignment="Stretch" Margin="0,4,0,0">
+                    <ItemsRepeater.Layout>
+                        <controls:MasonryLayout MinColumnWidth="360" ColumnSpacing="16" RowSpacing="16" />
+                    </ItemsRepeater.Layout>
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="vm:RivalSectionViewModel">
+                            <Border Style="{StaticResource FSTCardStyle}" Padding="8,8,8,12"
+                                    AutomationProperties.AutomationId="{x:Bind AutomationId}">
+                                <StackPanel Spacing="4">
+                                    <Grid Padding="8,0,0,0" ColumnSpacing="10" MinHeight="40">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <controls:InstrumentIcon File="{x:Bind IconFile}" Width="28" Height="28"
+                                                                 Visibility="{x:Bind HasIcon}" AutomationProperties.AccessibilityView="Raw" />
+                                        <TextBlock Grid.Column="1" Text="{x:Bind Title}" Style="{StaticResource FSTSectionHeaderStyle}"
+                                                   Margin="0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                   AutomationProperties.HeadingLevel="Level2" />
+                                        <HyperlinkButton Grid.Column="2" Content="See All" Tag="{x:Bind ViewAllRoute}" Click="OnRouteClick"
+                                                         AutomationProperties.Name="{x:Bind SeeAllName}"
+                                                         AutomationProperties.AutomationId="fst.rivals.see-all" />
+                                    </Grid>
+                                    <StackPanel Visibility="{x:Bind IsLoading, Mode=OneWay}" Spacing="8" Padding="8,4">
+                                        <ProgressBar IsIndeterminate="{x:Bind IsLoading, Mode=OneWay}" AutomationProperties.Name="Loading rivals" />
+                                        <Rectangle Height="44" RadiusX="6" RadiusY="6" Fill="{ThemeResource FSTRivalTieFillBrush}" />
+                                        <Rectangle Height="44" RadiusX="6" RadiusY="6" Fill="{ThemeResource FSTRivalTieFillBrush}" />
+                                        <Rectangle Height="44" RadiusX="6" RadiusY="6" Fill="{ThemeResource FSTRivalTieFillBrush}" />
+                                    </StackPanel>
+                                    <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8" Padding="8,4"
+                                                AutomationProperties.AutomationId="fst.service-status.inline">
+                                        <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" TextWrapping="Wrap" />
+                                        <TextBlock Text="{x:Bind Status.Message, Mode=OneWay}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                                        <TextBlock Text="{x:Bind Status.CountdownText, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
+                                                   AutomationProperties.Name="{x:Bind Status.CountdownAnnouncement, Mode=OneWay}" />
+                                        <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
+                                    </StackPanel>
+                                    <ItemsRepeater ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}">
+                                        <ItemsRepeater.Layout>
+                                            <StackLayout Spacing="2" />
+                                        </ItemsRepeater.Layout>
+                                        <ItemsRepeater.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:RivalRowItem">
+                                                <Button Style="{StaticResource FSTRivalRowButtonStyle}" Tag="{x:Bind Route}" Click="OnRouteClick"
+                                                        AutomationProperties.Name="{x:Bind AccessibleName}"
+                                                        AutomationProperties.AutomationId="{x:Bind AutomationId}">
+                                                    <controls:RivalRowView Item="{x:Bind}" />
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsRepeater.ItemTemplate>
+                                    </ItemsRepeater>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
+
+                <StackPanel Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" MaxWidth="480" Spacing="8" Margin="0,64,0,0"
+                            HorizontalAlignment="Center" AutomationProperties.AutomationId="fst.rivals.empty">
+                    <FontIcon Glyph="&#xE716;" FontSize="40" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                    <TextBlock Text="{x:Bind ViewModel.EmptyTitle}" Style="{StaticResource SubtitleTextBlockStyle}" TextAlignment="Center"
+                               TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level2" />
+                    <TextBlock Text="{x:Bind ViewModel.EmptySubtitle, Mode=OneWay}" TextAlignment="Center" TextWrapping="Wrap"
+                               Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                </StackPanel>
+
+                <StackPanel Visibility="{x:Bind ViewModel.ShowNoPlayer, Mode=OneWay}" MaxWidth="480" Spacing="12" Margin="0,64,0,0"
+                            HorizontalAlignment="Center" AutomationProperties.AutomationId="fst.rivals.chooseProfile">
+                    <FontIcon Glyph="&#xE77B;" FontSize="40" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                    <TextBlock Text="No Player Selected" Style="{StaticResource SubtitleTextBlockStyle}" TextAlignment="Center"
+                               AutomationProperties.HeadingLevel="Level2" />
+                    <TextBlock Text="Track a player to see their rivals." TextAlignment="Center" TextWrapping="Wrap"
+                               Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                    <Button Content="Select Player" Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Center"
+                            Click="OnSelectPlayer" AutomationProperties.AutomationId="fst.rivals.selectPlayer" />
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+    </Grid>
+</Page>

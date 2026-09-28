@@ -88,7 +88,19 @@ public sealed partial class MainWindow : Window
     #region Navigation
     /// <summary>Pushes a route onto the current section's stack.</summary>
     /// <param name="route">Destination.</param>
-    public void Navigate(AppRoute route) => frames[current].Navigate(PageFor(route), route);
+    public void Navigate(AppRoute route)
+    {
+        // Windows has no Compete section (wide split: Leaderboards + Rivals); /compete and /rivals open the Rivals root.
+        if (route is AppRoute.Compete or AppRoute.Rivals && session.HasPlayer)
+        {
+            Show(AppSection.Rivals);
+            return;
+        }
+        frames[current].Navigate(PageFor(route), route);
+    }
+
+    /// <summary>Opens the title-bar profile picker (pages' "Select Player" actions).</summary>
+    public void OpenProfilePicker() => ProfileFlyout.ShowAt(ProfileButton);
 
     /// <summary>Page type for a route; unported routes use the placeholder page.</summary>
     /// <param name="route">Route.</param>
@@ -107,6 +119,10 @@ public sealed partial class MainWindow : Window
         AppRoute.FullRankings => typeof(LeaderboardsFullRankingsPage),
         AppRoute.BandRankings => typeof(LeaderboardsBandRankingsPage),
         AppRoute.Licenses => typeof(LicensesPage),
+        AppRoute.Rivals or AppRoute.Compete => typeof(RivalsPage),
+        AppRoute.AllRivals => typeof(AllRivalsPage),
+        AppRoute.RivalDetail => typeof(RivalDetailPage),
+        AppRoute.Rivalry => typeof(RivalryPage),
         _ => typeof(PlaceholderPage),
     };
 
@@ -142,6 +158,7 @@ public sealed partial class MainWindow : Window
         AppSection.Settings => typeof(SettingsPage),
         AppSection.Statistics => typeof(StatisticsPage),
         AppSection.Leaderboards => typeof(LeaderboardsPage),
+        AppSection.Rivals => typeof(RivalsPage),
         _ => typeof(PlaceholderPage),
     };
 
