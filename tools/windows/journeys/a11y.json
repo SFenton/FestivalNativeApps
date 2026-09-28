@@ -48,7 +48,8 @@
     "name": "shop",
     "route": "/shop",
     "ready": [
-      "waitfor:id=fst.shop.list@20"
+      "waitfor:id=fst.shop.view-toggle@20",
+      "wait:2"
     ]
   },
   {
@@ -195,5 +196,31 @@
       "key:esc",
       "wait:0.5"
     ]
+  },
+  {
+    "name": "first-run",
+    "tab": "songs",
+    "first_run": "force",
+    "ready": [
+      "waitfor:id=fst.first-run.dialog@20"
+    ],
+    "tabs": 12
+  },
+  {
+    "name": "notifications-flyout",
+    "tab": "songs",
+    "profile": "fixture-player-1:Demo Player",
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "invoke:id=fst.shell.notifications",
+      "wait:2"
+    ],
+    "teardown": [
+      "key:esc",
+      "wait:0.5"
+    ],
+    "tabs": 12
   }
 ]
