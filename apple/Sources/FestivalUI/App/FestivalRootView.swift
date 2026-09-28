@@ -38,6 +38,7 @@ public struct FestivalRootView: View {
         var initialSection = FestivalSection.songs
         var selectionStorage: UserDefaults? = .standard
         var initialRoute: AppRoute?
+        var debugSelectedPlayer: SelectedPlayerIdentity?
         #if DEBUG
         let debug = DebugLaunchRoute(environment: ProcessInfo.processInfo.environment)
         if let tab = debug.section { initialSection = tab }
@@ -47,13 +48,20 @@ public struct FestivalRootView: View {
         if ProcessInfo.processInfo.environment["FST_UI_TEST_CLEAR_PROFILE"] == "1" {
             UserDefaults.standard.removeObject(forKey: SelectedPlayerIdentity.storageKey)
         }
-        debug.applyProfile(to: .standard)
+        // In memory only: never written to `selectionStorage`. Parallel lanes share
+        // one simulator, and writing this to real `UserDefaults.standard` (the
+        // previous behavior) let one lane's debug launch clobber another lane's
+        // actually-persisted selection.
+        debugSelectedPlayer = debug.debugSelectedPlayer()
         if debug.anonymous { selectionStorage = nil }
         #endif
         let factory: @Sendable () throws -> FestivalAPI = {
             try Self.makeClient(environment: ProcessInfo.processInfo.environment)
         }
-        let session = FestivalSession(factory: factory, selectionStorage: selectionStorage)
+        let session = FestivalSession(
+            factory: factory, selectionStorage: selectionStorage,
+            debugSelectedPlayer: debugSelectedPlayer
+        )
         _session = State(initialValue: session)
         // A deep link or restored tab may name a section the stored profile hides.
         let visible = FestivalTabPolicy.sections(
@@ -187,8 +195,14 @@ public struct FestivalRootView: View {
             }
         }
         .sheet(isPresented: $rootProfilePresented) {
-            ProfileSelectionSheet(session: session)
-                .festivalSheet()
+            // Passed directly rather than through `\.openRoute`: a custom `@Entry`
+            // environment value set here does not reliably reach this sheet's own
+            // content once SwiftUI hosts it as a separate presentation (verified
+            // empirically — see `ProfileSelectionSheet.openRoute`'s doc comment).
+            ProfileSelectionSheet(session: session) { route in
+                paths[selected, default: []].append(route)
+            }
+            .festivalSheet()
         }
         .onChange(of: visibleSections) { _, visible in
             let resolved = FestivalTabPolicy.resolve(selected, in: visible)
@@ -492,8 +506,10 @@ public struct FestivalRootView: View {
 /// Song routes need a loaded `Song`; the Songs lane handles `FST_DEBUG_SONG` itself.
 ///
 /// Shell extras: `FST_DEBUG_DRAWER=1` opens the hamburger drawer, `FST_DEBUG_SHEET=profile`
-/// opens profile selection, and `FST_DEBUG_PROFILE=<accountId>:<displayName>` stores a
-/// selected player before the session loads (so profile-only tabs can be captured).
+/// opens profile selection, and `FST_DEBUG_PROFILE=<accountId>:<displayName>` selects a
+/// player **in memory only** before the session loads (so profile-only tabs can be
+/// captured) — it is never written to `UserDefaults`, so it cannot clobber another
+/// lane's real persisted selection on the shared simulator.
 /// `FST_DEBUG_ANONYMOUS=1` ignores any stored profile for this launch without deleting it.
 struct DebugLaunchRoute {
     let section: FestivalSection?
@@ -566,19 +582,21 @@ struct DebugLaunchRoute {
         }
     }
 
-    /// Persist the debug profile as if the user had selected it.
+    /// Build the debug profile as an in-memory-only selected identity.
     ///
-    /// The session revalidates the stored identity on launch, exactly as on a cold start.
+    /// Never touches `UserDefaults`: `FestivalSession(debugSelectedPlayer:)` seeds
+    /// `selectedPlayer` directly, so this launch shows a selected state without
+    /// reading or overwriting whatever another lane's process may have persisted
+    /// to the shared simulator's real `UserDefaults.standard`.
     ///
-    /// - Parameter defaults: Store read by `FestivalSession`.
-    func applyProfile(to defaults: UserDefaults) {
-        guard let profile else { return }
-        let json: [String: String] = [
-            "accountId": profile.accountId, "displayName": profile.displayName,
-        ]
-        if let data = try? JSONSerialization.data(withJSONObject: json) {
-            defaults.set(data, forKey: SelectedPlayerIdentity.storageKey)
-        }
+    /// - Returns: A validated identity for a well-formed `FST_DEBUG_PROFILE`, else nil.
+    func debugSelectedPlayer() -> SelectedPlayerIdentity? {
+        guard let profile else { return nil }
+        return try? SelectedPlayerIdentity(
+            searchResult: PlayerSearchResult(
+                accountId: profile.accountId, displayName: profile.displayName
+            )
+        )
     }
 }
 #endif

@@ -66,16 +66,27 @@ final class FestivalSession {
     ///   - factory: Provider for a production or fixture-backed client.
     ///   - artwork: In-process artwork store, injectable for hosted tests.
     ///   - selectionStorage: App-only identity store; nil in hosted tests.
+    ///   - debugSelectedPlayer: An already-validated identity to select **in memory
+    ///     only**, bypassing `selectionStorage` entirely. Used by
+    ///     `FST_DEBUG_PROFILE` so parallel lanes sharing one simulator can
+    ///     screenshot a selected state without overwriting each other's real
+    ///     persisted `UserDefaults.standard` selection — see
+    ///     `DebugLaunchRoute` in `FestivalRootView.swift`. Ignored when a real
+    ///     stored identity also exists; debug launches always take the debug value.
     init(
         factory: @escaping @Sendable () throws -> FestivalAPI,
         artwork: ArtworkCache = ArtworkCache(),
-        selectionStorage: UserDefaults? = nil
+        selectionStorage: UserDefaults? = nil,
+        debugSelectedPlayer: SelectedPlayerIdentity? = nil
     ) {
         self.factory = factory
         self.artwork = artwork
         self.selectionStorage = selectionStorage
         thumbnails.totalCostLimit = 24_000_000
-        if let stored = selectionStorage?.data(forKey: SelectedPlayerIdentity.storageKey) {
+        if let debugSelectedPlayer {
+            selectedPlayer = debugSelectedPlayer
+            playerLoadState = .loading
+        } else if let stored = selectionStorage?.data(forKey: SelectedPlayerIdentity.storageKey) {
             do {
                 let identity = try JSONDecoder().decode(
                     SelectedPlayerIdentity.self, from: stored
@@ -166,6 +177,27 @@ final class FestivalSession {
             throw FestivalAPIError.invalidPlayerProfile
         }
         return try await profile(accountId: accountId)
+    }
+
+    /// Read one account's own row on the per-instrument rankings board.
+    ///
+    /// Pure keyless read, safe for any viewed account, not only the selected one
+    /// (`FestivalAPI.playerInstrumentRanking(instrument:accountId:)`); never the
+    /// forbidden player-stats GET.
+    ///
+    /// - Parameters:
+    ///   - instrument: Solo chart to look up.
+    ///   - accountId: Validated public account key from the profile being shown.
+    /// - Returns: The account's global rank/rating, or an explicit unranked state.
+    /// - Throws: Client configuration, transport, decoding or publication errors.
+    func playerInstrumentRanking(
+        instrument: Instrument, accountId: String
+    ) async throws -> PlayerInstrumentRankingPayload {
+        let payload = try await client().playerInstrumentRanking(
+            instrument: instrument, accountId: accountId
+        )
+        try await observe(publicationId: payload.observedPublicationId)
+        return payload
     }
 
     /// Promote an explicitly viewed, response-proven player and its score index.

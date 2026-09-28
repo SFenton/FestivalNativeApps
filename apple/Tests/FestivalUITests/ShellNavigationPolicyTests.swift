@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import FestivalCore
 @testable import FestivalUI
 
 // MARK: - Tab policy
@@ -104,5 +105,35 @@ func bandSections(regularWidth: Bool) {
     #expect(debug.anonymous)
     #expect(debug.profile?.accountId == "e408c4613c8f4da5907090b390bda80c")
     #expect(debug.profile?.displayName == "Some Name")
+}
+
+/// `FST_DEBUG_PROFILE` selects a validated identity in memory only: building it, and
+/// handing it to a session, must never write to any `UserDefaults` domain — the bug
+/// this fixed let one lane's debug launch clobber another lane's real persisted
+/// selection on the shared simulator.
+@MainActor
+@Test func debugProfileSelectsInMemoryWithoutTouchingUserDefaults() throws {
+    let suiteName = "fst-debug-profile-\(UUID().uuidString)"
+    let storage = try #require(UserDefaults(suiteName: suiteName))
+    defer { storage.removePersistentDomain(forName: suiteName) }
+    let debug = DebugLaunchRoute(environment: [
+        "FST_DEBUG_PROFILE": "e408c4613c8f4da5907090b390bda80c:Some Name",
+    ])
+    let identity = try #require(debug.debugSelectedPlayer())
+    #expect(identity.accountId == "e408c4613c8f4da5907090b390bda80c")
+    #expect(identity.displayName == "Some Name")
+    #expect(storage.data(forKey: SelectedPlayerIdentity.storageKey) == nil)
+
+    let session = FestivalSession(
+        factory: { throw FestivalAPIError.invalidResource },
+        selectionStorage: storage, debugSelectedPlayer: identity
+    )
+    #expect(session.selectedPlayer == identity)
+    // Seeding the in-memory selection must not have persisted it either.
+    #expect(storage.data(forKey: SelectedPlayerIdentity.storageKey) == nil)
+
+    #expect(DebugLaunchRoute(environment: [:]).debugSelectedPlayer() == nil)
+    let malformed = DebugLaunchRoute(environment: ["FST_DEBUG_PROFILE": "not-two-parts"])
+    #expect(malformed.debugSelectedPlayer() == nil)
 }
 #endif
