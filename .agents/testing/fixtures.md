@@ -37,3 +37,17 @@
 Diagnostics (numeric only, never IDs or payloads): `/__fixture__/last-score-query`, `/__fixture__/last-full-score-query` (only `top=25`), `/__fixture__/publication-join-reads`.
 
 Online-only (2026-09-27): the one-shot offline listeners support older journeys; do not add new offline tests. Reuse of a pre-existing 8765 is allowed only if its startup hashes and flags match the frozen inputs; never kill a stale service you did not start.
+
+## Bands/Player/Statistics additions (Lane U4)
+
+Added for the Profile/Statistics/Bands/Settings/Suggestions UX-test lane, since
+none of these routes previously existed in the fixture server:
+
+- `GET /api/rankings/{instrument}/{accountId}`: `fixture-player-1`/`2`/`fixture-rank-3` return an `AccountRankingEntry`-shaped row plus `instrument`/`totalRankedAccounts` (rank 1/2/3); `fixture-rank-unranked` (a registered player with one Lead score, outside the roster) 404s → the app's honest **unranked** state; `fixture-rank-fail` (also a registered Lead-scoring player) always 500s → the **failed/retry** state. Every other/unknown account also 404s.
+- `GET /api/player/{accountId}/bands?group=&page=&pageSize=`: `fixture-player-1` has a synthetic 30-row "all" group (18 duos + 8 trios + 4 quads, `pageSize=25` → 2 pages) built by `_player_band_entry`; its first duo reuses `fixture-band-1`/`fixture-team-1` so Player Bands and Band Rankings resolve to the same Band Detail. `fixture-player-2` (and any other account) gets an empty page, matching the real service's missing-projection-fallback behavior.
+- `GET /api/rankings/bands/{bandType}?teamKey=…`: filtered lookup for `FestivalAPI.bandProfile` (`selectedBandEntry`), built by `_band_detail` — a **richer** member/config shape than a plain `entries[]` row (matching the live service, which only attaches full instrument/combo detail to the one filtered team). `fixture-team-1` (rank 1) carries one Duets combo `BandConfiguration`; `fixture-team-2` (rank 2) has none. `teamKey=fixture-team-503` 503s with `Retry-After`/`X-Fst-Public-Read-Freeze-Reason: scrape`, matching the Rivals scrape-freeze shape, for testing `BandDetailScreen`'s failed state. Unknown team keys return `selectedBandEntry: null` (client-side `invalidBandProfile`).
+- `GET /api/rankings/bands/{bandType}/{teamKey}/history?days=`: `fixture-team-1` returns 3 daily snapshots; every other team key returns an empty `history`.
+- `GET /api/rankings/bands/{bandType}/{teamKey}/songs?limit=`: `fixture-team-1` returns one catalog-linked Best row (`fixture-pulse`) and one **not-in-catalog** Worst row (`fixture-ghost-song`, exercising `BandDetailScreen`'s raw-songId fallback); every other team key returns empty `best`/`worst`.
+- `GET /api/leaderboard/{songId}/bands/{bandType}?top=&offset=`: `fixture-pulse`/`Band_Duets` returns two ranked entries (reusing `fixture-band-1`/`fixture-band-2`'s rosters, this time with per-member score/accuracy/stars populated, matching `SongBandLeaderboardEntry`); every other song/band-type pair is empty.
+
+A dedicated loopback instance for these lane's XCUITest journeys runs on `127.0.0.1:18790` (started manually, not the shared default `8765`) since the shared `8765` listener predates this lane's `tools/mock_service.py` changes and "never kill a stale service you did not start" forbids restarting it to pick up new code; hosted (non-simulator) tests instead reuse `RivalsMockService`'s `--port 0` launcher, which always starts a fresh process from the current source.

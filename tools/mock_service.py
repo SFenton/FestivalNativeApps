@@ -110,12 +110,17 @@ SONGS_ETAG = '"fst-fixture-songs-v1"'
 EMPTY_ETAG = '"fst-fixture-empty-v1"'
 SHOP_ETAG = '"fst-fixture-shop-v1"'
 LEADERBOARD = re.compile(r"^/api/leaderboard/(fixture-[a-z]+)/([A-Za-z_]+)$")
+SONG_BAND_LEADERBOARD = re.compile(r"^/api/leaderboard/(fixture-[a-z]+)/bands/([A-Za-z_]+)$")
 PLAYER = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)$")
 PLAYER_HISTORY = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)/history$")
 PLAYER_NOTIFICATIONS = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)/notifications$")
+PLAYER_BANDS = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)/bands$")
 RANKINGS = re.compile(r"^/api/rankings/([A-Za-z_]+)$")
 PLAYER_RANK_HISTORY = re.compile(r"^/api/rankings/([A-Za-z_]+)/(fixture-[a-z0-9-]+)/history$")
+PLAYER_INSTRUMENT_RANKING = re.compile(r"^/api/rankings/([A-Za-z_]+)/(fixture-[a-z0-9-]+)$")
 BAND_RANKINGS = re.compile(r"^/api/rankings/bands/([A-Za-z_]+)$")
+BAND_HISTORY = re.compile(r"^/api/rankings/bands/([A-Za-z_]+)/(fixture-[a-z0-9-]+)/history$")
+BAND_SONGS = re.compile(r"^/api/rankings/bands/([A-Za-z_]+)/(fixture-[a-z0-9-]+)/songs$")
 PATH_ARTIFACT = re.compile(
     r"^/api/paths/(fixture-[a-z]+)/([A-Za-z_]+)/([a-z]+)(/data)?$"
 )
@@ -176,6 +181,120 @@ def _band_ranking_entry(rank: int) -> dict:
         "avgAccuracy": 0.95, "fullComboCount": max(0, 10 - rank),
         "avgStars": 4.5, "bestRank": 1, "avgRank": float(rank),
 
+    }
+
+
+def _band_detail(team_key: str, rank: int, band_type: str) -> dict:
+    """One `selectedBandEntry` (`BandDetail`) for `GET /api/rankings/bands/{bandType}?teamKey=`.
+
+    `fixture-team-1` (rank 1) carries one duets combo configuration; every other
+    team has none, matching the live service's rarity of combo data.
+
+    Args:
+        team_key: Requested `teamKey`, echoed back.
+        rank: 1-based rank; also seeds every metric's numeric spread.
+        band_type: Requested band size, echoed back on the member instrument shape.
+
+    Returns:
+        A JSON-ready `BandDetail` object (richer member/config shape than a plain
+        `BandRankingEntry` list row — the live service only attaches full instrument
+        and combo detail to the single filtered `teamKey` match).
+    """
+    instruments_a = ["Solo_Guitar"]
+    instruments_b = ["Solo_Bass"]
+    return {
+        "bandId": f"fixture-band-{rank}", "comboId": None, "teamKey": team_key,
+        "members": [
+            {
+                "accountId": f"fixture-band-{rank}-a", "displayName": f"Band {rank} Member A",
+                "instruments": instruments_a, "score": None, "accuracy": None,
+                "isFullCombo": None, "stars": None, "difficulty": None, "season": None,
+            },
+            {
+                "accountId": f"fixture-band-{rank}-b", "displayName": f"Band {rank} Member B",
+                "instruments": instruments_b, "score": None, "accuracy": None,
+                "isFullCombo": None, "stars": None, "difficulty": None, "season": None,
+            },
+        ],
+        "configurations": [
+            {
+                "rawInstrumentCombo": "Solo_Guitar+Solo_Bass", "comboId": "guitar-bass",
+                "instruments": ["Solo_Guitar", "Solo_Bass"],
+                "assignmentKey": f"fixture-config-{rank}", "appearanceCount": 12,
+                "memberInstruments": {
+                    f"fixture-band-{rank}-a": "Solo_Guitar",
+                    f"fixture-band-{rank}-b": "Solo_Bass",
+                },
+            },
+        ] if rank == 1 else [],
+        "songsPlayed": 30 - rank, "totalChartedSongs": 50, "coverage": 0.6,
+        "rawSkillRating": 0.04 - rank * 0.01, "adjustedSkillRating": 0.04 - rank * 0.01,
+        "adjustedSkillRank": rank, "weightedRating": 0.05 - rank * 0.01, "weightedRank": rank,
+        "fcRate": max(0.1, 0.4 - rank * 0.1), "fcRateRank": rank,
+        "totalScore": 50_000_000 - rank * 500_000, "totalScoreRank": rank,
+        "avgAccuracy": 0.95, "fullComboCount": max(0, 10 - rank),
+        "avgStars": 4.5, "bestRank": 1, "avgRank": float(rank),
+        "rawWeightedRating": 0.05 - rank * 0.01, "computedAt": "2024-01-05T00:00:00Z",
+    }
+
+
+def _player_band_entry(band_id: str, team_key: str, band_type: str, members: int) -> dict:
+    """One `PlayerBandEntry` row for `GET /api/player/{accountId}/bands`.
+
+    Args:
+        band_id: Deterministic synthetic band identifier.
+        team_key: Deterministic synthetic team roster key.
+        band_type: Band size key (`Band_Duets`/`Band_Trios`/`Band_Quad`).
+        members: Member count (2, 3 or 4) to match `band_type`.
+
+    Returns:
+        A JSON-ready `PlayerBandEntry` object.
+    """
+    instrument_cycle = ["Solo_Guitar", "Solo_Bass", "Solo_Drums", "Solo_Vocals"]
+    return {
+        "bandId": band_id, "teamKey": team_key, "bandType": band_type,
+        "appearanceCount": 12, "members": [
+            {
+                "accountId": f"{team_key}-{index}", "displayName": f"{team_key} Member {index}",
+                "instruments": [instrument_cycle[index % len(instrument_cycle)]],
+                "score": None, "accuracy": None, "isFullCombo": None,
+                "stars": None, "difficulty": None, "season": None,
+            }
+            for index in range(members)
+        ],
+    }
+
+
+def _song_band_leaderboard_entry(rank: int, band_type: str) -> dict:
+    """One `SongBandLeaderboardEntry` row for `GET /api/leaderboard/{songId}/bands/{bandType}`.
+
+    Args:
+        rank: 1-based rank; also selects the reused `fixture-team-{rank}` roster.
+        band_type: Requested band size, echoed back.
+
+    Returns:
+        A JSON-ready `SongBandLeaderboardEntry` object.
+    """
+    return {
+        "bandId": f"fixture-band-{rank}", "bandType": band_type,
+        "teamKey": f"fixture-team-{rank}", "comboId": None,
+        "members": [
+            {
+                "accountId": f"fixture-band-{rank}-a", "displayName": f"Band {rank} Member A",
+                "instruments": ["Solo_Guitar"], "score": 95_000 - rank * 500,
+                "accuracy": 970, "isFullCombo": rank == 1, "stars": 5,
+                "difficulty": 4, "season": 10,
+            },
+            {
+                "accountId": f"fixture-band-{rank}-b", "displayName": f"Band {rank} Member B",
+                "instruments": ["Solo_Bass"], "score": 94_500 - rank * 500,
+                "accuracy": 960, "isFullCombo": rank == 1, "stars": 5,
+                "difficulty": 4, "season": 10,
+            },
+        ],
+        "score": 95_000 - rank * 500, "rank": rank, "accuracy": 965,
+        "isFullCombo": rank == 1, "stars": 5, "season": 10, "difficulty": 4,
+        "percentile": 0.1 * rank, "endTime": None,
     }
 
 
@@ -852,6 +971,30 @@ class FixtureHandler(BaseHTTPRequestHandler):
             if page < 1 or not 1 <= page_size <= 200:
                 self._json(400, {"status": "invalid_pagination"})
                 return
+            team_keys = query.get("teamKey", [])
+            if team_keys:
+                team_key = team_keys[0]
+                if team_key == "fixture-team-503":
+                    self.send_response(503)
+                    self.send_header("Retry-After", "30")
+                    self.send_header("X-Fst-Public-Read-Freeze-Reason", "scrape")
+                    self.send_header("Cache-Control", "no-store")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+                known = {
+                    "fixture-team-1": 1, "fixture-team-2": 2,
+                }
+                selected = (
+                    _band_detail(team_key, known[team_key], band_type)
+                    if team_key in known else None
+                )
+                self._json(200, {
+                    "bandType": band_type, "rankBy": rank_by, "page": 1,
+                    "pageSize": 1, "totalTeams": 2, "entries": [],
+                    "selectedBandEntry": selected,
+                })
+                return
             total = 2
             start = (page - 1) * page_size
             entries = [
@@ -878,6 +1021,93 @@ class FixtureHandler(BaseHTTPRequestHandler):
             self._json(200, {
                 "instrument": instrument, "accountId": account_id,
                 "history": PLAYER_RANK_HISTORY_DEMO["history"] if ranked else [],
+            })
+        elif match := BAND_HISTORY.fullmatch(path):
+            band_type, team_key = match.group(1), match.group(2)
+            if band_type not in BAND_TYPES:
+                self._json(404, {"status": "unknown_band_type"})
+                return
+            try:
+                days = int(query.get("days", ["30"])[0])
+            except ValueError:
+                self._json(400, {"status": "invalid_band_history_query"})
+                return
+            if not 1 <= days <= 3650:
+                self._json(400, {"status": "invalid_band_history_query"})
+                return
+            if team_key == "fixture-team-1":
+                history = [
+                    {
+                        "snapshotDate": date, "snapshotTakenAt": f"{date}T00:00:00Z",
+                        "adjustedSkillRank": rank, "weightedRank": rank,
+                        "fcRateRank": rank, "totalScoreRank": rank,
+                        "adjustedSkillRating": 0.04 - rank * 0.01,
+                        "weightedRating": 0.05 - rank * 0.01, "fcRate": 0.3,
+                        "totalScore": 49_500_000, "songsPlayed": 29,
+                        "totalChartedSongs": 50, "totalRankedTeams": 2,
+                    }
+                    for rank, date in enumerate(
+                        ["2024-01-01", "2024-01-02", "2024-01-03"], start=1
+                    )
+                ]
+            else:
+                history = []
+            self._json(200, {
+                "bandType": band_type, "teamKey": team_key, "days": days,
+                "history": history, "historyStatus": None, "historyMessage": None,
+            })
+        elif match := BAND_SONGS.fullmatch(path):
+            band_type, team_key = match.group(1), match.group(2)
+            if band_type not in BAND_TYPES:
+                self._json(404, {"status": "unknown_band_type"})
+                return
+            try:
+                limit = int(query.get("limit", ["5"])[0])
+            except ValueError:
+                self._json(400, {"status": "invalid_band_songs_query"})
+                return
+            if not 1 <= limit <= 20:
+                self._json(400, {"status": "invalid_band_songs_query"})
+                return
+            if team_key == "fixture-team-1":
+                best = [{
+                    "songId": "fixture-pulse", "comboId": None, "rank": 1,
+                    "totalEntries": 10, "percentile": 0.1, "score": 95_000,
+                    "accuracy": 970, "isFullCombo": True, "stars": 5,
+                    "season": 10, "endTime": None,
+                }]
+                worst = [{
+                    "songId": "fixture-ghost-song", "comboId": None, "rank": 8,
+                    "totalEntries": 10, "percentile": 0.8, "score": 40_000,
+                    "accuracy": 800, "isFullCombo": False, "stars": 2,
+                    "season": 10, "endTime": None,
+                }]
+            else:
+                best, worst = [], []
+            self._json(200, {
+                "bandType": band_type, "teamKey": team_key, "limit": limit,
+                "best": best[:limit], "worst": worst[:limit],
+            })
+        elif match := PLAYER_INSTRUMENT_RANKING.fullmatch(path):
+            instrument, account_id = match.group(1), match.group(2)
+            if instrument not in INSTRUMENTS:
+                self._json(404, {"status": "unknown_instrument"})
+                return
+            if account_id == "fixture-rank-fail":
+                self._json(500, {"status": "internal_error"})
+                return
+            roster = {
+                "fixture-player-1": (1, "Fixture Player 1"),
+                "fixture-player-2": (2, "Fixture Player 2"),
+                "fixture-rank-3": (3, "Fixture Rank 3"),
+            }
+            if account_id not in roster:
+                self._json(404, {"status": "account_not_ranked"})
+                return
+            rank, display_name = roster[account_id]
+            self._json(200, {
+                **_ranking_entry(rank, account_id, display_name),
+                "instrument": instrument, "totalRankedAccounts": 3,
             })
         elif match := RANKINGS.fullmatch(path):
             instrument = match.group(1)
@@ -914,6 +1144,60 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 "instrument": instrument, "rankBy": rank_by, "page": page,
                 "pageSize": page_size, "totalAccounts": total, "entries": entries,
             })
+        elif match := PLAYER_BANDS.fullmatch(path):
+            account_id = match.group(1)
+            groups = query.get("group", ["all"])
+            if set(query) - {"group", "page", "pageSize"} or len(groups) != 1:
+                self._json(400, {"status": "invalid_player_bands_query"})
+                return
+            group = groups[0]
+            if group not in ("all", "duos", "trios", "quads"):
+                self._json(400, {"status": "invalid_player_bands_query"})
+                return
+            try:
+                page = int(query.get("page", ["1"])[0])
+                page_size = int(query.get("pageSize", ["25"])[0])
+            except ValueError:
+                self._json(400, {"status": "invalid_pagination"})
+                return
+            if page < 1 or not 1 <= page_size <= 100:
+                self._json(400, {"status": "invalid_pagination"})
+                return
+            if account_id == "fixture-player-1":
+                by_group = {
+                    "duos": [
+                        _player_band_entry(
+                            "fixture-band-1" if index == 1 else f"fixture-pband-duo-{index}",
+                            "fixture-team-1" if index == 1 else f"fixture-pteam-duo-{index}",
+                            "Band_Duets", 2
+                        )
+                        for index in range(1, 19)
+                    ],
+                    "trios": [
+                        _player_band_entry(
+                            f"fixture-pband-trio-{index}", f"fixture-pteam-trio-{index}",
+                            "Band_Trios", 3
+                        )
+                        for index in range(1, 9)
+                    ],
+                    "quads": [
+                        _player_band_entry(
+                            f"fixture-pband-quad-{index}", f"fixture-pteam-quad-{index}",
+                            "Band_Quad", 4
+                        )
+                        for index in range(1, 5)
+                    ],
+                }
+                by_group["all"] = by_group["duos"] + by_group["trios"] + by_group["quads"]
+                entries = by_group[group]
+            else:
+                entries = []
+            total = len(entries)
+            start = (page - 1) * page_size
+            self._json(200, {
+                "accountId": account_id, "totalCount": total,
+                "entries": entries[start:start + page_size],
+            })
         elif match := PLAYER.fullmatch(path):
             account_id = match.group(1)
             if query:
@@ -935,6 +1219,29 @@ class FixtureHandler(BaseHTTPRequestHandler):
                     "accountId": account_id, "displayName": "Syncing Player",
                     "status": "syncing", "notYetPublished": True,
                     "totalScores": 0, "scores": [],
+                })
+            elif account_id == "fixture-rank-unranked":
+                # A registered player with one Lead score but outside the
+                # rankings roster, so `PLAYER_INSTRUMENT_RANKING` 404s and
+                # `InstrumentGlobalRankView` shows its honest unranked state.
+                self._json(200, {
+                    "accountId": account_id, "displayName": "Fixture Rank Unranked",
+                    "totalScores": 1, "scores": [{
+                        "si": "fixture-pulse", "ins": "01", "sc": 80_000, "acc": 900,
+                        "fc": False, "st": 3, "sn": 9, "pct": 0.5, "rk": 6, "te": 26,
+                    }],
+                })
+            elif account_id == "fixture-rank-fail":
+                # A registered player with one Lead score, so its Global Rank
+                # section renders and calls `PLAYER_INSTRUMENT_RANKING`, which
+                # this fixture always 500s for this one account (see above) —
+                # exercises `InstrumentGlobalRankView`'s failed/retry state.
+                self._json(200, {
+                    "accountId": account_id, "displayName": "Fixture Rank Fail",
+                    "totalScores": 1, "scores": [{
+                        "si": "fixture-pulse", "ins": "01", "sc": 90_000, "acc": 950,
+                        "fc": False, "st": 4, "sn": 9, "pct": 0.5, "rk": 5, "te": 26,
+                    }],
                 })
             elif account_id in ("fixture-empty", "fixture-cpp"):
                 self._json(200, {
@@ -1140,6 +1447,30 @@ class FixtureHandler(BaseHTTPRequestHandler):
                     }, etag=etag)
             else:
                 self._path_image(difficulty, etag)
+        elif match := SONG_BAND_LEADERBOARD.fullmatch(path):
+            song_id, band_type = match.groups()
+            if band_type not in BAND_TYPES:
+                self._json(404, {"status": "unknown_band_type"})
+                return
+            try:
+                top = int(query.get("top", ["25"])[0])
+                offset = int(query.get("offset", ["0"])[0])
+            except ValueError:
+                self._json(400, {"status": "invalid_pagination"})
+                return
+            if not 1 <= top <= 100 or offset < 0:
+                self._json(400, {"status": "invalid_pagination"})
+                return
+            if song_id == "fixture-pulse" and band_type == "Band_Duets":
+                all_entries = [_song_band_leaderboard_entry(rank, band_type) for rank in (1, 2)]
+            else:
+                all_entries = []
+            total = len(all_entries)
+            entries = all_entries[offset:offset + top]
+            self._json(200, {
+                "songId": song_id, "bandType": band_type, "count": len(entries),
+                "totalEntries": total, "localEntries": total, "entries": entries,
+            })
         elif match := LEADERBOARD.fullmatch(path):
             song_id, instrument = match.groups()
             pin = self.headers.get("X-FST-Publication-Id")
