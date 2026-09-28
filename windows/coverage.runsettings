@@ -7,7 +7,7 @@
         <Configuration>
           <Format>cobertura</Format>
           <Include>[Festival.Core]*</Include>
-          <ExcludeByAttribute>GeneratedCodeAttribute,CompilerGeneratedAttribute,ExcludeFromCodeCoverageAttribute</ExcludeByAttribute>
+          <ExcludeByAttribute>GeneratedCodeAttribute,ExcludeFromCodeCoverageAttribute</ExcludeByAttribute>
           <ExcludeByFile>**/*.g.cs</ExcludeByFile>
         </Configuration>
       </DataCollector>

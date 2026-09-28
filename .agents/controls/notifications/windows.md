@@ -6,7 +6,7 @@
 
 | Piece | Where |
 |---|---|
-| Read | `Data/NotificationsApi.cs`: `client.GetPlayerNotificationsAsync(accountId, limit)` → pinned keyless `GET /api/player/{id}/notifications?limit=` (the service classifies it publication-bound). Kept as an extension with a sync `Decode`, because async-only partial files get no Cobertura lines (state machines are `CompilerGenerated`) |
+| Read | `Data/NotificationsApi.cs`: `client.GetPlayerNotificationsAsync(accountId, limit)` → pinned keyless `GET /api/player/{id}/notifications?limit=` (the service classifies it publication-bound). Kept as an extension with a sync `Decode` |
 | Wire + rules | `Data/NotificationModels.cs`: envelope/row records, `Validate` (unique safe GUIDs, kinds, song IDs), `IsGenerated`, `NotificationRouting` (destination + ranking metric, `notificationDestination.ts`/`notificationRanking.ts`), `NotificationText` (player single-event copy, titles `Song · Instrument` / `{Rank} Improved`, web flag labels, en-US `toLocaleString` numbers, `#1,234` ranks, shop-song title/message) |
 | Seen | `Data/NotificationSeenStore.cs`: `notifications-seen.json`, per-account GUID lists pruned to the current feed, ≤400 per account, ≤20 accounts |
 | Model | `ViewModels/NotificationsViewModel.cs`: states NoPlayer/Loading/Failed/Empty/Loaded, New/Older, unread badge (99+), refresh on launch, player change and each open (no polling), failed refresh keeps the last feed |

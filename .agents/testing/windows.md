@@ -57,6 +57,6 @@ SSH runs in session 0 (no desktop). `_common.ps1` runs GUI work through a one-sh
 
 | Item | Value |
 |---|---|
-| Core tests | 629 passing |
-| Core coverage (all folders) | 99.6% lines, 96.3% branches |
+| Core tests | 876 passing |
+| Core coverage (all folders, async bodies and lambdas measured) | 98.98% lines, 94.0% branches (logic 99.40%, UX 98.43%; 876 tests, 2026-09-28) |
 | Screenshots | committed only from fixture mode ([strategy](strategy.md) keeps live screenshots out of the repo) |
