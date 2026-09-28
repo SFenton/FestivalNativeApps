@@ -179,7 +179,7 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 - ⬛ Rival-driven families (`song_rival_*`/`lb_rival_*`) still unported: verified the web needs a combined `GET /api/player/{accountId}/rivals/all` read (`buildRivalDataIndexFromRivalsAll`) that `FestivalAPI+Rivals.swift` doesn't expose yet (only per-instrument reads) — not a service-safety block, just a missing native read; follow-on for whichever lane adds it. Band suggestions still deferred (needs band identity).
 - Coverage: SuggestionGenerator.swift 96.08%, SuggestionFilterSettings.swift 100%, SuggestionModels.swift 96.92% (llvm-cov). 53 `SuggestionGeneratorTests` (was 47), all Core tests green (313 total in the package).
 
-**Lane K — Service client consolidation + scrape-freeze UX** (Opus) — 🟨 running in `~/repos/FestivalNativeApps-lanes/client`
+**Lane K — Service client consolidation + scrape-freeze UX** (Opus) — ✅ landed `7f6e7cb`…`b01585f`
 - ⬜ One typed request path for every public GET (Rivals/Bands/History/Notifications/Rankings migrated) · ⬜ One error vocabulary · ⬜ Shared `ServiceStatusView` with scrape-freeze auto-retry (`Retry-After`) adopted across screens · ⬜ `add-endpoint` skill + architecture rules
 
 **Lane K — Service client consolidation & scrape-freeze UX** (Opus) — ✅ landed
@@ -287,3 +287,4 @@ Not yet assigned:
 | 2026-09-28 | Lane G2 | near_max families (+decades), visibleInstruments seam; Suggestions Core coverage 96–100% |
 | 2026-09-28 | Orchestrator | Sim lock budget rule for UX lanes; `/rivals/all` read assigned to Lane K |
 | 2026-09-28 | Lane K | One keyless request path (Rivals off its own URLSession), `ServiceIssue` + `ServiceStatusView` scrape-freeze countdown on all service screens, `rivals/all` exposed, add-endpoint skill |
+| 2026-09-28 | Lane K | One request gate + `ServiceIssue` across 20+ screens; scrape-freeze countdown UX; `rivalsAll`; Rivals API coverage 71%→96.7% |
