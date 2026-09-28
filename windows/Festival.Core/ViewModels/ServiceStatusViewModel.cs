@@ -84,10 +84,14 @@ public sealed partial class ServiceStatusViewModel : ObservableObject
 
     /// <summary>Shows a failure; starts the countdown for a scrape freeze.</summary>
     /// <param name="error">Thrown exception.</param>
-    public void Report(Exception error)
+    public void Report(Exception error) => Report(ServiceIssue.From(error));
+
+    /// <summary>Shows an already-classified failure; starts the countdown for a scrape freeze.</summary>
+    /// <param name="issue">Issue.</param>
+    public void Report(ServiceIssue issue)
     {
         CancelCountdown();
-        Issue = ServiceIssue.From(error);
+        Issue = issue;
         if (Issue.RetriesAutomatically)
         {
             var delay = backoff.NextDelay(scope, Issue.RetryAfter, time.GetUtcNow());

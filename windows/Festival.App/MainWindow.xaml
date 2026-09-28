@@ -24,33 +24,72 @@
                         AutomationProperties.Name="{x:Bind Shell.ProfileButtonName, Mode=OneWay}"
                         AutomationProperties.AutomationId="fst.shell.profile"
                         ToolTipService.ToolTip="{x:Bind Shell.ProfileName, Mode=OneWay}">
-                    <PersonPicture Width="28" Height="28" Initials="{x:Bind Shell.ProfileInitials, Mode=OneWay}"
+                    <PersonPicture Width="28" Height="28" DisplayName="{x:Bind Shell.ProfileDisplayName, Mode=OneWay}"
                                    AutomationProperties.AccessibilityView="Raw" />
                     <Button.Flyout>
                         <Flyout x:Name="ProfileFlyout" Placement="BottomEdgeAlignedRight" Opened="OnProfileFlyoutOpened">
-                            <StackPanel Width="320" Spacing="12" AutomationProperties.AutomationId="fst.profile.sheet">
-                                <TextBlock Text="{x:Bind Shell.ProfileName, Mode=OneWay}" Style="{StaticResource FSTSectionHeaderStyle}"
-                                           AutomationProperties.HeadingLevel="Level2" Margin="0" />
-                                <Button Content="Deselect Player" Command="{x:Bind Shell.DeselectProfileCommand}"
-                                        Visibility="{x:Bind Shell.HasPlayer, Mode=OneWay}"
-                                        AutomationProperties.AutomationId="fst.profile.deselect" />
-                                <TextBlock Text="Find Player" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                <TextBox x:Name="ProfileSearchBox" PlaceholderText="Player name"
+                            <!-- Profile selection (fst.profile.*): selected summary, Players/Bands target, search, results. -->
+                            <StackPanel Width="340" Spacing="12" AutomationProperties.AutomationId="fst.profile.sheet">
+                                <StackPanel Spacing="8" Visibility="{x:Bind Shell.HasPlayer, Mode=OneWay}"
+                                            AutomationProperties.AutomationId="fst.profile.selected">
+                                    <TextBlock Text="Selected Profile" Style="{StaticResource BodyStrongTextBlockStyle}"
+                                               AutomationProperties.HeadingLevel="Level2" />
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <PersonPicture Width="40" Height="40" DisplayName="{x:Bind Shell.ProfileDisplayName, Mode=OneWay}"
+                                                       AutomationProperties.AccessibilityView="Raw" />
+                                        <TextBlock Grid.Column="1" Text="{x:Bind Shell.ProfileName, Mode=OneWay}" VerticalAlignment="Center"
+                                                   Style="{StaticResource SubtitleTextBlockStyle}" TextTrimming="CharacterEllipsis" />
+                                    </Grid>
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button Content="View Profile" Click="OnViewSelectedProfile"
+                                                AutomationProperties.AutomationId="fst.profile.view-selected" />
+                                        <Button Content="Deselect" Click="OnDeselectProfile"
+                                                AutomationProperties.AutomationId="fst.profile.deselect" />
+                                    </StackPanel>
+                                    <MenuFlyoutSeparator Margin="0,4,0,0" />
+                                </StackPanel>
+                                <TextBlock Text="Find a Profile" Style="{StaticResource BodyStrongTextBlockStyle}"
+                                           AutomationProperties.HeadingLevel="Level2" />
+                                <SelectorBar x:Name="ProfileScope" SelectionChanged="OnProfileScopeChanged"
+                                             AutomationProperties.AutomationId="fst.profile.scope">
+                                    <SelectorBarItem Text="Players" IsSelected="True" AutomationProperties.AutomationId="fst.profile.scope.players" />
+                                    <SelectorBarItem Text="Bands" AutomationProperties.AutomationId="fst.profile.scope.bands" />
+                                </SelectorBar>
+                                <TextBox x:Name="ProfileSearchBox" PlaceholderText="{x:Bind Shell.SearchPlaceholder, Mode=OneWay}"
                                          Text="{x:Bind Shell.ProfileQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                         AutomationProperties.Name="Find Player"
+                                         IsEnabled="{x:Bind Shell.IsPlayerScope, Mode=OneWay}" KeyDown="OnProfileSearchKeyDown"
+                                         AutomationProperties.Name="{x:Bind Shell.SearchPlaceholder, Mode=OneWay}"
                                          AutomationProperties.AutomationId="fst.profile.search" />
-                                <TextBlock Text="{x:Bind Shell.ProfileHint, Mode=OneWay}" HorizontalAlignment="Center"
-                                           TextAlignment="Center" TextWrapping="Wrap" Style="{StaticResource FSTSecondaryTextStyle}"
-                                           AutomationProperties.LiveSetting="Polite" />
                                 <ListView ItemsSource="{x:Bind Shell.ProfileResults, Mode=OneWay}" MaxHeight="320"
                                           SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnProfileResultClick"
+                                          AutomationProperties.Name="Players"
                                           AutomationProperties.AutomationId="fst.profile.results">
                                     <ListView.ItemTemplate>
                                         <DataTemplate x:DataType="data:PlayerSearchResult">
-                                            <TextBlock Text="{x:Bind DisplayName}" Padding="0,8" />
+                                            <Grid ColumnSpacing="12" Padding="0,6" AutomationProperties.Name="{x:Bind DisplayName}">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <PersonPicture Width="28" Height="28" DisplayName="{x:Bind DisplayName}"
+                                                               AutomationProperties.AccessibilityView="Raw" />
+                                                <TextBlock Grid.Column="1" Text="{x:Bind DisplayName}" VerticalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </Grid>
                                         </DataTemplate>
                                     </ListView.ItemTemplate>
                                 </ListView>
+                                <TextBlock Text="{x:Bind Shell.ProfileHint, Mode=OneWay}" HorizontalAlignment="Center"
+                                           TextAlignment="Center" TextWrapping="Wrap" Style="{StaticResource FSTSecondaryTextStyle}"
+                                           Margin="0,8" AutomationProperties.LiveSetting="Polite"
+                                           AutomationProperties.AutomationId="fst.profile.hint" />
+                                <Button Content="Retry" Command="{x:Bind Shell.RetrySearchCommand}" HorizontalAlignment="Center"
+                                        Visibility="{x:Bind Shell.CanRetrySearch, Mode=OneWay}"
+                                        AutomationProperties.AutomationId="fst.profile.retry" />
                             </StackPanel>
                         </Flyout>
                     </Button.Flyout>

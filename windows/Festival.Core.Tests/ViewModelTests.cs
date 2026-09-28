@@ -343,12 +343,12 @@ public class ShellViewModelTests
         Assert.Equal(3, shell.Sections.Count);
         Assert.False(shell.HasPlayer);
         Assert.Equal(("Select Player", "", "Select a player profile"), (shell.ProfileName, shell.ProfileInitials, shell.ProfileButtonName));
-        shell.SelectProfileCommand.Execute(new PlayerSearchResult("acc", "Jane Doe"));
+        session.SelectPlayer(new PlayerSearchResult("acc", "Jane Doe"));
         Assert.Equal(6, shell.Sections.Count);
         Assert.Equal(("Jane Doe", "JD", "Profile: Jane Doe"), (shell.ProfileName, shell.ProfileInitials, shell.ProfileButtonName));
         session.UpdateSettings(s => s with { SaveData = true });
         Assert.Equal(6, shell.Sections.Count);
-        shell.SelectProfileCommand.Execute(null);
+        shell.ViewProfileCommand.Execute(null);
         shell.DeselectProfileCommand.Execute(null);
         Assert.Equal(3, shell.Sections.Count);
     }
@@ -372,7 +372,11 @@ public class ShellViewModelTests
         await Async.Until(() => shell.ProfileResults.Count == 1);
         Assert.Single(service.Handler.To("/api/account/search"));
         Assert.Equal("", shell.ProfileHint);
-        shell.SelectProfileCommand.Execute(shell.ProfileResults[0]);
+        AppRoute? opened = null;
+        shell.RouteRequested += (_, route) => opened = route;
+        shell.ViewProfileCommand.Execute(shell.ProfileResults[0]);
+        Assert.Equal(new AppRoute.Player("acc1", "Found"), opened);
+        Assert.False(shell.HasPlayer);
         Assert.Equal("", shell.ProfileQuery);
         Assert.Empty(shell.ProfileResults);
     }

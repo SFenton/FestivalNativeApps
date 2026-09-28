@@ -118,7 +118,8 @@ public abstract record AppRoute
 
     /// <summary><c>/player/:accountId</c>.</summary>
     /// <param name="AccountId">Account.</param>
-    public sealed record Player(string AccountId) : AppRoute
+    /// <param name="DisplayName">Name known from the originating row, shown until the read arrives (not part of the path).</param>
+    public sealed record Player(string AccountId, string? DisplayName = null) : AppRoute
     {
         /// <inheritdoc />
         public override AppSection Section => AppSection.Leaderboards;

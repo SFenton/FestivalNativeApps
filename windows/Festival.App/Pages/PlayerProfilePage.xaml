@@ -1,0 +1,9 @@
+<Page
+    x:Class="Festival.App.Pages.PlayerProfilePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Festival.App.Controls"
+    Background="Transparent">
+    <!-- /player/:accountId: a viewed (or the selected) player's profile. -->
+    <controls:PlayerProfileView x:Name="Profile" AutomationProperties.AutomationId="fst.player" />
+</Page>

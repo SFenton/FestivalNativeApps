@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Festival.App.Controls;
 using Festival.App.Pages;
 using Festival.App.Services;
 using Microsoft.UI.Windowing;
@@ -39,6 +40,7 @@ public sealed partial class MainWindow : Window
         this.session = session;
         this.options = options;
         Shell = new ShellViewModel(session);
+        Shell.RouteRequested += OnShellRouteRequested;
         InitializeComponent();
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
@@ -97,6 +99,8 @@ public sealed partial class MainWindow : Window
         AppRoute.PlayerBands => typeof(BandsPlayerBandsPage),
         AppRoute.Band => typeof(BandsDetailPage),
         AppRoute.SongBandLeaderboard => typeof(BandsSongLeaderboardPage),
+        AppRoute.Player => typeof(PlayerProfilePage),
+        AppRoute.PlayerHistory => typeof(PlayerHistoryPage),
         _ => typeof(PlaceholderPage),
     };
 
@@ -130,6 +134,7 @@ public sealed partial class MainWindow : Window
     {
         AppSection.Songs => typeof(SongsPage),
         AppSection.Settings => typeof(SettingsPage),
+        AppSection.Statistics => typeof(StatisticsPage),
         _ => typeof(PlaceholderPage),
     };
 
@@ -236,14 +241,54 @@ public sealed partial class MainWindow : Window
     /// <param name="e">Unused.</param>
     private void OnProfileFlyoutOpened(object sender, object e) => ProfileSearchBox.Focus(FocusState.Programmatic);
 
-    /// <summary>Selects a search result and closes the flyout.</summary>
+    /// <summary>Opens a search result's player page (viewing, not selecting) and closes the flyout.</summary>
     /// <param name="sender">List.</param>
     /// <param name="e">Clicked result.</param>
     private void OnProfileResultClick(object sender, ItemClickEventArgs e)
     {
-        Shell.SelectProfileCommand.Execute(e.ClickedItem as PlayerSearchResult);
         ProfileFlyout.Hide();
+        Shell.ViewProfileCommand.Execute(e.ClickedItem as PlayerSearchResult);
     }
+
+    /// <summary>Enter opens the only/first result.</summary>
+    /// <param name="sender">Search box.</param>
+    /// <param name="e">Key.</param>
+    private void OnProfileSearchKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key != VirtualKey.Enter || Shell.ProfileResults.Count == 0) return;
+        e.Handled = true;
+        ProfileFlyout.Hide();
+        Shell.ViewProfileCommand.Execute(Shell.ProfileResults[0]);
+    }
+
+    /// <summary>Opens the selected player's page.</summary>
+    /// <param name="sender">Button.</param>
+    /// <param name="e">Unused.</param>
+    private void OnViewSelectedProfile(object sender, RoutedEventArgs e)
+    {
+        ProfileFlyout.Hide();
+        Shell.ViewSelectedProfileCommand.Execute(null);
+    }
+
+    /// <summary>Confirms and deselects (the flyout closes first so the dialog is not stacked on it).</summary>
+    /// <param name="sender">Button.</param>
+    /// <param name="e">Unused.</param>
+    private async void OnDeselectProfile(object sender, RoutedEventArgs e)
+    {
+        ProfileFlyout.Hide();
+        if (await PlayerProfileView.ConfirmDeselectAsync(RootGrid.XamlRoot)) Shell.DeselectProfileCommand.Execute(null);
+    }
+
+    /// <summary>Switches the Players/Bands target.</summary>
+    /// <param name="sender">Selector bar.</param>
+    /// <param name="args">Unused.</param>
+    private void OnProfileScopeChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args) =>
+        Shell.IsBandScope = sender.SelectedItem?.Text == "Bands";
+
+    /// <summary>Pushes a flyout route onto the current section.</summary>
+    /// <param name="sender">Shell model.</param>
+    /// <param name="route">Route.</param>
+    private void OnShellRouteRequested(object? sender, AppRoute route) => Navigate(route);
     #endregion
 
     #region Background policy

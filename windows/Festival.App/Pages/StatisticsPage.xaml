@@ -1,0 +1,9 @@
+<Page
+    x:Class="Festival.App.Pages.StatisticsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Festival.App.Controls"
+    Background="Transparent">
+    <!-- /statistics: the selected player's profile (web App.tsx points the route at PlayerPage). -->
+    <controls:PlayerProfileView x:Name="Profile" AutomationProperties.AutomationId="fst.statistics" />
+</Page>

@@ -47,7 +47,10 @@ public partial class App : Application
         var http = new HttpClient(handler);
         http.DefaultRequestHeaders.UserAgent.ParseAdd($"FestivalScoreTracker-Windows/{typeof(App).Assembly.GetName().Version?.ToString(3)}");
         var api = new FestivalApiClient(new RequestGate(http), Options.BaseUri);
-        Session = new FestivalSession(api, new JsonFileSettingsStore(JsonFileSettingsStore.DefaultPath));
+        ISettingsStore store = new JsonFileSettingsStore(Options.SettingsPath ?? JsonFileSettingsStore.DefaultPath);
+        if (Options.InMemorySettings)
+            store = new InMemorySettingsStore(store.Load() with { SelectedPlayer = Options.DebugProfile });
+        Session = new FestivalSession(api, store);
         window = new MainWindow(Session, Options);
         window.Activate();
         PerfLog.Mark("window-activated");

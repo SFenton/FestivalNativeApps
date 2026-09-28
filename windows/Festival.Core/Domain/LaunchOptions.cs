@@ -9,7 +9,8 @@ namespace Festival.Core.Domain;
 /// <c>--tab songs</c>, <c>--route /songs/{id}</c>, <c>--base-url http://127.0.0.1:8765/</c> (loopback only),
 /// <c>--perf-log path</c>, <c>--width 1280 --height 800</c>, <c>--reduce-motion</c>, <c>--no-art</c>,
 /// <c>--auto-scroll</c> (perf scenario: scroll the Songs list continuously), <c>--drift-fps N</c> (background drift steps/s),
-/// <c>--frame-stats</c> (UI-thread frame intervals in the perf log).
+/// <c>--frame-stats</c> (UI-thread frame intervals in the perf log), <c>--profile accountId:Name</c> (select a player in memory
+/// only, never persisted), <c>--anonymous</c> (no player, in memory only), <c>--settings-path file</c> (isolated settings file).
 /// </summary>
 public sealed record LaunchOptions
 {
@@ -46,6 +47,18 @@ public sealed record LaunchOptions
     /// <summary>Background drift update rate override (steps per second, 0 = every compositor frame).</summary>
     public int? DriftFps { get; init; }
 
+    /// <summary>Player selected in memory for this launch only (<c>FST_DEBUG_PROFILE=accountId:Name</c>); never persisted.</summary>
+    public SelectedPlayer? DebugProfile { get; init; }
+
+    /// <summary>Launch with no selected player, in memory only (<c>FST_DEBUG_ANONYMOUS=1</c>).</summary>
+    public bool Anonymous { get; init; }
+
+    /// <summary>Settings file replacing the per-user default (<c>FST_SETTINGS_PATH</c>), so automation never touches real settings.</summary>
+    public string? SettingsPath { get; init; }
+
+    /// <summary>Whether settings must stay in memory (a debug profile or anonymous launch).</summary>
+    public bool InMemorySettings => DebugProfile is not null || Anonymous;
+
     /// <summary>Problems found while parsing (unknown flags, rejected values).</summary>
     public IReadOnlyList<string> Warnings { get; init; } = [];
 
@@ -61,8 +74,11 @@ public sealed record LaunchOptions
             ["route"] = environment("FST_DEBUG_ROUTE"),
             ["base-url"] = environment("FST_BASE_URL"),
             ["perf-log"] = environment("FST_PERF_LOG"),
+            ["profile"] = environment("FST_DEBUG_PROFILE"),
+            ["settings-path"] = environment("FST_SETTINGS_PATH"),
         };
         var flags = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (environment("FST_DEBUG_ANONYMOUS") == "1") flags.Add("anonymous");
         var warnings = new List<string>();
         for (var i = 0; i < args.Count; i++)
         {
@@ -76,7 +92,7 @@ public sealed record LaunchOptions
             var equals = name.IndexOf('=');
             if (equals > 0)
                 values[name[..equals]] = name[(equals + 1)..];
-            else if (name is "reduce-motion" or "no-art" or "auto-scroll" or "frame-stats")
+            else if (name is "reduce-motion" or "no-art" or "auto-scroll" or "frame-stats" or "anonymous")
                 flags.Add(name);
             else if (i + 1 < args.Count)
                 values[name] = args[++i];
@@ -111,8 +127,19 @@ public sealed record LaunchOptions
             else
                 warnings.Add("Only a loopback http:// base URL may replace production.");
         }
+        SelectedPlayer? profile = null;
+        if (values.GetValueOrDefault("profile") is { Length: > 0 } profileText)
+        {
+            var colon = profileText.IndexOf(':');
+            var candidate = colon > 0 ? new SelectedPlayer(profileText[..colon], profileText[(colon + 1)..].Trim()) : null;
+            if (candidate is { IsValid: true }) profile = candidate;
+            else warnings.Add("Debug profile must be 'accountId:Display Name'.");
+        }
         return new LaunchOptions
         {
+            DebugProfile = profile,
+            Anonymous = flags.Contains("anonymous") && profile is null,
+            SettingsPath = values.GetValueOrDefault("settings-path") is { Length: > 0 } settingsPath ? settingsPath : null,
             Tab = tab,
             Route = route,
             BaseUri = baseUri,

@@ -103,7 +103,9 @@ public sealed partial class FestivalSession
         }
         catch (OperationCanceledException)
         {
-            // Superseded by a newer load, switch or deselect.
+            // Superseded by a newer load, switch or deselect; a caller-cancelled current load must not stay Loading.
+            if (ReferenceEquals(selectedProfileLoad, load) && SelectedProfileStatus == SelectedProfileStatus.Loading)
+                ClearSelectedProfile(SelectedProfileStatus.None);
         }
         catch (FestivalApiException error)
         {
