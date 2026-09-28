@@ -273,12 +273,14 @@ class ProfileParityExpandedUiTest {
     private val journey = ProfileJourney(rule)
 
     @Test
-    fun quickLinksPaneJumpsWithoutClosing() {
+    fun quickLinksMenuJumps() {
         journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
-        journey.waitForTag("fst.quick-links.pane")
-        assertTrue(rule.onAllNodesWithTag("fst.quick-links.open").fetchSemanticsNodes().isEmpty())
+        // Expanded windows: anchored dropdown menu, no side pane.
+        journey.waitForTag("fst.quick-links.open")
+        assertTrue(rule.onAllNodesWithTag("fst.quick-links.pane").fetchSemanticsNodes().isEmpty())
+        journey.tap("fst.quick-links.open")
+        journey.waitForTag("fst.quick-links.menu")
         journey.tap("fst.quick-links.item.top-songs")
         journey.waitForTag("fst.player.top-songs")
-        journey.waitForTag("fst.quick-links.pane")
     }
 }

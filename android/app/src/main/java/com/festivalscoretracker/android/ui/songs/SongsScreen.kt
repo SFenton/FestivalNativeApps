@@ -15,7 +15,6 @@ import com.festivalscoretracker.android.core.quicklinks.QuickLinks
 import com.festivalscoretracker.android.core.songs.InvalidScoreWarning
 import com.festivalscoretracker.android.core.songs.SongSortDraft
 import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
-import com.festivalscoretracker.android.ui.quicklinks.QuickLinksPane
 import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import com.festivalscoretracker.android.ui.settings.rememberHingeSplit
 import androidx.compose.animation.core.animateFloatAsState
@@ -111,7 +110,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * The Songs catalogue: search, draft Sort/Filter sheets, pause notices,
- * sort-bucket headers with Quick Links (sheet / menu / pane / hinge split per
+ * sort-bucket headers with Quick Links (sheet on compact / menu elsewhere; hinge split per
  * form factor), a right-edge section index for Title/Artist/Year and glass rows
  * with Shop pulses and selected-player chips or metadata.
  *
@@ -157,13 +156,12 @@ fun SongsScreen(
     val split = rememberHingeSplit()
     BoxWithConstraints(modifier.fillMaxSize().then(split.modifier)) {
         val hinge = split.value?.takeIf { quickLinks.available }
-        val pane = quickLinks.available && (hinge != null || QuickLinks.usesPane(maxWidth.value.toInt()))
         FestivalScreen(
             title = "Songs",
             isRoot = true,
             scrolled = scrolled,
             actions = {
-                if (!pane) QuickLinksAction(quickLinks, windowWidthDp)
+                QuickLinksAction(quickLinks, windowWidthDp)
                 IconButton(onClick = { showSort = true }, modifier = Modifier.testTag("fst.songs.sort.open")) {
                     Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort songs", tint = if (state.sortChanged) BrandTokens.gold else BrandTokens.textPrimary)
                 }
@@ -199,12 +197,8 @@ fun SongsScreen(
                         }
                     }
                 }
-                if (hinge != null) {
-                    Spacer(Modifier.width(with(density) { hinge.second.toDp() }))
-                    QuickLinksPane(quickLinks, Modifier.weight(1f).padding(top = padding.calculateTopPadding()), fill = true)
-                } else if (pane) {
-                    QuickLinksPane(quickLinks, Modifier.padding(top = padding.calculateTopPadding()))
-                }
+                // Book posture: the list stays on the leading side of the hinge (hinge-safe).
+                if (hinge != null) Spacer(Modifier.width(with(density) { hinge.second.toDp() }))
             }
         }
     }

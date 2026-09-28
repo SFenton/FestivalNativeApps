@@ -20,8 +20,6 @@ class QuickLinksTest {
     fun pureRules() {
         assertFalse(QuickLinks.isAvailable(1))
         assertTrue(QuickLinks.isAvailable(2))
-        assertTrue(QuickLinks.usesPane(960))
-        assertFalse(QuickLinks.usesPane(959))
         assertTrue(QuickLinks.usesSheet(411))
         assertFalse(QuickLinks.usesSheet(700))
         assertEquals(listOf("a", "b"), QuickLinks.ordered(listOf(QuickLinkSection("a", "A"), QuickLinkSection("b", "B"), QuickLinkSection("a", "Z"))).map { it.id })

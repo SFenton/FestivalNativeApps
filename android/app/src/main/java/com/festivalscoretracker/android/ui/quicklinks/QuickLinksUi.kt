@@ -346,35 +346,6 @@ fun QuickLinksAction(controller: QuickLinksController, windowWidthDp: Int) {
     }
 }
 
-/**
- * Persistent trailing pane (expanded page widths, web ≥1440 px rail): the
- * current section is the selected item; selecting scrolls without closing.
- *
- * @param controller Page controller.
- * @param modifier Modifier.
- * @param fill Fill the given width (the pane beyond a book-posture hinge) instead of 240 dp.
- */
-@Composable
-fun QuickLinksPane(controller: QuickLinksController, modifier: Modifier = Modifier, fill: Boolean = false) {
-    if (!controller.available) return
-    Column(
-        modifier
-            .then(if (fill) Modifier else Modifier.width(QuickLinks.PANE_WIDTH_DP.dp))
-            .fillMaxHeight()
-            .testTag("fst.quick-links.pane")
-            .semantics { paneTitle = controller.title; traversalIndex = 1f },
-    ) {
-        Text(
-            controller.title,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            color = BrandTokens.textSecondary,
-            modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp).semantics { heading() },
-        )
-        SectionList(controller, Modifier.testTag("fst.quick-links.list").navigationBarsPadding(), PaddingValues(end = 12.dp, bottom = 16.dp), controller::jump)
-    }
-}
-
 @Composable
 private fun SectionList(controller: QuickLinksController, modifier: Modifier, padding: PaddingValues, onSelect: (String) -> Unit) {
     LazyColumn(modifier, contentPadding = padding) {

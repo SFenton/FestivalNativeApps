@@ -41,6 +41,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -130,15 +131,12 @@ fun FirstRunCarouselDialog(carousel: FirstRunCarousel, compact: Boolean, onCompl
                         )
                     }
                 }
-                Dots(pager.currentPage, carousel.slides.size, Modifier.align(Alignment.CenterHorizontally).padding(vertical = 12.dp))
-                Text(
+                // Position is spoken from the dots' state ("Slide 2 of 6"); no visible text.
+                Dots(
+                    pager.currentPage,
+                    carousel.slides.size,
                     carousel.position(pager.currentPage),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = BrandTokens.textMuted,
-                    modifier = Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .testTag("fst.first-run.position")
-                        .semantics { liveRegion = LiveRegionMode.Polite },
+                    Modifier.align(Alignment.CenterHorizontally).padding(vertical = 12.dp),
                 )
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -162,9 +160,18 @@ fun FirstRunCarouselDialog(carousel: FirstRunCarousel, compact: Boolean, onCompl
 }
 
 @Composable
-private fun Dots(current: Int, count: Int, modifier: Modifier) {
+private fun Dots(current: Int, count: Int, position: String, modifier: Modifier) {
     if (count < 2) return
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = modifier.clearAndSetSemantics { contentDescription = "" }) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier
+            .testTag("fst.first-run.position")
+            .clearAndSetSemantics {
+                contentDescription = "Page indicator"
+                stateDescription = position
+                liveRegion = LiveRegionMode.Polite
+            },
+    ) {
         repeat(count) { index ->
             Box(
                 Modifier

@@ -93,7 +93,7 @@ fun LicensesScreen(loadManifest: (suspend () -> LicenseManifest)? = null) {
     BoxWithConstraints(Modifier.fillMaxSize().then(split.modifier)) {
         val hinge = split.value
         // List-detail on a book-posture hinge or a wide page; a sheet otherwise.
-        val detailPane = hinge != null || QuickLinks.usesPane(maxWidth.value.toInt())
+        val detailPane = hinge != null || maxWidth >= LICENSE_DETAIL_PANE_MIN_WIDTH
         FestivalScreen(title = "Licenses", isRoot = false, scrolled = scrolled) { padding ->
             val current = manifest
             if (current == null) {
@@ -246,3 +246,6 @@ private fun LicenseDetail(item: LicensedPackage, text: String, modifier: Modifie
 }
 
 // endregion
+
+/** Page width from which Licenses shows list and detail side by side. */
+private val LICENSE_DETAIL_PANE_MIN_WIDTH = 960.dp

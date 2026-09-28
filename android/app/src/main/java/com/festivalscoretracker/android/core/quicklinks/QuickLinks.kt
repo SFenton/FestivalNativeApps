@@ -51,14 +51,8 @@ object QuickLinks {
     /** Fewest sections that make a jump list useful (native rule: ≥ 2). */
     const val MINIMUM_SECTION_COUNT = 2
 
-    /** Page width (dp) from which the persistent trailing pane replaces the top-bar entry (web ≥1440 px rail). */
-    const val PANE_MINIMUM_WIDTH_DP = 960
-
     /** Window width (dp) below which the entry opens a bottom sheet rather than a menu (M3 compact). */
     const val SHEET_MAXIMUM_WINDOW_WIDTH_DP = 600
-
-    /** Width of the trailing pane (web rail 240 px). */
-    const val PANE_WIDTH_DP = 240
 
     /**
      * Whether a page shows Quick Links at all.
@@ -67,14 +61,6 @@ object QuickLinks {
      * @return True for two or more.
      */
     fun isAvailable(sectionCount: Int): Boolean = sectionCount >= MINIMUM_SECTION_COUNT
-
-    /**
-     * Whether a page this wide shows the persistent pane.
-     *
-     * @param pageWidthDp Page (content) width.
-     * @return True at [PANE_MINIMUM_WIDTH_DP] and above.
-     */
-    fun usesPane(pageWidthDp: Int): Boolean = pageWidthDp >= PANE_MINIMUM_WIDTH_DP
 
     /**
      * Whether the entry opens a bottom sheet (compact window) or a menu.

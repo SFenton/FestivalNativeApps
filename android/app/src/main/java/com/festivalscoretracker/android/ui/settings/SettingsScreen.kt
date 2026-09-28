@@ -80,7 +80,6 @@ import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
-import com.festivalscoretracker.android.ui.quicklinks.QuickLinksPane
 import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 
@@ -144,8 +143,7 @@ fun SettingsScreen(
     val split = rememberHingeSplit()
     BoxWithConstraints(Modifier.fillMaxSize().then(split.modifier)) {
         val hinge = split.value
-        val pane = hinge != null || QuickLinks.usesPane(maxWidth.value.toInt())
-        FestivalScreen(title = "Settings", isRoot = true, scrolled = scrolled, actions = { if (!pane) QuickLinksAction(quickLinks, windowWidthDp) }) { padding ->
+        FestivalScreen(title = "Settings", isRoot = true, scrolled = scrolled, actions = { QuickLinksAction(quickLinks, windowWidthDp) }) { padding ->
             Row(Modifier.fillMaxSize()) {
                 LazyColumn(
                     state = listState,
@@ -175,12 +173,8 @@ fun SettingsScreen(
                         }
                     }
                 }
-                if (hinge != null) {
-                    Spacer(Modifier.width(with(density) { hinge.second.toDp() }))
-                    QuickLinksPane(quickLinks, Modifier.weight(1f).padding(top = padding.calculateTopPadding()), fill = true)
-                } else if (pane) {
-                    QuickLinksPane(quickLinks, Modifier.padding(top = padding.calculateTopPadding()))
-                }
+                // Book posture: the list stays on the leading side of the hinge (hinge-safe).
+                if (hinge != null) Spacer(Modifier.width(with(density) { hinge.second.toDp() }))
             }
         }
     }

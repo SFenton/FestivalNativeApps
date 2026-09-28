@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -181,7 +182,9 @@ class SettingsUiTest {
         launch(DebugLaunch(stillBackground = true, firstRun = "on"))
         waitForTag("fst.first-run.dialog")
         rule.onNodeWithTag("fst.first-run.slide.songs-song-list").assertIsDisplayed()
-        rule.onNodeWithText("Slide 1 of 6").assertExists()
+        // No visible "Slide x of y"; TalkBack reads it from the dots' state.
+        assertTrue(rule.onAllNodesWithText("Slide 1 of 6").fetchSemanticsNodes().isEmpty())
+        assertEquals("Slide 1 of 6", rule.onNodeWithTag("fst.first-run.position").fetchSemanticsNode().config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.StateDescription))
         rule.onNodeWithTag("fst.first-run.next").performClick()
         settle()
         rule.onNodeWithTag("fst.first-run.back").performClick()
@@ -199,7 +202,7 @@ class SettingsUiTest {
         waitForTag("fst.settings.list")
         tap("fst.settings.first-run.songs")
         waitForTag("fst.first-run.dialog")
-        rule.onNodeWithText("Slide 1 of 9").assertExists()
+        assertEquals("Slide 1 of 9", rule.onNodeWithTag("fst.first-run.position").fetchSemanticsNode().config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.StateDescription))
         repeat(8) {
             rule.onNodeWithTag("fst.first-run.next").performClick()
             settle()
@@ -261,7 +264,7 @@ class ExpandedSettingsUiTest {
     val rule = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun quickLinksPaneReplacesTopBarEntry() {
+    fun quickLinksMenuOnExpandedWindows() {
         val debug = DebugLaunch(section = FestivalSection.Settings, stillBackground = true)
         val transport = FakeTransport.standard().apply {
             on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { Fixtures.songsJson.replace("\"alpha-512.jpg\"", "null") }
@@ -269,8 +272,11 @@ class ExpandedSettingsUiTest {
         val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = InMemoryPreferences())
         rule.setContent { FestivalApp(container, debug) }
         fun settle() = repeat(4) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100)); rule.waitForIdle() }
-        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.quick-links.pane").fetchSemanticsNodes().isNotEmpty() }
-        assertTrue(rule.onAllNodesWithTag("fst.quick-links.open").fetchSemanticsNodes().isEmpty())
+        // Expanded windows: an anchored dropdown from the top-bar button, never a side pane.
+        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.quick-links.open").fetchSemanticsNodes().isNotEmpty() }
+        assertTrue(rule.onAllNodesWithTag("fst.quick-links.pane").fetchSemanticsNodes().isEmpty())
+        rule.onNodeWithTag("fst.quick-links.open").performClick()
+        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.quick-links.menu").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("fst.quick-links.item.licenses").performSemanticsAction(SemanticsActions.OnClick)
         rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.settings.licenses").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("fst.settings.licenses").performSemanticsAction(SemanticsActions.OnClick)

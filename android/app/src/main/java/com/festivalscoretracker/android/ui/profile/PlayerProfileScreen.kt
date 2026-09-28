@@ -88,7 +88,6 @@ import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.design.StarRating
 import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
-import com.festivalscoretracker.android.ui.quicklinks.QuickLinksPane
 import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlinx.coroutines.launch
@@ -118,7 +117,7 @@ fun StatisticsScreen(viewModel: PlayerProfileViewModel, isRoot: Boolean = true) 
 }
 
 /**
- * Top bar, Quick Links (top-bar entry, or the trailing pane on wide pages without a
+ * Top bar, Quick Links (top-bar entry: menu on medium+ windows, sheet on compact; formerly a trailing pane on wide pages without a
  * fold) and the profile body.
  */
 @Composable
@@ -134,21 +133,16 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
     }
     val density = LocalDensity.current
     val windowWidthDp = with(density) { currentWindowSize().width.toDp().value.toInt() }
-    val folded = currentWindowAdaptiveInfo().windowPosture.hingeList.any { it.isSeparating && it.isVertical }
     val scrolled by remember(gridState) { derivedStateOf { gridState.canScrollBackward } }
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val pane = !folded && QuickLinks.usesPane(maxWidth.value.toInt())
         FestivalScreen(
             title = title,
             isRoot = isRoot,
             scrolled = scrolled,
-            actions = { if (!pane) QuickLinksAction(quickLinks, windowWidthDp) },
+            actions = { QuickLinksAction(quickLinks, windowWidthDp) },
             modifier = Modifier.semantics { testTagsAsResourceId = true }.testTag(tag),
         ) { padding ->
-            Row(Modifier.fillMaxSize()) {
-                Box(Modifier.weight(1f)) { PlayerProfileContent(viewModel, padding, gridState, rows) }
-                if (pane) QuickLinksPane(quickLinks, Modifier.padding(top = padding.calculateTopPadding()))
-            }
+            Box(Modifier.fillMaxSize()) { PlayerProfileContent(viewModel, padding, gridState, rows) }
         }
     }
 }
