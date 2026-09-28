@@ -196,7 +196,7 @@ private fun SongDetailContent(
         itemsIndexed(cards, key = { _, chart -> chart.wireId }) { index, instrument ->
             val state by viewModel.preview(song, instrument).collectAsStateWithLifecycle()
             Column(Modifier.festivalFadeIn(revealed, fadeInStagger(index + 1))) {
-                CardHeader(song, instrument, (state as? LoadState.Loaded)?.value?.leaderboard?.totalEntries)
+                CardHeader(song, instrument, (state as? LoadState.Loaded)?.value?.leaderboard?.let { board -> if (board.entries.isEmpty()) 0 else board.totalEntries })
                 PreviewCard(song, instrument, state, viewModel, extras, navigate)
             }
         }
@@ -281,7 +281,8 @@ private fun BandLinks(song: Song, navigate: (AppRoute) -> Unit) {
 
 /**
  * The instrument header above its card (web `InstrumentCard` header): icon, name
- * and the chart's total entries once the preview loads.
+ * and the chart's total entries once the preview loads, or "No scores recorded yet"
+ * (web `songDetail.noScores`) when the chart has none (the card then has no View all).
  */
 @Composable
 private fun CardHeader(song: Song, instrument: Instrument, totalEntries: Int?) {
@@ -291,7 +292,7 @@ private fun CardHeader(song: Song, instrument: Instrument, totalEntries: Int?) {
             Text(instrument.label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)
             totalEntries?.let {
                 Text(
-                    "${NumberFormat.getIntegerInstance().format(it)} total entries",
+                    if (it <= 0) "No scores recorded yet" else "${NumberFormat.getIntegerInstance().format(it)} total entries",
                     style = MaterialTheme.typography.bodySmall,
                     color = BrandTokens.textSecondary,
                     modifier = Modifier.testTag("fst.song-detail.total.${instrument.wireId}"),

@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.shop
 
+import com.festivalscoretracker.android.ui.songs.MarqueeLine
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.rememberRevealed
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -59,7 +60,6 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -318,8 +318,8 @@ private fun ShopGridCard(item: ShopOfferItem, artUrl: String?, pulse: () -> Floa
             item.highlight?.let { ShopBadgeLabel(it, offer.songId, Modifier.align(Alignment.TopStart).padding(8.dp)) }
         }
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(offer.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = BrandTokens.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(offer.subtitle, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            MarqueeLine(offer.title, MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold), BrandTokens.textPrimary)
+            MarqueeLine(offer.subtitle, MaterialTheme.typography.bodySmall, BrandTokens.textSecondary)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (item.detailSongId != null) {
                     TextButton(onClick = onDetail, modifier = Modifier.testTag("fst.shop.details.${offer.songId}")) { Text("Song Details") }
@@ -354,8 +354,8 @@ private fun ShopListRow(item: ShopOfferItem, artUrl: String?, pulse: () -> Float
                 modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)).background(BrandTokens.surfaceMuted),
             )
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(offer.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = BrandTokens.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(offer.subtitle, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                MarqueeLine(offer.title, MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold), BrandTokens.textPrimary)
+                MarqueeLine(offer.subtitle, MaterialTheme.typography.bodyMedium, BrandTokens.textSecondary)
                 item.highlight?.let { ShopBadgeLabel(it, offer.songId) }
             }
             if (item.officialUrl != null) {
