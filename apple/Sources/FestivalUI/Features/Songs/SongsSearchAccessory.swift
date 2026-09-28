@@ -25,7 +25,6 @@ struct SongsSearchPlacement: ViewModifier {
     @Binding var text: String
     @Environment(\.isTabAccessoryAvailable) private var accessoryAvailable
     @State private var editing = false
-    @FocusState private var focused: Bool
 
     func body(content: Content) -> some View {
         #if os(iOS)
@@ -37,16 +36,14 @@ struct SongsSearchPlacement: ViewModifier {
                 .toolbar(editing ? .hidden : .automatic, for: .tabBar)
                 .safeAreaBar(edge: .bottom) {
                     if editing {
-                        SongsSearchBar(text: $text, focused: $focused) {
-                            text = ""
-                            focused = false
+                        SongsSearchBar(text: $text, submit: {
                             editing = false
-                        }
+                        }, close: {
+                            text = ""
+                            editing = false
+                        })
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
-                }
-                .onChange(of: focused) { _, isFocused in
-                    if !isFocused { editing = false }
                 }
                 .animation(.smooth(duration: 0.25), value: editing)
         } else {
@@ -111,8 +108,12 @@ struct SongsSearchAccessory: View {
 /// (the system search tab's "field above the keyboard" shape).
 struct SongsSearchBar: View {
     @Binding var text: String
-    var focused: FocusState<Bool>.Binding
+    /// Return key: keep the query and hand back to the accessory pill.
+    let submit: () -> Void
+    /// Close button: clear the query and hand back to the accessory pill.
     let close: () -> Void
+    /// Owned here, beside its `TextField`, so resigning is always observed.
+    @FocusState private var focused: Bool
 
     var body: some View {
         FestivalGlassGroup(spacing: 8) {
@@ -122,8 +123,9 @@ struct SongsSearchBar: View {
                         .foregroundStyle(BrandTokens.textSecondary)
                         .accessibilityHidden(true)
                     TextField("Search Songs", text: $text)
-                        .focused(focused)
+                        .focused($focused)
                         .submitLabel(.search)
+                        .onSubmit(submit)
                         .autocorrectionDisabled()
                         .foregroundStyle(BrandTokens.textPrimary)
                         .accessibilityIdentifier("fst.songs.search")
@@ -158,7 +160,11 @@ struct SongsSearchBar: View {
         .padding(.bottom, 8)
         .onAppear {
             // The field must be in the hierarchy before it can take focus.
-            Task { @MainActor in focused.wrappedValue = true }
+            Task { @MainActor in focused = true }
+        }
+        .onChange(of: focused) { wasFocused, isFocused in
+            // Keyboard dismissed another way (scroll, row tap): back to the pill.
+            if wasFocused && !isFocused { submit() }
         }
     }
 }
