@@ -47,10 +47,10 @@ import com.festivalscoretracker.android.core.suggestions.SuggestionRowLayout
 import com.festivalscoretracker.android.core.suggestions.SuggestionRowPresentation
 import com.festivalscoretracker.android.presentation.suggestions.SuggestionCard
 import com.festivalscoretracker.android.presentation.suggestions.SuggestionRow
+import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.StarRating
-import com.festivalscoretracker.android.ui.songs.MarqueeLine
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 
 // region Tokens
@@ -179,8 +179,8 @@ fun SuggestionRowView(row: SuggestionRow, narrow: Boolean, artUrl: String?, onCl
                 modifier = Modifier.size(44.dp).clip(RoundedCornerShape(6.dp)).background(BrandTokens.surfaceMuted),
             )
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                MarqueeLine(p.title, MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold), BrandTokens.textPrimary)
-                MarqueeLine(p.subtitle, MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp), SuggestionTokens.textSubtle)
+                FestivalMarqueeText(p.title, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp), color = BrandTokens.textPrimary, fontWeight = FontWeight.SemiBold)
+                FestivalMarqueeText(p.subtitle, style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp), color = SuggestionTokens.textSubtle)
             }
             if (!twoRow) RowMetadata(p, row.usesKeyboardIcon)
         }

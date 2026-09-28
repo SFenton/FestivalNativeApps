@@ -53,6 +53,7 @@ import com.festivalscoretracker.android.core.rivals.RivalSentiment
 import com.festivalscoretracker.android.core.rivals.RivalSongComparison
 import com.festivalscoretracker.android.core.rivals.RivalText
 import com.festivalscoretracker.android.core.service.ServiceIssue
+import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
@@ -149,13 +150,11 @@ fun RivalRow(entry: RivalEntry, onClick: () -> Unit, modifier: Modifier = Modifi
             Box(Modifier.width(4.dp).fillMaxHeight().background(if (winning) BrandTokens.statusGreen else BrandTokens.statusRed))
             Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
+                    FestivalMarqueeText(
                         rival.shownName,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = if (rival.isNavigable) BrandTokens.textPrimary else BrandTokens.textMuted,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
                     )
                     Text(shared, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary, maxLines = 1)
@@ -368,13 +367,11 @@ fun RivalSongRow(
                         modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)).background(BrandTokens.surfaceMuted),
                     )
                     Column(Modifier.weight(1f)) {
-                        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = BrandTokens.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(
+                        FestivalMarqueeText(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = BrandTokens.textPrimary)
+                        FestivalMarqueeText(
                             listOfNotNull(artist.takeIf { it.isNotEmpty() }, year?.toString()).joinToString(" · "),
                             style = MaterialTheme.typography.bodyMedium,
                             color = BrandTokens.textSecondary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                     val userChart = song.userChart
@@ -405,7 +402,7 @@ fun RivalSongRow(
 private fun CompareEntry(name: String, rank: Int, score: Long?, win: Boolean, alignEnd: Boolean, modifier: Modifier) {
     val format = NumberFormat.getIntegerInstance()
     Column(modifier, horizontalAlignment = if (alignEnd) Alignment.End else Alignment.Start) {
-        Text(name, style = MaterialTheme.typography.labelMedium, color = BrandTokens.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        FestivalMarqueeText(name, style = MaterialTheme.typography.labelMedium, color = BrandTokens.textSecondary)
         Text(
             "#${format.format(rank)}",
             style = MaterialTheme.typography.titleMedium,

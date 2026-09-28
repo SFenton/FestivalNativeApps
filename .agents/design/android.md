@@ -10,6 +10,7 @@
 - Section headers: white, bold, Title Case, `heading()` semantics.
 - Backdrop: one shared artwork layer behind the shell; covers change every 5 s with a 1 s crossfade, zoom/pan animated in `graphicsLayer` (draw phase only), 0.7 black dim; still on reduced motion (animator scale 0 or in-app toggle), none on data saver, static focused cover on Song Detail.
 - Load entrances: `Modifier.festivalFadeIn(isLoaded)` (`ui/common/FadeInOnLoad.kt`, web `fadeInUp`: 400 ms CSS `ease-out` fade + 12 dp rise (`styles/animations.css`, `packages/theme/src/animation.ts`), 125 ms stagger via `fadeInStagger`, `rememberRevealed` for freshly composed children). Drawn in `graphicsLayer` only; cached content appears at once; reduced motion shows content immediately.
+- Marquee: overflowing single-line content text (song titles, artists, player/rival/band member names) uses `FestivalMarqueeText` (`ui/common/MarqueeText.kt`, web `MarqueeText`: 8 s cycle whatever the length, ~5% pause at each end, 28 dp between copies, `basicMarquee` in the draw phase); it truncates with an ellipsis under Remove animations / Reduce Motion. Labels, pills and badges keep ellipsis.
 - Sheets: `ModalBottomSheet` on the card color with Title Case headers (Sort Songs, Instrument, Find Player).
 - In-app accessibility overrides follow the OS by default and can only make the app more accessible.
 

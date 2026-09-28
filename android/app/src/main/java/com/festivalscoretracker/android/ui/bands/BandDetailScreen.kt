@@ -68,6 +68,7 @@ import com.festivalscoretracker.android.core.nav.PlayerRoute
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.bands.BandDetailViewModel
 import com.festivalscoretracker.android.presentation.bands.BandSongsState
+import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LoadingView
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
@@ -210,13 +211,11 @@ private fun MembersSection(members: List<BandMember>, onNavigate: (AppRoute) -> 
                             onClick = route?.let { { onNavigate(it) } },
                         ) {
                             Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text(
+                                FestivalMarqueeText(
                                     member.resolvedName,
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.SemiBold,
                                     color = if (route != null) BrandTokens.textPrimary else BrandTokens.textSecondary,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.weight(1f),
                                 )
                                 member.chartedInstruments.forEach { InstrumentIcon(it, size = 28.dp, decorative = true) }
@@ -426,9 +425,9 @@ private fun SongList(rows: List<BandSongRow>, description: String, tag: String, 
                         modifier = Modifier.size(40.dp).clip(RoundedCornerShape(6.dp)).background(BrandTokens.surfaceMuted),
                     )
                     Column(Modifier.weight(1f)) {
-                        Text(row.title, color = BrandTokens.textPrimary, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        FestivalMarqueeText(row.title, color = BrandTokens.textPrimary, fontWeight = FontWeight.SemiBold)
                         if (row.subtitle.isNotEmpty()) {
-                            Text(row.subtitle, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            FestivalMarqueeText(row.subtitle, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary)
                         }
                     }
                     Column(horizontalAlignment = Alignment.End) {

@@ -48,6 +48,7 @@ import com.festivalscoretracker.android.core.nav.SongDetailRoute
 import com.festivalscoretracker.android.presentation.BackgroundController
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.bands.SongBandLeaderboardViewModel
+import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LoadingView
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
@@ -208,12 +209,10 @@ private fun BandScoreRow(entry: SongBandLeaderboardEntry, song: Song?, onClick: 
                 BandMember.distinct(entry.members).forEach { member ->
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         member.chartedInstruments.forEach { InstrumentIcon(it, keyboard = keyboard, size = 18.dp, decorative = true) }
-                        Text(
+                        FestivalMarqueeText(
                             member.resolvedName,
                             style = MaterialTheme.typography.bodyMedium,
                             color = BrandTokens.textPrimary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false),
                         )
                         member.score?.let { Text(BandFormatting.count(it), style = MaterialTheme.typography.bodySmall, color = BrandTokens.textMuted) }

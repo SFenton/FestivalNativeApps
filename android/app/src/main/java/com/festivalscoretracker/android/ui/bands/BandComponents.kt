@@ -46,6 +46,7 @@ import com.festivalscoretracker.android.core.bands.BandLayout
 import com.festivalscoretracker.android.core.bands.BandMember
 import com.festivalscoretracker.android.core.bands.BandType
 import com.festivalscoretracker.android.core.bands.PlayerBandEntry
+import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.theme.BrandTokens
@@ -118,12 +119,10 @@ internal fun BandMemberChips(members: List<BandMember>, modifier: Modifier = Mod
         BandMember.distinct(members).forEach { member ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 member.chartedInstruments.forEach { InstrumentIcon(it, size = iconSize, decorative = true) }
-                Text(
+                FestivalMarqueeText(
                     member.resolvedName,
                     style = MaterialTheme.typography.bodyMedium,
                     color = BrandTokens.textPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }

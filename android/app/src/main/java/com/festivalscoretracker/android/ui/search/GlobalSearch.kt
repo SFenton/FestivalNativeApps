@@ -90,6 +90,7 @@ import com.festivalscoretracker.android.core.search.SearchScope
 import com.festivalscoretracker.android.presentation.search.GlobalSearchUiState
 import com.festivalscoretracker.android.presentation.search.GlobalSearchViewModel
 import com.festivalscoretracker.android.presentation.search.SectionPhase
+import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.SearchChrome
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.fadeInStagger
@@ -523,8 +524,8 @@ private fun SongResultRow(song: GlobalSongResult, artUrl: String?, onClick: () -
             modifier = Modifier.size(40.dp).clip(RoundedCornerShape(6.dp)).background(BrandTokens.surfaceMuted),
         )
         Column(Modifier.weight(1f)) {
-            Text(song.title, style = MaterialTheme.typography.bodyLarge, color = BrandTokens.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(song.artist, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            FestivalMarqueeText(song.title, style = MaterialTheme.typography.bodyLarge, color = BrandTokens.textPrimary)
+            FestivalMarqueeText(song.artist, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary)
         }
     }
 }
@@ -546,7 +547,7 @@ private fun PlayerResultRow(player: GlobalPlayerResult, onClick: () -> Unit) {
             Text(monogram(player.displayName), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)
         }
         Column(Modifier.weight(1f)) {
-            Text(player.displayName, style = MaterialTheme.typography.bodyLarge, color = BrandTokens.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            FestivalMarqueeText(player.displayName, style = MaterialTheme.typography.bodyLarge, color = BrandTokens.textPrimary)
             Text(player.subtitle, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary)
         }
     }
