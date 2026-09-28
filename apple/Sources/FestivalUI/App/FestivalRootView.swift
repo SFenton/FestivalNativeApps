@@ -480,7 +480,8 @@ public struct FestivalRootView: View {
             }
         case .rivals:
             tabStack(.rivals) {
-                RivalsScreen(session: session).firstRun(.rivals, session: session)
+                RivalsScreen(session: session, showsRootTrailingItems: true)
+                    .firstRun(.rivals, session: session)
             }
         case .statistics:
             tabStack(.statistics) {

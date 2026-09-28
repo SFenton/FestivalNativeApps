@@ -16,6 +16,9 @@ import FestivalDesign
 /// automatically on tab change with no explicit array to maintain.
 struct RivalsScreen: View {
     let session: FestivalSession
+    /// True where Rivals is a tab root (iPad, Duo unfolded): its toolbar then ends
+    /// with the bell and avatar so the avatar stays rightmost. False when pushed.
+    let showsRootTrailingItems: Bool
     @State private var tab: Tab = .song
     @State private var rankBy: RivalRankMetric = .totalscore
     @State private var quickLinks = QuickLinksController()
@@ -31,9 +34,12 @@ struct RivalsScreen: View {
 
     /// Create the screen.
     ///
-    /// - Parameter session: Shared app session (API client, selected profile, caches).
-    init(session: FestivalSession) {
+    /// - Parameters:
+    ///   - session: Shared app session (API client, selected profile, caches).
+    ///   - showsRootTrailingItems: Pass `true` only from the Rivals tab root.
+    init(session: FestivalSession, showsRootTrailingItems: Bool = false) {
         self.session = session
+        self.showsRootTrailingItems = showsRootTrailingItems
     }
 
     var body: some View {
@@ -47,13 +53,11 @@ struct RivalsScreen: View {
         .navigationTitle("Rivals")
         .festivalBackground(.carousel, session: session)
         .toolbar {
-            // Rivals is reached as a pushed page from the drawer (see
-            // `.agents/controls/app-navigation/ios.md`'s "Pushed pages … don't show
-            // the chrome"), so this adds only its own actions — no
-            // `FestivalRootTrailingItems`/`.festivalProvidesRootTrailingItems()`.
-            // The enclosing `festivalRootChrome` still supplies bell/avatar on the
-            // rare root presentation (e.g. a future iPad/Mac sidebar destination).
-            ToolbarItem(placement: .primaryAction) {
+            // Pushed from the iPhone drawer: page actions only (pushed pages show no
+            // shell chrome). As a tab root (iPad, Duo unfolded) Find Rival must precede
+            // the bell and avatar, so it uses `.topBarTrailing` and the toolbar ends
+            // with `FestivalRootTrailingItems` (`.agents/controls/app-navigation/ios.md`).
+            ToolbarItem(placement: findRivalPlacement) {
                 Button {
                     findRivalPresented = true
                 } label: {
@@ -62,11 +66,24 @@ struct RivalsScreen: View {
                 .accessibilityIdentifier("fst.rivals.findRival")
             }
             QuickLinksToolbarItem(quickLinks)
+            if showsRootTrailingItems {
+                FestivalRootTrailingItems(session: session)
+            }
         }
+        .preference(key: FestivalRootTrailingProvidedKey.self, value: showsRootTrailingItems)
         .sheet(isPresented: $findRivalPresented) {
             FindRivalSheet(session: session)
                 .festivalSheet()
         }
+    }
+
+    /// Before the shared bell/avatar on a tab root; pinned trailing when pushed.
+    private var findRivalPlacement: ToolbarItemPlacement {
+        #if os(iOS)
+        showsRootTrailingItems ? .topBarTrailing : .primaryAction
+        #else
+        .primaryAction
+        #endif
     }
 
     private var instruments: [Instrument] { visible.instruments }

@@ -40,7 +40,8 @@
 | Full / Band Rankings | Top: instrument + rank-by menus. Pager stays in content (a bottom bar collides with the tab bar) | Same | `.bottomBar` pager items (W3, [duo.md](duo.md)) |
 | Compete, Settings (roots) | Top: Quick Links **before** bell + avatar | Same | Same |
 | Suggestions (root) | Top: Filter **before** bell + avatar (fixed: `.primaryAction` put it right of the avatar) | Same | Same |
-| Rivals, All Rivals, Rival Detail, Rivalry | Top: Find Rival (Rivals), Quick Links. Find Rival opens a player-search sheet, not an in-page filter, so it is not the Songs pattern | Same | Same |
+| Rivals (pushed on iPhone; tab root on iPad and Duo unfolded) | Top: Find Rival, Quick Links; as a tab root Find Rival is `.topBarTrailing` and the toolbar ends with bell + avatar (fixed: `.primaryAction` put it right of the avatar). Find Rival opens a player-search sheet, not an in-page filter, so it is not the Songs accessory pattern | Same | Same; the rail keeps bell + avatar, overflowing the hamburger (W3) |
+| All Rivals, Rival Detail, Rivalry | Top: Quick Links | Same | Same |
 | Bands, Band Detail, Player Bands | Top: Quick Links (Band Detail) | Same | Same |
 | Shop | Top: Grid/List toggle (regular width only) | Same | Same |
 | Player History, song leaderboards | Top: principal instrument/band-size switcher, Sort | Same | Same |
