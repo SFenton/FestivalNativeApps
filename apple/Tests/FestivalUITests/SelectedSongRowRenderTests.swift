@@ -14,6 +14,22 @@ private struct SelectedRowFixtures {
     let profiles: [String: Data]
 }
 
+/// Force `festivalGlass` surfaces onto their deterministic, opaque fallback.
+///
+/// Real Liquid Glass (`glassEffect`, iOS/macOS 26+) is a live compositor effect
+/// that does not reliably reproduce through `NSHostingView.cacheDisplay`, so
+/// pixel-diffed hosted tests opt into the same "Increase Contrast" fallback a
+/// person can already choose in Settings.
+///
+/// - Returns: A throwaway `UserDefaults` suite with `moreContrast` enabled.
+@MainActor
+private func deterministicGlassDefaults() -> UserDefaults {
+    let suiteName = "fst-glass-fallback-\(UUID().uuidString)"
+    let storage = UserDefaults(suiteName: suiteName)!
+    storage.set(true, forKey: "fst.accessibility.moreContrast")
+    return storage
+}
+
 private actor HostedPlayerCardTransport: HTTPTransport {
     let profiles: [String: Data]
     private var paths: [String] = []
@@ -153,6 +169,9 @@ private func selectedSongRow(
         )
         .preferredColorScheme(.dark)
         .environment(\.dynamicTypeSize, typeSize)
+        // Force the deterministic glass fallback: real Liquid Glass compositing
+        // does not reliably reproduce on an offscreen `cacheDisplay` bitmap.
+        .defaultAppStorage(deterministicGlassDefaults())
         .background(BrandTokens.appBackground),
         size: size
     )

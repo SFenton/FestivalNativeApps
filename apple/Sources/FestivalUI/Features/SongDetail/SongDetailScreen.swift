@@ -113,41 +113,30 @@ struct SongDetailScreen: View {
                         symbol: "exclamationmark.triangle"
                     )
                     .accessibilityIdentifier("fst.song-detail.shop-error")
-                } else if !hideShop, let shop = session.currentShop, shop.isStale {
-                    FreshnessDisclosure(
-                        message: OfflineDisclosure.label(
-                            .shop, publicationId: shop.publicationId
-                        ),
-                        symbol: "wifi.slash"
-                    )
-                    .accessibilityIdentifier("fst.song-detail.shop-offline")
                 }
 
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Intensity").font(.title2.bold())
+                    FestivalSectionHeader("Intensity")
                     LazyVGrid(
                         columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10
                     ) {
                         ForEach(charted) { instrument in
                             if let level = song.difficulty?.chartedValue(for: instrument) {
-                                HStack(spacing: 6) {
-                                    Text(instrument.label)
-                                        .font(.subheadline)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                HStack(spacing: 8) {
+                                    InstrumentIcon(instrument, size: 22)
                                     DifficultyMeter(level: level, raw: true)
+                                    Spacer(minLength: 0)
                                 }
                             }
                         }
                     }
                     .padding(14)
-                    .background(
-                        BrandTokens.cardBackground, in: RoundedRectangle(cornerRadius: 12)
-                    )
+                    .festivalGlass(.card, cornerRadius: 16)
                 }
                 .accessibilityIdentifier("fst.song-detail.intensity")
 
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Leaderboards").font(.title2.bold())
+                    FestivalSectionHeader("Leaderboards")
                     LazyVGrid(
                         columns: [GridItem(.adaptive(minimum: 360), spacing: 12)],
                         alignment: .leading, spacing: 16

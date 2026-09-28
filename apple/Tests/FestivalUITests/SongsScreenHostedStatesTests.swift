@@ -79,6 +79,9 @@ private func hostedSongsState(
     let storage = try #require(UserDefaults(suiteName: suiteName))
     defer { storage.removePersistentDomain(forName: suiteName) }
     storage.set(true, forKey: "fst.accessibility.lessTransparency")
+    // Real Liquid Glass rows do not reproduce through NSHostingView.cacheDisplay;
+    // force the same deterministic fallback a person can pick in Settings.
+    storage.set(true, forKey: "fst.accessibility.moreContrast")
     storage.set(scenario.mode.rawValue, forKey: "fst.songs.sortMode")
     storage.set(true, forKey: "fst.songs.sortAscending")
     storage.set(scenario.hideShop, forKey: "fst.settings.hideShop")
@@ -164,12 +167,15 @@ private func hostedSongsState(
     #expect(abs(CGFloat(image.height) / scenario.size.height - scale) < 0.02)
     #expect(nativeHostedControlPixels(image).bright > 20)
     if scenario.restorePlayerLoading && scenario.shopFilter.leavingTomorrow {
-        let rowEdges = try #require(image.cropping(to: CGRect(
-            x: 0, y: CGFloat(image.height) * 0.14,
-            width: CGFloat(image.width) * 0.06,
-            height: CGFloat(image.height) * 0.32
+        // Removing Songs' own inline search bar for native `.searchable` moved
+        // every row up, invalidating the previous narrow band. The gold "Loading
+        // public scores" freshness banner now sits above the row within the
+        // first ~9% of the frame; skip it and keep only the red-bordered card.
+        let rowBand = try #require(image.cropping(to: CGRect(
+            x: 0, y: CGFloat(image.height) * 0.1,
+            width: CGFloat(image.width), height: CGFloat(image.height) * 0.3
         ).integral))
-        let accents = nativeHostedStatusPixels(rowEdges)
+        let accents = nativeHostedStatusPixels(rowBand)
         #expect(accents.red > 10 && accents.gold == 0)
     }
     let paths = await transport.recordedPaths()
@@ -388,6 +394,9 @@ private func hostedSongsState(
     let suiteName = "fst-songs-rollover-\(UUID().uuidString)"
     let storage = try #require(UserDefaults(suiteName: suiteName))
     defer { storage.removePersistentDomain(forName: suiteName) }
+    // Real Liquid Glass rows do not reproduce through NSHostingView.cacheDisplay;
+    // force the same deterministic fallback a person can pick in Settings.
+    storage.set(true, forKey: "fst.accessibility.moreContrast")
     storage.set(true, forKey: "fst.songs.filterInShop")
     let scoreFilter = SongPlayerScoreFilter(hasScores: [.drums])
     storage.set(try scoreFilter.encoded(), forKey: SongPlayerScoreFilter.storageKey)
@@ -476,6 +485,9 @@ private func selectedProfileSongs(
     defer { storage.removePersistentDomain(forName: suiteName) }
     storage.set(true, forKey: "fst.settings.hideShop")
     storage.set(true, forKey: "fst.accessibility.lessTransparency")
+    // Real Liquid Glass rows do not reproduce through NSHostingView.cacheDisplay;
+    // force the same deterministic fallback a person can pick in Settings.
+    storage.set(true, forKey: "fst.accessibility.moreContrast")
     let searchResult = try JSONDecoder().decode(PlayerSearchResult.self, from: Data("""
     {"accountId":"fixture-player-1","displayName":"Fixture Player 1"}
     """.utf8))

@@ -152,7 +152,7 @@ struct SongPathsSheet: View {
             .accessibilityIdentifier("fst.paths.error")
         case let .image(payload):
             VStack(spacing: 8) {
-                freshness(publicationId: payload.publicationId, isStale: payload.isStale)
+                freshness(publicationId: payload.publicationId)
                 zoomLayout {
                     zoomButton(
                         "Zoom out", symbol: "minus.magnifyingglass", enabled: zoom > 1
@@ -173,7 +173,7 @@ struct SongPathsSheet: View {
             }
         case let .text(payload):
             VStack(spacing: 8) {
-                freshness(publicationId: payload.publicationId, isStale: payload.isStale)
+                freshness(publicationId: payload.publicationId)
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         Text(payload.path.pathSummary.isEmpty
@@ -382,20 +382,13 @@ struct SongPathsSheet: View {
         )
     }
 
-    /// Disclose whether this path is verified, unpinned or offline.
+    /// Disclose whether this path is response-verified.
     ///
-    /// - Parameters:
-    ///   - publicationId: Response-proven generation, if supplied.
-    ///   - isStale: True after an actual network failure reused process memory.
+    /// - Parameter publicationId: Response-proven generation, if supplied.
     /// - Returns: Optional provenance banner.
     @ViewBuilder
-    private func freshness(publicationId: Int?, isStale: Bool) -> some View {
-        if isStale {
-            FreshnessDisclosure(
-                message: OfflineDisclosure.label(.paths, publicationId: publicationId),
-                symbol: "wifi.slash"
-            )
-        } else if publicationId == nil {
+    private func freshness(publicationId: Int?) -> some View {
+        if publicationId == nil {
             FreshnessDisclosure(
                 message: "Showing live path without publication verification",
                 symbol: "info.circle"

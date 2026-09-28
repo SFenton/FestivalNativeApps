@@ -134,7 +134,7 @@ private func songFormSurfacePixels(
             SongsFilterSheet(
                 applied: scenario.filter, showShop: scenario.showShop,
                 shopAvailable: scenario.shopAvailable,
-                profileAvailable: scenario.profileAvailable, onApply: { _, _ in }
+                profileAvailable: scenario.profileAvailable, onApply: { _, _, _ in }
             )
             .preferredColorScheme(.dark)
             .tint(BrandTokens.accentBlue)
@@ -187,7 +187,7 @@ private func songFormSurfacePixels(
                 visibleInstruments: both, selectedPlayer: true,
                 scoreAvailable: available,
                 invalidScoreFilteringEnabled: invalidMode,
-                onApply: { _, _ in }
+                onApply: { _, _, _ in }
             )
             .preferredColorScheme(.dark)
             .tint(BrandTokens.accentBlue)

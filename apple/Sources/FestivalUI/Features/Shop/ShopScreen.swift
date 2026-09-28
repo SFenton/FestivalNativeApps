@@ -207,15 +207,7 @@ struct ShopScreen: View {
     /// - Returns: Visible warnings without replacing a usable Shop feed.
     @ViewBuilder
     private func shopDisclosures(_ snapshot: ShopSnapshot) -> some View {
-        if snapshot.payload.isStale {
-            FreshnessDisclosure(
-                message: OfflineDisclosure.label(
-                    .shop, publicationId: snapshot.payload.publicationId
-                ),
-                symbol: "wifi.slash"
-            )
-            .accessibilityIdentifier("fst.shop.offline")
-        } else if snapshot.payload.publicationId == nil {
+        if snapshot.payload.publicationId == nil {
             FreshnessDisclosure(
                 message: "Showing live shop without publication verification",
                 symbol: "info.circle"

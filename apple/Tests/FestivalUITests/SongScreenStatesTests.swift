@@ -143,6 +143,22 @@ private func offlineSession() -> FestivalSession {
     FestivalSession(factory: { throw FestivalAPIError.invalidResource })
 }
 
+/// Force `festivalGlass` surfaces onto their deterministic, opaque fallback.
+///
+/// Real Liquid Glass (`glassEffect`, iOS/macOS 26+) is a live compositor effect
+/// that does not reliably reproduce through `NSHostingView.cacheDisplay`, so
+/// pixel-diffed hosted tests opt into the same "Increase Contrast" fallback a
+/// person can already choose in Settings.
+///
+/// - Returns: A throwaway `UserDefaults` suite with `moreContrast` enabled.
+@MainActor
+private func deterministicGlassDefaults() -> UserDefaults {
+    let suiteName = "fst-glass-fallback-\(UUID().uuidString)"
+    let storage = UserDefaults(suiteName: suiteName)!
+    storage.set(true, forKey: "fst.accessibility.moreContrast")
+    return storage
+}
+
 /// Render a hosted macOS state at a consistent window size.
 ///
 /// - Parameter content: Native view with a fixture-backed state.
@@ -208,7 +224,10 @@ func catalogueVisualStates(_ scenario: CatalogScenario) throws {
     #expect(try snapshot(catalog, refresh: "Update unavailable") != baseline)
     #expect(try snapshot(catalog, notice: "Scores changed; returned to Songs") != baseline)
     #expect(try snapshot(unpinned) != baseline)
-    #expect(try snapshot(unverifiedOffline) != snapshot(unpinned))
+    // Online-only (2026-09-27): Songs no longer renders a distinct warm-cache
+    // disclosure for `isStale`, so an unverified-live payload and its stale
+    // counterpart now paint identically.
+    #expect(try snapshot(unverifiedOffline) == snapshot(unpinned))
 }
 
 /// Offline scores have a different visible warning when bytes were never pinned.
@@ -249,27 +268,27 @@ func catalogueVisualStates(_ scenario: CatalogScenario) throws {
 @Test func songRowShowsMeterAndContrastOnDemand() throws {
     let song = try fixtureSong()
     let session = offlineSession()
-    let normal = ImageRenderer(content: SongRowView(
-        song: song, instrument: nil, session: session, highContrast: false
-    ).frame(width: 420, height: 100))
-    let selected = ImageRenderer(content: SongRowView(
-        song: song, instrument: .lead, session: session, highContrast: false
-    ).frame(width: 420, height: 100))
-    let contrast = ImageRenderer(content: SongRowView(
-        song: song, instrument: nil, session: session, highContrast: true
-    ).frame(width: 420, height: 100))
-    let original = try #require(normal.cgImage)
-    let metered = try #require(selected.cgImage)
-    let outlined = try #require(contrast.cgImage)
-    let originalBytes = try #require(
-        NSBitmapImageRep(cgImage: original).representation(using: .png, properties: [:])
-    )
-    let meteredBytes = try #require(
-        NSBitmapImageRep(cgImage: metered).representation(using: .png, properties: [:])
-    )
-    let outlinedBytes = try #require(
-        NSBitmapImageRep(cgImage: outlined).representation(using: .png, properties: [:])
-    )
+    // Real AppKit hosting (not a bare ImageRenderer) is required once the row
+    // paints on a Liquid Glass/material surface; see NativeHostedSnapshot.swift.
+    func snapshot(instrument: Instrument?, highContrast: Bool) throws -> Data {
+        let host = nativeHostedView(
+            SongRowView(
+                song: song, instrument: instrument, session: session, highContrast: highContrast
+            )
+            .frame(width: 420, height: 100)
+            // Force the deterministic glass fallback: real Liquid Glass compositing
+            // does not reliably reproduce on an offscreen `cacheDisplay` bitmap.
+            .defaultAppStorage(deterministicGlassDefaults()),
+            size: CGSize(width: 420, height: 100)
+        )
+        let image = try nativeHostedImage(host)
+        return try #require(
+            NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])
+        )
+    }
+    let originalBytes = try snapshot(instrument: nil, highContrast: false)
+    let meteredBytes = try snapshot(instrument: .lead, highContrast: false)
+    let outlinedBytes = try snapshot(instrument: nil, highContrast: true)
     #expect(originalBytes != meteredBytes)
     #expect(originalBytes != outlinedBytes)
 }
@@ -305,13 +324,17 @@ func detailVisualStates(_ songNumber: Int) throws {
     let song = try fixtureSong()
     let session = offlineSession()
     func snapshot(_ state: SongScorePreview.LoadState) throws -> Data {
-        let renderer = ImageRenderer(content: NavigationStack {
-            SongScorePreview(
-                song: song, instrument: .lead, session: session, initialState: state
-            )
-            .frame(width: 420, height: 510, alignment: .top)
-        })
-        let image = try #require(renderer.cgImage)
+        let host = nativeHostedView(
+            NavigationStack {
+                SongScorePreview(
+                    song: song, instrument: .lead, session: session, initialState: state
+                )
+                .frame(width: 420, height: 510, alignment: .top)
+            }
+            .defaultAppStorage(deterministicGlassDefaults()),
+            size: CGSize(width: 420, height: 510)
+        )
+        let image = try nativeHostedImage(host)
         return try #require(
             NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])
         )
@@ -323,7 +346,10 @@ func detailVisualStates(_ songNumber: Int) throws {
     let failed = try snapshot(.failed("Fixture unavailable"))
     #expect(loading != populated)
     #expect(populated != empty)
-    #expect(populated != stale)
+    // Online-only (2026-09-27): the preview no longer renders a distinct
+    // warm-cache disclosure for `isStale`, so it paints identically to a
+    // verified response with the same rows.
+    #expect(populated == stale)
     #expect(failed != loading)
 }
 
@@ -340,15 +366,18 @@ func scoreAccuracyBadgeRendersSourceStates(_ scenario: ScoreAccuracyScenario) th
     }
     let payload = try fixtureAccuracyScore(accuracy: accuracy, fullCombo: fullCombo)
     let song = try fixtureSong()
-    let renderer = ImageRenderer(content: NavigationStack {
-        SongScorePreview(
-            song: song, instrument: .lead,
-            session: offlineSession(), initialState: .loaded(payload)
-        )
-        .frame(width: 420, height: 280, alignment: .top)
-    })
-    renderer.scale = 1
-    let image = try #require(renderer.cgImage)
+    let host = nativeHostedView(
+        NavigationStack {
+            SongScorePreview(
+                song: song, instrument: .lead,
+                session: offlineSession(), initialState: .loaded(payload)
+            )
+            .frame(width: 420, height: 280, alignment: .top)
+        }
+        .defaultAppStorage(deterministicGlassDefaults()),
+        size: CGSize(width: 420, height: 280)
+    )
+    let image = try nativeHostedImage(host)
     let bitmap = NSBitmapImageRep(cgImage: image)
     var gold = 0
     var green = 0

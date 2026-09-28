@@ -50,9 +50,7 @@ struct SongScorePreview: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(instrument.label)
-                .font(.title3.bold())
-                .accessibilityAddTraits(.isHeader)
+            FestivalSectionHeader(instrument.label)
             NavigationLink(value: AppRoute.songLeaderboard(song, instrument, 1)) {
                 Label("View full \(instrument.label) leaderboard", systemImage: "arrow.right")
                     .font(.body)
@@ -86,10 +84,7 @@ struct SongScorePreview: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            BrandTokens.cardBackground,
-            in: RoundedRectangle(cornerRadius: 12)
-        )
+        .festivalGlass(.card, cornerRadius: 16)
         .task(id: requestKey) {
             guard usesLiveClient else { return }
             await load()
@@ -102,14 +97,7 @@ struct SongScorePreview: View {
     /// - Returns: Empty, live or offline native row content.
     @ViewBuilder
     private func previewRows(_ payload: LeaderboardPayload) -> some View {
-        if payload.isStale {
-            FreshnessDisclosure(
-                message: OfflineDisclosure.label(
-                    .scores, publicationId: payload.publicationId
-                ),
-                symbol: "wifi.slash"
-            )
-        } else if payload.publicationId == nil {
+        if payload.publicationId == nil {
             FreshnessDisclosure(
                 message: "Showing live scores without publication verification",
                 symbol: "info.circle"
