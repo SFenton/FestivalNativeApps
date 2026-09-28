@@ -73,7 +73,7 @@ public static class SongRowVisuals
                 SongPercentileTier.TopFive => Box(Text(field.Text, 12, FontWeights.SemiBold, Brush("FSTGoldBrush")), null, Brush("FSTGoldBrush")),
                 _ => Box(Text(field.Text, 12, FontWeights.SemiBold, null), Brush("FSTSurfaceMutedBrush"), null),
             },
-            MetadataField.Stars => Text(field.Text, 13, FontWeights.Normal, field.Stars.Gold ? Brush("FSTGoldBrush") : null),
+            MetadataField.Stars => new StarRow { Stars = field.Stars.Gold ? StarRating.GoldValue : field.Stars.Count, StarSize = 14 },
             MetadataField.Season => field.CurrentSeason
                 ? Box(Text(field.Text, 12, FontWeights.Bold, new SolidColorBrush(Colors.Black)), new SolidColorBrush(Colors.White), null)
                 : Box(Text(field.Text, 12, FontWeights.SemiBold, null), null, Brush("FSTBorderSubtleBrush")),

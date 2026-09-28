@@ -260,8 +260,8 @@ public sealed record SongLeaderboardRowViewModel(LeaderboardEntry Entry, bool Is
     /// <summary>Pill text ("98.5%" or "FC 100%").</summary>
     public string AccuracyPill => IsFullCombo ? "FC " + Accuracy : Accuracy;
 
-    /// <summary>Stars text (★ × n), or empty.</summary>
-    public string Stars => Entry.Stars is > 0 and var n ? new string('★', Math.Min(n, 5)) : "";
+    /// <summary>Service stars (0 when missing), drawn as star images by the row.</summary>
+    public int StarCount => Entry.Stars ?? 0;
 
     /// <summary>Season text (<c>S15</c>), or empty.</summary>
     public string Season => Entry.Season is { } s ? string.Create(CultureInfo.InvariantCulture, $"S{s}") : "";

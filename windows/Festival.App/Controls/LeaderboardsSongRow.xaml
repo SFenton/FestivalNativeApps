@@ -1,7 +1,8 @@
 <UserControl
     x:Class="Festival.App.Controls.LeaderboardsSongRow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Festival.App.Controls">
     <!-- Solo chart row: rank | name | season, stars (wide only) | accuracy/FC pill | score. -->
     <Button x:Name="RowButton" Click="OnClick" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
             Padding="8,6" MinHeight="44" CornerRadius="6" BorderThickness="1" SizeChanged="OnSizeChanged">
@@ -17,7 +18,9 @@
             <TextBlock x:Name="RankText" VerticalAlignment="Center" HorizontalAlignment="Right" Style="{StaticResource FSTSecondaryTextStyle}" />
             <TextBlock x:Name="NameText" Grid.Column="1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
             <TextBlock x:Name="SeasonText" Grid.Column="2" VerticalAlignment="Center" Style="{StaticResource FSTSecondaryTextStyle}" />
-            <TextBlock x:Name="StarsText" Grid.Column="3" VerticalAlignment="Center" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+            <Border x:Name="StarsHost" Grid.Column="3" VerticalAlignment="Center">
+                <controls:StarRow x:Name="StarsView" StarSize="14" AutomationProperties.AccessibilityView="Raw" />
+            </Border>
             <Border x:Name="Pill" Grid.Column="4" CornerRadius="4" Padding="6,2" HorizontalAlignment="Right" VerticalAlignment="Center"
                     Background="{StaticResource FSTSurfaceMutedBrush}">
                 <TextBlock x:Name="PillText" FontSize="12" />

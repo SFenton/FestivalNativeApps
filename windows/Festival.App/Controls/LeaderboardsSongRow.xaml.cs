@@ -38,7 +38,7 @@ public sealed partial class LeaderboardsSongRow : UserControl
         RankText.Text = row.RankText;
         NameText.Text = row.Name;
         SeasonText.Text = row.Season;
-        StarsText.Text = row.Stars;
+        StarsView.Stars = row.StarCount;
         PillText.Text = row.AccuracyPill;
         Pill.Visibility = row.HasAccuracy ? Visibility.Visible : Visibility.Collapsed;
         ScoreText.Text = row.Score;
@@ -66,7 +66,7 @@ public sealed partial class LeaderboardsSongRow : UserControl
     {
         var wide = e.NewSize.Width >= WideWidth;
         var visibility = wide ? Visibility.Visible : Visibility.Collapsed;
-        if (SeasonText.Visibility != visibility) SeasonText.Visibility = StarsText.Visibility = visibility;
+        if (SeasonText.Visibility != visibility) SeasonText.Visibility = StarsHost.Visibility = visibility;
         var compact = e.NewSize.Width < CompactWidth;
         RowGrid.ColumnSpacing = compact ? 8 : 12;
         RankColumn.MinWidth = compact ? 32 : 56;

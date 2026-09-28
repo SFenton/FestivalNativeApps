@@ -282,11 +282,8 @@ public sealed record ScoreHistoryRow(ScoreHistoryEntry Entry, bool IsHighScore)
     /// <summary>"Season 9", or empty.</summary>
     public string Season => Entry.Season is { } s ? "Season " + s.ToString(CultureInfo.CurrentCulture) : "";
 
-    /// <summary>Stars text (★ count), or empty.</summary>
-    public string Stars => Entry.Stars is int n && n > 0 ? new string('★', Math.Min(5, n)) : "";
-
-    /// <summary>Whether the stars are gold (6).</summary>
-    public bool GoldStars => Entry.Stars >= 6;
+    /// <summary>Service stars (0 when missing), drawn as star images by the row.</summary>
+    public int StarCount => Entry.Stars ?? 0;
 
     /// <summary>Screen-reader text.</summary>
     public string Announcement =>

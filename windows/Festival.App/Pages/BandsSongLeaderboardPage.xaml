@@ -116,8 +116,8 @@
                                         Visibility="{x:Bind HasAccuracy}" VerticalAlignment="Center">
                                     <TextBlock Text="{x:Bind Accuracy}" FontSize="12" />
                                 </Border>
-                                <TextBlock Grid.Column="3" Text="{x:Bind Stars}" FontSize="12" VerticalAlignment="Center"
-                                           Foreground="{StaticResource FSTGoldBrush}" Visibility="{x:Bind HasStars}" />
+                                <controls:StarRow Grid.Column="3" Stars="{x:Bind StarCount}" StarSize="14"
+                                                  AutomationProperties.AccessibilityView="Raw" />
                             </Grid>
                         </Grid>
                     </DataTemplate>

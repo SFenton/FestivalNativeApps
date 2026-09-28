@@ -90,8 +90,8 @@
                             </Grid.RowDefinitions>
                             <TextBlock Text="{x:Bind Score}" Style="{StaticResource BodyStrongTextBlockStyle}" VerticalAlignment="Center"
                                        Foreground="{x:Bind controls:PlayerBrushes.Stars(IsHighScore)}" />
-                            <TextBlock Grid.Column="1" Text="{x:Bind Stars}" VerticalAlignment="Center" HorizontalAlignment="Right"
-                                       Foreground="{x:Bind controls:PlayerBrushes.Stars(GoldStars)}" />
+                            <controls:StarRow Grid.Column="1" Stars="{x:Bind StarCount}" StarSize="14" HorizontalAlignment="Right"
+                                              AutomationProperties.AccessibilityView="Raw" />
                             <TextBlock Grid.Row="1" Text="{x:Bind Detail}" FontSize="12" VerticalAlignment="Center"
                                        Foreground="{ThemeResource FSTSecondaryTextBrush}" TextTrimming="CharacterEllipsis" />
                             <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">

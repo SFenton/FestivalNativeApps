@@ -206,11 +206,8 @@ public sealed record SongBandRow
     /// <summary>Whether the FC badge is shown.</summary>
     public bool IsFullCombo => Entry.IsFullCombo == true;
 
-    /// <summary>Stars text (<c>★ 5</c>), empty when none.</summary>
-    public string Stars => Entry.Stars is > 0 and var s ? $"★ {s}" : "";
-
-    /// <summary>Whether stars are shown.</summary>
-    public bool HasStars => Stars.Length > 0;
+    /// <summary>Service stars (0 when missing), drawn as star images by the row.</summary>
+    public int StarCount => Entry.Stars ?? 0;
 
     /// <summary>Band Detail route with the safe lookup keys.</summary>
     public AppRoute Route => new AppRoute.Band(Entry.BandId.Length > 0 ? Entry.BandId : Entry.TeamKey, Entry.BandType, Entry.TeamKey);

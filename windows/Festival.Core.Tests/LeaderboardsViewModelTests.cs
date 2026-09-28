@@ -624,7 +624,7 @@ public sealed class SongLeaderboardViewModelTests
         var row = vm.Rows[0];
         Assert.Equal("#1", row.RankText);
         Assert.Equal("FC 98.5%", row.AccuracyPill);
-        Assert.Equal("★★★★★", row.Stars);
+        Assert.Equal(6, row.StarCount);
         Assert.Equal("S15", row.Season);
         Assert.Equal(new AppRoute.Player("a1", "Player 1"), row.Route);
         Assert.Equal("fst.song-leaderboard.row.a1", row.AutomationId);
@@ -747,7 +747,7 @@ public sealed class SongLeaderboardViewModelTests
         var row = new SongLeaderboardRowViewModel(new LeaderboardEntry { AccountId = "x", Score = 1 }, false);
         Assert.Equal("Unknown User", row.Name);
         Assert.False(row.HasAccuracy);
-        Assert.Equal("", row.Stars);
+        Assert.Equal(0, row.StarCount);
         Assert.Equal("", row.Season);
         Assert.Equal("", row.AccuracyPill);
         Assert.Null(new SongLeaderboardRowViewModel(new LeaderboardEntry { AccountId = "" }, false).Route);

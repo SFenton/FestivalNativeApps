@@ -126,11 +126,7 @@ public sealed partial class SuggestionSongRow : Button
                 });
                 break;
             case SuggestionRowLayout.SingleInstrument when p.StarCount > 0:
-                var stars = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 1, VerticalAlignment = VerticalAlignment.Center };
-                for (var i = 0; i < p.StarCount; i++)
-                    stars.Children.Add(new FontIcon { Glyph = "", FontSize = 14, Foreground = p.GoldStars ? Gold : new SolidColorBrush(Colors.White) });
-                AutomationProperties.SetName(stars, p.GoldStars ? "Gold stars" : $"{p.StarCount} stars");
-                metadata.Children.Add(stars);
+                metadata.Children.Add(new StarRow { Stars = p.GoldStars ? StarRating.GoldValue : p.StarCount, StarSize = 14 });
                 break;
             case SuggestionRowLayout.InstrumentChips:
                 foreach (var chip in p.Chips)

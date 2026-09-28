@@ -44,6 +44,9 @@ PAGES: dict[str, tuple[str | None, str | None, str]] = {
     "settings": ("settings", None, "fst.settings"),
     "song-detail": (None, "/songs/fixture-pulse", "fst.shell.title-bar"),
     "player": (None, "/player/fixture-player-1", "fst.shell.title-bar"),
+    "history": (None, "/songs/fixture-pulse/Solo_Guitar/history", "fst.shell.title-bar"),
+    "song-leaderboard": (None, "/songs/fixture-pulse/Solo_Guitar", "fst.shell.title-bar"),
+    "song-band-leaderboard": (None, "/songs/fixture-pulse/bands/Band_Duets", "fst.shell.title-bar"),
 }
 
 #: Presets in capture order (``compact-pane`` = compact with the LeftMinimal pane opened).
