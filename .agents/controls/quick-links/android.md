@@ -8,6 +8,7 @@
 |---|---|---|
 | Compact window (< 600 dp) | Top-app-bar action (`Toc` icon, "Quick Links, current section X") opens a **modal bottom sheet** of `NavigationDrawerItem`s; the current section is the selected item | M3: bottom sheets hold supplementary lists on phones, are thumb-reachable, scroll for long lists (Songs buckets) and support predictive back. Replaces the web FAB and modal |
 | Medium window, page < 960 dp | Same action opens an anchored **dropdown menu**; the current item is bold with "Current" | M3 menus pick one of a short set of destinations without covering the page |
+| Separating vertical hinge in the page (book posture, half-open) | The page splits at the hinge: list on the start side, a full-width Quick Links pane beyond the hinge (`QuickLinks.hingeSplit`, `ui/settings/HingeSplit.kt`) | No row straddles the fold; the far panel carries the navigation |
 | Page ≥ 960 dp (tablet, unfolded book/tri-fold with room) | Persistent trailing **pane** (240 dp, `NavigationDrawerItem`s, pane title) beside the content; selecting scrolls without closing | Web ≥1440 px rail; M3 supporting pane. Decided by **page** width, so the navigation rail/drawer and hinges are accounted for |
 
 No setting toggles Quick Links (spec). Needs ≥ 2 sections.
@@ -24,6 +25,7 @@ if (pane) QuickLinksPane(quickLinks)   // beside the list, when QuickLinks.usesP
 - `QuickLinkSection(id, title, icon token | instrument, depth, spokenTitle)`; reuse the web IDs.
 - Tracking: `QuickLinkTracker` (pure; Apple/Windows port) fed from `snapshotFlow { listState.layoutInfo }`. Items above the first visible one count as "far above"; items below are unknown. `activeId` only changes when the active section changes, so scrolling does not recompose the page.
 - Jump: target active immediately, `animateScrollToItem` (instant under reduce motion), then `settle` (ownership; near-end targets stay active while visible).
+- Programmatic jumps do not reach the top bar's nested-scroll state, so pass `FestivalScreen(scrolled = listState.canScrollBackward)` or content shows through the transparent bar.
 - TalkBack: entry label includes the current section; items expose `selected` + "Current section" state; the pane has a pane title. Test IDs `fst.quick-links.open`, `.sheet`, `.menu`, `.pane`, `.list`, `.item.<id>`.
 
 ## Adoption

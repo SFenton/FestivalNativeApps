@@ -36,6 +36,7 @@
 - Rows: whole-row `toggleable(role = Switch)` with title + description; a disabled row appends its reason so TalkBack reads why.
 - Reorder uses numbered rows with Move up/Move down buttons plus TalkBack custom actions, not drag-only lists (keyboard/switch-access friendly, as on Windows).
 - Not ported: Service Progress (not allowlisted), profile-name refresh (POST), ZIP export (not allowlisted), light trails / mobile header buttons (no cursor or FAB chrome on Android), default search target (global search has no tabs to default).
+- Book posture (separating vertical hinge): list on the start side, Quick Links pane beyond the hinge.
 - Quick Links: see [quick-links/android.md](../../controls/quick-links/android.md).
 
 ## Tests and evidence
