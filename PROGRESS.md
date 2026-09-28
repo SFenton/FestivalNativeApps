@@ -249,7 +249,8 @@ Not yet assigned:
 | **M2 — Modals & loading** (Sonnet) | Close/Done trailing app-wide · profile search purple bg (hardcoded `appBackground` fill) · Notifications Done · white spinner, no subtitle (`FestivalLoadingView`) · form-sized sheets on Duo unfolded/iPad | ✅ `06543ab`, `dc73e42` (follow-ups: Suggestions/PlayerHistory sheets use custom Cancel/Apply footers — harmonize to toolbar placements; Songs/Profile spinners → S2/Z2) |
 | **A2 — Nav-bar accessories** (Opus) | Research iOS 26 accessories (`tabViewBottomAccessory`, search tab/minimize, `safeAreaBar`) · Songs search as accessory (Music mini-player style) · Select Player accessory · Quick Links placement decision · sweep all pages | 🟨 `~/repos/FestivalNativeApps-lanes/accessories` |
 | **S2 — Songs polish** (Sonnet) | Remove "profile changed" card · Quick Links section header bg/black bar · bigger instrument icons · drop star/minus badges · MarqueeText port (long rows) · first-slice loading gate (art ready) · Duo #–Z scrubber anchoring/size/overlap | 🟨 `~/repos/FestivalNativeApps-lanes/songs2` |
-| **L2 — Leaderboards spotlight** (Sonnet) | Selected player highlighted in top 10 / spotlight row below, pinned "You" footer on full rankings & song leaderboards (web parity) | 🟨 `~/repos/FestivalNativeApps-lanes/lbspot` |
+| **L2 — Leaderboards spotlight** (Sonnet) | Selected player highlighted in top 10 / spotlight row below (per-account rank read), jump-to-page on Full Rankings, pinned "You" footer on song leaderboards | ✅ `23dbd60` (band spotlight deferred: no native band identity) |
+| **H — Hosted snapshot fidelity** (Opus) | Hosted harness renders full pages nearly blank → fix harness, add content assertions, re-measure coverage | 🟨 `~/repos/FestivalNativeApps-lanes/harness` |
 
 ### Wave 4+ — other form factors
 
@@ -372,3 +373,5 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Orchestrator | Operator bug batch triaged into W1, Z2 (+graphs), M2, A2, S2, L2; rule: selection never navigates away |
 | 2026-09-28 | Lane M2 | Modal standard (trailing Close/Done, semantic placements), purple sheet bg removed, `FestivalLoadingView` app-wide, form sheet sizing on regular width |
 | 2026-09-28 | Lane L2 | Selected-profile spotlight on Leaderboards overview cards, Full Rankings (+ native jump-to-page footer) and Solo leaderboard (highlight + footer, no extra network read); `RankingSpotlight` pure decision logic + tests; band spotlight skipped (no native selected-band identity); found macOS hosted-snapshot harness renders full-screen pages blank (flagged, not fixed) |
+| 2026-09-28 | Lane L2 | Leaderboards selected-player spotlight + song leaderboard "You" footer |
+| 2026-09-28 | Orchestrator | Launched Lane H: hosted snapshots render full pages nearly blank (coverage may overstate visual evidence) |
