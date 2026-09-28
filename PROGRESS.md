@@ -253,7 +253,7 @@ Not yet assigned:
 | **A2 — Nav-bar accessories** (Opus) | Research iOS 26 accessories (`tabViewBottomAccessory`, search tab/minimize, `safeAreaBar`) · Songs search as accessory (Music mini-player style) · Select Player accessory · Quick Links placement decision · sweep all pages | 🟨 `~/repos/FestivalNativeApps-lanes/accessories` |
 | **S2 — Songs polish** (Sonnet) | Section headers (real `Section`), bigger chip icons (70%), no status badges (+ `statusAmber` token), `MarqueeText`, first-paint art gate (≤900 ms), compact Duo-safe scrubber | ✅ `93eb2d1`, `ff51d31` (follow-ups: inset cards beside scrubber; MarqueeText in Song Detail header + Suggestion cards; re-run SongsJourneyTests) |
 | **L2 — Leaderboards spotlight** (Sonnet) | Selected player highlighted in top 10 / spotlight row below (per-account rank read), jump-to-page on Full Rankings, pinned "You" footer on song leaderboards | ✅ `23dbd60` (band spotlight deferred: no native band identity) |
-| **H — Hosted snapshot fidelity** (Opus) | Hosted harness renders full pages nearly blank → fix harness, add content assertions, re-measure coverage | 🟨 `~/repos/FestivalNativeApps-lanes/harness` |
+| **H — Hosted snapshot fidelity** (Opus) | Hosted harness renders full pages nearly blank → fix harness, add content assertions, re-measure coverage | ✅ root cause: tinted Liquid Glass blanks `cacheDisplay`; see [hosted-snapshots](.agents/testing/apple/hosted-snapshots.md) |
 
 ### Wave 4+ — other form factors
 
@@ -304,7 +304,7 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 
 - **Manual is deprecated** (operator, 2026-09-27): not ported. Route, drawer item, placeholder screen, contract entries and docs removed.
 
-- **Leaderboards follow-ups:** ✅ selected-player spotlight ported (Lane L2, see `.agents/pages/{leaderboards,full-rankings,song-leaderboard}/ios.md`) — no band spotlight yet (no native selected-band identity); still no rank-history chart, no band-combo filter on the overview; per-card loads are sequential. Found: the macOS hosted-snapshot harness (`NativeHostedSnapshot.swift`) renders full-screen pages nearly blank (only checks image size, not pixels) — flagged separately, not fixed by this lane.
+- **Leaderboards follow-ups:** ✅ selected-player spotlight ported (Lane L2, see `.agents/pages/{leaderboards,full-rankings,song-leaderboard}/ios.md`) — no band spotlight yet (no native selected-band identity); still no rank-history chart, no band-combo filter on the overview; per-card loads are sequential. Hosted-harness blank pages: fixed by Lane H (forced glass fallback, settle + `assertRendersContent`).
 - **Background follow-ups:** the brief's plan of drawing once behind transparent pages failed (the iPhone TabView keeps an opaque layer over anything drawn behind it), so each page draws a synced mirror of one shared state. Open issues: a cancelled swipe-back on pages without a `visible` flag briefly fades; going back fades rather than shrinking the art into its tile; the tap-and-push flow is unverified.
 
 - **Build contention:** 7 lanes on a 10-core Mac hit load 169; SwiftPM builds are serialized via `~/.fst-build.lock` (Lane T adding it to `ios_sim.py build`). Keep ≤7 concurrent lanes.
@@ -381,6 +381,7 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Lane L2 | Selected-profile spotlight on Leaderboards overview cards, Full Rankings (+ native jump-to-page footer) and Solo leaderboard (highlight + footer, no extra network read); `RankingSpotlight` pure decision logic + tests; band spotlight skipped (no native selected-band identity); found macOS hosted-snapshot harness renders full-screen pages blank (flagged, not fixed) |
 | 2026-09-28 | Lane L2 | Leaderboards selected-player spotlight + song leaderboard "You" footer |
 | 2026-09-28 | Orchestrator | Launched Lane H: hosted snapshots render full pages nearly blank (coverage may overstate visual evidence) |
+| 2026-09-28 | Lane H | Hosted harness: tinted Liquid Glass made whole `NSHostingView` captures transparent and sleeps captured spinners; forced Reduce-Transparency fallback, in-process accessibility text, `nativeHostedSettle`, `assertRendersContent` on 65 full-page tests (+Settings, Player Profile). Blank captures 33→3 (sparse empty states). SwiftPM UX 66.8%→70.4% recursive; gate's Swift UX glob is non-recursive (flagged). Found Common Rivals hides its 503 error (known issue) and 4 Rivals tests 404ing on a hyphenated mock id (fixed) |
 | 2026-09-28 | Orchestrator | Windows host online: SSH verified, toolchains inventoried, `tools/win_relay.py` bundle relay (no GitHub creds on Windows) |
 | 2026-09-28 | Orchestrator | Operator: parallelize Android + Windows heavily on the Windows host; launched remote Lane LAB (device lab); GitHub auth on Windows pending operator (`gh auth login --insecure-storage`) |
 | 2026-09-28 | Orchestrator | GitHub auth on Windows verified over SSH; Windows `origin` → GitHub; `tools/git_integrate.py` for Windows-host lanes (`ee20551`) |

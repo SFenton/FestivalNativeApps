@@ -19,11 +19,38 @@
 
 | Gate | Value | Date / source |
 |---|---|---|
-| SwiftPM logic | 2000/2087 (95.83%) pass | 2026-09-27, after Score/FC Filter |
-| SwiftPM UX | 9430/10415 (90.54%) pass | same run |
+| SwiftPM logic | 5666/6033 (93.92%) **fail** | 2026-09-28, master `74b032a` + hosted-harness lane |
+| SwiftPM UX, recursive (`FestivalUI/**` + `FestivalDesign`, minus `BrandTokens`) | 18275/25943 (70.44%) **fail** | same run; see Hosted UX below |
+| SwiftPM UX as the gate prints it | 98/101 (97.03%) — misleading | `coverage-rules.json` `FestivalUI/*.swift` is non-recursive, so every nested FestivalUI file is "unclassified". TODO(orchestrator): make the Swift patterns recursive |
 | iPhone UI/app union | 4092/4695 (87.16%) fail — historical | pre-Score/FC-Filter source; no current-source phone or paired measurement |
 
 CI (`.github/workflows/contracts.yml`) runs only the Python contract/contrast checks.
+
+## Hosted UX coverage vs visual evidence
+
+Hosted tests are most of the SwiftPM UX lines, so a line counts as *visual evidence* only when its test settles on the final state and calls `assertRendersContent` (method and pitfalls: [hosted-snapshots](hosted-snapshots.md)). Before the 2026-09-28 harness fix, tinted Liquid Glass made Leaderboards, Rivals, Compete, Licenses, Settings, Profile, First-run and drawer captures transparent, and sleep-based waits captured spinners; tests asserted only `image.width > 0`.
+
+- Measure per feature: `swift test --enable-code-coverage`, `llvm-cov export` of all three bundles (as `tools/apple_coverage.sh`), then sum `summary.lines` per `apple/Sources/FestivalUI/<area>/` folder. Compare runs from clean worktrees of each revision; resolve `/tmp` ↔ `/private/tmp` symlinks when matching filenames.
+- A transparent capture executes the same `body` lines as a real one (Compete 96.9% before and after), so those percentages counted code no assertion had seen render; they are now backed by content assertions. Spinner captures did the opposite: loaded branches never ran (Notifications 24% → 84%).
+- The forced glass fallback leaves `FestivalGlassModifier`'s real-glass branch to the canary test only (Design −0.7).
+
+Per-area SwiftPM UX lines, `origin/master` `74b032a` → hosted-harness lane (after), 2026-09-28:
+
+| Area | Before | After |
+|---|---|---|
+| Features/Notifications | 69/291 (23.7%) | 243/291 (83.5%) |
+| Features/Profile | 1034/2023 (51.1%) | 1552/2023 (76.7%) |
+| Features/Rivals | 1614/1844 (87.5%) | 1752/1844 (95.0%) |
+| Features/Settings | 1003/1433 (70.0%) | 1095/1433 (76.4%) |
+| Features/Leaderboards | 1329/1564 (85.0%) | 1346/1564 (86.1%) |
+| Features/Compete · Shop · SongDetail · Songs | 253/261 · 613/649 · 1612/1740 · 4022/4494 | unchanged |
+| Features/SongLeaderboard · Statistics | 1408/1962 · 54/62 | unchanged |
+| Features/FirstRun · Suggestions · Bands | 449/2932 · 90/1078 · 0/795 | unchanged (largest gaps) |
+| App · App/Shell · Background · Common · Common/QuickLinks | 1095/1571 · 575/664 · 1084/1335 · 365/376 · 257/363 | ±5 lines |
+| Design (FestivalUI) | 312/405 (77.0%) | 309/405 (76.3%) |
+| **UX total** | **17336/25943 (66.8%)** | **18275/25943 (70.4%)** |
+
+Content evidence on the 150 private hosted captures: captures below 1% non-background or 0.2% ink fell from 33 to 3 (the 3 are genuinely sparse Songs empty states whose text is asserted); fully flat or transparent captures fell from 21 to 0.
 
 ### Wave 3 UX-test lane (Lane U) — per-feature SwiftPM line coverage
 
