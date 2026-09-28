@@ -87,6 +87,18 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(m.restore_values(previous, {"text_scale": 225}), {"text_scale": 100})
         self.assertEqual(m.restore_values(previous, {}), {})
 
+    def test_pending_restore(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "restore.json"
+            self.assertEqual(m.pending_restore(path), {})
+            path.write_text('{"high_contrast": "off"}', encoding="utf-8")
+            self.assertEqual(m.pending_restore(path), {"high_contrast": "off"})
+            path.write_text("[1]", encoding="utf-8")
+            self.assertEqual(m.pending_restore(path), {})
+            path.write_text("not json", encoding="utf-8")
+            self.assertEqual(m.pending_restore(path), {})
+
 
 if __name__ == "__main__":
     unittest.main()

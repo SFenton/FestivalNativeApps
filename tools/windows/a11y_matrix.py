@@ -45,6 +45,9 @@ import uiwin  # noqa: E402  (sibling tool; provides the lock, driver and step pa
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PAGES = REPO_ROOT / "tools" / "windows" / "journeys" / "a11y.json"
 FIXTURE = REPO_ROOT / "tools" / "windows" / "rivals_fixture.py"
+#: Previous system values of an in-flight mode change. Written before ``sysset`` changes the operator's
+#: desktop and removed after the restore, so a run killed mid-mode is repaired by the next run.
+RESTORE_FILE = uiwin.EXCHANGE_DIR / "a11y-sysset-restore.json"
 
 # region Modes (pure, unit-tested)
 
@@ -75,6 +78,22 @@ def restore_values(previous: dict, applied: dict) -> dict:
         ``{key: previous value}`` for every applied key.
     """
     return {key: previous[key] for key in applied if key in previous}
+
+
+def pending_restore(path: Path) -> dict:
+    """System values a killed run failed to restore.
+
+    Args:
+        path: Restore file.
+
+    Returns:
+        ``sysset`` values to apply, or ``{}`` when there is nothing (or nothing readable) to restore.
+    """
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
 def page_steps(page: dict, size: str, out: Path, suffix: str, scan: bool, tabs: int) -> list[str]:
@@ -219,10 +238,18 @@ def run_size(page: dict, mode: str, size: str, exe: Path, port: int, out: Path, 
         applied = spec.get("system") or {}
         previous: dict = {}
         pid = None
+        leftover = pending_restore(RESTORE_FILE)
+        if leftover:
+            print(f"warning: restoring system settings left by a killed run: {leftover}", file=sys.stderr)
+            uiwin.run_driver({"command": "sysset", "set": leftover}, lock)
+            RESTORE_FILE.unlink(missing_ok=True)
         try:
             if applied:
-                previous = restore_values(uiwin.run_driver({"command": "sysset", "set": applied}, lock)["previous"],
-                                          applied)
+                current = uiwin.run_driver({"command": "sysset", "set": {}}, lock)["current"]
+                previous = restore_values(current, applied)
+                RESTORE_FILE.parent.mkdir(parents=True, exist_ok=True)
+                RESTORE_FILE.write_text(json.dumps(previous), encoding="utf-8")
+                uiwin.run_driver({"command": "sysset", "set": applied}, lock)
             launched = uiwin.run_driver({"command": "launch", "exe": str(exe), "args": args, "env": env,
                                          "timeout": 30}, lock)
             pid = launched["pid"]
@@ -254,6 +281,7 @@ def run_size(page: dict, mode: str, size: str, exe: Path, port: int, out: Path, 
                     print(f"warning: close failed: {error}", file=sys.stderr)
             if previous:
                 uiwin.run_driver({"command": "sysset", "set": previous}, lock)
+                RESTORE_FILE.unlink(missing_ok=True)
     print(f"{'PASS' if record['ok'] else 'FAIL'} {page['name']} {size} {mode}"
           + (f" axe={record.get('axe_errors')}" if scan and record["ok"] else "")
           + (f": {record.get('error')}" if not record["ok"] else ""), flush=True)
