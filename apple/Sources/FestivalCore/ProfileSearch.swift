@@ -1,12 +1,12 @@
 import Foundation
 
 /// Preserve legitimate name-joining format characters while blocking controls and bidi spoofing.
-enum ProfileSearchText {
+public enum ProfileSearchText {
     /// Share the service's bounded ASCII account-ID shape across search and profile reads.
     ///
     /// - Parameter accountId: Untrusted public account identifier.
     /// - Returns: True only for a safe, nonempty path and selection key.
-    static func isValidAccountId(_ accountId: String) -> Bool {
+    public static func isValidAccountId(_ accountId: String) -> Bool {
         accountId.range(
             of: #"\A[A-Za-z0-9_-]{1,128}\z"#, options: .regularExpression
         ) != nil
@@ -16,7 +16,7 @@ enum ProfileSearchText {
     ///
     /// - Parameter text: Untrusted user-entered query or service display name.
     /// - Returns: True for actual control, line-separator or bidi-override characters.
-    static func containsUnsafeScalar(_ text: String) -> Bool {
+    public static func containsUnsafeScalar(_ text: String) -> Bool {
         text.unicodeScalars.contains { scalar in
             let value = scalar.value
             return value < 0x20 || (0x7F...0x9F).contains(value)
@@ -59,6 +59,18 @@ public struct PlayerSearchResult: Decodable, Sendable, Equatable, Identifiable {
               !displayName.isEmpty, displayName.count <= 200 else {
             throw FestivalAPIError.invalidProfileSearch
         }
+    }
+
+    /// Build a search-shaped identity from a name known outside the search flow, so a
+    /// player-profile route (with a validated response `displayName`, or a link's own
+    /// text) can reuse the same select/switch logic as an in-sheet search hit.
+    ///
+    /// - Parameters:
+    ///   - accountId: Public account key, e.g. from the current route or response.
+    ///   - displayName: Server-reported or route-provided display name.
+    public init(accountId: String, displayName: String) {
+        self.accountId = accountId
+        self.displayName = displayName
     }
 }
 

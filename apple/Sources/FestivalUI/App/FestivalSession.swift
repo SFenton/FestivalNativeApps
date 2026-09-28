@@ -89,6 +89,22 @@ final class FestivalSession {
                 Self.log.error("Invalid stored profile identity was discarded")
             }
         }
+        #if DEBUG
+        if selectedPlayer == nil,
+           let raw = ProcessInfo.processInfo.environment["FST_DEBUG_SELECT_PLAYER"] {
+            let parts = raw.split(separator: ":", maxSplits: 1).map(String.init)
+            if parts.count == 2,
+               let identity = try? SelectedPlayerIdentity(
+                   debugAccountId: parts[0], displayName: parts[1]
+               ) {
+                if let encoded = try? JSONEncoder().encode(identity) {
+                    selectionStorage?.set(encoded, forKey: SelectedPlayerIdentity.storageKey)
+                }
+                selectedPlayer = identity
+                playerLoadState = .loading
+            }
+        }
+        #endif
     }
 
     /// Reuse the same client while the process remains alive.
@@ -155,6 +171,19 @@ final class FestivalSession {
         return try await profile(accountId: result.accountId)
     }
 
+    /// View any validated account ID without a search result, e.g. from a
+    /// `/player/:accountId` route link (deep link, Leaderboards row, Bands member).
+    ///
+    /// - Parameter accountId: Public account key from the route.
+    /// - Returns: Available or syncing scores with response provenance.
+    /// - Throws: Invalid identity, service, publication or cancellation errors.
+    func viewPlayer(accountId: String) async throws -> PlayerProfilePayload {
+        guard ProfileSearchText.isValidAccountId(accountId) else {
+            throw FestivalAPIError.invalidPlayerProfile
+        }
+        return try await profile(accountId: accountId)
+    }
+
     /// Promote an explicitly viewed, response-proven player and its score index.
     ///
     /// - Parameters:
@@ -196,6 +225,22 @@ final class FestivalSession {
     }
 
     /// Reload only the selected account, refusing stale completion after a switch.
+    ///
+    /// A relaunch trusts the identity already persisted at explicit selection time;
+    /// it does not require this specific reload to itself carry a fresh
+    /// `X-FST-Publication-Id` header. Bug fix: this previously compared
+    /// `payload.publicationId` against `self.publicationId`, but `profile(accountId:)`
+    /// had already advanced `self.publicationId` to `payload.observedPublicationId`
+    /// moments earlier, so the guard really compared the response's two fields to each
+    /// other. A keyless per-account read that came back without a trusted header
+    /// (`publicationId == nil`, e.g. before the edge enables pinning) then always
+    /// failed this tautology, permanently downgrading every restored selection to
+    /// `.failed` on the very next launch even though nothing was actually stale.
+    /// `observe(publicationId:)` (already called by `profile(accountId:)`) still
+    /// rejects a regressed generation, and `hasCurrentPlayerScores(forCatalogue:)`
+    /// independently gates whether these scores may be shown against a specific
+    /// Songs generation, so dropping this redundant check does not weaken either
+    /// safeguard.
     func refreshSelectedPlayer() async {
         guard let identity = selectedPlayer else { return }
         profileRequestRevision += 1
@@ -214,9 +259,6 @@ final class FestivalSession {
             if payload.state == .syncing {
                 playerLoadState = .syncing
             } else {
-                guard payload.publicationId == publicationId else {
-                    throw FestivalAPIError.invalidPublication
-                }
                 selectedPlayerScores = try payload.profile.scoreIndex(
                     requestedAccountId: identity.accountId
                 )

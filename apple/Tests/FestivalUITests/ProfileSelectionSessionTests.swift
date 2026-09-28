@@ -8,6 +8,7 @@ actor ProfileSelectionTransport: HTTPTransport {
     private var denied = false
     private var syncNext = false
     private var holdNext = false
+    private var shouldOmitNextProfileHeader = false
     private var held: CheckedContinuation<HTTPResult, Error>?
     private var heldAccount: String?
     private var heldGeneration = 7
@@ -71,7 +72,9 @@ actor ProfileSelectionTransport: HTTPTransport {
                 waiting = nil
             }
         }
-        return profile(for: accountId, generation: generation)
+        let omitHeader = shouldOmitNextProfileHeader
+        shouldOmitNextProfileHeader = false
+        return profile(for: accountId, generation: generation, omitHeader: omitHeader)
     }
 
     /// Return one coherent score for the selected synthetic account.
@@ -79,8 +82,13 @@ actor ProfileSelectionTransport: HTTPTransport {
     /// - Parameters:
     ///   - accountId: Fixture account one or two.
     ///   - generation: Response-proven publication to return.
+    ///   - omitHeader: Simulate a keyless per-account read with no trusted
+    ///     `X-FST-Publication-Id` response header, independent of the transport's
+    ///     `unpinned` mode (e.g. edge pinning not yet enabled for this one read).
     /// - Returns: Current-state compact profile without a tracking write.
-    private func profile(for accountId: String, generation: Int) -> HTTPResult {
+    private func profile(
+        for accountId: String, generation: Int, omitHeader: Bool = false
+    ) -> HTTPResult {
         let rank = accountId == "fixture-player-1" ? 1 : 2
         let body = """
         {"accountId":"\(accountId)","displayName":"Fixture Player \(rank)",
@@ -90,7 +98,7 @@ actor ProfileSelectionTransport: HTTPTransport {
         """
         return HTTPResult(
             status: 200, data: Data(body.utf8),
-            headers: responseHeaders(for: generation)
+            headers: omitHeader ? [:] : responseHeaders(for: generation)
         )
     }
 
@@ -109,6 +117,11 @@ actor ProfileSelectionTransport: HTTPTransport {
 
     /// Return one 202 after a previously available selected-player read.
     func syncNextProfile() { syncNext = true }
+
+    /// Make the next `/api/player/...` response omit its response publication
+    /// header while the transport otherwise stays pinned, e.g. a keyless read
+    /// the edge has not yet stamped even though `/api/publication` is pinned.
+    func omitNextProfileHeader() { shouldOmitNextProfileHeader = true }
 
     /// Advance the fixture generation without changing a selected identity.
     ///
@@ -329,4 +342,35 @@ private func viewedPlayer(_ rank: Int) throws -> PlayerSearchResult {
     #expect(session.selectedPlayerScores["fixture-pulse"]?[.lead]?.score == 99_800)
     #expect(session.selectedPlayerScoreObservation == 7)
     #expect(session.playerError == nil)
+}
+
+/// Regression: a relaunch reload of an already-selected, already-persisted identity
+/// must not fail just because that one response lacked a trusted publication header.
+/// `refreshSelectedPlayer` previously compared `payload.publicationId` against
+/// `self.publicationId`, but the latter had already been advanced to
+/// `payload.observedPublicationId` by the same call, making the guard equivalent to
+/// `payload.publicationId == payload.observedPublicationId` — always false for a
+/// headerless response, so cold-start restoration could never actually recover a
+/// previously selected player's scores.
+@MainActor
+@Test func relaunchReloadSurvivesAHeaderlessButOtherwiseCurrentProfileRead() async throws {
+    let suiteName = "fst-profile-tests-\(UUID().uuidString)"
+    let storage = try #require(UserDefaults(suiteName: suiteName))
+    defer { storage.removePersistentDomain(forName: suiteName) }
+    let transport = ProfileSelectionTransport()
+    let client = try FestivalAPI(transport: transport)
+    let session = FestivalSession(factory: { client }, selectionStorage: storage)
+    let player = try viewedPlayer(1)
+    try session.selectPlayer(player, from: await session.viewPlayer(player))
+
+    let restored = FestivalSession(factory: { client }, selectionStorage: storage)
+    #expect(restored.selectedPlayer?.accountId == player.accountId)
+    #expect(restored.playerLoadState == .loading)
+    await transport.omitNextProfileHeader()
+    await restored.refreshSelectedPlayer()
+    #expect(restored.selectedPlayer?.accountId == player.accountId)
+    #expect(restored.playerLoadState == .available)
+    #expect(restored.selectedPlayerScores["fixture-pulse"]?[.lead]?.score == 99_900)
+    #expect(restored.selectedPlayerScoreObservation == 7)
+    #expect(restored.playerError == nil)
 }

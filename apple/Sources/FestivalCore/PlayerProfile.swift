@@ -294,6 +294,114 @@ public struct PlayerProfilePayload: Sendable {
     public let observedPublicationId: Int
 }
 
+// MARK: - Client-side aggregation
+
+/// One row contributing to an overall or per-instrument aggregate.
+private struct AggregatedRow {
+    let songId: String
+    let instrument: Instrument
+    let isFullCombo: Bool
+    let stars: Int
+    let accuracy: Double?
+    let rank: Int?
+}
+
+/// Player-page summary computed only from the compact `scores` array, mirroring the
+/// source's `computeOverallStats` without a call to the forbidden player-stats GET.
+public struct PlayerOverallStats: Equatable, Sendable {
+    public let songsPlayed: Int
+    public let fullComboCount: Int
+    public let fullComboPercent: Double
+    public let goldStarCount: Int
+    public let averageAccuracy: Double?
+    public let bestRank: Int?
+    public let bestRankSongId: String?
+    public let bestRankInstrument: Instrument?
+}
+
+/// Per-instrument summary computed only from the compact `scores` array, mirroring
+/// the source's `computeInstrumentStats` without a call to the forbidden stats GET.
+public struct PlayerInstrumentStats: Equatable, Sendable {
+    public let instrument: Instrument
+    public let songsPlayed: Int
+    public let fullComboCount: Int
+    public let fullComboPercent: Double
+    public let goldStarCount: Int
+    public let fiveStarCount: Int
+    public let averageAccuracy: Double?
+    public let bestRank: Int?
+    public let bestRankSongId: String?
+}
+
+/// Shared arithmetic for both the overall and the per-instrument summary.
+private func aggregate(_ rows: [AggregatedRow]) -> (
+    fullComboCount: Int, fullComboPercent: Double, goldStarCount: Int,
+    fiveStarCount: Int, averageAccuracy: Double?,
+    bestRank: Int?, bestRankSongId: String?, bestRankInstrument: Instrument?
+) {
+    let fullComboCount = rows.filter(\.isFullCombo).count
+    let fullComboPercent = rows.isEmpty ? 0
+        : (Double(fullComboCount) / Double(rows.count) * 1_000).rounded(.down) / 10
+    let goldStarCount = rows.filter { $0.stars >= 6 }.count
+    let fiveStarCount = rows.filter { $0.stars == 5 }.count
+    let accuracies = rows.compactMap(\.accuracy).filter { $0 > 0 }
+    let averageAccuracy = accuracies.isEmpty ? nil
+        : accuracies.reduce(0, +) / Double(accuracies.count)
+    let ranked = rows.filter { ($0.rank ?? 0) > 0 }
+    let bestRank = ranked.map { $0.rank! }.min()
+    let bestRankRow = bestRank.flatMap { best in ranked.first { $0.rank == best } }
+    return (
+        fullComboCount, fullComboPercent, goldStarCount, fiveStarCount, averageAccuracy,
+        bestRank, bestRankRow?.songId, bestRankRow?.instrument
+    )
+}
+
+extension PlayerProfileResponse {
+    /// Aggregate every visible-instrument score into one player-page summary.
+    ///
+    /// - Parameter visibleInstruments: Settings-visible solo charts.
+    /// - Returns: Zeroed totals for a profile with no visible-instrument scores.
+    public func overallStats(visibleInstruments: Set<Instrument>) -> PlayerOverallStats {
+        let rows = scores.filter { visibleInstruments.contains($0.instrument) }.map {
+            AggregatedRow(
+                songId: $0.songId, instrument: $0.instrument,
+                isFullCombo: $0.isFullCombo == true, stars: $0.stars ?? 0,
+                accuracy: $0.accuracy, rank: $0.rank
+            )
+        }
+        let totals = aggregate(rows)
+        return PlayerOverallStats(
+            songsPlayed: Set(rows.map(\.songId)).count,
+            fullComboCount: totals.fullComboCount, fullComboPercent: totals.fullComboPercent,
+            goldStarCount: totals.goldStarCount, averageAccuracy: totals.averageAccuracy,
+            bestRank: totals.bestRank, bestRankSongId: totals.bestRankSongId,
+            bestRankInstrument: totals.bestRankInstrument
+        )
+    }
+
+    /// Aggregate only one instrument's scores into its player-page summary.
+    ///
+    /// - Parameter instrument: Solo chart to summarize.
+    /// - Returns: Zeroed totals when this instrument has no recorded scores.
+    public func instrumentStats(_ instrument: Instrument) -> PlayerInstrumentStats {
+        let rows = scores.filter { $0.instrument == instrument }.map {
+            AggregatedRow(
+                songId: $0.songId, instrument: $0.instrument,
+                isFullCombo: $0.isFullCombo == true, stars: $0.stars ?? 0,
+                accuracy: $0.accuracy, rank: $0.rank
+            )
+        }
+        let totals = aggregate(rows)
+        return PlayerInstrumentStats(
+            instrument: instrument, songsPlayed: rows.count,
+            fullComboCount: totals.fullComboCount, fullComboPercent: totals.fullComboPercent,
+            goldStarCount: totals.goldStarCount, fiveStarCount: totals.fiveStarCount,
+            averageAccuracy: totals.averageAccuracy,
+            bestRank: totals.bestRank, bestRankSongId: totals.bestRankSongId
+        )
+    }
+}
+
 extension FestivalAPI {
     /// Fetch public compact scores without selected-profile or registration headers.
     ///

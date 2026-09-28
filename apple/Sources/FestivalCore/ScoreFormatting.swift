@@ -43,6 +43,19 @@ public enum ScoreFormatting {
         return "\(rounded > 0 ? "+" : "")\(text)%"
     }
 
+    /// Rescale a compact player-profile accuracy onto `accuracy(_:)`'s expanded units.
+    ///
+    /// `PlayerScore.accuracy` and `PlayerValidScoreVariant.accuracy` are the wire
+    /// fraction (0...1) multiplied by 1,000, while `accuracy(_:)`/`accuracyTint(_:)`
+    /// expect the solo leaderboard's ten-thousandths-of-a-percent scale (the wire
+    /// fraction multiplied by 1,000,000). Multiplying by 1,000 converts between them.
+    ///
+    /// - Parameter playerProfileAccuracy: A compact player-profile accuracy value.
+    /// - Returns: The same accuracy in `accuracy(_:)`/`accuracyTint(_:)` units.
+    public static func expandedFromPlayerProfileAccuracy(_ playerProfileAccuracy: Double) -> Double {
+        playerProfileAccuracy * 1_000
+    }
+
     /// Bucket a selected song score's rank as the source Songs row does.
     ///
     /// - Parameters:
