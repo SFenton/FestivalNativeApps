@@ -182,6 +182,13 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 **Lane K — Service client consolidation + scrape-freeze UX** (Opus) — 🟨 running in `~/repos/FestivalNativeApps-lanes/client`
 - ⬜ One typed request path for every public GET (Rivals/Bands/History/Notifications/Rankings migrated) · ⬜ One error vocabulary · ⬜ Shared `ServiceStatusView` with scrape-freeze auto-retry (`Retry-After`) adopted across screens · ⬜ `add-endpoint` skill + architecture rules
 
+**Lane K — Service client consolidation & scrape-freeze UX** (Opus) — ✅ landed
+- ✅ One request path: `FestivalAPI.send` gate (keyless guard, 30 s timeout, cancellation) + shared `mapStatus`; pinned `read(_:)`, publication, operational and Rivals reads all use it (Rivals' private `URLSession` removed)
+- ✅ `ServiceIssue` vocabulary (`scrapeInProgress`/`unavailable`/`syncing`/`notFound`/`offline`/`other`) + capped `ServiceRetryBackoff`; `FestivalAPIError.publicReadFrozen`
+- ✅ `Common/ServiceStatusView` / `ServiceStatusInline` / `.serviceStatusOverlay` ("Scores are updating" countdown, announcements, Reduce Motion) adopted on every service screen; `FST_DEBUG_FORCE_FREEZE=1`
+- ✅ `GET /api/player/{id}/rivals/all` exposed as `rivalsAll(accountId:)` (pure read verified; typed model + fixture) for the Suggestions rival families
+- Docs: architecture "one request path" rule, service-safety freeze semantics, `skills/add-endpoint.md`, `controls/service-status/`
+
 ### Wave 3 — UX tests (started for completed features)
 
 **Lane U3 — UX tests: Rivals & Compete** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/uxrivals`
@@ -216,6 +223,7 @@ Not yet assigned:
 - **Test-ID families are implicit:** `verify_product.py` accepts `fst.<page-or-control-id>.*` for every declared page/control.
 - **Not ported (by design / blocked):** Settings Export ZIP + profile-name refresh (POST-only); live Service Progress and `/api/version` (not on the verified-read allowlist); "select as band profile" (needs session band identity).
 
+- **Scrape freeze UX (Lane K):** a 503 carrying a score-update `x-fst-public-read-freeze-reason` now shows "Scores are updating" with an automatic `Retry-After` countdown on every screen (see `.agents/platforms/service-safety.md#public-read-freeze`).
 - **Rivals detail endpoints re-checked (2026-09-28):** `/rivals/{combo}/{rivalId}` and `/leaderboard-rivals/{instrument}/{rivalId}` return HTTP 200 for the sample account outside an active scrape window (verified live, both via `curl` and a loaded `RivalDetailScreen` in the simulator). They still 503 during one — now with an explicit `x-fst-public-read-freeze-reason: scrape` response header (`Retry-After: 30`) instead of the earlier bare 503 — while the list endpoints (`/rivals/{instrument}`, `/leaderboard-rivals/{instrument}`) keep returning 200 through the same freeze. The app's existing `ServiceUnavailableView` + retry already handles this correctly; no code change needed, just confirmation the condition is transient (scrape-scoped), not a permanent block.
 - **Load ceiling:** ~9 concurrent lanes pushed load to 170+ on the 10-core Mac; don't add lanes above ~100 load.
 
@@ -278,3 +286,4 @@ Not yet assigned:
 | 2026-09-28 | Lane G2 | Suggestions follow-ups: `near_max_5k/10k/15k` + decades ported; `visibleInstruments` seam closed; verified rival-suggestion data needs a combined `/rivals/all` read not yet in `FestivalAPI+Rivals.swift` |
 | 2026-09-28 | Lane G2 | near_max families (+decades), visibleInstruments seam; Suggestions Core coverage 96–100% |
 | 2026-09-28 | Orchestrator | Sim lock budget rule for UX lanes; `/rivals/all` read assigned to Lane K |
+| 2026-09-28 | Lane K | One keyless request path (Rivals off its own URLSession), `ServiceIssue` + `ServiceStatusView` scrape-freeze countdown on all service screens, `rivals/all` exposed, add-endpoint skill |

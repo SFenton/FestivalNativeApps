@@ -27,7 +27,21 @@
 | `/api/rankings/*` | allowed (200, re-probed 2026-09-27) | Earlier Cloudflare 1010 denial no longer applies |
 | `/api/account/search?q=&limit=10` | allowed | Re-probed 2026-09-27: 200 keyless. Publication-bound (`FSTService/Api/ApiPublicationClassification.cs:78-84`). An empty envelope is also returned after a logged DB timeout (`FSTService/Persistence/MetaDatabase.cs:3495-3517,3523-3537`) — never proof of no match |
 | `/api/player/{accountId}` | allowed, not yet probed live | 202 = syncing; 200 ≠ registered/published (`FSTService/Api/PlayerEndpoints.cs:31-51,85-103`, `FSTService/Scraping/ScrapeTimePrecomputer.cs:911-953,2442-2476`) |
+| `/api/player/{accountId}/rivals/{instrument\|combo}[/{rivalId}]`, `/leaderboard-rivals/{instrument}[/{rivalId}]` | allowed (200) | Pure reads (`FSTService/Api/RivalsEndpoints.cs`, `LeaderboardRivalsEndpoints.cs`); 404 = no rivals yet (normalized to empty). `POST …/rivals/recompute` is never called |
+| `/api/player/{accountId}/rivals/all` | allowed (200, probed 2026-09-28) | Pure read (`FSTService/Api/RivalsEndpoints.cs:207-273`): precomputed `rivals-all:{id}` → process cache → `SELECT`s from `user_rivals`/`account_names`; stores bytes only in the in-memory response cache. Precomputed shape has `songs[]` + per-rival `direction`/`samples`; the live fallback omits them and adds `avgSignedDelta` |
 | band search, band detail (`/api/bands/{bandId}`), player stats, band sync-status | **blocked** | See hard rules |
+
+## Public-read freeze
+
+While the service scrapes and publishes, `PublicReadGateMiddleware` stamps every `/api/` response with `X-FST-Public-Read-Freeze-Reason` (`FSTService/Api/PublicReadGateMiddleware.cs:21-29`) — **including 200s served from published cache**. A read with no stable published response answers **503** with `Retry-After: 30` and `Cache-Control: no-store` (`FSTService/Api/CacheHelper.cs:230-240`, `PublicReadGateMiddleware.cs:45-62`, `PublicApiResponseCacheMiddleware.cs:598-609`).
+
+| Reason (`FSTService/Scraping/ScrapeLifecycleNotifier.cs`, `Persistence/PublicReadFreezeState.cs`) | Native meaning |
+|---|---|
+| `scrape`, `post-process`, `publish`, `publication-commit`, `publication-commit-deferred` | Scores are updating → `ServiceIssue.scrapeInProgress`, automatic retry |
+| `publication-isolation-pending`, `max-score-maintenance:v1:*`, any other value | Generic outage → `ServiceIssue.unavailable` |
+| 503 without the header | Generic outage |
+
+Clients must treat a freeze as transient, honour `Retry-After` with capped backoff, and never interpret it as missing data. List endpoints can keep answering 200 during a freeze while detail endpoints 503 on a cache miss. UI: [service-status control](../controls/service-status/spec.md).
 
 ## Live probes
 

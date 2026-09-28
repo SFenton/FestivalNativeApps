@@ -149,6 +149,14 @@
       "states": ["hidden-all-seen", "new-slides-only", "gated", "waiting-not-ready", "replay-all", "dismissed"],
       "testId": "fst.first-run.*",
       "spec": ".agents/controls/first-run/spec.md"
+    },
+    {
+      "id": "service-status",
+      "status": "pending",
+      "source": "FortniteFestivalWeb/src/api/client.ts:119",
+      "states": ["scrape-freeze-countdown", "scrape-freeze-retrying", "unavailable", "offline", "syncing", "not-found", "other", "inline"],
+      "testId": "fst.service-status.*",
+      "spec": ".agents/controls/service-status/spec.md"
     }
   ],
   "testIds": {
@@ -157,6 +165,7 @@
     "fst.notifications.*": "notifications",
     "fst.quick-links.*": "quick-links",
     "fst.first-run.*": "first-run",
+    "fst.service-status.*": "service-status",
     "fst.songs.section-index.*": "songs-section-index",
     "fst.placeholder.*": "app-navigation",
     "fst.settings.*": "settings",
