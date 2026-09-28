@@ -48,4 +48,17 @@ Same mobile shell as every other platform ([windows.md](windows.md#layout-per-wi
 | Global search / profile sheet | Bottom sheets as on Windows; profile sheet placeholder "Search players or bands…" with Players/Bands tabs (`FST_Phone/search-open.png`, `profile-sheet.png`) |
 | Paths | Opens with a *Some Instruments Unavailable — Karaoke is not available for path visualization yet* alert (OK / Don't show again) over the chart (`FST_Phone/song-detail-paths.png`) |
 
+## Foldables, tri-fold and tablet
+
+The web app has no fold or posture logic: it only reacts to the new viewport width. Evidence: `FST_Book_Fold-{unfolded,folded,half}/`, `FST_Passport_Fold-{unfolded,folded,half}/`, `*-postures/` (stills per posture + `posture-change.mp4`), `FST_Tablet/`.
+
+| Device / posture | Viewport | Behaviour |
+|---|---|---|
+| Book Fold unfolded (2076×2152 @ 390, fold x=1038) | ~851×883 CSS px | Same single-column mobile shell stretched across the hinge: rows, cards and the FAB dock straddle the fold; no two-pane, no hinge avoidance. Leaderboards one card per row; Item Shop becomes a 3-column art grid |
+| Book Fold half-open | same as unfolded | Identical to unfolded (no tabletop/book layout) |
+| Book Fold / Passport folded (cover) | phone widths | Phone layout; status bar tinted `#1A0830` again |
+| Passport unfolded (2208×1840 @ 420, fold x=1104) | ~841×701 CSS px | As Book Fold; landscape proportions show only ~5 song rows above the dock |
+| Large screens (unfolded, tablet) | — | Status bar **not** tinted (light bar with dark icons); the Pixel launcher's taskbar tutorial covers apps until dismissed (the lab completes it) |
+| Posture change | — | The page reflows in place and keeps its route (`*-postures/postures.log.json`); `screenrecord` follows one physical display, so `posture-change.mp4` shows the cover display and `posture-inner.mp4` the inner one |
+
 Measured animations are identical to Windows (same CSS): background 6 s pan/zoom + 1 s crossfade, rows `fadeInUp` 400 ms / 125 ms stagger, Song Detail and Settings sections 300 ms, sheets 250–300 ms, bottom-tab colour 150 ms, shop pulse 2 s (`FST_Phone/*.anims.json`). `prefers-reduced-motion` is false only because the lab runs at 1× system animation scale.

@@ -2,7 +2,7 @@
 
 > **What:** differences between the Chrome-installed PWA ([android.md](android.md)) and the native Compose app on the same FST AVDs, with a suggested fix per row. **Read when:** picking Android parity work or reviewing an Android surface against the PWA.
 
-Evidence: PWA `showcase\pwa\android\<AVD>[-<posture>]\<page>.png`, native `showcase\pwa\android-native\<AVD>[-<posture>]\<page>.png` (Debug APK from `master` @ `f3ffb60`, `pwa.py native`: anonymous via `FST_DEBUG_ANONYMOUS=1`, first run off, live data). Native navigation, top app bars and edge-to-edge are platform conventions ([platforms/android.md](../../platforms/android.md)); rows marked **keep native** record deliberate differences.
+Evidence: PWA `showcase\pwa\android\<AVD>[-<posture>]\<page>.png`, native `showcase\pwa\android-native\<AVD>[-<posture>]\<page>.png` (all pages on `FST_Phone`, key pages on Book Fold unfolded and Tablet; Debug APK from `master` @ `f3ffb60`, `pwa.py native`: anonymous via `FST_DEBUG_ANONYMOUS=1`, first run off, live data). Native navigation, top app bars and edge-to-edge are platform conventions ([platforms/android.md](../../platforms/android.md)); rows marked **keep native** record deliberate differences.
 
 | # | Page / state | PWA | Native | Gap | Suggested fix |
 |---|---|---|---|---|---|
@@ -26,7 +26,9 @@ Evidence: PWA `showcase\pwa\android\<AVD>[-<posture>]\<page>.png`, native `showc
 | 18 | Drawer | Touch tap does not open it (web bug, [android.md](android.md#layout-and-navigation-phone)) | Opens | Web bug | **Keep native** |
 | 19 | Orientation | Locked portrait by the manifest | Rotates | Web limitation | **Keep native** (support landscape) |
 | 20 | Motion | Rows `fadeInUp` 400 ms ease-out / 125 ms stagger; sheets 250–300 ms; background 6 s pan + 1 s crossfade | Not frame-stepped yet | Unknown | Record native clips with `pwa.py drive`-style steps (TODO) |
+| 21 | Large screens (Book Fold unfolded, tablet) | Same single-column mobile shell stretched across the hinge; no two-pane; status bar untinted (`FST_Book_Fold-unfolded/`, `FST_Tablet/`) | Navigation rail (fold) / permanent drawer (tablet), search field in the top bar, list-detail Songs with a "Select a song" pane on the tablet (`android-native/FST_Tablet/songs.png`) | Native adapts, web does not | **Keep native**; keep the panes off the hinge (the web straddles it) |
+| 22 | Drawer destinations (anonymous) | Songs, Leaderboards, Item Shop; footer Select Profile, Settings | Songs, Leaderboards, Settings; Browse: Item Shop, Bands; More: Licenses | Extra Bands/Licenses entries, different grouping | Match the web set and order; reach Licenses from Settings |
 
 ## Top gaps to schedule
 
-4–7, 9–14, 16–17, 2 and 20 (4 and 5 need an orchestrator decision first).
+4–7, 9–14, 16–17, 22, 2 and 20 (4 and 5 need an orchestrator decision first).
