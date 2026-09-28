@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Festival.App.Controls"
     xmlns:data="using:Festival.Core.Data"
+    xmlns:domain="using:Festival.Core.Domain"
     Title="Festival Score Tracker">
     <Window.SystemBackdrop>
         <MicaBackdrop Kind="Base" />
@@ -19,8 +20,42 @@
                   IsBackButtonVisible="True" IsPaneToggleButtonVisible="True"
                   BackRequested="OnBackRequested" PaneToggleRequested="OnPaneToggleRequested"
                   AutomationProperties.AutomationId="fst.shell.title-bar">
+            <!-- Global search (fst.global-search.*, MainWindow.Search.cs): centred box at >= 720 epx, button below. -->
+            <TitleBar.Content>
+                <AutoSuggestBox x:Name="GlobalSearchBox" HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="240" MaxWidth="580"
+                                QueryIcon="Find" PlaceholderText="Search songs or players" UpdateTextOnSelect="False"
+                                ToolTipService.ToolTip="Search songs and players (Ctrl+E)"
+                                AutomationProperties.Name="Search songs and players"
+                                AutomationProperties.AutomationId="fst.global-search.open">
+                    <AutoSuggestBox.ItemTemplate>
+                        <DataTemplate x:DataType="domain:GlobalSuggestion">
+                            <Grid ColumnSpacing="10" Padding="0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="32" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <controls:SongArt Art="{x:Bind Art}" Width="32" Height="32" Visibility="{x:Bind IsSong}" />
+                                <PersonPicture Width="28" Height="28" DisplayName="{x:Bind Title}" Visibility="{x:Bind IsPlayer}"
+                                               AutomationProperties.AccessibilityView="Raw" />
+                                <FontIcon Glyph="&#xE721;" FontSize="16" Visibility="{x:Bind IsSeeAll}" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{x:Bind Subtitle}" Visibility="{x:Bind HasSubtitle}" FontSize="12"
+                                               Foreground="{ThemeResource FSTSecondaryTextBrush}" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </AutoSuggestBox.ItemTemplate>
+                </AutoSuggestBox>
+            </TitleBar.Content>
             <TitleBar.RightHeader>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Button x:Name="GlobalSearchButton" Visibility="Collapsed" Padding="8" Background="Transparent" BorderThickness="0"
+                        VerticalAlignment="Center" ToolTipService.ToolTip="Search (Ctrl+E)"
+                        AutomationProperties.Name="Search songs and players"
+                        AutomationProperties.AutomationId="fst.global-search.open">
+                    <FontIcon Glyph="&#xE721;" FontSize="16" />
+                </Button>
                 <ContentControl x:Name="NotificationsHost" VerticalAlignment="Center" IsTabStop="False" />
                 <Button x:Name="ProfileButton" Padding="4" Margin="0,0,8,0" Background="Transparent" BorderThickness="0"
                         AutomationProperties.Name="{x:Bind Shell.ProfileButtonName, Mode=OneWay}"

@@ -49,6 +49,7 @@ public sealed partial class MainWindow : Window
 
         Instance = this;
         InitializeSettingsFeatures();
+        InitializeGlobalSearch();
         Nav.Loaded += (_, _) =>
         {
             if (Nav.SettingsItem is NavigationViewItem settingsItem) Configure(settingsItem);
@@ -129,6 +130,7 @@ public sealed partial class MainWindow : Window
         AppRoute.RivalDetail => typeof(RivalDetailPage),
         AppRoute.Rivalry => typeof(RivalryPage),
         AppRoute.Suggestions => typeof(SuggestionsPage),
+        AppRoute.Search => typeof(SearchPage),
         _ => typeof(PlaceholderPage),
     };
 

@@ -33,13 +33,13 @@ Breakpoint is **window** width (the title bar spans the window), measured in `Si
 | 720–1007 (medium, half of a 1440–2560 desktop) | `medium`, `snap-left/right` on this host (1280) | Title may collapse to the icon; box `MinWidth` 240 | Box visible |
 | < 720 (compact, snapped on 1366 laptops, `compact` 500) | `compact`, `portrait-tablet` clamped | Box collapsed; **magnifier `Button`** before the bell (`fst.global-search.open`) | Button navigates to the Search page with the field focused |
 
-TODO(win-search): confirm the 720 epx collapse point by measurement: box `MinWidth` + title + three title-bar buttons + caption buttons must fit without clipping `RightHeader`. Snapped windows on this host are exact halves (`uiwin.py resize snap-left`), so also test a 683-epx half (1366 × 768 laptop).
+Measured: at 720–1007 epx the box (`Width` = 36% of the window, clamped 240–580; 320 minimum from 1008) fits beside the title, bell, avatar and caption buttons; `TitleBar` hides the title itself when crowded. A 683-epx half (1366 × 768 laptop) and `compact` get the button. The breakpoint is `MainWindow.CompactSearchWidth`.
 
 ## Surfaces
 
 ### Title-bar box (medium and wide)
 
-- `AutoSuggestBox` `QueryIcon="Find"`, `PlaceholderText="Search songs or players"`, `AutomationProperties.Name="Search songs and players"`, `AutomationId` `fst.global-search.field`. The box itself is `fst.global-search.open` at these widths (one ID per window).
+- `AutoSuggestBox` `QueryIcon="Find"`, `PlaceholderText="Search songs or players"`, `AutomationProperties.Name="Search songs and players"`, `UpdateTextOnSelect="False"`. Its `AutomationId` is `fst.global-search.open` (the compact button carries the same ID; only one is ever visible). The Search page's own field is `fst.global-search.field`.
 - Title-bar passthrough: `TitleBar.Content` is interactive by design; verify drag regions still work to either side of the box. `TitleBar` switches itself to a Compact visual state (hides the title, left-aligns content) when content fills the bar, but never collapses the box to an icon: the compact button below is ours. [title bar design](https://learn.microsoft.com/windows/apps/design/basics/titlebar-design), [TitleBar control](https://learn.microsoft.com/windows/apps/design/controls/title-bar) (WinAppSDK 1.7+)
 - `TextChanged` with `Reason == UserInput` drives `GlobalSearchModel.Query` (250 ms debounce inside the model, not the view).
 - Suggestion list (`ItemsSource` = a `List<GlobalSuggestion>` built by the model): up to **5 songs** (instant) then up to **5 players** (appended when the account search returns, so the highlighted index never moves), then a final **"See all results for "{q}""** item. Each item: 32 px art or `PersonPicture`, primary text, secondary text ("Song · Artist" / "Player"). UIA name "Song, {title} by {artist}" / "Player, {name}".
@@ -50,10 +50,11 @@ TODO(win-search): confirm the 720 epx collapse point by measurement: box `MinWid
 
 - Pushed on the **current section's** `Frame` (Back returns to where the user was; re-invoking a section pops to its root as usual). Not a `NavigationView` item.
 - Header: full-width `AutoSuggestBox` (same model; no suggestion popup on this page), then a `SelectorBar` **All · Songs · Players · Bands** (`fst.global-search.scope.*`; "All" is the web's no-chip state and has no ID suffix beyond `scope.all`).
-- Body: `ListView` with grouped sections (`CollectionViewSource` + `GroupStyle` headers as UIA headings level 2) Songs → Players, each row reusing the Songs row visuals (`Controls/SongRowVisuals.cs`) or the profile flyout's player template; per-section `ProgressRing` (`fst.global-search.players-loading`), hint, Retry.
-- **Bands** tab: no request; `InfoBar` (Informational, not closable) with the [spec](spec.md#band-scope-blocked) explanation and a "Band Rankings" `HyperlinkButton` (`fst.global-search.bands-unavailable`).
+- Body: one `ScrollViewer` with a section per scope (heading `TextBlock`, `HeadingLevel=Level2`, carrying `fst.global-search.section.*`) and a non-scrolling `ListView` each (≤20 songs, ≤10 players, so no virtualization is needed and grouping stays AOT-simple). Rows: 44 px `SongArt` + title/artist; `PersonPicture` + name/"Player" ("Selected player · Statistics" for the selected one). Players section: `ProgressRing` (`fst.global-search.players-loading`), "No players found." + Retry (`fst.global-search.retry`), or the shared `ServiceStatusView` (`fst.global-search.players-error`, retry `fst.service-status.retry`). Both scopes empty in All → centred "No results found." + Retry.
+- **Bands** tab: no request; `InfoBar` (Informational, not closable, `fst.global-search.bands-unavailable`) with the [spec](spec.md#band-scope-blocked) explanation and a "Band Rankings" `HyperlinkButton` (`fst.global-search.bands-unavailable.rankings`, opens Duos Band Rankings).
 - `ServiceIssue` from the players read maps to `Controls/ServiceStatusView` inline in the Players section.
-- Compact: the page is the only surface; the field gets focus on navigation (`FocusState.Programmatic` after `Loaded`).
+- The page field gets focus on `Loaded` at every width. Submitting from the title bar while the Search page is showing updates that page instead of pushing another.
+- The page reuses the title-bar model's settled results for the same query (no second account search); a failed players read is never reused.
 
 ## Keyboard
 
@@ -62,10 +63,12 @@ TODO(win-search): confirm the 720 epx collapse point by measurement: box `MinWid
 | **Ctrl+E** | Focus the title-bar box (select all); compact → open the Search page | App-search key in Teams and Outlook; File Explorer maps both Ctrl+E and Ctrl+F to its box. Microsoft's accelerator table lists Ctrl+E only as "begin editing mode", so this is convention, not guidance [keyboard accelerators](https://learn.microsoft.com/windows/apps/design/input/keyboard-accelerators) |
 | **Ctrl+F** | Page-local find where the page has one (Songs filter box, Rivals Find Rival); elsewhere falls back to Ctrl+E behaviour | Microsoft's table: Ctrl+F = find (F3 = find next). The WinUI Gallery binds Ctrl+F to its title-bar box because it has no page-local finds; we do (Songs filter), so page find wins and global is the fallback [keyboard accelerators](https://learn.microsoft.com/windows/apps/design/input/keyboard-accelerators) |
 | Ctrl+K | Not bound | No Microsoft guidance recommends it for search (Office uses it for Insert Link) |
-| ↓ / ↑, Enter, Escape | Built-in `AutoSuggestBox` suggestion navigation, submit, dismiss | Platform default |
+| ↓ / ↑, Enter | Built-in `AutoSuggestBox` suggestion navigation and submit | Platform default |
+| Escape (title bar) | Closes the popup, then clears the text, then returns focus to where Ctrl+E found it | Handled in `PreviewKeyDown`: the inner `TextBox` swallows `KeyDown` |
+| Escape (Search page field) | Clears the text, then goes Back | Same |
 | Alt+Left / Back | From the Search page back to the previous page | Existing shell accelerators (`MainWindow.xaml.cs:67-68`) |
 
-Register Ctrl+E / Ctrl+F as `KeyboardAccelerator`s on `RootGrid` (so they work from any page) with `ScopeOwner` unset, and show them in tooltips ("Search (Ctrl+E)"). Page-local Ctrl+F: pages expose an optional `IPageFind.FocusFind()`; the shell calls it if the current page implements it.
+Ctrl+E / Ctrl+F are `KeyboardAccelerator`s on `RootGrid` (work from any page); tooltips say "Search songs and players (Ctrl+E)". Page-local Ctrl+F: pages implement `IPageFind.FocusFind()` (Songs filter box, Rivals Find Rival, the Search page field) in their own `*.Find.cs` partials; the shell falls back to Ctrl+E behaviour when it returns false.
 
 ## Narrator
 
@@ -85,7 +88,20 @@ Register Ctrl+E / Ctrl+F as `KeyboardAccelerator`s on `RootGrid` (so they work f
 
 Order: model + tests → title-bar box + suggestions → Search page + scopes → compact button + accelerators → Narrator notification → UIA journeys and screenshots at four presets. Coverage per [testing/windows.md](../../testing/windows.md).
 
+## Implementation and evidence
+
+| Area | Where |
+|---|---|
+| Engine | `Festival.Core/Domain/GlobalSearchResults.cs` (scopes, limits, song match, suggestion order, routing, announcement), `ViewModels/GlobalSearchViewModel.cs`; `AppRoute.Search(Text, Scope)` ↔ `/search?q=&scope=` |
+| Shell | `MainWindow.Search.cs` (box, button, width breakpoint, accelerators, `OpenSearchRoute`: selected player → Statistics section), two additive edits in `MainWindow.xaml(.cs)` |
+| Page | `Pages/SearchPage.xaml(.cs)` |
+| Unit tests | `Festival.Core.Tests/GlobalSearchTests.cs` |
+| Journeys | `python tools/windows/search_journey.py [--axe]`: `journeys/search.json` at wide, medium (from a detail page; select a player, then its suggestion opens Statistics), compact (button, hint, empty + Retry, player → Back), snap-left (players 503 + Retry) and 683×768. The fixture logs request paths and the run fails on any `/api/bands/search`; each journey uses an isolated settings file. `--axe` scans the Search page (`tools/windows/axe_scan.ps1`) |
+| Last measured | 5/5 journeys; 0 band searches; Axe.Windows 0 errors; model/results 100% / ViewModel ≥95% lines |
+
 ## Open
 
 - The profile flyout keeps its own Players/Bands search ([profile-selection/windows.md](../profile-selection/windows.md)); later it can bind to `GlobalSearchViewModel` with the Players scope.
+- `TitleBar.RightHeader` (bell, avatar and the compact search button) sits right after the title, not at the right edge, when `TitleBar.Content` is empty or collapsed (pre-existing shell layout at < 720 epx). Stretching `Content` to push it right would make the whole middle of the bar a non-draggable passthrough region. TODO(orchestrator): `win-shell` to decide.
+- Narrator: counts are raised with `RaiseNotificationEvent` (title-bar box when focused; page field); an operator Narrator pass is still needed.
 - Tablet posture needs real touch hardware (see [platforms/windows.md](../../platforms/windows.md)); `portrait-tablet` approximates it.
