@@ -59,6 +59,9 @@ App launch flags, all builds (environment equivalents in parentheses are read in
 
 - `TreatWarningsAsErrors` is on for all projects; trim-analysis warnings from framework assemblies are kept non-fatal (`ILLinkTreatWarningsAsErrors=false`).
 - `dotnet publish -p:PublishAot=true` needs `vswhere` on `PATH` (`build.ps1` adds it).
+- XAML compiler crash `WMC9999` ("Could not find any resources appropriate for the specified culture…") hides the real error. One cause: an `x:Name` inside an `x:DataType` template equal to a bound property of that type (e.g. `x:Name="BadgeText"` + `{x:Bind BadgeText}`). Bisect by stripping templates.
+- Each feature's `[JsonSerializable]` types need their **own** `JsonSerializerContext` class (e.g. `SongsJsonContext`); attributed partials of one context collide in the source generator.
+- `coverage.runsettings` excludes `CompilerGeneratedAttribute`, so async state machines are never measured and a file with only async methods fails the gate as "missing coverage". Keep public reads as non-async `=> ReadParsedAsync(url, limit, ParseX, ct)` with sync `internal static ParseX(byte[])` decode/validate steps.
 - WinUI content is presented by DWM through DirectComposition: PresentMon attributes no presents to the app process, only to `dwm.exe`. Use app CPU, DWM CPU and GPU 3D engine counters; treat DWM present intervals as a system-wide signal.
 - Handling `ContainerContentChanging` with `args.Handled = true` suppresses x:Bind template updates.
 - Native `PackageReference` in a `.vcxproj` needs `ResolveNuGetPackages=false`.
