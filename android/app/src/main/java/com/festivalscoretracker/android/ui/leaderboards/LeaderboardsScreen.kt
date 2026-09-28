@@ -68,6 +68,7 @@ fun LeaderboardsScreen(viewModel: LeaderboardsViewModel, isRoot: Boolean) {
     val instruments by viewModel.instruments.collectAsStateWithLifecycle()
     val selected by viewModel.selectedAccountId.collectAsStateWithLifecycle()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
+    val ready by viewModel.ready.collectAsStateWithLifecycle()
     val shell = LocalShellActions.current
     FestivalScreen(
         title = "Leaderboards",
@@ -77,6 +78,9 @@ fun LeaderboardsScreen(viewModel: LeaderboardsViewModel, isRoot: Boolean) {
     ) { padding ->
         PullToRefreshBox(isRefreshing = refreshing, onRefresh = viewModel::refresh, modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
             val (hinge, measure) = rememberHingeSplit()
+            // Until settings arrive the instrument list is empty; composing the band cards
+            // first would anchor the list on them once instrument rows are inserted above.
+            if (!ready) return@PullToRefreshBox
             BoxWithConstraints(Modifier.fillMaxSize().then(measure)) {
                 val columns = LeaderboardsLayoutPolicy.columns(maxWidth.value.toInt(), hinge != null)
                 val gap = LeaderboardsLayoutPolicy.GAP_DP.dp
