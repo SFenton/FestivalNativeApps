@@ -1,10 +1,14 @@
 import SwiftUI
 import FestivalCore
+import FestivalDesign
 
-// MARK: - Shared tab-root chrome
+// MARK: - Shell environment actions
 
 /// Environment action that opens the profile selection sheet from anywhere
 /// (e.g. an in-page "Choose Profile" empty-state button).
+///
+/// `FestivalRootView` installs the real handler; the default is a no-op so hosted
+/// previews and tests can render screens without the shell.
 struct OpenProfileAction {
     let handler: @MainActor () -> Void
 
@@ -12,10 +16,22 @@ struct OpenProfileAction {
     @MainActor func callAsFunction() { handler() }
 }
 
-extension EnvironmentValues {
-    /// Opens the profile selection sheet owned by the tab-root chrome.
-    @Entry var openProfile = OpenProfileAction(handler: {})
+/// Environment action that opens the leading navigation drawer.
+struct OpenDrawerAction {
+    let handler: @MainActor () -> Void
+
+    /// Slide the drawer in.
+    @MainActor func callAsFunction() { handler() }
 }
+
+extension EnvironmentValues {
+    /// Opens the profile selection sheet owned by the root shell.
+    @Entry var openProfile = OpenProfileAction(handler: {})
+    /// Opens the hamburger drawer; nil where the platform shows a permanent sidebar.
+    @Entry var openDrawer: OpenDrawerAction? = nil
+}
+
+// MARK: - Shared tab-root chrome
 
 extension View {
     /// Standard chrome for every tab root: drawer button (leading) and profile
@@ -23,36 +39,128 @@ extension View {
     ///
     /// Page-specific toolbar items (search, sort, filter) are added by the page
     /// itself with its own `.toolbar { … }`; this modifier owns only the shared
-    /// items and the profile sheet. Owned by Lane A (Shell).
+    /// items. The profile sheet and drawer are owned by `FestivalRootView` and reached
+    /// through `\.openProfile` / `\.openDrawer`. Apply only on tab **roots**, never on
+    /// pushed pages (they get the system back button instead). Owned by Lane A (Shell).
     ///
-    /// - Parameter session: Shared app session.
+    /// - Parameters:
+    ///   - session: Shared app session (drives the profile avatar).
+    ///   - showsNotifications: Reserve the notifications slot beside the profile button.
     /// - Returns: The page with shared chrome attached.
-    func festivalRootChrome(session: FestivalSession) -> some View {
-        modifier(FestivalRootChrome(session: session))
+    func festivalRootChrome(session: FestivalSession, showsNotifications: Bool = false) -> some View {
+        modifier(FestivalRootChrome(session: session, showsNotifications: showsNotifications))
     }
 }
 
 /// Implementation of `festivalRootChrome(session:)`.
 struct FestivalRootChrome: ViewModifier {
     let session: FestivalSession
-    @State private var profilePresented = false
+    let showsNotifications: Bool
+    @Environment(\.openProfile) private var openProfile
+    @Environment(\.openDrawer) private var openDrawer
 
     func body(content: Content) -> some View {
-        content
-            .toolbar {
-                #if os(iOS)
-                ToolbarItem(placement: .topBarTrailing) {
-                    ProfileActionButton(session: session) { profilePresented = true }
+        content.toolbar {
+            #if os(iOS)
+            if let openDrawer {
+                ToolbarItem(placement: .topBarLeading) {
+                    DrawerButton { openDrawer() }
                 }
-                #else
-                ToolbarItem(placement: .primaryAction) {
-                    ProfileActionButton(session: session) { profilePresented = true }
-                }
-                #endif
             }
-            .sheet(isPresented: $profilePresented) {
-                ProfileSelectionSheet(session: session)
+            if showsNotifications {
+                ToolbarItem(placement: .topBarTrailing) { NotificationsButton() }
             }
-            .environment(\.openProfile, OpenProfileAction { profilePresented = true })
+            if #available(iOS 26.0, *) {
+                // Keep the profile avatar in its own glass bubble, apart from page actions.
+                ToolbarSpacer(.fixed, placement: .topBarTrailing)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                RootProfileButton(session: session) { openProfile() }
+            }
+            #else
+            ToolbarItem(placement: .primaryAction) {
+                RootProfileButton(session: session) { openProfile() }
+            }
+            #endif
+        }
+    }
+}
+
+// MARK: - Toolbar buttons
+
+/// Hamburger button that opens the leading drawer (web `HamburgerButton`).
+struct DrawerButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label("Menu", systemImage: "line.3.horizontal")
+        }
+        .tint(BrandTokens.textPrimary)
+        .accessibilityLabel("Open Navigation")
+        .accessibilityIdentifier("fst.shell.drawer.open")
+    }
+}
+
+/// Reserved notifications slot (web `HeaderActions` bell); hidden until the feed exists.
+struct NotificationsButton: View {
+    var body: some View {
+        Button {} label: {
+            Label("Notifications", systemImage: "bell")
+        }
+        .disabled(true)
+        .accessibilityIdentifier("fst.shell.notifications")
+    }
+}
+
+/// Top-right profile action: the selected player's initial, or an add-profile glyph.
+struct RootProfileButton: View {
+    let session: FestivalSession
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            if let player = session.selectedPlayer {
+                ProfileAvatar(name: player.displayName, size: 30)
+            } else {
+                Label("Choose Profile", systemImage: "person.crop.circle")
+            }
+        }
+        .tint(BrandTokens.textPrimary)
+        .accessibilityLabel(session.selectedPlayer.map {
+            "Profile: \($0.displayName)"
+        } ?? "Choose Profile")
+        .accessibilityHint("Opens profile selection")
+        .accessibilityIdentifier("fst.shell.profile")
+    }
+}
+
+// MARK: - Avatar
+
+/// Circular monogram for a selected profile (players have no public avatar image).
+struct ProfileAvatar: View {
+    let name: String
+    let size: CGFloat
+
+    /// First letter or digit of the display name, upper-cased.
+    nonisolated static func initial(for name: String) -> String {
+        guard let first = name.first(where: { $0.isLetter || $0.isNumber }) else { return "?" }
+        return String(first).uppercased()
+    }
+
+    var body: some View {
+        Text(Self.initial(for: name))
+            .font(.system(size: size * 0.46, weight: .semibold, design: .rounded))
+            .foregroundStyle(BrandTokens.textPrimary)
+            .frame(width: size, height: size)
+            .background(
+                LinearGradient(
+                    colors: [BrandTokens.accentBlue, BrandTokens.accentPurple],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                ),
+                in: Circle()
+            )
+            .overlay(Circle().stroke(BrandTokens.glassBorder, lineWidth: 1))
+            .accessibilityHidden(true)
     }
 }

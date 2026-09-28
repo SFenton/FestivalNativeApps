@@ -9,9 +9,9 @@ import UIKit
 /// Platform-owned tab and sidebar navigation with a shared Songs path.
 public struct FestivalRootView: View {
     @State private var selected: FestivalSection
-    @State private var songsPath: [AppRoute] = []
-    @State private var leaderboardsPath: [AppRoute] = []
-    @State private var settingsPath: [AppRoute] = []
+    /// One independent navigation path per root section (web per-tab route history).
+    @State private var paths: [FestivalSection: [AppRoute]] = [:]
+    @State private var drawerPresented = false
     @State private var songsSearchText = ""
     @State private var songsSettledSearch = ""
     @State private var songsInstrument: Instrument?
@@ -35,27 +35,34 @@ public struct FestivalRootView: View {
 
     /// Create an adaptive root using native, platform-owned navigation controls.
     public init() {
-        _selected = State(initialValue: .songs)
+        var initialSection = FestivalSection.songs
+        var selectionStorage: UserDefaults? = .standard
+        var initialRoute: AppRoute?
         #if DEBUG
         let debug = DebugLaunchRoute(environment: ProcessInfo.processInfo.environment)
-        if let tab = debug.section { _selected = State(initialValue: tab) }
-        if let route = debug.route {
-            switch debug.section ?? .songs {
-            case .songs: _songsPath = State(initialValue: [route])
-            case .leaderboards: _leaderboardsPath = State(initialValue: [route])
-            case .settings: _settingsPath = State(initialValue: [route])
-            }
-        }
+        if let tab = debug.section { initialSection = tab }
+        initialRoute = debug.route
+        _drawerPresented = State(initialValue: debug.opensDrawer)
+        _rootProfilePresented = State(initialValue: debug.opensProfileSheet)
         if ProcessInfo.processInfo.environment["FST_UI_TEST_CLEAR_PROFILE"] == "1" {
             UserDefaults.standard.removeObject(forKey: SelectedPlayerIdentity.storageKey)
         }
+        debug.applyProfile(to: .standard)
+        if debug.anonymous { selectionStorage = nil }
         #endif
         let factory: @Sendable () throws -> FestivalAPI = {
             try Self.makeClient(environment: ProcessInfo.processInfo.environment)
         }
-        _session = State(initialValue: FestivalSession(
-            factory: factory, selectionStorage: .standard
-        ))
+        let session = FestivalSession(factory: factory, selectionStorage: selectionStorage)
+        _session = State(initialValue: session)
+        // A deep link or restored tab may name a section the stored profile hides.
+        let visible = FestivalTabPolicy.sections(
+            profile: session.selectedPlayer == nil ? .none : .player,
+            regularWidth: !Self.isCompactPhone
+        )
+        let resolved = FestivalTabPolicy.resolve(initialSection, in: visible)
+        _selected = State(initialValue: resolved)
+        if let initialRoute { _paths = State(initialValue: [resolved: [initialRoute]]) }
     }
 
     /// Use the public HTTPS service unless Debug explicitly selects a fixture.
@@ -104,9 +111,42 @@ public struct FestivalRootView: View {
             FestivalBackgroundHost(session: session)
                 .ignoresSafeArea()
             shell
+            if drawerPresented && usesDrawer {
+                FestivalDrawer(
+                    session: session, visibleSections: visibleSections, hideShop: hideShop,
+                    onIntent: handleDrawer, onClose: closeDrawer
+                )
+                .transition(reduceMotion || systemReduceMotion
+                    ? .opacity : .move(edge: .leading).combined(with: .opacity))
+                .zIndex(1)
+            }
         }
         .tint(moreContrast || systemContrast == .increased
             ? BrandTokens.textPrimary : BrandTokens.accentBlue)
+    }
+
+    // MARK: - Platform shell
+
+    /// True on compact iPhone, where the hamburger drawer replaces the web sidebar.
+    private var usesDrawer: Bool { Self.isCompactPhone }
+
+    /// iPhone idiom (tabs + drawer) versus iPad/macOS (split view + sidebar).
+    private static var isCompactPhone: Bool {
+        #if os(iOS)
+        UIDevice.current.userInterfaceIdiom != .pad
+        #else
+        false
+        #endif
+    }
+
+    /// Profile kind driving conditional tabs.
+    private var profileKind: FestivalProfileKind {
+        session.selectedPlayer == nil ? .none : .player
+    }
+
+    /// Root sections currently visible (web `BottomNav` rules).
+    private var visibleSections: [FestivalSection] {
+        FestivalTabPolicy.sections(profile: profileKind, regularWidth: !usesDrawer)
     }
 
     /// Platform navigation (tabs on iPhone, split view on iPad/macOS).
@@ -119,26 +159,19 @@ public struct FestivalRootView: View {
                 content(for: selected)
             }
             #else
-            if UIDevice.current.userInterfaceIdiom == .pad {
+            if !usesDrawer {
                 NavigationSplitView {
                     sidebar
                 } detail: {
                     content(for: selected)
                 }
             } else {
-                TabView(selection: $selected) {
-                    ForEach(FestivalSection.allCases) { section in
-                        content(for: section)
-                            .tabItem {
-                                Label(section.title, systemImage: section.symbol)
-                            }
-                            .tag(section)
-                            .accessibilityIdentifier("fst.nav.\(section.rawValue)")
-                    }
-                }
+                tabs
             }
             #endif
         }
+        .environment(\.openProfile, OpenProfileAction { rootProfilePresented = true })
+        .environment(\.openDrawer, usesDrawer ? OpenDrawerAction { openDrawer() } : nil)
         .preferredColorScheme(.dark)
         .transaction { transaction in
             if reduceMotion || systemReduceMotion {
@@ -147,6 +180,11 @@ public struct FestivalRootView: View {
         }
         .sheet(isPresented: $rootProfilePresented) {
             ProfileSelectionSheet(session: session)
+                .festivalSheet()
+        }
+        .onChange(of: visibleSections) { _, visible in
+            let resolved = FestivalTabPolicy.resolve(selected, in: visible)
+            if resolved != selected { selected = resolved }
         }
         .onChange(of: session.publicationRevision) { _, _ in
             if !songsPath.isEmpty {
@@ -159,6 +197,10 @@ public struct FestivalRootView: View {
                 songsNotice = "Selected profile changed. Returned to Songs to avoid mixed scores."
                 songsPath.removeAll()
             }
+            // Profile hubs show the previous identity's data; start them fresh.
+            for section in [FestivalSection.suggestions, .statistics, .compete, .rivals] {
+                paths[section] = nil
+            }
         }
         .onChange(of: visibleInstruments) { _, shown in
             if let songsInstrument, !shown.contains(songsInstrument) {
@@ -167,13 +209,109 @@ public struct FestivalRootView: View {
             }
         }
         .onChange(of: hideShop) { _, hidden in
-            if hidden && songsPath.contains(where: {
-                if case .shop = $0 { return true }
-                return false
-            }) {
-                songsPath.removeAll()
-                songsNotice = "Item Shop was hidden. Returned to Songs."
+            guard hidden else { return }
+            for (section, path) in paths {
+                guard let index = path.firstIndex(of: .shop) else { continue }
+                paths[section] = Array(path.prefix(index))
+                if section == .songs {
+                    songsNotice = "Item Shop was hidden. Returned to Songs."
+                }
             }
+        }
+    }
+
+    /// Compact iPhone tabs: the iOS 18+ `Tab` API (Liquid Glass tab bar on 26),
+    /// classic `.tabItem` on iOS 17.
+    @ViewBuilder private var tabs: some View {
+        if #available(iOS 18.0, macOS 15.0, *) {
+            TabView(selection: tabSelection) {
+                ForEach(visibleSections) { section in
+                    Tab(section.title, systemImage: section.symbol, value: section) {
+                        content(for: section)
+                            .accessibilityIdentifier("fst.nav.\(section.rawValue)")
+                    }
+                }
+            }
+        } else {
+            TabView(selection: tabSelection) {
+                ForEach(visibleSections) { section in
+                    content(for: section)
+                        .tabItem { Label(section.title, systemImage: section.symbol) }
+                        .tag(section)
+                        .accessibilityIdentifier("fst.nav.\(section.rawValue)")
+                }
+            }
+        }
+    }
+
+    /// Tab selection that pops a re-tapped tab to its root and clears Statistics on leave.
+    private var tabSelection: Binding<FestivalSection> {
+        Binding {
+            selected
+        } set: { next in
+            select(next)
+        }
+    }
+
+    /// Change the root section with web tab semantics.
+    ///
+    /// - Parameter next: Section chosen by a tab, sidebar row or drawer item.
+    private func select(_ next: FestivalSection) {
+        if next == selected {
+            paths[next] = []
+        } else if FestivalTabPolicy.resetsPathOnLeave(selected) {
+            paths[selected] = []
+        }
+        selected = next
+    }
+
+    /// Binding into one section's navigation path.
+    ///
+    /// - Parameter section: Root section owning the stack.
+    /// - Returns: Read/write binding that defaults to an empty path.
+    private func path(for section: FestivalSection) -> Binding<[AppRoute]> {
+        Binding {
+            paths[section] ?? []
+        } set: { value in
+            paths[section] = value
+        }
+    }
+
+    /// Songs path, used by publication/profile invalidation notices.
+    private var songsPath: [AppRoute] {
+        get { paths[.songs] ?? [] }
+        nonmutating set { paths[.songs] = newValue }
+    }
+
+    // MARK: - Drawer
+
+    private func openDrawer() {
+        withAnimation(reduceMotion || systemReduceMotion ? nil : .smooth(duration: 0.3)) {
+            drawerPresented = true
+        }
+    }
+
+    private func closeDrawer() {
+        withAnimation(reduceMotion || systemReduceMotion ? nil : .smooth(duration: 0.25)) {
+            drawerPresented = false
+        }
+    }
+
+    /// Carry out a drawer intent on the root-owned navigation state.
+    ///
+    /// - Parameter intent: Row chosen in the drawer.
+    private func handleDrawer(_ intent: DrawerIntent) {
+        closeDrawer()
+        switch intent {
+        case let .push(route):
+            paths[selected, default: []].append(route)
+        case let .select(section):
+            if selected != section { select(section) }
+            paths[section] = []
+        case .chooseProfile:
+            rootProfilePresented = true
+        case .deselectProfile:
+            session.deselectPlayer()
         }
     }
 
@@ -188,21 +326,25 @@ public struct FestivalRootView: View {
         return Set(preferences.compactMap { $0.1 ? $0.0 : nil })
     }
 
+    // MARK: - Wide-layout sidebar
+
     /// Keep visible root destinations as a native, Dynamic Type-aware sidebar.
     private var sidebar: some View {
         Group {
             #if os(macOS)
-            List(selection: $selected) {
-                ForEach(FestivalSection.allCases) { section in
+            List(selection: Binding<FestivalSection?>(
+                get: { selected }, set: { if let next = $0 { select(next) } }
+            )) {
+                ForEach(visibleSections) { section in
                     Label(section.title, systemImage: section.symbol)
                         .tag(section)
                         .accessibilityIdentifier("fst.nav.\(section.rawValue)")
                 }
             }
             #else
-            List(FestivalSection.allCases) { section in
+            List(visibleSections) { section in
                 Button {
-                    selected = section
+                    select(section)
                 } label: {
                     HStack(spacing: 10) {
                         RoundedRectangle(cornerRadius: 1.5)
@@ -261,20 +403,12 @@ public struct FestivalRootView: View {
         .padding(.bottom, 8)
     }
 
-    @ToolbarContentBuilder
-    private var rootProfileToolbar: some ToolbarContent {
-        #if os(iOS)
-        ToolbarItem(placement: .topBarLeading) {
-            ProfileActionButton(session: session) { rootProfilePresented = true }
-        }
-        #else
-        ToolbarItem(placement: .primaryAction) {
-            ProfileActionButton(session: session) { rootProfilePresented = true }
-        }
-        #endif
-    }
+    // MARK: - Section content
 
     /// Display a distinct native destination for each root tab.
+    ///
+    /// Every root except Songs gets `festivalRootChrome` here; Songs applies it itself
+    /// (Lane S) because it merges the chrome with its own search/sort/filter toolbar.
     ///
     /// - Parameter section: Destination associated with the active tab or sidebar item.
     /// - Returns: The view that owns the destination's navigation state.
@@ -282,50 +416,48 @@ public struct FestivalRootView: View {
         switch section {
         case .songs:
             SongNavigationRoot(
-                session: session, path: $songsPath,
+                session: session, path: path(for: .songs),
                 searchText: $songsSearchText, settledSearch: $songsSettledSearch,
                 selectedInstrument: $songsInstrument, navigationNotice: $songsNotice,
                 visibleInstruments: visibleInstruments,
                 highContrast: moreContrast || systemContrast == .increased,
                 isVisible: selected == .songs
             )
+        case .suggestions:
+            tabStack(.suggestions) { SuggestionsScreen(session: session) }
         case .leaderboards:
-            FestivalTabStack(
-                session: session, visibleInstruments: visibleInstruments,
-                path: $leaderboardsPath, isVisible: selected == .leaderboards
-            ) {
-                LeaderboardsScreen(session: session)
-                    .toolbar { rootProfileToolbar }
-            }
+            tabStack(.leaderboards) { LeaderboardsScreen(session: session) }
+        case .compete:
+            tabStack(.compete) { CompeteScreen(session: session) }
+        case .rivals:
+            tabStack(.rivals) { RivalsScreen(session: session) }
+        case .statistics:
+            tabStack(.statistics) { StatisticsScreen(session: session) }
         case .settings:
-            FestivalTabStack(
-                session: session, visibleInstruments: visibleInstruments,
-                path: $settingsPath, isVisible: selected == .settings
-            ) {
+            tabStack(.settings) {
                 SettingsScreen(session: session, isVisible: selected == .settings)
-                    .toolbar { rootProfileToolbar }
             }
         }
     }
-}
 
-// MARK: - Navigation sections
-
-enum FestivalSection: String, CaseIterable, Identifiable, Sendable {
-    case songs
-    case leaderboards
-    case settings
-
-    var id: Self { self }
-    var title: String { rawValue.capitalized }
-    var symbol: String {
-        switch self {
-        case .songs: "music.note.list"
-        case .leaderboards: "list.number"
-        case .settings: "gearshape"
+    /// Wrap a root screen in its own `FestivalTabStack` with shared root chrome.
+    ///
+    /// - Parameters:
+    ///   - section: Section owning the stack and path.
+    ///   - root: Root screen of the section.
+    /// - Returns: The navigation stack for the section.
+    private func tabStack<Root: View>(
+        _ section: FestivalSection, @ViewBuilder root: () -> Root
+    ) -> some View {
+        FestivalTabStack(
+            session: session, visibleInstruments: visibleInstruments,
+            path: path(for: section), isVisible: selected == section
+        ) {
+            root().festivalRootChrome(session: session)
         }
     }
 }
+
 
 // MARK: - Debug launch routing
 
@@ -335,15 +467,33 @@ enum FestivalSection: String, CaseIterable, Identifiable, Sendable {
 /// Route syntax: `player:<accountId>`, `leaderboards`, `fullRankings:<Instrument rawValue>`,
 /// `shop`, `rivals`, `statistics`, `suggestions`, `compete`, `bands`, `manual`, `licenses`.
 /// Song routes need a loaded `Song`; the Songs lane handles `FST_DEBUG_SONG` itself.
+///
+/// Shell extras: `FST_DEBUG_DRAWER=1` opens the hamburger drawer, `FST_DEBUG_SHEET=profile`
+/// opens profile selection, and `FST_DEBUG_PROFILE=<accountId>:<displayName>` stores a
+/// selected player before the session loads (so profile-only tabs can be captured).
+/// `FST_DEBUG_ANONYMOUS=1` ignores any stored profile for this launch without deleting it.
 struct DebugLaunchRoute {
     let section: FestivalSection?
     let route: AppRoute?
+    let opensDrawer: Bool
+    let opensProfileSheet: Bool
+    let profile: (accountId: String, displayName: String)?
+    let anonymous: Bool
 
     /// Parse the launch environment.
     ///
     /// - Parameter environment: Process environment.
     init(environment: [String: String]) {
         section = environment["FST_DEBUG_TAB"].flatMap(FestivalSection.init(rawValue:))
+        opensDrawer = environment["FST_DEBUG_DRAWER"] == "1"
+        opensProfileSheet = environment["FST_DEBUG_SHEET"] == "profile"
+        anonymous = environment["FST_DEBUG_ANONYMOUS"] == "1"
+        if let raw = environment["FST_DEBUG_PROFILE"] {
+            let parts = raw.split(separator: ":", maxSplits: 1).map(String.init)
+            profile = parts.count == 2 ? (parts[0], parts[1]) : nil
+        } else {
+            profile = nil
+        }
         guard let raw = environment["FST_DEBUG_ROUTE"] else {
             route = nil
             return
@@ -369,6 +519,21 @@ struct DebugLaunchRoute {
         case "manual": route = .manual
         case "licenses": route = .licenses
         default: route = nil
+        }
+    }
+
+    /// Persist the debug profile as if the user had selected it.
+    ///
+    /// The session revalidates the stored identity on launch, exactly as on a cold start.
+    ///
+    /// - Parameter defaults: Store read by `FestivalSession`.
+    func applyProfile(to defaults: UserDefaults) {
+        guard let profile else { return }
+        let json: [String: String] = [
+            "accountId": profile.accountId, "displayName": profile.displayName,
+        ]
+        if let data = try? JSONSerialization.data(withJSONObject: json) {
+            defaults.set(data, forKey: SelectedPlayerIdentity.storageKey)
         }
     }
 }
