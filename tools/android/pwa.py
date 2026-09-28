@@ -340,7 +340,7 @@ class ScreenRecorder:
 
     def __init__(self, lab: AndroidLab, out: Path):
         self.lab, self.out = lab, out
-        self.raw = RAW_DIR / lab.avd / out.parent.name / (out.stem + ".raw.mp4")
+        self.raw = RAW_DIR / out.parent.parent.name / out.parent.name / (out.stem + ".raw.mp4")
         self.raw.parent.mkdir(parents=True, exist_ok=True)
         dev = lab.device
         physical = dv.default_physical_display(dev.shell("cmd display get-displays", check=False))

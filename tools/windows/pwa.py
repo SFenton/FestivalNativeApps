@@ -437,7 +437,8 @@ class Recorder:
                  rect: tuple[int, int, int, int] | None = None):
         """Record the app window, or a fixed screen ``rect`` (before the window exists)."""
         self.lab, self.out, self.fps = lab, out, fps
-        self.raw = RAW_DIR / out.parent.name / (out.stem + ".raw.mp4")
+        # <showcase set>/<preset>/<clip>: keep the set so PWA and native raws never collide.
+        self.raw = RAW_DIR / out.parent.parent.name / out.parent.name / (out.stem + ".raw.mp4")
         self.raw.parent.mkdir(parents=True, exist_ok=True)
         self.hwnd = None
         if rect is None:
@@ -753,6 +754,86 @@ def cmd_motion(args: argparse.Namespace) -> int:
     return 0
 
 
+def pid_window(pid: int, timeout: float = 20.0) -> int:
+    """First visible, titled top-level window of ``pid``."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        found: list[int] = []
+
+        @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+        def callback(hwnd, _):
+            owner = wintypes.DWORD()
+            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
+            if owner.value == pid and user32.IsWindowVisible(hwnd)                     and user32.GetWindowTextLengthW(hwnd) > 0:
+                found.append(hwnd)
+            return True
+
+        user32.EnumWindows(callback, 0)
+        if found:
+            return found[0]
+        time.sleep(0.3)
+    raise RuntimeError(f"no window for pid {pid}")
+
+
+def place_window(hwnd: int, preset: str) -> tuple[int, int, int, int]:
+    """Move a (non-Edge) window to the lab monitor at a preset; return its rect (px)."""
+    monitor = lab_monitor(monitors())
+    bounds = preset_bounds(preset, work_area_dip(monitor))
+    if "windowState" in bounds:
+        user32.ShowWindow(hwnd, 3)  # SW_MAXIMIZE on the monitor the window is on
+        left, top, right, bottom = monitor["work_px"]
+        user32.ShowWindow(hwnd, 9)
+        user32.SetWindowPos(hwnd, 0, left, top, right - left, bottom - top, 0x0004)
+    else:
+        scale = monitor["scale"]
+        user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+        user32.SetWindowPos(hwnd, 0, round(bounds["left"] * scale), round(bounds["top"] * scale),
+                            round(bounds["width"] * scale), round(bounds["height"] * scale),
+                            0x0004)  # SWP_NOZORDER
+    time.sleep(1.0)
+    return window_rect(hwnd)
+
+
+def cmd_native(args: argparse.Namespace) -> int:
+    """Record the native Windows app beside the PWA: same monitor, preset and clip format.
+
+    Launches through ``uiwin.py``'s driver (debug env: ``--tab``/``--route``, an
+    isolated settings file so it is anonymous), moves the window to the lab
+    monitor, records it with gdigrab while running ``uiwin`` UIA steps, then
+    closes it — all within one desktop-lock hold.
+    """
+    from tools.windows import uiwin
+
+    dpi_aware()
+    exe = Path(args.exe).resolve()
+    steps = [uiwin.parse_step(s) for s in uiwin.parse_steps(args.steps, args.steps_file)]
+    extras = [f"FST_SETTINGS_PATH={args.settings}"] + (args.extra or [])
+    result: dict = {}
+    with _lock(args, "native") as lock:
+        launched = uiwin.run_driver({"command": "launch", "exe": str(exe), "args": [],
+                                     "env": uiwin.launch_env(args.tab, args.route, extras),
+                                     "timeout": 60}, lock)
+        pid = launched["pid"]
+        try:
+            hwnd = pid_window(pid)
+            rect = place_window(hwnd, args.preset)
+            time.sleep(args.wait)
+            foreground(hwnd, topmost=True)
+            recorder = Recorder(None, Path(args.record), args.fps, lock, rect)
+            try:
+                result["drive"] = uiwin.run_driver({"command": "drive", "pid": pid,
+                                                    "steps": steps}, lock,
+                                                   budget=max(10.0, lock.remaining() - 30))
+            finally:
+                time.sleep(1.0)
+                result["video"] = recorder.stop()
+                foreground(hwnd, topmost=False)
+        finally:
+            uiwin.run_driver({"command": "close", "pid": pid}, lock)
+    print(json.dumps({k: v for k, v in result.items() if k != "drive"}, indent=2))
+    return 0
+
+
 def cmd_contact(args: argparse.Namespace) -> int:
     """Tile a folder's screenshots into one review image."""
     images = sorted(p for p in Path(args.folder).glob(args.glob) if p.suffix == ".png")
@@ -825,6 +906,20 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--threshold", type=float, default=0.04)
     p.add_argument("--gap", type=float, default=0.1)
     p.set_defaults(func=cmd_motion)
+    p = sub.add_parser("native")
+    p.add_argument("exe")
+    p.add_argument("--tab")
+    p.add_argument("--route")
+    p.add_argument("--extra", action="append")
+    p.add_argument("--settings", default=str(Path.home() / ".fst-tools" / "pwa-native-settings.json"),
+                   help="isolated FST_SETTINGS_PATH (anonymous unless the file selects a player)")
+    p.add_argument("--preset", default="compact")
+    p.add_argument("--steps")
+    p.add_argument("--steps-file")
+    p.add_argument("--record", required=True)
+    p.add_argument("--fps", type=int, default=30)
+    p.add_argument("--wait", type=float, default=4.0)
+    p.set_defaults(func=cmd_native)
     p = sub.add_parser("contact")
     p.add_argument("folder")
     p.add_argument("out")
