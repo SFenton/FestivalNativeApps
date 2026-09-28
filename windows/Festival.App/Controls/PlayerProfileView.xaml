@@ -89,7 +89,7 @@
                 </Border>
 
                 <!-- Per-instrument sections -->
-                <ItemsRepeater x:Name="InstrumentsRepeater" ItemsSource="{x:Bind ViewModel.Instruments, Mode=OneWay}" ElementPrepared="OnInstrumentPrepared">
+                <ItemsRepeater x:Name="InstrumentsRepeater" TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.Instruments, Mode=OneWay}" ElementPrepared="OnInstrumentPrepared">
                     <ItemsRepeater.Layout>
                         <StackLayout Spacing="12" />
                     </ItemsRepeater.Layout>

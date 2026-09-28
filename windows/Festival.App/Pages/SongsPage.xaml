@@ -166,7 +166,7 @@
                                             <TextBlock Grid.Column="3" Text="No FC" Style="{StaticResource CaptionTextBlockStyle}" TextAlignment="Center" />
                                             <TextBlock Grid.Column="4" Text="FC" Style="{StaticResource CaptionTextBlockStyle}" TextAlignment="Center" />
                                         </Grid>
-                                        <ItemsRepeater ItemsSource="{x:Bind ViewModel.FilterDraft.ScoreRows, Mode=OneWay}">
+                                        <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.FilterDraft.ScoreRows, Mode=OneWay}">
                                             <ItemsRepeater.ItemTemplate>
                                                 <DataTemplate x:DataType="vm:ScoreFilterChartRow">
                                                     <Grid ColumnSpacing="4" MinHeight="36">
@@ -233,7 +233,7 @@
         </Grid>
 
         <!-- Pause and status notices: saved choices that can't apply right now, and player-score state. -->
-        <ItemsRepeater Grid.Row="2" Margin="0,0,12,0" ItemsSource="{x:Bind ViewModel.Notices, Mode=OneWay}"
+        <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" Grid.Row="2" Margin="0,0,12,0" ItemsSource="{x:Bind ViewModel.Notices, Mode=OneWay}"
                        Visibility="{x:Bind ViewModel.HasNotices, Mode=OneWay}" AutomationProperties.AutomationId="fst.songs.notices">
             <ItemsRepeater.Layout>
                 <StackLayout Spacing="6" />

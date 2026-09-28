@@ -64,7 +64,7 @@
                 </StackPanel>
             </Grid>
 
-            <ItemsRepeater ItemsSource="{x:Bind ViewModel.InstrumentCards, Mode=OneWay}">
+            <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.InstrumentCards, Mode=OneWay}">
                 <ItemsRepeater.Layout>
                     <controls:LeaderboardsCardGridLayout MinColumnWidth="360" MaxColumns="4" Spacing="16" />
                 </ItemsRepeater.Layout>
@@ -100,7 +100,7 @@
                                                    AutomationProperties.Name="{x:Bind Status.CountdownAnnouncement, Mode=OneWay}" />
                                         <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
                                     </StackPanel>
-                                    <ItemsRepeater ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}">
+                                    <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}">
                                         <ItemsRepeater.Layout>
                                             <StackLayout Spacing="2" />
                                         </ItemsRepeater.Layout>
@@ -128,7 +128,7 @@
                 <HyperlinkButton Content="Browse Bands" HorizontalAlignment="Right" VerticalAlignment="Center" Click="OnBrowseBands"
                                  AutomationProperties.AutomationId="fst.leaderboards.bands-link" />
             </Grid>
-            <ItemsRepeater ItemsSource="{x:Bind ViewModel.BandCards, Mode=OneWay}">
+            <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.BandCards, Mode=OneWay}">
                 <ItemsRepeater.Layout>
                     <controls:LeaderboardsCardGridLayout MinColumnWidth="360" MaxColumns="3" Spacing="16" />
                 </ItemsRepeater.Layout>
@@ -164,7 +164,7 @@
                                                    AutomationProperties.Name="{x:Bind Status.CountdownAnnouncement, Mode=OneWay}" />
                                         <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
                                     </StackPanel>
-                                    <ItemsRepeater ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}">
+                                    <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}">
                                         <ItemsRepeater.Layout>
                                             <StackLayout Spacing="2" />
                                         </ItemsRepeater.Layout>

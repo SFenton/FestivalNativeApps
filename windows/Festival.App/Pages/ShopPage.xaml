@@ -42,7 +42,7 @@
             <!-- Grid: artwork-first cards (wide windows). -->
             <ScrollViewer x:Name="GridScroller" Visibility="{x:Bind ViewModel.ShowGrid, Mode=OneWay}" Padding="0,0,12,24"
                           AutomationProperties.AutomationId="fst.shop.grid">
-                <ItemsRepeater x:Name="OfferGrid" ItemsSource="{x:Bind ViewModel.Offers, Mode=OneWay}"
+                <ItemsRepeater XYFocusKeyboardNavigation="Enabled" x:Name="OfferGrid" ItemsSource="{x:Bind ViewModel.Offers, Mode=OneWay}"
                                ElementPrepared="OnGridPrepared" ElementClearing="OnElementClearing">
                     <ItemsRepeater.Layout>
                         <UniformGridLayout MinItemWidth="200" MinRowSpacing="12" MinColumnSpacing="12" ItemsStretch="Fill" />

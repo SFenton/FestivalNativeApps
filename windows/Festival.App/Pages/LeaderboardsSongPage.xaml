@@ -45,7 +45,7 @@
         <ScrollViewer x:Name="Scroller" Grid.Row="1" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
                       AutomationProperties.AutomationId="fst.song-leaderboard.list">
             <Border Style="{StaticResource FSTCardStyle}" Padding="8" Margin="0,4,0,0" VerticalAlignment="Top">
-                <ItemsRepeater x:Name="RowsRepeater" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}">
+                <ItemsRepeater XYFocusKeyboardNavigation="Enabled" x:Name="RowsRepeater" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}">
                     <ItemsRepeater.Layout>
                         <StackLayout Spacing="2" />
                     </ItemsRepeater.Layout>

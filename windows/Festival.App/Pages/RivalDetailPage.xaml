@@ -58,7 +58,7 @@
 
         <ScrollViewer x:Name="Scroller" Grid.Row="1" Padding="24,0,24,32" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}"
                       AutomationProperties.AutomationId="fst.rival-detail">
-            <ItemsRepeater ItemsSource="{x:Bind ViewModel.Categories, Mode=OneWay}" MaxWidth="1600" Margin="0,4,0,0">
+            <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.Categories, Mode=OneWay}" MaxWidth="1600" Margin="0,4,0,0">
                 <ItemsRepeater.Layout>
                     <controls:MasonryLayout MinColumnWidth="400" ColumnSpacing="16" RowSpacing="16" />
                 </ItemsRepeater.Layout>
@@ -75,7 +75,7 @@
                                         <TextBlock Text="{x:Bind Subtitle}" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"
                                                    Foreground="{ThemeResource FSTSecondaryTextBrush}" />
                                     </StackPanel>
-                                    <ItemsRepeater ItemsSource="{x:Bind Preview}">
+                                    <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Preview}">
                                         <ItemsRepeater.Layout>
                                             <StackLayout Spacing="2" />
                                         </ItemsRepeater.Layout>

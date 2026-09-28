@@ -92,7 +92,7 @@
 
         <ScrollViewer x:Name="Scroller" Grid.Row="1" Padding="24,0,24,32" AutomationProperties.AutomationId="fst.rivals">
             <Grid>
-                <ItemsRepeater x:Name="SectionsRepeater" ItemsSource="{x:Bind ViewModel.Sections}" MaxWidth="1600"
+                <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" x:Name="SectionsRepeater" ItemsSource="{x:Bind ViewModel.Sections}" MaxWidth="1600"
                                HorizontalAlignment="Stretch" Margin="0,4,0,0">
                     <ItemsRepeater.Layout>
                         <controls:MasonryLayout MinColumnWidth="360" ColumnSpacing="16" RowSpacing="16" />
@@ -132,7 +132,7 @@
                                                        AutomationProperties.Name="{x:Bind Status.CountdownAnnouncement, Mode=OneWay}" />
                                             <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
                                         </StackPanel>
-                                        <ItemsRepeater ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}">
+                                        <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}">
                                             <ItemsRepeater.Layout>
                                                 <StackLayout Spacing="2" />
                                             </ItemsRepeater.Layout>

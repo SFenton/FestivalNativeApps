@@ -84,7 +84,7 @@
                 <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
                     <TextBlock Text="Band Leaderboards:" VerticalAlignment="Center" Style="{StaticResource FSTSecondaryTextStyle}"
                                AutomationProperties.AutomationId="fst.song-detail.band-leaderboards" />
-                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.BandLinks, Mode=OneWay}">
+                    <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.BandLinks, Mode=OneWay}">
                         <ItemsRepeater.Layout>
                             <StackLayout Orientation="Horizontal" Spacing="4" />
                         </ItemsRepeater.Layout>
@@ -95,7 +95,7 @@
                         </ItemsRepeater.ItemTemplate>
                     </ItemsRepeater>
                 </StackPanel>
-                <ItemsRepeater x:Name="Boards" ItemsSource="{x:Bind ViewModel.Leaderboards, Mode=OneWay}"
+                <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" x:Name="Boards" ItemsSource="{x:Bind ViewModel.Leaderboards, Mode=OneWay}"
                                ElementPrepared="OnBoardPrepared">
                     <ItemsRepeater.Layout>
                         <UniformGridLayout MinItemWidth="380" MinRowSpacing="16" MinColumnSpacing="16" ItemsStretch="Fill" />
@@ -121,7 +121,7 @@
                                         <TextBlock Text="{x:Bind Status.Message, Mode=OneWay}" TextWrapping="Wrap" />
                                         <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
                                     </StackPanel>
-                                    <ItemsRepeater ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}">
+                                    <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}">
                                         <ItemsRepeater.Layout>
                                             <StackLayout Spacing="2" />
                                         </ItemsRepeater.Layout>

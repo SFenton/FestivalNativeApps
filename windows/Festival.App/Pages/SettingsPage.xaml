@@ -137,7 +137,7 @@
                                 <StackPanel>
                                     <TextBlock Text="When filtering to a single instrument in the song list, extra metadata is displayed. Choose the order it appears in on the bottom row."
                                                Style="{StaticResource SettingDescriptionStyle}" Margin="0,0,0,8" />
-                                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.SongRowOrder, Mode=OneWay}" ItemTemplate="{StaticResource ReorderRowTemplate}" />
+                                    <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.SongRowOrder, Mode=OneWay}" ItemTemplate="{StaticResource ReorderRowTemplate}" />
                                 </StackPanel>
                             </Expander>
                             <Grid ColumnSpacing="12" MinHeight="56">
@@ -190,7 +190,7 @@
                                 <StackPanel>
                                     <TextBlock Text="Choose the order columns appear in the CHOpt text path view."
                                                Style="{StaticResource SettingDescriptionStyle}" Margin="0,0,0,8" />
-                                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.PathColumnOrder, Mode=OneWay}" ItemTemplate="{StaticResource ReorderRowTemplate}" />
+                                    <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.PathColumnOrder, Mode=OneWay}" ItemTemplate="{StaticResource ReorderRowTemplate}" />
                                 </StackPanel>
                             </Expander>
                             <Grid ColumnSpacing="12" MinHeight="56">
@@ -291,7 +291,7 @@
                     <TextBlock Text="Show Instruments" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
                     <TextBlock Text="Choose which instruments to display throughout the app." Style="{StaticResource SectionSubtitleStyle}" />
                     <Border Style="{StaticResource FSTCardStyle}" Padding="16,8">
-                        <ItemsRepeater ItemsSource="{x:Bind ViewModel.Instruments}">
+                        <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.Instruments}">
                             <ItemsRepeater.ItemTemplate>
                                 <DataTemplate x:DataType="vm:InstrumentToggle">
                                     <Grid ColumnSpacing="12" MinHeight="48">
@@ -322,7 +322,7 @@
                     <TextBlock Text="Show Instrument Metadata" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
                     <TextBlock Text="{x:Bind ViewModel.MetadataDescription, Mode=OneWay}" Style="{StaticResource SectionSubtitleStyle}" />
                     <Border Style="{StaticResource FSTCardStyle}" Padding="16,8">
-                        <ItemsRepeater ItemsSource="{x:Bind ViewModel.Metadata}">
+                        <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.Metadata}">
                             <ItemsRepeater.ItemTemplate>
                                 <DataTemplate x:DataType="vm:MetadataToggle">
                                     <Grid ColumnSpacing="12" MinHeight="48">
@@ -461,7 +461,7 @@
                     <TextBlock Text="First Run Guides" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
                     <TextBlock Text="Show a page's introduction again, including every slide." Style="{StaticResource SectionSubtitleStyle}" />
                     <Border Style="{StaticResource FSTCardStyle}" Padding="16,8">
-                        <ItemsRepeater ItemsSource="{x:Bind ViewModel.FirstRunPages}">
+                        <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.FirstRunPages}">
                             <ItemsRepeater.ItemTemplate>
                                 <DataTemplate x:DataType="vm:FirstRunReplayItem">
                                     <Grid ColumnSpacing="12" MinHeight="48">

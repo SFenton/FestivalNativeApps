@@ -127,7 +127,7 @@
                     <!-- Members -->
                     <StackPanel x:Name="MembersSection" controls:QuickLinkAnchor.Id="members" Spacing="8" AutomationProperties.AutomationId="fst.band.members-section">
                         <TextBlock Text="Members" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
-                        <ItemsRepeater ItemsSource="{x:Bind ViewModel.Members, Mode=OneWay}">
+                        <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.Members, Mode=OneWay}">
                             <ItemsRepeater.Layout>
                                 <UniformGridLayout MinItemWidth="260" MinRowSpacing="12" MinColumnSpacing="12" ItemsStretch="Fill" />
                             </ItemsRepeater.Layout>
@@ -264,7 +264,7 @@
                         <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.ShowSongs, Mode=OneWay}">
                             <TextBlock Text="No ranked band songs yet." Style="{StaticResource FSTSecondaryTextStyle}"
                                        Visibility="{x:Bind ViewModel.BestEmpty, Mode=OneWay}" />
-                            <ItemsRepeater ItemsSource="{x:Bind ViewModel.Best, Mode=OneWay}" ItemTemplate="{StaticResource SongTemplates}"
+                            <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.Best, Mode=OneWay}" ItemTemplate="{StaticResource SongTemplates}"
                                            AutomationProperties.AutomationId="fst.band.best-songs">
                                 <ItemsRepeater.Layout>
                                     <StackLayout Spacing="6" />
@@ -274,7 +274,7 @@
                             <TextBlock Text="{x:Bind ViewModel.WorstDescription, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" />
                             <TextBlock Text="No additional ranked band songs yet." Style="{StaticResource FSTSecondaryTextStyle}"
                                        Visibility="{x:Bind ViewModel.WorstEmpty, Mode=OneWay}" />
-                            <ItemsRepeater ItemsSource="{x:Bind ViewModel.Worst, Mode=OneWay}" ItemTemplate="{StaticResource SongTemplates}"
+                            <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.Worst, Mode=OneWay}" ItemTemplate="{StaticResource SongTemplates}"
                                            AutomationProperties.AutomationId="fst.band.worst-songs">
                                 <ItemsRepeater.Layout>
                                     <StackLayout Spacing="6" />

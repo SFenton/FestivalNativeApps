@@ -61,7 +61,7 @@
         <ScrollViewer x:Name="Scroller" Grid.Row="1" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
                       AutomationProperties.AutomationId="fst.band-rankings.list">
             <Border Style="{StaticResource FSTCardStyle}" Padding="8" Margin="0,4,0,0" VerticalAlignment="Top">
-                <ItemsRepeater ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}">
+                <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}">
                     <ItemsRepeater.Layout>
                         <StackLayout Spacing="2" />
                     </ItemsRepeater.Layout>
