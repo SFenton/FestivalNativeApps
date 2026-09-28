@@ -182,6 +182,7 @@ struct HorizontalCarousel<Item: Identifiable, Card: View>: View {
             // horizontal scroll view otherwise draws its content under it.
             .clipped()
             .accessibilityIdentifier(scrollIdentifier)
+            .festivalFadeInOnAppear()
             .onGeometryChange(for: CGFloat.self, of: { $0.size.width.rounded() }) { width = $0 }
 
             if items.count > columns || hasMore {

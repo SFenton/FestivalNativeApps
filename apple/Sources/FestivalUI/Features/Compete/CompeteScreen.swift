@@ -141,11 +141,22 @@ struct CompeteInstrumentLeaderboardSection: View {
     private let previewCount = 5
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        // Instrument header above the card, never inside it (operator rule).
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 InstrumentIcon(instrument, size: 20)
                 FestivalSectionHeader(instrument.label)
             }
+            .padding(.horizontal, 4)
+            card
+        }
+        .padding(.horizontal, 16)
+        .accessibilityIdentifier("fst.compete.leaderboard-card.\(instrument.rawValue)")
+        .task(id: instrument) { await load() }
+    }
+
+    private var card: some View {
+        VStack(alignment: .leading, spacing: 12) {
             switch state {
             case .loading:
                 RankingsSkeletonRows(count: previewCount)
@@ -167,10 +178,8 @@ struct CompeteInstrumentLeaderboardSection: View {
             }
         }
         .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .festivalGlass(.card)
-        .padding(.horizontal, 16)
-        .accessibilityIdentifier("fst.compete.leaderboard-card.\(instrument.rawValue)")
-        .task(id: instrument) { await load() }
     }
 
     @MainActor

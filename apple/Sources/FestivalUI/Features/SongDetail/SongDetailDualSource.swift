@@ -97,20 +97,22 @@ private struct SongHistoryCard: View {
     @State private var retryRevision = 0
 
     var body: some View {
-        FestivalGlassSection {
+        // Instrument header above the card, never inside it (operator rule).
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 InstrumentIcon(instrument, size: 20)
-                Text(instrument.label)
-                    .font(.headline)
-                    .foregroundStyle(BrandTokens.textPrimary)
-                Spacer(minLength: 8)
+                FestivalSectionHeader(instrument.label)
                 NavigationLink(value: AppRoute.playerHistory(song, instrument)) {
                     Text("See All").font(.subheadline.weight(.semibold))
                 }
                 .tint(BrandTokens.accentBlue)
+                .fixedSize()
                 .accessibilityIdentifier("fst.dual.song.history.\(instrument.rawValue).see-all")
             }
-            content
+            .padding(.horizontal, 4)
+            FestivalGlassSection {
+                content
+            }
         }
         .accessibilityIdentifier("fst.dual.song.history.\(instrument.rawValue)")
         .task(id: LoadKey(
@@ -142,6 +144,7 @@ private struct SongHistoryCard: View {
                     note("No tracked score changes on this chart yet.")
                 } else {
                     PlayerHistoryChart(entries: sorted, highScoreIndex: PlayerScoreHistorySort.highScoreIndex(in: sorted))
+                        .festivalFadeInOnAppear()
                     Text("\(sorted.count) score \(sorted.count == 1 ? "change" : "changes") tracked")
                         .font(.caption)
                         .foregroundStyle(BrandTokens.textSecondary)

@@ -127,6 +127,7 @@ struct PlayerRankHistoryPage: View {
                     points: points, instrument: instrument,
                     motion: ChartMotion(system: systemReduceMotion, app: appReduceMotion)
                 )
+                .festivalFadeInOnAppear()
             }
         }
         .accessibilityIdentifier("fst.dual.rank-history.\(instrument.rawValue)")

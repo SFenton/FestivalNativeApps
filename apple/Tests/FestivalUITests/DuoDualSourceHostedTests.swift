@@ -39,9 +39,13 @@ private func offlineSession() -> FestivalSession {
 private func host<Content: View>(
     _ content: Content, layout: DeviceLayout, size: CGSize, storage: UserDefaults? = nil
 ) -> (NSHostingView<NativeHostedRoot<some View>>, NSWindow) {
+    // Load-in fades never advance in an offscreen host, so render with the app's
+    // Reduce Motion on (content then appears without animation).
+    let defaults = storage ?? UserDefaults(suiteName: "fst.tests.dual.host")!
+    defaults.set(true, forKey: "fst.accessibility.reduceMotion")
     let view = NavigationStack { content }
         .environment(\.deviceLayout, layout)
-        .defaultAppStorage(storage ?? .standard)
+        .defaultAppStorage(defaults)
         .frame(width: size.width, height: size.height)
         .preferredColorScheme(.dark)
     let hosted = nativeHostedView(view, size: size)
