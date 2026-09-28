@@ -51,7 +51,7 @@ tools/**                      → orchestrator
 
 ## 2. Priorities (from operator, 2026-09-27; updated 2026-09-28)
 
-- **Android + Windows (2026-09-28):** same rules as Apple — platform-native design researched per platform, Fluent second, multiple form factors (Android: phone, book foldable, passport foldable, tri-fold, tablet; Windows: desktop/tablet across window-size configurations), and the same dev → unit → UX tests → accessibility → screen reader flow. The Windows host is far more powerful: run **many parallel lanes on both Android and Windows**, while this Mac continues Apple lanes and oversees. Both machines commit/push when work is ready (Windows via Mac relay until GitHub auth on Windows is set up by the operator).
+- **Android + Windows (2026-09-28):** same rules as Apple — platform-native design researched per platform, Fluent second, multiple form factors (Android: phone, book foldable, passport foldable, tri-fold, tablet; Windows: desktop/tablet across window-size configurations), and the same dev → unit → UX tests → accessibility → screen reader flow. The Windows host is far more powerful: run **many parallel lanes on both Android and Windows**, while this Mac continues Apple lanes and oversees. Both machines commit/push when work is ready: Windows lanes push directly to GitHub via `tools/git_integrate.py` (gh file-stored token, set up 2026-09-28); the Mac pulls/rebases as usual.
 
 
 1. **Liquid Glass & native navigation components**, plus docs/agent updates.
@@ -383,3 +383,4 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Orchestrator | Launched Lane H: hosted snapshots render full pages nearly blank (coverage may overstate visual evidence) |
 | 2026-09-28 | Orchestrator | Windows host online: SSH verified, toolchains inventoried, `tools/win_relay.py` bundle relay (no GitHub creds on Windows) |
 | 2026-09-28 | Orchestrator | Operator: parallelize Android + Windows heavily on the Windows host; launched remote Lane LAB (device lab); GitHub auth on Windows pending operator (`gh auth login --insecure-storage`) |
+| 2026-09-28 | Orchestrator | GitHub auth on Windows verified over SSH; Windows `origin` → GitHub; `tools/git_integrate.py` for Windows-host lanes (`ee20551`) |
