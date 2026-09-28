@@ -12,44 +12,33 @@ import FestivalDesign
 /// toolbar filter sheet for instrument/category toggles.
 struct SuggestionsScreen: View {
     let session: FestivalSession
+    /// Settings-visible charts, supplied by `FestivalRootView` (mirrors every other
+    /// `tabStack` root) instead of re-reading the `fst.settings.show*` keys independently.
+    let visibleInstruments: Set<Instrument>
     @State private var viewModel: SuggestionsViewModel
     @State private var filterPresented = false
     @Environment(\.openProfile) private var openProfile
     @AppStorage(SuggestionFilterSettings.storageKey) private var filterData = Data()
 
-    // Settings-visible charts (mirrors `FestivalRootView.visibleInstruments`); Suggestions
-    // is constructed directly by the root tab switch without that computed set today, so
-    // this reads the same persisted keys independently. See PROGRESS.md seam note.
-    @AppStorage("fst.settings.showLead") private var showLead = true
-    @AppStorage("fst.settings.showBass") private var showBass = true
-    @AppStorage("fst.settings.showDrums") private var showDrums = true
-    @AppStorage("fst.settings.showVocals") private var showVocals = true
-    @AppStorage("fst.settings.showProLead") private var showProLead = true
-    @AppStorage("fst.settings.showProBass") private var showProBass = true
-    @AppStorage("fst.settings.showKaraoke") private var showKaraoke = true
-    @AppStorage("fst.settings.showProCymbals") private var showProCymbals = true
-    @AppStorage("fst.settings.showProDrums") private var showProDrums = true
-
     /// Create the screen.
     ///
     /// - Parameters:
     ///   - session: Shared app session (API client, selected profile, caches).
-    init(session: FestivalSession) {
+    ///   - visibleInstruments: Settings-visible charts (`FestivalRootView.visibleInstruments`).
+    init(session: FestivalSession, visibleInstruments: Set<Instrument>) {
         self.session = session
+        self.visibleInstruments = visibleInstruments
         _viewModel = State(initialValue: SuggestionsViewModel(filter: .defaults()))
     }
 
-    private var visibleInstruments: [Instrument] {
-        let flags: [(Instrument, Bool)] = [
-            (.lead, showLead), (.bass, showBass), (.drums, showDrums), (.vocals, showVocals),
-            (.proLead, showProLead), (.proBass, showProBass), (.karaoke, showKaraoke),
-            (.proCymbals, showProCymbals), (.proDrums, showProDrums),
-        ]
-        return flags.filter(\.1).map(\.0)
+    /// `visibleInstruments` in source (`Instrument.allCases`) order for the filter sheet's
+    /// row list and its default instrument-picker selection.
+    private var orderedVisibleInstruments: [Instrument] {
+        Instrument.allCases.filter(visibleInstruments.contains)
     }
 
     private var visibleCategories: [SuggestionCategory] {
-        viewModel.visibleCategories(appVisibleInstruments: Set(visibleInstruments))
+        viewModel.visibleCategories(appVisibleInstruments: visibleInstruments)
     }
 
     var body: some View {
@@ -84,7 +73,7 @@ struct SuggestionsScreen: View {
         }
         .sheet(isPresented: $filterPresented) {
             SuggestionsFilterSheet(
-                applied: viewModel.filter, visibleInstruments: visibleInstruments
+                applied: viewModel.filter, visibleInstruments: orderedVisibleInstruments
             ) { updated in
                 viewModel.filter = updated
                 if let data = try? updated.encoded() { filterData = data }

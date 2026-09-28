@@ -426,7 +426,8 @@ public struct FestivalRootView: View {
             .firstRun(.songs, session: session)
         case .suggestions:
             tabStack(.suggestions) {
-                SuggestionsScreen(session: session).firstRun(.suggestions, session: session)
+                SuggestionsScreen(session: session, visibleInstruments: visibleInstruments)
+                    .firstRun(.suggestions, session: session)
             }
         case .leaderboards:
             tabStack(.leaderboards) {

@@ -76,7 +76,7 @@ struct AppRouteDestination: View {
             StatisticsScreen(session: session)
                 .firstRun(.statistics, session: session)
         case .suggestions:
-            SuggestionsScreen(session: session)
+            SuggestionsScreen(session: session, visibleInstruments: visibleInstruments)
                 .firstRun(.suggestions, session: session)
         case .compete:
             CompeteScreen(session: session)
