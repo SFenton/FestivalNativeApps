@@ -320,10 +320,7 @@ struct ShopScreen: View {
         .overlay(alignment: .trailing) {
             if !large {
                 bagLink(offer)
-                    .padding(.trailing, song == nil
-                        ? ShopRowMetrics.rowInset
-                        : ShopRowMetrics.rowInset + ShopRowMetrics.chevronWidth
-                            + ShopRowMetrics.spacing)
+                    .padding(.trailing, ShopRowMetrics.bagTrailingInset(navigable: song != nil))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -366,22 +363,24 @@ struct ShopScreen: View {
                 .accessibilityHidden(true)
                 .padding(.trailing, 4)
             VStack(alignment: .leading, spacing: 2) {
+                // One line each when they fit; long names wrap rather than
+                // truncate (truncation fails the accessibility audit's clipping check).
                 Text(offer.title)
                     .font(.headline)
                     .foregroundStyle(FestivalText.primary)
-                    .lineLimit(large ? nil : 1)
-                    .fixedSize(horizontal: false, vertical: large)
+                    .minimumScaleFactor(large ? 1 : 0.9)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(offer.year.map { "\(offer.artist) · \($0)" } ?? offer.artist)
                     .font(.subheadline)
                     .foregroundStyle(FestivalText.primary)
-                    .lineLimit(large ? nil : 1)
-                    .fixedSize(horizontal: false, vertical: large)
+                    .minimumScaleFactor(large ? 1 : 0.9)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             offerBadge(offer, compact: true)
             if reservesBag {
                 Color.clear
-                    .frame(width: ShopRowMetrics.bagSlot, height: ShopRowMetrics.bagSlot)
+                    .frame(width: ShopRowMetrics.bagReserve, height: ShopRowMetrics.bagSlot)
                     .accessibilityHidden(true)
             }
             if navigable {
@@ -513,12 +512,24 @@ enum ShopRowMetrics {
     static let art: CGFloat = 44
     /// Minimum hit target of the official bag action.
     static let bagSlot: CGFloat = 44
+    /// Width the row label reserves for the bag; the 44pt target overhangs it
+    /// into the spacing on both sides, leaving more room for the text.
+    static let bagReserve: CGFloat = 32
     /// Width reserved for the Detail chevron.
     static let chevronWidth: CGFloat = 12
     /// Horizontal spacing between row elements.
     static let spacing: CGFloat = 8
     /// Trailing inset inside the row card.
     static let rowInset: CGFloat = 12
+
+    /// Trailing padding that centres the 44pt bag target on its reserved slot.
+    ///
+    /// - Parameter navigable: Whether a chevron follows the bag.
+    /// - Returns: Distance from the row's trailing edge to the bag target.
+    static func bagTrailingInset(navigable: Bool) -> CGFloat {
+        let slotEnd = rowInset + (navigable ? chevronWidth + spacing : 0)
+        return slotEnd - (bagSlot - bagReserve) / 2
+    }
 }
 
 /// Which Shop covers to decode before the first reveal, so the first screen of

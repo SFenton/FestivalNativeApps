@@ -34,6 +34,19 @@ import Testing
     #expect(top.y == 0 && bottom.y == height)
 }
 
+/// The sheared FC outline stays inside the badge frame, so it never widens the
+/// accessibility frame or the shared score column.
+@Test func goldSkewBadgeOutlineFitsItsFrame() {
+    let rect = CGRect(x: 10, y: 20, width: 96, height: 24)
+    let skewed = GoldSkewBadgeShape(skewed: true).path(in: rect).boundingRect
+    #expect(skewed.minX >= rect.minX - 0.01 && skewed.maxX <= rect.maxX + 0.01)
+    #expect(skewed.minY >= rect.minY - 0.01 && skewed.maxY <= rect.maxY + 0.01)
+    let inset = GoldSkewBadgeShape(skewed: true).inset(by: 1).path(in: rect).boundingRect
+    #expect(inset.minX > rect.minX && inset.maxX < rect.maxX)
+    let plain = GoldSkewBadgeShape(skewed: false).path(in: rect).boundingRect
+    #expect(abs(plain.width - 96) < 0.01)
+}
+
 // MARK: - Shop first-screen artwork (gap #17)
 
 /// Decode synthetic offers through the real wire model.
@@ -72,6 +85,14 @@ private func offers(_ art: [String?]) throws -> [ShopSong] {
     // The bag keeps a 44pt target and the row art matches the ~44pt PWA art.
     #expect(ShopRowMetrics.bagSlot >= 44)
     #expect(ShopRowMetrics.art == 44)
+    // The 44pt bag target is centred on its narrower reserved slot and overhangs
+    // only into the row spacing, never into the text or the chevron.
+    let overhang = (ShopRowMetrics.bagSlot - ShopRowMetrics.bagReserve) / 2
+    #expect(overhang <= ShopRowMetrics.spacing)
+    #expect(ShopRowMetrics.bagTrailingInset(navigable: true)
+        == ShopRowMetrics.rowInset + ShopRowMetrics.chevronWidth + ShopRowMetrics.spacing - overhang)
+    #expect(ShopRowMetrics.bagTrailingInset(navigable: false) == ShopRowMetrics.rowInset - overhang)
+    #expect(ShopRowMetrics.bagTrailingInset(navigable: false) >= 0)
 }
 
 // MARK: - Song Detail Shop action tone (operator report)

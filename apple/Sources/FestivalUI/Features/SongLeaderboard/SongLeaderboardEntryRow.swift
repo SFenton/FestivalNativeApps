@@ -99,12 +99,14 @@ struct SongLeaderboardEntryRow: View {
     ///   - fill: Clear for an FC, or graded 25%-opaque accuracy color otherwise.
     ///   - fullCombo: Whether to use the source's gold full-combo outline.
     /// - Returns: One scalable, accessible score-accuracy pill.
-    @ViewBuilder
     private func accuracyBadge(
         text: String, spoken: String, fill: Color, fullCombo: Bool
     ) -> some View {
         let compact = !dynamicTypeSize.isAccessibilitySize
-        let pill = Text(text)
+        // Only the outline is skewed, and it is drawn inside the badge's frame, so the
+        // accessibility frame stays the shared column slot (XCUITest column checks).
+        let shape = GoldSkewBadgeShape(skewed: fullCombo && compact)
+        return Text(text)
             .font(fullCombo ? .body.bold().italic() : .body)
             .foregroundStyle(fullCombo ? BrandTokens.gold : FestivalText.primary)
             .lineLimit(compact ? 1 : nil)
@@ -114,33 +116,14 @@ struct SongLeaderboardEntryRow: View {
                 width: compact ? accuracyTextWidth + 16 : nil,
                 height: compact ? accuracyPillHeight : nil
             )
-            .background(fill, in: RoundedRectangle(cornerRadius: 8))
+            .background(fill, in: shape)
             .overlay {
                 if fullCombo {
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(BrandTokens.gold, lineWidth: 2)
+                    shape.strokeBorder(BrandTokens.gold, lineWidth: 2)
                 }
             }
-        if fullCombo && compact {
-            // Skew only the drawing: the accessibility frame stays the unskewed
-            // column slot, so FC and graded badges keep one aligned column.
-            // The skewed drawing is hidden from accessibility entirely, because a
-            // container's accessibility frame unions its children's drawn bounds.
-            Color.clear
-                .frame(width: accuracyTextWidth + 16, height: accuracyPillHeight)
-                .overlay {
-                    pill.transformEffect(Self.goldSkew(height: accuracyPillHeight))
-                        .accessibilityHidden(true)
-                }
-                .accessibilityElement()
-                .accessibilityAddTraits(.isStaticText)
-                .accessibilityLabel(spoken)
-                .accessibilityIdentifier("fst.score.accuracy.\(entry.accountId)")
-        } else {
-            pill
-                .accessibilityLabel(spoken)
-                .accessibilityIdentifier("fst.score.accuracy.\(entry.accountId)")
-        }
+            .accessibilityLabel(spoken)
+            .accessibilityIdentifier("fst.score.accuracy.\(entry.accountId)")
     }
 
     /// The web's `GOLD_SKEW` (`skewX(-8deg)`) about the badge's vertical centre.
@@ -150,5 +133,35 @@ struct SongLeaderboardEntryRow: View {
     static func goldSkew(height: CGFloat) -> CGAffineTransform {
         let shear = tan(8 * CGFloat.pi / 180)
         return CGAffineTransform(a: 1, b: 0, c: -shear, d: 1, tx: shear * height / 2, ty: 0)
+    }
+}
+
+/// Rounded badge outline, optionally sheared like the web's `GOLD_SKEW`, whose sheared
+/// path still fits inside the proposed rect (it is inset horizontally before shearing).
+struct GoldSkewBadgeShape: InsettableShape {
+    /// Apply the -8° shear.
+    var skewed: Bool
+    /// Inset applied by `strokeBorder`.
+    var insetAmount: CGFloat = 0
+
+    func path(in rect: CGRect) -> Path {
+        let box = rect.insetBy(dx: insetAmount, dy: insetAmount)
+        let radius = max(0, 8 - insetAmount)
+        guard skewed, box.width > 0, box.height > 0 else {
+            return RoundedRectangle(cornerRadius: radius).path(in: box)
+        }
+        let shift = tan(8 * CGFloat.pi / 180) * box.height / 2
+        let local = CGRect(
+            x: shift, y: 0, width: max(0, box.width - 2 * shift), height: box.height
+        )
+        let transform = SongLeaderboardEntryRow.goldSkew(height: box.height)
+            .concatenating(CGAffineTransform(translationX: box.minX, y: box.minY))
+        return RoundedRectangle(cornerRadius: radius).path(in: local).applying(transform)
+    }
+
+    func inset(by amount: CGFloat) -> GoldSkewBadgeShape {
+        var copy = self
+        copy.insetAmount += amount
+        return copy
     }
 }
