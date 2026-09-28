@@ -107,7 +107,7 @@
                                     <TextBlock Text="Show Instrument Icons" Style="{StaticResource SettingTitleStyle}" />
                                     <TextBlock Text="Display instrument icons on each song row showing which parts have leaderboard scores or FCs." Style="{StaticResource SettingDescriptionStyle}" />
                                 </StackPanel>
-                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind ViewModel.ShowInstrumentIcons, Mode=TwoWay}"
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" MinWidth="0" Width="52" IsOn="{x:Bind ViewModel.ShowInstrumentIcons, Mode=TwoWay}"
                                               AutomationProperties.Name="Show Instrument Icons"
                                               AutomationProperties.AutomationId="fst.settings.show-instrument-icons" />
                             </Grid>
@@ -120,7 +120,7 @@
                                     <TextBlock Text="Enable Independent Song Row Visual Order" Style="{StaticResource SettingTitleStyle}" />
                                     <TextBlock Text="When enabled, the metadata display order on song rows is controlled separately from sort priority. When disabled, metadata follows sort priority order." Style="{StaticResource SettingDescriptionStyle}" />
                                 </StackPanel>
-                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind ViewModel.EnableVisualOrder, Mode=TwoWay}"
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" MinWidth="0" Width="52" IsOn="{x:Bind ViewModel.EnableVisualOrder, Mode=TwoWay}"
                                               AutomationProperties.Name="Enable Independent Song Row Visual Order"
                                               AutomationProperties.AutomationId="fst.settings.enable-visual-order" />
                             </Grid>
@@ -149,7 +149,7 @@
                                     <TextBlock Text="Filter Invalid Scores" Style="{StaticResource SettingTitleStyle}" />
                                     <TextBlock Text="Hide song scores that exceed the mathematical maximum by more than the leeway percentage." Style="{StaticResource SettingDescriptionStyle}" />
                                 </StackPanel>
-                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind ViewModel.FilterInvalidScores, Mode=TwoWay}"
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" MinWidth="0" Width="52" IsOn="{x:Bind ViewModel.FilterInvalidScores, Mode=TwoWay}"
                                               AutomationProperties.Name="Filter Invalid Scores"
                                               AutomationProperties.AutomationId="fst.settings.filter-invalid-scores" />
                             </Grid>
@@ -202,7 +202,7 @@
                                     <TextBlock Text="Enable Experimental Leaderboard Ranks" Style="{StaticResource SettingTitleStyle}" />
                                     <TextBlock Text="Enable this to see more ranking mechanisms in the Leaderboards page. Not yet available." Style="{StaticResource SettingDescriptionStyle}" />
                                 </StackPanel>
-                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind ViewModel.ExperimentalRanks, Mode=OneWay}" IsEnabled="False"
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" MinWidth="0" Width="52" IsOn="{x:Bind ViewModel.ExperimentalRanks, Mode=OneWay}" IsEnabled="False"
                                               AutomationProperties.Name="Enable Experimental Leaderboard Ranks"
                                               AutomationProperties.HelpText="Experimental ranks are not yet available."
                                               AutomationProperties.AutomationId="fst.settings.experimental-ranks" />
@@ -226,7 +226,7 @@
                                     <TextBlock Text="Tap Diagnostics" Style="{StaticResource SettingTitleStyle}" />
                                     <TextBlock Text="Capture recent taps, hit targets, routes, and shell state in a local diagnostic buffer on this device." Style="{StaticResource SettingDescriptionStyle}" />
                                 </StackPanel>
-                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind ViewModel.TapDiagnostics, Mode=TwoWay}"
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" MinWidth="0" Width="52" IsOn="{x:Bind ViewModel.TapDiagnostics, Mode=TwoWay}"
                                               AutomationProperties.Name="Tap Diagnostics"
                                               AutomationProperties.AutomationId="fst.settings.tap-diagnostics" />
                             </Grid>
@@ -239,7 +239,7 @@
                                     <TextBlock Text="Upload Tap Telemetry" Style="{StaticResource SettingTitleStyle}" />
                                     <TextBlock Text="{x:Bind ViewModel.TapTelemetryDescription, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}" />
                                 </StackPanel>
-                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind ViewModel.TapTelemetry, Mode=TwoWay}"
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" MinWidth="0" Width="52" IsOn="{x:Bind ViewModel.TapTelemetry, Mode=TwoWay}"
                                               IsEnabled="{x:Bind ViewModel.TapDiagnostics, Mode=OneWay}"
                                               AutomationProperties.Name="Upload Tap Telemetry"
                                               AutomationProperties.HelpText="{x:Bind ViewModel.TapTelemetryDescription, Mode=OneWay}"
@@ -264,7 +264,7 @@
                                     <TextBlock Text="Hide Item Shop" Style="{StaticResource SettingTitleStyle}" />
                                     <TextBlock Text="Also hides its navigation entry. Your highlight preference is kept." Style="{StaticResource SettingDescriptionStyle}" />
                                 </StackPanel>
-                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind ViewModel.HideShop, Mode=TwoWay}"
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" MinWidth="0" Width="52" IsOn="{x:Bind ViewModel.HideShop, Mode=TwoWay}"
                                               AutomationProperties.Name="Hide Item Shop"
                                               AutomationProperties.AutomationId="fst.settings.hide-shop" />
                             </Grid>
@@ -277,7 +277,7 @@
                                     <TextBlock Text="Highlight Shop Items" Style="{StaticResource SettingTitleStyle}" />
                                     <TextBlock Text="Pulse songs that are in the Item Shop on the Songs page." Style="{StaticResource SettingDescriptionStyle}" />
                                 </StackPanel>
-                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind ViewModel.HighlightShopItems, Mode=TwoWay}"
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" MinWidth="0" Width="52" IsOn="{x:Bind ViewModel.HighlightShopItems, Mode=TwoWay}"
                                               IsEnabled="{x:Bind ViewModel.CanToggleShopHighlight, Mode=OneWay}"
                                               AutomationProperties.Name="Highlight Shop Items"
                                               AutomationProperties.AutomationId="fst.settings.shop-highlights" />
@@ -306,7 +306,7 @@
                                             <TextBlock Text="{x:Bind Description, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}"
                                                        Visibility="{x:Bind IsEnabled, Mode=OneWay, Converter={StaticResource FSTInverseVisibility}}" />
                                         </StackPanel>
-                                        <ToggleSwitch Grid.Column="2" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind IsOn, Mode=TwoWay}" IsEnabled="{x:Bind IsEnabled, Mode=OneWay}"
+                                        <ToggleSwitch Grid.Column="2" Style="{StaticResource SettingSwitchStyle}" MinWidth="0" Width="52" IsOn="{x:Bind IsOn, Mode=TwoWay}" IsEnabled="{x:Bind IsEnabled, Mode=OneWay}"
                                                       AutomationProperties.Name="{x:Bind Label}"
                                                       AutomationProperties.HelpText="{x:Bind Description, Mode=OneWay}"
                                                       AutomationProperties.AutomationId="{x:Bind AutomationId}" />
@@ -335,7 +335,7 @@
                                             <TextBlock Text="{x:Bind Description, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}"
                                                        Visibility="{x:Bind IsEnabled, Mode=OneWay, Converter={StaticResource FSTInverseVisibility}}" />
                                         </StackPanel>
-                                        <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind IsOn, Mode=TwoWay}" IsEnabled="{x:Bind IsEnabled, Mode=OneWay}"
+                                        <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" MinWidth="0" Width="52" IsOn="{x:Bind IsOn, Mode=TwoWay}" IsEnabled="{x:Bind IsEnabled, Mode=OneWay}"
                                                       AutomationProperties.Name="{x:Bind Label}"
                                                       AutomationProperties.HelpText="{x:Bind Description, Mode=OneWay}"
                                                       AutomationProperties.AutomationId="{x:Bind AutomationId}" />
@@ -359,7 +359,7 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Text="Reduce Motion" Style="{StaticResource SettingTitleStyle}" VerticalAlignment="Center" />
-                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind ViewModel.ReduceMotion, Mode=TwoWay}"
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" MinWidth="0" Width="52" IsOn="{x:Bind ViewModel.ReduceMotion, Mode=TwoWay}"
                                               AutomationProperties.Name="Reduce Motion" AutomationProperties.AutomationId="fst.settings.reduce-motion" />
                             </Grid>
                             <Grid ColumnSpacing="12" MinHeight="48">
@@ -368,7 +368,7 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Text="Disable Animated Artwork" Style="{StaticResource SettingTitleStyle}" VerticalAlignment="Center" />
-                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind ViewModel.DisableAnimatedArtwork, Mode=TwoWay}"
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" MinWidth="0" Width="52" IsOn="{x:Bind ViewModel.DisableAnimatedArtwork, Mode=TwoWay}"
                                               AutomationProperties.Name="Disable Animated Artwork" AutomationProperties.AutomationId="fst.settings.disable-artwork-animation" />
                             </Grid>
                             <Grid ColumnSpacing="12" MinHeight="48">
@@ -380,7 +380,7 @@
                                     <TextBlock Text="Increase Contrast" Style="{StaticResource SettingTitleStyle}" />
                                     <TextBlock Text="Brighter secondary text and stronger card outlines." Style="{StaticResource SettingDescriptionStyle}" />
                                 </StackPanel>
-                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind ViewModel.MoreContrast, Mode=TwoWay}"
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" MinWidth="0" Width="52" IsOn="{x:Bind ViewModel.MoreContrast, Mode=TwoWay}"
                                               AutomationProperties.Name="Increase Contrast" AutomationProperties.AutomationId="fst.settings.more-contrast" />
                             </Grid>
                             <Grid ColumnSpacing="12" MinHeight="48">
@@ -392,7 +392,7 @@
                                     <TextBlock Text="Reduce Transparency" Style="{StaticResource SettingTitleStyle}" />
                                     <TextBlock Text="Replaces translucent cards with solid surfaces." Style="{StaticResource SettingDescriptionStyle}" />
                                 </StackPanel>
-                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind ViewModel.LessTransparency, Mode=TwoWay}"
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" MinWidth="0" Width="52" IsOn="{x:Bind ViewModel.LessTransparency, Mode=TwoWay}"
                                               AutomationProperties.Name="Reduce Transparency" AutomationProperties.AutomationId="fst.settings.less-transparency" />
                             </Grid>
                             <Grid ColumnSpacing="12" MinHeight="48">
@@ -404,7 +404,7 @@
                                     <TextBlock Text="Hide Artwork (Save Data)" Style="{StaticResource SettingTitleStyle}" />
                                     <TextBlock Text="Skips album art downloads and shows the brand background." Style="{StaticResource SettingDescriptionStyle}" />
                                 </StackPanel>
-                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind ViewModel.SaveData, Mode=TwoWay}"
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" MinWidth="0" Width="52" IsOn="{x:Bind ViewModel.SaveData, Mode=TwoWay}"
                                               AutomationProperties.Name="Hide Artwork (Save Data)" AutomationProperties.AutomationId="fst.settings.save-data" />
                             </Grid>
                         </StackPanel>

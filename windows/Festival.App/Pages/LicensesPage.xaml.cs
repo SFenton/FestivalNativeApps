@@ -52,7 +52,7 @@ public sealed partial class LicensesPage : Page
         body.Children.Add(new ScrollViewer
         {
             MaxHeight = 420,
-            Content = new TextBlock { Text = row.Text, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true, FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Mono, Consolas") },
+            Content = new TextBlock { Text = row.Text, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true, FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Mono, Consolas"), FontSize = 12 },
         });
         var dialog = new ContentDialog
         {

@@ -336,7 +336,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         [
             new("item-shop", "Item Shop", ""),
             new("show-instruments", "Show Instruments", ""),
-            new("show-metadata", "Show Instrument Metadata", ""),
+            new("show-metadata", "Show Instrument Metadata", ""),
             new("accessibility", "Accessibility", ""),
             new("version", "Version", ""),
             new("service-info", "Service", ""),

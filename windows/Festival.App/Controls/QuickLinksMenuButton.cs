@@ -22,7 +22,7 @@ public sealed partial class QuickLinksMenuButton : DropDownButton
         {
             Orientation = Orientation.Horizontal,
             Spacing = 8,
-            Children = { new FontIcon { Glyph = "", FontSize = 14 }, new TextBlock { Text = "Quick Links" } },
+            Children = { new FontIcon { Glyph = "", FontSize = 14 }, new TextBlock { Text = "Quick Links" } },
         };
         AutomationProperties.SetAutomationId(this, "fst.quick-links.open");
         Flyout = new MenuFlyout { Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.BottomEdgeAlignedRight };
