@@ -1,4 +1,4 @@
-# Windows host relay (Android + Windows lanes)
+# Remote build host relay
 
 > **What:** how Android/Windows work runs on `sfenton-primary` and moves to GitHub. **Read when:** running, collecting or integrating a Windows-host lane.
 

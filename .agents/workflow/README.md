@@ -9,5 +9,6 @@
 | [change-loop.md](change-loop.md) | Implementing any feature: the per-change steps |
 | [source-of-truth.md](source-of-truth.md) | Reading the web source, citing lines, pinning snapshots, parity backlog |
 | [docs-conventions.md](docs-conventions.md) | Adding or splitting `.agents` docs |
+| [windows-relay.md](windows-relay.md) | Running Android/Windows lanes on `sfenton-primary` and moving their history via `tools/win_relay.py` |
 
 Plan, lane table and priorities live in [PROGRESS.md](../../PROGRESS.md) (orchestrator-owned).
