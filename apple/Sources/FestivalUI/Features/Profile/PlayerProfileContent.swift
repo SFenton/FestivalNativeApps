@@ -378,13 +378,10 @@ struct PlayerProfileContent: View {
     private func instrumentSection(_ payload: PlayerProfilePayload, instrument: Instrument) -> some View {
         let stats = payload.profile.instrumentStats(instrument)
         let stars = payload.profile.starBreakdown(instrument)
+        // Instrument header above its card, never inside it (web `InstrumentHeader` MD).
+        VStack(alignment: .leading, spacing: 8) {
+        InstrumentSectionHeader(instrument, size: .medium)
         FestivalGlassSection {
-            HStack(spacing: 8) {
-                InstrumentIcon(instrument, size: 22)
-                Text(instrument.label)
-                    .font(.headline)
-                    .foregroundStyle(BrandTokens.textPrimary)
-            }
             if stats.songsPlayed == 0 {
                 FestivalFootnote("No \(instrument.label) scores recorded yet.")
                     .accessibilityIdentifier("fst.player.instrument-empty.\(instrument.rawValue)")
@@ -410,6 +407,7 @@ struct PlayerProfileContent: View {
                 ])
                 InstrumentGlobalRankView(session: session, accountId: accountId, instrument: instrument)
             }
+        }
         }
         .accessibilityIdentifier("fst.player.instrument.\(instrument.rawValue)")
         .quickLinkSection(QuickLinkSection(

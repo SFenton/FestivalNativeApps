@@ -402,8 +402,12 @@ struct RivalInstrumentSongSection: View {
     }
 
     @ViewBuilder private func shell<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        FestivalGlassSection(instrument.label) { content() }
-            .padding(.horizontal, 16)
+        // Web `InstrumentHeader` SM above the card, never inside it.
+        VStack(alignment: .leading, spacing: 8) {
+            InstrumentSectionHeader(instrument, title: "\(instrument.label) Rivals")
+            FestivalGlassSection { content() }
+        }
+        .padding(.horizontal, 16)
     }
 
     /// `shell(_:)`, additionally tagged as this instrument's own Quick Links
@@ -498,8 +502,12 @@ struct RivalInstrumentLeaderboardSection: View {
     }
 
     @ViewBuilder private func shell<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        FestivalGlassSection(instrument.label) { content() }
-            .padding(.horizontal, 16)
+        // Web `InstrumentHeader` SM above the card, never inside it.
+        VStack(alignment: .leading, spacing: 8) {
+            InstrumentSectionHeader(instrument, title: "\(instrument.label) Rivals")
+            FestivalGlassSection { content() }
+        }
+        .padding(.horizontal, 16)
     }
 
     @MainActor

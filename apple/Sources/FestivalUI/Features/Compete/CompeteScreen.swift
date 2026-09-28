@@ -143,11 +143,7 @@ struct CompeteInstrumentLeaderboardSection: View {
     var body: some View {
         // Instrument header above the card, never inside it (operator rule).
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                InstrumentIcon(instrument, size: 20)
-                FestivalSectionHeader(instrument.label)
-            }
-            .padding(.horizontal, 4)
+            InstrumentSectionHeader(instrument)
             card
         }
         .padding(.horizontal, 16)
