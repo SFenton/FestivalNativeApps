@@ -141,13 +141,14 @@ struct ProfileSelectionSheet: View {
                 .listRowInsets(EdgeInsets())
             }
             .scrollContentBackground(.hidden)
-            .background(BrandTokens.appBackground)
             .navigationTitle("Profiles")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                // Dismiss-only modal: trailing, matching the app's modal-standard
+                // placement (operator, 2026-09-28) — not leading like a paired Cancel.
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Close") { dismiss() }
                         .accessibilityIdentifier("fst.profile.close")
                 }
