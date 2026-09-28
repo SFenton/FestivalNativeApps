@@ -1,0 +1,264 @@
+import SwiftUI
+import Charts
+import FestivalCore
+import FestivalDesign
+
+// MARK: - songinfo-chart
+
+/// Ported from `pages/songinfo/firstRun/demo/ChartDemo.tsx`: accuracy bars (gold when full
+/// combo, an accuracy-ramp tint otherwise) with each bar's score annotated above it.
+struct FirstRunSongInfoChartDemo: View {
+    var body: some View {
+        VStack(spacing: 10) {
+            Chart(FirstRunDemoPool.scoreHistory) { point in
+                BarMark(x: .value("Date", point.label), y: .value("Accuracy", point.accuracy))
+                    .foregroundStyle(firstRunAccuracyTint(point.accuracy, isFullCombo: point.isFullCombo))
+                    .cornerRadius(4)
+                    .annotation(position: .top) {
+                        Text(point.score.formatted())
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(BrandTokens.textSecondary)
+                    }
+            }
+            .chartYScale(domain: 0...100)
+            .chartYAxis { AxisMarks(position: .leading) }
+            .frame(height: 150)
+            legend
+        }
+        .padding(14)
+        .festivalGlass(.card, cornerRadius: 16)
+        .accessibilityHidden(true)
+    }
+
+    private var legend: some View {
+        HStack(spacing: 16) {
+            legendItem("Accuracy", BrandTokens.accentBlue)
+            legendItem("Full Combo", BrandTokens.gold)
+        }
+        .font(.caption2)
+        .foregroundStyle(BrandTokens.textMuted)
+    }
+
+    private func legendItem(_ label: String, _ tint: Color) -> some View {
+        HStack(spacing: 4) {
+            RoundedRectangle(cornerRadius: 2).fill(tint).frame(width: 10, height: 10)
+            Text(label)
+        }
+    }
+}
+
+// MARK: - songinfo-bar-select
+
+/// Ported from `pages/songinfo/firstRun/demo/BarSelectDemo.tsx`: the same chart with one bar
+/// highlighted (a purple selection stroke) and its details in a card below. The web cycles the
+/// selection on a timer; this static port shows the most recent bar selected, matching the
+/// carousel's "no timers while off-screen" rule — see `.agents/controls/first-run/ios.md`.
+struct FirstRunSongInfoBarSelectDemo: View {
+    private var selected: FirstRunDemoPool.ScorePoint { FirstRunDemoPool.scoreHistory.last! }
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Chart(FirstRunDemoPool.scoreHistory) { point in
+                BarMark(x: .value("Date", point.label), y: .value("Accuracy", point.accuracy))
+                    .foregroundStyle(firstRunAccuracyTint(point.accuracy, isFullCombo: point.isFullCombo))
+                    .cornerRadius(4)
+            }
+            .chartYScale(domain: 0...100)
+            .chartYAxis { AxisMarks(position: .leading) }
+            .frame(height: 120)
+            .overlay(alignment: .bottomTrailing) {
+                RoundedRectangle(cornerRadius: 4)
+                    .stroke(BrandTokens.accentPurple, lineWidth: 2)
+                    .frame(width: 28, height: 60)
+                    .offset(x: -4, y: -4)
+            }
+            HStack(spacing: 16) {
+                Text(selected.label)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(BrandTokens.textPrimary)
+                Spacer(minLength: 0)
+                Text(selected.score.formatted())
+                    .font(.subheadline.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(BrandTokens.textPrimary)
+                Text("\(Int(selected.accuracy))%")
+                    .font(.subheadline)
+                    .foregroundStyle(BrandTokens.textSecondary)
+                if selected.isFullCombo {
+                    Image(systemName: "star.fill").foregroundStyle(BrandTokens.gold)
+                }
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 44)
+            .background(BrandTokens.accentPurple.opacity(0.18), in: RoundedRectangle(cornerRadius: 10))
+        }
+        .padding(14)
+        .festivalGlass(.card, cornerRadius: 16)
+        .accessibilityHidden(true)
+    }
+}
+
+// MARK: - songinfo-view-all
+
+/// Ported from `pages/songinfo/firstRun/demo/ViewAllDemo.tsx`: the player's own top scores, with
+/// the last row faded (a bottom mask on the web) and a pulsing "View all scores" row below.
+struct FirstRunSongInfoViewAllDemo: View {
+    var body: some View {
+        VStack(spacing: 8) {
+            ForEach(Array(FirstRunDemoPool.ownScores.enumerated()), id: \.element.id) { index, entry in
+                scoreRow(entry)
+                    .opacity(index == FirstRunDemoPool.ownScores.count - 1 ? 0.45 : 1)
+                    .firstRunStagger(index)
+            }
+            FirstRunViewAllRow(title: "View all scores")
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func scoreRow(_ entry: FirstRunDemoPool.TopScoreEntry) -> some View {
+        HStack(spacing: 16) {
+            Text(entry.name)
+                .font(.subheadline)
+                .foregroundStyle(BrandTokens.textPrimary)
+            Spacer(minLength: 0)
+            Text(entry.score.formatted())
+                .font(.subheadline.weight(.semibold))
+                .monospacedDigit()
+                .foregroundStyle(BrandTokens.textPrimary)
+            Text("\(entry.accuracyPercent)%")
+                .font(.caption)
+                .foregroundStyle(BrandTokens.textSecondary)
+            if entry.isFullCombo {
+                Image(systemName: "star.fill").font(.caption).foregroundStyle(BrandTokens.gold)
+            }
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 44)
+        .festivalGlass(.card, cornerRadius: 12)
+    }
+}
+
+// MARK: - songinfo-top-scores
+
+/// Ported from `pages/songinfo/firstRun/demo/TopScoresDemo.tsx`: the instrument's top leaderboard
+/// entries with a pulsing "View full leaderboard" row.
+struct FirstRunSongInfoTopScoresDemo: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            FirstRunInstrumentHeader(instrument: .lead)
+            ForEach(Array(FirstRunDemoPool.topScores.enumerated()), id: \.element.id) { index, entry in
+                HStack(spacing: 14) {
+                    Text("#\(entry.rank)")
+                        .font(.subheadline).monospacedDigit()
+                        .foregroundStyle(BrandTokens.textSecondary)
+                        .frame(minWidth: 24, alignment: .trailing)
+                    Text(entry.name)
+                        .font(.subheadline)
+                        .foregroundStyle(BrandTokens.textPrimary)
+                    Spacer(minLength: 0)
+                    Text(entry.score.formatted())
+                        .font(.subheadline.weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(BrandTokens.textPrimary)
+                    if entry.isFullCombo {
+                        Image(systemName: "star.fill").font(.caption).foregroundStyle(BrandTokens.gold)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .frame(height: 40)
+                .festivalGlass(.card, cornerRadius: 12)
+                .firstRunStagger(index)
+            }
+            FirstRunViewAllRow(title: "View full leaderboard")
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+// MARK: - songinfo-paths
+
+/// Ported from `pages/songinfo/firstRun/demo/PathPreviewDemo.tsx`: the instrument selector,
+/// difficulty selector, and a static path preview placeholder (the web loads a real chart image
+/// over the network; a demo never does).
+struct FirstRunSongInfoPathsDemo: View {
+    private let instruments: [Instrument] = [.lead, .bass, .drums, .vocals]
+    private let difficulties = ["Easy", "Medium", "Hard", "Expert"]
+
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 10) {
+                ForEach(instruments, id: \.self) { instrument in
+                    InstrumentIcon(instrument, size: 28)
+                        .padding(6)
+                        .background(
+                            instrument == .lead ? BrandTokens.accentBlue.opacity(0.3) : .clear,
+                            in: Circle()
+                        )
+                }
+            }
+            HStack(spacing: 8) {
+                ForEach(difficulties, id: \.self) { difficulty in
+                    Text(difficulty)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(
+                            difficulty == "Expert" ? BrandTokens.textPrimary : BrandTokens.textSecondary
+                        )
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            difficulty == "Expert" ? BrandTokens.accentPurple.opacity(0.35) : BrandTokens.surfaceMuted,
+                            in: RoundedRectangle(cornerRadius: 8)
+                        )
+                }
+            }
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(BrandTokens.surfaceMuted)
+                .overlay(
+                    VStack(spacing: 6) {
+                        Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
+                            .font(.title2)
+                        Text("Path Preview").font(.caption)
+                    }
+                    .foregroundStyle(BrandTokens.textSecondary)
+                )
+                .frame(maxWidth: .infinity, minHeight: 90)
+        }
+        .padding(14)
+        .festivalGlass(.card, cornerRadius: 16)
+        .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Item Shop pill (songinfo-shop-button / -new-in-shop / -leaving-tomorrow)
+
+/// Ported from `pages/songinfo/firstRun/demo/{ShopButtonDemo,LeavingTomorrowButtonDemo}.tsx`: the
+/// Song Info header's Item Shop pill in its three tones (green/default, gold/new, red/leaving),
+/// all pulsing — these slides carry no `shopHighlightEnabled` gate of their own in
+/// `FirstRunCatalog`, matching the web's demo always showing the pulse regardless of the live
+/// setting.
+struct FirstRunSongInfoShopPillDemo: View {
+    enum Tone { case shop, new, leaving }
+    let tone: Tone
+
+    private var tint: Color {
+        switch tone {
+        case .shop: BrandTokens.statusGreenStroke
+        case .new: BrandTokens.gold
+        case .leaving: BrandTokens.statusRed
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "bag.fill")
+            Text("Item Shop").font(.subheadline.weight(.semibold))
+        }
+        .foregroundStyle(BrandTokens.textPrimary)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 10)
+        .background(tint, in: Capsule())
+        .firstRunPulse(tint)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityHidden(true)
+    }
+}
