@@ -169,9 +169,14 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 
 **Lane S follow-ups** — 🟨 toolbar order rule on Songs, Quick Links on Songs/Song Detail, Settings consumers (row visual order, path column order)
 
-Queued:
-- ⬜ **FRE live demos** for the 31 non-Songs slides (currently icon illustrations; semantics complete)
-- ⬜ **Wave 3 UX tests** for completed features — hosted snapshots first, XCUITest journeys batched
+**Lane D2 — FRE live demos** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/fredemos`
+- ⬜ Live mini-demos for the 31 non-Songs slides (Song Info, History, Statistics, Suggestions, Leaderboards, Compete, Rivals, Shop)
+
+### Wave 3 — UX tests (started for completed features)
+
+**Lane U — UX tests: shell, leaderboards, background, history, notifications, first-run, licenses** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/uxtests`
+- ⬜ Hosted snapshot per declared control state · ⬜ Per-feature XCUITest journeys against the loopback mock (batched on the shared simulator) · ⬜ Per-feature UX coverage → `.agents/testing/apple/coverage.md`
+
 
 Not yet assigned:
 - ⬜ Statistics = selected player's profile page (assigned to Lane P)
@@ -244,3 +249,4 @@ Not yet assigned:
 | 2026-09-28 | Lane S | Scrubber `#` labels, keyboard icons (`Song.sig`), Player History links from Song Detail |
 | 2026-09-28 | Orchestrator | Avatar-rightmost toolbar rule, implicit test-ID families, app versioning; launched Lanes R2, P2 |
 | 2026-09-28 | Lane F | FREs: 44 slides / 9 pages, versioned+hashed seen state (only new slides show), gates, Settings replay; 36 Core tests |
+| 2026-09-28 | Orchestrator | Launched Lane D2 (FRE demos) and Lane U (Wave 3 UX tests for completed features) |
