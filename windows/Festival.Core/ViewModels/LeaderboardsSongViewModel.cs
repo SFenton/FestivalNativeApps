@@ -267,7 +267,7 @@ public sealed record SongLeaderboardRowViewModel(LeaderboardEntry Entry, bool Is
     public string Season => Entry.Season is { } s ? string.Create(CultureInfo.InvariantCulture, $"S{s}") : "";
 
     /// <summary>Destination.</summary>
-    public AppRoute Route => IsSelected ? new AppRoute.Statistics() : new AppRoute.Player(Entry.AccountId);
+    public AppRoute Route => IsSelected ? new AppRoute.Statistics() : new AppRoute.Player(Entry.AccountId, Entry.DisplayName);
 
     /// <summary>UIA automation ID (<c>fst.song-leaderboard.row.&lt;accountId&gt;</c>).</summary>
     public string AutomationId => "fst.song-leaderboard.row." + Entry.AccountId;

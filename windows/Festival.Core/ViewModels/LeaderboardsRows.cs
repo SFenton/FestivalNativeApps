@@ -54,7 +54,7 @@ public sealed class RankingRowViewModel
     public bool HasBayesian => BayesianText.Length > 0;
 
     /// <summary>Destination.</summary>
-    public AppRoute Route => new AppRoute.Player(Entry.AccountId);
+    public AppRoute Route => new AppRoute.Player(Entry.AccountId, Entry.DisplayName);
 
     /// <summary>UIA automation ID (<c>fst.rankings.row.&lt;accountId&gt;</c>).</summary>
     public string AutomationId => "fst.rankings.row." + Entry.AccountId;

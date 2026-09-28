@@ -350,7 +350,7 @@ public sealed class RankingRowTests
         Assert.True(row.HasBayesian);
         Assert.Equal("0.12", row.BayesianText);
         Assert.Equal("38 / 50 songs", row.SongsText);
-        Assert.Equal(new AppRoute.Player("abc"), row.Route);
+        Assert.Equal(new AppRoute.Player("abc", "Player 2"), row.Route);
         Assert.Equal("fst.rankings.row.abc", row.AutomationId);
         Assert.Equal("Rank #2, Player 2. Adjusted Top 2% (0.12), 38 / 50 songs", row.Announcement);
         var total = new RankingRowViewModel(RankingsWire.Account(2), RankingMetric.TotalScore, true);
@@ -617,7 +617,7 @@ public sealed class SongLeaderboardViewModelTests
         Assert.Equal("FC 98.5%", row.AccuracyPill);
         Assert.Equal("★★★★★", row.Stars);
         Assert.Equal("S15", row.Season);
-        Assert.Equal(new AppRoute.Player("a1"), row.Route);
+        Assert.Equal(new AppRoute.Player("a1", "Player 1"), row.Route);
         Assert.Equal("fst.song-leaderboard.row.a1", row.AutomationId);
         Assert.Equal("Rank #1, Player 1, 99,999 points, 98.5% accuracy, full combo, 6 stars", row.Announcement);
         Assert.Equal("98.5%", vm.Rows[1].AccuracyPill);
