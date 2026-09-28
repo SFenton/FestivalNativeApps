@@ -17,7 +17,7 @@ namespace Festival.App;
 
 #region Main window
 /// <summary>
-/// Shell: Mica window, WinUI TitleBar (back, pane toggle, profile avatar), NavigationView sections with one
+/// Shell: artwork-backed window, WinUI TitleBar (back, pane toggle, profile avatar), NavigationView sections with one
 /// frame stack per section, and the shared artwork background with its playback policy.
 /// </summary>
 public sealed partial class MainWindow : Window
@@ -434,20 +434,24 @@ public sealed partial class MainWindow : Window
         Backdrop.ApplyMode(mode);
     }
 
-    /// <summary>Makes cards opaque when Windows transparency effects are off (Mica falls back on its own).</summary>
+    /// <summary>
+    /// Makes cards opaque and the overlay pane's acrylic use its solid fallback when Windows transparency effects or the
+    /// in-app Less Transparency setting are off.
+    /// </summary>
     private void ApplyTransparency()
     {
-        var dictionaries = Application.Current.Resources.MergedDictionaries;
-        foreach (var dictionary in dictionaries)
+        var transparent = uiSettings.AdvancedEffectsEnabled && !session.Settings.LessTransparency;
+        foreach (var dictionary in Application.Current.Resources.MergedDictionaries)
         {
-            if (dictionary.ThemeDictionaries.TryGetValue("Default", out var theme) &&
-                theme is ResourceDictionary defaults && defaults.TryGetValue("FSTCardSurfaceBrush", out var value) &&
-                value is SolidColorBrush brush)
+            if (!dictionary.ThemeDictionaries.TryGetValue("Default", out var theme) || theme is not ResourceDictionary defaults) continue;
+            if (defaults.TryGetValue("FSTCardSurfaceBrush", out var value) && value is SolidColorBrush brush)
             {
                 var color = brush.Color;
-                color.A = uiSettings.AdvancedEffectsEnabled && !session.Settings.LessTransparency ? (byte)0xC7 : (byte)0xFF;
+                color.A = transparent ? (byte)0xC7 : (byte)0xFF;
                 brush.Color = color;
             }
+            if (defaults.TryGetValue("FSTOverlayPaneBrush", out var pane) && pane is AcrylicBrush acrylic)
+                acrylic.AlwaysUseFallback = !transparent;
         }
     }
     #endregion

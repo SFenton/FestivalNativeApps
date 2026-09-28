@@ -6,15 +6,16 @@
     xmlns:data="using:Festival.Core.Data"
     xmlns:domain="using:Festival.Core.Domain"
     Title="Festival Score Tracker">
-    <Window.SystemBackdrop>
-        <MicaBackdrop Kind="Base" />
-    </Window.SystemBackdrop>
 
     <Grid x:Name="RootGrid">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
+
+        <!-- One artwork backdrop behind the whole window: the title bar and the navigation pane are transparent chrome
+             over it (Styles.xaml clears NavigationView's content layer), so its dim scrim covers every edge. -->
+        <controls:ArtworkBackground x:Name="Backdrop" Grid.RowSpan="2" />
 
         <TitleBar x:Name="AppTitleBar" Title="Festival Score Tracker"
                   IsBackButtonVisible="True" IsPaneToggleButtonVisible="True"
@@ -140,10 +141,7 @@
                         IsPaneToggleButtonVisible="False" IsSettingsVisible="True" OpenPaneLength="240"
                         ItemInvoked="OnNavItemInvoked" DisplayModeChanged="OnNavDisplayModeChanged"
                         AutomationProperties.AutomationId="fst.shell.navigation">
-            <Grid>
-                <controls:ArtworkBackground x:Name="Backdrop" />
-                <Grid x:Name="FrameHost" />
-            </Grid>
+            <Grid x:Name="FrameHost" />
         </NavigationView>
     </Grid>
 </Window>

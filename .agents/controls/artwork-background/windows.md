@@ -5,7 +5,7 @@
 ## Architecture
 
 - One `ArtworkBackground` (a `Grid` hosting a child `ContainerVisual`) sits behind the section frames inside the `NavigationView` content area, so tab switches and pushes never restart it.
-- Visual tree: two carousel `SpriteVisual` slots, one song-cover sprite, one black dim sprite (0.7). Slots are oversized by a 24 px bleed so ≤18 px pans never show an edge.
+- Visual tree: two carousel `SpriteVisual` slots, one song-cover sprite, one black dim sprite (0.7). Slots **and the dim sprite** are oversized by a 24 px bleed so ≤18 px pans never show an edge and DPI rounding of the host size can never leave an undimmed row or column.
 - Every 5 s a `DispatcherQueueTimer` loads the next cover (bounded byte cache → `LoadedImageSurface` decoded at ≤1024 px) and crossfades it in above the old slot. The old surface is disposed after the fade.
 - Motion is `KeyFrameAnimation`s on the composition thread: opacity crossfade (1 s, 60 steps/s) and zoom/pan drift (6 s, one of ten presets, **30 steps/s**). The step easing lets the compositor skip frames where nothing changed, so the cost doesn't scale with the display refresh rate. `--drift-fps N` overrides (0 = continuous).
 - Song Detail: `ShowSong` fades the static cover in (0.5 s, opacity only) and freezes the carousel (animations stopped at their current frame); returning starts the next crossfade and drift at once. Motion is stopped rather than `AnimationController.Pause`d, so an unseen window holds no running composition animation.
@@ -21,7 +21,7 @@
 
 Occlusion (`Services/OcclusionTracker.cs`, rules in Core `WindowOcclusion`) follows Chromium's native window occlusion tracker: out-of-context `SetWinEventHook`s (foreground, move/size end, minimize, show/hide, top-level location change, cloak/uncloak; own process skipped) plus the window's own activation, move, resize and Z-order changes schedule **one debounced (150 ms) Z-order walk** on the UI thread, so nothing runs while the desktop is idle. The walk collects windows above the app (`GW_HWNDPREV`) that are visible, not minimized, not cloaked, not click-through (`WS_EX_TRANSPARENT`, e.g. FPS overlays), not region-shaped and not translucent layered, and subtracts their DWM frames from the app's on-screen frame; only a fully covered frame counts (unknown shapes keep animating). A window subclass also pauses on `WTS_SESSION_LOCK` and console-display-off (`GUID_CONSOLE_DISPLAY_STATE`). Transitions are logged as repeatable `occlusion-<covered|cloaked|locked|display-off|visible>=<ms>` perf-log lines.
 
-The composition root carries an `InsetClip`: the bleed and drift scale overflow the host, and without NavigationView's rounded content border (LeftMinimal pane at compact widths) the art painted over the title bar. Covers that fail to load are logged and skipped: at most three immediate attempts per tick, five failures per pool.
+The host spans the whole window (`MainWindow` row span 2, behind the transparent title bar and pane); the composition root's `InsetClip` keeps the bleed and drift scale inside it. Covers that fail to load are logged and skipped: at most three immediate attempts per tick, five failures per pool.
 
 ## Last measured
 

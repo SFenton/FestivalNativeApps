@@ -21,7 +21,7 @@
                         <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}" CornerRadius="4" Padding="6,1" Visibility="{x:Bind HasFlag}">
                             <TextBlock Text="{x:Bind Flag}" Style="{StaticResource CaptionTextBlockStyle}" />
                         </Border>
-                        <TextBlock Text="{x:Bind TimeText}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                        <TextBlock Text="{x:Bind TimeText}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource FSTDeemphasisTextBrush}" />
                     </StackPanel>
                 </StackPanel>
                 <FontIcon Grid.Column="2" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center" Visibility="{x:Bind HasDestination}"
@@ -30,14 +30,17 @@
         </DataTemplate>
     </UserControl.Resources>
 
-    <Button x:Name="BellButton" Padding="8,4" Margin="0,0,4,0" Background="Transparent" BorderThickness="0"
+    <Button x:Name="BellButton" Padding="4" Margin="0,0,4,0" Background="Transparent" BorderThickness="0"
             AutomationProperties.Name="{x:Bind Model.BellName, Mode=OneWay}"
             AutomationProperties.AutomationId="fst.shell.notifications"
             ToolTipService.ToolTip="Notifications">
-        <Grid>
-            <FontIcon Glyph="&#xEA8F;" FontSize="16" AutomationProperties.AccessibilityView="Raw" />
+        <!-- The badge sits inside this box (no negative margins): the button's rounded content clip and the title-bar row
+             would otherwise cut its top and right edge. MinWidth lets "99+" grow leftwards over the bell. -->
+        <Grid MinWidth="36" Height="32">
+            <FontIcon Glyph="&#xEA8F;" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center"
+                      AutomationProperties.AccessibilityView="Raw" />
             <InfoBadge Value="{x:Bind Model.UnreadCount, Mode=OneWay}" Visibility="{x:Bind Model.HasUnread, Mode=OneWay}"
-                       HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-6,-10,0" MaxHeight="16"
+                       HorizontalAlignment="Right" VerticalAlignment="Top" MaxHeight="16"
                        AutomationProperties.AccessibilityView="Raw" />
         </Grid>
         <Button.Flyout>

@@ -158,14 +158,14 @@ public sealed partial class MainWindow
         QueueFirstRun();
     }
 
-    /// <summary>In-app Increase Contrast: white secondary text and a stronger card stroke (additive to Windows contrast themes).</summary>
+    /// <summary>In-app Increase Contrast: white de-emphasised text and a stronger card stroke (additive to Windows contrast themes).</summary>
     private void ApplyContrast()
     {
         var more = session.Settings.MoreContrast;
         foreach (var dictionary in Application.Current.Resources.MergedDictionaries)
         {
             if (!dictionary.ThemeDictionaries.TryGetValue("Default", out var theme) || theme is not ResourceDictionary defaults) continue;
-            if (defaults.TryGetValue("FSTSecondaryTextBrush", out var text) && text is SolidColorBrush textBrush)
+            if (defaults.TryGetValue("FSTDeemphasisTextBrush", out var text) && text is SolidColorBrush textBrush)
                 textBrush.Color = more ? Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF) : Color.FromArgb(0xFF, 0xD7, 0xDE, 0xE8);
             if (defaults.TryGetValue("FSTCardStrokeBrush", out var stroke) && stroke is SolidColorBrush strokeBrush)
                 strokeBrush.Color = more ? Color.FromArgb(0x80, 0xFF, 0xFF, 0xFF) : Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF);

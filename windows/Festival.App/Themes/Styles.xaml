@@ -13,19 +13,42 @@
             <SolidColorBrush x:Key="FSTCardSurfaceBrush" Color="#C7121826" />
             <SolidColorBrush x:Key="FSTCardStrokeBrush" Color="#14FFFFFF" />
             <SolidColorBrush x:Key="FSTSectionHeaderBrush" Color="#FFFFFFFF" />
-            <SolidColorBrush x:Key="FSTSecondaryTextBrush" Color="#FFD7DEE8" />
+            <!-- Text is white by default over the dimmed artwork (operator 2026-09-28): "secondary" lines differ by size and
+                 weight, not by a gray tint. Only true de-emphasis (timestamps) uses the web's textSecondary tint. -->
+            <SolidColorBrush x:Key="FSTSecondaryTextBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="FSTDeemphasisTextBrush" Color="#FFD7DEE8" />
             <SolidColorBrush x:Key="FSTMeterFilledBrush" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="FSTMeterEmptyBrush" Color="#FF666666" />
+            <!--
+                Shell chrome over the artwork backdrop (MainWindow): the docked pane and the content area are transparent,
+                so the backdrop's dim scrim is the only layer (no Mica, no LayerFill, no 1 px content border). The pane
+                only gets a surface when it overlays content (LeftMinimal flyout, rail opened over content): in-app
+                acrylic, blurred only while that overlay is open. Less Transparency / transparency off switch it to
+                its opaque fallback (MainWindow.ApplyTransparency).
+            -->
+            <AcrylicBrush x:Key="FSTOverlayPaneBrush" TintColor="#FF121826" TintOpacity="0.72" TintLuminosityOpacity="0.85"
+                          FallbackColor="#FF121826" />
+            <StaticResource x:Key="NavigationViewDefaultPaneBackground" ResourceKey="FSTOverlayPaneBrush" />
+            <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="Transparent" />
+            <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent" />
+            <SolidColorBrush x:Key="NavigationViewContentGridBorderBrush" Color="Transparent" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="HighContrast">
             <SolidColorBrush x:Key="FSTCardSurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="FSTCardStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTSectionHeaderBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTSecondaryTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTDeemphasisTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTMeterFilledBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTMeterEmptyBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
+
+    <!-- NavigationView's content card (1,1,0,0 stroke, 8 px top-left radius) would inset the page from the backdrop. -->
+    <Thickness x:Key="NavigationViewContentGridBorderThickness">0</Thickness>
+    <Thickness x:Key="NavigationViewMinimalContentGridBorderThickness">0</Thickness>
+    <CornerRadius x:Key="NavigationViewContentGridCornerRadius">0</CornerRadius>
+    <CornerRadius x:Key="NavigationViewMinimalContentGridCornerRadius">0</CornerRadius>
 
     <services:InverseVisibilityConverter x:Key="FSTInverseVisibility" />
 

@@ -4,7 +4,7 @@ using Microsoft.UI.Xaml.Media;
 
 namespace Festival.App;
 
-#region Title bar caption inset
+#region Title bar caption inset and colours
 /// <summary>
 /// Keeps <c>TitleBar.RightHeader</c> (search, bell, avatar) at the right edge. The WinUI <c>TitleBar</c> template sizes
 /// its <c>RightPaddingColumn</c> from <c>AppWindow.TitleBar.RightInset</c>, which is in physical pixels, without dividing
@@ -17,10 +17,33 @@ public sealed partial class MainWindow
 {
     private ColumnDefinition? rightPaddingColumn;
 
-    /// <summary>Hooks the title bar template once it is applied.</summary>
+    /// <summary>Hooks the title bar template once it is applied and colours the caption buttons.</summary>
     private void InitializeTitleBarInset()
     {
         AppTitleBar.Loaded += (_, _) => HookRightPadding();
+        ApplyCaptionColors();
+    }
+
+    /// <summary>
+    /// The caption buttons sit on the dimmed artwork rather than Mica, so their glyphs are white (70% when the window is
+    /// inactive, instead of the system's faint gray) over transparent backgrounds with Fluent subtle hover/pressed fills.
+    /// Contrast themes get the system caption colours back.
+    /// </summary>
+    private void ApplyCaptionColors()
+    {
+        var bar = AppWindow.TitleBar;
+        if (accessibilitySettings.HighContrast)
+        {
+            bar.ButtonBackgroundColor = bar.ButtonInactiveBackgroundColor = bar.ButtonForegroundColor = bar.ButtonHoverForegroundColor =
+                bar.ButtonPressedForegroundColor = bar.ButtonInactiveForegroundColor = bar.ButtonHoverBackgroundColor =
+                bar.ButtonPressedBackgroundColor = null;
+            return;
+        }
+        bar.ButtonBackgroundColor = bar.ButtonInactiveBackgroundColor = Microsoft.UI.Colors.Transparent;
+        bar.ButtonForegroundColor = bar.ButtonHoverForegroundColor = bar.ButtonPressedForegroundColor = Microsoft.UI.Colors.White;
+        bar.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(0xB3, 0xFF, 0xFF, 0xFF);
+        bar.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(0x1A, 0xFF, 0xFF, 0xFF);
+        bar.ButtonPressedBackgroundColor = Windows.UI.Color.FromArgb(0x0F, 0xFF, 0xFF, 0xFF);
     }
 
     /// <summary>Finds the template's right padding column and watches it.</summary>

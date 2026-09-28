@@ -105,8 +105,7 @@ public sealed partial class ArtworkBackground : Grid
         if (root is not null) return;
         compositor = ElementCompositionPreview.GetElementVisual(this).Compositor;
         root = compositor.CreateContainerVisual();
-        // Clip to the host: the bleed and drift scale overflow it, and without NavigationView's rounded content
-        // border (LeftMinimal) the art would paint over the title bar.
+        // Clip to the host (the whole window, behind the title bar and pane): the bleed and drift scale overflow it.
         root.Clip = compositor.CreateInsetClip();
         for (var i = 0; i < slots.Length; i++)
         {
@@ -138,7 +137,10 @@ public sealed partial class ArtworkBackground : Grid
             visual.CenterPoint = new Vector3(visual.Size / 2, 0);
             if (visual.TryGetAnimationController("Offset") is null) visual.Offset = new Vector3(-Bleed, -Bleed, 0);
         }
-        dim!.Size = size;
+        // The scrim overhangs the clip like the art does, so DPI rounding of the host size can never leave an
+        // undimmed edge row or column.
+        dim!.Size = size + new Vector2(Bleed * 2);
+        dim.Offset = new Vector3(-Bleed, -Bleed, 0);
     }
     #endregion
 

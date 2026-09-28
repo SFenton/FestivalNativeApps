@@ -28,6 +28,7 @@ public sealed partial class MainWindow
         uiSettings.ColorValuesChanged += (_, _) => DispatcherQueue.TryEnqueue(() =>
         {
             ApplyContrastBackground();
+            ApplyCaptionColors();
             UpdateBackdropPolicy();
         });
         ApplyContrastBackground();

@@ -10,7 +10,7 @@
 | Wire + rules | `Data/NotificationModels.cs`: envelope/row records, `Validate` (unique safe GUIDs, kinds, song IDs), `IsGenerated`, `NotificationRouting` (destination + ranking metric, `notificationDestination.ts`/`notificationRanking.ts`), `NotificationText` (player single-event copy, titles `Song · Instrument` / `{Rank} Improved`, web flag labels, en-US `toLocaleString` numbers, `#1,234` ranks, shop-song title/message) |
 | Seen | `Data/NotificationSeenStore.cs`: `notifications-seen.json`, per-account GUID lists pruned to the current feed, ≤400 per account, ≤20 accounts |
 | Model | `ViewModels/NotificationsViewModel.cs`: states NoPlayer/Loading/Failed/Empty/Loaded, New/Older, unread badge (99+), refresh on launch, player change and each open (no polling), failed refresh keeps the last feed |
-| UI | `Controls/NotificationsBell.xaml`: bell before the avatar in `TitleBar.RightHeader`, `InfoBadge` count, light-dismiss flyout |
+| UI | `Controls/NotificationsBell.xaml`: bell before the avatar in `TitleBar.RightHeader`, `InfoBadge` count inside the bell's 36×32 box (never negative margins: the button clips them), light-dismiss flyout |
 
 ## Behavior
 
