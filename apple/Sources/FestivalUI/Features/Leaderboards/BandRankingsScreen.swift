@@ -65,7 +65,7 @@ struct BandRankingsScreen: View {
                         }
                         if payload.rankings.entries.isEmpty {
                             Text("No ranked \(bandType.label.lowercased()) yet.")
-                                .foregroundStyle(BrandTokens.textPrimary)
+                                .foregroundStyle(FestivalText.primary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         ForEach(payload.rankings.entries) { entry in
@@ -74,6 +74,8 @@ struct BandRankingsScreen: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
+                    // Each loaded page fades in once (web load-in), not per row on scroll.
+                    .festivalFadeInOnAppear()
                 }
             }
         }

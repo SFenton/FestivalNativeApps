@@ -167,7 +167,7 @@ struct LeaderboardsScreen: View {
     @ViewBuilder
     private func instrumentCard(_ instrument: Instrument) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            cardHeader(instrument.label, metric: rankBy.label) {
+            cardHeader(instrument.label) {
                 InstrumentIcon(instrument, size: 36)
             }
             switch instrumentStates[instrument] ?? .loading {
@@ -182,12 +182,15 @@ struct LeaderboardsScreen: View {
                 if payload.rankings.entries.isEmpty {
                     cardEmpty("No ranked \(instrument.label) players yet.")
                 } else {
-                    ForEach(payload.rankings.entries) { entry in
-                        AccountRankingRow(
-                            entry: entry, metric: rankBy,
-                            isSelected: isSelectedAccount(entry.accountId), glassSurface: true
-                        )
+                    VStack(spacing: 6) {
+                        ForEach(payload.rankings.entries) { entry in
+                            AccountRankingRow(
+                                entry: entry, metric: rankBy,
+                                isSelected: isSelectedAccount(entry.accountId), glassSurface: true
+                            )
+                        }
                     }
+                    .festivalFadeInOnAppear()
                 }
                 spotlightSection(instrument: instrument, entries: payload.rankings.entries)
                 if !payload.rankings.entries.isEmpty {
@@ -212,29 +215,27 @@ struct LeaderboardsScreen: View {
         .quickLinkSection(Self.quickLink(for: instrument))
     }
 
-    /// Section header: the board's icon and title (web `InstrumentHeader` MD), with
-    /// the active rank-by metric trailing on the same line.
+    /// Section header above the rows: the instrument icon and name (web
+    /// `InstrumentHeader` MD), or the band size's name alone. No metric subtitle
+    /// (operator, 2026-09-28): the active metric lives in the toolbar menu.
     ///
     /// - Parameters:
     ///   - title: Instrument or band-size name.
-    ///   - metric: Active metric label.
-    ///   - icon: 36 pt icon.
+    ///   - icon: 36 pt instrument icon, or `EmptyView` for band sizes.
     /// - Returns: A single-line header.
     private func cardHeader<Icon: View>(
-        _ title: String, metric: String, @ViewBuilder icon: () -> Icon
+        _ title: String, @ViewBuilder icon: () -> Icon
     ) -> some View {
         HStack(spacing: 10) {
             icon()
                 .accessibilityHidden(true)
             Text(title)
                 .font(.title3.weight(.bold))
-                .foregroundStyle(BrandTokens.textPrimary)
+                .foregroundStyle(FestivalText.primary)
                 .accessibilityAddTraits(.isHeader)
-            Spacer(minLength: 8)
-            Text(metric)
-                .font(.subheadline)
-                .foregroundStyle(BrandTokens.textPrimary)
+            Spacer(minLength: 0)
         }
+        .frame(minHeight: 36)
         .padding(.bottom, 2)
     }
 
@@ -289,6 +290,7 @@ struct LeaderboardsScreen: View {
                     .accessibilityIdentifier("fst.leaderboards.card.\(instrument.rawValue).spotlight.unranked")
             case let .footer(entry):
                 AccountRankingRow(entry: entry, metric: rankBy, isSelected: true, glassSurface: true)
+                    .festivalFadeInOnAppear()
                     .accessibilityIdentifier("fst.leaderboards.card.\(instrument.rawValue).spotlight")
             }
         }
@@ -300,12 +302,8 @@ struct LeaderboardsScreen: View {
     private func bandCard(_ bandType: BandType) -> some View {
         let metric = rankBy.bandMetric
         VStack(alignment: .leading, spacing: 6) {
-            cardHeader(bandType.label, metric: metric.label) {
-                Image(systemName: "person.3.fill")
-                    .font(.system(size: 16))
-                    .foregroundStyle(BrandTokens.textPrimary)
-                    .frame(width: 36, height: 36)
-                    .background(BrandTokens.surfaceMuted, in: Circle())
+            cardHeader(bandType.label) {
+                EmptyView()
             }
             switch bandStates[bandType] ?? .loading {
             case .loading:
@@ -319,9 +317,12 @@ struct LeaderboardsScreen: View {
                 if payload.rankings.entries.isEmpty {
                     cardEmpty("No ranked \(bandType.label.lowercased()) yet.")
                 } else {
-                    ForEach(payload.rankings.entries) { entry in
-                        BandRankingRow(entry: entry, metric: metric, bandType: bandType, glassSurface: true)
+                    VStack(spacing: 6) {
+                        ForEach(payload.rankings.entries) { entry in
+                            BandRankingRow(entry: entry, metric: metric, bandType: bandType, glassSurface: true)
+                        }
                     }
+                    .festivalFadeInOnAppear()
                     viewAllLink(
                         AppRoute.bandRankings(bandType: bandType.rawValue),
                         title: RankingsCountText.viewAllBandRankings(
@@ -344,11 +345,13 @@ struct LeaderboardsScreen: View {
     private func cardEmpty(_ message: String) -> some View {
         Text(message)
             .font(.subheadline)
-            .foregroundStyle(BrandTokens.textPrimary)
+            .foregroundStyle(FestivalText.primary)
             .modifier(CardMessageSurface())
     }
 
-    /// The card's last glass row, "View all rankings (868,901)" (web `viewAllButton`).
+    /// The card's last row, "View all rankings (868,901)" (web `viewAllButton`), as a
+    /// purple glass button below the top ten (and below the selected player's
+    /// spotlight row when they are outside it).
     ///
     /// - Parameters:
     ///   - route: Full board to push.
@@ -359,12 +362,12 @@ struct LeaderboardsScreen: View {
         NavigationLink(value: route) {
             Text(title)
                 .font(.body.weight(.semibold))
-                .foregroundStyle(BrandTokens.textPrimary)
+                .foregroundStyle(FestivalText.primary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .padding(.vertical, 4)
                 .contentShape(Rectangle())
-                .modifier(RankingRowSurface(isSelected: false))
+                .modifier(PurpleGlassButtonSurface())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(id)
@@ -473,6 +476,30 @@ private struct CardMessageSurface: ViewModifier {
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .festivalGlass(.card, cornerRadius: 12)
+    }
+}
+
+// MARK: - Purple glass button
+
+/// Accent-purple Liquid Glass for the "View all" buttons (operator, 2026-09-28):
+/// tinted interactive glass on iOS/macOS 26, a solid purple fill before 26 or when
+/// transparency is reduced or contrast increased (white text stays ≥4.5:1 on it).
+private struct PurpleGlassButtonSurface: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
+    @AppStorage("fst.accessibility.lessTransparency") private var lessTransparency = false
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        if reduceTransparency || lessTransparency || moreContrast {
+            content.background(BrandTokens.accentPurple, in: shape)
+        } else if #available(iOS 26.0, macOS 26.0, *) {
+            content.glassEffect(.regular.tint(BrandTokens.accentPurple).interactive(), in: shape)
+        } else {
+            content
+                .background(BrandTokens.accentPurple.opacity(0.85), in: shape)
+                .overlay(shape.stroke(BrandTokens.glassBorder, lineWidth: 1))
+        }
     }
 }
 

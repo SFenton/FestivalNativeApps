@@ -138,7 +138,7 @@ struct RankingRowLayout: View {
         Text("#\(rank.formatted())")
             .font(.body)
             .monospacedDigit()
-            .foregroundStyle(BrandTokens.textPrimary)
+            .foregroundStyle(FestivalText.primary)
             .fixedSize()
     }
 
@@ -146,7 +146,7 @@ struct RankingRowLayout: View {
         Text(name)
             .font(.body)
             .fontWeight(emphasized ? .bold : .regular)
-            .foregroundStyle(BrandTokens.textPrimary)
+            .foregroundStyle(FestivalText.primary)
     }
 
     private var songsText: some View {
@@ -154,7 +154,7 @@ struct RankingRowLayout: View {
             .font(.subheadline)
             .fontWeight(emphasized ? .bold : .regular)
             .monospacedDigit()
-            .foregroundStyle(BrandTokens.textPrimary)
+            .foregroundStyle(FestivalText.primary)
             .fixedSize()
             .accessibilityLabel(spokenSongs)
     }
@@ -170,7 +170,7 @@ struct RankingRowLayout: View {
                 Text(bayesian)
                     .font(.caption)
                     .monospacedDigit()
-                    .foregroundStyle(BrandTokens.textPrimary)
+                    .foregroundStyle(FestivalText.primary)
             }
         }
         .fixedSize()
@@ -245,7 +245,7 @@ struct RankingSpotlightUnrankedRow: View {
     var body: some View {
         Text(message)
             .font(.subheadline)
-            .foregroundStyle(BrandTokens.textPrimary)
+            .foregroundStyle(FestivalText.primary)
     }
 }
 
@@ -418,7 +418,7 @@ struct RankingsPagerView: View {
             Text(title)
                 .font(.body)
                 .foregroundStyle(
-                    enabled ? BrandTokens.textPrimary : BrandTokens.textSecondary
+                    enabled ? FestivalText.primary : FestivalText.disabled
                 )
                 .padding(.horizontal, 8)
                 .frame(minHeight: 44)
@@ -508,7 +508,7 @@ struct RankingsGlassPager: View {
             Text(state.label)
                 .font(.subheadline.weight(.semibold))
                 .monospacedDigit()
-                .foregroundStyle(BrandTokens.textPrimary)
+                .foregroundStyle(FestivalText.primary)
                 .lineLimit(1)
                 .fixedSize()
                 .padding(.horizontal, 6)
@@ -549,7 +549,7 @@ struct RankingsGlassPager: View {
         return Button { go(action) } label: {
             Image(systemName: Self.symbol(action))
                 .font(.body.weight(.semibold))
-                .foregroundStyle(enabled ? BrandTokens.textPrimary : BrandTokens.textDisabled)
+                .foregroundStyle(enabled ? FestivalText.primary : FestivalText.disabled)
                 .frame(width: buttonSize, height: buttonSize)
                 .contentShape(Circle())
         }
@@ -604,7 +604,7 @@ struct RankingsSwitcherPillLabel<Icon: View>: View {
                     .fixedSize()
             }
         }
-        .foregroundStyle(BrandTokens.textPrimary)
+        .foregroundStyle(FestivalText.primary)
         .padding(.leading, showsTitle ? 8 : 0)
         .padding(.trailing, showsTitle ? 14 : 0)
         .frame(minWidth: height, minHeight: height)
@@ -628,7 +628,7 @@ struct RankingsCountHeader: View {
     var body: some View {
         Text(text)
             .font(.subheadline.weight(.semibold))
-            .foregroundStyle(BrandTokens.textPrimary)
+            .foregroundStyle(FestivalText.primary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.bottom, 4)
             .accessibilityIdentifier(id)

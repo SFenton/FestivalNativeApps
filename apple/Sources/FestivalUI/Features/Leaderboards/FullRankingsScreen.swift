@@ -103,7 +103,7 @@ struct FullRankingsScreen: View {
                         }
                         if payload.rankings.entries.isEmpty {
                             Text("No ranked players yet.")
-                                .foregroundStyle(BrandTokens.textPrimary)
+                                .foregroundStyle(FestivalText.primary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         ForEach(payload.rankings.entries) { entry in
@@ -115,6 +115,8 @@ struct FullRankingsScreen: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
+                    // Each loaded page fades in once (web load-in), not per row on scroll.
+                    .festivalFadeInOnAppear()
                 }
             }
         }

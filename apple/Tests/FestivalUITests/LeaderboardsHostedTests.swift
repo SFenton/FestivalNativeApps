@@ -216,6 +216,20 @@ private func hostedRankingsSessionWithSelection(
     )
 }
 
+// MARK: - Hosted storage
+
+private extension View {
+    /// Render with the app's Reduce Motion on: load-in fades never advance in an
+    /// offscreen host, so rows would otherwise stay transparent.
+    ///
+    /// - Returns: The view reading a test-only defaults suite.
+    func leaderboardsHostedStorage() -> some View {
+        let defaults = UserDefaults(suiteName: "fst.tests.leaderboards.host")!
+        defaults.set(true, forKey: "fst.accessibility.reduceMotion")
+        return defaultAppStorage(defaults)
+    }
+}
+
 // MARK: - LeaderboardsScreen overview
 
 /// Every visible instrument and band card loads and renders its top rows.
@@ -227,7 +241,8 @@ private func hostedRankingsSessionWithSelection(
     let host = nativeHostedView(
         LeaderboardsScreen(session: session)
             .frame(width: size.width, height: size.height)
-            .preferredColorScheme(.dark),
+            .preferredColorScheme(.dark)
+            .leaderboardsHostedStorage(),
         size: size
     )
     let window = nativeHostedWindow(host, size: size)
@@ -249,7 +264,8 @@ private func hostedRankingsSessionWithSelection(
     let host = nativeHostedView(
         LeaderboardsScreen(session: session)
             .frame(width: size.width, height: size.height)
-            .preferredColorScheme(.dark),
+            .preferredColorScheme(.dark)
+            .leaderboardsHostedStorage(),
         size: size
     )
     let window = nativeHostedWindow(host, size: size)
@@ -272,7 +288,8 @@ private func hostedRankingsSessionWithSelection(
     let host = nativeHostedView(
         FullRankingsScreen(session: session, instrument: .lead, rankBy: "totalscore")
             .frame(width: size.width, height: size.height)
-            .preferredColorScheme(.dark),
+            .preferredColorScheme(.dark)
+            .leaderboardsHostedStorage(),
         size: size
     )
     let window = nativeHostedWindow(host, size: size)
@@ -293,7 +310,8 @@ private func hostedRankingsSessionWithSelection(
     let host = nativeHostedView(
         BandRankingsScreen(session: session, bandType: "Band_Duets")
             .frame(width: size.width, height: size.height)
-            .preferredColorScheme(.dark),
+            .preferredColorScheme(.dark)
+            .leaderboardsHostedStorage(),
         size: size
     )
     let window = nativeHostedWindow(host, size: size)
@@ -318,7 +336,8 @@ private func hostedRankingsSessionWithSelection(
     let host = nativeHostedView(
         LeaderboardsScreen(session: session)
             .frame(width: size.width, height: size.height)
-            .preferredColorScheme(.dark),
+            .preferredColorScheme(.dark)
+            .leaderboardsHostedStorage(),
         size: size
     )
     let window = nativeHostedWindow(host, size: size)
@@ -348,7 +367,8 @@ private func hostedRankingsSessionWithSelection(
     let host = nativeHostedView(
         LeaderboardsScreen(session: session)
             .frame(width: size.width, height: size.height)
-            .preferredColorScheme(.dark),
+            .preferredColorScheme(.dark)
+            .leaderboardsHostedStorage(),
         size: size
     )
     let window = nativeHostedWindow(host, size: size)
@@ -372,7 +392,8 @@ private func hostedRankingsSessionWithSelection(
     let host = nativeHostedView(
         LeaderboardsScreen(session: session)
             .frame(width: size.width, height: size.height)
-            .preferredColorScheme(.dark),
+            .preferredColorScheme(.dark)
+            .leaderboardsHostedStorage(),
         size: size
     )
     let window = nativeHostedWindow(host, size: size)
@@ -396,7 +417,8 @@ private func hostedRankingsSessionWithSelection(
     let host = nativeHostedView(
         LeaderboardsScreen(session: session)
             .frame(width: size.width, height: size.height)
-            .preferredColorScheme(.dark),
+            .preferredColorScheme(.dark)
+            .leaderboardsHostedStorage(),
         size: size
     )
     let window = nativeHostedWindow(host, size: size)
@@ -425,7 +447,8 @@ private func hostedRankingsSessionWithSelection(
     let host = nativeHostedView(
         LeaderboardsScreen(session: session)
             .frame(width: size.width, height: size.height)
-            .preferredColorScheme(.dark),
+            .preferredColorScheme(.dark)
+            .leaderboardsHostedStorage(),
         size: size
     )
     let window = nativeHostedWindow(host, size: size)
@@ -453,7 +476,8 @@ private func hostedRankingsSessionWithSelection(
     let host = nativeHostedView(
         FullRankingsScreen(session: session, instrument: .lead, rankBy: "totalscore")
             .frame(width: size.width, height: size.height)
-            .preferredColorScheme(.dark),
+            .preferredColorScheme(.dark)
+            .leaderboardsHostedStorage(),
         size: size
     )
     let window = nativeHostedWindow(host, size: size)
