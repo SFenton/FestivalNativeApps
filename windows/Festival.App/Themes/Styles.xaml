@@ -32,6 +32,17 @@
             <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="Transparent" />
             <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent" />
             <SolidColorBrush x:Key="NavigationViewContentGridBorderBrush" Color="Transparent" />
+            <!-- Accent (primary) buttons use the brand purple (web accentPurple #7C3AED), not the Windows accent colour:
+                 Paths, "View all", Apply-free dialogs' primary actions. Contrast themes keep the system colours. -->
+            <SolidColorBrush x:Key="AccentButtonBackground" Color="#FF7C3AED" />
+            <SolidColorBrush x:Key="AccentButtonBackgroundPointerOver" Color="#FF8B52F0" />
+            <SolidColorBrush x:Key="AccentButtonBackgroundPressed" Color="#FF6A2BD6" />
+            <SolidColorBrush x:Key="AccentButtonForeground" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="AccentButtonForegroundPointerOver" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="AccentButtonForegroundPressed" Color="#E6FFFFFF" />
+            <SolidColorBrush x:Key="AccentButtonBorderBrush" Color="#1AFFFFFF" />
+            <SolidColorBrush x:Key="AccentButtonBorderBrushPointerOver" Color="#1AFFFFFF" />
+            <SolidColorBrush x:Key="AccentButtonBorderBrushPressed" Color="Transparent" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="HighContrast">
             <SolidColorBrush x:Key="FSTCardSurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
@@ -73,6 +84,27 @@
     </Style>
 
     <Style x:Key="FSTSecondaryTextStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyTextBlockStyle}">
+        <Setter Property="Foreground" Value="{ThemeResource FSTSecondaryTextBrush}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+    </Style>
+
+    <!-- Full-width accent "View all" call to action below a card's rows (web ViewFullLeaderboardCta). -->
+    <Style x:Key="FSTViewAllButtonStyle" TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="MinHeight" Value="36" />
+        <Setter Property="Margin" Value="0,6,0,0" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- Instrument / band header above a card (web InstrumentHeader MD): 36 epx icon, bold title, optional subtitle. -->
+    <Style x:Key="FSTCardHeaderTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource SubtitleTextBlockStyle}">
+        <Setter Property="Foreground" Value="{ThemeResource FSTSectionHeaderBrush}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+    </Style>
+    <Style x:Key="FSTCardHeaderSubtitleStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
         <Setter Property="Foreground" Value="{ThemeResource FSTSecondaryTextBrush}" />
         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
         <Setter Property="TextWrapping" Value="NoWrap" />

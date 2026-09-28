@@ -98,11 +98,13 @@
                                     <SelectorBarItem Text="Players" IsSelected="True" AutomationProperties.AutomationId="fst.profile.scope.players" />
                                     <SelectorBarItem Text="Bands" AutomationProperties.AutomationId="fst.profile.scope.bands" />
                                 </SelectorBar>
-                                <TextBox x:Name="ProfileSearchBox" PlaceholderText="{x:Bind Shell.SearchPlaceholder, Mode=OneWay}"
-                                         Text="{x:Bind Shell.ProfileQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                         IsEnabled="{x:Bind Shell.IsPlayerScope, Mode=OneWay}" KeyDown="OnProfileSearchKeyDown"
-                                         AutomationProperties.Name="{x:Bind Shell.SearchPlaceholder, Mode=OneWay}"
-                                         AutomationProperties.AutomationId="fst.profile.search" />
+                                <!-- Native AutoSuggestBox search field (no custom fill); results list below it. -->
+                                <AutoSuggestBox x:Name="ProfileSearchBox" PlaceholderText="{x:Bind Shell.SearchPlaceholder, Mode=OneWay}"
+                                                QueryIcon="Find" UpdateTextOnSelect="False"
+                                                Text="{x:Bind Shell.ProfileQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                IsEnabled="{x:Bind Shell.IsPlayerScope, Mode=OneWay}" QuerySubmitted="OnProfileSearchSubmitted"
+                                                AutomationProperties.Name="{x:Bind Shell.SearchPlaceholder, Mode=OneWay}"
+                                                AutomationProperties.AutomationId="fst.profile.search" />
                                 <ListView ItemsSource="{x:Bind Shell.ProfileResults, Mode=OneWay}" MaxHeight="320"
                                           SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnProfileResultClick"
                                           AutomationProperties.Name="Players"
@@ -122,8 +124,10 @@
                                         </DataTemplate>
                                     </ListView.ItemTemplate>
                                 </ListView>
+                                <!-- Plain centred hint ("Enter at least 2 characters", "Searching…"): no container. -->
                                 <TextBlock Text="{x:Bind Shell.ProfileHint, Mode=OneWay}" HorizontalAlignment="Center"
-                                           TextAlignment="Center" TextWrapping="Wrap" Style="{StaticResource FSTSecondaryTextStyle}"
+                                           TextAlignment="Center" TextWrapping="Wrap" Foreground="{ThemeResource FSTSecondaryTextBrush}"
+                                           Style="{StaticResource BodyTextBlockStyle}"
                                            Margin="0,8" AutomationProperties.LiveSetting="Polite"
                                            AutomationProperties.AutomationId="fst.profile.hint" />
                                 <Button Content="Retry" Command="{x:Bind Shell.RetrySearchCommand}" HorizontalAlignment="Center"

@@ -117,6 +117,9 @@ public sealed partial class RivalSectionViewModel : ObservableObject
     /// <summary>Accessible name of the See All link.</summary>
     public string SeeAllName => "See all " + Title;
 
+    /// <summary>Accessible name of the View All Rivals button below the rows (distinct from the header link).</summary>
+    public string ViewAllName => "View all " + Title;
+
     /// <summary>All Rivals route for this scope.</summary>
     public AppRoute.AllRivals ViewAllRoute { get; }
 

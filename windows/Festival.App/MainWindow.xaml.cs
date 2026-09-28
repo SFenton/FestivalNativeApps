@@ -339,13 +339,12 @@ public sealed partial class MainWindow : Window
         Shell.ViewProfileCommand.Execute(e.ClickedItem as GlobalPlayerResult);
     }
 
-    /// <summary>Enter opens the only/first result.</summary>
+    /// <summary>Enter (or the search glyph) opens the only/first result.</summary>
     /// <param name="sender">Search box.</param>
-    /// <param name="e">Key.</param>
-    private void OnProfileSearchKeyDown(object sender, KeyRoutedEventArgs e)
+    /// <param name="e">Unused.</param>
+    private void OnProfileSearchSubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs e)
     {
-        if (e.Key != VirtualKey.Enter || Shell.ProfileResults.Count == 0) return;
-        e.Handled = true;
+        if (Shell.ProfileResults.Count == 0) return;
         ProfileFlyout.Hide();
         Shell.ViewProfileCommand.Execute(Shell.ProfileResults[0]);
     }
@@ -432,6 +431,7 @@ public sealed partial class MainWindow : Window
             SaveData: settings.SaveData || options.NoArt,
             HighContrast: accessibilitySettings.HighContrast));
         Backdrop.ApplyMode(mode);
+        Motion.Update(hidden: !windowVisible || minimized || occlusion?.IsHidden == true);
     }
 
     /// <summary>

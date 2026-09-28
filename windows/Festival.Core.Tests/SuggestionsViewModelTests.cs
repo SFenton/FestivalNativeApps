@@ -236,20 +236,18 @@ public sealed class SuggestionsViewModelTests
         Assert.False(draft.CanApply);
         Assert.False(draft.ResetCommand.CanExecute(null));
 
-        // Turn every type off except Unplayed.
+        // Turn every type off except Unplayed: each switch applies (and persists) at once.
         foreach (var toggle in draft.TypeToggles.Where(t => t.Label != "Unplayed")) toggle.IsOn = false;
-        Assert.True(draft.CanApply);
+        Assert.False(draft.CanApply);
         Assert.All(draft.InstrumentTypeToggles.Where(t => t.Label != "Unplayed"), t => Assert.False(t.IsOn));
-        draft.ApplyCommand.Execute(null);
         Assert.True(model.IsFilterActive);
-        Assert.Equal(1, harness.Store.SaveCount);
+        Assert.Equal(SuggestionCategoryTypeInfo.All.Count - 1, harness.Store.SaveCount);
         Assert.All(model.Cards, c => Assert.Equal(SuggestionCategoryType.Unplayed, c.Category.Type));
         Assert.True(model.Cards.Count >= SuggestionsViewModel.InitialBatch || !model.HasMore);
 
         // Hide every instrument: mixed categories without charts may remain; single-instrument ones vanish.
         draft.Begin();
         foreach (var toggle in draft.InstrumentToggles) toggle.IsOn = false;
-        draft.ApplyCommand.Execute(null);
         Assert.All(model.Cards, c => Assert.Null(c.Category.Instrument));
 
         // Per-instrument toggle re-enables the global switch.
@@ -265,10 +263,10 @@ public sealed class SuggestionsViewModelTests
         draft.ResetCommand.Execute(null);
         Assert.All(draft.TypeToggles, t => Assert.True(t.IsOn));
         Assert.All(draft.InstrumentToggles, t => Assert.True(t.IsOn));
-        draft.ApplyCommand.Execute(null);
         Assert.False(model.IsFilterActive);
+        var saves = harness.Store.SaveCount;
         model.ApplyFilter(SuggestionFilterSettings.Default);
-        Assert.Equal(3, harness.Store.SaveCount);
+        Assert.Equal(saves, harness.Store.SaveCount);
     }
 
     [Fact]

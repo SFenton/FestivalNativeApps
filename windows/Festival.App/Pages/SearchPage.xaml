@@ -47,7 +47,7 @@
                         <TextBlock Text="{x:Bind ViewModel.SongsFailedText}" Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap"
                                    Visibility="{x:Bind ViewModel.SongsFailed, Mode=OneWay}" />
                         <Border Style="{StaticResource FSTCardStyle}" Padding="4" Visibility="{x:Bind ViewModel.HasSongRows, Mode=OneWay}">
-                            <ListView x:Name="SongsList" ItemsSource="{x:Bind ViewModel.Songs, Mode=OneWay}" SelectionMode="None"
+                            <ListView x:Name="SongsList" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="56" ItemsSource="{x:Bind ViewModel.Songs, Mode=OneWay}" SelectionMode="None"
                                       IsItemClickEnabled="True" ItemClick="OnSongClick" ContainerContentChanging="OnSongContainer"
                                       ScrollViewer.VerticalScrollMode="Disabled" AutomationProperties.Name="Songs">
                                 <ListView.ItemTemplate>
@@ -78,7 +78,7 @@
                                       AutomationProperties.Name="Searching players"
                                       AutomationProperties.AutomationId="fst.global-search.players-loading" />
                         <Border Style="{StaticResource FSTCardStyle}" Padding="4" Visibility="{x:Bind ViewModel.HasPlayerRows, Mode=OneWay}">
-                            <ListView x:Name="PlayersList" ItemsSource="{x:Bind ViewModel.Players, Mode=OneWay}" SelectionMode="None"
+                            <ListView x:Name="PlayersList" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="48" ItemsSource="{x:Bind ViewModel.Players, Mode=OneWay}" SelectionMode="None"
                                       IsItemClickEnabled="True" ItemClick="OnPlayerClick" ContainerContentChanging="OnPlayerContainer"
                                       ScrollViewer.VerticalScrollMode="Disabled" AutomationProperties.Name="Players">
                                 <ListView.ItemTemplate>

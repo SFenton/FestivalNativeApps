@@ -31,7 +31,9 @@ public enum SuggestionsPhase
 /// <param name="AlbumArt">Artwork reference.</param>
 /// <param name="AutomationId">Stable automation ID (<c>fst.suggestions.row.&lt;songId or songId|Solo_X&gt;</c>).</param>
 /// <param name="UsesKeyboardIcon">Whether Lead/Pro Lead icons use the keys variant.</param>
-public sealed record SuggestionRowItem(SuggestionRowPresentation Presentation, AppRoute Route, string? AlbumArt, string AutomationId, bool UsesKeyboardIcon = false);
+/// <param name="IsFirst">Whether this is the card's first row (no separator above it: the header sits outside the card).</param>
+public sealed record SuggestionRowItem(SuggestionRowPresentation Presentation, AppRoute Route, string? AlbumArt, string AutomationId, bool UsesKeyboardIcon = false,
+    bool IsFirst = false);
 
 /// <summary>One category card.</summary>
 /// <param name="Category">Generated (and filtered) category.</param>
@@ -351,12 +353,13 @@ public sealed partial class SuggestionsViewModel : ObservableObject
     {
         var visible = VisibleInstruments;
         if (SuggestionCategoryFilter.Visible(category, Filter.EffectiveInstruments(visible), Filter) is not { } shown) return null;
-        var rows = shown.Songs.Select(item => new SuggestionRowItem(
+        var rows = shown.Songs.Select((item, index) => new SuggestionRowItem(
             SuggestionRowPresentation.Create(shown, item, scores, visible),
             SuggestionRowPresentation.RouteFor(shown, item),
             item.Song.AlbumArt,
             $"fst.suggestions.row.{item.Id}",
-            item.Song.UsesKeyboardIcon)).ToList();
+            item.Song.UsesKeyboardIcon,
+            IsFirst: index == 0)).ToList();
         var id = mixNumber == 0 ? $"fst.suggestions.category.{category.Key}" : $"fst.suggestions.category.{category.Key}.{mixNumber}";
         return new SuggestionCardItem(shown, rows, id);
     }

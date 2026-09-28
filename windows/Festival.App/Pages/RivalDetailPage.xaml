@@ -42,7 +42,7 @@
                 <TextBlock Text="{x:Bind ViewModel.ScopeLabel, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}"
                            AutomationProperties.AutomationId="fst.rival-detail.scope" />
                 <TextBlock Text="{x:Bind ViewModel.Summary, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}"
-                           Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" AutomationProperties.AutomationId="fst.rival-detail.summary" />
+                           Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" AutomationProperties.AutomationId="fst.rival-detail.summary" controls:FadeIn.OnShow="True" />
             </StackPanel>
             <!-- Quick Links: compact windows only (the web offers Rival Detail links on mobile only). -->
             <controls:QuickLinksMenuButton x:Name="QuickLinksMenu" Grid.Row="1" Grid.Column="1" HorizontalAlignment="Right" />
@@ -58,7 +58,7 @@
 
         <ScrollViewer x:Name="Scroller" Grid.Row="1" Padding="24,0,24,32" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}"
                       AutomationProperties.AutomationId="fst.rival-detail">
-            <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.Categories, Mode=OneWay}" MaxWidth="1600" Margin="0,4,0,0">
+            <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.Categories, Mode=OneWay}" MaxWidth="1600" Margin="0,4,0,0" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="360">
                 <ItemsRepeater.Layout>
                     <controls:MasonryLayout MinColumnWidth="400" ColumnSpacing="16" RowSpacing="16" />
                 </ItemsRepeater.Layout>
@@ -66,15 +66,17 @@
                     <DataTemplate x:DataType="vm:RivalCategoryItem">
                         <!-- Named UIA group: a song in several categories is not an ambiguous sibling. -->
                         <controls:AccessibleGroup AutomationProperties.Name="{x:Bind Title}" controls:QuickLinkAnchor.Id="{x:Bind QuickLinkId}">
-                            <Border Style="{StaticResource FSTCardStyle}" Padding="8,12,8,8">
+                            <StackPanel Spacing="8">
+                            <!-- Header above the card (web RivalDetailPage section header): title in its sentiment colour, subtitle. -->
+                            <StackPanel Padding="4,0" Spacing="2">
+                                <TextBlock Text="{x:Bind Title}" Style="{StaticResource SubtitleTextBlockStyle}"
+                                           Foreground="{x:Bind controls:RivalsUi.Sentiment(Sentiment)}" AutomationProperties.HeadingLevel="Level2"
+                                           AutomationProperties.AutomationId="{x:Bind AutomationId}" />
+                                <TextBlock Text="{x:Bind Subtitle}" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"
+                                           Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                            </StackPanel>
+                            <Border Style="{StaticResource FSTCardStyle}" Padding="8,8,8,8">
                                 <StackPanel Spacing="4">
-                                    <StackPanel Padding="8,0" Spacing="2">
-                                        <TextBlock Text="{x:Bind Title}" Style="{StaticResource SubtitleTextBlockStyle}"
-                                                   Foreground="{x:Bind controls:RivalsUi.Sentiment(Sentiment)}" AutomationProperties.HeadingLevel="Level2"
-                                                   AutomationProperties.AutomationId="{x:Bind AutomationId}" />
-                                        <TextBlock Text="{x:Bind Subtitle}" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"
-                                                   Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-                                    </StackPanel>
                                     <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Preview}">
                                         <ItemsRepeater.Layout>
                                             <StackLayout Spacing="2" />
@@ -93,6 +95,7 @@
                                                      AutomationProperties.AutomationId="fst.rival-detail.see-all" />
                                 </StackPanel>
                             </Border>
+                            </StackPanel>
                         </controls:AccessibleGroup>
                     </DataTemplate>
                 </ItemsRepeater.ItemTemplate>

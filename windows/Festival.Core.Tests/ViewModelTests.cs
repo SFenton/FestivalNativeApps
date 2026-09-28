@@ -198,21 +198,22 @@ public class SongsViewModelTests
     }
 
     [Fact]
-    public async Task SortDraft_AppliesAndPersists()
+    public async Task SortDraft_AppliesLiveAndPersists()
     {
         var store = new InMemorySettingsStore();
         var session = new FestivalSession(new FakeService().Client(), store, new FakeTimeProvider());
         var vm = new SongsViewModel(session);
         await vm.AppearCommand.ExecuteAsync(null);
+        Assert.False(vm.SortDraft.IsLive);
         vm.SortDraft.Begin();
+        Assert.True(vm.SortDraft.IsLive);
         Assert.False(vm.SortDraft.CanApply);
         vm.SortDraft.ModeIndex = (int)SongSortMode.Year;
+        Assert.Equal(SongSortMode.Year, store.Current.SongSort);
         vm.SortDraft.ModeIndex = 99;
         vm.SortDraft.Ascending = false;
-        Assert.True(vm.SortDraft.CanApply);
-        Assert.Equal(3, vm.Sections.Count);
-        vm.ApplySortCommand.Execute(null);
-        Assert.Equal(SongSortMode.Year, store.Current.SongSort);
+        Assert.False(store.Current.SongSortAscending);
+        Assert.False(vm.SortDraft.CanApply);
         Assert.True(vm.IsSortChanged);
         Assert.Equal("Year ↓", vm.SortSummary);
         Assert.Equal(["2021", "2020", "Unknown Year"], vm.Sections.Select(s => s.Label));
@@ -220,11 +221,12 @@ public class SongsViewModelTests
         Assert.Equal(SongSortMode.Year, vm.SortDraft.Mode);
         vm.SortDraft.ResetCommand.Execute(null);
         Assert.Equal((SongSortMode.Title, true, 0), (vm.SortDraft.Mode, vm.SortDraft.Ascending, vm.SortDraft.ModeIndex));
-        Assert.True(vm.SortDraft.CanApply);
+        Assert.Equal((SongSortMode.Title, true), (store.Current.SongSort, store.Current.SongSortAscending));
+        Assert.False(vm.IsSortChanged);
     }
 
     [Fact]
-    public async Task FilterDraft_AppliesResetsAndClears()
+    public async Task FilterDraft_AppliesLiveResetsAndClears()
     {
         var session = new FakeService().Session();
         var vm = new SongsViewModel(session);
@@ -233,8 +235,7 @@ public class SongsViewModelTests
         Assert.Equal(10, vm.FilterDraft.InstrumentChoices.Count);
         Assert.False(vm.FilterDraft.CanApply);
         vm.FilterDraft.InstrumentIndex = 1 + InstrumentInfo.All.ToList().IndexOf(Instrument.Karaoke);
-        Assert.True(vm.FilterDraft.CanApply);
-        vm.ApplyFilterCommand.Execute(null);
+        Assert.False(vm.FilterDraft.CanApply);
         Assert.Equal(["s3"], vm.Sections.SelectMany(s => s.Rows).Select(r => r.Song.SongId));
         Assert.True(vm.IsFilterActive);
         vm.FilterDraft.Begin();
@@ -243,11 +244,13 @@ public class SongsViewModelTests
         vm.FilterDraft.MaxDifficulty = 2;
         Assert.False(vm.FilterDraft.IsRangeValid);
         Assert.False(vm.FilterDraft.CanApply);
+        // An inverted range is never applied: the last valid filter stays until the range is valid again.
+        Assert.Equal(new SongFilter(Instrument.Karaoke, 7, 7), session.Settings.SongFilter);
         vm.FilterDraft.ResetCommand.Execute(null);
         Assert.Equal(SongFilter.None, vm.FilterDraft.ToFilter());
+        Assert.Equal(SongFilter.None, session.Settings.SongFilter);
         vm.FilterDraft.InstrumentIndex = 2;
         vm.FilterDraft.MinDifficulty = 7;
-        vm.ApplyFilterCommand.Execute(null);
         Assert.True(vm.ShowEmpty);
         Assert.Equal("No songs match the filters.", vm.EmptyMessage);
         vm.ClearFilterCommand.Execute(null);

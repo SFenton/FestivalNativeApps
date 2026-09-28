@@ -35,12 +35,12 @@
       "key:tab",
       "assertfocus:id=fst.songs.sort",
       "key:enter",
-      "waitfor:id=fst.songs.sort.apply@5",
+      "waitfor:id=fst.songs.sort.reset@5",
       "key:esc",
       "assertfocus:id=fst.songs.sort@3",
       "key:tab",
       "key:enter",
-      "waitfor:id=fst.songs.filter.apply@5",
+      "waitfor:id=fst.songs.filter.reset@5",
       "key:esc",
       "assertfocus:id=fst.songs.filter@3"
     ]
@@ -54,11 +54,11 @@
       "waitfor:id=fst.songs.row.fixture-pulse@20"
     ],
     "after_ready": [
-      "key:ctrl+3",
+      "key:ctrl+5",
       "waitfor:id=fst.leaderboards.card.Solo_Guitar@20",
       "key:ctrl+2",
       "waitfor:id=fst.suggestions.list@25",
-      "key:ctrl+5",
+      "key:ctrl+3",
       "waitfor:id=fst.player.name@20",
       "key:ctrl+comma",
       "waitfor:id=fst.settings.show-instrument-icons@15",
@@ -77,7 +77,7 @@
       "focus:id=fst.shell.profile",
       "key:enter",
       "waitfor:id=fst.profile.search@5",
-      "assertfocus:id=fst.profile.search@3",
+      "assertfocus:name=Find Player@3",
       "key:esc",
       "assertfocus:id=fst.shell.profile@3"
     ]

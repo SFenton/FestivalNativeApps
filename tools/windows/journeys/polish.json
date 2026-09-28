@@ -1,0 +1,73 @@
+[
+  {
+    "name": "rank-history-paging",
+    "route": "/player/fixture-player-1",
+    "preset": "medium",
+    "steps": [
+      "waitfor:id=fst.player.overview@20",
+      "scroll:id=fst.player.available,down",
+      "scroll:id=fst.player.available,down",
+      "scroll:id=fst.player.available,down",
+      "waitfor:id=fst.player.rank-history.Solo_Guitar@20",
+      "focus:id=fst.player.rank-history.Solo_Guitar",
+      "wait:1",
+      "shot:{shots}\\polish-rank-history-newest.png",
+      "waitfor:id=fst.player.rank-history.Solo_Guitar.older@5",
+      "invoke:id=fst.player.rank-history.Solo_Guitar.older",
+      "wait:0.5",
+      "shot:{shots}\\polish-rank-history-older.png",
+      "invoke:id=fst.player.rank-history.Solo_Guitar.newer",
+      "focus:id=fst.player.rank-history.Solo_Guitar",
+      "key:left",
+      "key:right"
+    ]
+  },
+  {
+    "name": "song-detail-shop-view-all",
+    "route": "/songs/fixture-pulse",
+    "preset": "medium",
+    "steps": [
+      "waitfor:id=fst.song-detail.title@20",
+      "waitfor:name=Open in Item Shop, New@10",
+      "shot:{shots}\\polish-song-detail-header.png",
+      "scroll:id=fst.song-detail,down",
+      "scroll:id=fst.song-detail,down",
+      "scroll:id=fst.song-detail,down",
+      "scroll:id=fst.song-detail,down",
+      "waitfor:id=fst.song-detail.view-all.Solo_Guitar@15",
+      "shot:{shots}\\polish-song-detail.png",
+      "invoke:id=fst.song-detail.view-all.Solo_Guitar",
+      "waitfor:id=fst.song-leaderboard.list@15"
+    ]
+  },
+  {
+    "name": "songs-live-sort",
+    "route": "/songs",
+    "preset": "medium",
+    "steps": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20",
+      "click:id=fst.songs.sort",
+      "waitfor:id=fst.songs.sort.reset@5",
+      "click:name=Item Shop",
+      "shot:{shots}\\polish-songs-sort-live.png@screen",
+      "key:esc",
+      "waitfor:name=Leaving Tomorrow@10",
+      "click:id=fst.songs.sort",
+      "waitfor:id=fst.songs.sort.reset@5",
+      "click:id=fst.songs.sort.reset",
+      "key:esc",
+      "waitfor:id=fst.songs.row.fixture-pulse@10"
+    ]
+  },
+  {
+    "name": "leaderboards-view-all",
+    "route": "/leaderboards",
+    "preset": "wide",
+    "steps": [
+      "waitfor:id=fst.leaderboards.card.Solo_Guitar.view-all@20",
+      "shot:{shots}\\polish-leaderboards.png",
+      "invoke:id=fst.leaderboards.card.Solo_Guitar.view-all",
+      "waitfor:id=fst.full-rankings.title@15"
+    ]
+  }
+]

@@ -90,6 +90,7 @@ public class RivalsViewModelTests
         Assert.Equal("instrument_guitar.png", lead.IconFile);
         Assert.Equal("fst.rivals.section.Solo_Guitar", lead.AutomationId);
         Assert.Equal("See all Lead Rivals", lead.SeeAllName);
+        Assert.Equal("View all Lead Rivals", lead.ViewAllName);
         Assert.False(hub.Sections[0].HasIcon);
         Assert.Equal("", hub.Sections[0].IconFile);
         Assert.Equal(new RivalScope.Combo("03"), hub.Sections[1].Rows[0].Route.Scope);

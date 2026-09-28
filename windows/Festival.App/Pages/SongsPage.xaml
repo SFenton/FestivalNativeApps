@@ -68,20 +68,9 @@
                             <ToggleSwitch Header="Direction" OnContent="Ascending" OffContent="Descending"
                                           IsOn="{x:Bind ViewModel.SortDraft.Ascending, Mode=TwoWay}"
                                           AutomationProperties.AutomationId="fst.songs.sort.direction" />
-                            <Grid ColumnSpacing="8">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Button Content="Reset" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.SortDraft.ResetCommand}"
-                                        AutomationProperties.AutomationId="fst.songs.sort.reset" />
-                                <Button Grid.Column="1" Content="Cancel" HorizontalAlignment="Stretch" Click="OnSortCancel"
-                                        AutomationProperties.AutomationId="fst.songs.sort.cancel" />
-                                <Button Grid.Column="2" Content="Apply" HorizontalAlignment="Stretch" Style="{StaticResource AccentButtonStyle}"
-                                        IsEnabled="{x:Bind ViewModel.SortDraft.CanApply, Mode=OneWay}" Click="OnSortApply"
-                                        AutomationProperties.AutomationId="fst.songs.sort.apply" />
-                            </Grid>
+                            <!-- Changes apply live; Reset restores the default sort. Light dismiss / Esc closes. -->
+                            <Button Content="Reset" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.SortDraft.ResetCommand}"
+                                    AutomationProperties.AutomationId="fst.songs.sort.reset" />
                         </StackPanel>
                     </Flyout>
                 </DropDownButton.Flyout>
@@ -202,20 +191,9 @@
 
                         </StackPanel>
                         </ScrollViewer>
-                            <Grid Grid.Row="1" ColumnSpacing="8">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Button Content="Reset" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.FilterDraft.ResetCommand}"
-                                        AutomationProperties.AutomationId="fst.songs.filter.reset" />
-                                <Button Grid.Column="1" Content="Cancel" HorizontalAlignment="Stretch" Click="OnFilterCancel"
-                                        AutomationProperties.AutomationId="fst.songs.filter.cancel" />
-                                <Button Grid.Column="2" Content="Apply" HorizontalAlignment="Stretch" Style="{StaticResource AccentButtonStyle}"
-                                        IsEnabled="{x:Bind ViewModel.FilterDraft.CanApply, Mode=OneWay}" Click="OnFilterApply"
-                                        AutomationProperties.AutomationId="fst.songs.filter.apply" />
-                            </Grid>
+                            <!-- Changes apply live; Reset clears every filter. Light dismiss / Esc closes. -->
+                            <Button Grid.Row="1" Content="Reset" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.FilterDraft.ResetCommand}"
+                                    AutomationProperties.AutomationId="fst.songs.filter.reset" />
                         </Grid>
                     </Flyout>
                 </DropDownButton.Flyout>
@@ -250,7 +228,7 @@
                           CanChangeViews="{x:Bind ViewModel.HasJumpIndex, Mode=OneWay}"
                           IsZoomOutButtonEnabled="{x:Bind ViewModel.HasJumpIndex, Mode=OneWay}">
                 <SemanticZoom.ZoomedInView>
-                    <ListView x:Name="SongList" ItemsSource="{x:Bind GroupedSongs.View, Mode=OneWay}"
+                    <ListView x:Name="SongList" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="68" ItemsSource="{x:Bind GroupedSongs.View, Mode=OneWay}"
                               SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnSongClick"
                               ContainerContentChanging="OnContainerContentChanging"
                               Padding="0,0,12,24"

@@ -380,8 +380,7 @@ public class SongsViewModelPlayerTests
         Assert.Equal(("Lead: Missing Scores", "Lead: Has Scores", "Lead: Missing FCs"), (lead.MissingScoresName, lead.HasScoresName, lead.MissingFCsName));
         Assert.False(lead.MissingScores || lead.HasScores || lead.MissingFCs);
         Assert.Equal("instrument_guitar.png", lead.IconFile);
-        Assert.True(vm.FilterDraft.CanApply);
-        vm.ApplyFilterCommand.Execute(null);
+        Assert.False(vm.FilterDraft.CanApply); // applied live
         Assert.Equal(["s1"], vm.Sections.SelectMany(s => s.Rows).Select(r => r.Song.SongId));
         Assert.True(vm.IsFilterActive);
         session.DeselectPlayer();

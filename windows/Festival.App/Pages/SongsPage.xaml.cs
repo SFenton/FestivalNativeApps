@@ -9,7 +9,6 @@ using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Navigation;
 using Windows.UI;
 
@@ -81,6 +80,8 @@ public sealed partial class SongsPage : Page
                 GroupedSongs.Source = ViewModel.Sections.Select(s => new SongGroup(s.Label, s.Rows)).ToList();
                 if (ViewModel.Sections.Count > 0)
                 {
+                    // A sort, filter or search change re-staggers the list, like the web's settings fingerprint.
+                    if (revealed) FadeIn.Restagger(SongList);
                     if (!revealed) _ = RevealAsync();
                     PerfLog.Mark("songs-rendered");
                     if (App.Options.AutoScroll) StartAutoScroll();
@@ -104,18 +105,9 @@ public sealed partial class SongsPage : Page
             .Select(r => ArtworkImages.LoadAsync(r.Song.AlbumArt, pixels, cancellation.Token));
         await Task.WhenAny(Task.WhenAll(loads), Task.Delay(ArtworkPrimeTimeout));
         LoadingRing.IsActive = ViewModel.IsLoading;
-        if (!MotionAllowed())
-        {
-            Zoom.Opacity = 1;
-            return;
-        }
-        var fade = new DoubleAnimation { From = 0, To = 1, Duration = TimeSpan.FromMilliseconds(200), EnableDependentAnimation = false };
-        Storyboard.SetTarget(fade, Zoom);
-        Storyboard.SetTargetProperty(fade, "Opacity");
-        var story = new Storyboard();
-        story.Children.Add(fade);
-        story.Completed += (_, _) => Zoom.Opacity = 1;
-        story.Begin();
+        // Web fadeInUp stagger over the visible rows (FadeIn: 400 ms, 125 ms apart); a still list when motion is off.
+        FadeIn.StaggerRealized(SongList);
+        Zoom.Opacity = 1;
     }
 
     /// <summary>Phased row realization: text first, then art and trailing content on phase 1.</summary>
@@ -314,38 +306,10 @@ public sealed partial class SongsPage : Page
     /// <param name="e">Unused.</param>
     private void OnSortOpening(object sender, object e) => ViewModel.SortDraft.Begin();
 
-    /// <summary>Discards the sort draft.</summary>
-    /// <param name="sender">Button.</param>
-    /// <param name="e">Unused.</param>
-    private void OnSortCancel(object sender, RoutedEventArgs e) => SortFlyout.Hide();
-
-    /// <summary>Applies the sort draft.</summary>
-    /// <param name="sender">Button.</param>
-    /// <param name="e">Unused.</param>
-    private void OnSortApply(object sender, RoutedEventArgs e)
-    {
-        ViewModel.ApplySortCommand.Execute(null);
-        SortFlyout.Hide();
-    }
-
     /// <summary>Loads the applied filter into the draft.</summary>
     /// <param name="sender">Flyout.</param>
     /// <param name="e">Unused.</param>
     private void OnFilterOpening(object sender, object e) => ViewModel.FilterDraft.Begin();
-
-    /// <summary>Discards the filter draft.</summary>
-    /// <param name="sender">Button.</param>
-    /// <param name="e">Unused.</param>
-    private void OnFilterCancel(object sender, RoutedEventArgs e) => FilterFlyout.Hide();
-
-    /// <summary>Applies the filter draft.</summary>
-    /// <param name="sender">Button.</param>
-    /// <param name="e">Unused.</param>
-    private void OnFilterApply(object sender, RoutedEventArgs e)
-    {
-        ViewModel.ApplyFilterCommand.Execute(null);
-        FilterFlyout.Hide();
-    }
 
     /// <summary>Tints Sort/Filter gold when a non-default choice is applied.</summary>
     private void UpdateButtonTints()

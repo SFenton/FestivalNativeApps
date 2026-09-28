@@ -27,6 +27,15 @@ public sealed partial class SongsViewModel : ObservableObject
         Status = new ServiceStatusViewModel("songs", "Songs unavailable", () => LoadAsync(force: true), session.Time);
         SortDraft = new SongSortDraft(session);
         FilterDraft = new SongFilterDraft(session);
+        // Sort and filter flyouts apply live (operator 2026-09-28): every valid change commits; no Cancel/Apply.
+        SortDraft.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(SongSortDraft.CanApply) && SortDraft.IsLive && SortDraft.CanApply) ApplySort();
+        };
+        FilterDraft.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(SongFilterDraft.CanApply) && FilterDraft.IsLive && FilterDraft.CanApply) ApplyFilter();
+        };
         session.PropertyChanged += OnSessionChanged;
         session.PublicationAdvanced += (_, _) => _ = LoadAsync(force: true);
     }
@@ -323,9 +332,15 @@ public sealed class SongRowProjector(AppSettings settings, int? currentSeason, I
 #endregion
 
 #region Sort draft
-/// <summary>Sort flyout draft: changes stay local until Apply; Reset restores defaults in the draft.</summary>
+/// <summary>
+/// Sort flyout state. Once <see cref="Begin"/> has loaded the applied sort the draft is live: the page model commits
+/// every change (and Reset) at once, so the flyout has no Cancel or Apply.
+/// </summary>
 public sealed partial class SongSortDraft(FestivalSession session) : ObservableObject
 {
+    /// <summary>Whether changes commit immediately (set once <see cref="Begin"/> finishes loading).</summary>
+    public bool IsLive { get; private set; }
+
     /// <summary>Draft mode.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanApply), nameof(ModeIndex))]
@@ -359,15 +374,17 @@ public sealed partial class SongSortDraft(FestivalSession session) : ObservableO
     /// <summary>Loads the applied values (flyout opening).</summary>
     public void Begin()
     {
+        IsLive = false;
         OnPropertyChanged(nameof(Modes));
         OnPropertyChanged(nameof(ModeLabels));
         Mode = session.Settings.SongSort;
         Ascending = session.Settings.SongSortAscending;
         OnPropertyChanged(nameof(ModeIndex));
+        IsLive = true;
         OnPropertyChanged(nameof(CanApply));
     }
 
-    /// <summary>Restores defaults in the draft only.</summary>
+    /// <summary>Restores the default sort (applied at once while live).</summary>
     [RelayCommand]
     private void Reset()
     {
@@ -380,10 +397,14 @@ public sealed partial class SongSortDraft(FestivalSession session) : ObservableO
 #region Filter draft
 /// <summary>
 /// Filter flyout draft: one charted instrument and a 1–7 difficulty range (public), Item Shop toggles, and the
-/// selected player's per-chart score/FC checks.
+/// selected player's per-chart score/FC checks. Live once <see cref="Begin"/> has loaded the applied filters: the page
+/// model commits every valid change (an inverted difficulty range waits until it is valid again).
 /// </summary>
 public sealed partial class SongFilterDraft(FestivalSession session) : ObservableObject
 {
+    /// <summary>Whether changes commit immediately (set once <see cref="Begin"/> finishes loading).</summary>
+    public bool IsLive { get; private set; }
+
     /// <summary>Choices for the instrument picker: index 0 is "All Instruments".</summary>
     public List<string> InstrumentChoices =>
         ["All Instruments", .. session.Settings.VisibleInstruments.Select(i => i.Label())];
@@ -460,6 +481,7 @@ public sealed partial class SongFilterDraft(FestivalSession session) : Observabl
     /// <summary>Loads the applied filters (flyout opening).</summary>
     public void Begin()
     {
+        IsLive = false;
         var applied = session.Settings;
         OnPropertyChanged(nameof(InstrumentChoices));
         InstrumentIndex = applied.SongFilter.Instrument is { } chart ? IndexOf(chart) : 0;
@@ -473,6 +495,7 @@ public sealed partial class SongFilterDraft(FestivalSession session) : Observabl
         OnPropertyChanged(nameof(ShopEnabled));
         OnPropertyChanged(nameof(ShowScoreFilters));
         OnPropertyChanged(nameof(HasHiddenScoreChecks));
+        IsLive = true;
         OnPropertyChanged(nameof(CanApply));
     }
 
@@ -511,7 +534,7 @@ public sealed partial class SongFilterDraft(FestivalSession session) : Observabl
         foreach (var row in ScoreRows) row.Refresh();
     }
 
-    /// <summary>Clears the draft (Apply still required).</summary>
+    /// <summary>Clears every filter (applied at once while live).</summary>
     [RelayCommand]
     private void Reset()
     {

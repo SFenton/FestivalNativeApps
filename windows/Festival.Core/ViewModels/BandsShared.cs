@@ -150,8 +150,12 @@ public sealed record PlayerBandCardViewModel
 /// <param name="Label">Title Case label.</param>
 /// <param name="Value">Display value.</param>
 /// <param name="Route">Destination when the card is a link.</param>
-public sealed record BandStatCard(string Id, string Label, string Value, AppRoute? Route = null)
+/// <param name="GoldStars">Draw five gold star images instead of the value (average stars of exactly six).</param>
+public sealed record BandStatCard(string Id, string Label, string Value, AppRoute? Route = null, bool GoldStars = false)
 {
+    /// <summary>Whether the value text shows (average stars of exactly six draw gold stars instead).</summary>
+    public bool ShowValue => !GoldStars;
+
     /// <summary>Whether the card navigates.</summary>
     public bool IsLink => Route is not null;
 

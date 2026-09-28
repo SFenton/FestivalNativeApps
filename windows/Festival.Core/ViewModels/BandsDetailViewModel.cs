@@ -306,7 +306,9 @@ public sealed partial class BandDetailViewModel : ObservableObject
             new("total-score", "Total Score", BandFormatting.Count(d.TotalScore)),
             new("fc-rate", "FC Rate", BandFormatting.Percentage(d.FcRate)),
             new("avg-accuracy", "Avg Accuracy", BandFormatting.Accuracy(d.AvgAccuracy)),
-            new("avg-stars", "Avg Stars", BandFormatting.Stars(d.AvgStars)),
+            d.AvgStars == StarRating.GoldValue
+                ? new("avg-stars", "Avg Stars", StarRating.From(StarRating.GoldValue)!.Value.Announcement, GoldStars: true)
+                : new("avg-stars", "Avg Stars", BandFormatting.Stars(d.AvgStars)),
             new("best-rank", "Best Song Rank", BandFormatting.Rank(d.BestRank),
                 bestSong is not null && d.BestRank > 0 && session.FindSong(bestSong) is not null ? new AppRoute.SongDetail(bestSong) : null),
             new("avg-rank", "Avg Rank", BandFormatting.AverageRank(d.AvgRank)),

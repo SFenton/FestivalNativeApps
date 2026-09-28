@@ -119,19 +119,10 @@
                                     </Expander>
                                 </StackPanel>
                             </ScrollViewer>
-                            <Grid Grid.Row="2" ColumnSpacing="8" Padding="16,12,16,16" BorderThickness="0,1,0,0" BorderBrush="{ThemeResource FSTCardStrokeBrush}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
+                            <!-- Switches apply live; Reset restores the defaults. Light dismiss / Esc closes. -->
+                            <Grid Grid.Row="2" Padding="16,12,16,16" BorderThickness="0,1,0,0" BorderBrush="{ThemeResource FSTCardStrokeBrush}">
                                 <Button Content="Reset" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.FilterDraft.ResetCommand}"
                                         AutomationProperties.AutomationId="fst.suggestions.filter.reset" />
-                                <Button Grid.Column="1" Content="Cancel" HorizontalAlignment="Stretch" Click="OnFilterCancel"
-                                        AutomationProperties.AutomationId="fst.suggestions.filter.cancel" />
-                                <Button Grid.Column="2" Content="Apply" HorizontalAlignment="Stretch" Style="{StaticResource AccentButtonStyle}"
-                                        IsEnabled="{x:Bind ViewModel.FilterDraft.CanApply, Mode=OneWay}" Click="OnFilterApply"
-                                        AutomationProperties.AutomationId="fst.suggestions.filter.apply" />
                             </Grid>
                         </Grid>
                     </Flyout>
@@ -143,6 +134,7 @@
             <!-- One virtualized list of category cards; the third-from-last realized card loads the next batch. -->
             <ListView x:Name="CardList" ItemsSource="{x:Bind ViewModel.Cards}" SelectionMode="None" IsItemClickEnabled="False"
                       ContainerContentChanging="OnCardContainerChanging" Padding="0,0,12,24"
+                      controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="360"
                       Visibility="{x:Bind ViewModel.ShowList, Mode=OneWay}"
                       AutomationProperties.Name="Suggestions" AutomationProperties.AutomationId="fst.suggestions.list">
                 <ListView.ItemContainerStyle>
@@ -155,22 +147,24 @@
                 </ListView.ItemContainerStyle>
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="vm:SuggestionCardItem">
-                        <Border Style="{StaticResource FSTCardStyle}" Padding="0" MaxWidth="1100" HorizontalAlignment="Stretch"
-                                AutomationProperties.AutomationId="{x:Bind AutomationId}" AutomationProperties.Name="{x:Bind Title}">
-                            <StackPanel>
-                                <Grid Padding="16,12,16,12" ColumnSpacing="12">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Spacing="2">
-                                        <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" FontSize="16"
-                                                   TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level2" />
-                                        <TextBlock Text="{x:Bind Description}" Style="{StaticResource FSTSecondaryTextStyle}" FontSize="12" TextWrapping="Wrap" />
-                                    </StackPanel>
-                                    <controls:InstrumentIcon Grid.Column="1" File="{x:Bind HeaderIcon}" Label="{x:Bind HeaderIconLabel}"
-                                                             Width="32" Height="32" VerticalAlignment="Center" Visibility="{x:Bind HasHeaderIcon}" />
-                                </Grid>
+                        <!-- Header above the card (title, description, the category's instrument), rows inside it
+                             (web CategoryCard: 10 x 24 epx rows with subtle separators). -->
+                        <StackPanel MaxWidth="1100" HorizontalAlignment="Stretch" Spacing="8"
+                                    AutomationProperties.AutomationId="{x:Bind AutomationId}" AutomationProperties.Name="{x:Bind Title}">
+                            <Grid Padding="4,0,0,0" ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" FontSize="16"
+                                               TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level2" />
+                                    <TextBlock Text="{x:Bind Description}" Style="{StaticResource FSTSecondaryTextStyle}" FontSize="12" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <controls:InstrumentIcon Grid.Column="1" File="{x:Bind HeaderIcon}" Label="{x:Bind HeaderIconLabel}"
+                                                         Width="36" Height="36" VerticalAlignment="Center" Visibility="{x:Bind HasHeaderIcon}" />
+                            </Grid>
+                            <Border Style="{StaticResource FSTCardStyle}" Padding="0">
                                 <ItemsControl ItemsSource="{x:Bind Rows}" IsTabStop="False">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate x:DataType="vm:SuggestionRowItem">
@@ -178,8 +172,8 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                            </StackPanel>
-                        </Border>
+                            </Border>
+                        </StackPanel>
                     </DataTemplate>
                 </ListView.ItemTemplate>
                 <ListView.Footer>

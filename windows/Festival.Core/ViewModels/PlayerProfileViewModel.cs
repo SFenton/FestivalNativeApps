@@ -381,8 +381,12 @@ public sealed partial class PlayerProfileViewModel : ObservableObject, IDisposab
 /// <param name="Label">Label.</param>
 /// <param name="Value">Value text.</param>
 /// <param name="Gold">Gold tint (gold stars, top-5%, full combos).</param>
-public sealed record PlayerStatTile(string Label, string Value, bool Gold = false)
+/// <param name="GoldStars">Draw five gold star images instead of the value (average stars of exactly six).</param>
+public sealed record PlayerStatTile(string Label, string Value, bool Gold = false, bool GoldStars = false)
 {
+    /// <summary>Whether the value text shows (not replaced by gold stars).</summary>
+    public bool ShowValue => !GoldStars;
+
     /// <summary>Screen-reader text.</summary>
     public string Announcement => $"{Label}: {Value}";
 }
@@ -430,6 +434,7 @@ public sealed partial class PlayerInstrumentViewModel : ObservableObject
             new("Gold Stars", stats.GoldStarCount.ToString("N0", CultureInfo.CurrentCulture), Gold: true),
             new("5 Stars", stats.FiveStarCount.ToString("N0", CultureInfo.CurrentCulture)),
             new("Avg Accuracy", stats.AverageAccuracyText),
+            new("Avg Stars", stats.AverageStarsText, GoldStars: stats.AverageStarsGold),
             new("Best Rank", stats.BestRankText),
         ];
         Percentiles = PercentileBar.Build(PlayerStatistics.PercentileBuckets(profile, instrument));

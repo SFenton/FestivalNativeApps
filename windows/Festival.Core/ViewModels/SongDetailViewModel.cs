@@ -74,7 +74,7 @@ public sealed partial class SongDetailViewModel : ObservableObject
 
     /// <summary>Validated offer for this song (none while the Shop is hidden).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasShopLink), nameof(ShopHighlight), nameof(ShopBadgeText), nameof(HasShopBadge))]
+    [NotifyPropertyChangedFor(nameof(HasShopLink), nameof(ShopHighlight), nameof(ShopPulses), nameof(ShopButtonName))]
     private ShopSong? shopOffer;
 
     /// <summary>Why Shop status is unavailable, or <see langword="null"/>.</summary>
@@ -93,11 +93,14 @@ public sealed partial class SongDetailViewModel : ObservableObject
     /// <summary>Effective Shop accent.</summary>
     public ShopHighlight? ShopHighlight => ShopPresentationPolicy.Highlight(ShopOffer, session.Settings.HideShop, session.Settings.DisableShopHighlighting);
 
-    /// <summary>Whether the availability badge shows.</summary>
-    public bool HasShopBadge => ShopHighlight is not null;
+    /// <summary>
+    /// Whether the Item Shop button breathes in its status colour (web <c>shopPulse</c>: any offer while Shop
+    /// highlighting is on). The status replaces the old "Item Shop: …" badge; <see cref="ShopButtonName"/> speaks it.
+    /// </summary>
+    public bool ShopPulses => HasShopLink && session.Settings.ShopHighlightEnabled;
 
-    /// <summary>"Item Shop: Leaving Tomorrow".</summary>
-    public string ShopBadgeText => ShopHighlight is { } h ? "Item Shop: " + h.Label() : "";
+    /// <summary>Accessible name of the Item Shop button, e.g. "Open in Item Shop, Leaving Tomorrow".</summary>
+    public string ShopButtonName => ShopPulse.ButtonName(ShopHighlight);
 
     /// <summary>Whether the Shop-status error shows.</summary>
     public bool HasShopIssue => ShopIssueText is not null;
@@ -208,6 +211,8 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
     public const int PreviewSize = 10;
 
     private readonly FestivalSession session;
+    private List<LeaderboardRow> topRows = [];
+    private SongScoreDetail? playerDetail;
     private bool started;
 
     /// <summary>Creates a card.</summary>
@@ -252,14 +257,16 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
 
     /// <summary>Selected player's score summary for this chart, or an explicit state.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasPlayerSummary))]
+    [NotifyPropertyChangedFor(nameof(HasPlayerSummary), nameof(ShowPlayerSummary))]
     private string? playerSummary;
 
-    /// <summary>Recomputes the player summary (scores finished loading, went syncing or paused).</summary>
+    /// <summary>Recomputes the player summary and row eleven (scores finished loading, went syncing or paused).</summary>
     /// <param name="scores">Current score source.</param>
     public void UpdatePlayer(SongScoreSource? scores)
     {
-        if (scores?.Detail?.Invoke(Song.SongId, Instrument) is { Score: > 0 } detail)
+        playerDetail = scores?.Detail?.Invoke(Song.SongId, Instrument) is { Score: > 0 } found ? found : null;
+        if (State == LoadState.Loaded) ComposeRows();
+        if (playerDetail is { } detail)
         {
             var parts = new List<string> { ScoreFormatting.Score(detail.Score) };
             if (ScoreFormatting.Accuracy(detail.Accuracy) is { Length: > 0 } accuracy) parts.Add(accuracy);
@@ -274,8 +281,59 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
         }
     }
 
-    /// <summary>Whether <see cref="PlayerSummary"/> shows.</summary>
+    /// <summary>Whether <see cref="PlayerSummary"/> exists.</summary>
     public bool HasPlayerSummary => PlayerSummary is not null;
+
+    /// <summary>
+    /// Whether the summary line shows: only while no leaderboard row stands for the selected player (web cards show the
+    /// player as a highlighted row in the top ten or as row eleven, never as a line of text).
+    /// </summary>
+    public bool ShowPlayerSummary => HasPlayerSummary && !HasPlayerRow;
+
+    /// <summary>Whether a row (highlighted top-ten row or row eleven) stands for the selected player.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowPlayerSummary))]
+    private bool hasPlayerRow;
+
+    /// <summary>"12,345 total entries" (web <c>leaderboard.totalEntries</c>) when the service allows totals; else empty.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasTotalEntries))]
+    private string totalEntriesText = "";
+
+    /// <summary>Whether the header subtitle shows.</summary>
+    public bool HasTotalEntries => TotalEntriesText.Length > 0;
+
+    /// <summary>Accessible name of the header group: "Lead, 12,345 total entries".</summary>
+    public string HeaderName => HasTotalEntries ? $"{Title}, {TotalEntriesText}" : Title;
+
+    /// <summary>Automation ID of the full-leaderboard button.</summary>
+    public string ViewAllAutomationId => "fst.song-detail.view-all." + Instrument.ServiceId();
+
+    /// <summary>Accessible name of the full-leaderboard button.</summary>
+    public string ViewAllName => $"View full {Title} leaderboard";
+
+    /// <summary>Appends the selected player's own score as row eleven when they rank outside the top ten.</summary>
+    private void ComposeRows()
+    {
+        var inTop = PlayerAccountId is { } id && topRows.Any(r => string.Equals(r.Entry.AccountId, id, StringComparison.OrdinalIgnoreCase));
+        List<LeaderboardRow> rows = [.. topRows];
+        if (!inTop && PlayerAccountId is { } account && playerDetail is { Rank: > PreviewSize } detail)
+        {
+            rows.Add(new LeaderboardRow(new LeaderboardEntry
+            {
+                AccountId = account,
+                DisplayName = session.SelectedPlayer?.DisplayName,
+                Score = detail.Score,
+                Rank = detail.Rank.Value,
+                Accuracy = detail.Accuracy,
+                IsFullCombo = detail.IsFullCombo,
+                Stars = detail.Stars,
+                Season = detail.Season,
+            }) { IsSelectedPlayer = true });
+        }
+        Rows = rows;
+        HasPlayerRow = rows.Any(r => r.IsSelectedPlayer);
+    }
 
     /// <summary>Route to the selected player's score history on this chart.</summary>
     public AppRoute HistoryRoute => new AppRoute.PlayerHistory(Song.SongId, Instrument);
@@ -326,10 +384,14 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
         {
             double? leeway = session.Settings.FilterInvalidScores ? session.Settings.Leeway : null;
             var board = await session.Api.GetLeaderboardAsync(Song.SongId, Instrument, 1, PreviewSize, leeway);
-            Rows = board.Entries.Select(e => new LeaderboardRow(e)
+            topRows = board.Entries.Select(e => new LeaderboardRow(e)
             {
                 IsSelectedPlayer = PlayerAccountId is { } id && string.Equals(e.AccountId, id, StringComparison.OrdinalIgnoreCase),
             }).ToList();
+            TotalEntriesText = board.ShowLeaderboardEntryTotals == true && board.TotalEntries > 0
+                ? string.Create(System.Globalization.CultureInfo.CurrentCulture, $"{board.TotalEntries:N0} total {(board.TotalEntries == 1 ? "entry" : "entries")}") : "";
+            OnPropertyChanged(nameof(HeaderName));
+            ComposeRows();
             Status.Clear();
             State = Rows.Count == 0 ? LoadState.Empty : LoadState.Loaded;
         }

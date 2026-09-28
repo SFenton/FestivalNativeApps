@@ -26,7 +26,7 @@
             </StackPanel>
         </Grid>
 
-        <ListView x:Name="RivalList" Grid.Row="1" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" MaxWidth="960"
+        <ListView x:Name="RivalList" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="56" Grid.Row="1" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" MaxWidth="960"
                   SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnRivalClick" Padding="24,0,24,32"
                   ContainerContentChanging="OnContainerContentChanging"
                   Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}"

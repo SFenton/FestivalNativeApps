@@ -65,8 +65,9 @@ public sealed partial class SuggestionFilterToggle : ObservableObject
 
 #region Filter draft
 /// <summary>
-/// Staged Suggestions filter (web <c>SuggestionsFilterModal</c>): Instruments, General types, per-instrument types
-/// with an instrument picker, Reset, Cancel and Apply. Nothing changes until Apply.
+/// Suggestions filter (web <c>SuggestionsFilterModal</c>): Instruments, General types and per-instrument types with an
+/// instrument picker, plus Reset. Live once <see cref="Begin"/> has loaded the applied filter: every switch applies at
+/// once (operator 2026-09-28), so there is no Cancel or Apply.
 /// </summary>
 public sealed partial class SuggestionsFilterDraft : ObservableObject
 {
@@ -110,12 +111,16 @@ public sealed partial class SuggestionsFilterDraft : ObservableObject
     /// <summary>Whether any instrument is visible in Settings.</summary>
     public bool HasInstruments => instruments.Count > 0;
 
-    /// <summary>Whether Apply would change anything.</summary>
+    /// <summary>Whether the staged value differs from the applied filter (false again once a live change applies).</summary>
     public bool CanApply => !Draft.Equals(owner.Filter);
+
+    /// <summary>Whether switches apply immediately (set once <see cref="Begin"/> finishes loading).</summary>
+    public bool IsLive { get; private set; }
 
     /// <summary>Starts editing from the applied filter (flyout opening).</summary>
     public void Begin()
     {
+        IsLive = false;
         instruments = owner.VisibleInstruments;
         OnPropertyChanged(nameof(InstrumentChoices));
         OnPropertyChanged(nameof(HasInstruments));
@@ -132,13 +137,10 @@ public sealed partial class SuggestionsFilterDraft : ObservableObject
                 on => Draft = Draft.WithGlobalType(type, on, instruments)));
         SelectedInstrumentIndex = instruments.Count > 0 ? Math.Clamp(SelectedInstrumentIndex, 0, instruments.Count - 1) : -1;
         RebuildInstrumentTypes();
+        IsLive = true;
     }
 
-    /// <summary>Applies the draft to the page.</summary>
-    [RelayCommand]
-    private void Apply() => owner.ApplyFilter(Draft);
-
-    /// <summary>Restores every switch to its default (still staged).</summary>
+    /// <summary>Restores every switch to its default (applied at once while live).</summary>
     [RelayCommand(CanExecute = nameof(CanReset))]
     private void Reset() => Draft = SuggestionFilterSettings.Default;
 
@@ -151,6 +153,7 @@ public sealed partial class SuggestionsFilterDraft : ObservableObject
         if (SelectedInstrument is { } instrument)
             for (var i = 0; i < InstrumentTypeToggles.Count; i++)
                 InstrumentTypeToggles[i].Sync(value.IsTypeEnabled(SuggestionCategoryTypeInfo.All[i], instrument));
+        if (IsLive && CanApply) owner.ApplyFilter(value);
     }
 
     partial void OnSelectedInstrumentIndexChanged(int value) => RebuildInstrumentTypes();

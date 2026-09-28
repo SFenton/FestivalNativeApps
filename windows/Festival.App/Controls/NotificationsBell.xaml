@@ -2,6 +2,7 @@
     x:Class="Festival.App.Controls.NotificationsBell"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Festival.App.Controls"
     xmlns:vm="using:Festival.Core.ViewModels">
     <UserControl.Resources>
         <DataTemplate x:Key="RowTemplate" x:DataType="vm:NotificationRowViewModel">
@@ -74,12 +75,12 @@
                         <StackPanel Spacing="4">
                             <TextBlock Text="New" Style="{StaticResource BodyStrongTextBlockStyle}" Visibility="{x:Bind Model.HasNew, Mode=OneWay}"
                                        AutomationProperties.HeadingLevel="Level3" />
-                            <ListView ItemsSource="{x:Bind Model.NewItems, Mode=OneWay}" ItemTemplate="{StaticResource RowTemplate}"
+                            <ListView ItemsSource="{x:Bind Model.NewItems, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="64" ItemTemplate="{StaticResource RowTemplate}"
                                       SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnRowClick"
                                       Visibility="{x:Bind Model.HasNew, Mode=OneWay}" AutomationProperties.Name="New notifications" />
                             <TextBlock Text="Older" Style="{StaticResource BodyStrongTextBlockStyle}" Visibility="{x:Bind Model.HasOlder, Mode=OneWay}"
                                        AutomationProperties.HeadingLevel="Level3" />
-                            <ListView ItemsSource="{x:Bind Model.OlderItems, Mode=OneWay}" ItemTemplate="{StaticResource RowTemplate}"
+                            <ListView ItemsSource="{x:Bind Model.OlderItems, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="64" ItemTemplate="{StaticResource RowTemplate}"
                                       SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnRowClick"
                                       Visibility="{x:Bind Model.HasOlder, Mode=OneWay}" AutomationProperties.Name="Older notifications" />
                         </StackPanel>

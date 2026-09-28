@@ -257,7 +257,11 @@ public class PlayerProfileViewModelTests
         Assert.Equal("Lead", lead.Label);
         Assert.Equal("Solo_Guitar", lead.AutomationKey);
         Assert.Equal("instrument_guitar.png", lead.IconFile);
-        Assert.Equal(6, lead.Stats.Count);
+        Assert.Equal(7, lead.Stats.Count);
+        var avgStars = lead.Stats.Single(t => t.Label == "Avg Stars");
+        Assert.Equal(5.5.ToString("0.##", System.Globalization.CultureInfo.CurrentCulture), avgStars.Value);
+        Assert.True(avgStars.ShowValue);
+        Assert.False(avgStars.GoldStars);
         Assert.True(lead.HasPercentiles);
         Assert.True(lead.RankLoading);
         await lead.EnsureLoadedAsync();

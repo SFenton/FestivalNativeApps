@@ -2,6 +2,7 @@
     x:Class="Festival.App.Pages.LicensesPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Festival.App.Controls"
     xmlns:vm="using:Festival.Core.ViewModels"
     Background="Transparent">
     <Page.Resources>
@@ -35,7 +36,7 @@
                        AutomationProperties.AutomationId="fst.licenses.summary" />
             <TextBlock Text="Packages" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2"
                        Visibility="{x:Bind ViewModel.HasNoPackages, Converter={StaticResource FSTInverseVisibility}}" />
-            <ItemsRepeater ItemsSource="{x:Bind ViewModel.Packages}" ItemTemplate="{StaticResource LicenseRowTemplate}"
+            <ItemsRepeater ItemsSource="{x:Bind ViewModel.Packages}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="64" ItemTemplate="{StaticResource LicenseRowTemplate}"
                            AutomationProperties.AutomationId="fst.licenses.packages" />
             <TextBlock Text="Bundled Assets" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
             <ItemsRepeater ItemsSource="{x:Bind ViewModel.Assets}" ItemTemplate="{StaticResource LicenseRowTemplate}" />

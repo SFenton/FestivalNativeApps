@@ -33,7 +33,7 @@
         <Grid Grid.Row="2">
             <ScrollViewer Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}" x:Name="Scroller"
                           AutomationProperties.AutomationId="fst.player-bands.list">
-                <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.Entries, Mode=OneWay}" Margin="0,4,0,16" MaxWidth="1200">
+                <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.Entries, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="120" Margin="0,4,0,16" MaxWidth="1200">
                     <ItemsRepeater.Layout>
                         <UniformGridLayout MinItemWidth="320" MinRowSpacing="12" MinColumnSpacing="12" ItemsStretch="Fill" />
                     </ItemsRepeater.Layout>

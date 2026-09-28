@@ -250,10 +250,19 @@ public sealed record PlayerProfilePayload(PlayerProfileResponse Profile, PlayerP
 /// <param name="BestRank">Best positive rank.</param>
 /// <param name="BestRankSongId">Song holding the best rank.</param>
 /// <param name="BestRankInstrument">Chart holding the best rank.</param>
+/// <param name="AverageStars">Mean stars over rows with at least one star (web <c>averageStars</c>), 0 when none.</param>
 public sealed record PlayerStats(
     int SongsPlayed, int FullComboCount, double FullComboPercent, int GoldStarCount, int FiveStarCount,
-    double? AverageAccuracy, int? BestRank, string? BestRankSongId, Instrument? BestRankInstrument)
+    double? AverageAccuracy, int? BestRank, string? BestRankSongId, Instrument? BestRankInstrument, double AverageStars = 0)
 {
+    /// <summary>Whether every starred score is six stars: the web draws gold stars instead of the number.</summary>
+    public bool AverageStarsGold => AverageStars == StarRating.GoldValue;
+
+    /// <summary>Web <c>formatClamped2</c>: up to two decimals without trailing zeros ("5.5", "4.83"), or an em dash.</summary>
+    public string AverageStarsText => AverageStarsGold
+        ? StarRating.From(StarRating.GoldValue)!.Value.Announcement
+        : AverageStars > 0 ? Math.Round(AverageStars, 2).ToString("0.##", CultureInfo.CurrentCulture) : "—";
+
     /// <summary>"12 (40.5%)" or "0".</summary>
     public string FullComboText => FullComboCount == 0
         ? "0"
@@ -343,11 +352,13 @@ public static class PlayerStatistics
         var accuracies = rows.Select(r => r.Accuracy).OfType<double>().Where(a => a > 0).ToList();
         var ranked = rows.Where(r => r.Rank is > 0).ToList();
         var best = ranked.Count == 0 ? null : ranked.MinBy(r => r.Rank!.Value);
+        var starred = rows.Where(r => r.Stars is > 0).Select(r => (double)r.Stars!.Value).ToList();
         return new PlayerStats(
             songsPlayed, fc, fcPercent,
             rows.Count(r => r.Stars >= 6), rows.Count(r => r.Stars == 5),
             accuracies.Count == 0 ? null : accuracies.Average(),
-            best?.Rank, best?.SongId, best?.Instrument);
+            best?.Rank, best?.SongId, best?.Instrument,
+            starred.Count == 0 ? 0 : starred.Average());
     }
 }
 #endregion

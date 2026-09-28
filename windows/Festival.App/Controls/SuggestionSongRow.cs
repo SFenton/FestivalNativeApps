@@ -34,9 +34,9 @@ public sealed partial class SuggestionSongRow : Button
     private static readonly SolidColorBrush RivalFill = new(Color.FromArgb(0x33, 0x42, 0x85, 0xF4));
     private static readonly SolidColorBrush RivalText = new(Color.FromArgb(0xFF, 0x6E, 0xA8, 0xFF));
 
-    private readonly Grid root = new() { ColumnSpacing = 12, RowSpacing = 6, MinHeight = 64, Padding = new Thickness(16, 10, 16, 10) };
+    private readonly Grid root = new() { ColumnSpacing = 12, RowSpacing = 6, MinHeight = 64, Padding = new Thickness(24, 10, 24, 10) };
     private readonly Image art = new() { Stretch = Stretch.UniformToFill };
-    private readonly TextBlock title = new() { TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap, FontWeight = FontWeights.SemiBold };
+    private readonly MarqueeText title = new();
     private readonly TextBlock subtitle = new() { TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap, FontSize = 12 };
     private readonly StackPanel metadata = new() { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
     private CancellationTokenSource? artLoad;
@@ -72,7 +72,14 @@ public sealed partial class SuggestionSongRow : Button
         root.Children.Add(metadata);
         Content = root;
 
+        title.TextStyle = TitleStyle;
         Click += (_, _) => { if (Item is { } item) MainWindow.Instance?.Navigate(item.Route); };
+        // Long titles scroll while the row is hovered or keyboard-focused (web/Apple MarqueeText).
+        PointerEntered += (_, _) => SetMarquee(true);
+        PointerExited += (_, _) => SetMarquee(false);
+        PointerCanceled += (_, _) => SetMarquee(false);
+        GotFocus += (_, _) => SetMarquee(FocusState == FocusState.Keyboard);
+        LostFocus += (_, _) => SetMarquee(false);
         Loaded += (_, _) => LoadArt();
         // WinUI can raise a stale Unloaded after the re-parented row's next Loaded; only cancel when really gone.
         Unloaded += (_, _) => { if (!IsLoaded) CancelArt(); };
@@ -84,6 +91,29 @@ public sealed partial class SuggestionSongRow : Button
     {
         get => (SuggestionRowItem?)GetValue(ItemProperty);
         set => SetValue(ItemProperty, value);
+    }
+
+    /// <summary>Shared semibold title style for the marquee copies.</summary>
+    private static Style TitleStyle
+    {
+        get
+        {
+            if (titleStyle is not null) return titleStyle;
+            titleStyle = new Style(typeof(TextBlock));
+            titleStyle.Setters.Add(new Setter(TextBlock.FontWeightProperty, FontWeights.SemiBold));
+            return titleStyle;
+        }
+    }
+
+    private static Style? titleStyle;
+
+    /// <summary>Starts or stops the title marquee (motion permitting).</summary>
+    /// <param name="play">Whether to play.</param>
+    private void SetMarquee(bool play)
+    {
+        MarqueeText.MotionAllowed = Motion.Allowed;
+        if (play) title.Play();
+        else title.Stop();
     }
 
     #region Build
@@ -98,6 +128,7 @@ public sealed partial class SuggestionSongRow : Button
         title.Text = p.Title;
         subtitle.Text = p.Subtitle;
         AutomationProperties.SetName(this, p.AccessibleName);
+        BorderThickness = new Thickness(0, item.IsFirst ? 0 : 1, 0, 0);
         AutomationProperties.SetAutomationId(this, item.AutomationId);
         switch (p.Layout)
         {
@@ -126,17 +157,18 @@ public sealed partial class SuggestionSongRow : Button
                 });
                 break;
             case SuggestionRowLayout.SingleInstrument when p.StarCount > 0:
-                metadata.Children.Add(new StarRow { Stars = p.GoldStars ? StarRating.GoldValue : p.StarCount, StarSize = 14 });
+                metadata.Children.Add(new StarRow { Stars = p.GoldStars ? StarRating.GoldValue : p.StarCount, StarSize = 20 });
                 break;
             case SuggestionRowLayout.InstrumentChips:
                 foreach (var chip in p.Chips)
                 {
                     var (fill, stroke) = chip.IsFullCombo ? (Gold, GoldStroke) : chip.HasScore ? (Green, GreenStroke) : (Red, RedStroke);
+                    // Web instrumentChip: 34 epx circle, 2 epx status stroke, 20 epx icon.
                     metadata.Children.Add(new Border
                     {
-                        Width = 28, Height = 28, CornerRadius = new CornerRadius(14), Background = fill, BorderBrush = stroke,
-                        BorderThickness = new Thickness(1.5), Padding = new Thickness(4),
-                        Child = new InstrumentIcon { File = chip.Instrument.IconFile(item.UsesKeyboardIcon), Label = chip.Instrument.Label(), Width = 18, Height = 18 },
+                        Width = 34, Height = 34, CornerRadius = new CornerRadius(17), Background = fill, BorderBrush = stroke,
+                        BorderThickness = new Thickness(2), Padding = new Thickness(5),
+                        Child = new InstrumentIcon { File = chip.Instrument.IconFile(item.UsesKeyboardIcon), Label = chip.Instrument.Label(), Width = 20, Height = 20 },
                     });
                 }
                 break;

@@ -20,7 +20,10 @@
                     </Grid.ColumnDefinitions>
                     <StackPanel Spacing="2">
                         <TextBlock Text="{x:Bind Label}" Style="{StaticResource FSTSecondaryTextStyle}" />
-                        <TextBlock Text="{x:Bind Value}" Style="{StaticResource SubtitleTextBlockStyle}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{x:Bind Value}" Style="{StaticResource SubtitleTextBlockStyle}" TextTrimming="CharacterEllipsis"
+                                   Visibility="{x:Bind ShowValue}" />
+                        <controls:StarRow Stars="6" StarSize="18" HorizontalAlignment="Left" Visibility="{x:Bind GoldStars}"
+                                          AutomationProperties.AccessibilityView="Raw" />
                     </StackPanel>
                     <FontIcon Grid.Column="1" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center"
                               Foreground="{ThemeResource FSTSecondaryTextBrush}" AutomationProperties.AccessibilityView="Raw" />
@@ -32,7 +35,10 @@
                     AutomationProperties.AutomationId="{x:Bind AutomationId}">
                 <StackPanel Spacing="2">
                     <TextBlock Text="{x:Bind Label}" Style="{StaticResource FSTSecondaryTextStyle}" />
-                    <TextBlock Text="{x:Bind Value}" Style="{StaticResource SubtitleTextBlockStyle}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{x:Bind Value}" Style="{StaticResource SubtitleTextBlockStyle}" TextTrimming="CharacterEllipsis"
+                               Visibility="{x:Bind ShowValue}" />
+                    <controls:StarRow Stars="6" StarSize="18" HorizontalAlignment="Left" Visibility="{x:Bind GoldStars}"
+                                      AutomationProperties.AccessibilityView="Raw" />
                 </StackPanel>
             </Border>
         </DataTemplate>
@@ -110,7 +116,7 @@
         <controls:ServiceStatusView Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
                                     Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}" AutomationProperties.AutomationId="fst.band.error" />
 
-        <Grid x:Name="ContentGrid" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}">
+        <Grid x:Name="ContentGrid" controls:FadeIn.OnShow="True" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />

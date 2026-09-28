@@ -28,11 +28,13 @@ public static class AppSections
     /// <summary>Sections shown for the current selection, in pane order (Settings last).</summary>
     /// <param name="hasPlayer">Whether a player is selected.</param>
     /// <param name="hideShop">Whether the Item Shop is hidden in Settings.</param>
-    /// <returns>Visible sections (Item Shop last before Settings, as in the web sidebar).</returns>
+    /// <returns>Visible sections in the web sidebar's order (<c>Sidebar.tsx</c>): Songs, Suggestions*, Statistics*,
+    /// Rivals*, Leaderboards, Item Shop (*selected player), then Settings in the footer. No Bands or Licenses items:
+    /// Bands opens from search and leaderboard links, Licenses from Settings.</returns>
     public static IReadOnlyList<AppSection> Visible(bool hasPlayer, bool hideShop = false)
     {
         List<AppSection> sections = hasPlayer
-            ? [AppSection.Songs, AppSection.Suggestions, AppSection.Leaderboards, AppSection.Rivals, AppSection.Statistics]
+            ? [AppSection.Songs, AppSection.Suggestions, AppSection.Statistics, AppSection.Rivals, AppSection.Leaderboards]
             : [AppSection.Songs, AppSection.Leaderboards];
         if (!hideShop) sections.Add(AppSection.Shop);
         sections.Add(AppSection.Settings);

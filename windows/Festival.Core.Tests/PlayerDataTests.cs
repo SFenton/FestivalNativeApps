@@ -204,6 +204,23 @@ public class PlayerModelTests
         Assert.Equal(0, lead.GoldStarCount);
         Assert.Contains("33.3", lead.FullComboText);
         Assert.Equal(0, PlayerStatistics.ForInstrument(profile, Instrument.Drums).SongsPlayed);
+        Assert.Equal("5", lead.AverageStarsText);
+        Assert.False(lead.AverageStarsGold);
+        var bass = PlayerStatistics.ForInstrument(profile, Instrument.Bass);
+        Assert.True(bass.AverageStarsGold);
+        Assert.Equal("5 gold stars", bass.AverageStarsText);
+        Assert.Equal("—", PlayerStatistics.ForInstrument(profile, Instrument.Drums).AverageStarsText);
+    }
+
+    [Fact]
+    public void Stats_AverageStarsLikeWebFormatClamped2()
+    {
+        var profile = FestivalApiClient.Decode(System.Text.Encoding.UTF8.GetBytes(PlayerWire.Profile(PlayerWire.Id, "N",
+            PlayerWire.Score("a", st: 6), PlayerWire.Score("b", st: 5), PlayerWire.Score("c", st: 5), PlayerWire.Score("d", st: null))),
+            PlayerJsonContext.Default.PlayerProfileResponse);
+        var lead = PlayerStatistics.ForInstrument(profile, Instrument.Lead);
+        Assert.Equal(16 / 3.0, lead.AverageStars, 6);
+        Assert.Equal(5.33.ToString("0.##", System.Globalization.CultureInfo.CurrentCulture), lead.AverageStarsText);
     }
 
     [Fact]

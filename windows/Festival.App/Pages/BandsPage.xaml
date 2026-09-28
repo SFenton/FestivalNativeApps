@@ -31,7 +31,7 @@
                            AutomationProperties.AutomationId="fst.bands.your-bands-empty" />
                 <controls:ServiceStatusView Status="{x:Bind ViewModel.Status}" HorizontalAlignment="Left"
                                             Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}" />
-                <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.YourBands, Mode=OneWay}" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
+                <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.YourBands, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="120" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
                                AutomationProperties.AutomationId="fst.bands.your-bands-list">
                     <ItemsRepeater.Layout>
                         <UniformGridLayout MinItemWidth="300" MinRowSpacing="12" MinColumnSpacing="12" ItemsStretch="Fill" />
@@ -46,7 +46,7 @@
 
             <!-- Public band rankings by size. -->
             <TextBlock Text="Band Rankings" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
-            <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.RankingLinks}">
+            <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.RankingLinks}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="56">
                 <ItemsRepeater.Layout>
                     <UniformGridLayout MinItemWidth="240" MinRowSpacing="12" MinColumnSpacing="12" ItemsStretch="Fill" />
                 </ItemsRepeater.Layout>

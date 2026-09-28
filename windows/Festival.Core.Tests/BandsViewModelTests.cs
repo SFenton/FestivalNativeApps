@@ -175,6 +175,23 @@ public class BandDetailViewModelTests
     }
 
     [Fact]
+    public async Task AverageStarsOfSix_DrawGoldStars()
+    {
+        var bands = new BandService();
+        bands.Band = (path, _) => path.StartsWith("/api/rankings/bands/", StringComparison.Ordinal) && !path.EndsWith("/history", StringComparison.Ordinal)
+                                  && !path.EndsWith("/songs", StringComparison.Ordinal)
+            ? BandService.Ok(BandWire.Fixture("band-detail-demo").Replace("\"avgStars\": 4.9", "\"avgStars\": 6", StringComparison.Ordinal))
+            : null;
+        var vm = new BandDetailViewModel(bands.Service.Session(), Route());
+        await vm.LoadAsync();
+        var stars = vm.Statistics.Single(c => c.Id == "avg-stars");
+        Assert.True(stars.GoldStars);
+        Assert.False(stars.ShowValue);
+        Assert.Equal("Avg Stars, 5 gold stars", stars.Announcement);
+        Assert.True(vm.Statistics.Single(c => c.Id == "fc-rate").ShowValue);
+    }
+
+    [Fact]
     public async Task LoadsAllSections()
     {
         CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;

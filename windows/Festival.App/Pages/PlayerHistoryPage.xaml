@@ -57,7 +57,7 @@
         </Grid>
 
         <!-- Loaded: chart (2+ dated rows) + virtualized rows -->
-        <ListView Grid.Row="1" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" SelectionMode="None" IsItemClickEnabled="False"
+        <ListView Grid.Row="1" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="64" SelectionMode="None" IsItemClickEnabled="False"
                   Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}" AutomationProperties.AutomationId="fst.history.rows"
                   AutomationProperties.Name="Score history">
             <ListView.Header>

@@ -7,7 +7,7 @@
     Background="Transparent">
 
     <Grid x:Name="Root">
-        <ScrollViewer x:Name="Scroller" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}"
+        <ScrollViewer x:Name="Scroller" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" controls:FadeIn.OnShow="True"
                       AutomationProperties.AutomationId="fst.song-detail">
             <StackPanel Padding="24,12,24,32" Spacing="8" MaxWidth="1200" HorizontalAlignment="Stretch">
                 <!-- Header: static cover, title, artist · year · duration. -->
@@ -25,11 +25,6 @@
                                    AutomationProperties.AutomationId="fst.song-detail.title" />
                         <TextBlock Text="{x:Bind ViewModel.Song.Subtitle, Mode=OneWay}" Style="{StaticResource BodyLargeTextBlockStyle}"
                                    Foreground="{ThemeResource FSTSecondaryTextBrush}" TextWrapping="Wrap" />
-                        <Border x:Name="ShopBadge" HorizontalAlignment="Left" Padding="10,4" CornerRadius="12" Margin="0,4,0,0"
-                                Visibility="{x:Bind ViewModel.HasShopBadge, Mode=OneWay}">
-                            <TextBlock x:Name="ShopBadgeLabel" Text="{x:Bind ViewModel.ShopBadgeText, Mode=OneWay}" FontSize="12" FontWeight="Bold"
-                                       AutomationProperties.AutomationId="fst.song-detail.shop-badge" />
-                        </Border>
                         <controls:WrapPanel HorizontalSpacing="8" VerticalSpacing="8" Margin="0,8,0,0">
                             <Button Click="OnPathsClick" Visibility="{x:Bind ViewModel.HasPaths, Mode=OneWay}" Style="{StaticResource AccentButtonStyle}"
                                     AutomationProperties.Name="Paths" AutomationProperties.AutomationId="fst.song-detail.paths">
@@ -38,13 +33,20 @@
                                     <TextBlock Text="Paths" />
                                 </StackPanel>
                             </Button>
-                            <Button Click="OnShopClick" Visibility="{x:Bind ViewModel.HasShopLink, Mode=OneWay}"
-                                    AutomationProperties.Name="Open in Item Shop" AutomationProperties.AutomationId="fst.song-detail.shop"
+                            <!-- Item Shop: the status (gold New, green in the Shop, red Leaving Tomorrow) breathes in the button's
+                                 fill (web shopBreathe*, 3 s); the UIA name carries it ("Open in Item Shop, Leaving Tomorrow"). -->
+                            <Button Click="OnShopClick" Visibility="{x:Bind ViewModel.HasShopLink, Mode=OneWay}" Padding="0"
+                                    Background="#F5121826" Foreground="White"
+                                    AutomationProperties.Name="{x:Bind ViewModel.ShopButtonName, Mode=OneWay}"
+                                    AutomationProperties.AutomationId="fst.song-detail.shop"
                                     ToolTipService.ToolTip="Open the official Item Shop page">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <FontIcon Glyph="&#xE719;" FontSize="14" />
-                                    <TextBlock Text="Item Shop" />
-                                </StackPanel>
+                                <Grid>
+                                    <controls:ShopPulseFill x:Name="ShopFill" CornerRadius="{StaticResource ControlCornerRadius}" />
+                                    <StackPanel Orientation="Horizontal" Spacing="8" Padding="11,5,11,6">
+                                        <FontIcon Glyph="&#xE719;" FontSize="14" />
+                                        <TextBlock Text="Item Shop" />
+                                    </StackPanel>
+                                </Grid>
                             </Button>
                             <!-- Quick Links: compact windows only (the web offers Song Detail links on mobile only). -->
                             <controls:QuickLinksMenuButton x:Name="QuickLinksMenu" />
@@ -102,58 +104,67 @@
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="vm:LeaderboardPreviewViewModel">
-                            <Border Style="{StaticResource FSTCardStyle}" MinHeight="120" controls:QuickLinkAnchor.Id="{x:Bind QuickLinkId}">
-                                <StackPanel Spacing="10">
-                                    <StackPanel Orientation="Horizontal" Spacing="10">
-                                        <controls:InstrumentIcon File="{x:Bind IconFile}" Label="{x:Bind Title}" Width="28" Height="28" />
-                                        <TextBlock Text="{x:Bind Title}" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0"
-                                                   VerticalAlignment="Center" AutomationProperties.HeadingLevel="Level3" />
-                                    </StackPanel>
-                                    <TextBlock Text="{x:Bind PlayerSummary, Mode=OneWay}" Visibility="{x:Bind HasPlayerSummary, Mode=OneWay}" TextWrapping="Wrap"
-                                               Style="{StaticResource BodyStrongTextBlockStyle}" Foreground="{ThemeResource FSTGoldBrush}" />
-                                    <ProgressRing IsActive="{x:Bind IsLoading, Mode=OneWay}" HorizontalAlignment="Left" Width="24" Height="24"
-                                                  Visibility="{x:Bind IsLoading, Mode=OneWay}" />
-                                    <TextBlock Text="No scores yet." Visibility="{x:Bind ShowEmpty, Mode=OneWay}"
-                                               Style="{StaticResource FSTSecondaryTextStyle}" />
-                                    <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8"
-                                                AutomationProperties.AutomationId="fst.service-status.inline">
-                                        <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                        <TextBlock Text="{x:Bind Status.Message, Mode=OneWay}" TextWrapping="Wrap" />
-                                        <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
-                                    </StackPanel>
-                                    <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}">
-                                        <ItemsRepeater.Layout>
-                                            <StackLayout Spacing="2" />
-                                        </ItemsRepeater.Layout>
-                                        <ItemsRepeater.ItemTemplate>
-                                            <DataTemplate x:DataType="vm:LeaderboardRow">
-                                                <Grid ColumnSpacing="12" Height="30" Padding="4,0" CornerRadius="4" AutomationProperties.Name="{x:Bind Announcement}">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="56" />
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="Auto" />
-                                                        <ColumnDefinition Width="64" />
-                                                    </Grid.ColumnDefinitions>
-                                                    <Border Grid.ColumnSpan="4" Margin="-4,0" CornerRadius="4" Background="#33FFD700" BorderBrush="{ThemeResource FSTGoldBrush}"
-                                                            BorderThickness="1" Visibility="{x:Bind IsSelectedPlayer}" />
-                                                    <TextBlock Text="{x:Bind Rank}" VerticalAlignment="Center" Style="{StaticResource FSTSecondaryTextStyle}" />
-                                                    <TextBlock Grid.Column="1" Text="{x:Bind Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                                    <TextBlock Grid.Column="2" Text="{x:Bind Score}" VerticalAlignment="Center"
-                                                               Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                                    <Border Grid.Column="3" CornerRadius="4" Padding="6,2" HorizontalAlignment="Right"
-                                                            VerticalAlignment="Center" Background="{StaticResource FSTSurfaceMutedBrush}"
-                                                            Visibility="{x:Bind HasAccuracy}">
-                                                        <TextBlock Text="{x:Bind Accuracy}" FontSize="12" />
-                                                    </Border>
-                                                </Grid>
-                                            </DataTemplate>
-                                        </ItemsRepeater.ItemTemplate>
-                                    </ItemsRepeater>
-                                    <HyperlinkButton Content="View Full Leaderboard" Tag="{x:Bind}" Click="OnViewFull" Padding="0,4" />
-                                    <HyperlinkButton Content="{x:Bind HistoryLabel}" Tag="{x:Bind}" Click="OnViewHistory" Padding="0,4"
-                                                     Visibility="{x:Bind HasPlayer}" />
+                            <!-- Header above the card (web InstrumentCard cardLabel) with the chart's total entries; rows, the
+                                 player's own row eleven when outside the top ten, then the accent View Full Leaderboard. -->
+                            <controls:AccessibleGroup AutomationProperties.Name="{x:Bind HeaderName, Mode=OneWay}"
+                                                      controls:QuickLinkAnchor.Id="{x:Bind QuickLinkId}">
+                                <StackPanel Spacing="8">
+                                    <controls:CardHeader Title="{x:Bind Title}" IconFile="{x:Bind IconFile}" HeadingLevel="Level3" MinHeight="44"
+                                                         Subtitle="{x:Bind TotalEntriesText, Mode=OneWay}" />
+                                    <Border Style="{StaticResource FSTCardStyle}" MinHeight="96">
+                                        <StackPanel Spacing="8">
+                                            <TextBlock Text="{x:Bind PlayerSummary, Mode=OneWay}" Visibility="{x:Bind ShowPlayerSummary, Mode=OneWay}"
+                                                       TextWrapping="Wrap" Style="{StaticResource BodyStrongTextBlockStyle}"
+                                                       Foreground="{ThemeResource FSTGoldBrush}" />
+                                            <ProgressRing IsActive="{x:Bind IsLoading, Mode=OneWay}" HorizontalAlignment="Left" Width="24" Height="24"
+                                                          Visibility="{x:Bind IsLoading, Mode=OneWay}" />
+                                            <TextBlock Text="No scores yet." Visibility="{x:Bind ShowEmpty, Mode=OneWay}"
+                                                       Style="{StaticResource FSTSecondaryTextStyle}" />
+                                            <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8"
+                                                        AutomationProperties.AutomationId="fst.service-status.inline">
+                                                <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                                <TextBlock Text="{x:Bind Status.Message, Mode=OneWay}" TextWrapping="Wrap" />
+                                                <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
+                                            </StackPanel>
+                                            <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}"
+                                                           Visibility="{x:Bind ShowRows, Mode=OneWay}"
+                                                           controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="32">
+                                                <ItemsRepeater.Layout>
+                                                    <StackLayout Spacing="2" />
+                                                </ItemsRepeater.Layout>
+                                                <ItemsRepeater.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:LeaderboardRow">
+                                                        <Grid ColumnSpacing="12" Height="30" Padding="4,0" CornerRadius="4" AutomationProperties.Name="{x:Bind Announcement}">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="56" />
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="64" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <Border Grid.ColumnSpan="4" Margin="-4,0" CornerRadius="4" Background="#33FFD700" BorderBrush="{ThemeResource FSTGoldBrush}"
+                                                                    BorderThickness="1" Visibility="{x:Bind IsSelectedPlayer}" />
+                                                            <TextBlock Text="{x:Bind Rank}" VerticalAlignment="Center" Style="{StaticResource FSTSecondaryTextStyle}" />
+                                                            <TextBlock Grid.Column="1" Text="{x:Bind Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                            <TextBlock Grid.Column="2" Text="{x:Bind Score}" VerticalAlignment="Center"
+                                                                       Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                                            <Border Grid.Column="3" CornerRadius="4" Padding="6,2" HorizontalAlignment="Right"
+                                                                    VerticalAlignment="Center" Background="{StaticResource FSTSurfaceMutedBrush}"
+                                                                    Visibility="{x:Bind HasAccuracy}">
+                                                                <TextBlock Text="{x:Bind Accuracy}" FontSize="12" />
+                                                            </Border>
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsRepeater.ItemTemplate>
+                                            </ItemsRepeater>
+                                            <Button Content="View Full Leaderboard" Tag="{x:Bind}" Click="OnViewFull" Style="{StaticResource FSTViewAllButtonStyle}"
+                                                    Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName}"
+                                                    AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
+                                            <HyperlinkButton Content="{x:Bind HistoryLabel}" Tag="{x:Bind}" Click="OnViewHistory" Padding="0,4"
+                                                             Visibility="{x:Bind HasPlayer}" />
+                                        </StackPanel>
+                                    </Border>
                                 </StackPanel>
-                            </Border>
+                            </controls:AccessibleGroup>
                         </DataTemplate>
                     </ItemsRepeater.ItemTemplate>
                 </ItemsRepeater>

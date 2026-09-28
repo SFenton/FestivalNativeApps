@@ -58,7 +58,7 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     /// <param name="e">Changed property.</param>
     private async void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(SongDetailViewModel.ShopHighlight)) ApplyShopBadge();
+        if (e.PropertyName is nameof(SongDetailViewModel.ShopHighlight) or nameof(SongDetailViewModel.ShopPulses)) ApplyShopPulse();
         if (e.PropertyName == nameof(SongDetailViewModel.QuickLinkSections)) quickLinks.SetSections(ViewModel.QuickLinkSections);
         if (e.PropertyName != nameof(SongDetailViewModel.Song) || ViewModel.Song is not { } song) return;
         MainWindow.Instance?.RefreshBackdrop();
@@ -69,17 +69,8 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
         PerfLog.Mark("song-detail-rendered");
     }
 
-    /// <summary>Colors the Shop badge: white on red for Leaving Tomorrow, gold on dark for New.</summary>
-    private void ApplyShopBadge()
-    {
-        var leaving = ViewModel.ShopHighlight == ShopHighlight.LeavingTomorrow;
-        ShopBadge.Background = leaving
-            ? (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["FSTStatusRedBrush"]
-            : new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(0xE6, 0x12, 0x18, 0x26));
-        ShopBadgeLabel.Foreground = leaving
-            ? new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White)
-            : (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["FSTGoldBrush"];
-    }
+    /// <summary>Applies the Item Shop button's status fill (gold New, red Leaving Tomorrow, green otherwise).</summary>
+    private void ApplyShopPulse() => ShopFill.Apply(ViewModel.ShopHighlight, ViewModel.ShopPulses);
 
     /// <summary>Starts a card's top-10 read when it is realized.</summary>
     /// <param name="sender">Repeater.</param>

@@ -8,7 +8,7 @@ public class KeyboardShortcutsTests
     public void For_NumbersVisibleSectionsInPaneOrder_AndSettingsUsesCtrlComma()
     {
         var shortcuts = KeyboardShortcuts.For(AppSections.Visible(hasPlayer: true));
-        Assert.Equal([AppSection.Songs, AppSection.Suggestions, AppSection.Leaderboards, AppSection.Rivals, AppSection.Statistics, AppSection.Shop, AppSection.Settings],
+        Assert.Equal([AppSection.Songs, AppSection.Suggestions, AppSection.Statistics, AppSection.Rivals, AppSection.Leaderboards, AppSection.Shop, AppSection.Settings],
             shortcuts.Select(s => s.Section));
         Assert.Equal([1, 2, 3, 4, 5, 6, null], shortcuts.Select(s => s.Digit));
         Assert.Equal("Songs (Ctrl+1)", shortcuts[0].ToolTip);

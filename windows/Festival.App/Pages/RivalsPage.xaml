@@ -92,7 +92,7 @@
 
         <ScrollViewer x:Name="Scroller" Grid.Row="1" Padding="24,0,24,32" AutomationProperties.AutomationId="fst.rivals">
             <Grid>
-                <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" x:Name="SectionsRepeater" ItemsSource="{x:Bind ViewModel.Sections}" MaxWidth="1600"
+                <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" x:Name="SectionsRepeater" ItemsSource="{x:Bind ViewModel.Sections}" MaxWidth="1600" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="360"
                                HorizontalAlignment="Stretch" Margin="0,4,0,0">
                     <ItemsRepeater.Layout>
                         <controls:MasonryLayout MinColumnWidth="360" ColumnSpacing="16" RowSpacing="16" />
@@ -101,23 +101,25 @@
                         <DataTemplate x:DataType="vm:RivalSectionViewModel">
                             <!-- Named UIA group: the same rival in several sections is not an ambiguous sibling. -->
                             <controls:AccessibleGroup AutomationProperties.Name="{x:Bind Title}" controls:QuickLinkAnchor.Id="{x:Bind Id}">
+                                <StackPanel Spacing="8">
+                                <!-- Header above the card (web sectionHeaderClickable): icon, title, See All. -->
+                                    <Grid Padding="4,0,0,0" ColumnSpacing="10" MinHeight="40">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <controls:InstrumentIcon File="{x:Bind IconFile}" Width="36" Height="36"
+                                                             Visibility="{x:Bind HasIcon}" AutomationProperties.AccessibilityView="Raw" />
+                                    <TextBlock Grid.Column="1" Text="{x:Bind Title}" Style="{StaticResource FSTSectionHeaderStyle}"
+                                               Margin="0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                               AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="{x:Bind AutomationId}" />
+                                    <HyperlinkButton Grid.Column="2" Content="See All" Tag="{x:Bind ViewAllRoute}" Click="OnRouteClick"
+                                                     AutomationProperties.Name="{x:Bind SeeAllName}"
+                                                     AutomationProperties.AutomationId="fst.rivals.see-all" />
+                                </Grid>
                                 <Border Style="{StaticResource FSTCardStyle}" Padding="8,8,8,12">
                                     <StackPanel Spacing="4">
-                                        <Grid Padding="8,0,0,0" ColumnSpacing="10" MinHeight="40">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <controls:InstrumentIcon File="{x:Bind IconFile}" Width="28" Height="28"
-                                                                     Visibility="{x:Bind HasIcon}" AutomationProperties.AccessibilityView="Raw" />
-                                            <TextBlock Grid.Column="1" Text="{x:Bind Title}" Style="{StaticResource FSTSectionHeaderStyle}"
-                                                       Margin="0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                                                       AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="{x:Bind AutomationId}" />
-                                            <HyperlinkButton Grid.Column="2" Content="See All" Tag="{x:Bind ViewAllRoute}" Click="OnRouteClick"
-                                                             AutomationProperties.Name="{x:Bind SeeAllName}"
-                                                             AutomationProperties.AutomationId="fst.rivals.see-all" />
-                                        </Grid>
                                         <StackPanel Visibility="{x:Bind IsLoading, Mode=OneWay}" Spacing="8" Padding="8,4">
                                             <ProgressBar IsIndeterminate="{x:Bind IsLoading, Mode=OneWay}" AutomationProperties.Name="Loading rivals" />
                                             <Rectangle Height="44" RadiusX="6" RadiusY="6" Fill="{ThemeResource FSTRivalTieFillBrush}" />
@@ -132,7 +134,8 @@
                                                        AutomationProperties.Name="{x:Bind Status.CountdownAnnouncement, Mode=OneWay}" />
                                             <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
                                         </StackPanel>
-                                        <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}">
+                                        <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}"
+                                                       controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52">
                                             <ItemsRepeater.Layout>
                                                 <StackLayout Spacing="2" />
                                             </ItemsRepeater.Layout>
@@ -146,8 +149,13 @@
                                                 </DataTemplate>
                                             </ItemsRepeater.ItemTemplate>
                                         </ItemsRepeater>
+                                        <Button Content="View All Rivals" Tag="{x:Bind ViewAllRoute}" Click="OnRouteClick"
+                                                Style="{StaticResource FSTViewAllButtonStyle}" Visibility="{x:Bind ShowRows, Mode=OneWay}"
+                                                AutomationProperties.Name="{x:Bind ViewAllName}"
+                                                AutomationProperties.AutomationId="fst.rivals.view-all" />
                                     </StackPanel>
                                 </Border>
+                                </StackPanel>
                             </controls:AccessibleGroup>
                         </DataTemplate>
                     </ItemsRepeater.ItemTemplate>

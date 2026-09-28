@@ -64,7 +64,8 @@
                 </StackPanel>
             </Grid>
 
-            <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.InstrumentCards, Mode=OneWay}">
+            <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.InstrumentCards, Mode=OneWay}"
+                           controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="420">
                 <ItemsRepeater.Layout>
                     <controls:LeaderboardsCardGridLayout MinColumnWidth="360" MaxColumns="4" Spacing="16" />
                 </ItemsRepeater.Layout>
@@ -73,22 +74,9 @@
                         <!-- Named UIA group: Narrator announces the chart; equal row names in different cards are not siblings. -->
                         <controls:AccessibleGroup AutomationProperties.Name="{x:Bind Title}" controls:QuickLinkAnchor.Id="{x:Bind QuickLinkId}">
                             <StackPanel Spacing="8">
-                                <!-- Header above the card (web RankingCard cardLabel): instrument icon, title, metric. -->
-                                <Grid ColumnSpacing="12" Padding="4,0,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <controls:InstrumentIcon File="{x:Bind IconFile}" Label="{x:Bind Title}" Width="36" Height="36"
-                                                             VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
-                                    <StackPanel Grid.Column="1">
-                                        <TextBlock Text="{x:Bind Title}" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0"
-                                                   AutomationProperties.HeadingLevel="Level2"
-                                                   AutomationProperties.AutomationId="{x:Bind AutomationId}" />
-                                        <TextBlock Text="{x:Bind Subtitle}" Style="{StaticResource CaptionTextBlockStyle}"
-                                                   Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-                                    </StackPanel>
-                                </Grid>
+                                <!-- Header above the card (web RankingCard cardLabel): instrument icon and name only (the Rank By
+                                     button already names the metric). -->
+                                <controls:CardHeader Title="{x:Bind Title}" IconFile="{x:Bind IconFile}" TitleAutomationId="{x:Bind AutomationId}" />
                                 <Border Style="{StaticResource FSTCardStyle}">
                                     <StackPanel Spacing="8">
                                         <controls:LeaderboardsSkeleton Visibility="{x:Bind IsLoading, Mode=OneWay}" />
@@ -102,7 +90,8 @@
                                                        AutomationProperties.Name="{x:Bind Status.CountdownAnnouncement, Mode=OneWay}" />
                                             <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
                                         </StackPanel>
-                                        <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}">
+                                        <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}"
+                                                       controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="40">
                                             <ItemsRepeater.Layout>
                                                 <StackLayout Spacing="2" />
                                             </ItemsRepeater.Layout>
@@ -114,10 +103,9 @@
                                         </ItemsRepeater>
                                         <controls:LeaderboardsSpotlight Spotlight="{x:Bind Spotlight}" IdPrefix="{x:Bind SpotlightAutomationId}"
                                                                         Visibility="{x:Bind ShowRows, Mode=OneWay}" />
-                                        <HyperlinkButton Content="View All" Tag="{x:Bind}" Click="OnViewAll" HorizontalAlignment="Stretch"
-                                                         HorizontalContentAlignment="Center" Visibility="{x:Bind ShowRows, Mode=OneWay}"
-                                                         AutomationProperties.Name="{x:Bind ViewAllName}"
-                                                         AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
+                                        <Button Content="View All" Tag="{x:Bind}" Click="OnViewAll" Style="{StaticResource FSTViewAllButtonStyle}"
+                                                Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName}"
+                                                AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
@@ -131,7 +119,8 @@
                 <HyperlinkButton Content="Browse Bands" HorizontalAlignment="Right" VerticalAlignment="Center" Click="OnBrowseBands"
                                  AutomationProperties.AutomationId="fst.leaderboards.bands-link" />
             </Grid>
-            <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.BandCards, Mode=OneWay}">
+            <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.BandCards, Mode=OneWay}"
+                           controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="420">
                 <ItemsRepeater.Layout>
                     <controls:LeaderboardsCardGridLayout MinColumnWidth="360" MaxColumns="3" Spacing="16" />
                 </ItemsRepeater.Layout>
@@ -140,22 +129,8 @@
                         <!-- Named UIA group: Narrator announces the chart; equal row names in different cards are not siblings. -->
                         <controls:AccessibleGroup AutomationProperties.Name="{x:Bind Title}" controls:QuickLinkAnchor.Id="{x:Bind QuickLinkId}">
                             <StackPanel Spacing="8">
-                                <!-- Header above the card (web RankingCard cardLabel): instrument icon, title, metric. -->
-                                <Grid ColumnSpacing="12" Padding="4,0,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <FontIcon Glyph="&#xE716;" FontSize="26" Width="36" VerticalAlignment="Center"
-                                              Foreground="{ThemeResource FSTSecondaryTextBrush}" AutomationProperties.AccessibilityView="Raw" />
-                                    <StackPanel Grid.Column="1">
-                                        <TextBlock Text="{x:Bind Title}" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0"
-                                                   AutomationProperties.HeadingLevel="Level2"
-                                                   AutomationProperties.AutomationId="{x:Bind AutomationId}" />
-                                        <TextBlock Text="{x:Bind Subtitle}" Style="{StaticResource CaptionTextBlockStyle}"
-                                                   Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-                                    </StackPanel>
-                                </Grid>
+                                <!-- Band-size header above the card: name only, no icon (web band RankingCard). -->
+                                <controls:CardHeader Title="{x:Bind Title}" TitleAutomationId="{x:Bind AutomationId}" />
                                 <Border Style="{StaticResource FSTCardStyle}">
                                     <StackPanel Spacing="8">
                                         <controls:LeaderboardsSkeleton Visibility="{x:Bind IsLoading, Mode=OneWay}" />
@@ -169,7 +144,8 @@
                                                        AutomationProperties.Name="{x:Bind Status.CountdownAnnouncement, Mode=OneWay}" />
                                             <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
                                         </StackPanel>
-                                        <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}">
+                                        <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}"
+                                                       controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="40">
                                             <ItemsRepeater.Layout>
                                                 <StackLayout Spacing="2" />
                                             </ItemsRepeater.Layout>
@@ -179,10 +155,9 @@
                                                 </DataTemplate>
                                             </ItemsRepeater.ItemTemplate>
                                         </ItemsRepeater>
-                                        <HyperlinkButton Content="View All" Tag="{x:Bind}" Click="OnViewAll" HorizontalAlignment="Stretch"
-                                                         HorizontalContentAlignment="Center" Visibility="{x:Bind ShowRows, Mode=OneWay}"
-                                                         AutomationProperties.Name="{x:Bind ViewAllName}"
-                                                         AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
+                                        <Button Content="View All" Tag="{x:Bind}" Click="OnViewAll" Style="{StaticResource FSTViewAllButtonStyle}"
+                                                Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName}"
+                                                AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
                                     </StackPanel>
                                 </Border>
                             </StackPanel>

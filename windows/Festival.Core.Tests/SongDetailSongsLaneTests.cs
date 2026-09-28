@@ -29,20 +29,20 @@ public class SongDetailSongsLaneTests
     }
 
     [Fact]
-    public async Task ShopOffer_AddsBadgeAndOfficialLink()
+    public async Task ShopOffer_PulsesTheOfficialLinkInItsStatus()
     {
         var (_, session, vm) = await Open("s3");
         Assert.True(vm.HasShopLink);
-        Assert.True(vm.HasShopBadge);
+        Assert.True(vm.ShopPulses);
         Assert.Equal(ShopHighlight.LeavingTomorrow, vm.ShopHighlight);
-        Assert.Equal("Item Shop: Leaving Tomorrow", vm.ShopBadgeText);
+        Assert.Equal("Open in Item Shop, Leaving Tomorrow", vm.ShopButtonName);
         Assert.False(vm.HasShopIssue);
         Assert.Equal(["Duos", "Trios", "Quads"], vm.BandLinks.Select(l => l.Label));
         Assert.Equal(new AppRoute.SongBandLeaderboard("s3", "Band_Duets"), vm.BandLinks[0].Route);
         session.UpdateSettings(s => s with { DisableShopHighlighting = true });
         await vm.LoadShopAsync();
-        Assert.False(vm.HasShopBadge);
-        Assert.Equal("", vm.ShopBadgeText);
+        Assert.False(vm.ShopPulses);
+        Assert.Equal("Open in Item Shop", vm.ShopButtonName);
         Assert.True(vm.HasShopLink);
         session.UpdateSettings(s => s with { HideShop = true });
         await vm.LoadShopAsync();
@@ -121,6 +121,52 @@ public class SongDetailSongsLaneTests
         var row = Assert.Single(lead.Rows);
         Assert.True(row.IsSelectedPlayer);
         Assert.EndsWith(", you", row.Announcement);
+    }
+
+    [Fact]
+    public async Task PlayerOutsideTopTen_IsRowElevenAndReplacesTheSummary()
+    {
+        var (_, _, vm) = await Open("s2", player: true);
+        var lead = vm.Leaderboards.Single(b => b.Instrument == Instrument.Lead);
+        Assert.True(lead.ShowPlayerSummary);
+        await lead.EnsureLoadedAsync();
+        Assert.Equal(11, lead.Rows.Count);
+        var mine = lead.Rows[10];
+        Assert.True(mine.IsSelectedPlayer);
+        Assert.Equal("#30", mine.Rank);
+        Assert.Equal("Fixture One", mine.Name);
+        Assert.True(lead.HasPlayerRow);
+        Assert.False(lead.ShowPlayerSummary);
+        Assert.Equal("fst.song-detail.view-all.Solo_Guitar", lead.ViewAllAutomationId);
+        Assert.Equal("View full Lead leaderboard", lead.ViewAllName);
+        lead.UpdatePlayer(null);
+        Assert.Equal(10, lead.Rows.Count);
+        Assert.False(lead.HasPlayerRow);
+    }
+
+    [Fact]
+    public async Task TotalEntries_SubtitleOnlyWhenTheServiceAllowsTotals()
+    {
+        var service = new FakeService();
+        SongsWire.Install(service);
+        var inner = service.Override!;
+        var allow = true;
+        service.Override = r => r.RequestUri!.AbsolutePath.StartsWith("/api/leaderboard/", StringComparison.Ordinal)
+            ? Wire.Ok(Wire.Leaderboard("s1", "Solo_Guitar", 2, total: 12345)
+                .Replace("{\"songId\"", $"{{\"showLeaderboardEntryTotals\":{(allow ? "true" : "false")},\"songId\""), ("X-FST-Publication-Id", "7"))
+            : inner(r);
+        var session = service.Session();
+        var vm = new SongDetailViewModel(session, new AppRoute.SongDetail("s1"));
+        await vm.LoadAsync();
+        var lead = vm.Leaderboards.Single(b => b.Instrument == Instrument.Lead);
+        Assert.Equal("Lead", lead.HeaderName);
+        await lead.EnsureLoadedAsync();
+        Assert.Equal(12345.ToString("N0", System.Globalization.CultureInfo.CurrentCulture) + " total entries", lead.TotalEntriesText);
+        Assert.True(lead.HasTotalEntries);
+        Assert.Equal("Lead, " + lead.TotalEntriesText, lead.HeaderName);
+        allow = false;
+        await lead.LoadAsync();
+        Assert.False(lead.HasTotalEntries);
     }
 
     [Fact]

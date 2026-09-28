@@ -66,20 +66,6 @@ public sealed partial class SuggestionsPage : Page
     /// <param name="e">Unused.</param>
     private void OnFilterOpening(object sender, object e) => ViewModel.FilterDraft.Begin();
 
-    /// <summary>Discards the draft.</summary>
-    /// <param name="sender">Button.</param>
-    /// <param name="e">Unused.</param>
-    private void OnFilterCancel(object sender, RoutedEventArgs e) => FilterFlyout.Hide();
-
-    /// <summary>Applies the draft.</summary>
-    /// <param name="sender">Button.</param>
-    /// <param name="e">Unused.</param>
-    private void OnFilterApply(object sender, RoutedEventArgs e)
-    {
-        ViewModel.FilterDraft.ApplyCommand.Execute(null);
-        FilterFlyout.Hide();
-    }
-
     /// <summary>Clears the filter from the empty state.</summary>
     /// <param name="sender">Button.</param>
     /// <param name="e">Unused.</param>
