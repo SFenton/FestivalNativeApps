@@ -74,7 +74,7 @@
                 <TextBlock Text="Overview" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2"
                            AutomationProperties.AutomationId="fst.player.overview" controls:QuickLinkAnchor.Id="global" />
                 <Border Style="{StaticResource FSTCardStyle}">
-                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.Overview, Mode=OneWay}" ItemTemplate="{StaticResource StatTileTemplate}">
+                    <ItemsRepeater controls:TextScaleLayout.ScaleWithText="True" ItemsSource="{x:Bind ViewModel.Overview, Mode=OneWay}" ItemTemplate="{StaticResource StatTileTemplate}">
                         <ItemsRepeater.Layout>
                             <UniformGridLayout MinItemWidth="112" MinItemHeight="84" MinColumnSpacing="8" MinRowSpacing="8" ItemsStretch="Fill" />
                         </ItemsRepeater.Layout>
@@ -111,7 +111,7 @@
                                         <StackPanel Spacing="12">
                                             <TextBlock Text="{x:Bind EmptyText}" Visibility="{x:Bind IsEmpty}" Style="{StaticResource FSTSecondaryTextStyle}"
                                                        TextWrapping="Wrap" AutomationProperties.AutomationId="{x:Bind controls:PlayerProfileView.EmptyId(AutomationKey)}" />
-                                            <ItemsRepeater ItemsSource="{x:Bind Stats}" Visibility="{x:Bind HasScores}" ItemTemplate="{StaticResource StatTileTemplate}">
+                                            <ItemsRepeater controls:TextScaleLayout.ScaleWithText="True" ItemsSource="{x:Bind Stats}" Visibility="{x:Bind HasScores}" ItemTemplate="{StaticResource StatTileTemplate}">
                                                 <ItemsRepeater.Layout>
                                                     <UniformGridLayout MinItemWidth="112" MinItemHeight="84" MinColumnSpacing="8" MinRowSpacing="8" ItemsStretch="Fill" />
                                                 </ItemsRepeater.Layout>
@@ -128,7 +128,7 @@
                                                                TextWrapping="Wrap" VerticalAlignment="Center" MaxWidth="360" />
                                                     <Button Content="Retry" Command="{x:Bind LoadRankCommand}" />
                                                 </StackPanel>
-                                                <ItemsRepeater ItemsSource="{x:Bind RankTiles, Mode=OneWay}" Visibility="{x:Bind RankAvailable, Mode=OneWay}"
+                                                <ItemsRepeater controls:TextScaleLayout.ScaleWithText="True" ItemsSource="{x:Bind RankTiles, Mode=OneWay}" Visibility="{x:Bind RankAvailable, Mode=OneWay}"
                                                                ItemTemplate="{StaticResource StatTileTemplate}">
                                                     <ItemsRepeater.Layout>
                                                         <UniformGridLayout MinItemWidth="112" MinItemHeight="84" MinColumnSpacing="8" ItemsStretch="Fill" />

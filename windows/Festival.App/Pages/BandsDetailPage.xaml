@@ -168,7 +168,7 @@
                     <!-- Summary -->
                     <StackPanel x:Name="SummarySection" controls:QuickLinkAnchor.Id="summary" Spacing="8" AutomationProperties.AutomationId="fst.band.summary-section">
                         <TextBlock Text="Band Summary" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
-                        <ItemsRepeater ItemsSource="{x:Bind ViewModel.Summary, Mode=OneWay}" ItemTemplate="{StaticResource StatPlainTemplate}">
+                        <ItemsRepeater controls:TextScaleLayout.ScaleWithText="True" ItemsSource="{x:Bind ViewModel.Summary, Mode=OneWay}" ItemTemplate="{StaticResource StatPlainTemplate}">
                             <ItemsRepeater.Layout>
                                 <UniformGridLayout MinItemWidth="200" MinRowSpacing="12" MinColumnSpacing="12" ItemsStretch="Fill" />
                             </ItemsRepeater.Layout>
@@ -192,7 +192,7 @@
                                 <x:String>Total Score</x:String>
                             </ComboBox>
                         </Grid>
-                        <ItemsRepeater ItemsSource="{x:Bind ViewModel.Statistics, Mode=OneWay}" ItemTemplate="{StaticResource StatTemplates}">
+                        <ItemsRepeater controls:TextScaleLayout.ScaleWithText="True" ItemsSource="{x:Bind ViewModel.Statistics, Mode=OneWay}" ItemTemplate="{StaticResource StatTemplates}">
                             <ItemsRepeater.Layout>
                                 <UniformGridLayout MinItemWidth="200" MinRowSpacing="12" MinColumnSpacing="12" ItemsStretch="Fill" />
                             </ItemsRepeater.Layout>

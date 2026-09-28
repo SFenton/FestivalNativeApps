@@ -58,7 +58,7 @@
                 <TextBlock Text="Intensity" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2"
                            controls:QuickLinkAnchor.Id="intensity" />
                 <Border Style="{StaticResource FSTCardStyle}" AutomationProperties.AutomationId="fst.song-detail.intensity">
-                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.Intensity, Mode=OneWay}">
+                    <ItemsRepeater controls:TextScaleLayout.ScaleWithText="True" ItemsSource="{x:Bind ViewModel.Intensity, Mode=OneWay}">
                         <ItemsRepeater.Layout>
                             <UniformGridLayout MinItemWidth="240" MinItemHeight="36" MinRowSpacing="8" MinColumnSpacing="16"
                                                ItemsStretch="Fill" />
