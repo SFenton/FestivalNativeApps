@@ -18,3 +18,7 @@ Each platform ships different code, so each platform's Licenses page must enumer
 ## Test matrix
 
 Row tap opens the correct entry's text; empty-dependency state (a platform/build with zero third-party packages) renders without error; modal dismissal returns focus/VoiceOver to the originating row.
+
+## Operator rule
+
+- Do not list or mention the star images (`star_white`/`star_gold`) on the Licenses page on any platform (operator, 2026-09-28). Add no new bundled-art entries without operator approval.
