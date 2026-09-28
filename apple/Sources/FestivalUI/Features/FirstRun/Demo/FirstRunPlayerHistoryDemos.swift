@@ -23,7 +23,7 @@ struct FirstRunPlayerHistoryScoreListDemo: View {
                         .font(.caption)
                         .foregroundStyle(BrandTokens.textSecondary)
                     if entry.isFullCombo {
-                        Image(systemName: "star.fill").font(.caption).foregroundStyle(BrandTokens.gold)
+                        FirstRunStar(gold: true, size: 13)
                     }
                 }
                 .padding(.horizontal, 14)

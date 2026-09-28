@@ -62,7 +62,7 @@ struct FirstRunCarouselView: View {
     private var controls: some View {
         HStack {
             Button("Skip", action: onFinish)
-                .foregroundStyle(BrandTokens.textSecondary)
+                .foregroundStyle(BrandTokens.textPrimary)
                 .opacity(isLastSlide ? 0 : 1)
                 .disabled(isLastSlide)
                 .accessibilityHidden(isLastSlide)
@@ -126,7 +126,7 @@ private struct FirstRunSlideView: View {
                     .multilineTextAlignment(.center)
                 Text(slide.description)
                     .font(.subheadline)
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(BrandTokens.textPrimary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }

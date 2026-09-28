@@ -178,8 +178,9 @@ struct FirstRunFilterDemo: View {
 /// Ported from `pages/songs/firstRun/demo/SongIconsDemo.tsx`: the instrument status glyphs
 /// (full combo, played, unplayed, not charted, inconsistent).
 struct FirstRunSongIconsDemo: View {
-    private let entries: [(Instrument, String, Color)] = [
-        (.lead, "star.fill", BrandTokens.gold),
+    /// Status badge per instrument; `nil` symbol = the web's gold star image (full combo).
+    private let entries: [(Instrument, String?, Color)] = [
+        (.lead, nil, BrandTokens.gold),
         (.bass, "checkmark", BrandTokens.statusGreen),
         (.drums, "minus", BrandTokens.textMuted),
         (.vocals, "slash.circle", BrandTokens.textDisabled),
@@ -190,12 +191,18 @@ struct FirstRunSongIconsDemo: View {
             ForEach(entries, id: \.0) { instrument, badge, tint in
                 ZStack(alignment: .bottomTrailing) {
                     InstrumentIcon(instrument, size: 40)
-                    Image(systemName: badge)
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(.white)
-                        .padding(3)
-                        .background(tint, in: Circle())
-                        .offset(x: 4, y: 4)
+                    Group {
+                        if let badge {
+                            Image(systemName: badge)
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(.white)
+                        } else {
+                            FirstRunStar(gold: true, size: 11)
+                        }
+                    }
+                    .padding(3)
+                    .background(tint, in: Circle())
+                    .offset(x: 4, y: 4)
                 }
             }
         }
@@ -211,7 +218,7 @@ struct FirstRunSongIconsDemo: View {
 /// Ported from `pages/songs/firstRun/demo/MetadataDemo.tsx`: the metadata pill row shown when a
 /// single instrument is filtered.
 struct FirstRunMetadataDemo: View {
-    private let pills = ["98.4%", "Top 3%", "Season 5", "★★★★★"]
+    private let pills = ["98.4%", "Top 3%", "Season 5"]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -231,6 +238,9 @@ struct FirstRunMetadataDemo: View {
                         .padding(.horizontal, 10).padding(.vertical, 5)
                         .background(BrandTokens.surfaceMuted, in: Capsule())
                 }
+                FirstRunStarRow(count: 6, size: 11)
+                    .padding(.horizontal, 8).padding(.vertical, 6)
+                    .background(BrandTokens.surfaceMuted, in: Capsule())
             }
         }
         .padding(14)
