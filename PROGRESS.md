@@ -262,3 +262,5 @@ Not yet assigned:
 | 2026-09-28 | Lane S | Toolbar order, Quick Links (Songs/Detail), settings consumers, `Song.maxScores` — lane complete |
 | 2026-09-28 | Orchestrator | Launched Lane G2 (Suggestions follow-ups) and Lane U2 (UX tests for Songs/Detail/Paths/Shop/Suggestions) |
 | 2026-09-28 | Lane D2 | FRE live demos: all 42 catalog slides now render a live native mini-demo (was Songs-only, 9/42); found a likely pre-existing TabView initial-tab race in debug launch + force mode for non-default tabs (see Lane D2 entry above) |
+| 2026-09-28 | Lane D2 | Live demos for all 42 FRE slides (coverage test enforces no fallback) |
+| 2026-09-28 | Orchestrator | Fixed empty FRE carousel on non-default launch tab (`.sheet(item:)`, `95d799e`); native FRE copy; demo slot clipping |
