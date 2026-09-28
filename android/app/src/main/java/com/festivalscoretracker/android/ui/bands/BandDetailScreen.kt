@@ -44,7 +44,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -57,6 +56,7 @@ import coil3.compose.AsyncImage
 import com.festivalscoretracker.android.core.bands.BandDetail
 import com.festivalscoretracker.android.core.bands.BandDetailProjection
 import com.festivalscoretracker.android.core.bands.BandFormatting
+import com.festivalscoretracker.android.core.bands.BandLayout
 import com.festivalscoretracker.android.core.bands.BandMember
 import com.festivalscoretracker.android.core.bands.BandRankHistoryResponse
 import com.festivalscoretracker.android.core.bands.BandRankingMetric
@@ -131,7 +131,6 @@ private fun BandDetailContent(
     val bestSong = songsState?.let { state -> state.response.best.firstOrNull()?.let { state.songsById[it.songId] } }
     val summary = remember(detail, type) { BandDetailProjection.summary(detail, type) }
     val statistics = remember(detail, type, metric, bestSong) { BandDetailProjection.statistics(detail, type, metric, bestSong) }
-    val density = LocalDensity.current
     var contentLeft by remember { mutableFloatStateOf(0f) }
     val leading: @Composable ColumnScope.() -> Unit = {
         BandPageHeader(title, "${type.label} · ${BandFormatting.appearances(detail.songsPlayed)}", "fst.band")
@@ -153,17 +152,17 @@ private fun BandDetailContent(
             .fillMaxSize()
             .onGloballyPositioned { contentLeft = it.positionInWindow().x },
     ) {
-        val panes = rememberBandPaneLayout(maxWidth, with(density) { contentLeft.toDp() })
+        val panes = BandLayout.panes(windowWidthDp(), rememberBandHinge(contentLeft, maxWidth))
         val scrollPadding = Modifier.padding(start = 16.dp, end = 16.dp)
         val bottom = padding.calculateBottomPadding() + 24.dp
         if (panes.twoPane) {
             Row(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
-                val leadingModifier = panes.leadingWidth?.let { Modifier.width(it) } ?: Modifier.weight(1f)
+                val leadingModifier = panes.leadingWidth?.let { Modifier.width(it.dp) } ?: Modifier.weight(1f)
                 Column(leadingModifier.fillMaxSize().verticalScroll(rememberScrollState()).then(scrollPadding).testTag("fst.band.pane.leading")) {
                     leading()
                     Spacer(Modifier.height(bottom))
                 }
-                Spacer(Modifier.width(panes.gap))
+                Spacer(Modifier.width(panes.gap.dp))
                 Column(Modifier.weight(1f).fillMaxSize().verticalScroll(rememberScrollState()).then(scrollPadding).testTag("fst.band.pane.trailing")) {
                     trailing()
                     Spacer(Modifier.height(bottom))

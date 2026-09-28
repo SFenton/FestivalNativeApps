@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,9 +24,16 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import com.festivalscoretracker.android.core.bands.BandLayout
+import com.festivalscoretracker.android.core.bands.PlayerBandListResponse
+import kotlinx.coroutines.flow.MutableStateFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -67,7 +73,8 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
 internal fun bandRouteFor(entry: PlayerBandEntry): AppRoute = BandRoute(entry.key, entry.membersLabel, entry.bandType, entry.teamKey)
 
 /**
- * Adaptive card grid with full-width header rows; column count keeps an even split around a hinge.
+ * Adaptive card grid with full-width header rows; with a vertical fold or hinge the
+ * two columns meet exactly at it ([BandLayout.grid]).
  *
  * @param padding Shell padding.
  * @param tag Test tag.
@@ -75,18 +82,18 @@ internal fun bandRouteFor(entry: PlayerBandEntry): AppRoute = BandRoute(entry.ke
  */
 @Composable
 private fun BandGrid(padding: PaddingValues, tag: String, content: LazyGridScope.() -> Unit) {
-    val hingeSplit = currentWindowAdaptiveInfo().windowPosture.hingeList.any { it.isSeparating && it.isVertical }
-    BoxWithConstraints(Modifier.fillMaxSize()) {
-        val columns = bandGridColumns(maxWidth - 32.dp, hingeSplit)
+    var contentLeft by remember { mutableFloatStateOf(0f) }
+    BoxWithConstraints(Modifier.fillMaxSize().onGloballyPositioned { contentLeft = it.positionInWindow().x }) {
+        val grid = BandLayout.grid(maxWidth.value, rememberBandHinge(contentLeft, maxWidth))
         LazyVerticalGrid(
-            columns = GridCells.Fixed(columns),
+            columns = GridCells.Fixed(grid.columns),
             contentPadding = PaddingValues(
-                start = 16.dp,
-                end = 16.dp,
+                start = grid.start.dp,
+                end = grid.end.dp,
                 top = padding.calculateTopPadding(),
                 bottom = padding.calculateBottomPadding() + 24.dp,
             ),
-            horizontalArrangement = Arrangement.spacedBy(if (hingeSplit) 32.dp else 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(grid.gutter.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize().testTag(tag),
             content = content,
@@ -120,13 +127,15 @@ private fun LazyGridScope.fullRow(key: String, content: @Composable () -> Unit) 
 @Composable
 fun BandsLandingScreen(player: SelectedPlayer?, preview: PlayerBandsViewModel?, onNavigate: (AppRoute) -> Unit) {
     val shell = LocalShellActions.current
+    val idle = remember { MutableStateFlow<LoadState<PlayerBandListResponse>>(LoadState.Loading) }
+    val previewState by (preview?.bands ?: idle).collectAsStateWithLifecycle()
     FestivalScreen(title = "Bands", isRoot = false, modifier = Modifier.testTag("fst.bands.screen")) { padding ->
         BandGrid(padding, "fst.bands.list") {
             fullRow("header") {
                 BandPageHeader(null, "Band lineups, rankings and band scores", "fst.bands")
             }
             if (player != null && preview != null) {
-                yourBands(player, preview, onNavigate)
+                yourBands(player, previewState, preview::retry, onNavigate)
             } else {
                 fullRow("no-player") {
                     GlassCard(Modifier.fillMaxWidth().testTag("fst.bands.select-player")) {
@@ -186,39 +195,33 @@ internal const val SEARCH_FOOTNOTE =
  */
 internal fun rankingsDescription(type: BandType): String = "${type.memberCount}-player bands ranked across every song"
 
-private fun LazyGridScope.yourBands(player: SelectedPlayer, preview: PlayerBandsViewModel, onNavigate: (AppRoute) -> Unit) {
+private fun LazyGridScope.yourBands(
+    player: SelectedPlayer,
+    state: LoadState<PlayerBandListResponse>,
+    onRetry: () -> Unit,
+    onNavigate: (AppRoute) -> Unit,
+) {
     fullRow("your-header") {
         SectionHeader("${player.displayName}'s Bands", Modifier.testTag("fst.bands.your-bands-section"))
     }
-    fullRow("your-state") { YourBandsState(player, preview, onNavigate) }
-}
-
-@Composable
-private fun YourBandsState(player: SelectedPlayer, preview: PlayerBandsViewModel, onNavigate: (AppRoute) -> Unit) {
-    val state by preview.bands.collectAsStateWithLifecycle()
-    when (val current = state) {
-        LoadState.Loading -> Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) {
-            CircularProgressIndicator(Modifier.semantics { contentDescription = "Loading bands" })
+    when (state) {
+        LoadState.Loading -> fullRow("your-loading") {
+            Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) {
+                CircularProgressIndicator(Modifier.semantics { contentDescription = "Loading bands" })
+            }
         }
-        is LoadState.Failed -> ServiceStatusInline(current.issue, "Bands unavailable", current.countdown, preview::retry)
+        is LoadState.Failed -> fullRow("your-error") { ServiceStatusInline(state.issue, "Bands unavailable", state.countdown, onRetry) }
         is LoadState.Loaded -> {
-            val list = current.value
+            val list = state.value
             if (list.entries.isEmpty()) {
-                BandEmptyState("No bands found", "No bands have been recorded for this player yet.", "fst.bands.your-bands-empty")
+                fullRow("your-empty") {
+                    BandEmptyState("No bands found", "No bands have been recorded for this player yet.", "fst.bands.your-bands-empty")
+                }
             } else {
-                // A nested lazy grid is not allowed; the preview is at most six cards, laid out in a flow.
-                BoxWithConstraints(Modifier.fillMaxWidth().testTag("fst.bands.your-bands-list")) {
-                    val columns = bandGridColumns(maxWidth, false)
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        list.entries.chunked(columns).forEach { row ->
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                row.forEach { entry -> PlayerBandCard(entry, { onNavigate(bandRouteFor(entry)) }, Modifier.weight(1f)) }
-                                repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
-                            }
-                        }
-                        BandTextLink("View All ${BandFormatting.count(list.totalCount.toLong())} Bands", "fst.bands.your-bands") {
-                            onNavigate(PlayerBandsRoute(player.accountId, player.displayName))
-                        }
+                items(list.entries, key = { "your-${it.key}" }) { entry -> PlayerBandCard(entry, { onNavigate(bandRouteFor(entry)) }) }
+                fullRow("your-more") {
+                    BandTextLink("View All ${BandFormatting.count(list.totalCount.toLong())} Bands", "fst.bands.your-bands") {
+                        onNavigate(PlayerBandsRoute(player.accountId, player.displayName))
                     }
                 }
             }

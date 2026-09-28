@@ -8,7 +8,7 @@
 - Top bar `<Name>'s Bands`: route name → selected player (same account) → the account's own member row → `Player Bands`. Subtitle `<Group> · N bands`.
 - Group filter: Material 3 single-choice segmented buttons (All · Duos · Trios · Quads) instead of the web filter sheet; switching returns to page 1. A newer load cancels an older one, so a late response never shows an old group or page.
 - Band cards (glass, whole card tappable, no chevron): distinct members with instrument icons, size pill, `N appearances` → `BandRoute(bandId, membersLabel, bandType, teamKey)`. Anonymous members (empty `accountId`) show "Unknown User" and never collapse into each other.
-- Adaptive grid: columns = ⌊width / 320 dp⌋ (1 on phones and folded covers, 2 on book/passport inner and tablet portrait, 3+ wide), forced even around a separating vertical hinge with a 32 dp gutter.
+- Adaptive grid (`BandLayout.grid`): as many ≥320 dp columns as fit (1 on phones and covers, 2 on book/passport inner and tablet portrait, 3+ wide). With a separating vertical hinge, or a flat fold where two columns fit anyway, exactly two columns whose gutter is the fold ±16 dp, so no card straddles the crease.
 - Pager: First/Previous/`page / pages`/Next/Last (48 dp targets, spoken "Page X of Y"), hidden for one page. A page past the end reloads the last page.
 - States: loading, empty (`No bands found` / `No <group> have been recorded for this player yet.`), failure (`ServiceStatusView` at a fixed height inside the grid, because a lazy item cannot host its unbounded vertical scroll).
 

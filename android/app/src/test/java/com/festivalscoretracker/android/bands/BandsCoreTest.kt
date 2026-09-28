@@ -3,6 +3,7 @@ package com.festivalscoretracker.android.bands
 import com.festivalscoretracker.android.core.bands.BandDetail
 import com.festivalscoretracker.android.core.bands.BandDetailProjection
 import com.festivalscoretracker.android.core.bands.BandFormatting
+import com.festivalscoretracker.android.core.bands.BandLayout
 import com.festivalscoretracker.android.core.bands.BandMember
 import com.festivalscoretracker.android.core.bands.BandPaging
 import com.festivalscoretracker.android.core.bands.BandProfileEnvelope
@@ -254,6 +255,41 @@ class BandsCoreTest {
         assertEquals("", unknown.subtitle)
         assertNull(unknown.route)
         assertEquals("2020", BandSongRow(BandSongPerformance(), Fixtures.song("a", "A", artist = "", year = 2020)).subtitle)
+    }
+
+    // endregion
+
+    // region Layout
+
+    @Test
+    fun paneAndGridGeometry() {
+        // Book fold half-open: rail 80 dp, fold at 532 dp in the window, 771 dp of content.
+        val half = BandLayout.hingeInContent(532f, 532f, 80f, 771f, separating = true)!!
+        assertEquals(452f, half.left)
+        assertEquals(BandLayout.Panes(true, 452f, 0f), BandLayout.panes(851f, half))
+        val halfGrid = BandLayout.grid(771f, half)
+        assertEquals(2, halfGrid.columns)
+        val column = (771f - halfGrid.start - halfGrid.end - halfGrid.gutter) / 2
+        assertEquals(452f - BandLayout.EDGE, halfGrid.start + column)
+        assertEquals(452f + BandLayout.EDGE, halfGrid.start + column + halfGrid.gutter)
+        // Unfolded (flat fold): expanded window splits at the fold; a two-column grid meets at it.
+        val flat = half.copy(separating = false)
+        assertEquals(BandLayout.Panes(true, 452f, 0f), BandLayout.panes(851f, flat))
+        assertEquals(2, BandLayout.grid(771f, flat).columns)
+        // A flat fold in a wide window with room for more columns keeps the natural grid.
+        assertEquals(BandLayout.Grid(4, 16f, 16f, 12f), BandLayout.grid(1400f, BandLayout.Hinge(700f, 700f, false)))
+        // Medium window without a separating hinge: single pane.
+        assertEquals(BandLayout.Panes(false, null, 0f), BandLayout.panes(700f, flat))
+        assertEquals(BandLayout.Panes(false, null, 0f), BandLayout.panes(411f, null))
+        assertEquals(BandLayout.Panes(true, null, BandLayout.PANE_GAP), BandLayout.panes(1280f, null))
+        // Phone: one column; hinge too close to an edge is ignored.
+        assertEquals(BandLayout.Grid(1, 16f, 16f, 12f), BandLayout.grid(411f, null))
+        assertEquals(null, BandLayout.hingeInContent(250f, 250f, 80f, 771f, true))
+        assertEquals(null, BandLayout.hingeInContent(700f, 700f, 80f, 771f, true))
+        // A physical hinge with width becomes the gutter.
+        val hinge = BandLayout.hingeInContent(500f, 520f, 0f, 1000f, true)!!
+        assertEquals(BandLayout.Panes(true, 500f, 20f), BandLayout.panes(1000f, hinge))
+        assertEquals(52f, BandLayout.grid(1000f, hinge).gutter)
     }
 
     // endregion

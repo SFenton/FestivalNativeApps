@@ -26,6 +26,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
+import androidx.compose.material3.adaptive.currentWindowSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.bands.BandFormatting
+import com.festivalscoretracker.android.core.bands.BandLayout
 import com.festivalscoretracker.android.core.bands.BandMember
 import com.festivalscoretracker.android.core.bands.BandType
 import com.festivalscoretracker.android.core.bands.PlayerBandEntry
@@ -53,38 +55,35 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
 /** Widest single-column reading width for band pages. */
 internal val BAND_CONTENT_MAX = 840.dp
 
-/** Minimum band card width in adaptive grids. */
-internal val BAND_CARD_MIN = 320.dp
-
 /**
- * Two-pane geometry for the current window: either a width ≥ 840 dp or a
- * vertical separating hinge (book/passport fold open, tri-fold) splits content,
- * with the gap covering the hinge so nothing straddles it.
+ * The first vertical fold/hinge from Jetpack WindowManager, in content coordinates.
  *
- * @property twoPane Whether content is split.
- * @property leadingWidth Leading pane width, when split at a hinge.
- * @property gap Gap between panes (the hinge width, or 24 dp).
- */
-internal data class BandPaneLayout(val twoPane: Boolean, val leadingWidth: Dp?, val gap: Dp)
-
-/**
- * Resolve [BandPaneLayout] from WindowManager's hinge list and the available width.
- *
- * @param availableWidth Width of the content box.
- * @param contentLeft Window x of the content box's leading edge.
- * @return Pane layout.
+ * @param contentLeftPx Content box's leading edge in the window (px).
+ * @param contentWidth Content width.
+ * @return Hinge, or null when there is none or it sits too close to an edge.
  */
 @Composable
-internal fun rememberBandPaneLayout(availableWidth: Dp, contentLeft: Dp): BandPaneLayout {
+internal fun rememberBandHinge(contentLeftPx: Float, contentWidth: Dp): BandLayout.Hinge? {
     val density = LocalDensity.current
-    val hinge = currentWindowAdaptiveInfo().windowPosture.hingeList.firstOrNull { it.isSeparating && it.isVertical }
-    if (hinge != null) {
-        val left = with(density) { hinge.bounds.left.toDp() } - contentLeft
-        val width = with(density) { hinge.bounds.width.toDp() }
-        if (left > 200.dp && left < availableWidth - 200.dp) return BandPaneLayout(true, left, maxOf(width, 16.dp))
+    val hinge = currentWindowAdaptiveInfo().windowPosture.hingeList.firstOrNull { it.isVertical } ?: return null
+    return with(density) {
+        BandLayout.hingeInContent(
+            hinge.bounds.left.toDp().value,
+            hinge.bounds.right.toDp().value,
+            contentLeftPx.toDp().value,
+            contentWidth.value,
+            hinge.isSeparating,
+        )
     }
-    return BandPaneLayout(availableWidth >= 840.dp, null, 24.dp)
 }
+
+/**
+ * Current window width (window size class input, not the content width).
+ *
+ * @return Width in dp.
+ */
+@Composable
+internal fun windowWidthDp(): Float = with(LocalDensity.current) { currentWindowSize().width.toDp().value }
 
 /**
  * Center content at [BAND_CONTENT_MAX] on wide single-pane windows.
@@ -97,18 +96,6 @@ internal fun BandReadableWidth(modifier: Modifier = Modifier, content: @Composab
     Box(modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
         Box(Modifier.widthIn(max = BAND_CONTENT_MAX).fillMaxWidth()) { content() }
     }
-}
-
-/**
- * Column count for an adaptive card grid that keeps an even split around a hinge.
- *
- * @param width Grid width.
- * @param hingeSplit Whether a separating vertical hinge splits the window.
- * @return Columns (≥ 1).
- */
-internal fun bandGridColumns(width: Dp, hingeSplit: Boolean): Int {
-    val fit = maxOf(1, (width / BAND_CARD_MIN).toInt())
-    return if (hingeSplit) maxOf(2, fit - fit % 2) else fit
 }
 
 // endregion

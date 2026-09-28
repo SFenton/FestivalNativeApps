@@ -97,7 +97,7 @@ class BandsUiTest {
     @Test
     fun landingPreviewOpensPlayerBandsAndBandDetail() {
         launch("bands", player)
-        waitForTag("fst.bands.your-bands-list")
+        waitForTag("fst.player-bands.row.${BandFixtures.DUO_ID}")
         rule.onNodeWithText("Synthetic Player's Bands").assertIsDisplayed()
         assertTrue(transport.requests.any { it.url.contains("pageSize=6") })
         scrollTo("fst.bands.list", "fst.bands.your-bands")
