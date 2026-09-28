@@ -10,6 +10,7 @@
 - Per card: static skeleton (no shimmer, so no per-frame work), empty text, inline failure with Retry and scrape-freeze countdown, rows, "View All" → `AppRoute.FullRankings(instrument, rankBy)` / `AppRoute.BandRankings(bandType)`. "Browse Bands" beside the Bands heading opens `AppRoute.Bands` (the landing is not in the navigation pane).
 - Selected-player spotlight (`RankingSpotlight.Place`): highlighted in place (purple fill + border, UIA name "Your rank, 2nd. Name. …") when in the top ten, with no extra read; otherwise their own row from `GET /api/rankings/{instrument}/{accountId}` (`FestivalApiClient.GetPlayerInstrumentRankingAsync`, win-profile lane) below the rows, "Loading your rank…", "Not yet ranked on <instrument>." (404) or an inline retry. No selected-band spotlight: Windows has no selected-band identity.
 - Rows: rank, name ("Unknown User" when blank), "X / Y songs" (full combos under FC Rate), rating ("Top N%" + Bayesian value for percentile metrics, percentages, grouped totals). A row opens `AppRoute.Player(accountId, displayName)`; band rows open `AppRoute.Band(bandId, bandType, teamKey)` (never `/api/bands/{id}`). Rows whose identity is unusable are shown but not interactive (see [full-rankings/windows.md](../full-rankings/windows.md)).
+- Each card's header (36 px instrument icon or band glyph, title as heading 2, metric subtitle) sits **above** the card surface like the web's `RankingCard` `cardLabel`, inside the same named UIA group.
 - F5 reloads every card.
 
 ## Layout
