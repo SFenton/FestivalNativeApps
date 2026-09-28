@@ -189,6 +189,8 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 - ✅ `GET /api/player/{id}/rivals/all` exposed as `rivalsAll(accountId:)` (pure read verified; typed model + fixture) for the Suggestions rival families
 - Docs: architecture "one request path" rule, service-safety freeze semantics, `skills/add-endpoint.md`, `controls/service-status/`
 
+**Lane G3 — Rival-driven suggestions** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/rivalsugg`
+
 ### Wave 3 — UX tests (started for completed features)
 
 **Lane U3 — UX tests: Rivals & Compete** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/uxrivals`
@@ -209,6 +211,9 @@ Not yet assigned:
 - ⬜ Accessibility pass (whole app) · ⬜ VoiceOver pass
 
 ### Wave 4+ — other form factors
+
+**Lane W — iPhone Duo research + adaptive layout architecture** (Opus) — 🟨 running in `~/repos/FestivalNativeApps-lanes/duo` (research, `App/Layout/` model, pose tooling, baseline screenshots, concrete Duo lane plan)
+
 - ⬜ iPhone Duo bespoke layout (folded/unfolded, outer rotations) · ⬜ iPadOS · ⬜ macOS · ⬜ iPhone iOS 17 classic tab bar
 - ⛔ Android / Windows (Windows host paused by operator)
 
@@ -288,3 +293,4 @@ Not yet assigned:
 | 2026-09-28 | Orchestrator | Sim lock budget rule for UX lanes; `/rivals/all` read assigned to Lane K |
 | 2026-09-28 | Lane K | One keyless request path (Rivals off its own URLSession), `ServiceIssue` + `ServiceStatusView` scrape-freeze countdown on all service screens, `rivals/all` exposed, add-endpoint skill |
 | 2026-09-28 | Lane K | One request gate + `ServiceIssue` across 20+ screens; scrape-freeze countdown UX; `rivalsAll`; Rivals API coverage 71%→96.7% |
+| 2026-09-28 | Orchestrator | Launched Lane G3 (rival suggestions) and Lane W (Duo research + layout architecture) |
