@@ -76,19 +76,22 @@ public sealed partial class FestivalSession
     /// </summary>
     /// <param name="scope">Route scope.</param>
     /// <param name="rivalId">Rival account.</param>
+    /// <param name="allowLiveFallback">Chart/combo reads may be computed live (routes opened from Find Rival); leaderboard
+    /// detail never is.</param>
     /// <param name="cancellationToken">Cancels this caller's wait.</param>
     /// <returns>Compared songs.</returns>
     /// <exception cref="FestivalApiException">No player, or every underlying read failed.</exception>
-    public Task<RivalDetailResponse> GetRivalDetailAsync(RivalScope? scope, string rivalId, CancellationToken cancellationToken = default)
+    public Task<RivalDetailResponse> GetRivalDetailAsync(
+        RivalScope? scope, string rivalId, bool allowLiveFallback = false, CancellationToken cancellationToken = default)
     {
         var account = RequireAccount();
         return scope?.Resolve(Settings.VisibleInstruments) switch
         {
             RivalScope.Leaderboard l => RivalsCache.GetAsync($"lbd|{account}|{l.Instrument.ServiceId()}|{rivalId}|{l.RankBy.ServiceId()}",
                 () => Throttled(() => Api.GetLeaderboardRivalDetailAsync(account, l.Instrument, rivalId, l.RankBy)), cancellationToken),
-            RivalScope.Combo c => Detail(account, c.Token, rivalId, cancellationToken),
-            RivalScope.Song s => MergedDetailAsync(account, s.Instruments, rivalId, cancellationToken),
-            _ => MergedDetailAsync(account, Settings.VisibleInstruments, rivalId, cancellationToken),
+            RivalScope.Combo c => Detail(account, c.Token, rivalId, allowLiveFallback, cancellationToken),
+            RivalScope.Song s => MergedDetailAsync(account, s.Instruments, rivalId, allowLiveFallback, cancellationToken),
+            _ => MergedDetailAsync(account, Settings.VisibleInstruments, rivalId, allowLiveFallback, cancellationToken),
         };
     }
 
@@ -96,21 +99,25 @@ public sealed partial class FestivalSession
     /// <param name="account">Selected player.</param>
     /// <param name="scope">Chart or combo token.</param>
     /// <param name="rivalId">Rival.</param>
+    /// <param name="allowLiveFallback">Whether the service may compute the detail live.</param>
     /// <param name="cancellationToken">Cancellation.</param>
     /// <returns>Detail.</returns>
-    private Task<RivalDetailResponse> Detail(string account, string scope, string rivalId, CancellationToken cancellationToken) =>
-        RivalsCache.GetAsync($"detail|{account}|{scope}|{rivalId}", () => Throttled(() => Api.GetRivalDetailAsync(account, scope, rivalId)), cancellationToken);
+    private Task<RivalDetailResponse> Detail(string account, string scope, string rivalId, bool allowLiveFallback, CancellationToken cancellationToken) =>
+        RivalsCache.GetAsync($"detail|{account}|{scope}|{rivalId}" + (allowLiveFallback ? "|live" : ""),
+            () => Throttled(() => Api.GetRivalDetailAsync(account, scope, rivalId, allowLiveFallback: allowLiveFallback)), cancellationToken);
 
     /// <summary>Merges per-chart details like the web's <c>fetchCombinedRivalDetail</c>.</summary>
     /// <param name="account">Selected player.</param>
     /// <param name="instruments">Charts.</param>
     /// <param name="rivalId">Rival.</param>
+    /// <param name="allowLiveFallback">Whether the service may compute each chart live.</param>
     /// <param name="cancellationToken">Cancellation.</param>
     /// <returns>Union of songs.</returns>
-    private async Task<RivalDetailResponse> MergedDetailAsync(string account, IReadOnlyList<Instrument> instruments, string rivalId, CancellationToken cancellationToken)
+    private async Task<RivalDetailResponse> MergedDetailAsync(
+        string account, IReadOnlyList<Instrument> instruments, string rivalId, bool allowLiveFallback, CancellationToken cancellationToken)
     {
-        if (instruments.Count == 1) return await Detail(account, instruments[0].ServiceId(), rivalId, cancellationToken);
-        var reads = instruments.Select(i => Detail(account, i.ServiceId(), rivalId, cancellationToken)).ToList();
+        if (instruments.Count == 1) return await Detail(account, instruments[0].ServiceId(), rivalId, allowLiveFallback, cancellationToken);
+        var reads = instruments.Select(i => Detail(account, i.ServiceId(), rivalId, allowLiveFallback, cancellationToken)).ToList();
         try
         {
             await Task.WhenAll(reads);

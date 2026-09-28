@@ -101,7 +101,7 @@ Order: model + tests → title-bar box + suggestions → Search page + scopes �
 
 ## Open
 
-- The profile flyout keeps its own Players/Bands search ([profile-selection/windows.md](../profile-selection/windows.md)); later it can bind to `GlobalSearchViewModel` with the Players scope.
+- The profile flyout ([profile-selection/windows.md](../profile-selection/windows.md)) and Rivals' Find Rival use `GlobalSearchViewModel.ForPlayers(session, excludeSelected)`: the same engine locked to the Players scope, with no catalogue matching or suggestions, plus the picker-only `PlayersHint`/`CanRetryPlayers`. Find Rival excludes the selected player.
 - `TitleBar.RightHeader` (bell, avatar and the compact search button) sits right after the title, not at the right edge, when `TitleBar.Content` is empty or collapsed (pre-existing shell layout at < 720 epx). Stretching `Content` to push it right would make the whole middle of the bar a non-draggable passthrough region. TODO(orchestrator): `win-shell` to decide.
 - Narrator: counts are raised with `RaiseNotificationEvent` (title-bar box when focused; page field); an operator Narrator pass is still needed.
 - Tablet posture needs real touch hardware (see [platforms/windows.md](../../platforms/windows.md)); `portrait-tablet` approximates it.

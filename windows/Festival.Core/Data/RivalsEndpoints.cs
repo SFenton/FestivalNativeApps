@@ -5,8 +5,9 @@ namespace Festival.Core.Data;
 #region Rivals endpoint URLs
 /// <summary>
 /// Allowlisted keyless Rivals GETs (<c>FSTService/Api/RivalsEndpoints.cs</c>, <c>LeaderboardRivalsEndpoints.cs</c>): pure reads
-/// served from precomputed rows or the in-memory response cache. <c>POST …/rivals/recompute</c> has no builder, and the
-/// detail builders never add <c>allowLiveFallback</c>/<c>includeGaps</c> (live computation, not in the safety allowlist).
+/// served from precomputed rows or the in-memory response cache. <c>POST …/rivals/recompute</c> has no builder and nothing
+/// adds <c>includeGaps</c>. <c>allowLiveFallback=true</c> is allowlisted on the chart/combo detail only (service-safety: the
+/// fallback computes samples from reads, no writes) and only Find Rival asks for it, as the web does.
 /// </summary>
 public static class RivalsEndpoints
 {
@@ -34,10 +35,13 @@ public static class RivalsEndpoints
     /// <param name="scope">Instrument service ID or combo token.</param>
     /// <param name="rivalId">Rival account.</param>
     /// <param name="sort"><c>closest</c>, <c>they_lead</c> or <c>you_lead</c>.</param>
+    /// <param name="allowLiveFallback">Adds <c>allowLiveFallback=true</c> (Find Rival: untracked accounts have no precomputed row).</param>
     /// <returns>Endpoint URL.</returns>
-    public static Uri Detail(Uri baseUri, string accountId, string scope, string rivalId, string sort = "closest") =>
+    public static Uri Detail(Uri baseUri, string accountId, string scope, string rivalId, string sort = "closest", bool allowLiveFallback = false) =>
         ServiceEndpoints.Build(baseUri, ["api", "player", Account(accountId), "rivals", Scope(scope), Account(rivalId)],
-            [("sort", Sort(sort)), ("limit", "0"), ("offset", "0")]);
+            allowLiveFallback
+                ? [("sort", Sort(sort)), ("limit", "0"), ("offset", "0"), ("allowLiveFallback", "true")]
+                : [("sort", Sort(sort)), ("limit", "0"), ("offset", "0")]);
 
     /// <summary><c>GET /api/player/{accountId}/leaderboard-rivals/{instrument}?rankBy=</c>.</summary>
     /// <param name="baseUri">Validated origin.</param>

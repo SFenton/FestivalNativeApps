@@ -41,11 +41,13 @@ public sealed partial class FestivalApiClient
     /// <param name="scope">Instrument service ID or combo token.</param>
     /// <param name="rivalId">Rival account.</param>
     /// <param name="sort">Detail sort.</param>
+    /// <param name="allowLiveFallback">Lets the service compute an untracked rival live (Find Rival only).</param>
     /// <param name="cancellationToken">Cancellation.</param>
     /// <returns>Validated detail; empty on 404.</returns>
     public Task<RivalDetailResponse> GetRivalDetailAsync(
-        string accountId, string scope, string rivalId, string sort = "closest", CancellationToken cancellationToken = default) =>
-        ReadRivalsAsync(RivalsEndpoints.Detail(BaseUri, accountId, scope, rivalId, sort), 8_000_000,
+        string accountId, string scope, string rivalId, string sort = "closest", bool allowLiveFallback = false,
+        CancellationToken cancellationToken = default) =>
+        ReadRivalsAsync(RivalsEndpoints.Detail(BaseUri, accountId, scope, rivalId, sort, allowLiveFallback), 8_000_000,
             body => ParseRivalDetail(body, rivalId), cancellationToken);
 
     /// <summary>Head-to-head songs against a leaderboard rival on one chart.</summary>

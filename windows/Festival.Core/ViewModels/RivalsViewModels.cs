@@ -218,11 +218,20 @@ public sealed partial class RivalsHubViewModel : ObservableObject
     public RivalsHubViewModel(FestivalSession session)
     {
         this.session = session;
-        FindRival = new FindRivalViewModel(session);
+        FindRival = GlobalSearchViewModel.ForPlayers(session, excludeSelected: true);
     }
 
-    /// <summary>Find Rival search.</summary>
-    public FindRivalViewModel FindRival { get; }
+    /// <summary>Find Rival: the global-search engine limited to players, without the selected player.</summary>
+    public GlobalSearchViewModel FindRival { get; }
+
+    /// <summary>
+    /// Rival Detail for a Find Rival result: no scope, so it merges every visible chart, and the live fallback is allowed
+    /// because an arbitrary account usually has no precomputed rivalry (web <c>RivalsPage.handleFindRivalSelect</c>).
+    /// </summary>
+    /// <param name="result">Search result.</param>
+    /// <returns>Route.</returns>
+    public static AppRoute.RivalDetail FindRivalRoute(GlobalPlayerResult result) =>
+        new(result.AccountId, result.DisplayName, AllowLiveFallback: true);
 
     /// <summary>Visible (non-empty) sections in order.</summary>
     public ObservableCollection<RivalSectionViewModel> Sections { get; } = [];
@@ -460,101 +469,3 @@ public sealed partial class RivalsHubViewModel : ObservableObject
 }
 #endregion
 
-#region Find rival
-/// <summary>Find Rival: debounced public account search (the allowlisted Find Player read); a result opens Rival Detail.</summary>
-public sealed partial class FindRivalViewModel : ObservableObject
-{
-    private readonly FestivalSession session;
-    private CancellationTokenSource? search;
-
-    /// <summary>Creates the search.</summary>
-    /// <param name="session">Shared session.</param>
-    public FindRivalViewModel(FestivalSession session) => this.session = session;
-
-    /// <summary>Search text.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Hint))]
-    private string query = "";
-
-    /// <summary>Results (the selected player is excluded).</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Hint))]
-    private List<PlayerSearchResult> results = [];
-
-    /// <summary>Whether a search is in flight.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Hint))]
-    private bool isSearching;
-
-    /// <summary>Failure text.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Hint))]
-    private string? error;
-
-    /// <summary>Centered hint under the box.</summary>
-    public string Hint =>
-        Error ?? (IsSearching ? "Searching…" :
-            Query.Trim().Length < 2 ? "Enter at least 2 characters to search." :
-            Results.Count == 0 ? "No players found." : "");
-
-    /// <summary>Route for a chosen result: no scope, so Rival Detail merges every visible chart.</summary>
-    /// <param name="result">Search result.</param>
-    /// <returns>Route.</returns>
-    public static AppRoute.RivalDetail RouteFor(PlayerSearchResult result) => new(result.AccountId, result.DisplayName);
-
-    /// <summary>Clears the search after a selection or dismissal.</summary>
-    public void Reset()
-    {
-        search?.Cancel();
-        Query = "";
-        Results = [];
-        IsSearching = false;
-        Error = null;
-    }
-
-    /// <summary>Debounces input.</summary>
-    /// <param name="value">Text.</param>
-    partial void OnQueryChanged(string value)
-    {
-        search?.Cancel();
-        search = new CancellationTokenSource();
-        Error = null;
-        _ = SearchAsync(value.Trim(), search.Token);
-    }
-
-    /// <summary>Runs one debounced search.</summary>
-    /// <param name="text">Trimmed text.</param>
-    /// <param name="token">Cancelled by newer input.</param>
-    /// <returns>Search task.</returns>
-    private async Task SearchAsync(string text, CancellationToken token)
-    {
-        if (text.Length < 2)
-        {
-            Results = [];
-            IsSearching = false;
-            return;
-        }
-        try
-        {
-            await Task.Delay(ShellViewModel.SearchDebounce, session.Time, token);
-            IsSearching = true;
-            var response = await session.Api.SearchPlayersAsync(text, 10, token);
-            token.ThrowIfCancellationRequested();
-            var self = session.SelectedPlayer?.AccountId;
-            Results = [.. response.Results.Where(r => !string.Equals(r.AccountId, self, StringComparison.OrdinalIgnoreCase))];
-            IsSearching = false;
-        }
-        catch (OperationCanceledException)
-        {
-            // Superseded by newer input.
-        }
-        catch (FestivalApiException failure)
-        {
-            if (token.IsCancellationRequested) return;
-            Results = [];
-            IsSearching = false;
-            Error = ServiceIssue.From(failure).Message;
-        }
-    }
-}
-#endregion

@@ -220,7 +220,9 @@ public abstract record AppRoute
     /// <param name="RivalId">Rival account.</param>
     /// <param name="Name">Rival display name from the originating row.</param>
     /// <param name="Scope">Scope that produced the row; <see langword="null"/> merges Settings-visible charts.</param>
-    public sealed record RivalDetail(string RivalId, string? Name = null, RivalScope? Scope = null) : AppRoute
+    /// <param name="AllowLiveFallback">Opened from Find Rival: chart reads may be computed live for an untracked account
+    /// (web navigation state, never part of the path, so a deep link never asks for it).</param>
+    public sealed record RivalDetail(string RivalId, string? Name = null, RivalScope? Scope = null, bool AllowLiveFallback = false) : AppRoute
     {
         /// <inheritdoc />
         public override AppSection Section => AppSection.Rivals;
@@ -233,7 +235,8 @@ public abstract record AppRoute
     /// <param name="Mode">Category key such as <c>closest_battles</c>.</param>
     /// <param name="Name">Rival display name.</param>
     /// <param name="Scope">Scope forwarded from Rival Detail.</param>
-    public sealed record Rivalry(string RivalId, string Mode, string? Name = null, RivalScope? Scope = null) : AppRoute
+    /// <param name="AllowLiveFallback">Forwarded from a Find Rival detail (navigation state, not in the path).</param>
+    public sealed record Rivalry(string RivalId, string Mode, string? Name = null, RivalScope? Scope = null, bool AllowLiveFallback = false) : AppRoute
     {
         /// <inheritdoc />
         public override AppSection Section => AppSection.Rivals;

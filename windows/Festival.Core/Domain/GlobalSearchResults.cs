@@ -132,6 +132,8 @@ public static class GlobalSearchResults
     public const string NoSongs = "No songs found.";
     /// <summary>Players empty text (an empty envelope may be a server timeout, so Retry is offered).</summary>
     public const string NoPlayers = "No players found.";
+    /// <summary>Players-only picker progress text.</summary>
+    public const string Searching = "Searching…";
     /// <summary>Catalogue failure text in the Songs section.</summary>
     public const string SongsFailed = "Search failed. Try again.";
 

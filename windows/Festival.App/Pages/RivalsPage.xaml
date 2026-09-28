@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Festival.App.Controls"
     xmlns:data="using:Festival.Core.Data"
+    xmlns:domain="using:Festival.Core.Domain"
     xmlns:vm="using:Festival.Core.ViewModels"
     NavigationCacheMode="Enabled"
     Background="Transparent">
@@ -49,14 +50,14 @@
                        AutomationProperties.HeadingLevel="Level1" AutomationProperties.AutomationId="fst.rivals.title" />
             <AutoSuggestBox x:Name="FindRivalBox" Grid.Column="1" Width="280" PlaceholderText="Find Rival" QueryIcon="Find"
                             VerticalAlignment="Center" UpdateTextOnSelect="False"
-                            ItemsSource="{x:Bind ViewModel.FindRival.Results, Mode=OneWay}"
+                            ItemsSource="{x:Bind ViewModel.FindRival.Players, Mode=OneWay}"
                             TextChanged="OnFindTextChanged" QuerySubmitted="OnFindSubmitted"
                             AutomationProperties.Name="Find Rival"
-                            AutomationProperties.HelpText="{x:Bind ViewModel.FindRival.Hint, Mode=OneWay}"
+                            AutomationProperties.HelpText="{x:Bind ViewModel.FindRival.PlayersHint, Mode=OneWay}"
                             AutomationProperties.AutomationId="fst.rivals.findRival">
                 <AutoSuggestBox.ItemTemplate>
-                    <DataTemplate x:DataType="data:PlayerSearchResult">
-                        <TextBlock Text="{x:Bind DisplayName}" />
+                    <DataTemplate x:DataType="domain:GlobalPlayerResult">
+                        <TextBlock Text="{x:Bind DisplayName}" AutomationProperties.Name="{x:Bind AccessibleName}" />
                     </DataTemplate>
                 </AutoSuggestBox.ItemTemplate>
             </AutoSuggestBox>

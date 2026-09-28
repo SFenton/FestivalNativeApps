@@ -8,7 +8,8 @@ namespace Festival.Core.ViewModels;
 /// The one global-search engine (global-search spec): trimmed query, 2-character minimum, 250 ms debounce, local
 /// song matches shown as soon as the debounce fires, players from the keyless account search with their own
 /// progress, per-scope empty/error states, cancellation of superseded queries and a polite count announcement.
-/// Bands are shown but never requested (the service's band search GET can write).
+/// Bands are shown but never requested (the service's band search GET can write). <see cref="ForPlayers"/> is the same
+/// engine limited to players for the compact pickers (the title-bar profile flyout and Find Rival).
 /// </summary>
 public sealed partial class GlobalSearchViewModel : ObservableObject
 {
@@ -16,6 +17,8 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
     public static readonly TimeSpan Debounce = TimeSpan.FromMilliseconds(250);
 
     private readonly FestivalSession session;
+    private readonly bool playersOnly;
+    private readonly bool excludeSelected;
     private CancellationTokenSource? search;
     private bool seeding;
 
@@ -55,6 +58,22 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
         seeding = false;
         if (GlobalSearchResults.IsSearchable(text)) Pending = Start(text, debounce: false);
     }
+
+    /// <summary>Creates a players-only search (no catalogue matching, no suggestions).</summary>
+    /// <param name="session">Shared session.</param>
+    /// <param name="excludeSelected">Drop the selected player from the rows (Find Rival).</param>
+    private GlobalSearchViewModel(FestivalSession session, bool excludeSelected) : this(session)
+    {
+        playersOnly = true;
+        this.excludeSelected = excludeSelected;
+        Scope = SearchScope.Players;
+    }
+
+    /// <summary>Players-only search for the profile flyout and Find Rival: same debounce, limits and failure states.</summary>
+    /// <param name="session">Shared session.</param>
+    /// <param name="excludeSelected">Drop the selected player from the rows (Find Rival: you are not your own rival).</param>
+    /// <returns>A search locked to <see cref="SearchScope.Players"/>.</returns>
+    public static GlobalSearchViewModel ForPlayers(FestivalSession session, bool excludeSelected = false) => new(session, excludeSelected);
 
     /// <summary>Raised once per settled query with the result-count announcement ("3 songs, 10 players").</summary>
     public event EventHandler<string>? ResultsAnnounced;
@@ -172,6 +191,19 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
     /// <summary>Whether Retry sits under the "No results found." hint.</summary>
     public bool CanRetryAll => Scope == SearchScope.All && ShowsResults && AllEmpty;
 
+    /// <summary>
+    /// One-line status for the players-only pickers: the short-query prompt, "Searching…" (debounce or read), the
+    /// failure message, "No players found." or nothing while rows are shown.
+    /// </summary>
+    public string PlayersHint =>
+        IsShortQuery ? GlobalSearchResults.EnterQueryHint :
+        IsDebouncing || SettledQuery.Length == 0 || PlayersLoading ? GlobalSearchResults.Searching :
+        PlayersFailed ? (PlayersStatus.Message is { Length: > 0 } message ? message : PlayersStatus.Title) :
+        PlayersEmpty ? GlobalSearchResults.NoPlayers : "";
+
+    /// <summary>Whether a picker offers Retry (after a failure or an empty envelope, which never proves there is no match).</summary>
+    public bool CanRetryPlayers => !IsShortQuery && !IsDebouncing && SettledQuery.Length > 0 && (PlayersFailed || PlayersEmpty);
+
     /// <summary>Whether the page shows anything busy (debounce or a pending read) before the first rows.</summary>
     public bool IsBusy => !IsShortQuery && !IsBandsScope && (IsDebouncing || SettledQuery.Length == 0 || SongsState == LoadState.Loading);
     #endregion
@@ -200,7 +232,7 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
     public void Reset()
     {
         Query = "";
-        Scope = SearchScope.All;
+        Scope = playersOnly ? SearchScope.Players : SearchScope.All;
     }
 
     /// <summary>Stops pending work when the surface goes away (no automatic retry keeps running behind it).</summary>
@@ -288,12 +320,19 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
             SettledQuery = text;
             Players = [];
             PlayersState = GlobalSearchResults.CanSearchPlayers(text) ? LoadState.Loading : LoadState.Empty;
-            await LoadSongsAsync(text, token);
-            token.ThrowIfCancellationRequested();
-            Suggestions = GlobalSearchResults.Suggestions(text, Songs, Players);
+            if (playersOnly)
+            {
+                SongsState = LoadState.Empty;
+            }
+            else
+            {
+                await LoadSongsAsync(text, token);
+                token.ThrowIfCancellationRequested();
+                Suggestions = GlobalSearchResults.Suggestions(text, Songs, Players);
+            }
             Refresh();
             if (PlayersState == LoadState.Loading) await LoadPlayersAsync(text, token);
-            Suggestions = GlobalSearchResults.Suggestions(text, Songs, Players);
+            if (!playersOnly) Suggestions = GlobalSearchResults.Suggestions(text, Songs, Players);
             Refresh();
             Announce();
         }
@@ -338,7 +377,11 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
         {
             var response = await session.Api.SearchPlayersAsync(text, GlobalSearchResults.PlayerLimit, token);
             token.ThrowIfCancellationRequested();
-            Players = GlobalSearchResults.Players(response.Results, session.SelectedPlayer?.AccountId);
+            var selected = session.SelectedPlayer?.AccountId;
+            var results = excludeSelected
+                ? response.Results.Where(r => !string.Equals(r.AccountId, selected, StringComparison.OrdinalIgnoreCase))
+                : response.Results;
+            Players = GlobalSearchResults.Players(results, selected);
             PlayersState = Players.Count > 0 ? LoadState.Loaded : LoadState.Empty;
             PlayersStatus.Clear();
         }
@@ -370,7 +413,7 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
     [
         nameof(IsShortQuery), nameof(IsBandsScope), nameof(ShowSongsSection), nameof(SongsFailed), nameof(ShowPlayersSection),
         nameof(PlayersLoading), nameof(PlayersFailed), nameof(PlayersEmpty), nameof(Hint), nameof(HasHint), nameof(CanRetryAll),
-        nameof(IsBusy), nameof(IsSettled), nameof(HasSongRows), nameof(HasPlayerRows),
+        nameof(IsBusy), nameof(IsSettled), nameof(HasSongRows), nameof(HasPlayerRows), nameof(PlayersHint), nameof(CanRetryPlayers),
     ];
     #endregion
 }

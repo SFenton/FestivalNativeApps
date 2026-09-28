@@ -520,6 +520,8 @@ public class ShellProfileFlyoutTests
         Assert.Empty(service.Handler.To("/api/account/search"));
         shell.IsBandScope = false;
         Assert.True(shell.IsPlayerScope);
+        // Back on Players, the kept text searches again at once.
+        await Async.Until(() => service.Handler.To("/api/account/search").Any());
     }
 
     [Fact]
@@ -533,7 +535,7 @@ public class ShellProfileFlyoutTests
         shell.ProfileQuery = "abc";
         await Async.Settle();
         time.Advance(ShellViewModel.SearchDebounce);
-        await Async.Until(() => !shell.IsSearching && service.Handler.To("/api/account/search").Any());
+        await Async.Until(() => !shell.ProfileSearch.PlayersLoading && service.Handler.To("/api/account/search").Any());
         await Async.Until(() => shell.CanRetrySearch);
         results = """[{"accountId":"acc1","displayName":"Found"}]""";
         shell.RetrySearchCommand.Execute(null);
@@ -552,7 +554,7 @@ public class ShellProfileFlyoutTests
         shell.RouteRequested += (_, route) => opened = route;
         shell.ViewSelectedProfileCommand.Execute(null);
         Assert.Null(opened);
-        shell.ViewProfileCommand.Execute(new PlayerSearchResult("bad id", "X"));
+        shell.ViewProfileCommand.Execute(new GlobalPlayerResult("bad id", "X", false));
         Assert.Null(opened);
         Assert.Equal("", shell.ProfileDisplayName);
         session.SelectPlayer(new PlayerSearchResult(PlayerWire.Id, "Fixture One"));

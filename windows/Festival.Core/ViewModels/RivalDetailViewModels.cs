@@ -446,7 +446,7 @@ public sealed partial class RivalDetailViewModel : RivalPageViewModel
     protected override async Task<RivalPageState> LoadContentAsync(CancellationToken cancellationToken)
     {
         OnPropertyChanged(nameof(ScopeLabel));
-        var detailRead = Session.GetRivalDetailAsync(Route.Scope, Route.RivalId, cancellationToken);
+        var detailRead = Session.GetRivalDetailAsync(Route.Scope, Route.RivalId, Route.AllowLiveFallback, cancellationToken);
         var lookup = await CatalogLookupAsync();
         var detail = await detailRead;
         RivalName = detail.Rival.DisplayName ?? Route.Name;
@@ -454,7 +454,7 @@ public sealed partial class RivalDetailViewModel : RivalPageViewModel
         Summary = RivalHeadToHead.Summary(detail.Songs);
         Categories = [.. RivalCategorization.Categorize(detail.Songs).Select(c => new RivalCategoryItem(c,
             [.. c.Songs.Take(PreviewCount).Select(s => new RivalSongItem(s, lookup.GetValueOrDefault(s.SongId), PlayerName, rival))],
-            new AppRoute.Rivalry(Route.RivalId, c.Key, RivalName, Route.Scope)))];
+            new AppRoute.Rivalry(Route.RivalId, c.Key, RivalName, Route.Scope, Route.AllowLiveFallback)))];
         return Categories.Count == 0 ? RivalPageState.Empty : RivalPageState.Loaded;
     }
 }
@@ -551,7 +551,7 @@ public sealed partial class RivalryViewModel : RivalPageViewModel
     /// <inheritdoc />
     protected override async Task<RivalPageState> LoadContentAsync(CancellationToken cancellationToken)
     {
-        var detailRead = Session.GetRivalDetailAsync(Route.Scope, Route.RivalId, cancellationToken);
+        var detailRead = Session.GetRivalDetailAsync(Route.Scope, Route.RivalId, Route.AllowLiveFallback, cancellationToken);
         var lookup = await CatalogLookupAsync();
         var detail = await detailRead;
         RivalName = detail.Rival.DisplayName ?? Route.Name;

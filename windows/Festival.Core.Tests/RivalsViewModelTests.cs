@@ -222,20 +222,25 @@ public class RivalsViewModelTests
         fake.Service.Override = request => request.RequestUri!.AbsolutePath == "/api/account/search"
             ? Wire.Ok($$"""{"results":[{"accountId":"{{Me}}","displayName":"Me Player"},{"accountId":"r2","displayName":"Other"}]}""")
             : null;
-        var find = new FindRivalViewModel(fake.Session());
-        Assert.StartsWith("Enter at least", find.Hint);
+        var find = new RivalsHubViewModel(fake.Session()).FindRival;
+        Assert.StartsWith("Enter at least", find.PlayersHint);
         find.Query = "Ot";
+        Assert.Equal("Searching…", find.PlayersHint);
         await Async.Advance(fake.Time, ShellViewModel.SearchDebounce);
-        await Async.Until(() => find.Results.Count == 1);
-        Assert.Equal("r2", find.Results[0].AccountId);
-        Assert.Equal("", find.Hint);
-        Assert.Equal(new AppRoute.RivalDetail("r2", "Other"), FindRivalViewModel.RouteFor(find.Results[0]));
+        await Async.Until(() => find.Players.Count == 1);
+        Assert.Equal("r2", find.Players[0].AccountId);
+        Assert.Equal("", find.PlayersHint);
+        Assert.Empty(find.Songs);
+        Assert.Empty(find.Suggestions);
+        Assert.Empty(fake.Service.Handler.To("/api/songs"));
+        Assert.Equal(new AppRoute.RivalDetail("r2", "Other", AllowLiveFallback: true), RivalsHubViewModel.FindRivalRoute(find.Players[0]));
 
         find.Query = "x";
         await Async.Settle();
-        Assert.Empty(find.Results);
+        Assert.Empty(find.Players);
         find.Reset();
         Assert.Equal("", find.Query);
+        Assert.Equal(SearchScope.Players, find.Scope);
     }
 
     [Fact]
@@ -243,11 +248,13 @@ public class RivalsViewModelTests
     {
         var fake = new RivalsFakeService();
         fake.Service.Override = _ => Wire.Response(HttpStatusCode.TooManyRequests);
-        var find = new FindRivalViewModel(fake.Session()) { Query = "Name" };
+        var find = new RivalsHubViewModel(fake.Session()).FindRival;
+        find.Query = "Name";
         await Async.Advance(fake.Time, ShellViewModel.SearchDebounce);
-        await Async.Until(() => find.Error is not null);
-        Assert.Equal(find.Error, find.Hint);
-        Assert.False(find.IsSearching);
+        await Async.Until(() => find.PlayersFailed);
+        Assert.Equal(find.PlayersStatus.Message, find.PlayersHint);
+        Assert.True(find.CanRetryPlayers);
+        Assert.False(find.PlayersLoading);
     }
 
     [Fact]
@@ -255,9 +262,11 @@ public class RivalsViewModelTests
     {
         var fake = new RivalsFakeService();
         fake.Service.Override = _ => Wire.Ok("""{"results":[]}""");
-        var find = new FindRivalViewModel(fake.Session()) { Query = "Nobody" };
+        var find = new RivalsHubViewModel(fake.Session()).FindRival;
+        find.Query = "Nobody";
         await Async.Advance(fake.Time, ShellViewModel.SearchDebounce);
-        await Async.Until(() => find.Hint == "No players found.");
+        await Async.Until(() => find.PlayersHint == "No players found.");
+        Assert.True(find.CanRetryPlayers);
     }
     #endregion
 
@@ -386,6 +395,32 @@ public class RivalsViewModelTests
         Assert.Equal(RivalCategorySentiment.Neutral, closest.Sentiment);
         Assert.NotEmpty(closest.Title + closest.Subtitle);
         Assert.Equal("Me Player", closest.Preview[0].PlayerName);
+    }
+
+    [Fact]
+    public async Task RivalDetail_LiveFallbackOnlyForFindRivalRoutes()
+    {
+        var fake = new RivalsFakeService();
+        var session = fake.Session(RivalsFakeService.Settings(Instrument.Lead, Instrument.Bass));
+        bool Live(SentRequest r) => r.Uri.Query.Contains("allowLiveFallback=true", StringComparison.Ordinal);
+
+        await Loaded(new RivalDetailViewModel(session, new AppRoute.RivalDetail(Rival, "Hint")));
+        Assert.DoesNotContain(fake.Service.Handler.Requests, Live);
+
+        var found = await Loaded(new RivalDetailViewModel(session, new AppRoute.RivalDetail(Rival, "Hint", AllowLiveFallback: true)));
+        Assert.Equal(2, fake.Service.Handler.Requests.Count(Live));
+        Assert.NotEmpty(found.Categories);
+        Assert.All(found.Categories, c => Assert.True(c.SeeAllRoute.AllowLiveFallback));
+        // A deep link can never ask for it: the flag is navigation state, not part of the path.
+        Assert.Equal($"/rivals/{Rival}?name=Hint", new AppRoute.RivalDetail(Rival, "Hint", AllowLiveFallback: true).ToPath());
+
+        var before = fake.Service.Handler.Requests.Count(Live);
+        await Loaded(new RivalryViewModel(session, new AppRoute.Rivalry(Rival, "closest_battles", "Hint", null, AllowLiveFallback: true)));
+        Assert.Equal(before, fake.Service.Handler.Requests.Count(Live)); // served from the live-keyed cache
+
+        await Loaded(new RivalDetailViewModel(session,
+            new AppRoute.RivalDetail(Rival, null, new RivalScope.Leaderboard(Instrument.Lead, RankingMetric.TotalScore), AllowLiveFallback: true)));
+        Assert.DoesNotContain(fake.Service.Handler.To($"/api/player/{Me}/leaderboard-rivals/Solo_Guitar/{Rival}"), Live);
     }
 
     [Fact]

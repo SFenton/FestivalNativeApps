@@ -32,6 +32,8 @@ public class RivalsCoreTests
         Assert.Equal("/api/player/abc/rivals/03", RivalsEndpoints.List(Base, "abc", "03").AbsolutePath);
         Assert.Equal("/api/player/abc/rivals/pro_drums/r1?sort=you_lead&limit=0&offset=0",
             RivalsEndpoints.Detail(Base, "abc", "pro_drums", "r1", "you_lead").PathAndQuery);
+        Assert.Equal("/api/player/abc/rivals/Solo_Bass/r1?sort=closest&limit=0&offset=0&allowLiveFallback=true",
+            RivalsEndpoints.Detail(Base, "abc", "Solo_Bass", "r1", allowLiveFallback: true).PathAndQuery);
         Assert.Equal("/api/player/abc/leaderboard-rivals/Solo_Guitar?rankBy=fcrate",
             RivalsEndpoints.LeaderboardList(Base, "abc", Instrument.Lead, RankingMetric.FcRate).PathAndQuery);
         Assert.Equal("/api/player/abc/leaderboard-rivals/Solo_Drums/r1?rankBy=totalscore&sort=closest",

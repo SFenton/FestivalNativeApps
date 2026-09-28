@@ -315,10 +315,19 @@ public sealed partial class MainWindow : Window
     #endregion
 
     #region Profile
-    /// <summary>Focuses the search box when the profile flyout opens.</summary>
+    /// <summary>Focuses the search box when the profile flyout opens and resumes a search stopped when it closed.</summary>
     /// <param name="sender">Flyout.</param>
     /// <param name="e">Unused.</param>
-    private void OnProfileFlyoutOpened(object sender, object e) => ProfileSearchBox.Focus(FocusState.Programmatic);
+    private void OnProfileFlyoutOpened(object sender, object e)
+    {
+        ProfileSearchBox.Focus(FocusState.Programmatic);
+        if (Shell.IsPlayerScope && !Shell.ProfileSearch.IsSettled) _ = Shell.ProfileSearch.RetryCommand.ExecuteAsync(null);
+    }
+
+    /// <summary>Stops the flyout's pending search (no automatic retry keeps running behind a closed flyout).</summary>
+    /// <param name="sender">Flyout.</param>
+    /// <param name="e">Unused.</param>
+    private void OnProfileFlyoutClosed(object sender, object e) => Shell.ProfileSearch.Deactivate();
 
     /// <summary>Opens a search result's player page (viewing, not selecting) and closes the flyout.</summary>
     /// <param name="sender">List.</param>
@@ -326,7 +335,7 @@ public sealed partial class MainWindow : Window
     private void OnProfileResultClick(object sender, ItemClickEventArgs e)
     {
         ProfileFlyout.Hide();
-        Shell.ViewProfileCommand.Execute(e.ClickedItem as PlayerSearchResult);
+        Shell.ViewProfileCommand.Execute(e.ClickedItem as GlobalPlayerResult);
     }
 
     /// <summary>Enter opens the only/first result.</summary>

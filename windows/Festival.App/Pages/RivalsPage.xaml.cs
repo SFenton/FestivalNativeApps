@@ -41,12 +41,14 @@ public sealed partial class RivalsPage : Page
     {
         base.OnNavigatedTo(e);
         ViewModel.Activate();
+        if (!ViewModel.FindRival.IsSettled) _ = ViewModel.FindRival.RetryCommand.ExecuteAsync(null);
     }
 
     /// <inheritdoc />
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
         ViewModel.Deactivate();
+        ViewModel.FindRival.Deactivate();
         base.OnNavigatedFrom(e);
     }
 
@@ -94,11 +96,11 @@ public sealed partial class RivalsPage : Page
     /// <param name="args">Chosen suggestion.</param>
     private void OnFindSubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
     {
-        var chosen = args.ChosenSuggestion as PlayerSearchResult ?? ViewModel.FindRival.Results.FirstOrDefault();
+        var chosen = args.ChosenSuggestion as GlobalPlayerResult ?? ViewModel.FindRival.Players.FirstOrDefault();
         if (chosen is null) return;
         sender.Text = "";
         ViewModel.FindRival.Reset();
-        MainWindow.Instance?.Navigate(FindRivalViewModel.RouteFor(chosen));
+        MainWindow.Instance?.Navigate(RivalsHubViewModel.FindRivalRoute(chosen));
     }
 
     /// <summary>Lists visible sections in the Jump To menu.</summary>

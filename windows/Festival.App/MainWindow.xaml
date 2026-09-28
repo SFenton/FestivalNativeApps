@@ -64,7 +64,8 @@
                     <PersonPicture Width="28" Height="28" DisplayName="{x:Bind Shell.ProfileDisplayName, Mode=OneWay}"
                                    AutomationProperties.AccessibilityView="Raw" />
                     <Button.Flyout>
-                        <Flyout x:Name="ProfileFlyout" Placement="BottomEdgeAlignedRight" Opened="OnProfileFlyoutOpened">
+                        <Flyout x:Name="ProfileFlyout" Placement="BottomEdgeAlignedRight" Opened="OnProfileFlyoutOpened"
+                                Closed="OnProfileFlyoutClosed">
                             <!-- Profile selection (fst.profile.*): selected summary, Players/Bands target, search, results. -->
                             <StackPanel Width="340" Spacing="12" AutomationProperties.AutomationId="fst.profile.sheet">
                                 <StackPanel Spacing="8" Visibility="{x:Bind Shell.HasPlayer, Mode=OneWay}"
@@ -106,8 +107,8 @@
                                           AutomationProperties.Name="Players"
                                           AutomationProperties.AutomationId="fst.profile.results">
                                     <ListView.ItemTemplate>
-                                        <DataTemplate x:DataType="data:PlayerSearchResult">
-                                            <Grid ColumnSpacing="12" Padding="0,6" AutomationProperties.Name="{x:Bind DisplayName}">
+                                        <DataTemplate x:DataType="domain:GlobalPlayerResult">
+                                            <Grid ColumnSpacing="12" Padding="0,6" AutomationProperties.Name="{x:Bind AccessibleName}">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto" />
                                                     <ColumnDefinition Width="*" />

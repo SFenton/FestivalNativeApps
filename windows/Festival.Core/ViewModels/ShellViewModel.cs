@@ -9,8 +9,8 @@ namespace Festival.Core.ViewModels;
 /// <summary>Navigation sections, the title-bar profile avatar and the profile selection flyout.</summary>
 public sealed partial class ShellViewModel : ObservableObject
 {
-    /// <summary>Profile search debounce (web <c>useUnifiedSearch</c>: 250 ms).</summary>
-    public static readonly TimeSpan SearchDebounce = TimeSpan.FromMilliseconds(250);
+    /// <summary>Profile search debounce (web <c>useUnifiedSearch</c>: 250 ms; the global-search engine's).</summary>
+    public static readonly TimeSpan SearchDebounce = GlobalSearchViewModel.Debounce;
 
     /// <summary>Band-search explanation.</summary>
     public const string BandSearchExplanation =
@@ -18,7 +18,6 @@ public sealed partial class ShellViewModel : ObservableObject
         "Open a band from a player's Bands list or from Band Rankings.";
 
     private readonly FestivalSession session;
-    private CancellationTokenSource? search;
     private string? selectedAccount;
 
     /// <summary>Creates the shell model and starts loading a restored player's scores.</summary>
@@ -26,6 +25,8 @@ public sealed partial class ShellViewModel : ObservableObject
     public ShellViewModel(FestivalSession session)
     {
         this.session = session;
+        ProfileSearch = GlobalSearchViewModel.ForPlayers(session);
+        ProfileSearch.PropertyChanged += OnProfileSearchChanged;
         foreach (var section in AppSections.Visible(session.HasPlayer, session.Settings.HideShop)) Sections.Add(section);
         selectedAccount = session.SelectedPlayer?.AccountId;
         session.PropertyChanged += OnSessionChanged;
@@ -53,29 +54,23 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Accessible name of the avatar button.</summary>
     public string ProfileButtonName => session.SelectedPlayer is { } p ? $"Profile: {p.DisplayName}" : "Select a player profile";
 
-    /// <summary>Profile search text.</summary>
-    [ObservableProperty]
-    private string profileQuery = "";
+    /// <summary>The flyout's player search: the global-search engine limited to players.</summary>
+    public GlobalSearchViewModel ProfileSearch { get; }
+
+    /// <summary>Profile search text (forwards to <see cref="ProfileSearch"/>).</summary>
+    public string ProfileQuery
+    {
+        get => ProfileSearch.Query;
+        set => ProfileSearch.Query = value;
+    }
 
     /// <summary>Whether the Bands target is chosen (band search is blocked: its GET can write).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ProfileHint), nameof(SearchPlaceholder), nameof(IsPlayerScope), nameof(CanRetrySearch))]
+    [NotifyPropertyChangedFor(nameof(ProfileHint), nameof(SearchPlaceholder), nameof(IsPlayerScope), nameof(CanRetrySearch), nameof(ProfileResults))]
     private bool isBandScope;
 
-    /// <summary>Search results.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ProfileHint), nameof(CanRetrySearch))]
-    private List<PlayerSearchResult> profileResults = [];
-
-    /// <summary>Whether a search is in flight.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ProfileHint), nameof(CanRetrySearch))]
-    private bool isSearching;
-
-    /// <summary>Search failure text.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ProfileHint), nameof(CanRetrySearch))]
-    private string? profileError;
+    /// <summary>Player rows (none on the Bands target).</summary>
+    public List<GlobalPlayerResult> ProfileResults => IsBandScope ? [] : ProfileSearch.Players;
 
     /// <summary>Whether the Players target is chosen.</summary>
     public bool IsPlayerScope => !IsBandScope;
@@ -84,24 +79,21 @@ public sealed partial class ShellViewModel : ObservableObject
     public string SearchPlaceholder => IsBandScope ? "Find Band" : "Find Player";
 
     /// <summary>Centered hint under the search box.</summary>
-    public string ProfileHint =>
-        IsBandScope ? BandSearchExplanation :
-        ProfileError ?? (IsSearching ? "Searching…" :
-            ProfileQuery.Trim().Length < 2 ? "Enter at least 2 characters to search." :
-            ProfileResults.Count == 0 ? "No players found." : "");
+    public string ProfileHint => IsBandScope ? BandSearchExplanation : ProfileSearch.PlayersHint;
 
     /// <summary>Whether Retry is offered (after an error or an empty envelope, which is never proof of no match).</summary>
-    public bool CanRetrySearch => IsPlayerScope && !IsSearching && ProfileQuery.Trim().Length >= 2 &&
-                                  (ProfileError is not null || ProfileResults.Count == 0);
+    public bool CanRetrySearch => IsPlayerScope && ProfileSearch.CanRetryPlayers;
+
+    /// <summary>Runs the current query again immediately.</summary>
+    public IAsyncRelayCommand RetrySearchCommand => ProfileSearch.RetryCommand;
 
     /// <summary>Opens a search result's player page (viewing; selecting is a separate action there).</summary>
     /// <param name="result">Chosen account.</param>
     [RelayCommand]
-    private void ViewProfile(PlayerSearchResult? result)
+    private void ViewProfile(GlobalPlayerResult? result)
     {
         if (result is null || !ProfileText.IsValidAccountId(result.AccountId)) return;
-        ProfileQuery = "";
-        ProfileResults = [];
+        ProfileSearch.Reset();
         RouteRequested?.Invoke(this, new AppRoute.Player(result.AccountId, result.DisplayName));
     }
 
@@ -116,71 +108,33 @@ public sealed partial class ShellViewModel : ObservableObject
     [RelayCommand]
     private void DeselectProfile() => session.DeselectPlayer();
 
-    /// <summary>Runs the current query again immediately.</summary>
-    [RelayCommand]
-    private void RetrySearch()
-    {
-        search?.Cancel();
-        search = new CancellationTokenSource();
-        ProfileError = null;
-        _ = SearchAsync(ProfileQuery.Trim(), search.Token, debounce: false);
-    }
-
-    /// <summary>Debounces profile search.</summary>
-    /// <param name="value">Query.</param>
-    partial void OnProfileQueryChanged(string value)
-    {
-        search?.Cancel();
-        search = new CancellationTokenSource();
-        ProfileError = null;
-        OnPropertyChanged(nameof(ProfileHint));
-        OnPropertyChanged(nameof(CanRetrySearch));
-        _ = SearchAsync(value.Trim(), search.Token, debounce: true);
-    }
-
-    /// <summary>Stops player search when switching to the (disabled) Bands target.</summary>
+    /// <summary>Stops player search on the (disabled) Bands target; returning to Players searches the text again.</summary>
     /// <param name="value">Band scope.</param>
     partial void OnIsBandScopeChanged(bool value)
     {
-        if (!value) return;
-        search?.Cancel();
-        IsSearching = false;
-        ProfileError = null;
-        ProfileResults = [];
+        if (value) ProfileSearch.Deactivate();
+        else if (ProfileSearch.RetryCommand.CanExecute(null)) ProfileSearch.RetryCommand.Execute(null);
     }
 
-    /// <summary>Runs one account search.</summary>
-    /// <param name="query">Trimmed query.</param>
-    /// <param name="token">Cancelled by newer input.</param>
-    /// <param name="debounce">Whether to wait for the debounce first.</param>
-    /// <returns>Search task.</returns>
-    private async Task SearchAsync(string query, CancellationToken token, bool debounce)
+    /// <summary>Forwards search changes to the flyout bindings.</summary>
+    /// <param name="sender">Search model.</param>
+    /// <param name="e">Changed property.</param>
+    private void OnProfileSearchChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (query.Length < 2 || IsBandScope)
+        switch (e.PropertyName)
         {
-            ProfileResults = [];
-            IsSearching = false;
-            return;
-        }
-        try
-        {
-            if (debounce) await Task.Delay(SearchDebounce, session.Time, token);
-            IsSearching = true;
-            var response = await session.Api.SearchPlayersAsync(query, 10, token);
-            token.ThrowIfCancellationRequested();
-            ProfileResults = [.. response.Results];
-            IsSearching = false;
-        }
-        catch (OperationCanceledException)
-        {
-            // Superseded by newer input.
-        }
-        catch (FestivalApiException error)
-        {
-            if (token.IsCancellationRequested) return;
-            ProfileResults = [];
-            IsSearching = false;
-            ProfileError = ServiceIssue.From(error).Message;
+            case nameof(GlobalSearchViewModel.Query):
+                OnPropertyChanged(nameof(ProfileQuery));
+                break;
+            case nameof(GlobalSearchViewModel.Players):
+                OnPropertyChanged(nameof(ProfileResults));
+                break;
+            case nameof(GlobalSearchViewModel.PlayersHint):
+                OnPropertyChanged(nameof(ProfileHint));
+                break;
+            case nameof(GlobalSearchViewModel.CanRetryPlayers):
+                OnPropertyChanged(nameof(CanRetrySearch));
+                break;
         }
     }
 

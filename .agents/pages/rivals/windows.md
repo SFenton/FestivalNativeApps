@@ -8,9 +8,9 @@
 |---|---|---|
 | Song rivals | `GET /api/player/{id}/rivals/{Solo_*\|hexCombo\|pro_drums}` | 404 "no rivals" → empty. Combo token from `RivalCombo.DeriveToken` (web `deriveRivalScopeFromSettings`) |
 | Leaderboard rivals | `GET /api/player/{id}/leaderboard-rivals/{instrument}?rankBy=` | `rankBy` is `RankingMetric` (Leaderboards lane); Total Score unless experimental ranks (sanitized off, as in production web) |
-| Rival detail | `GET …/rivals/{scope}/{rivalId}?sort=closest&limit=0&offset=0`, `…/leaderboard-rivals/{instrument}/{rivalId}?rankBy=&sort=` | 404 "not precomputed" → empty. Never `allowLiveFallback`/`includeGaps` (live computation, not allowlisted) |
+| Rival detail | `GET …/rivals/{scope}/{rivalId}?sort=closest&limit=0&offset=0`, `…/leaderboard-rivals/{instrument}/{rivalId}?rankBy=&sort=` | 404 "not precomputed" → empty. `allowLiveFallback=true` only on routes opened from Find Rival (`AppRoute.RivalDetail/Rivalry.AllowLiveFallback`, navigation state never in the path, forwarded Detail → Rivalry, cached under its own key; web `RivalsPage.tsx:261-265`, allowlisted in service-safety). Never on leaderboard-rival detail; never `includeGaps` |
 | All combos | `GET /api/player/{id}/rivals/all` | `GetRivalsAllAsync`, used by Suggestions |
-| Find Rival | `GET /api/account/search` | Same read as Find Player; the selected player is excluded |
+| Find Rival | `GET /api/account/search` | `GlobalSearchViewModel.ForPlayers(excludeSelected: true)`, the same engine as global search and the profile flyout |
 
 Rivals reads are unpinned operational GETs through `RequestGate` (see [service-safety](../../platforms/service-safety.md)); `POST …/rivals/recompute` has no builder. `FestivalSession.Rivals` reads through `RivalsReadCache` (in-process, 120 s = the service's `max-age`, 64 entries, failures never cached, cleared by F5 Refresh); concurrent callers share one request, so Common Rivals reuses the per-instrument lists. A 503 with `X-FST-Public-Read-Freeze-Reason: scrape` shows the shared `ServiceStatusView` countdown (page) or the inline status (hub card); observed live on detail reads during scrapes while list reads kept answering.
 
@@ -46,5 +46,4 @@ Rivals reads are unpinned operational GETs through `RequestGate` (see [service-s
 ## Open
 
 - Compact (500 epx) window: the shell keeps the pane expanded (`PaneDisplayMode="Left"`), leaving ~240 epx of content. Rivals stays usable (wrapping pills, compact rows), but the shell should collapse the pane (TODO(orchestrator): shell lane).
-- Find Rival for untracked accounts usually has no precomputed detail (the web passes `allowLiveFallback=true`, not allowlisted) → "No song data for this rival."
 - Rivals first-run slides, Narrator pass and Axe scan pending (accessibility phase).

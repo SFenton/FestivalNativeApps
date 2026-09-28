@@ -364,7 +364,7 @@ public class ShellViewModelTests
             ? Wire.Ok("""{"results":[{"accountId":"acc1","displayName":"Found"}]}""") : null;
         var time = new FakeTimeProvider();
         var shell = new ShellViewModel(service.Session(time));
-        Assert.Equal("Enter at least 2 characters to search.", shell.ProfileHint);
+        Assert.Equal("Enter at least two characters to search.", shell.ProfileHint);
         shell.ProfileQuery = "f";
         await Async.Settle();
         Assert.Empty(service.Handler.To("/api/account/search"));
@@ -397,14 +397,15 @@ public class ShellViewModelTests
         shell.ProfileQuery = "abc";
         await Async.Settle();
         time.Advance(ShellViewModel.SearchDebounce);
-        await Async.Until(() => shell.ProfileError is not null);
+        await Async.Until(() => shell.ProfileSearch.PlayersFailed);
         Assert.Equal("The service is temporarily unavailable. Try again.", shell.ProfileHint);
+        Assert.True(shell.CanRetrySearch);
         fail = false;
         shell.ProfileQuery = "abcd";
         await Async.Settle();
-        Assert.Equal("Searching…", shell.IsSearching ? shell.ProfileHint : "Searching…");
+        Assert.Equal("Searching…", shell.ProfileHint);
         time.Advance(ShellViewModel.SearchDebounce);
-        await Async.Until(() => !shell.IsSearching && shell.ProfileError is null);
+        await Async.Until(() => shell.ProfileSearch.PlayersEmpty);
         Assert.Equal("No players found.", shell.ProfileHint);
     }
 
@@ -423,12 +424,13 @@ public class ShellViewModelTests
         shell.ProfileQuery = "abc";
         await Async.Settle();
         time.Advance(ShellViewModel.SearchDebounce);
-        await Async.Until(() => shell.IsSearching);
+        await Async.Until(() => shell.ProfileSearch.PlayersLoading);
         Assert.Equal("Searching…", shell.ProfileHint);
         shell.ProfileQuery = "";
         release.SetResult();
         await Async.Settle();
-        Assert.Null(shell.ProfileError);
+        Assert.False(shell.ProfileSearch.PlayersFailed);
+        Assert.Equal("Enter at least two characters to search.", shell.ProfileHint);
     }
 }
 
