@@ -255,6 +255,10 @@ Not yet assigned:
 | **L2 — Leaderboards spotlight** (Sonnet) | Selected player highlighted in top 10 / spotlight row below (per-account rank read), jump-to-page on Full Rankings, pinned "You" footer on song leaderboards | ✅ `23dbd60` (band spotlight deferred: no native band identity) |
 | **H — Hosted snapshot fidelity** (Opus) | Hosted harness renders full pages nearly blank → fix harness, add content assertions, re-measure coverage | ✅ root cause: tinted Liquid Glass blanks `cacheDisplay`; see [hosted-snapshots](.agents/testing/apple/hosted-snapshots.md) |
 
+**Lane H — Hosted snapshot fidelity** (Opus) — ✅ landed `1d5aa82`, `51a03ce`: tinted Liquid Glass made captures transparent → tests force Reduce-Transparency fallback, `nativeHostedSettle`, `assertRendersContent`; blank/spinner captures 33 → 3; UX 66.8% → 70.4%; 597 tests.
+
+**Lane C — Apple cleanup + gates** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/cleanup`: coverage gate glob bug · logic ≥95% (at 93.9%) · Rivals Common 503 · Compete empty state · scrubber card inset · MarqueeText in Song Detail/Suggestions · Suggestions/History sheets to semantic placements · shared UITest launch helper (still background)
+
 ### Wave 4+ — other form factors
 
 **Lane W — iPhone Duo research + adaptive layout architecture** (Opus) — ✅ landed
@@ -388,3 +392,5 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Lane S2 | Songs polish: removed instrument-chip star/check/minus/exclamation marks (color-only status, new `statusAmber` token keeps Inconsistent FC distinct from No score), enlarged chip icons to web's ~71% proportion; Duration/Item Shop section headers are now real `List` `Section`s instead of a card-styled row (fixed the opaque-bar-behind-header look); fixed the Duo A–Z scrubber sizing itself to its own letters instead of the full List height (B4: no more creep past `#`/`Z` or row overlap when the large title collapses); ported web's `MarqueeText` (`Design/MarqueeText.swift`, unit-tested `MarqueeTiming`) so long title/artist/year/duration rows scroll instead of wrapping; gated Songs' first reveal on the first ~12 rows' artwork decoding (bounded 900ms, native-only — web has no equivalent). `fst.songs.navigation-notice`'s "Selected profile changed" text needed no Songs-side change (root-only, Lane W1) |
 | 2026-09-28 | Lane Z2 | Wrong-account profile fixed at root (one Form row fired every result Button); per-entity `.id` hardening across Profile/Rivals/Compete; select/deselect stays in place (journey); profile Rank History + Percentiles graphs (Swift Charts, pure-read history endpoint) |
 | 2026-09-28 | Lanes S2, Z2 | Songs polish landed; wrong-account bug root-caused (single Form row) + profile graphs |
+| 2026-09-28 | Lane H | Hosted harness renders real content; content assertions on 65 full-page tests |
+| 2026-09-28 | Orchestrator | `win_relay launch/wait`: Windows lanes as monitorable Remote Control sessions (probe verified); launched Lane C (cleanup + gates) |
