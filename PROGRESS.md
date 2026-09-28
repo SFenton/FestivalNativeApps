@@ -151,6 +151,10 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 - ⬜ Native glass carousel + per-page slides/demos (songs, suggestions, player, song info, compete, rivals, shop, leaderboards)
 - ⬜ Settings: view again per page (all slides), reset, enable toggle · ⬜ Applied app-wide via one route/tab seam
 
+**Lane Q — Quick Links** (Opus) — 🟨 running in `~/repos/FestivalNativeApps-lanes/quicklinks`
+- ⬜ Feasibility + native design decision (HIG + Fluent) → `.agents/controls/quick-links/` · ⬜ Reusable `Common/QuickLinks` API (toolbar jump menu, active section, VoiceOver rotor) · ⬜ Adopt on Leaderboards
+- ⬜ Adoption on Songs, Song Detail, Player/Statistics, Band, Compete, Rivals, Rivalry, Rival Detail, Settings — handed to owning lanes as they finish
+
 Not yet assigned:
 - ⬜ Statistics = selected player's profile page (assigned to Lane P)
 - (none — Wave 2 fully assigned)
@@ -199,3 +203,4 @@ Not yet assigned:
 | 2026-09-27 | Orchestrator | Launched Lane X (history, first-run, notifications) |
 | 2026-09-27 | Orchestrator | Dropped deprecated Manual (route, drawer item, contracts, docs) per operator |
 | 2026-09-27 | Orchestrator | Split FREs into dedicated Lane F per operator (versioned/hashed seen state, replay settings) |
+| 2026-09-27 | Orchestrator | Launched Lane Q (Quick Links) per operator |
