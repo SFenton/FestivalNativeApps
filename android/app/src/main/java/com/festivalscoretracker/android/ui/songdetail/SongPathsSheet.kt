@@ -263,7 +263,13 @@ private fun PathTable(payload: SongPathDataPayload, columns: List<PathColumnKey>
     }
 }
 
-private fun weight(column: PathColumnKey): Float = if (column == PathColumnKey.Note) 1.3f else 1f
+private fun weight(column: PathColumnKey): Float = when (column) {
+    PathColumnKey.Note -> 1.2f
+    PathColumnKey.Beat -> 0.9f
+    PathColumnKey.Time -> 1.5f
+    PathColumnKey.Od -> 0.8f
+    PathColumnKey.Score -> 1.1f
+}
 
 @Composable
 private fun PathRow(row: PathActivationRow, columns: List<PathColumnKey>) {
