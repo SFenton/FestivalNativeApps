@@ -110,6 +110,9 @@ public sealed partial class ArtworkBackground : Grid
         if (root is not null) return;
         compositor = ElementCompositionPreview.GetElementVisual(this).Compositor;
         root = compositor.CreateContainerVisual();
+        // Clip to the host: the bleed and drift scale overflow it, and without NavigationView's rounded content
+        // border (LeftMinimal) the art would paint over the title bar.
+        root.Clip = compositor.CreateInsetClip();
         for (var i = 0; i < slots.Length; i++)
         {
             slots[i] = compositor.CreateSpriteVisual();

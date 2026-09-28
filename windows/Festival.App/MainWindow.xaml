@@ -135,7 +135,7 @@
             </TitleBar.RightHeader>
         </TitleBar>
 
-        <NavigationView x:Name="Nav" Grid.Row="1" PaneDisplayMode="Auto" CompactModeThresholdWidth="0" IsBackButtonVisible="Collapsed"
+        <NavigationView x:Name="Nav" Grid.Row="1" PaneDisplayMode="Auto" IsBackButtonVisible="Collapsed"
                         IsPaneToggleButtonVisible="False" IsSettingsVisible="True" OpenPaneLength="240"
                         ItemInvoked="OnNavItemInvoked"
                         AutomationProperties.AutomationId="fst.shell.navigation">
