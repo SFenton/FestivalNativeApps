@@ -98,6 +98,7 @@ struct AllRivalsScreen: View {
                             ) {
                                 row.content
                             }
+                            .accessibilityIdentifier("fst.all-rivals.row.\(row.accountId)")
                         }
                     }
                     .padding(.horizontal, 16)

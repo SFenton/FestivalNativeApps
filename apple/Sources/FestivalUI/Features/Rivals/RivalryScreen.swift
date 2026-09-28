@@ -61,6 +61,7 @@ struct RivalryScreen: View {
                 NavigationLink(value: AppRoute.player(accountId: rivalId, displayName: rivalName)) {
                     Label("View Profile", systemImage: "person.crop.circle")
                 }
+                .accessibilityIdentifier("fst.rivalry.view-profile")
             }
             QuickLinksToolbarItem(quickLinks)
         }

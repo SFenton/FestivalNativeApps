@@ -162,6 +162,7 @@ struct RivalCommonSection: View {
                     )) {
                         RivalRowContent(rival: row.rival, direction: row.direction)
                     }
+                    .accessibilityIdentifier("fst.rivals.row.\(row.rival.accountId)")
                 }
                 NavigationLink(
                     value: AppRoute.allRivals(scope: .song(instruments: instruments.map(\.rawValue)))
@@ -237,6 +238,7 @@ struct RivalComboSection: View {
                     )) {
                         RivalRowContent(rival: row.rival, direction: row.direction)
                     }
+                    .accessibilityIdentifier("fst.rivals.row.\(row.rival.accountId)")
                 }
                 NavigationLink(value: AppRoute.allRivals(
                     scope: .combo(token: scope.token, instruments: scope.instruments.map(\.rawValue))
@@ -315,6 +317,7 @@ struct RivalInstrumentSongSection: View {
                     ) {
                         RivalRowContent(rival: row.rival, direction: row.direction)
                     }
+                    .accessibilityIdentifier("fst.rivals.row.\(row.rival.accountId)")
                 }
                 NavigationLink(
                     value: AppRoute.allRivals(scope: .song(instruments: [instrument.rawValue]))
@@ -399,6 +402,7 @@ struct RivalInstrumentLeaderboardSection: View {
                     ) {
                         RivalRowContent(rival: row.rival, direction: row.direction)
                     }
+                    .accessibilityIdentifier("fst.rivals.row.\(row.rival.accountId)")
                 }
                 NavigationLink(
                     value: AppRoute.allRivals(
