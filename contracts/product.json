@@ -177,6 +177,7 @@
     "fst.service-status.*": "service-status",
     "fst.songs.section-index.*": "songs-section-index",
     "fst.placeholder.*": "app-navigation",
+    "fst.coming-soon": "app-navigation",
     "fst.settings.*": "settings",
     "fst.leaderboards.*": "leaderboards",
     "fst.rankings.*": "full-rankings",
