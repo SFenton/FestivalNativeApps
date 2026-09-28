@@ -136,9 +136,6 @@ public abstract partial class PlayerLineChart : Grid
     {
         /// <inheritdoc />
         protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.Image;
-
-        /// <inheritdoc />
-        protected override IList<AutomationPeer> GetChildrenCore() => [];
     }
 }
 #endregion

@@ -160,10 +160,22 @@ def _free_port() -> int:
         return probe.getsockname()[1]
 
 
+def _app_args(extra: list[str]) -> list[str]:
+    """Turn ``--route``/``--tab`` into app arguments (Release/AOT builds ignore the FST_DEBUG_* environment)."""
+    result: list[str] = []
+    items = iter(extra)
+    for item in items:
+        if item in ("--route", "--tab"):
+            result += [f"--arg={item}", f"--arg={next(items)}"]
+        else:
+            result.append(item)
+    return result
+
+
 def _launch(exe: Path, base: str, settings: Path, extra: list[str]) -> int:
     """Launch the app and return its pid."""
-    out = _uiwin("launch", str(exe), f"--arg=--base-url", f"--arg={base}", "--arg=--settings-path",
-                 f"--arg={settings}", "--preset", "medium", *extra).stdout
+    out = _uiwin("launch", str(exe), "--arg=--base-url", f"--arg={base}", "--arg=--settings-path",
+                 f"--arg={settings}", "--preset", "medium", *_app_args(extra)).stdout
     for line in out.splitlines():
         if '"pid"' in line:
             return int(line.split(":")[1].strip().rstrip(","))
