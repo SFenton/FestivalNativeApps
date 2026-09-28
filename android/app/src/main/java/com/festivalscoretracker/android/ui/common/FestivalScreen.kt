@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
@@ -135,6 +136,7 @@ fun FestivalScreen(
         contentWindowInsets = WindowInsets(0),
         topBar = {
             TopAppBar(
+                modifier = Modifier.testTag("fst.nav.top-bar"),
                 title = { Text(title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     when {
@@ -165,14 +167,26 @@ fun FestivalScreen(
     ) { inner ->
         val direction = LocalLayoutDirection.current
         val bottom = shell.bottomPadding
-        content(
-            PaddingValues(
-                start = inner.calculateStartPadding(direction) + bottom.calculateStartPadding(direction),
-                top = inner.calculateTopPadding(),
-                end = inner.calculateEndPadding(direction) + bottom.calculateEndPadding(direction),
-                bottom = inner.calculateBottomPadding() + bottom.calculateBottomPadding(),
-            ),
-        )
+        // Content starts (and is clipped) below the top app bar, whose own window insets
+        // already cover the status bar / cutout, so scrolled rows never draw under the
+        // transparent bar or the status bar on any width class, including after a
+        // programmatic scroll that no nested-scroll event reports.
+        Box(
+            Modifier
+                .fillMaxSize()
+                .padding(top = inner.calculateTopPadding())
+                .clipToBounds()
+                .testTag("fst.nav.content"),
+        ) {
+            content(
+                PaddingValues(
+                    start = inner.calculateStartPadding(direction) + bottom.calculateStartPadding(direction),
+                    top = 0.dp,
+                    end = inner.calculateEndPadding(direction) + bottom.calculateEndPadding(direction),
+                    bottom = inner.calculateBottomPadding() + bottom.calculateBottomPadding(),
+                ),
+            )
+        }
     }
 }
 
