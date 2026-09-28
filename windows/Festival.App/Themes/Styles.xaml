@@ -1,0 +1,56 @@
+<!--
+    Shared Fluent content styles. Cards are solid, semi-opaque surfaces (no in-app acrylic): a blur over
+    the animated artwork would be recomputed every frame. High contrast replaces the brand brushes.
+-->
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:services="using:Festival.App.Services">
+
+    <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Default">
+            <!-- Mutated at runtime to opaque when Windows transparency effects are off. -->
+            <SolidColorBrush x:Key="FSTCardSurfaceBrush" Color="#C7121826" />
+            <SolidColorBrush x:Key="FSTCardStrokeBrush" Color="#14FFFFFF" />
+            <SolidColorBrush x:Key="FSTSectionHeaderBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="FSTSecondaryTextBrush" Color="#FFD7DEE8" />
+            <SolidColorBrush x:Key="FSTMeterFilledBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="FSTMeterEmptyBrush" Color="#FF666666" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="HighContrast">
+            <SolidColorBrush x:Key="FSTCardSurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="FSTCardStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTSectionHeaderBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTSecondaryTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTMeterFilledBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTMeterEmptyBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
+        </ResourceDictionary>
+    </ResourceDictionary.ThemeDictionaries>
+
+    <services:InverseVisibilityConverter x:Key="FSTInverseVisibility" />
+
+    <!-- Fluent card: 8 px corner radius, 1 px stroke, 16 px padding. -->
+    <Style x:Key="FSTCardStyle" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource FSTCardSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource FSTCardStrokeBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
+        <Setter Property="Padding" Value="16" />
+    </Style>
+
+    <!-- White Title Case section header (Apple FestivalSectionHeader equivalent). -->
+    <Style x:Key="FSTSectionHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource SubtitleTextBlockStyle}">
+        <Setter Property="Foreground" Value="{ThemeResource FSTSectionHeaderBrush}" />
+        <Setter Property="Margin" Value="0,8,0,8" />
+    </Style>
+
+    <Style x:Key="FSTSecondaryTextStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyTextBlockStyle}">
+        <Setter Property="Foreground" Value="{ThemeResource FSTSecondaryTextBrush}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="TextWrapping" Value="NoWrap" />
+    </Style>
+
+    <Style x:Key="FSTPageTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource TitleTextBlockStyle}">
+        <Setter Property="Foreground" Value="{ThemeResource FSTSectionHeaderBrush}" />
+    </Style>
+</ResourceDictionary>

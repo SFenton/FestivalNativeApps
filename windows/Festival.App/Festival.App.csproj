@@ -1,18 +1,49 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!-- WinUI 3 (Windows App SDK) desktop app: unpackaged, self-contained, x64. -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net9.0-windows10.0.22621.0</TargetFramework>
+    <TargetFramework>net9.0-windows10.0.26100.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <RootNamespace>Festival.App</RootNamespace>
+    <AssemblyName>FestivalScoreTracker</AssemblyName>
     <UseWinUI>true</UseWinUI>
+    <EnableMsixTooling>true</EnableMsixTooling>
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
-    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <SelfContained>true</SelfContained>
     <Platforms>x64</Platforms>
+    <Platform>x64</Platform>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- XAML-generated partial classes carry no XML docs. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <Version>0.1.0</Version>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <!-- Release publishes trimmed; pass -p:FstAot=true for NativeAOT (see tools/windows/build.ps1). -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>partial</TrimMode>
+    <PublishReadyToRun Condition="'$(FstAot)' != 'true'">true</PublishReadyToRun>
+    <DebugType>portable</DebugType>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(FstAot)' == 'true'">
+    <PublishAot>true</PublishAot>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.7.250513003" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.5.1" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <ProjectReference Include="..\Festival.Core\Festival.Core.csproj" />
+    <Using Include="Festival.Core.Data" />
+    <Using Include="Festival.Core.Domain" />
+    <Using Include="Festival.Core.ViewModels" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Brand colours generated from contracts/fluent-tokens.json (read-only; owned by contracts/). -->
+    <Page Include="..\..\contracts\generated\windows\BrandTokens.xaml" Link="Themes\BrandTokens.xaml" />
+    <Content Include="Assets\Instruments\*.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

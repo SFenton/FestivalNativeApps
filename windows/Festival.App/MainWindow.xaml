@@ -2,14 +2,70 @@
     x:Class="Festival.App.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Festival.App.Controls"
+    xmlns:data="using:Festival.Core.Data"
     Title="Festival Score Tracker">
-    <NavigationView x:Name="Shell" PaneDisplayMode="Auto" IsBackButtonVisible="Collapsed"
-                    IsSettingsVisible="True" SelectionChanged="OnSelectionChanged"
-                    AutomationProperties.AutomationId="fst.shell.navigation">
-        <NavigationView.MenuItems>
-            <NavigationViewItem Content="Songs" Tag="songs" Icon="Library"
-                                AutomationProperties.AutomationId="fst.shell.songs" />
-        </NavigationView.MenuItems>
-        <Frame x:Name="ContentFrame" />
-    </NavigationView>
+    <Window.SystemBackdrop>
+        <MicaBackdrop Kind="Base" />
+    </Window.SystemBackdrop>
+
+    <Grid x:Name="RootGrid">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TitleBar x:Name="AppTitleBar" Title="Festival Score Tracker"
+                  IsBackButtonVisible="True" IsPaneToggleButtonVisible="True"
+                  BackRequested="OnBackRequested" PaneToggleRequested="OnPaneToggleRequested"
+                  AutomationProperties.AutomationId="fst.shell.title-bar">
+            <TitleBar.RightHeader>
+                <Button x:Name="ProfileButton" Padding="4" Margin="0,0,8,0" Background="Transparent" BorderThickness="0"
+                        AutomationProperties.Name="{x:Bind Shell.ProfileButtonName, Mode=OneWay}"
+                        AutomationProperties.AutomationId="fst.shell.profile"
+                        ToolTipService.ToolTip="{x:Bind Shell.ProfileName, Mode=OneWay}">
+                    <PersonPicture Width="28" Height="28" Initials="{x:Bind Shell.ProfileInitials, Mode=OneWay}"
+                                   AutomationProperties.AccessibilityView="Raw" />
+                    <Button.Flyout>
+                        <Flyout x:Name="ProfileFlyout" Placement="BottomEdgeAlignedRight" Opened="OnProfileFlyoutOpened">
+                            <StackPanel Width="320" Spacing="12" AutomationProperties.AutomationId="fst.profile.sheet">
+                                <TextBlock Text="{x:Bind Shell.ProfileName, Mode=OneWay}" Style="{StaticResource FSTSectionHeaderStyle}"
+                                           AutomationProperties.HeadingLevel="Level2" Margin="0" />
+                                <Button Content="Deselect Player" Command="{x:Bind Shell.DeselectProfileCommand}"
+                                        Visibility="{x:Bind Shell.HasPlayer, Mode=OneWay}"
+                                        AutomationProperties.AutomationId="fst.profile.deselect" />
+                                <TextBlock Text="Find Player" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <TextBox x:Name="ProfileSearchBox" PlaceholderText="Player name"
+                                         Text="{x:Bind Shell.ProfileQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         AutomationProperties.Name="Find Player"
+                                         AutomationProperties.AutomationId="fst.profile.search" />
+                                <TextBlock Text="{x:Bind Shell.ProfileHint, Mode=OneWay}" HorizontalAlignment="Center"
+                                           TextAlignment="Center" TextWrapping="Wrap" Style="{StaticResource FSTSecondaryTextStyle}"
+                                           AutomationProperties.LiveSetting="Polite" />
+                                <ListView ItemsSource="{x:Bind Shell.ProfileResults, Mode=OneWay}" MaxHeight="320"
+                                          SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnProfileResultClick"
+                                          AutomationProperties.AutomationId="fst.profile.results">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate x:DataType="data:PlayerSearchResult">
+                                            <TextBlock Text="{x:Bind DisplayName}" Padding="0,8" />
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                            </StackPanel>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+            </TitleBar.RightHeader>
+        </TitleBar>
+
+        <NavigationView x:Name="Nav" Grid.Row="1" PaneDisplayMode="Left" IsBackButtonVisible="Collapsed"
+                        IsPaneToggleButtonVisible="False" IsSettingsVisible="True" OpenPaneLength="240"
+                        ItemInvoked="OnNavItemInvoked"
+                        AutomationProperties.AutomationId="fst.shell.navigation">
+            <Grid>
+                <controls:ArtworkBackground x:Name="Backdrop" />
+                <Grid x:Name="FrameHost" />
+            </Grid>
+        </NavigationView>
+    </Grid>
 </Window>
