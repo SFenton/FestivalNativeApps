@@ -162,7 +162,7 @@ struct RivalCommonSection: View {
         case let .loaded(result):
             shell {
                 ForEach(previewRows(result)) { row in
-                    NavigationLink(value: AppRoute.rivalDetail(
+                    ListDetailLink(value: AppRoute.rivalDetail(
                         rivalId: row.rival.accountId, name: row.rival.displayName,
                         scope: .song(instruments: instruments.map(\.rawValue))
                     )) {
@@ -249,7 +249,7 @@ struct RivalComboSection: View {
         case let .loaded(response):
             shell {
                 ForEach(previewRows(response)) { row in
-                    NavigationLink(value: AppRoute.rivalDetail(
+                    ListDetailLink(value: AppRoute.rivalDetail(
                         rivalId: row.rival.accountId, name: row.rival.displayName,
                         scope: .combo(token: scope.token, instruments: scope.instruments.map(\.rawValue))
                     )) {
@@ -339,7 +339,7 @@ struct RivalInstrumentSongSection: View {
         case let .loaded(response):
             taggedShell {
                 ForEach(previewRows(response)) { row in
-                    NavigationLink(
+                    ListDetailLink(
                         value: AppRoute.rivalDetail(
                             rivalId: row.rival.accountId, name: row.rival.displayName,
                             scope: .song(instruments: [instrument.rawValue])
@@ -424,7 +424,7 @@ struct RivalInstrumentLeaderboardSection: View {
         case let .loaded(response):
             shell {
                 ForEach(previewRows(response)) { row in
-                    NavigationLink(
+                    ListDetailLink(
                         value: AppRoute.rivalDetail(
                             rivalId: row.rival.accountId, name: row.rival.displayName,
                             scope: .leaderboard(instrument: instrument.rawValue, rankBy: rankBy)

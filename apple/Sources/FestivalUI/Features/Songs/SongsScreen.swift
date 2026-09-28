@@ -935,6 +935,8 @@ struct SongsScreen: View {
         // trailing disclosure chevron. `NavigationLink` still owns the push (kept
         // invisible and stretched to the card's bounds) so the row remains one
         // accessible, combined VoiceOver stop with the standard Link action.
+        // `ListDetailLink` is that link, or a button filling the detail column in an
+        // iPhone Duo list/detail split.
         return ZStack {
             SongRowView(
                 song: song, instrument: instrument,
@@ -947,7 +949,7 @@ struct SongsScreen: View {
                 visibleInstruments: visibleInstruments,
                 currentSeason: currentSeason
             )
-            NavigationLink(value: AppRoute.songDetail(song)) { EmptyView() }
+            ListDetailLink(value: AppRoute.songDetail(song)) { EmptyView() }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .opacity(0)
         }
@@ -959,6 +961,7 @@ struct SongsScreen: View {
         // .buttons[...]` queries. Restore it explicitly rather than relying on the
         // link's own traits surviving the combine.
         .accessibilityAddTraits(.isButton)
+        .listDetailSelectable(AppRoute.songDetail(song))
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
         .listRowInsets(songRowInsets)

@@ -4,6 +4,9 @@ import FestivalCore
 import FestivalDesign
 
 /// Songs, Detail and solo scores share one scene-owned navigation path.
+///
+/// On an iPhone Duo inner display the path is shown as the Songs list beside a Song
+/// Detail column (`ListDetailStack`); everywhere else it is one stack.
 struct SongNavigationRoot: View {
     let session: FestivalSession
     @Binding var path: [AppRoute]
@@ -47,15 +50,15 @@ struct SongNavigationRoot: View {
     }
 
     var body: some View {
-        FestivalTabStack(
-            session: session, visibleInstruments: visibleInstruments,
+        ListDetailStack(
+            section: .songs, session: session, visibleInstruments: visibleInstruments,
             path: $path, isVisible: isVisible
-        ) {
+        ) { rootIsTop in
             SongsScreen(
                 session: session, searchText: $searchText, settledSearch: $settledSearch,
                 selectedInstrument: $selectedInstrument, navigationNotice: $navigationNotice,
                 visibleInstruments: visibleInstruments, highContrast: highContrast,
-                isVisible: isVisible && path.isEmpty,
+                isVisible: isVisible && rootIsTop,
                 openShop: { path.append(.shop) }
             )
         }

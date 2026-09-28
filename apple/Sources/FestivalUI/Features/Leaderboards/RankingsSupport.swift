@@ -35,7 +35,7 @@ struct AccountRankingRow: View {
     var body: some View {
         Group {
             if entry.hasAccount {
-                NavigationLink(
+                ListDetailLink(
                     value: AppRoute.player(accountId: entry.accountId, displayName: entry.displayName)
                 ) {
                     rowContent

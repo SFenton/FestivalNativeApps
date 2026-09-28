@@ -490,7 +490,9 @@ public struct FestivalRootView: View {
         }
     }
 
-    /// Wrap a root screen in its own `FestivalTabStack` with shared root chrome.
+    /// Wrap a root screen in its own stack with shared root chrome: a `FestivalTabStack`,
+    /// or list/detail columns for Leaderboards and Rivals on an iPhone Duo inner display
+    /// (`ListDetailStack`, `ListDetailPolicy`).
     ///
     /// - Parameters:
     ///   - section: Section owning the stack and path.
@@ -499,11 +501,12 @@ public struct FestivalRootView: View {
     private func tabStack<Root: View>(
         _ section: FestivalSection, @ViewBuilder root: () -> Root
     ) -> some View {
-        FestivalTabStack(
-            session: session, visibleInstruments: visibleInstruments,
+        let root = root()
+        return ListDetailStack(
+            section: section, session: session, visibleInstruments: visibleInstruments,
             path: path(for: section), isVisible: selected == section
-        ) {
-            root().festivalRootChrome(
+        ) { _ in
+            root.festivalRootChrome(
                 session: session, providesTrailingItems: rootProvidesTrailingItems(section)
             )
         }

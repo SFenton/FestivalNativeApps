@@ -92,7 +92,7 @@ struct AllRivalsScreen: View {
                 VStack(alignment: .leading, spacing: 20) {
                     FestivalGlassSection(title) {
                         ForEach(rows) { row in
-                            NavigationLink(
+                            ListDetailLink(
                                 value: AppRoute.rivalDetail(
                                     rivalId: row.accountId, name: row.displayName, scope: scope
                                 )
