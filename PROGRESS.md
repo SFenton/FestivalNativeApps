@@ -200,13 +200,21 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 ### Wave 3 — UX tests (started for completed features)
 
 **Lane Z — Bugs found by UX tests** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/bugfix`
-- ⬜ Leaderboards row IDs shadowed by card ID · ⬜ Quick Links jump lands before target · ⬜ FirstRun pulse ignores still-background flag
+- ⬜ Leaderboards row IDs shadowed by card ID · ⬜ Quick Links jump lands before target (see also Lane U3's independent repro below: tapping any row but the first activates the row *above* it) · ⬜ FirstRun pulse ignores still-background flag
 
 Coverage so far (SwiftPM hosted+logic): Shell 71.8%, Leaderboards+QL 83.6%, Background 81.0%, History+Notifications 72.7%, First-run 78.8%, Licenses 67.7% — gap is mostly device-only branches; iOS app-target `xccov` measurement still to run.
 
 Queued: **UX tests for Profile / Statistics / Bands / Settings** (worktree `uxprofile` ready; start when load allows)
 
-**Lane U3 — UX tests: Rivals & Compete** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/uxrivals`
+**Lane U3 — UX tests: Rivals & Compete** (Sonnet) — ✅ landed
+- ✅ `RivalsRenderTests.swift` (29 hosted tests) + `CompeteRenderTests.swift` (6): every declared control state (no-profile, loading, empty instruments, song/leaderboard tab, Common Rivals + Combo, per-section 503/empty, All Rivals loaded/empty/unavailable/combo/common/unknown-category, Rival Detail categorized/no-songs/unavailable/nil-scope-fallback/leaderboard-scope, Rivalry ordering, Find Rival's 5 search states)
+- ✅ `RivalsMockService.swift`: Rivals reads bypass the injectable `HTTPTransport` (raw `URLSession` at `FestivalAPI.baseURL`, confirmed still true after Lane K's consolidation moved it to the shared `fetchJSON` gate — still not the injectable transport), so hosted tests launch the real loopback `tools/mock_service.py` as a subprocess (`--port 0`, also added) instead of an in-memory actor
+- ✅ `tools/mock_service.py` extended with `/api/player/{id}/rivals/*`, `/api/player/{id}/leaderboard-rivals/*` and `/api/rankings/{instrument}` (see `.agents/testing/fixtures.md`)
+- ✅ `RivalsJourneyTests.swift` (5 XCUITest journeys via `ios_sim.py uitest`, batched): Compete → drawer → Rivals → View All Rivals → row → Rival Detail → Rivalry drill-down; Quick Links menu; Find Rival search → select; two `DebugLaunchRoute` scope-carrying deep links. 4/5 pass outright; the 5th (`testCompeteQuickLinksMenuListsBothSections`) passes via `XCTExpectFailure` around a real found bug (below)
+- ✅ Added missing `fst.rivals.row.<id>`/`fst.all-rivals.row.<id>`/`fst.rivalry.view-profile` identifiers; confirmed on-device via `drive`'s `tree:` dump that they reach the accessibility tree (not shadowed the way Leaderboards' row identifiers are)
+- Coverage: this lane's Rivals/Compete `FestivalUI` files combined 87.8% (1940/2211 lines); below the 90% UX target mainly on `FindRivalSheet.swift` (66%), whose remaining gap is the real search-result-tap navigation push, provable only on-device (see `coverage.md`)
+- **Real bug found:** `QuickLinksMenu` (`Common/QuickLinks/QuickLinksToolbar.swift`) activates the row *above* the one actually tapped, reproduced independently on both Compete and Rivals via `ios_sim.py drive` — a shared-component bug affecting every page with Quick Links, not fixed by this lane (out of scope; flagged via `spawn_task`)
+- Rebased mid-lane onto Lane K's API-client/`ServiceStatusView` consolidation (landed concurrently); full rebuild + full `swift test` re-run confirmed everything still compiles and passes unchanged
 
 **Lane U2 — UX tests: Songs, Song Detail, Paths, Shop, Suggestions** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/uxsongs` — landed `6920322`, `1775788`
 - ✅ Triaged the legacy monolith: 34 tests migrated into `SongsJourneyTests`/`SongDetailJourneyTests`/`ShopJourneyTests`, 7 deleted (broken by the instrument-picker-into-Filter and offline-disclosure-removal redesigns), shared helpers into `SongsUITestSupport` (a namespaced `enum`, not an `XCTestCase` extension, so it can't collide with Lane U's own helpers extracted from the same file in parallel)
@@ -340,3 +348,4 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Lane W | Duo research (APIs, poses, cutouts), `DeviceLayout` model + env, `ios_sim.py pose/--pose/shutdown`, folded baseline breakages, W1–W4 lane plan |
 | 2026-09-28 | Lane G3 | Rival-driven suggestions: `RivalDataIndex` from `/rivals/all`, all ten `song_rival_*` pipelines, rivals loaded alongside the catalogue (best-effort), rival badge on category rows; found `lb_rival_*` is dead code on the web itself; 75 tests, 96.13% Suggestions-Core coverage |
 | 2026-09-28 | Lane U2 | Triaged Songs/Shop/Detail legacy UITests (34 migrated, 7 deleted), added Suggestions journeys + section-index hosted tests; found and fixed the Songs-row `.isButton` trait loss and stale profile-flow test IDs; flagged (unfixed) a Player Profile wrong-account-data bug; Songs/Detail/Shop hosted coverage 91–95%, Suggestions 8.3% (open gap) |
+| 2026-09-28 | Lane U3 | Rivals/Compete UX tests: 35 hosted snapshot tests, 5 XCUITest journeys, `mock_service.py` Rivals/rankings routes, missing row accessibility identifiers; found a shared `QuickLinksMenu` off-by-one row-selection bug (flagged, not fixed by this lane) |
