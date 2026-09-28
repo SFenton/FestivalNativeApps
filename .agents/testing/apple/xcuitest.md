@@ -50,6 +50,15 @@ now fixed:
    failure already fixed once for the artwork background carousel and
    `FirstRunPulse`. Now gated the same way.
 
+Re-running `SongsJourneyTests/testSelectedShopSortSongsRowsClearFloatingTab`
+after this fix confirms it: the hang is gone (18.8s total test execution,
+well inside budget), but the test now fails a real, separate assertion (a
+Shop "leaving tomorrow" section never appears) that the hang had been
+masking — filed as a follow-up (`fst.songs.shop-section.leaving-tomorrow`
+never renders; possibly a date-relative `mock_service.py` fixture gone stale
+against the real wall-clock date, possibly a genuine Shop grouping
+regression — not yet root-caused).
+
 `SettingsJourneyTests`' three tests were also skipped as "consistently hung
 300s under heavy concurrent-lane load, inconclusive root cause." No
 Settings-specific product bug was found on inspection (no `TimelineView`/
