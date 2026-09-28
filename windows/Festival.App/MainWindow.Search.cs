@@ -41,6 +41,8 @@ public sealed partial class MainWindow
         GlobalSearchBox.PreviewKeyDown += OnGlobalSearchKeyDown;
         GlobalSearchButton.Click += (_, _) => OpenSearchPage();
         RootGrid.SizeChanged += (_, e) => ApplySearchWidth(e.NewSize.Width);
+        // The window-wide accelerators belong to no visible control; their automatic key tip would float over content.
+        RootGrid.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
         RootGrid.KeyboardAccelerators.Add(Accelerator(VirtualKey.E, VirtualKeyModifiers.Control, FocusGlobalSearch));
         RootGrid.KeyboardAccelerators.Add(Accelerator(VirtualKey.F, VirtualKeyModifiers.Control, FindInPage));
     }

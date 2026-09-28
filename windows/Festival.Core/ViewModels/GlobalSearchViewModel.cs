@@ -130,6 +130,12 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
     public bool ShowSongsSection => ShowsResults && Scope is SearchScope.All or SearchScope.Songs &&
                                     (Songs.Count > 0 || SongsState == LoadState.Failed);
 
+    /// <summary>Whether song rows are shown (their card is hidden otherwise).</summary>
+    public bool HasSongRows => Songs.Count > 0;
+
+    /// <summary>Whether player rows are shown (their card is hidden otherwise).</summary>
+    public bool HasPlayerRows => Players.Count > 0;
+
     /// <summary>Whether the Songs section shows its failure line.</summary>
     public bool SongsFailed => SongsState == LoadState.Failed;
 
@@ -364,7 +370,7 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
     [
         nameof(IsShortQuery), nameof(IsBandsScope), nameof(ShowSongsSection), nameof(SongsFailed), nameof(ShowPlayersSection),
         nameof(PlayersLoading), nameof(PlayersFailed), nameof(PlayersEmpty), nameof(Hint), nameof(HasHint), nameof(CanRetryAll),
-        nameof(IsBusy), nameof(IsSettled),
+        nameof(IsBusy), nameof(IsSettled), nameof(HasSongRows), nameof(HasPlayerRows),
     ];
     #endregion
 }

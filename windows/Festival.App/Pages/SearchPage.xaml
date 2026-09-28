@@ -46,25 +46,27 @@
                                    AutomationProperties.AutomationId="fst.global-search.section.songs" />
                         <TextBlock Text="{x:Bind ViewModel.SongsFailedText}" Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap"
                                    Visibility="{x:Bind ViewModel.SongsFailed, Mode=OneWay}" />
-                        <ListView x:Name="SongsList" ItemsSource="{x:Bind ViewModel.Songs, Mode=OneWay}" SelectionMode="None"
-                                  IsItemClickEnabled="True" ItemClick="OnSongClick" ContainerContentChanging="OnSongContainer"
-                                  ScrollViewer.VerticalScrollMode="Disabled" AutomationProperties.Name="Songs">
-                            <ListView.ItemTemplate>
-                                <DataTemplate x:DataType="domain:GlobalSongResult">
-                                    <Grid ColumnSpacing="12" Padding="0,6">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <controls:SongArt Art="{x:Bind Art}" />
-                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                            <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Text="{x:Bind Artist}" Style="{StaticResource FSTSecondaryTextStyle}" TextTrimming="CharacterEllipsis" />
-                                        </StackPanel>
-                                    </Grid>
-                                </DataTemplate>
-                            </ListView.ItemTemplate>
-                        </ListView>
+                        <Border Style="{StaticResource FSTCardStyle}" Padding="4" Visibility="{x:Bind ViewModel.HasSongRows, Mode=OneWay}">
+                            <ListView x:Name="SongsList" ItemsSource="{x:Bind ViewModel.Songs, Mode=OneWay}" SelectionMode="None"
+                                      IsItemClickEnabled="True" ItemClick="OnSongClick" ContainerContentChanging="OnSongContainer"
+                                      ScrollViewer.VerticalScrollMode="Disabled" AutomationProperties.Name="Songs">
+                                <ListView.ItemTemplate>
+                                    <DataTemplate x:DataType="domain:GlobalSongResult">
+                                        <Grid ColumnSpacing="12" Padding="0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <controls:SongArt Art="{x:Bind Art}" />
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                                <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{x:Bind Artist}" Style="{StaticResource FSTSecondaryTextStyle}" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                        </Border>
                     </StackPanel>
 
                     <!-- Players -->
@@ -75,26 +77,28 @@
                                       Width="28" Height="28" HorizontalAlignment="Left" Margin="0,8"
                                       AutomationProperties.Name="Searching players"
                                       AutomationProperties.AutomationId="fst.global-search.players-loading" />
-                        <ListView x:Name="PlayersList" ItemsSource="{x:Bind ViewModel.Players, Mode=OneWay}" SelectionMode="None"
-                                  IsItemClickEnabled="True" ItemClick="OnPlayerClick" ContainerContentChanging="OnPlayerContainer"
-                                  ScrollViewer.VerticalScrollMode="Disabled" AutomationProperties.Name="Players">
-                            <ListView.ItemTemplate>
-                                <DataTemplate x:DataType="domain:GlobalPlayerResult">
-                                    <Grid ColumnSpacing="12" Padding="0,6">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <PersonPicture Width="36" Height="36" DisplayName="{x:Bind DisplayName}"
-                                                       AutomationProperties.AccessibilityView="Raw" />
-                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                            <TextBlock Text="{x:Bind DisplayName}" Style="{StaticResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Text="{x:Bind Subtitle}" Style="{StaticResource FSTSecondaryTextStyle}" TextTrimming="CharacterEllipsis" />
-                                        </StackPanel>
-                                    </Grid>
-                                </DataTemplate>
-                            </ListView.ItemTemplate>
-                        </ListView>
+                        <Border Style="{StaticResource FSTCardStyle}" Padding="4" Visibility="{x:Bind ViewModel.HasPlayerRows, Mode=OneWay}">
+                            <ListView x:Name="PlayersList" ItemsSource="{x:Bind ViewModel.Players, Mode=OneWay}" SelectionMode="None"
+                                      IsItemClickEnabled="True" ItemClick="OnPlayerClick" ContainerContentChanging="OnPlayerContainer"
+                                      ScrollViewer.VerticalScrollMode="Disabled" AutomationProperties.Name="Players">
+                                <ListView.ItemTemplate>
+                                    <DataTemplate x:DataType="domain:GlobalPlayerResult">
+                                        <Grid ColumnSpacing="12" Padding="0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <PersonPicture Width="36" Height="36" DisplayName="{x:Bind DisplayName}"
+                                                           AutomationProperties.AccessibilityView="Raw" />
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                                <TextBlock Text="{x:Bind DisplayName}" Style="{StaticResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{x:Bind Subtitle}" Style="{StaticResource FSTSecondaryTextStyle}" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                        </Border>
                         <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.PlayersEmpty, Mode=OneWay}">
                             <TextBlock Text="{x:Bind ViewModel.NoPlayersText}" Style="{StaticResource FSTSecondaryTextStyle}" />
                             <Button Content="Retry" Command="{x:Bind ViewModel.RetryCommand}"

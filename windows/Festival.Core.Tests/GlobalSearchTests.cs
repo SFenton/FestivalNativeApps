@@ -202,6 +202,7 @@ public class GlobalSearchViewModelTests
                                                           k.Equals("X-API-Key", StringComparison.OrdinalIgnoreCase));
         Assert.Equal(["acc1"], vm.Players.Select(p => p.AccountId));
         Assert.Equal(3, vm.Suggestions.Count);
+        Assert.True(vm.HasSongRows && vm.HasPlayerRows);
         Assert.Equal("1 song, 1 player", announced);
         Assert.Equal(announced, vm.LastAnnouncement);
         Assert.Equal("", vm.Hint);
@@ -342,6 +343,7 @@ public class GlobalSearchViewModelTests
         var vm = new GlobalSearchViewModel(session);
         await Type(vm, time, "alpha");
         Assert.True(vm.SongsFailed && vm.ShowSongsSection);
+        Assert.False(vm.HasSongRows);
         Assert.Equal(GlobalSearchResults.SongsFailed, vm.SongsFailedText);
         Assert.True(vm.ShowPlayersSection);
         Assert.Equal("song search failed, 1 player", vm.LastAnnouncement);
