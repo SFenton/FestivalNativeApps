@@ -151,6 +151,14 @@ class CompeteLogicTest {
             } catch (_: FestivalApiException.InvalidResource) {
             }
         }
+        transport.onRaw("/api/rankings/combo") { HttpResult(404, "{}".toByteArray()) }
+        assertTrue(client.comboRankings("30", RankingMetric.TotalScore, 1, 10).entries.isEmpty())
+        transport.onRaw("/api/rankings/combo") { HttpResult(500, "{}".toByteArray()) }
+        try {
+            client.comboRankings("30", RankingMetric.TotalScore, 1, 10)
+            fail("expected HttpStatus")
+        } catch (_: FestivalApiException.HttpStatus) {
+        }
         transport.onRaw("/api/rankings/combo/$player") { HttpResult(404, "{}".toByteArray()) }
         assertNull(client.playerComboRanking(player, "03", RankingMetric.TotalScore))
         transport.onRaw("/api/rankings/combo/$player") { HttpResult(500, "{}".toByteArray()) }

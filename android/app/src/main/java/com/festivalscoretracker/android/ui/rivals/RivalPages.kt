@@ -169,6 +169,7 @@ fun RivalDetailScreen(viewModel: RivalDetailViewModel, route: RivalDetailRoute, 
                                     jumpOpen = false
                                     scope.launch { gridState.animateScrollToItem(index + 1) }
                                 },
+                                modifier = Modifier.testTag("fst.rival-detail.jump.${category.key}"),
                             )
                         }
                     }

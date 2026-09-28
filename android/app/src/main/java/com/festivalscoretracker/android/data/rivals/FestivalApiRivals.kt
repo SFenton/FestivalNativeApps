@@ -47,7 +47,7 @@ private fun requireAccount(vararg ids: String) {
 private suspend fun FestivalApi.rivalsRead(segments: List<String>, query: List<Pair<String, String>> = emptyList()): ByteArray =
     readUnpinned(ServiceEndpoint.Feature(segments, query, pinned = false))
 
-private suspend inline fun <T> emptyOn404(empty: () -> T, read: () -> T): T =
+private suspend fun <T> emptyOn404(empty: () -> T, read: suspend () -> T): T =
     try {
         read()
     } catch (error: FestivalApiException.HttpStatus) {

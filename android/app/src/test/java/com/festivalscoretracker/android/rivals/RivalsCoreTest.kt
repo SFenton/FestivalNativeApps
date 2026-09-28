@@ -242,6 +242,21 @@ class RivalsCoreTest {
         assertEquals(Instrument.Lead, mixed.chart)
     }
 
+    @Test
+    fun defaultsAndCopy() {
+        assertTrue(RivalsListResponse().isEmpty)
+        assertEquals("", RivalIdentity().accountId)
+        assertEquals(0, RivalDetailResponse().songs.size)
+        assertEquals(0, com.festivalscoretracker.android.core.compete.ComboRankingEntry().rank)
+        assertEquals(0, RivalSongComparison("s", instrument = "Solo_Guitar").rankDelta)
+        assertEquals(RivalText.NO_RIVALS_SINGLE, RivalText.noRivalsSubtitle(1))
+        assertEquals(RivalText.NO_RIVALS_PLURAL, RivalText.noRivalsSubtitle(3))
+        assertNull(RivalText.noRivalsSubtitle(0))
+        assertEquals("1,234 shared songs", RivalText.sharedSongs(1234))
+        assertEquals(RivalRankMetric.MaxScore, RivalRankMetric.fromWireId("maxscore"))
+        assertNull(RivalRankMetric.fromWireId("x"))
+    }
+
     // endregion
 
     // region Categories

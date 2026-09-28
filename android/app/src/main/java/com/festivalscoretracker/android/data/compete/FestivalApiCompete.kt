@@ -38,7 +38,13 @@ private fun comboQuery(comboId: String, rankBy: RankingMetric): List<Pair<String
 suspend fun FestivalApi.comboRankings(comboId: String, rankBy: RankingMetric, page: Int, pageSize: Int): ComboRankingsResponse {
     if (page < 1 || pageSize !in 1..RankingPaging.MAX_PAGE_SIZE) throw FestivalApiException.InvalidResource()
     val query = comboQuery(comboId, rankBy) + listOf("page" to page.toString(), "pageSize" to pageSize.toString())
-    val (body, _) = readPinned(ServiceEndpoint.Feature(listOf("rankings", "combo"), query))
+    val body = try {
+        readPinned(ServiceEndpoint.Feature(listOf("rankings", "combo"), query)).first
+    } catch (notFound: FestivalApiException.HttpStatus) {
+        // 404 = no board for this combo yet: an honest empty board ("No scores yet"), not an outage.
+        if (notFound.status == 404) return ComboRankingsResponse(comboId = comboId, rankBy = rankBy.wireId, page = page, pageSize = pageSize)
+        throw notFound
+    }
     return decode(ComboRankingsResponse.serializer(), body).also { it.validate(comboId) }
 }
 

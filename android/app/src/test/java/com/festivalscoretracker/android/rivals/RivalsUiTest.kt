@@ -194,4 +194,62 @@ class RivalsUiTest {
         waitForTag("fst.rivalry.empty")
         rule.onNodeWithText("weird").assertIsDisplayed()
     }
+
+    @Test
+    fun quickLinksJumpOnHubAndDetail() {
+        launch(DebugLaunch(route = RivalsRoute, profile = player, stillBackground = true))
+        waitForTag("fst.rivals.jump")
+        rule.onNodeWithTag("fst.rivals.jump").performClick()
+        waitForTag("fst.rivals.jump.Solo_Bass")
+        rule.onNodeWithTag("fst.rivals.jump.Solo_Bass").performClick()
+        waitForTag("fst.rivals.section.Solo_Bass")
+        rule.onNodeWithTag("fst.rivals.section.Solo_Bass").assertIsDisplayed()
+        scrollTo("fst.rivals.grid", "fst.rivals.row.${ids[3]}")
+        rule.onNodeWithTag("fst.rivals.row.${ids[3]}").performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.rival-detail.jump")
+        rule.onNodeWithTag("fst.rival-detail.jump").performClick()
+        waitForTag("fst.rival-detail.jump.almost_passed")
+        rule.onNodeWithTag("fst.rival-detail.jump.almost_passed").performClick()
+        waitForTag("fst.rival-detail.category.almost_passed")
+    }
+
+    @Test
+    fun emptyHubAndInlineCardFailureRecovers() {
+        val empty = FakeTransport.standard().apply {
+            on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { Fixtures.songsJson.replace("\"alpha-512.jpg\"", "null") }
+        }
+        launch(DebugLaunch(route = RivalsRoute, profile = player, stillBackground = true), empty)
+        waitForTag("fst.rivals.empty")
+        rule.onNodeWithText("Not enough data to identify rivals yet.").assertIsDisplayed()
+        rule.onNodeWithTag("fst.rivals.tab.leaderboard").performClick()
+        waitForText("No ranking data available.")
+    }
+
+    @Test
+    fun failingChartShowsInlineStatusAndRetries() {
+        var failing = true
+        transport.onRaw("/api/player/${RivalsFixtures.PLAYER}/rivals/Solo_Bass") {
+            if (failing) {
+                com.festivalscoretracker.android.data.HttpResult(500, ByteArray(0))
+            } else {
+                com.festivalscoretracker.android.data.HttpResult(200, RivalsFixtures.list("Solo_Bass", listOf(RivalsFixtures.rival(ids[3], "Synthetic Delta")), emptyList()).toByteArray())
+            }
+        }
+        launch(DebugLaunch(route = RivalsRoute, profile = player, stillBackground = true))
+        waitForTag("fst.rivals.section.Solo_Guitar")
+        scrollTo("fst.rivals.grid", "fst.rivals.section.Solo_Bass")
+        waitForTag("fst.service-status.inline")
+        failing = false
+        rule.onNodeWithText("Retry").performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.rivals.row.${ids[3]}")
+    }
+
+    @Test
+    fun mixedChartComparisonShowsBothIcons() {
+        val mixed = RivalsFixtures.detail(ids[0]).replace("\"userInstrument\":null,\"rivalInstrument\":null", "\"userInstrument\":\"Solo_PeripheralCymbals\",\"rivalInstrument\":\"Solo_PeripheralDrums\"")
+        transport.on("/api/player/${RivalsFixtures.PLAYER}/rivals/Solo_Guitar/${ids[0]}") { mixed }
+        launch(DebugLaunch(route = RivalRoutes.detail(ids[0], null, RivalScopes.song(listOf(Instrument.Lead))), profile = player, stillBackground = true))
+        waitForTag("fst.rival-detail.category.closest_battles")
+        assertTrue(rule.onAllNodesWithTag("fst.rivals.song.s-alpha.Solo_Guitar").fetchSemanticsNodes().isNotEmpty())
+    }
 }
