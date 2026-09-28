@@ -7,12 +7,11 @@ import FestivalDesign
 /// `/compete` — phone hub combining Leaderboards and Rivals; this is the phone
 /// tab shown once a player is selected (see `FestivalRootView`).
 ///
-/// The web's `CompetePage` shows live Top-10 leaderboard previews per ranking
-/// scope alongside rival previews. The Leaderboards half here needs the
-/// Leaderboards lane's rankings Core API (not yet landed and out of this lane's
-/// ownership), so its section links straight to `AppRoute.leaderboards` /
-/// `AppRoute.fullRankings` per instrument rather than fabricating preview rows;
-/// the Rivals half is fully live. See `.agents/pages/compete/ios.md`.
+/// Ports the web's `CompetePage`: a Leaderboards section (live Top-5 preview per
+/// Settings-visible instrument, reusing Lane L's `AccountRankingRow`/`RankLoadState`
+/// from `Features/Leaderboards/RankingsSupport.swift`) and a Rivals section
+/// (reusing this lane's own `RivalInstrumentSongSection`). No player selected →
+/// `RivalsChooseProfileState`. See `.agents/pages/compete/ios.md`.
 struct CompeteScreen: View {
     let session: FestivalSession
     @Environment(\.openProfile) private var openProfile
@@ -53,36 +52,28 @@ struct CompeteScreen: View {
         VStack(alignment: .leading, spacing: 12) {
             FestivalSectionHeader("Leaderboards")
                 .padding(.horizontal, 16)
-            FestivalGlassSection {
-                NavigationLink(value: AppRoute.leaderboards) {
-                    HStack {
-                        Label("Leaderboards Overview", systemImage: "list.number")
-                            .foregroundStyle(BrandTokens.textPrimary)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(BrandTokens.textMuted)
-                    }
-                    .contentShape(Rectangle())
+            NavigationLink(value: AppRoute.leaderboards) {
+                HStack {
+                    Label("Leaderboards Overview", systemImage: "list.number")
+                        .foregroundStyle(BrandTokens.textPrimary)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(BrandTokens.textMuted)
                 }
-                ForEach(visible.instruments) { instrument in
-                    NavigationLink(
-                        value: AppRoute.fullRankings(instrument: instrument, rankBy: "totalscore")
-                    ) {
-                        HStack(spacing: 12) {
-                            InstrumentIcon(instrument, size: 20)
-                            Text(instrument.label)
-                                .foregroundStyle(BrandTokens.textPrimary)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(BrandTokens.textMuted)
-                        }
-                        .contentShape(Rectangle())
-                    }
-                }
+                .contentShape(Rectangle())
+                .padding(16)
+                .festivalGlass(.card)
             }
             .padding(.horizontal, 16)
+            if visible.instruments.isEmpty {
+                FestivalFootnote("Enable at least one instrument in Settings to see leaderboards.")
+                    .padding(.horizontal, 16)
+            } else {
+                ForEach(visible.instruments) { instrument in
+                    CompeteInstrumentLeaderboardSection(session: session, instrument: instrument)
+                }
+            }
         }
     }
 
@@ -100,6 +91,65 @@ struct CompeteScreen: View {
                     RivalInstrumentSongSection(session: session, instrument: instrument)
                 }
             }
+        }
+    }
+}
+
+// MARK: - Per-instrument leaderboard preview
+
+/// One instrument's Top-5 ranking preview, reusing Lane L's `RankLoadState`/
+/// `AccountRankingRow`/`RankingsSkeletonRows` (`Features/Leaderboards/RankingsSupport.swift`)
+/// so Compete's cards match `LeaderboardsScreen`'s own overview cards exactly.
+struct CompeteInstrumentLeaderboardSection: View {
+    let session: FestivalSession
+    let instrument: Instrument
+    @State private var state: RankLoadState<RankingsPayload> = .loading
+
+    private let previewCount = 5
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                InstrumentIcon(instrument, size: 20)
+                FestivalSectionHeader(instrument.label)
+            }
+            switch state {
+            case .loading:
+                RankingsSkeletonRows(count: previewCount)
+            case let .failed(message):
+                RivalsSectionError(message: message) { Task { await load() } }
+            case let .loaded(payload) where payload.rankings.entries.isEmpty:
+                FestivalFootnote("No ranked \(instrument.label) players yet.")
+            case let .loaded(payload):
+                VStack(spacing: 4) {
+                    ForEach(payload.rankings.entries) { entry in
+                        AccountRankingRow(entry: entry, metric: .totalscore)
+                    }
+                }
+                NavigationLink(
+                    value: AppRoute.fullRankings(instrument: instrument, rankBy: "totalscore")
+                ) {
+                    RivalViewAllRow(title: "View Full Leaderboard")
+                }
+            }
+        }
+        .padding(16)
+        .festivalGlass(.card)
+        .padding(.horizontal, 16)
+        .accessibilityIdentifier("fst.compete.leaderboard-card.\(instrument.rawValue)")
+        .task(id: instrument) { await load() }
+    }
+
+    @MainActor
+    private func load() async {
+        state = .loading
+        do {
+            state = .loaded(try await session.rankings(
+                instrument: instrument, rankBy: .totalscore, page: 1, pageSize: previewCount
+            ))
+        } catch is CancellationError {
+        } catch {
+            state = .failed(error.localizedDescription)
         }
     }
 }
