@@ -14,8 +14,8 @@ Never player-stats: overview/instrument stats and percentile buckets are compute
 
 ## Layout
 
-- One `ScrollViewer` (max 1280 epx): header card, Overview tiles, one titled card per Settings-visible instrument, then the Bands link. Tiles are an `ItemsRepeater` + `UniformGridLayout` (min 112 epx), reflowing from one column (compact) to five (wide).
-- Instrument card: stats + Global Rank on the left; Rank History (rank line with #1 on top over Total Score bars, `RankHistoryChart`) and Percentiles (horizontal bars, top 5% gold) on the right once the card is at least 760 epx wide, below otherwise (`OnInstrumentCardSizeChanged`). Rank/history reads start when the card is realized; unplayed charts read nothing.
+- One `ScrollViewer` (max 1280 epx): header card, Overview tiles, one titled card per Settings-visible instrument, then the Bands link. Tiles are an `ItemsRepeater` + `UniformGridLayout` (min 112×84 epx so a long value can wrap to two lines above its label), reflowing from one column (compact) to five (wide).
+- Instrument card: stats + Global Rank on the left; Rank History (rank line with #1 on top over Total Score bars, `RankHistoryChart`) and Percentiles (horizontal bars, top 5% gold) on the right once the card is at least 780 epx wide and back below under 740 epx (hysteresis: a vertical scrollbar appearing near one threshold could otherwise oscillate) (`OnInstrumentCardSizeChanged`). Rank/history reads start when the card is realized; unplayed charts read nothing.
 - Charts are static XAML shapes (`PlayerLineChart`) redrawn only on data or size change, with no per-frame work. Each chart is one UIA `Image` named with the trend summary.
 - Header: `PersonPicture`, name (H1), "This Is Me"/"Public Profile"; the action row sits under the avatar row so it never clips on narrow windows.
 
@@ -45,4 +45,4 @@ UIA gotcha: `Border`, `StackPanel`, `ItemsRepeater` and `UserControl` are not in
 ## Gaps
 
 - No Quick Links (the Windows idiom is Settings-lane work), no experimental rank metrics, no top-songs section and no tap-to-filter tiles: the same simplifications as iPhone.
-- Compact windows keep the shell's `NavigationView` pane open (`PaneDisplayMode="Left"`), leaving about 260 epx of content at 500 epx. TODO(orchestrator): adopt `Auto`/`LeftMinimal` below about 640 epx in the shell.
+- Compact windows rely on the shell's `NavigationView` `PaneDisplayMode="Auto"` (overlay pane below the expanded threshold); the page itself reflows to one tile column and stacks charts under the stats.

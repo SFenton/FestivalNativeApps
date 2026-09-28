@@ -12,7 +12,10 @@ namespace Festival.App.Controls;
 public sealed partial class PlayerProfileView : UserControl
 {
     /// <summary>Card width at which charts move beside the stats.</summary>
-    private const double SideBySideWidth = 760;
+    private const double SideBySideWidth = 780;
+
+    /// <summary>Card width below which charts move back under the stats (hysteresis against scrollbar-width oscillation).</summary>
+    private const double StackedWidth = 740;
 
     /// <summary>Creates the view.</summary>
     public PlayerProfileView() => InitializeComponent();
@@ -111,7 +114,9 @@ public sealed partial class PlayerProfileView : UserControl
     private void OnInstrumentCardSizeChanged(object sender, SizeChangedEventArgs e)
     {
         if (sender is not Grid grid || grid.Children.Count < 2 || grid.Children[1] is not FrameworkElement charts) return;
-        var wide = e.NewSize.Width >= SideBySideWidth;
+        var isWide = grid.ColumnDefinitions[1].Width.IsStar;
+        var wide = isWide ? e.NewSize.Width >= StackedWidth : e.NewSize.Width >= SideBySideWidth;
+        if (wide == isWide) return;
         grid.ColumnDefinitions[1].Width = wide ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
         Grid.SetRow(charts, wide ? 0 : 1);
         Grid.SetColumn(charts, wide ? 1 : 0);

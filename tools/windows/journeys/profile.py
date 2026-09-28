@@ -75,7 +75,7 @@ JOURNEYS = [
              "waitfor:id=fst.player.name@15", "waitfor:id=fst.player.select@10"],
             ["invoke:id=fst.player.select", "waitfor:id=fst.player.deselect@10", "waitfor:id=fst.nav.statistics@10"],
             ["click:id=fst.nav.statistics", "waitfor:id=fst.statistics@10", "waitfor:id=fst.player.deselect@15",
-             "waitfor:id=fst.player.overview@15", "wait:2"],
+             "waitfor:id=fst.player.overview@15", "wait:5"],
             ["invoke:id=fst.player.deselect", "waitfor:id=PrimaryButton@10", "invoke:id=PrimaryButton", "wait:2"],
         ],
         expect=[

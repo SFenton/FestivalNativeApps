@@ -12,9 +12,9 @@
     -->
     <UserControl.Resources>
         <DataTemplate x:Key="StatTileTemplate" x:DataType="vm:PlayerStatTile">
-            <StackPanel Spacing="2" Padding="4,6" AutomationProperties.Name="{x:Bind Announcement}">
+            <StackPanel Spacing="2" Padding="4,6" VerticalAlignment="Center" AutomationProperties.Name="{x:Bind Announcement}">
                 <TextBlock Text="{x:Bind Value}" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center"
-                           Foreground="{x:Bind controls:PlayerBrushes.Tile(Gold)}" TextTrimming="CharacterEllipsis" />
+                           Foreground="{x:Bind controls:PlayerBrushes.Tile(Gold)}" TextAlignment="Center" />
                 <TextBlock Text="{x:Bind Label}" FontSize="11" CharacterSpacing="40" HorizontalAlignment="Center" TextAlignment="Center"
                            Foreground="{ThemeResource FSTSecondaryTextBrush}" TextWrapping="Wrap" />
             </StackPanel>
@@ -78,7 +78,7 @@
                 <Border Style="{StaticResource FSTCardStyle}">
                     <ItemsRepeater ItemsSource="{x:Bind ViewModel.Overview, Mode=OneWay}" ItemTemplate="{StaticResource StatTileTemplate}">
                         <ItemsRepeater.Layout>
-                            <UniformGridLayout MinItemWidth="112" MinItemHeight="56" MinColumnSpacing="8" MinRowSpacing="8" ItemsStretch="Fill" />
+                            <UniformGridLayout MinItemWidth="112" MinItemHeight="84" MinColumnSpacing="8" MinRowSpacing="8" ItemsStretch="Fill" />
                         </ItemsRepeater.Layout>
                     </ItemsRepeater>
                 </Border>
@@ -115,7 +115,7 @@
                                                        TextWrapping="Wrap" AutomationProperties.AutomationId="{x:Bind controls:PlayerProfileView.EmptyId(AutomationKey)}" />
                                             <ItemsRepeater ItemsSource="{x:Bind Stats}" Visibility="{x:Bind HasScores}" ItemTemplate="{StaticResource StatTileTemplate}">
                                                 <ItemsRepeater.Layout>
-                                                    <UniformGridLayout MinItemWidth="112" MinItemHeight="56" MinColumnSpacing="8" MinRowSpacing="8" ItemsStretch="Fill" />
+                                                    <UniformGridLayout MinItemWidth="112" MinItemHeight="84" MinColumnSpacing="8" MinRowSpacing="8" ItemsStretch="Fill" />
                                                 </ItemsRepeater.Layout>
                                             </ItemsRepeater>
                                             <StackPanel Visibility="{x:Bind HasScores}" Spacing="8">
@@ -133,7 +133,7 @@
                                                 <ItemsRepeater ItemsSource="{x:Bind RankTiles, Mode=OneWay}" Visibility="{x:Bind RankAvailable, Mode=OneWay}"
                                                                ItemTemplate="{StaticResource StatTileTemplate}">
                                                     <ItemsRepeater.Layout>
-                                                        <UniformGridLayout MinItemWidth="120" MinItemHeight="56" MinColumnSpacing="8" ItemsStretch="Fill" />
+                                                        <UniformGridLayout MinItemWidth="112" MinItemHeight="84" MinColumnSpacing="8" ItemsStretch="Fill" />
                                                     </ItemsRepeater.Layout>
                                                 </ItemsRepeater>
                                             </StackPanel>
