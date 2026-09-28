@@ -370,9 +370,13 @@ final class FestivalSession {
 
     /// A new generation invalidates retained routes and visible loaded data.
     ///
+    /// Internal rather than private so same-module `FestivalSession+<Feature>.swift`
+    /// extensions (see PROGRESS.md's lane file ownership) can feed their own reads
+    /// through the same publication-consistency tracking as the methods below.
+    ///
     /// - Parameter publicationId: Validated service generation, even for unpinned bytes.
     /// - Throws: `FestivalAPIError.invalidPublication` if an older async result arrives late.
-    private func observe(publicationId: Int) async throws {
+    func observe(publicationId: Int) async throws {
         if let previous = self.publicationId {
             guard publicationId >= previous else {
                 throw FestivalAPIError.invalidPublication
