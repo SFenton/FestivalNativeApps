@@ -1,0 +1,62 @@
+import SwiftUI
+import FestivalCore
+import FestivalDesign
+
+// MARK: - Settings section
+
+/// The Settings "First-Run Guides" section: one "Show" row per registered page that replays its
+/// *entire* slide catalog, ignoring gates and seen-state — ported from the web's
+/// `useFirstRunReplay`/`getAllSlides` pair used by `SettingsPage.tsx`.
+///
+/// Self-contained so the Settings lane only needs to add one call site inside
+/// `SettingsScreen.swift`; this file owns its own state and sheet presentation.
+struct FirstRunSettingsSection: View {
+    let session: FestivalSession
+    @State private var replayPage: FirstRunPageKey?
+
+    /// Create the section.
+    ///
+    /// - Parameter session: Shared app session (first-run coordinator + seen-state store).
+    init(session: FestivalSession) {
+        self.session = session
+    }
+
+    var body: some View {
+        FestivalGlassSection(
+            "First-Run Guides", subtitle: "Re-visit the first run experience for each page."
+        ) {
+            ForEach(FirstRunPageKey.allCases) { page in
+                Button { openReplay(page) } label: {
+                    HStack {
+                        SettingLabel(page.label)
+                        Spacer(minLength: 8)
+                        Text("Show")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(BrandTokens.accentBlue)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("fst.settings.first-run.\(page.rawValue)")
+                .accessibilityHint("Shows every first-run guide slide for \(page.label)")
+            }
+        }
+        .sheet(item: $replayPage) { page in
+            let slides = FirstRunSlideEvaluator.allSlides(FirstRunCatalog.slides(for: page))
+            FirstRunCarouselView(page: page, slides: slides) {
+                session.firstRunCenter.store.markSeen(slides)
+                replayPage = nil
+            }
+        }
+    }
+
+    /// Reset the page's seen-state (matching the web's `open()` calling `resetPage` first) and
+    /// present its full, ungated slide catalog.
+    ///
+    /// - Parameter page: Page to replay.
+    private func openReplay(_ page: FirstRunPageKey) {
+        let slides = FirstRunCatalog.slides(for: page)
+        session.firstRunCenter.store.resetPage(slides.map(\.id))
+        replayPage = page
+    }
+}

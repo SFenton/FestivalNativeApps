@@ -21,4 +21,5 @@ All controls are `pending` until every platform has state/visual/accessibility e
 | notifications | `fst.notifications.*` | 8 | pending | [spec](notifications/spec.md) | [ios](notifications/ios.md) |
 | quick-links | `fst.quick-links.*` | 5 | pending | [spec](quick-links/spec.md) | [ios](quick-links/ios.md) |
 | songs-section-index | `fst.songs.section-index.*` | 5 | pending | [spec](songs-section-index/spec.md) | [ios](songs-section-index/ios.md) |
+| first-run | ? | ? | not in contract | [spec](first-run/spec.md) | [ios](first-run/ios.md) |
 <!-- END GENERATED -->
