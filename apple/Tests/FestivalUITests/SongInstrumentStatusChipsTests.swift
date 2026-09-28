@@ -65,19 +65,24 @@ func paintedPixels(
     return count
 }
 
-/// Gold, green, red and muted chips must paint distinctly on an actual card.
+/// Gold, green, red, amber and muted chips must each paint a distinct fill color:
+/// with the corner star/check/minus/exclamation mark removed, color is the only
+/// visual cue, so every status (including the once-shared red for no-score and
+/// inconsistent-FC) must be separately identifiable on an actual card.
 @MainActor
-@Test func nativeStatusChipsPaintSourceStatesWithSeparateInconsistentMark() throws {
+@Test func nativeStatusChipsPaintSourceStatesAsDistinctColors() throws {
     let image = try chipImage(width: 390)
     #expect(image.width == 390)
     #expect(paintedPixels(near: (255, 215, 0), in: image) > 25)
     #expect(paintedPixels(near: (46, 204, 113), in: image) > 25)
     #expect(paintedPixels(near: (198, 40, 40), in: image) > 25)
     #expect(paintedPixels(near: (34, 48, 71), in: image) > 25)
+    #expect(paintedPixels(near: (245, 166, 35), in: image) > 25)
     let noScore = try chipImage(width: 80, statuses: [.noScore])
     let inconsistent = try chipImage(width: 80, statuses: [.inconsistentFullCombo])
     #expect(paintedPixels(near: (198, 40, 40), in: noScore) > 25)
-    #expect(paintedPixels(near: (198, 40, 40), in: inconsistent) > 25)
+    #expect(paintedPixels(near: (245, 166, 35), in: inconsistent) > 25)
+    #expect(paintedPixels(near: (198, 40, 40), in: inconsistent) == 0)
     let ordinaryImage = try #require(
         NSBitmapImageRep(cgImage: noScore).representation(using: .png, properties: [:])
     )

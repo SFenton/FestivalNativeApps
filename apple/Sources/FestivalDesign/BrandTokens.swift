@@ -15,6 +15,8 @@ public enum BrandTokens {
     public static let glassBorder = Color(.sRGB, red: 255.0 / 255, green: 255.0 / 255, blue: 255.0 / 255, opacity: 20.0 / 255)
     public static let gold = Color(.sRGB, red: 255.0 / 255, green: 215.0 / 255, blue: 0.0 / 255, opacity: 255.0 / 255)
     public static let goldStroke = Color(.sRGB, red: 207.0 / 255, green: 165.0 / 255, blue: 0.0 / 255, opacity: 255.0 / 255)
+    public static let statusAmber = Color(.sRGB, red: 245.0 / 255, green: 166.0 / 255, blue: 35.0 / 255, opacity: 255.0 / 255)
+    public static let statusAmberStroke = Color(.sRGB, red: 171.0 / 255, green: 116.0 / 255, blue: 25.0 / 255, opacity: 255.0 / 255)
     public static let statusGreen = Color(.sRGB, red: 46.0 / 255, green: 204.0 / 255, blue: 113.0 / 255, opacity: 255.0 / 255)
     public static let statusGreenStroke = Color(.sRGB, red: 30.0 / 255, green: 127.0 / 255, blue: 70.0 / 255, opacity: 255.0 / 255)
     public static let statusRed = Color(.sRGB, red: 198.0 / 255, green: 40.0 / 255, blue: 40.0 / 255, opacity: 255.0 / 255)

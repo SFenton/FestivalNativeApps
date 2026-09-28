@@ -17,6 +17,8 @@ object BrandTokens {
     val glassBorder = Color(0x14FFFFFF)
     val gold = Color(0xFFFFD700)
     val goldStroke = Color(0xFFCFA500)
+    val statusAmber = Color(0xFFF5A623)
+    val statusAmberStroke = Color(0xFFAB7419)
     val statusGreen = Color(0xFF2ECC71)
     val statusGreenStroke = Color(0xFF1E7F46)
     val statusRed = Color(0xFFC62828)

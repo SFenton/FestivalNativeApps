@@ -123,13 +123,15 @@ def check_song_chip_contrast(colors: dict[str, str]) -> list[str]:
     Returns:
         Missing, translucent or low-contrast chip token pairs.
     """
+    # No corner glyph renders on the chip fill any more (2026-09-28): color alone
+    # now conveys status, so each fill/stroke pair only needs a visible boundary
+    # against the card, not a 4.5:1 text-style glyph ratio.
     return check_semantic_pairs(colors, (
-        ("full combo glyph", "cardBackground", "gold", 4.5),
-        ("scored glyph", "cardBackground", "statusGreen", 4.5),
-        ("no-score glyph", "textPrimary", "statusRed", 4.5),
-        ("unavailable glyph", "textPrimary", "surfaceMuted", 4.5),
-        ("unavailable outline", "textDisabled", "cardBackground", 3.0),
+        ("full combo fill", "gold", "cardBackground", 3.0),
+        ("scored fill", "statusGreen", "cardBackground", 3.0),
         ("no-score fill", "statusRed", "cardBackground", 3.0),
+        ("inconsistent fc fill", "statusAmber", "cardBackground", 3.0),
+        ("unavailable outline", "textDisabled", "cardBackground", 3.0),
     ), prefix="song-chip")
 
 

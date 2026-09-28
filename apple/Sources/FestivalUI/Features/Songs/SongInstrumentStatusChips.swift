@@ -142,15 +142,19 @@ struct SongInstrumentStatusChips: View {
     }
 
     /// Match the web `InstrumentChip`'s colored ring/fill with the real chart icon
-    /// inside, while keeping a second non-color status mark for accessibility.
+    /// filling most of the circle (web: 24pt icon in a 34pt chip, ~71%). Color alone
+    /// now conveys status — no star/minus/check/exclamation corner badge — but the
+    /// combined chip-group announcement (`badges.map(\.announcement)` above) still
+    /// speaks every chart's status in words, so the status remains fully accessible
+    /// without relying on color or a glyph.
     ///
     /// - Parameter badge: Source-ordered, verified per-song instrument state.
-    /// - Returns: A bounded circular native status with contrast-safe glyphs.
+    /// - Returns: A bounded circular native status with a contrast-safe stroke.
     private func chip(_ badge: SongInstrumentBadge) -> some View {
         InstrumentIcon(
             badge.instrument,
             keyboard: keyboard && (badge.instrument == .lead || badge.instrument == .proLead),
-            size: side * 0.56
+            size: side * 0.7
         )
             .accessibilityHidden(true)
             .frame(width: side, height: side)
@@ -158,41 +162,21 @@ struct SongInstrumentStatusChips: View {
             .overlay {
                 Circle().stroke(badge.status.strokeColor, lineWidth: 2)
             }
-            .overlay(alignment: .bottomTrailing) {
-                statusMark(badge.status)
-                    .frame(width: side * 0.42, height: side * 0.42)
-                    .background(badge.status.glyphBackground, in: Circle())
-                    .overlay { Circle().stroke(badge.status.strokeColor, lineWidth: 1) }
-                    .offset(x: side * 0.08, y: side * 0.08)
-            }
             .accessibilityHidden(true)
-    }
-
-    /// Draw the same non-color status distinction previously carried by the chip fill.
-    ///
-    /// - Parameter status: Verified per-chart score/FC state.
-    /// - Returns: A small badge glyph, distinguishable without color.
-    private func statusMark(_ status: SongInstrumentStatus) -> some View {
-        Group {
-            if let mark = status.mark {
-                Image(systemName: mark)
-                    .font(.system(size: side * 0.24, weight: .bold))
-            } else {
-                Text("/")
-                    .font(.system(size: side * 0.24, weight: .bold, design: .rounded))
-            }
-        }
-        .foregroundStyle(status.glyphColor)
-        .accessibilityHidden(true)
     }
 }
 
 private extension SongInstrumentStatus {
+    /// One distinct color per status: with the corner mark removed, color is the
+    /// *only* visual cue, so `inconsistentFullCombo` can no longer share red with
+    /// `noScore` — it now gets its own amber (`BrandTokens.statusAmber`), a native
+    /// safety deviation on top of the existing web-vs-native color deviation.
     var fillColor: Color {
         switch self {
         case .fullCombo: BrandTokens.gold
         case .scored: BrandTokens.statusGreen
-        case .noScore, .inconsistentFullCombo: BrandTokens.statusRed
+        case .noScore: BrandTokens.statusRed
+        case .inconsistentFullCombo: BrandTokens.statusAmber
         case .unavailable: BrandTokens.surfaceMuted
         }
     }
@@ -201,28 +185,9 @@ private extension SongInstrumentStatus {
         switch self {
         case .fullCombo: BrandTokens.goldStroke
         case .scored: BrandTokens.statusGreenStroke
-        case .noScore, .inconsistentFullCombo: BrandTokens.statusRedStroke
+        case .noScore: BrandTokens.statusRedStroke
+        case .inconsistentFullCombo: BrandTokens.statusAmberStroke
         case .unavailable: BrandTokens.textDisabled
-        }
-    }
-
-    var glyphColor: Color {
-        switch self {
-        case .fullCombo, .scored: BrandTokens.cardBackground
-        case .noScore, .unavailable, .inconsistentFullCombo: BrandTokens.textPrimary
-        }
-    }
-
-    /// Background of the small corner status badge, matching the ring's fill.
-    var glyphBackground: Color { fillColor }
-
-    var mark: String? {
-        switch self {
-        case .fullCombo: "star.fill"
-        case .scored: "checkmark"
-        case .noScore: "minus"
-        case .unavailable: nil
-        case .inconsistentFullCombo: "exclamationmark"
         }
     }
 }

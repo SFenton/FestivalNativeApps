@@ -25,6 +25,10 @@
     <SolidColorBrush x:Key="FSTGoldBrush" Color="{StaticResource FSTGoldColor}" />
     <Color x:Key="FSTGoldStrokeColor">#FFCFA500</Color>
     <SolidColorBrush x:Key="FSTGoldStrokeBrush" Color="{StaticResource FSTGoldStrokeColor}" />
+    <Color x:Key="FSTStatusAmberColor">#FFF5A623</Color>
+    <SolidColorBrush x:Key="FSTStatusAmberBrush" Color="{StaticResource FSTStatusAmberColor}" />
+    <Color x:Key="FSTStatusAmberStrokeColor">#FFAB7419</Color>
+    <SolidColorBrush x:Key="FSTStatusAmberStrokeBrush" Color="{StaticResource FSTStatusAmberStrokeColor}" />
     <Color x:Key="FSTStatusGreenColor">#FF2ECC71</Color>
     <SolidColorBrush x:Key="FSTStatusGreenBrush" Color="{StaticResource FSTStatusGreenColor}" />
     <Color x:Key="FSTStatusGreenStrokeColor">#FF1E7F46</Color>

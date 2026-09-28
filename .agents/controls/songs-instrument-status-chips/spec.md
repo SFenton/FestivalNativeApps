@@ -12,15 +12,16 @@ One chip per **enabled** solo chart, in the service's stable nine-chart order, o
 
 | Status | Cue and spoken state | Rule |
 |---|---|---|
-| Not charted | Muted circle, slash; "not charted" | Song difficulty missing, non-finite, negative or 99 — **even if** a score exists |
-| Full combo | Gold circle, star; "full combo" | Charted, score > 0, explicit FC |
-| Scored | Green circle, check; "scored" | Charted, positive score, no FC |
-| No score | Red circle, minus; "no score" | Charted, no row, or zero score without FC |
-| Inconsistent FC | Red circle, exclamation; "score missing despite a reported full combo" | Charted, zero score with explicit FC (web paints gold: native safety deviation) |
+| Not charted | Muted circle; "not charted" | Song difficulty missing, non-finite, negative or 99 — **even if** a score exists |
+| Full combo | Gold circle; "full combo" | Charted, score > 0, explicit FC |
+| Scored | Green circle; "scored" | Charted, positive score, no FC |
+| No score | Red circle; "no score" | Charted, no row, or zero score without FC |
+| Inconsistent FC | Amber circle; "score missing despite a reported full combo" | Charted, zero score with explicit FC (web paints gold; native uses a fifth, unshared color — see below) |
 
 - An available 200 with no scores is not a 202: charted parts read "no score", uncharted "not charted".
 - Loading, 202, error and publication changes keep their explicit score state **without chips** (the web's 202 red-chip behavior is inferred from code, not observed).
 - Retained older Songs rows after a failed refresh never get newer chips: each row says "Player scores paused until songs update" and the list has a separate pause notice.
-- The combined row link speaks every enabled chart and status in order — not nine tiny separate actions. Each status has a distinct shape; colour is never the only cue.
+- The combined row link speaks every enabled chart and status in order — not nine tiny separate actions.
+- **Native deviation (2026-09-28, operator request):** the former star/check/minus/exclamation corner mark is removed; color alone now conveys status (the instrument's own icon fills most of the circle instead, matching web's `InstrumentChip.tsx` proportions — a 24pt icon in a 34pt/56pt chip, ≈70%). Because color is now the *only* cue, `inconsistentFullCombo` can no longer share red with `noScore`: it gets its own `BrandTokens.statusAmber`/`statusAmberStroke`, a second, additive native safety deviation from the web (which paints it gold). The combined-row spoken announcement (unchanged) remains the accessible source of truth for status text.
 - Web layout: 390px phone wraps nine chips 5+4; 820px tablet shows one row.
-- Tokens: glyph/mark ≥4.5:1 on the opaque fill, unavailable outline and red boundary ≥3:1 on the card (`python3 -m tools.contrast_gate`); this is not rendered-screenshot proof.
+- Tokens: each status fill/stroke ≥3:1 against the card (`python3 -m tools.contrast_gate`); no glyph-on-fill ratio applies now that no glyph renders. Not rendered-screenshot proof.
