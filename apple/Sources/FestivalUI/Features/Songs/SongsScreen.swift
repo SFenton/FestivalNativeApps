@@ -281,7 +281,7 @@ struct SongsScreen: View {
             Group {
             switch state {
             case .loading:
-                ProgressView("Loading songs")
+                FestivalLoadingView(accessibilityLabel: "Loading songs")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .transition(.opacity)
             case let .failed(issue):

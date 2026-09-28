@@ -124,10 +124,9 @@ struct SelectedRankAccessibilityLabel: ViewModifier {
 struct RankingSpotlightLoadingRow: View {
     var body: some View {
         HStack(spacing: 6) {
-            ProgressView().controlSize(.small)
-            Text("Loading your rank…")
-                .font(.footnote)
-                .foregroundStyle(BrandTokens.textSecondary)
+            // Operator standard: white spinner, no visible loading subtitle.
+            FestivalLoadingView(accessibilityLabel: "Loading your rank")
+                .controlSize(.small)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Loading your rank")

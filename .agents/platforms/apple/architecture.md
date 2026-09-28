@@ -50,3 +50,7 @@ Never put several default-style `Button`s or `NavigationLink`s in **one** `List`
 | Accessibility IDs from the `product.json` registry | Ad-hoc IDs | `tools/verify_product.py` checks the registry |
 
 Code style: DocC `///` with parameters/returns, `// MARK: -` regions, clarifying comments only.
+
+## Loading indicators (operator rule)
+
+Every spinner is `Common/FestivalLoadingView` (white, **no visible title/subtitle**; spoken label only). Never `ProgressView("…")` with text. Determinate progress bars (e.g. Paths image download) are exempt.
