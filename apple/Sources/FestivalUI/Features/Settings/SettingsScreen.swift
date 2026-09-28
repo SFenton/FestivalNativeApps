@@ -41,6 +41,10 @@ struct SettingsScreen: View {
 
     @AppStorage("fst.settings.tapDiagnostics") private var tapDiagnostics = false
     @AppStorage("fst.settings.tapTelemetry") private var tapTelemetry = false
+    /// Suggestions' own persisted filter draft (Lane G). Not shown in this screen's
+    /// UI — Suggestions reads/writes it directly — but "Reset App Settings" restores
+    /// every registered app preference, so it is reset here too.
+    @AppStorage(SuggestionFilterSettings.storageKey) private var suggestionFilterData = Data()
 
     @AppStorage("fst.settings.showLead") private var showLead = true
     @AppStorage("fst.settings.showBass") private var showBass = true
@@ -70,6 +74,7 @@ struct SettingsScreen: View {
     @State private var serviceStatus: String?
     @State private var showingVisualOrderSheet = false
     @State private var showingPathColumnSheet = false
+    @State private var quickLinks = QuickLinksController()
 
     let session: FestivalSession
     let isVisible: Bool
@@ -90,22 +95,33 @@ struct SettingsScreen: View {
                 appSettings
                 diagnostics
                 accessibility
-                itemShop
-                instruments
-                metadata
-                version
+                itemShop.quickLinkSection(id: "item-shop", title: "Item Shop", symbol: "bag.fill")
+                instruments.quickLinkSection(
+                    id: "show-instruments", title: "Show Instruments", symbol: "music.note"
+                )
+                metadata.quickLinkSection(
+                    id: "show-metadata", title: "Show Instrument Metadata", symbol: "list.bullet"
+                )
+                version.quickLinkSection(id: "version", title: "Version", symbol: "info.circle")
                 FirstRunSettingsSection(session: session)
-                service
-                about
-                reset
+                    .quickLinkSection(id: "first-run", title: "First-Run Experience", symbol: "sparkles")
+                service.quickLinkSection(id: "service-info", title: "Service", symbol: "server.rack")
+                about.quickLinkSection(id: "licenses", title: "Licenses", symbol: "doc.text")
+                reset.quickLinkSection(id: "reset", title: "Reset Settings", symbol: "trash")
             }
             .padding(.horizontal, 16)
             .padding(.top, 8)
             .padding(.bottom, 32)
         }
+        .quickLinks(quickLinks, title: "Quick Links")
         .scrollDismissesKeyboard(.interactively)
         .festivalBackground(.carousel, session: session, visible: isVisible)
         .navigationTitle("Settings")
+        .toolbar {
+            QuickLinksToolbarItem(quickLinks)
+            FestivalRootTrailingItems(session: session)
+        }
+        .festivalProvidesRootTrailingItems()
         .confirmationDialog(
             "Reset app settings only?",
             isPresented: $resetPending,
@@ -216,6 +232,7 @@ struct SettingsScreen: View {
             .disabled(true)
             .accessibilityHint("Experimental ranks are not yet available")
         }
+        .quickLinkSection(id: "app-settings", title: "App Settings", symbol: "gearshape.fill")
     }
 
     private var accessibility: some View {
@@ -334,6 +351,7 @@ struct SettingsScreen: View {
             .disabled(!tapDiagnostics)
             .accessibilityIdentifier("fst.settings.tap-telemetry")
         }
+        .quickLinkSection(id: "diagnostics", title: "Diagnostics", symbol: "info.circle")
         #endif
     }
 
@@ -622,6 +640,7 @@ struct SettingsScreen: View {
         disableAnimatedArtwork = false
         moreContrast = false
         lessTransparency = false
+        suggestionFilterData = Data()
     }
 }
 

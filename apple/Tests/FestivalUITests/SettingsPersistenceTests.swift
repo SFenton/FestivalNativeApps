@@ -11,6 +11,7 @@ private func changed(_ value: SettingDefault) -> SettingDefault {
     case let .bool(flag): .bool(!flag)
     case .double: .double(3.5)
     case .string: .string(PathDisplayMode.text.rawValue)
+    case .data: .data(Data([1, 2, 3]))
     }
 }
 

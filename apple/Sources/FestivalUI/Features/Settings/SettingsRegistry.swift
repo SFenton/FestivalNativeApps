@@ -8,6 +8,10 @@ enum SettingDefault: Sendable, Equatable {
     case bool(Bool)
     case double(Double)
     case string(String)
+    /// A `Data`-backed `@AppStorage`, e.g. a Codable-JSON preference owned by
+    /// another lane (`SuggestionFilterSettings.storageKey`). Its default is empty
+    /// `Data()`, matching that type's own "untouched filter" contract.
+    case data(Data)
 }
 
 /// Every app preference that Settings owns and "Reset App Settings" restores.
@@ -31,6 +35,7 @@ enum SettingsRegistry {
         ("fst.settings.disableShopHighlighting", .bool(false)),
         ("fst.settings.tapDiagnostics", .bool(false)),
         ("fst.settings.tapTelemetry", .bool(false)),
+        (SuggestionFilterSettings.storageKey, .data(Data())),
         ("fst.settings.showLead", .bool(true)),
         ("fst.settings.showBass", .bool(true)),
         ("fst.settings.showDrums", .bool(true)),
@@ -67,6 +72,7 @@ enum SettingsRegistry {
         case .bool: return .bool(store.bool(forKey: key))
         case .double: return .double(store.double(forKey: key))
         case .string: return store.string(forKey: key).map(SettingDefault.string) ?? fallback
+        case .data: return .data(store.data(forKey: key) ?? Data())
         }
     }
 
@@ -81,6 +87,7 @@ enum SettingsRegistry {
         case let .bool(flag): store.set(flag, forKey: key)
         case let .double(number): store.set(number, forKey: key)
         case let .string(text): store.set(text, forKey: key)
+        case let .data(bytes): store.set(bytes, forKey: key)
         }
     }
 }
