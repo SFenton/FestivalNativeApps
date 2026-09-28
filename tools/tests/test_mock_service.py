@@ -44,6 +44,7 @@ class MockServiceTests(unittest.TestCase):
             "stopAfterFirstScore": False,
             "stopAfterFirstShop": False,
             "metadataEdge": False,
+            "largeRankings": False,
         })
         self.assertEqual(set(identity["sourceHashes"]), {
             "tools/mock_service.py",
@@ -92,6 +93,32 @@ class MockServiceTests(unittest.TestCase):
             with self.subTest(value=value):
                 self.assertGreaterEqual(value, 500_000)
                 self.assertLessEqual(value, 1_000_000)
+
+    def test_large_rankings_mode_pages_deep_and_keeps_default_small(self):
+        """`--large-rankings` pads rows for pagers; the default roster stays three accounts."""
+        with urlopen(self.base + "/api/rankings/Solo_Guitar?page=1&pageSize=25") as response:
+            self.assertEqual(json.load(response)["totalAccounts"], 3)
+        large = FixtureServer(("127.0.0.1", 0), FixtureHandler, large_rankings=True)
+        thread = threading.Thread(target=large.serve_forever, daemon=True)
+        thread.start()
+        base = f"http://127.0.0.1:{large.server_port}"
+        try:
+            with urlopen(base + "/api/rankings/Solo_Guitar?page=48&pageSize=25") as response:
+                body = json.load(response)
+            self.assertEqual(body["totalAccounts"], 1_200)
+            self.assertEqual(len(body["entries"]), 25)
+            self.assertEqual(body["entries"][-1]["accountId"], "fixture-rank-1200")
+            self.assertTrue(all(e["totalScore"] > 0 and e["adjustedSkillRating"] > 0 for e in body["entries"]))
+            with urlopen(base + "/api/rankings/Solo_Guitar/fixture-rank-600") as response:
+                self.assertEqual(json.load(response)["totalScoreRank"], 600)
+            with urlopen(base + "/api/rankings/bands/Band_Duets?page=24&pageSize=25") as response:
+                bands = json.load(response)
+            self.assertEqual(bands["totalTeams"], 600)
+            self.assertEqual(len(bands["entries"]), 25)
+        finally:
+            large.shutdown()
+            large.server_close()
+            thread.join(timeout=2)
 
     def test_player_rank_history_is_a_bounded_pure_read(self):
         """Demo players get the committed 7-day series; others are unranked, not 404."""

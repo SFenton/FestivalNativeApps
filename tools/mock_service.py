@@ -130,6 +130,9 @@ INSTRUMENTS = frozenset({
     "Solo_PeripheralCymbals", "Solo_PeripheralDrums",
 })
 BAND_TYPES = frozenset({"Band_Duets", "Band_Trios", "Band_Quad"})
+# `--large-rankings`: enough synthetic rows for multi-page pagers (48 pages of 25).
+LARGE_RANKINGS_ACCOUNTS = 1_200
+LARGE_RANKINGS_TEAMS = 600
 
 
 def _ranking_entry(rank: int, account_id: str, display_name: str) -> dict:
@@ -147,13 +150,13 @@ def _ranking_entry(rank: int, account_id: str, display_name: str) -> dict:
     return {
         "accountId": account_id, "displayName": display_name,
         "songsPlayed": 40 - rank, "totalChartedSongs": 50,
-        "coverage": 0.8, "rawSkillRating": 0.05 - rank * 0.01,
-        "adjustedSkillRating": 0.05 - rank * 0.01, "adjustedSkillRank": rank,
-        "weightedRating": 0.06 - rank * 0.01, "weightedRank": rank,
+        "coverage": 0.8, "rawSkillRating": max(0.001, 0.05 - rank * 0.01),
+        "adjustedSkillRating": max(0.001, 0.05 - rank * 0.01), "adjustedSkillRank": rank,
+        "weightedRating": max(0.001, 0.06 - rank * 0.01), "weightedRank": rank,
         "fcRate": max(0.1, 0.6 - rank * 0.1), "fcRateRank": rank,
-        "totalScore": 90_000_000 - rank * 1_000_000, "totalScoreRank": rank,
+        "totalScore": max(1_000, 90_000_000 - rank * 1_000_000 if rank <= 80 else 10_000_000 - rank * 5_000), "totalScoreRank": rank,
         "maxScorePercent": max(0.5, 0.99 - rank * 0.02), "maxScorePercentRank": rank,
-        "avgAccuracy": 990_000 - rank * 1_000, "fullComboCount": max(0, 20 - rank),
+        "avgAccuracy": max(500_000, 990_000 - rank * 1_000), "fullComboCount": max(0, 20 - rank),
         "avgStars": 4.9, "bestRank": 1, "avgRank": float(rank),
     }
 
@@ -174,13 +177,14 @@ def _band_ranking_entry(rank: int) -> dict:
             {"accountId": f"fixture-band-{rank}-b", "displayName": f"Band {rank} Member B"},
         ],
         "songsPlayed": 30 - rank, "totalChartedSongs": 50, "coverage": 0.6,
-        "rawSkillRating": 0.04 - rank * 0.01, "adjustedSkillRating": 0.04 - rank * 0.01,
-        "adjustedSkillRank": rank, "weightedRating": 0.05 - rank * 0.01, "weightedRank": rank,
+        "rawSkillRating": max(0.001, 0.04 - rank * 0.01),
+        "adjustedSkillRating": max(0.001, 0.04 - rank * 0.01),
+        "adjustedSkillRank": rank, "weightedRating": max(0.001, 0.05 - rank * 0.01),
+        "weightedRank": rank,
         "fcRate": max(0.1, 0.4 - rank * 0.1), "fcRateRank": rank,
-        "totalScore": 50_000_000 - rank * 500_000, "totalScoreRank": rank,
-        "avgAccuracy": 970_000 - rank * 1_000, "fullComboCount": max(0, 10 - rank),
+        "totalScore": max(1_000, 50_000_000 - rank * 500_000 if rank <= 90 else 5_000_000 - rank * 5_000), "totalScoreRank": rank,
+        "avgAccuracy": max(500_000, 970_000 - rank * 1_000), "fullComboCount": max(0, 10 - rank),
         "avgStars": 4.5, "bestRank": 1, "avgRank": float(rank),
-
     }
 
 
@@ -412,6 +416,7 @@ class FixtureServer(ThreadingHTTPServer):
         stop_after_first_score: bool = False,
         stop_after_first_shop: bool = False,
         metadata_edge: bool = False,
+        large_rankings: bool = False,
     ) -> None:
         """Create a deterministic, bounded service fixture.
 
@@ -427,6 +432,8 @@ class FixtureServer(ThreadingHTTPServer):
             stop_after_first_score: Stop after the first successful full 25-row chart read.
             stop_after_first_shop: Stop after one Shop feed and explicit visual acknowledgement.
             metadata_edge: Publish one isolated long-title, score and Shop contract.
+            large_rankings: Pad account/band rankings with synthetic `fixture-rank-{n}` /
+                `fixture-team-{n}` rows so pagers have many pages; ranks 1–3 are unchanged.
         """
         if metadata_edge and (
             unpinned or rollover_on_read is not None or rollover_on_command
@@ -445,6 +452,7 @@ class FixtureServer(ThreadingHTTPServer):
             raise ValueError("Command rollover needs its own persistent fixture mode")
         self.unpinned = unpinned
         self.metadata_edge = metadata_edge
+        self.large_rankings = large_rankings
         self.rollover_on_read = rollover_on_read
         self.rollover_on_command = rollover_on_command
         self.mismatched_shop_rollover = mismatched_shop_rollover
@@ -459,6 +467,7 @@ class FixtureServer(ThreadingHTTPServer):
             "stopAfterFirstScore": stop_after_first_score,
             "stopAfterFirstShop": stop_after_first_shop,
             "metadataEdge": metadata_edge,
+            "largeRankings": large_rankings,
         }
         self._publication_reads = 0
         self._publication_id = 7
@@ -1001,6 +1010,9 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 known = {
                     "fixture-team-1": 1, "fixture-team-2": 2,
                 }
+                deep = re.fullmatch(r"fixture-team-(\d+)", team_key)
+                if self.fixture.large_rankings and deep and 2 < int(deep.group(1)) <= LARGE_RANKINGS_TEAMS:
+                    known[team_key] = int(deep.group(1))
                 selected = (
                     _band_detail(team_key, known[team_key], band_type)
                     if team_key in known else None
@@ -1011,7 +1023,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
                     "selectedBandEntry": selected,
                 })
                 return
-            total = 2
+            total = LARGE_RANKINGS_TEAMS if self.fixture.large_rankings else 2
             start = (page - 1) * page_size
             entries = [
                 _band_ranking_entry(rank)
@@ -1117,13 +1129,17 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 "fixture-player-2": (2, "Fixture Player 2"),
                 "fixture-rank-3": (3, "Fixture Rank 3"),
             }
+            total = LARGE_RANKINGS_ACCOUNTS if self.fixture.large_rankings else len(roster)
+            deep = re.fullmatch(r"fixture-rank-(\d+)", account_id)
+            if self.fixture.large_rankings and deep and 3 < int(deep.group(1)) <= total:
+                roster[account_id] = (int(deep.group(1)), f"Fixture Rank {deep.group(1)}")
             if account_id not in roster:
                 self._json(404, {"status": "account_not_ranked"})
                 return
             rank, display_name = roster[account_id]
             self._json(200, {
                 **_ranking_entry(rank, account_id, display_name),
-                "instrument": instrument, "totalRankedAccounts": 3,
+                "instrument": instrument, "totalRankedAccounts": total,
             })
         elif match := RANKINGS.fullmatch(path):
             instrument = match.group(1)
@@ -1149,6 +1165,11 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 ("fixture-player-2", "Fixture Player 2"),
                 ("fixture-rank-3", "Fixture Rank 3"),
             ]
+            if self.fixture.large_rankings:
+                roster += [
+                    (f"fixture-rank-{n}", f"Fixture Rank {n}")
+                    for n in range(len(roster) + 1, LARGE_RANKINGS_ACCOUNTS + 1)
+                ]
             total = len(roster)
             start = (page - 1) * page_size
             entries = [
@@ -1687,6 +1708,10 @@ def main() -> None:
     parser.add_argument("--stop-after-first-score", action="store_true")
     parser.add_argument("--stop-after-first-shop", action="store_true")
     parser.add_argument("--metadata-edge", action="store_true")
+    parser.add_argument(
+        "--large-rankings", action="store_true",
+        help="pad rankings to 1,200 accounts / 600 teams for multi-page pager captures",
+    )
     args = parser.parse_args()
     if not 0 <= args.port <= 65535:
         parser.error("port must be between 0 (OS-assigned) and 65535")
@@ -1718,7 +1743,8 @@ def main() -> None:
         stop_after_first_songs=args.stop_after_first_songs,
         stop_after_first_score=args.stop_after_first_score,
         stop_after_first_shop=args.stop_after_first_shop,
-        metadata_edge=args.metadata_edge
+        metadata_edge=args.metadata_edge,
+        large_rankings=args.large_rankings
     ) as server:
         print(f"Local test fixture service on 127.0.0.1:{server.server_port}", flush=True)
         server.serve_forever()
