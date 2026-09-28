@@ -224,16 +224,51 @@ one source of truth for the richer `BandDetail`/`PlayerBandEntry`/
 this lane — see `.agents/testing/fixtures.md`) instead of a second
 hand-authored JSON copy in a test-only transport actor.
 
-XCUITest journeys added (`apple/Apps/iOSUITests/{ProfileJourneyTests,
-BandsJourneyTests,SettingsJourneyTests}.swift`, 6 tests): profile search → view
-→ select → Statistics tab → deselect; Band Rankings row → Band Detail → its
-catalog-linked Best song → Song Detail; Player Bands paging past a synthetic
-30-row first page; a Settings accessibility toggle surviving a cold relaunch;
-the Song Row Order reorder sheet opening/closing; Reset App Settings restoring
-a changed toggle. Suggestions' filter-apply journey was already covered by
-Lane G/U2's `SuggestionsJourneyTests.swift` (`testSuggestionsFilterDraftApplyDiscardAndReset`),
-so this lane did not duplicate it. These three files' `FST_API_BASE_URL`
-points at a dedicated `127.0.0.1:18790` loopback instance this lane starts
-itself, not the shared default `8765`: that pre-existing process predates this
-lane's `tools/mock_service.py` changes, and "never kill a stale service you
-did not start" forbids restarting it to pick up the new Bands/ranking routes.
+XCUITest journeys added (`apple/Apps/iOSUITests/{ProfileStatisticsJourneyTests,
+BandsJourneyTests,SettingsJourneyTests}.swift`, 6 tests, 3 passing + 3 skipped):
+- `ProfileStatisticsJourneyTests.testSearchViewSelectStatisticsThenDeselect` —
+  **passes**: search → view → select → Statistics tab shows the same profile →
+  deselect. Named `ProfileStatisticsJourneyTests`, not `ProfileJourneyTests`,
+  to avoid colliding with Lane Z2's own `ProfileJourneyTests.swift` (a
+  wrong-account-bug guard with a different purpose that already owns that
+  class name).
+- `BandsJourneyTests` (2 tests) — **both pass**: Band Rankings row → Band
+  Detail → its catalog-linked Best song → Song Detail; Player Bands paging
+  past a synthetic 30-row first page.
+- `SettingsJourneyTests` (3 tests: toggle-survives-relaunch, reorder sheet
+  open/close, Reset App Settings) — **all skipped** (`XCTSkip`, not
+  `XCTExpectFailure`: no confirmed product bug). Every method consistently
+  made `tools/ios_sim.py uitest` hang for the full 300s lock-hold budget and
+  get killed, reproduced twice (alone and batched with the other two files).
+  `ProfileStatisticsJourneyTests`/`BandsJourneyTests` share the same
+  `FST_DEBUG_STILL_BACKGROUND=1` fix, loopback fixture and
+  `SongsUITestSupport.reveal`/`setSwitch` helpers and both pass reliably, so
+  the earlier carousel-idle hang this lane fixed is not the gap here; root
+  cause was not isolated via `tools/ios_sim.py drive` before the shared
+  simulator's heavy concurrent-lane load made further live debugging
+  impractical. See the file's own header comment. Re-run once load allows by
+  deleting the one `try skipPendingDeviceVerification()` call per test.
+
+Debugging note for future lanes: this lane spent significant simulator-lock
+time chasing two real, now-understood findings before landing the passing
+two files — (1) a missing `FST_DEBUG_STILL_BACKGROUND=1` launch flag caused
+every journey here to hang (the documented carousel-idle issue, easy to miss
+since `SongsUITestSupport.fixtureApp()` doesn't set it by default and some
+existing journeys set it per-file); (2) `ProfileSelectionSheet`'s
+dismiss-then-push navigation means selecting a *different* profile while
+presented from Songs pops back to the Songs tab root itself ("Selected
+profile changed. Returned to Songs to avoid mixed scores.",
+`fst.songs.navigation-notice`) rather than staying on the pushed player page —
+`SongsUITestSupport.selectViewedPlayer`/`viewFixturePlayer` were stale against
+this at the time and independently fixed upstream by Lane Z2 during this
+lane's work (confirmed via `tools/ios_sim.py drive` tree dumps both before and
+after rebasing onto that fix).
+
+Suggestions' filter-apply journey was already covered by Lane G/U2's
+`SuggestionsJourneyTests.swift` (`testSuggestionsFilterDraftApplyDiscardAndReset`),
+so this lane did not duplicate it. All three of this lane's files point
+`FST_API_BASE_URL` at a dedicated `127.0.0.1:18790` loopback instance this
+lane starts itself, not the shared default `8765`: that pre-existing process
+predates this lane's `tools/mock_service.py` changes, and "never kill a stale
+service you did not start" forbids restarting it to pick up the new
+Bands/ranking routes.
