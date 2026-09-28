@@ -273,3 +273,27 @@ class ExpandedGlobalSearchUiTest {
         rule.onNodeWithTag(GlobalSearchTags.HINT).assert(hasText(GlobalSearchResults.ENTER_QUERY_HINT))
     }
 }
+
+/** Global search on a medium window: rail, search action → docked panel. */
+@RunWith(AndroidJUnit4::class)
+@Config(qualifiers = "w700dp-h1000dp-xhdpi")
+class MediumGlobalSearchUiTest {
+    @get:Rule
+    val rule = createAndroidComposeRule<ComponentActivity>()
+
+    @Test
+    fun railLayoutDocksSearchUnderTheAction() {
+        val h = SearchHarness(rule)
+        h.launch()
+        h.waitForTag("fst.songs.row.s-alpha")
+        rule.onNodeWithTag("fst.nav.rail").assertIsDisplayed()
+        rule.onNodeWithTag(GlobalSearchTags.OPEN).assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Search")))
+        rule.onNodeWithTag(GlobalSearchTags.OPEN).performClick()
+        h.waitForTag(GlobalSearchTags.FIELD)
+        rule.onNodeWithTag(GlobalSearchTags.FIELD).performTextInput("beta")
+        h.waitForTag(GlobalSearchTags.RESULT_SONG)
+        rule.onNodeWithTag(GlobalSearchTags.CLOSE).performClick()
+        h.waitForGone(GlobalSearchTags.SURFACE)
+        assertTrue(h.bandSearches().isEmpty())
+    }
+}
