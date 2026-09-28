@@ -78,6 +78,19 @@
                 </Border>
 
                 <TextBlock Text="Leaderboards" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
+                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8" AutomationProperties.AutomationId="fst.song-detail.band-leaderboards">
+                    <TextBlock Text="Band Leaderboards:" VerticalAlignment="Center" Style="{StaticResource FSTSecondaryTextStyle}" />
+                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.BandLinks, Mode=OneWay}">
+                        <ItemsRepeater.Layout>
+                            <StackLayout Orientation="Horizontal" Spacing="4" />
+                        </ItemsRepeater.Layout>
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="vm:BandLeaderboardLink">
+                                <HyperlinkButton Content="{x:Bind Label}" Tag="{x:Bind Route}" Click="OnBandLink" />
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+                </StackPanel>
                 <ItemsRepeater x:Name="Boards" ItemsSource="{x:Bind ViewModel.Leaderboards, Mode=OneWay}"
                                ElementPrepared="OnBoardPrepared">
                     <ItemsRepeater.Layout>
@@ -92,7 +105,7 @@
                                         <TextBlock Text="{x:Bind Title}" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0"
                                                    VerticalAlignment="Center" AutomationProperties.HeadingLevel="Level3" />
                                     </StackPanel>
-                                    <TextBlock Text="{x:Bind PlayerSummary}" Visibility="{x:Bind HasPlayerSummary}" TextWrapping="Wrap"
+                                    <TextBlock Text="{x:Bind PlayerSummary, Mode=OneWay}" Visibility="{x:Bind HasPlayerSummary, Mode=OneWay}" TextWrapping="Wrap"
                                                Style="{StaticResource BodyStrongTextBlockStyle}" Foreground="{ThemeResource FSTGoldBrush}" />
                                     <ProgressRing IsActive="{x:Bind IsLoading, Mode=OneWay}" HorizontalAlignment="Left" Width="24" Height="24"
                                                   Visibility="{x:Bind IsLoading, Mode=OneWay}" />

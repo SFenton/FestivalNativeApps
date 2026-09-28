@@ -18,6 +18,20 @@ public sealed partial class SongDetailViewModel : ObservableObject
         SongId = route.SongId;
         InitialInstrument = route.Instrument;
         Status = new ServiceStatusViewModel("song-detail", "Song unavailable", LoadAsync, session.Time);
+        session.PropertyChanged += OnSessionChanged;
+    }
+
+    /// <summary>Stops following the session (page left).</summary>
+    public void Detach() => session.PropertyChanged -= OnSessionChanged;
+
+    /// <summary>Refreshes each card's player summary when the selected player's scores change state.</summary>
+    /// <param name="sender">Session.</param>
+    /// <param name="e">Changed property.</param>
+    private void OnSessionChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (!SongScoreSource.AffectsRows(e.PropertyName) && e.PropertyName != nameof(FestivalSession.Catalog)) return;
+        var scores = SongScoreSource.For(session);
+        foreach (var card in Leaderboards) card.UpdatePlayer(scores);
     }
 
     /// <summary>Requested song.</summary>
@@ -36,6 +50,7 @@ public sealed partial class SongDetailViewModel : ObservableObject
 
     /// <summary>Resolved song.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(BandLinks))]
     private Song? song;
 
     /// <summary>Intensity rows for every charted instrument (including Settings-hidden ones).</summary>
@@ -75,6 +90,11 @@ public sealed partial class SongDetailViewModel : ObservableObject
 
     /// <summary>Whether the Shop-status error shows.</summary>
     public bool HasShopIssue => ShopIssueText is not null;
+
+    /// <summary>Band leaderboard links (Duos, Trios, Quads) for this song.</summary>
+    public List<BandLeaderboardLink> BandLinks => Song is { } song
+        ? [.. BandTypeInfo.All.Select(b => new BandLeaderboardLink(b.Label(), new AppRoute.SongBandLeaderboard(song.SongId, b.ServiceId())))]
+        : [];
 
     /// <summary>Whether the Paths action shows.</summary>
     public bool HasPaths => PathInstruments.Count > 0;
@@ -144,6 +164,11 @@ public sealed partial class SongDetailViewModel : ObservableObject
         Song is { } song && HasPaths ? new SongPathsViewModel(session, song, PathInstruments) : null;
 }
 
+/// <summary>A link to one band size's leaderboard for the song.</summary>
+/// <param name="Label">"Duos".</param>
+/// <param name="Route">Band leaderboard route.</param>
+public sealed record BandLeaderboardLink(string Label, AppRoute Route);
+
 /// <summary>One Intensity row: icon, meter and spoken level.</summary>
 /// <param name="Instrument">Chart.</param>
 /// <param name="Raw">Raw 0–6 difficulty.</param>
@@ -186,19 +211,7 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
         Instrument = instrument;
         HasPlayer = session.HasPlayer;
         PlayerAccountId = session.SelectedPlayer?.AccountId;
-        if (scores?.Detail?.Invoke(song.SongId, instrument) is { Score: > 0 } detail)
-        {
-            var parts = new List<string> { ScoreFormatting.Score(detail.Score) };
-            if (ScoreFormatting.Accuracy(detail.Accuracy) is { Length: > 0 } accuracy) parts.Add(accuracy);
-            if (detail.IsFullCombo == true) parts.Add("FC");
-            if (SongMetadataPolicy.PercentileBucket(detail.Rank, detail.TotalEntries) is { } bucket) parts.Add(bucket);
-            if (detail.Rank is > 0 and { } rank) parts.Add(ScoreFormatting.Rank(rank));
-            PlayerSummary = "Your score: " + string.Join(" · ", parts);
-        }
-        else if (scores is { HasPlayer: true })
-        {
-            PlayerSummary = scores.Available ? "Your score: no score yet" : scores.RowState;
-        }
+        UpdatePlayer(scores);
         Status = new ServiceStatusViewModel($"preview:{song.SongId}:{instrument.ServiceId()}", $"{instrument.Label()} unavailable", LoadAsync, session.Time);
     }
 
@@ -224,7 +237,28 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
     public string? PlayerAccountId { get; }
 
     /// <summary>Selected player's score summary for this chart, or an explicit state.</summary>
-    public string? PlayerSummary { get; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPlayerSummary))]
+    private string? playerSummary;
+
+    /// <summary>Recomputes the player summary (scores finished loading, went syncing or paused).</summary>
+    /// <param name="scores">Current score source.</param>
+    public void UpdatePlayer(SongScoreSource? scores)
+    {
+        if (scores?.Detail?.Invoke(Song.SongId, Instrument) is { Score: > 0 } detail)
+        {
+            var parts = new List<string> { ScoreFormatting.Score(detail.Score) };
+            if (ScoreFormatting.Accuracy(detail.Accuracy) is { Length: > 0 } accuracy) parts.Add(accuracy);
+            if (detail.IsFullCombo == true) parts.Add("FC");
+            if (SongMetadataPolicy.PercentileBucket(detail.Rank, detail.TotalEntries) is { } bucket) parts.Add(bucket);
+            if (detail.Rank is > 0 and { } rank) parts.Add(ScoreFormatting.Rank(rank));
+            PlayerSummary = "Your score: " + string.Join(" · ", parts);
+        }
+        else
+        {
+            PlayerSummary = scores is { HasPlayer: true } ? scores.Available ? "Your score: no score yet" : scores.RowState : null;
+        }
+    }
 
     /// <summary>Whether <see cref="PlayerSummary"/> shows.</summary>
     public bool HasPlayerSummary => PlayerSummary is not null;

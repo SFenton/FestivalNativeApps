@@ -72,10 +72,15 @@ public sealed partial class ShopPage : Page
         card.BorderBrush = BorderFor(item);
         card.BorderThickness = new Thickness(item.HasBadge ? 2 : 1);
         AutomationProperties.SetAutomationId((FrameworkElement)card.FindName("ArtButton"), $"fst.shop.external.{item.Offer.SongId}");
-        var artGrid = (FrameworkElement)card.FindName("ArtGrid");
-        var width = Math.Max(160, card.ActualWidth > 0 ? card.ActualWidth - 16 : 220);
-        artGrid.Height = width;
-        _ = LoadArtAsync(card, (Image)card.FindName("Art"), item, width);
+        _ = LoadArtAsync(card, (Image)card.FindName("Art"), item, 280);
+    }
+
+    /// <summary>Keeps grid artwork square at whatever width the layout gives the card.</summary>
+    /// <param name="sender">Art grid.</param>
+    /// <param name="e">Size change.</param>
+    private void OnArtGridSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (sender is FrameworkElement art && Math.Abs(art.Height - e.NewSize.Width) > 0.5) art.Height = e.NewSize.Width;
     }
 
     /// <summary>Cancels art for a recycled grid card.</summary>

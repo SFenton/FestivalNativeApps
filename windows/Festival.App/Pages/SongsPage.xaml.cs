@@ -170,7 +170,7 @@ public sealed partial class SongsPage : Page
     private void BuildTrailing(Grid card, SongRowItem row)
     {
         var trailing = (Panel)card.FindName("Trailing");
-        var secondary = (StackPanel)card.FindName("Secondary");
+        var secondary = (FlowPanel)card.FindName("Secondary");
         trailing.Children.Clear();
         secondary.Children.Clear();
         var inlineChips = ListWidth() >= InlineChipsWidth;
@@ -178,7 +178,7 @@ public sealed partial class SongsPage : Page
         {
             var target = inlineChips ? trailing : secondary;
             foreach (var chip in row.Chips) target.Children.Add(SongRowVisuals.Chip(chip, row.Keyboard));
-            secondary.HorizontalAlignment = HorizontalAlignment.Left;
+            secondary.LineAlignment = HorizontalAlignment.Left;
         }
         else if (row.Metadata.Count > 0)
         {
@@ -187,7 +187,7 @@ public sealed partial class SongsPage : Page
                 trailing.Children.Add(new InstrumentIcon { File = row.Chart!.Value.IconFile(row.Keyboard), Label = row.Chart.Value.Label(), Width = 20, Height = 20 });
             for (var i = 0; i < row.Metadata.Count; i++)
                 (i == 0 || allInline ? trailing : secondary).Children.Add(SongRowVisuals.Pill(row.Metadata[i]));
-            secondary.HorizontalAlignment = HorizontalAlignment.Right;
+            secondary.LineAlignment = HorizontalAlignment.Right;
         }
         else
         {
@@ -269,6 +269,12 @@ public sealed partial class SongsPage : Page
         var wide = ListWidth() >= InlineChipsWidth;
         var compact = e.NewSize.Width < 640;
         JumpLabel.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+        // Compact: search takes its own full-width row above Sort/Filter/Jump.
+        Grid.SetColumnSpan(SearchBox, compact ? 5 : 1);
+        SearchColumn.MaxWidth = compact ? double.PositiveInfinity : 440;
+        Grid.SetRow(ActionButtons, compact ? 1 : 0);
+        Grid.SetColumn(ActionButtons, compact ? 0 : 1);
+        Grid.SetColumnSpan(ActionButtons, compact ? 5 : 1);
         Root.Padding = compact ? new Thickness(12, 8, 4, 0) : new Thickness(24, 12, 12, 0);
         if (wide == wideLayout) return;
         wideLayout = wide;

@@ -167,13 +167,29 @@ public class SongPathsViewModelTests
         var inner = service.Override!;
         var fail = true;
         service.Override = r => fail && r.RequestUri!.AbsolutePath.StartsWith("/api/paths/", StringComparison.Ordinal)
-            ? Wire.Response(HttpStatusCode.NotFound) : inner(r);
+            ? Wire.Response(HttpStatusCode.InternalServerError) : inner(r);
         var vm = new SongPathsViewModel(service.Session(), Song(), [Instrument.Lead]);
         await vm.LoadAsync();
         Assert.True(vm.ShowError);
+        Assert.False(vm.ShowNotGenerated);
         fail = false;
         await vm.Status.RetryCommand.ExecuteAsync(null);
         await Async.Until(() => vm.ShowImage);
+    }
+
+    [Fact]
+    public async Task NotFound_IsNotGeneratedRatherThanAnError()
+    {
+        var service = new FakeService();
+        SongsWire.Install(service);
+        var inner = service.Override!;
+        service.Override = r => r.RequestUri!.AbsolutePath.StartsWith("/api/paths/", StringComparison.Ordinal)
+            ? Wire.Response(HttpStatusCode.NotFound, "{}", ("X-FST-Publication-Id", "7")) : inner(r);
+        var vm = new SongPathsViewModel(service.Session(), Song(), [Instrument.Lead]);
+        await vm.LoadAsync();
+        Assert.True(vm.ShowNotGenerated);
+        Assert.False(vm.ShowError);
+        Assert.False(vm.IsLoading);
     }
 
     [Fact]

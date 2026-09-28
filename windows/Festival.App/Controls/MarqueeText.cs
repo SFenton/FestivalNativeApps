@@ -121,6 +121,8 @@ public sealed partial class MarqueeText : Panel
         naturalWidth = primary.DesiredSize.Width;
         copy.Measure(new Size(double.PositiveInfinity, availableSize.Height));
         var width = double.IsInfinity(availableSize.Width) ? naturalWidth : Math.Min(naturalWidth, availableSize.Width);
+        // Static form: measure at the real width so the ellipsis applies.
+        if (!playing) primary.Measure(new Size(width, availableSize.Height));
         return new Size(width, primary.DesiredSize.Height);
     }
 

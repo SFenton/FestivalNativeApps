@@ -66,7 +66,7 @@ public sealed partial class SongPathsViewModel : ObservableObject
 
     /// <summary>Load lifecycle for the current selection.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsLoading), nameof(ShowImage), nameof(ShowTable), nameof(ShowError))]
+    [NotifyPropertyChangedFor(nameof(IsLoading), nameof(ShowImage), nameof(ShowTable), nameof(ShowError), nameof(ShowNotGenerated))]
     private LoadState state = LoadState.Idle;
 
     /// <summary>Loaded image.</summary>
@@ -112,6 +112,9 @@ public sealed partial class SongPathsViewModel : ObservableObject
 
     /// <summary>Whether the error shows.</summary>
     public bool ShowError => State == LoadState.Failed;
+
+    /// <summary>Whether the service has no path for this chart and difficulty (HTTP 404).</summary>
+    public bool ShowNotGenerated => State == LoadState.Empty;
 
     /// <summary>Path summary line.</summary>
     public string Summary => Data is { } d ? (string.IsNullOrWhiteSpace(d.PathSummary) ? "No path summary provided" : d.PathSummary) : "";
@@ -169,6 +172,12 @@ public sealed partial class SongPathsViewModel : ObservableObject
         catch (OperationCanceledException)
         {
             // Superseded by a newer selection or the dialog closing.
+        }
+        catch (FestivalApiException error) when (error is { Kind: FestivalApiErrorKind.HttpStatus, StatusCode: 404 })
+        {
+            if (mine != revision) return;
+            Status.Clear();
+            State = LoadState.Empty;
         }
         catch (FestivalApiException error)
         {

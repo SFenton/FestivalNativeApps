@@ -13,29 +13,20 @@
         </Grid.RowDefinitions>
 
         <!-- Selectors: instrument, difficulty, image/text. -->
-        <Grid x:Name="Selectors" ColumnSpacing="16" RowSpacing="8">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
+        <controls:FlowPanel x:Name="Selectors" Spacing="20">
             <ComboBox x:Name="InstrumentPicker" Header="Instrument" MinWidth="200"
                       ItemsSource="{x:Bind ViewModel.InstrumentLabels}" SelectedIndex="{x:Bind ViewModel.InstrumentIndex, Mode=TwoWay}"
                       AutomationProperties.AutomationId="fst.paths.instrument" />
-            <RadioButtons x:Name="DifficultyPicker" Grid.Column="1" Header="Difficulty" MaxColumns="4"
+            <RadioButtons x:Name="DifficultyPicker" Header="Difficulty" MaxColumns="4"
                           ItemsSource="{x:Bind ViewModel.DifficultyLabels}" SelectedIndex="{x:Bind ViewModel.DifficultyIndex, Mode=TwoWay}"
                           AutomationProperties.AutomationId="fst.paths.difficulty" />
-            <RadioButtons x:Name="DisplayPicker" Grid.Column="2" Header="Display" MaxColumns="2"
+            <RadioButtons x:Name="DisplayPicker" Header="Display" MaxColumns="2"
                           SelectedIndex="{x:Bind ViewModel.DisplayIndex, Mode=TwoWay}"
                           AutomationProperties.AutomationId="fst.paths.display">
                 <x:String>Image</x:String>
                 <x:String>Text</x:String>
             </RadioButtons>
-        </Grid>
+        </controls:FlowPanel>
 
         <InfoBar Grid.Row="1" IsOpen="{x:Bind ViewModel.ShowWarning, Mode=OneWay}" Severity="Informational" IsClosable="True"
                  Title="Some Instruments Unavailable" Message="Karaoke is not available for path visualization yet."
@@ -52,6 +43,10 @@
             <controls:ServiceStatusView Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
                                         Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}"
                                         AutomationProperties.AutomationId="fst.paths.error" />
+
+            <TextBlock Text="No path has been generated for this instrument and difficulty yet." TextWrapping="Wrap"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" MaxWidth="360"
+                       Visibility="{x:Bind ViewModel.ShowNotGenerated, Mode=OneWay}" AutomationProperties.AutomationId="fst.paths.empty" />
 
             <!-- Image: native pinch / Ctrl+wheel zoom plus explicit buttons. -->
             <Grid RowSpacing="8" Visibility="{x:Bind ViewModel.ShowImage, Mode=OneWay}">

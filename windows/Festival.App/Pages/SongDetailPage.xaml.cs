@@ -40,6 +40,7 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
         headerArt.Cancel();
+        ViewModel?.Detach();
         base.OnNavigatedFrom(e);
     }
 
@@ -76,6 +77,14 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     private void OnBoardPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
     {
         if (sender.ItemsSourceView?.GetAt(args.Index) is LeaderboardPreviewViewModel card) _ = card.EnsureLoadedAsync();
+    }
+
+    /// <summary>Opens a band-size leaderboard for this song.</summary>
+    /// <param name="sender">Hyperlink.</param>
+    /// <param name="e">Unused.</param>
+    private void OnBandLink(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: AppRoute route }) MainWindow.Instance?.Navigate(route);
     }
 
     /// <summary>Opens the selected player's score history for a chart.</summary>

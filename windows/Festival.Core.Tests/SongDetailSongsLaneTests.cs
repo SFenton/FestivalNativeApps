@@ -27,6 +27,8 @@ public class SongDetailSongsLaneTests
         Assert.Equal(ShopHighlight.LeavingTomorrow, vm.ShopHighlight);
         Assert.Equal("Item Shop: Leaving Tomorrow", vm.ShopBadgeText);
         Assert.False(vm.HasShopIssue);
+        Assert.Equal(["Duos", "Trios", "Quads"], vm.BandLinks.Select(l => l.Label));
+        Assert.Equal(new AppRoute.SongBandLeaderboard("s3", "Band_Duets"), vm.BandLinks[0].Route);
         session.UpdateSettings(s => s with { DisableShopHighlighting = true });
         await vm.LoadShopAsync();
         Assert.False(vm.HasShopBadge);
@@ -109,6 +111,32 @@ public class SongDetailSongsLaneTests
         var row = Assert.Single(lead.Rows);
         Assert.True(row.IsSelectedPlayer);
         Assert.EndsWith(", you", row.Announcement);
+    }
+
+    [Fact]
+    public async Task Summary_UpdatesWhenScoresArriveAfterLoad()
+    {
+        var service = new FakeService();
+        SongsWire.Install(service, player: true);
+        var original = service.Handler.Responder;
+        var release = new TaskCompletionSource();
+        service.Handler.Responder = async (request, token) =>
+        {
+            if (request.RequestUri!.AbsolutePath.StartsWith("/api/player/", StringComparison.Ordinal)) await release.Task;
+            return await original(request, token);
+        };
+        var session = service.Session(settings: new AppSettings { SelectedPlayer = new SelectedPlayer(PlayerWire.Id, "Fixture One") });
+        var profile = session.LoadSelectedProfileAsync();
+        var vm = new SongDetailViewModel(session, new AppRoute.SongDetail("s1"));
+        await vm.LoadAsync();
+        var lead = vm.Leaderboards.Single(b => b.Instrument == Instrument.Lead);
+        Assert.Equal("Loading scores", lead.PlayerSummary);
+        release.SetResult();
+        await profile;
+        await Async.Until(() => lead.PlayerSummary?.StartsWith("Your score: 1,000", StringComparison.Ordinal) == true);
+        vm.Detach();
+        session.DeselectPlayer();
+        Assert.StartsWith("Your score", lead.PlayerSummary);
     }
 
     [Fact]
