@@ -57,3 +57,22 @@ macOS-hosted process, not the separate iOS `xcodebuild test` run — closing
 this gap for real needs `apple_xccov_gate.py` against an iPhone `.xcresult`
 (not run this session: the shared simulator was under heavy concurrent-lane
 load throughout).
+
+### Wave 3 UX-test lane (Lane U2) — Songs, Song Detail, Item Shop, Suggestions
+
+Measured 2026-09-28 via the same `swift test --enable-code-coverage` +
+`llvm-cov export` recipe (one flaky, unrelated `ArtworkBackgroundTests` dwell
+timer excluded with `--skip`; all 360 other tests passed), scoped to
+`apple/Sources/FestivalUI/Features/{Songs,SongDetail,Shop,Suggestions}` and
+the shared `Common/QuickLinks`. Same caveat as Lane U above: this is
+hosted/logic coverage only, not the separate device `xcodebuild test` path.
+
+| Feature | Lines covered / total | % | Notes |
+|---|---|---|---|
+| Songs | 4061/4448 | 91.3% | Above target. `SongsScreen.swift` itself is 85.3% (many branches are `#if os(iOS)`/`#if os(macOS)` list-vs-sidebar and grouped-Shop-section paths a hosted hosted-macOS hidden window can't fully reach); `SongSectionIndexScrubber.swift` is 75.2% even after this lane's new `SongSectionIndexScrubberRenderTests.swift` (0→3 cases) — the drag-gesture `update(for:height:)`/`move(by:)` handlers need a real touch/VoiceOver-adjustable-action device test, not a static hosted render. |
+| Song Detail | 1610/1738 | 92.6% | Above target. `SongScorePreview.swift` (74.8%) carries most of the gap — retry/cancellation branches exercised by the XCUITest journeys (`SongDetailJourneyTests`) but not by a hosted snapshot. |
+| Item Shop | 613/649 | 94.5% | Above target; `ShopScreen.swift` was already well covered by `ShopScreenRenderTests.swift`. |
+| Suggestions | 90/1078 | 8.3% | **Below target — primary open gap.** `SuggestionsScreen.swift` is only 31.4% and `SuggestionCategoryCardView.swift`/`SuggestionsFilterSheet.swift` are 0%: this feature had "no hosted-UI/XCUITest coverage yet" per `.agents/pages/suggestions/ios.md` before this lane, and this pass added only XCUITest journeys (`SuggestionsJourneyTests.swift`, not SwiftPM-measured) plus the pre-existing Core-only `SuggestionGeneratorTests`/`SuggestionFilterSettingsTests` (~96–100% Core coverage, not reflected in this UI-file table). **Next step:** hosted snapshot tests for `SuggestionsScreen` (no-profile/syncing/loading/empty/loaded/exhausted-mix states) and `SuggestionsFilterSheet` (instrument/type toggle draft states), mirroring `SongsSortSheetRenderTests.swift`'s pattern. |
+| Quick Links (`Common/QuickLinks`, shared) | 255/333 | 76.6% | Below target but shared across every adopting page (Leaderboards, Songs, Song Detail); `QuickLinksToolbar.swift` (67.5%) is mostly the `Menu`/`Picker` body a hosted AppKit test can't open (see `hosted-snapshots.md` pitfalls) — needs a device test asserting `fst.quick-links.open`'s value after a jump, which this lane's new `testSongsItemShopSortQuickLinksJump` XCUITest exercises on-device but that path isn't SwiftPM-measured either. |
+
+**XCUITest journeys added this pass** (`apple/Apps/iOSUITests/{SongsJourneyTests,SongDetailJourneyTests,ShopJourneyTests,SuggestionsJourneyTests}.swift`, 41 tests total): verified a representative subset against the real simulator post-fix (anonymous Sort apply/discard/reset/relaunch, public Shop offers→Song Detail hand-off, the new Item Shop Quick Links jump); the remaining tests were migrated verbatim from a previously-passing legacy suite plus mechanically updated for two redesign-driven identifier changes (see coverage-adjacent bug notes in the lane's final report) but not all individually re-run against the device this session — the shared simulator lock is now bounded to ≤5 minutes per hold per operator guidance, so a full 41-test device pass needs several more short batches than this session had time for.
