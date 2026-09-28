@@ -27,6 +27,7 @@ import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.SongDetailViewModel
 import com.festivalscoretracker.android.presentation.ShellViewModel
 import com.festivalscoretracker.android.presentation.profile.SelectedProfileState
+import com.festivalscoretracker.android.presentation.songs.InvalidScoreContext
 import com.festivalscoretracker.android.presentation.songs.SongDetailSummary
 import com.festivalscoretracker.android.presentation.songs.SongPathsViewModel
 import com.festivalscoretracker.android.presentation.songs.songScoreSource
@@ -111,12 +112,13 @@ internal fun songDetailExtras(
     current: Int?,
 ): SongDetailExtras {
     val player = settings.selectedPlayer
-    val source = if (player == null) null else profile.songScoreSource(catalogPublication, current)
+    val invalid = if (settings.filterInvalidScores) InvalidScoreContext(settings.leeway, mapOf(song.songId to song)) else null
+    val source = if (player == null) null else profile.songScoreSource(catalogPublication, current, invalid)
     val summaries = if (source == null || player == null) {
         emptyMap()
     } else {
         Instrument.entries.filter { it in settings.visibleInstruments && song.supports(it) }
-            .mapNotNull { chart -> SongDetailSummary.summary(source, player.displayName, song, chart, settings.filterInvalidScores)?.let { chart to it } }
+            .mapNotNull { chart -> SongDetailSummary.summary(source, player.displayName, song, chart)?.let { chart to it } }
             .toMap()
     }
     val payload = shop.valueOrNull
@@ -126,6 +128,7 @@ internal fun songDetailExtras(
         selectedAccountId = player?.accountId,
         summaries = summaries,
         shopHighlight = if (settings.hideShop) null else ShopPresentationPolicy.highlight(offer, settings.hideShop, settings.disableShopHighlighting),
+        shopPulse = ShopPresentationPolicy.pulse(offer, settings.hideShop, settings.disableShopHighlighting),
         shopUrl = if (settings.hideShop) null else offer?.shopUrl?.takeIf(ShopResponse::isOfficialShopUrl),
         shopError = !settings.hideShop && shop is LoadState.Failed,
         pathInstruments = PathCapability.menuInstruments(settings.visibleInstruments, song::supports),

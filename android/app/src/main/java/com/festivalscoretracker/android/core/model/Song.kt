@@ -44,8 +44,8 @@ data class SongDifficulty(
 }
 
 /**
- * Fields read from one `/api/songs` wire object. Unused wire keys (population
- * tiers, path provenance, genres…) are skipped by the decoder.
+ * Fields read from one `/api/songs` wire object. Unused wire keys (path
+ * provenance, genres…) are skipped by the decoder.
  */
 @Serializable
 data class Song(
@@ -60,6 +60,7 @@ data class Song(
     val sig: String? = null,
     val maxScores: Map<String, Int>? = null,
     val pathArtifactGenerationId: String? = null,
+    val populationTiers: Map<String, PopulationTiers?>? = null,
 ) {
     /** Whether Lead/Pro Lead should use the keys icon variant. */
     val usesKeyboardIcon: Boolean get() = sig == "Keyboard"
@@ -79,6 +80,16 @@ data class Song(
      * @return The max score or null.
      */
     fun maxScore(instrument: Instrument): Int? = maxScores?.get(instrument.wireId)?.takeIf { it > 0 }
+
+    /**
+     * This chart's leaderboard population with invalid scores filtered at a leeway.
+     *
+     * @param instrument Chart.
+     * @param leeway Leeway percent.
+     * @return Filtered total, or null without a well-formed curve.
+     */
+    fun filteredPopulation(instrument: Instrument, leeway: Double): Int? =
+        populationTiers?.get(instrument.wireId)?.takeIf { it.isWellFormed }?.total(leeway)
 
     /** `m:ss` or `h:mm:ss` for a positive duration, like the web Song info block. */
     val formattedDuration: String?

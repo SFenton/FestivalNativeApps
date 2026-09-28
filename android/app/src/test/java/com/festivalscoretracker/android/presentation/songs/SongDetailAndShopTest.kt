@@ -166,18 +166,17 @@ class SongDetailAndShopTest {
     fun yourScoreSummaryCoversEveryState() {
         val detail = SongScoreDetail(95_198, accuracy = 987_000.0, isFullCombo = true, rank = 42, totalEntries = 1000)
         val live = SongScoreSource(true, detail = { _, chart -> if (chart == Instrument.Lead) detail else null })
-        assertNull(SongDetailSummary.summary(SongScoreSource.NONE, "P", song, Instrument.Lead, false))
-        assertEquals("Scores syncing", SongDetailSummary.summary(SongScoreSource.SYNCING, "P", song, Instrument.Lead, false)!!.text)
-        val scored = SongDetailSummary.summary(live, "P", song, Instrument.Lead, false, Locale.US)!!
+        assertNull(SongDetailSummary.summary(SongScoreSource.NONE, "P", song, Instrument.Lead))
+        assertEquals("Scores syncing", SongDetailSummary.summary(SongScoreSource.SYNCING, "P", song, Instrument.Lead)!!.text)
+        val scored = SongDetailSummary.summary(live, "P", song, Instrument.Lead, Locale.US)!!
         assertEquals("Your score: 95,198 · 98.7% · FC · Top 5% · #42", scored.text)
         assertTrue(scored.scored)
         assertEquals(42, scored.rank)
-        assertEquals("No Bass score for P", SongDetailSummary.summary(live, "P", song, Instrument.Bass, false)!!.text)
-        assertEquals("Karaoke is not charted for this song", SongDetailSummary.summary(live, "P", song, Instrument.Karaoke, false)!!.text)
-        assertTrue(SongDetailSummary.summary(live, "P", song, Instrument.Lead, true)!!.text.contains("Filter Invalid Scores"))
-        assertEquals("Loading scores", SongDetailSummary.summary(SongScoreSource(true), "P", song, Instrument.Lead, false)!!.text)
+        assertEquals("No Bass score for P", SongDetailSummary.summary(live, "P", song, Instrument.Bass)!!.text)
+        assertEquals("Karaoke is not charted for this song", SongDetailSummary.summary(live, "P", song, Instrument.Karaoke)!!.text)
+        assertEquals("Loading scores", SongDetailSummary.summary(SongScoreSource(true), "P", song, Instrument.Lead)!!.text)
         val bare = SongScoreSource(true, detail = { _, _ -> SongScoreDetail(10) })
-        assertEquals("Your score: 10", SongDetailSummary.summary(bare, "P", song, Instrument.Lead, false, Locale.US)!!.text)
+        assertEquals("Your score: 10", SongDetailSummary.summary(bare, "P", song, Instrument.Lead, Locale.US)!!.text)
     }
 
     @Test

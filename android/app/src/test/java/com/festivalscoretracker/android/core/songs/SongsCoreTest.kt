@@ -205,11 +205,14 @@ class SongsCoreTest {
     @Test
     fun shopHeadersOnlyWithTwoBuckets() {
         val offers = mapOf("a" to SongsFixtures.offer("a", leaving = true), "b" to SongsFixtures.offer("b"))
-        val sorted = listOf(a, b, c, d)
-        val headers = SongShopSections.headers(sorted, offers)
+        val context = SongBucketContext(SongSortMode.Shop, null, offers)
+        val (rows, headers) = SongQuickLinkBuckets.group(listOf(a, b, c, d), context)
         assertEquals(listOf("Leaving Tomorrow", "In Shop", "Not In Shop"), headers.map { it.label })
         assertEquals(listOf(0, 1, 2), headers.map { it.firstIndex })
-        assertTrue(SongShopSections.headers(listOf(c, d), offers).isEmpty())
+        assertEquals(listOf("shop:leaving-tomorrow", "shop:in-shop", "shop:not-in-shop"), headers.map { it.id })
+        assertEquals("fst.songs.shop-section.in-shop", headers[1].testTag)
+        assertEquals(listOf(a, b, c, d), rows)
+        assertTrue(SongQuickLinkBuckets.group(listOf(c, d), context).second.isEmpty())
         assertEquals(SongShopBucket.NotInShop, SongShopSections.bucket(c, offers))
     }
 
@@ -243,13 +246,14 @@ class SongsCoreTest {
     @Test
     fun pipelinePausesScoreFiltersUntilScoresApply() {
         val filter = SongPlayerScoreFilter(hasScores = setOf(Instrument.Lead))
-        val scores: (String, Instrument) -> ChartScoreFacts? = { id, _ -> if (id == "a") ChartScoreFacts(1, false) else null }
+        val scores: (String, Instrument) -> SongScoreDetail? = { id, _ -> if (id == "a") SongScoreDetail(1, isFullCombo = false) else null }
         val base = SongListInputs(songs, playerFilter = filter, hasPlayer = true, scores = scores)
         assertEquals(listOf("a"), SongListPipeline.run(base, sorter).songs.map { it.songId })
         fun reason(input: SongListInputs) = SongListPipeline.run(input, sorter).scoreFilterPaused!!
         assertTrue(reason(base.copy(visible = setOf(Instrument.Bass))).contains("hidden in Settings"))
         assertTrue(reason(base.copy(hasPlayer = false)).contains("until a player is selected"))
-        assertTrue(reason(base.copy(filterInvalidScores = true)).contains("Filter Invalid Scores"))
+        // Filter Invalid Scores no longer pauses: the scores are already the effective (next valid) ones.
+        assertNull(SongListPipeline.run(base.copy(filterInvalidScores = true), sorter).scoreFilterPaused)
         assertTrue(reason(base.copy(scores = null)).contains("same update"))
         assertEquals(4, SongListPipeline.run(base.copy(scores = null), sorter).songs.size)
         assertNull(SongListPipeline.run(base.copy(playerFilter = SongPlayerScoreFilter()), sorter).scoreFilterPaused)
@@ -275,7 +279,7 @@ class SongsCoreTest {
         assertEquals(SongSortMode.Title, reset.mode)
         assertTrue(reset.ascending)
         assertTrue(reset.changed)
-        assertEquals(SongSortMode.entries, SongSortDraft.modes(hideShop = false))
+        assertEquals(SongSortMode.entries.filter { it.group == SongSortGroup.Catalog }, SongSortDraft.modes(hideShop = false))
         assertFalse(SongSortMode.Shop in SongSortDraft.modes(hideShop = true))
     }
 
@@ -329,13 +333,12 @@ class SongsCoreTest {
         )
         assertEquals("Lead, full combo", badges[0].announcement)
         assertEquals(SongInstrumentStatus.NoScore, SongInstrumentStatusPolicy.status(a, Instrument.Lead, ChartScoreFacts(0, null)))
-        assertTrue(SongInstrumentStatusPolicy.showsChips(true, true, true, null, false, setOf(Instrument.Lead)))
-        assertFalse(SongInstrumentStatusPolicy.showsChips(true, true, true, Instrument.Lead, false, setOf(Instrument.Lead)))
-        assertFalse(SongInstrumentStatusPolicy.showsChips(true, true, true, null, true, setOf(Instrument.Lead)))
-        assertFalse(SongInstrumentStatusPolicy.showsChips(true, false, true, null, false, setOf(Instrument.Lead)))
-        assertFalse(SongInstrumentStatusPolicy.showsChips(true, true, false, null, false, setOf(Instrument.Lead)))
-        assertFalse(SongInstrumentStatusPolicy.showsChips(false, true, true, null, false, setOf(Instrument.Lead)))
-        assertFalse(SongInstrumentStatusPolicy.showsChips(true, true, true, null, false, emptySet()))
+        assertTrue(SongInstrumentStatusPolicy.showsChips(true, true, true, null, setOf(Instrument.Lead)))
+        assertFalse(SongInstrumentStatusPolicy.showsChips(true, true, true, Instrument.Lead, setOf(Instrument.Lead)))
+        assertFalse(SongInstrumentStatusPolicy.showsChips(true, false, true, null, setOf(Instrument.Lead)))
+        assertFalse(SongInstrumentStatusPolicy.showsChips(true, true, false, null, setOf(Instrument.Lead)))
+        assertFalse(SongInstrumentStatusPolicy.showsChips(false, true, true, null, setOf(Instrument.Lead)))
+        assertFalse(SongInstrumentStatusPolicy.showsChips(true, true, true, null, emptySet()))
     }
 
     @Test
@@ -423,9 +426,10 @@ class SongsCoreTest {
         val uncharted = SongRowProjector(settings, SongFilter(Instrument.Lead), 15, null, available).project(c)
         assertEquals("No Lead chart", uncharted.scoreState)
 
+        // Under Filter Invalid Scores the chips show the effective scores.
         val invalid = SongRowProjector(settings.copy(filterInvalidScores = true), SongFilter(), 15, null, available).project(a)
-        assertEquals("Scores paused while Filter Invalid Scores is on", invalid.scoreState)
-        assertTrue(invalid.chips.isEmpty())
+        assertNull(invalid.scoreState)
+        assertFalse(invalid.chips.isEmpty())
 
         val syncing = SongRowProjector(settings, SongFilter(), 15, null, SongScoreSource.SYNCING).project(a)
         assertEquals("Scores syncing", syncing.scoreState)

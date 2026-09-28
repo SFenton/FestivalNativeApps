@@ -3,13 +3,16 @@ package com.festivalscoretracker.android.presentation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
+import com.festivalscoretracker.android.core.model.Song
 import com.festivalscoretracker.android.core.settings.AppSettings
+import com.festivalscoretracker.android.core.settings.MetadataField
 import com.festivalscoretracker.android.core.shop.ShopPayload
 import com.festivalscoretracker.android.core.shop.SongRelatedPublicationPolicy
 import com.festivalscoretracker.android.core.songs.SongCatalogSort
 import com.festivalscoretracker.android.core.songs.SongListHeader
 import com.festivalscoretracker.android.core.songs.SongListInputs
 import com.festivalscoretracker.android.core.songs.SongListPipeline
+import com.festivalscoretracker.android.core.songs.SongQuickLinkBuckets
 import com.festivalscoretracker.android.core.songs.SongRowModel
 import com.festivalscoretracker.android.core.songs.SongRowProjector
 import com.festivalscoretracker.android.core.songs.SongScoreSource
@@ -18,6 +21,7 @@ import com.festivalscoretracker.android.core.songs.SongSortMode
 import com.festivalscoretracker.android.data.CatalogPayload
 import com.festivalscoretracker.android.data.songs.SongsPreferencesState
 import com.festivalscoretracker.android.presentation.profile.SelectedProfileState
+import com.festivalscoretracker.android.presentation.songs.InvalidScoreContext
 import com.festivalscoretracker.android.presentation.songs.songScoreSource
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -53,6 +57,9 @@ import kotlinx.coroutines.flow.stateIn
  * @property invalidSavedFilter A corrupt saved player filter blocks the list until Reset.
  * @property filtersApplied Whether filters narrowed the list (empty-state wording).
  * @property totalSongs Catalogue size before filtering.
+ * @property filterInvalidScores Filter Invalid Scores (Over CHOpt Threshold checks in the Filter sheet).
+ * @property sortChart Settings-visible single-chart filter (single-chart sort modes).
+ * @property visibleMetadata Settings-visible metadata fields (sort modes and priority rows).
  */
 data class SongsUiState(
     val catalog: LoadState<CatalogPayload> = LoadState.Loading,
@@ -69,9 +76,15 @@ data class SongsUiState(
     val invalidSavedFilter: Boolean = false,
     val filtersApplied: Boolean = false,
     val totalSongs: Int = 0,
+    val filterInvalidScores: Boolean = false,
+    val sortChart: com.festivalscoretracker.android.core.model.Instrument? = null,
+    val visibleMetadata: Set<MetadataField> = MetadataField.entries.toSet(),
 ) {
     /** Non-default sort (gold Sort icon). */
     val sortChanged: Boolean get() = sort != SongSortMode.Title || !ascending
+
+    /** Songs Quick Links title for the applied sort. */
+    val quickLinksTitle: String get() = SongQuickLinkBuckets.title(effectiveSort)
 
     /** Empty-list message. */
     val emptyMessage: String get() = if (filtersApplied) "No songs match the filters." else "No songs match your search."
@@ -167,12 +180,19 @@ class SongsViewModel(
         val base = SongsUiState(
             catalog = catalog, prefs = saved, sort = app.songSort, ascending = app.songSortAscending,
             effectiveSort = app.songSort, hasPlayer = app.selectedPlayer != null, hideShop = app.hideShop,
+            filterInvalidScores = app.filterInvalidScores, sortChart = saved.filter.scopedTo(app.visibleInstruments).instrument,
+            visibleMetadata = app.visibleMetadata,
         )
         val payload = catalog.valueOrNull ?: return base
         val playerFilter = saved.playerFilter ?: return base.copy(invalidSavedFilter = true, totalSongs = payload.catalog.songs.size)
         val observed = current ?: payload.publicationId
         val match = if (app.hideShop) ShopMatch(null, false) else ShopMatch.of(shopState, payload.publicationId, observed)
-        val source = if (app.selectedPlayer == null) SongScoreSource.NONE else player.songScoreSource(payload.publicationId, observed)
+        val invalid = if (app.filterInvalidScores) {
+            InvalidScoreContext(app.leeway, songsById(payload), playerFilter.scopedTo(app.visibleInstruments).overThreshold)
+        } else {
+            null
+        }
+        val source = if (app.selectedPlayer == null) SongScoreSource.NONE else player.songScoreSource(payload.publicationId, observed, invalid)
         val result = SongListPipeline.run(
             SongListInputs(
                 songs = payload.catalog.songs,
@@ -188,11 +208,14 @@ class SongsViewModel(
                 shopPublicationMismatch = match.mismatch,
                 hasPlayer = source.hasPlayer,
                 filterInvalidScores = app.filterInvalidScores,
-                scores = source.facts,
+                scores = source.detail,
+                invalid = source.invalid,
             ),
             sorter,
         )
-        val projector = SongRowProjector(app, saved.filter, payload.catalog.currentSeason, match.offers, source)
+        val projector = SongRowProjector(
+            app, saved.filter, payload.catalog.currentSeason, match.offers, source, result.effectiveSort, saved.metadataOrder,
+        )
         return base.copy(
             rows = result.songs.map(projector::project),
             sections = result.sections,
@@ -202,6 +225,13 @@ class SongsViewModel(
             filtersApplied = result.filtersApplied,
             totalSongs = payload.catalog.songs.size,
         )
+    }
+
+    @Volatile private var songIndex: Pair<CatalogPayload, Map<String, Song>>? = null
+
+    private fun songsById(payload: CatalogPayload): Map<String, Song> {
+        songIndex?.takeIf { it.first === payload }?.let { return it.second }
+        return payload.catalog.songs.associateBy { it.songId }.also { songIndex = payload to it }
     }
 
     /**

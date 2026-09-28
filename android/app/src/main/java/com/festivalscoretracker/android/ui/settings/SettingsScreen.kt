@@ -565,7 +565,7 @@ private fun NavigationRow(title: String, description: String, tag: String, onCli
  * @param onMove (index, offset) move request.
  */
 @Composable
-private fun ReorderList(labels: List<String>, tag: String, onMove: (Int, Int) -> Unit) {
+internal fun ReorderList(labels: List<String>, tag: String, onMove: (Int, Int) -> Unit) {
     Column(Modifier.fillMaxWidth().testTag(tag)) {
         labels.forEachIndexed { index, label ->
             Row(

@@ -7,9 +7,12 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.festivalscoretracker.android.AppContainer
 import com.festivalscoretracker.android.core.model.Song
+import com.festivalscoretracker.android.core.nav.SettingsTab
+import com.festivalscoretracker.android.core.songs.SongSortDraft
 import com.festivalscoretracker.android.core.settings.AppSettings
 import com.festivalscoretracker.android.presentation.ShellViewModel
 import com.festivalscoretracker.android.presentation.SongsViewModel
+import com.festivalscoretracker.android.ui.common.LocalShellActions
 import kotlinx.coroutines.launch
 
 // region Songs route
@@ -49,18 +52,25 @@ fun SongsRoute(
     }
     LaunchedEffect(settings.hideShop) { if (!settings.hideShop) container.shop.ensureStarted() }
     val scope = rememberCoroutineScope()
+    val shell = LocalShellActions.current
     SongsScreen(
         viewModel = songsViewModel,
         artworkUrl = api::artworkUrl,
-        onApplySort = shellViewModel::setSongSort,
+        onApplySort = { draft ->
+            shellViewModel.setSongSort(draft.mode, draft.ascending)
+            scope.launch { container.songsPreferences.setMetadataOrder(draft.metadataOrder) }
+        },
         onApplyFilter = { draft ->
             val (filter, shop, player) = draft.result
+            val (mode, ascending) = SongSortDraft.normalized(settings.songSort, settings.songSortAscending, filter.instrument)
+            if (mode != settings.songSort) shellViewModel.setSongSort(mode, ascending)
             scope.launch { container.songsPreferences.setFilters(filter, shop, player) }
         },
         onClearFilters = { scope.launch { container.songsPreferences.clearFilters() } },
         onSongClick = onSongClick,
         selectedSongId = selectedSongId,
         visibleInstruments = settings.visibleInstruments,
+        onOpenSettings = { shell.navigate(SettingsTab) },
         modifier = modifier,
     )
 }

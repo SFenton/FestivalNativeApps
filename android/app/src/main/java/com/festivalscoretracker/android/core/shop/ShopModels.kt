@@ -114,8 +114,40 @@ enum class ShopHighlight(val label: String) {
     LeavingTomorrow("Leaving Tomorrow"),
 }
 
+/**
+ * The pulsing Shop outline on Songs rows, Song Detail and Shop cards (web
+ * `shopHighlight*`, changelog 0.1.133: green in the Shop, gold New, red Leaving
+ * Tomorrow, matching the instrument chips' colors).
+ */
+enum class ShopPulse {
+    /** In the Shop, not new and not leaving: green. */
+    InShop,
+
+    /** New in this rotation: gold. */
+    New,
+
+    /** Leaving tomorrow: red. */
+    LeavingTomorrow,
+}
+
 /** Effective hide/highlight policy shared by Shop, Songs and Detail (Apple `ShopPresentationPolicy`). */
 object ShopPresentationPolicy {
+    /**
+     * Outline pulse for an offer: Leaving Tomorrow, then New, then In Shop; nothing when
+     * hidden, highlighting is off or there is no validated same-publication offer.
+     *
+     * @param offer Validated same-publication offer.
+     * @param hidden Hide Item Shop setting.
+     * @param highlightingDisabled Disable Shop highlighting setting.
+     * @return The pulse, or null.
+     */
+    fun pulse(offer: ShopSong?, hidden: Boolean, highlightingDisabled: Boolean): ShopPulse? = when {
+        hidden || highlightingDisabled || offer == null -> null
+        offer.leavingTomorrow -> ShopPulse.LeavingTomorrow
+        offer.isNew -> ShopPulse.New
+        else -> ShopPulse.InShop
+    }
+
     /**
      * Leaving Tomorrow, then New; nothing when hidden, highlighting is off or there is no offer.
      *

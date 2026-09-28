@@ -67,6 +67,7 @@ import com.festivalscoretracker.android.core.nav.SongLeaderboardRoute
 import com.festivalscoretracker.android.core.rankings.RankingNavigation
 import com.festivalscoretracker.android.core.rankings.RankingSpotlight
 import com.festivalscoretracker.android.core.shop.ShopHighlight
+import com.festivalscoretracker.android.core.shop.ShopPulse
 import com.festivalscoretracker.android.presentation.BackgroundController
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.SongDetailViewModel
@@ -93,6 +94,7 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
  * @property selectedAccountId Selected player, or null.
  * @property summaries Per-chart "Your score" lines (empty without a player).
  * @property shopHighlight Effective Shop badge.
+ * @property shopPulse Effective Shop pulse (Item Shop button breathe).
  * @property shopUrl Validated official Shop URL for this song, or null.
  * @property shopError A Shop read failed (the offer can't be confirmed).
  * @property pathInstruments Path-capable charts; empty hides Paths.
@@ -102,6 +104,7 @@ data class SongDetailExtras(
     val selectedAccountId: String? = null,
     val summaries: Map<Instrument, ChartScoreSummary> = emptyMap(),
     val shopHighlight: ShopHighlight? = null,
+    val shopPulse: ShopPulse? = null,
     val shopUrl: String? = null,
     val shopError: Boolean = false,
     val pathInstruments: List<Instrument> = emptyList(),
@@ -227,7 +230,7 @@ private fun HeaderActions(song: Song, extras: SongDetailExtras, onOpenPaths: (So
                     Text("Paths", modifier = Modifier.padding(start = 6.dp))
                 }
             }
-            extras.shopUrl?.let { ShopDetailAction(extras.shopHighlight, it, song.songId) }
+            extras.shopUrl?.let { ShopDetailAction(extras.shopHighlight, it, song.songId, extras.shopPulse) }
         }
         if (extras.shopError) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.testTag("fst.song-detail.shop-error")) {

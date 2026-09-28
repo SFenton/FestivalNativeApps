@@ -2,14 +2,18 @@ package com.festivalscoretracker.android.data.songs
 
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.SelectedPlayer
+import com.festivalscoretracker.android.core.settings.MetadataField
+import com.festivalscoretracker.android.core.settings.SettingsOrder
 import com.festivalscoretracker.android.core.settings.SettingsRegistry
 import com.festivalscoretracker.android.core.songs.SongFilter
 import com.festivalscoretracker.android.core.songs.SongPlayerScoreFilter
 import com.festivalscoretracker.android.core.songs.SongShopFilter
+import com.festivalscoretracker.android.core.songs.SongSortMode
 import com.festivalscoretracker.android.data.SettingsRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -33,12 +37,14 @@ enum class ShopViewMode {
  * @property playerFilter Selected-player filter, or null when the saved value is corrupt
  *   (the list is blocked until an explicit Reset).
  * @property shopViewMode Item Shop layout.
+ * @property metadataOrder Metadata sort priority (row order while independent visual order is off).
  */
 data class SongsPreferencesState(
     val filter: SongFilter = SongFilter(),
     val shopFilter: SongShopFilter = SongShopFilter(),
     val playerFilter: SongPlayerScoreFilter? = SongPlayerScoreFilter(),
     val shopViewMode: ShopViewMode = ShopViewMode.Grid,
+    val metadataOrder: List<MetadataField> = MetadataField.entries,
 ) {
     /** Whether any saved filter is set (gold filter icon). */
     val anyFilterActive: Boolean get() = filter.isActive || shopFilter.isActive || playerFilter?.isActive == true
@@ -60,13 +66,15 @@ class SongsPreferences(private val settings: SettingsRepository) {
         settings.blob(SettingsRegistry.SONG_FILTERS),
         settings.blob(SettingsRegistry.SONG_PLAYER_SCORE_FILTERS),
         settings.blob(SettingsRegistry.SHOP_VIEW_MODE),
-    ) { filters, player, view ->
+        settings.blob(SettingsRegistry.SONG_METADATA_ORDER),
+    ) { filters, player, view, order ->
         val public = decodePublic(filters)
         SongsPreferencesState(
             filter = public.first,
             shopFilter = public.second,
             playerFilter = SongPlayerScoreFilter.decodeSaved(player),
             shopViewMode = if (view == ShopViewMode.List.name) ShopViewMode.List else ShopViewMode.Grid,
+            metadataOrder = SettingsOrder.decode(order, MetadataField.entries, MetadataField::fromToken),
         )
     }
 
@@ -91,6 +99,21 @@ class SongsPreferences(private val settings: SettingsRepository) {
     /** Clear only the selected-player predicates (confirmed deselection keeps public Shop choices). */
     suspend fun clearPlayerFilter() {
         settings.writeBlob(SettingsRegistry.SONG_PLAYER_SCORE_FILTERS, null)
+    }
+
+    /** Reset a saved sort that reads the selected player's scores to Title ascending. */
+    suspend fun clearScoreSort() {
+        if (settings.settings.first().songSort.needsScores) settings.setSongSort(SongSortMode.Title, true)
+    }
+
+    /**
+     * Persist the metadata sort priority (the default order is stored as absent).
+     *
+     * @param order Every field once.
+     */
+    suspend fun setMetadataOrder(order: List<MetadataField>) {
+        val complete = SettingsOrder.normalize(order, MetadataField.entries)
+        settings.writeBlob(SettingsRegistry.SONG_METADATA_ORDER, if (complete == MetadataField.entries) null else SettingsOrder.encode(complete) { it.token })
     }
 
     /**
@@ -148,7 +171,8 @@ class SongsPreferences(private val settings: SettingsRepository) {
 
 /**
  * Clear selected-player predicates when a selected player is deselected (a
- * player-to-player switch keeps them; public Shop choices always stay).
+ * player-to-player switch keeps them; public Shop choices always stay). A saved
+ * score sort falls back to Title ascending, like the filters it depends on.
  *
  * @receiver Songs preferences.
  * @param scope Process-lifetime scope.
@@ -158,7 +182,10 @@ fun SongsPreferences.watchDeselection(scope: CoroutineScope, players: Flow<Selec
     scope.launch {
         var previous: SelectedPlayer? = null
         players.collect { player ->
-            if (previous != null && player == null) clearPlayerFilter()
+            if (previous != null && player == null) {
+                clearPlayerFilter()
+                clearScoreSort()
+            }
             previous = player
         }
     }

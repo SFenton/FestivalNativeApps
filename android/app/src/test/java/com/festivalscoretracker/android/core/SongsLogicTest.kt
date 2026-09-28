@@ -61,7 +61,7 @@ class SongsLogicTest {
         assertEquals(SongSortMode.Shop, SongSortMode.fromStored("Shop"))
         assertEquals(SongSortMode.Title, SongSortMode.fromStored("Removed"))
         assertEquals(SongSortMode.Title, SongSortMode.fromStored(null))
-        assertEquals(listOf("Title", "Artist", "Year", "Duration", "Item Shop"), SongSortMode.entries.map { it.label })
+        assertEquals(listOf("Title", "Artist", "Year", "Duration", "Item Shop"), SongSortMode.entries.filter { it.group == com.festivalscoretracker.android.core.songs.SongSortGroup.Catalog }.map { it.label })
     }
 
     @Test

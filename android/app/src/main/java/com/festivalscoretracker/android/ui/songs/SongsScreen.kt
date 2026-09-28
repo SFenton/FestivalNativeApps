@@ -1,6 +1,23 @@
 package com.festivalscoretracker.android.ui.songs
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.adaptive.currentWindowSize
+import androidx.compose.ui.platform.LocalDensity
+import com.festivalscoretracker.android.core.quicklinks.QuickLinks
+import com.festivalscoretracker.android.core.songs.InvalidScoreWarning
+import com.festivalscoretracker.android.core.songs.SongSortDraft
+import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
+import com.festivalscoretracker.android.ui.quicklinks.QuickLinksPane
+import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
+import com.festivalscoretracker.android.ui.settings.rememberHingeSplit
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -75,7 +92,6 @@ import com.festivalscoretracker.android.core.model.Song
 import com.festivalscoretracker.android.core.songs.SongFilterDraft
 import com.festivalscoretracker.android.core.songs.SongListHeader
 import com.festivalscoretracker.android.core.songs.SongSection
-import com.festivalscoretracker.android.core.songs.SongSortMode
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.SongsUiState
 import com.festivalscoretracker.android.presentation.SongsViewModel
@@ -95,74 +111,105 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * The Songs catalogue: search, draft Sort/Filter sheets, pause notices,
- * Shop-bucket headers, a right-edge section index and glass rows with Shop
- * accents and selected-player chips or metadata.
+ * sort-bucket headers with Quick Links (sheet / menu / pane / hinge split per
+ * form factor), a right-edge section index for Title/Artist/Year and glass rows
+ * with Shop pulses and selected-player chips or metadata.
  *
  * @param viewModel Songs logic.
  * @param artworkUrl Artwork resolver.
- * @param onApplySort Persist a sort.
+ * @param onApplySort Persist a sort draft (mode, direction, metadata priority).
  * @param onApplyFilter Persist a filter draft.
  * @param onClearFilters Clear every filter (also repairs a corrupt saved filter).
  * @param onSongClick Open a song (push on phones, select on two-pane layouts).
  * @param selectedSongId Highlighted song in two-pane layouts.
  * @param visibleInstruments Settings-visible charts (Filter choices).
+ * @param onOpenSettings Open Settings (invalid-score alert action).
  * @param modifier Modifier.
  */
 @Composable
 fun SongsScreen(
     viewModel: SongsViewModel,
     artworkUrl: (String?) -> String?,
-    onApplySort: (SongSortMode, Boolean) -> Unit,
+    onApplySort: (SongSortDraft) -> Unit,
     onApplyFilter: (SongFilterDraft) -> Unit,
     onClearFilters: () -> Unit,
     onSongClick: (Song) -> Unit,
     selectedSongId: String? = null,
     visibleInstruments: Set<Instrument> = Instrument.entries.toSet(),
+    onOpenSettings: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val search by viewModel.searchInput.collectAsStateWithLifecycle()
     var showSort by rememberSaveable { mutableStateOf(false) }
     var showFilter by rememberSaveable { mutableStateOf(false) }
-    FestivalScreen(
-        title = "Songs",
-        isRoot = true,
-        modifier = modifier,
-        actions = {
-            IconButton(onClick = { showSort = true }, modifier = Modifier.testTag("fst.songs.sort.open")) {
-                Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort songs", tint = if (state.sortChanged) BrandTokens.gold else BrandTokens.textPrimary)
-            }
-            if (state.hasPlayer) {
-                IconButton(onClick = { showFilter = true }, modifier = Modifier.testTag("fst.songs.filter.open")) {
-                    Icon(
-                        Icons.Filled.FilterList,
-                        contentDescription = "Filter songs",
-                        tint = if (state.prefs.anyFilterActive) BrandTokens.gold else BrandTokens.textPrimary,
-                    )
+    var warning by remember { mutableStateOf<InvalidScoreWarning?>(null) }
+    val listState = rememberLazyListState()
+    val listed = state.catalog is LoadState.Loaded && !state.invalidSavedFilter
+    val leading = 1 + state.notices.size
+    val linkSections = remember(state.headers, listed) { if (listed) state.headers.map { it.quickLink } else emptyList() }
+    val quickLinks = rememberQuickLinks(listState, state.quickLinksTitle, linkSections) { id ->
+        state.headers.firstOrNull { it.id == id }?.let { leading + it.firstIndex }
+    }
+    val density = LocalDensity.current
+    val windowWidthDp = with(density) { currentWindowSize().width.toDp().value.toInt() }
+    val scrolled by remember(listState) { derivedStateOf { listState.canScrollBackward } }
+    val split = rememberHingeSplit()
+    BoxWithConstraints(modifier.fillMaxSize().then(split.modifier)) {
+        val hinge = split.value?.takeIf { quickLinks.available }
+        val pane = quickLinks.available && (hinge != null || QuickLinks.usesPane(maxWidth.value.toInt()))
+        FestivalScreen(
+            title = "Songs",
+            isRoot = true,
+            scrolled = scrolled,
+            actions = {
+                if (!pane) QuickLinksAction(quickLinks, windowWidthDp)
+                IconButton(onClick = { showSort = true }, modifier = Modifier.testTag("fst.songs.sort.open")) {
+                    Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort songs", tint = if (state.sortChanged) BrandTokens.gold else BrandTokens.textPrimary)
                 }
-            }
-        },
-    ) { padding ->
-        when (val catalog = state.catalog) {
-            LoadState.Loading -> LoadingView("Loading songs", Modifier.padding(padding))
-            is LoadState.Failed -> ServiceStatusView(catalog.issue, "Songs unavailable", catalog.countdown, viewModel::retry, contentPadding = padding)
-            is LoadState.Loaded -> PullToRefreshBox(
-                isRefreshing = catalog.refreshing,
-                onRefresh = viewModel::refresh,
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                if (state.invalidSavedFilter) {
-                    InvalidFilterView(onClearFilters, padding)
-                } else {
-                    FirstPaintGate(state, artworkUrl) {
-                        SongList(state, search, viewModel::onSearchChange, artworkUrl, onSongClick, selectedSongId, padding)
+                if (state.hasPlayer) {
+                    IconButton(onClick = { showFilter = true }, modifier = Modifier.testTag("fst.songs.filter.open")) {
+                        Icon(
+                            Icons.Filled.FilterList,
+                            contentDescription = "Filter songs",
+                            tint = if (state.prefs.anyFilterActive) BrandTokens.gold else BrandTokens.textPrimary,
+                        )
                     }
+                }
+            },
+        ) { padding ->
+            Row(Modifier.fillMaxSize()) {
+                val listModifier = if (hinge != null) Modifier.width(with(density) { hinge.first.toDp() }) else Modifier.weight(1f)
+                Box(listModifier.fillMaxHeight()) {
+                    when (val catalog = state.catalog) {
+                        LoadState.Loading -> LoadingView("Loading songs", Modifier.padding(padding))
+                        is LoadState.Failed -> ServiceStatusView(catalog.issue, "Songs unavailable", catalog.countdown, viewModel::retry, contentPadding = padding)
+                        is LoadState.Loaded -> PullToRefreshBox(
+                            isRefreshing = catalog.refreshing,
+                            onRefresh = viewModel::refresh,
+                            modifier = Modifier.fillMaxSize(),
+                        ) {
+                            if (state.invalidSavedFilter) {
+                                InvalidFilterView(onClearFilters, padding)
+                            } else {
+                                FirstPaintGate(state, artworkUrl) {
+                                    SongList(state, listState, search, viewModel::onSearchChange, artworkUrl, onSongClick, selectedSongId, padding) { warning = it }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (hinge != null) {
+                    Spacer(Modifier.width(with(density) { hinge.second.toDp() }))
+                    QuickLinksPane(quickLinks, Modifier.weight(1f).padding(top = padding.calculateTopPadding()), fill = true)
+                } else if (pane) {
+                    QuickLinksPane(quickLinks, Modifier.padding(top = padding.calculateTopPadding()))
                 }
             }
         }
     }
     if (showSort) {
-        SortSheet(state.sort, state.ascending, state.hideShop, onApply = onApplySort, onDismiss = { showSort = false })
+        SortSheet(state, onApply = onApplySort, onDismiss = { showSort = false })
     }
     if (showFilter) {
         val prefs = state.prefs
@@ -170,10 +217,34 @@ fun SongsScreen(
             initial = SongFilterDraft.from(prefs.filter, prefs.shopFilter, prefs.playerFilter, visibleInstruments),
             hasPlayer = state.hasPlayer,
             hideShop = state.hideShop,
+            filterInvalidScores = state.filterInvalidScores,
             onApply = onApplyFilter,
             onDismiss = { showFilter = false },
         )
     }
+    warning?.let { shown ->
+        InvalidScoreAlert(shown, onDismiss = { warning = null }, onOpenSettings = { warning = null; onOpenSettings() })
+    }
+}
+
+/**
+ * The "Filtered Score" alert behind a row's invalid-score icon (web
+ * `InvalidScoreIcon` confirm: OK / Settings).
+ *
+ * @param warning Row warning.
+ * @param onDismiss OK.
+ * @param onOpenSettings Settings.
+ */
+@Composable
+fun InvalidScoreAlert(warning: InvalidScoreWarning, onDismiss: () -> Unit, onOpenSettings: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(warning.title) },
+        text = { Text(warning.message, modifier = Modifier.testTag("fst.songs.invalid-score.message")) },
+        confirmButton = { TextButton(onClick = onOpenSettings, modifier = Modifier.testTag("fst.songs.invalid-score.settings")) { Text("Settings") } },
+        dismissButton = { TextButton(onClick = onDismiss, modifier = Modifier.testTag("fst.songs.invalid-score.ok")) { Text("OK") } },
+        modifier = Modifier.testTag("fst.songs.invalid-score.alert"),
+    )
 }
 
 /**
@@ -230,18 +301,20 @@ private fun InvalidFilterView(onReset: () -> Unit, padding: PaddingValues) {
 @Composable
 private fun SongList(
     state: SongsUiState,
+    listState: LazyListState,
     search: String,
     onSearchChange: (String) -> Unit,
     artworkUrl: (String?) -> String?,
     onSongClick: (Song) -> Unit,
     selectedSongId: String?,
     padding: PaddingValues,
+    onWarning: (InvalidScoreWarning) -> Unit,
 ) {
-    val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val headersByIndex = remember(state.headers) { state.headers.associateBy { it.firstIndex } }
     val leading = 1 + state.notices.size
     val showIndex = state.sections.size > 1
+    val pulse = rememberShopPulse(active = state.rows.any { it.pulse != null || it.warning != null })
     // Scroll back to the top only when the sort or filters reshape the list (not on returning to it).
     val shape = "${state.effectiveSort}:${state.ascending}:${state.prefs.hashCode()}"
     var lastShape by rememberSaveable { mutableStateOf<String?>(null) }
@@ -277,8 +350,11 @@ private fun SongList(
             }
             itemsIndexed(state.rows, key = { _, row -> row.song.songId }, contentType = { _, _ -> "song" }) { index, row ->
                 Column {
-                    headersByIndex[index]?.let { ShopHeader(it) }
-                    SongRow(row, artworkUrl(row.song.albumArt), selected = row.song.songId == selectedSongId) { onSongClick(row.song) }
+                    headersByIndex[index]?.let { BucketHeader(it) }
+                    SongRow(
+                        row, artworkUrl(row.song.albumArt), selected = row.song.songId == selectedSongId, pulse = pulse,
+                        onWarning = row.warning?.let { shown -> { onWarning(shown) } },
+                    ) { onSongClick(row.song) }
                 }
             }
         }
@@ -301,6 +377,37 @@ private fun SongList(
 }
 
 /**
+ * One shared Shop outline pulse for every visible row (web `shopPulse`: 0 -> 0.7 -> 0
+ * opacity over 2 s, ease-in-out). Rows read it in the draw phase only, so the pulse
+ * never recomposes them; with nothing pulsing no animation runs. Reduced motion
+ * (the app setting or Android's Remove animations) holds it at 0.7, like the web.
+ *
+ * @param active Whether any row pulses.
+ * @return Outline alpha provider.
+ */
+@Composable
+internal fun rememberShopPulse(active: Boolean): () -> Float {
+    val still = LocalFestivalAccessibility.current.reduceMotion
+    if (!active || still) return STILL_PULSE
+    val transition = rememberInfiniteTransition(label = "shopPulse")
+    val alpha = transition.animateFloat(
+        initialValue = 0f,
+        targetValue = SHOP_PULSE_PEAK,
+        animationSpec = infiniteRepeatable(tween(SHOP_PULSE_HALF_MS, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "shopPulseAlpha",
+    )
+    return remember(alpha) { { alpha.value } }
+}
+
+/** Web pulse peak opacity (also the reduced-motion outline). */
+internal const val SHOP_PULSE_PEAK = 0.7f
+
+/** Half of the web's 2 s pulse. */
+private const val SHOP_PULSE_HALF_MS = 1_000
+
+private val STILL_PULSE: () -> Float = { SHOP_PULSE_PEAK }
+
+/**
  * Section containing the first visible row.
  *
  * @param listState List state.
@@ -320,8 +427,8 @@ private fun currentSection(listState: LazyListState, sections: List<SongSection>
 }
 
 @Composable
-private fun ShopHeader(header: SongListHeader) {
-    SectionHeader(header.label, Modifier.testTag("fst.songs.shop-section.${header.id.substringAfter("shop-").substringBeforeLast('-')}"))
+private fun BucketHeader(header: SongListHeader) {
+    SectionHeader(header.label, Modifier.testTag(header.testTag).semantics { contentDescription = header.spoken })
 }
 
 @Composable

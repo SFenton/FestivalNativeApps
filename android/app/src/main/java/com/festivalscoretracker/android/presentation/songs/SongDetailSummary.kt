@@ -3,6 +3,7 @@ package com.festivalscoretracker.android.presentation.songs
 import com.festivalscoretracker.android.core.format.ScoreFormatting
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.Song
+import com.festivalscoretracker.android.core.songs.InvalidScoreReason
 import com.festivalscoretracker.android.core.songs.SongMetadataPolicy
 import com.festivalscoretracker.android.core.songs.SongScoreSource
 import java.text.NumberFormat
@@ -24,11 +25,10 @@ object SongDetailSummary {
     /**
      * Summary for one chart, or null without a selected player.
      *
-     * @param source Publication-matched score source.
+     * @param source Publication-matched score source (effective scores under Filter Invalid Scores).
      * @param playerName Selected player's name.
      * @param song Song.
      * @param chart Chart.
-     * @param filterInvalidScores Filter Invalid Scores (raw scores cannot stand in).
      * @param locale Formatting locale.
      * @return Summary or null.
      */
@@ -37,14 +37,16 @@ object SongDetailSummary {
         playerName: String,
         song: Song,
         chart: Instrument,
-        filterInvalidScores: Boolean,
         locale: Locale = Locale.getDefault(),
     ): ChartScoreSummary? {
         if (!source.hasPlayer) return null
         val lookup = source.detail ?: return ChartScoreSummary(source.rowState ?: "Loading scores", scored = false)
-        if (filterInvalidScores) return ChartScoreSummary("Your score is paused while Filter Invalid Scores is on", scored = false)
         if (!song.supports(chart)) return ChartScoreSummary("${chart.label} is not charted for this song", scored = false)
+        val reason = source.invalid(song.songId)[chart]
         val detail = lookup(song.songId, chart)
+        if (reason == InvalidScoreReason.NoFallback) {
+            return ChartScoreSummary("No valid ${chart.label} score for $playerName at this leeway (Filter Invalid Scores)", scored = false)
+        }
         if (detail == null || detail.score <= 0) return ChartScoreSummary("No ${chart.label} score for $playerName", scored = false)
         val numbers = NumberFormat.getIntegerInstance(locale)
         val parts = mutableListOf("Your score: ${numbers.format(detail.score)}")
@@ -53,6 +55,7 @@ object SongDetailSummary {
         SongMetadataPolicy.percentileBucket(detail.rank, detail.totalEntries)?.let { parts += it }
         val rank = detail.rank?.takeIf { it > 0 }
         rank?.let { parts += "#${numbers.format(it)}" }
+        if (reason == InvalidScoreReason.Fallback) parts += "next valid score"
         return ChartScoreSummary(parts.joinToString(" · "), scored = true, rank = rank)
     }
 }

@@ -1,5 +1,22 @@
 package com.festivalscoretracker.android.ui.shop
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.runtime.remember
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import com.festivalscoretracker.android.core.shop.ShopPulse
+import com.festivalscoretracker.android.ui.songs.SongsTokens
+import com.festivalscoretracker.android.ui.songs.pulseOutline
+import com.festivalscoretracker.android.ui.songs.rememberShopPulse
+import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -176,6 +193,7 @@ private fun ShopContent(state: ShopUiState, mode: ShopViewMode, artworkUrl: (Str
     val openOfficial: (ShopOfferItem) -> Unit = { item -> item.officialUrl?.let(uri::openUri) }
     val openDetail: (ShopOfferItem) -> Unit = { item -> item.detailSongId?.let { shell.navigate(SongDetailRoute(it)) } }
     val contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 16.dp)
+    val pulse = rememberShopPulse(active = state.offers.any { it.highlight != null })
     val header: @Composable () -> Unit = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (state.detailsUnavailable) DetailsUnavailable(onRetryCatalog)
@@ -192,7 +210,7 @@ private fun ShopContent(state: ShopUiState, mode: ShopViewMode, artworkUrl: (Str
         ) {
             item(key = "header", span = { GridItemSpan(maxLineSpan) }) { header() }
             items(state.offers, key = { it.offer.songId }) { item ->
-                ShopGridCard(item, artworkUrl(item.offer.albumArt), { openOfficial(item) }, { openDetail(item) })
+                ShopGridCard(item, artworkUrl(item.offer.albumArt), pulse, { openOfficial(item) }, { openDetail(item) })
             }
         }
     } else {
@@ -203,7 +221,7 @@ private fun ShopContent(state: ShopUiState, mode: ShopViewMode, artworkUrl: (Str
         ) {
             item(key = "header") { header() }
             items(state.offers, key = { it.offer.songId }) { item ->
-                ShopListRow(item, artworkUrl(item.offer.albumArt), { openOfficial(item) }, { openDetail(item) })
+                ShopListRow(item, artworkUrl(item.offer.albumArt), pulse, { openOfficial(item) }, { openDetail(item) })
             }
         }
     }
@@ -258,20 +276,28 @@ fun ShopBadgeLabel(highlight: ShopHighlight, songId: String, modifier: Modifier 
     )
 }
 
-private fun accent(highlight: ShopHighlight?) = when (highlight) {
-    ShopHighlight.LeavingTomorrow -> BrandTokens.statusRed
-    ShopHighlight.New -> BrandTokens.gold
-    null -> null
+/**
+ * Shop card outline pulse (web `ShopCard`: red Leaving Tomorrow, gold New; every
+ * card is in the Shop, so there is no green).
+ *
+ * @param highlight Accent.
+ * @param pulse Shared alpha.
+ * @return Modifier.
+ */
+private fun Modifier.shopPulse(highlight: ShopHighlight?, pulse: () -> Float): Modifier = when (highlight) {
+    ShopHighlight.LeavingTomorrow -> pulseOutline(SongsTokens.pulse(ShopPulse.LeavingTomorrow), pulse)
+    ShopHighlight.New -> pulseOutline(SongsTokens.pulse(ShopPulse.New), pulse)
+    null -> this
 }
 
 @Composable
-private fun ShopGridCard(item: ShopOfferItem, artUrl: String?, onOfficial: () -> Unit, onDetail: () -> Unit) {
+private fun ShopGridCard(item: ShopOfferItem, artUrl: String?, pulse: () -> Float, onOfficial: () -> Unit, onDetail: () -> Unit) {
     val offer = item.offer
     GlassCard(
         onClick = onOfficial,
-        accent = accent(item.highlight),
         modifier = Modifier
             .fillMaxWidth()
+            .shopPulse(item.highlight, pulse)
             .testTag("fst.shop.song.${offer.songId}")
             .semantics { contentDescription = "${item.announcement}. Opens the Fortnite Item Shop" },
     ) {
@@ -299,13 +325,13 @@ private fun ShopGridCard(item: ShopOfferItem, artUrl: String?, onOfficial: () ->
 }
 
 @Composable
-private fun ShopListRow(item: ShopOfferItem, artUrl: String?, onOfficial: () -> Unit, onDetail: () -> Unit) {
+private fun ShopListRow(item: ShopOfferItem, artUrl: String?, pulse: () -> Float, onOfficial: () -> Unit, onDetail: () -> Unit) {
     val offer = item.offer
     GlassCard(
         onClick = if (item.detailSongId != null) onDetail else onOfficial,
-        accent = accent(item.highlight),
         modifier = Modifier
             .fillMaxWidth()
+            .shopPulse(item.highlight, pulse)
             .testTag("fst.shop.song.${offer.songId}")
             .semantics { contentDescription = item.announcement },
     ) {
@@ -340,22 +366,62 @@ private fun ShopListRow(item: ShopOfferItem, artUrl: String?, onOfficial: () -> 
 // region Detail action
 
 /**
- * Official Shop action for Song Detail: badge plus "Open in Item Shop".
+ * Official Shop action for Song Detail: badge plus "Open in Item Shop". With a
+ * pulse the button breathes between the dark surface and green (in Shop), gold
+ * (New) or red (Leaving Tomorrow) every 3 s (web `shopBreathe*`); reduced motion
+ * holds the target color. The color is read only while drawing.
  *
  * @param highlight Effective badge.
  * @param url Validated official URL.
  * @param songId Song (test tag).
+ * @param pulse Effective Shop pulse.
  */
 @Composable
-fun ShopDetailAction(highlight: ShopHighlight?, url: String, songId: String) {
+fun ShopDetailAction(highlight: ShopHighlight?, url: String, songId: String, pulse: ShopPulse? = null) {
     val uri = LocalUriHandler.current
+    val breathe = rememberShopBreathe(pulse)
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("fst.song-detail.shop")) {
         highlight?.let { ShopBadgeLabel(it, songId, Modifier.testTag("fst.song-detail.shop-badge")) }
-        Button(onClick = { uri.openUri(url) }) {
+        Button(
+            onClick = { uri.openUri(url) },
+            colors = if (breathe != null) ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = BrandTokens.textPrimary) else ButtonDefaults.buttonColors(),
+            modifier = if (breathe != null) {
+                Modifier.testTag("fst.song-detail.shop-breathe.${pulse!!.name}").drawBehind { drawRoundRect(breathe(), cornerRadius = CornerRadius(size.height / 2)) }
+            } else {
+                Modifier
+            },
+        ) {
             Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
             Text("Item Shop", modifier = Modifier.padding(start = 6.dp))
         }
     }
 }
+
+/**
+ * The Song Detail Shop button's breathing fill.
+ *
+ * @param pulse Effective pulse, or null for none.
+ * @return Fill provider, or null.
+ */
+@Composable
+private fun rememberShopBreathe(pulse: ShopPulse?): (() -> Color)? {
+    if (pulse == null) return null
+    val target = when (pulse) {
+        ShopPulse.InShop -> SongsTokens.statusGreenStroke
+        ShopPulse.New -> SongsTokens.goldStroke
+        ShopPulse.LeavingTomorrow -> BrandTokens.statusRed
+    }
+    if (LocalFestivalAccessibility.current.reduceMotion) return remember(target) { { target } }
+    val fraction = rememberInfiniteTransition(label = "shopBreathe").animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(1_500, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "shopBreatheFraction",
+    )
+    return remember(target, fraction) { { lerp(SHOP_BREATHE_BASE, target, fraction.value) } }
+}
+
+/** Web `--shop-pulse-base` (rgb 18 24 38 / 96%). */
+private val SHOP_BREATHE_BASE = Color(red = 18, green = 24, blue = 38, alpha = 245)
 
 // endregion

@@ -51,7 +51,8 @@ import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.songs.SongFilterDraft
 import com.festivalscoretracker.android.core.songs.SongScoreFilterKind
 import com.festivalscoretracker.android.core.songs.SongSortDraft
-import com.festivalscoretracker.android.core.songs.SongSortMode
+import com.festivalscoretracker.android.presentation.SongsUiState
+import com.festivalscoretracker.android.ui.settings.ReorderList
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.theme.BrandTokens
@@ -132,29 +133,40 @@ private fun DraftSheet(
 // region Sort
 
 /**
- * Sort Songs: mode and direction are a draft until Apply.
+ * Sort Songs (web `SortModal`): general modes (Has FC and Last Played with a
+ * player), single-chart modes and the metadata sort priority while filtered to
+ * one chart, and the direction — all a draft until Apply.
  *
- * @param mode Saved mode.
- * @param ascending Saved direction.
- * @param hideShop Hide Item Shop (removes the Shop choice).
- * @param onApply Persist a sort.
+ * @param state Songs state (saved sort, player, Shop, chart filter, visible metadata).
+ * @param onApply Persist a sort draft.
  * @param onDismiss Close.
  */
 @Composable
-fun SortSheet(mode: SongSortMode, ascending: Boolean, hideShop: Boolean, onApply: (SongSortMode, Boolean) -> Unit, onDismiss: () -> Unit) {
-    var draft by remember { mutableStateOf(SongSortDraft(mode, ascending)) }
+fun SortSheet(state: SongsUiState, onApply: (SongSortDraft) -> Unit, onDismiss: () -> Unit) {
+    var draft by remember { mutableStateOf(SongSortDraft(state.sort, state.ascending, state.prefs.metadataOrder)) }
+    val chartModes = SongSortDraft.chartModes(state.hasPlayer, state.sortChart, state.visibleMetadata)
+    val priority = if (state.hasPlayer && state.sortChart != null) SongSortDraft.visiblePriority(draft.metadataOrder, state.visibleMetadata) else emptyList()
     DraftSheet(
         title = "Sort Songs",
         tag = "fst.songs.sort",
         changed = draft.changed,
         canApply = draft.changed,
         onReset = { draft = draft.reset() },
-        onApply = { onApply(draft.mode, draft.ascending); onDismiss() },
+        onApply = { onApply(draft); onDismiss() },
         onDismiss = onDismiss,
     ) {
         Column(Modifier.selectableGroup().testTag("fst.songs.sort.mode")) {
-            SongSortDraft.modes(hideShop).forEach { option ->
+            SongSortDraft.modes(state.hideShop, state.hasPlayer).forEach { option ->
                 RadioRow(option.label, option == draft.mode, "fst.songs.sort.${option.name.lowercase()}") { draft = draft.copy(mode = option) }
+            }
+        }
+        if (chartModes.isNotEmpty()) {
+            SectionHeader("${state.sortChart!!.label} Sort Mode")
+            Text("Filtering to a single instrument enables more sort options.", color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodySmall)
+            Column(Modifier.selectableGroup().testTag("fst.songs.sort.chart-mode")) {
+                chartModes.forEach { option ->
+                    RadioRow(option.label, option == draft.mode, "fst.songs.sort.${option.name.lowercase()}") { draft = draft.copy(mode = option) }
+                }
             }
         }
         SectionHeader("Direction")
@@ -166,6 +178,17 @@ fun SortSheet(mode: SongSortMode, ascending: Boolean, hideShop: Boolean, onApply
                     shape = SegmentedButtonDefaults.itemShape(index, 2),
                     modifier = Modifier.testTag("fst.songs.sort.${label.lowercase()}"),
                 ) { Text(label) }
+            }
+        }
+        if (priority.isNotEmpty()) {
+            SectionHeader("Metadata Sort Priority")
+            Text(
+                "Song rows show metadata in this order (after the sort's own field) while Independent Song Row Visual Order is off in Settings.",
+                color = BrandTokens.textSecondary,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            ReorderList(priority.map { it.label }, "fst.songs.sort.priority") { index, offset ->
+                draft = draft.move(state.visibleMetadata, index, offset)
             }
         }
     }
@@ -197,18 +220,28 @@ private fun RadioRow(label: String, selected: Boolean, tag: String, leading: (@C
 
 /**
  * Filter Songs: instrument and difficulty, Item Shop toggles, and the selected
- * player's per-chart score/FC checks — all a draft until Apply.
+ * player's per-chart score/FC checks (plus Over CHOpt Threshold while Filter
+ * Invalid Scores is on) — all a draft until Apply.
  *
  * @param initial Draft seeded from saved values.
  * @param hasPlayer Show the player score section.
  * @param hideShop Shop toggles disabled (still clearable by Reset).
+ * @param filterInvalidScores Offer Over CHOpt Threshold checks.
  * @param onApply Persist the draft.
  * @param onDismiss Close.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun FilterSheet(initial: SongFilterDraft, hasPlayer: Boolean, hideShop: Boolean, onApply: (SongFilterDraft) -> Unit, onDismiss: () -> Unit) {
+fun FilterSheet(
+    initial: SongFilterDraft,
+    hasPlayer: Boolean,
+    hideShop: Boolean,
+    onApply: (SongFilterDraft) -> Unit,
+    onDismiss: () -> Unit,
+    filterInvalidScores: Boolean = false,
+) {
     var draft by remember { mutableStateOf(initial) }
+    val kinds = SongScoreFilterKind.offered(filterInvalidScores)
     val visible = Instrument.entries.filter { it in draft.visible }
     DraftSheet(
         title = "Filter Songs",
@@ -257,7 +290,7 @@ fun FilterSheet(initial: SongFilterDraft, hasPlayer: Boolean, hideShop: Boolean,
         if (hasPlayer) {
             Column(Modifier.testTag("fst.songs.filter.score-sections")) {
                 SectionHeader("Scores")
-                SongScoreFilterKind.entries.forEach { kind ->
+                kinds.forEach { kind ->
                     SwitchRow(kind.label, draft.allOn(kind), enabled = true, tag = "fst.songs.filter.score.global.${kind.name}") { draft = draft.withAll(kind, it) }
                 }
                 if (draft.hasHiddenChecks) {
@@ -274,7 +307,7 @@ fun FilterSheet(initial: SongFilterDraft, hasPlayer: Boolean, hideShop: Boolean,
                         Text(chart.label, color = BrandTokens.textPrimary, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(start = 8.dp))
                     }
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.testTag("fst.songs.filter.score.chart.${chart.wireId}")) {
-                        SongScoreFilterKind.entries.forEach { kind ->
+                        kinds.forEach { kind ->
                             val on = draft.playerFilter.contains(kind, chart)
                             FilterChip(
                                 selected = on,

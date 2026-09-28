@@ -85,7 +85,8 @@ data class SongShopFilter(val inShop: Boolean = false, val leavingTomorrow: Bool
 // region Player score filter
 
 /**
- * The four independent per-chart checks (web `FilterModal`).
+ * The independent per-chart checks (web `FilterModal`). [OverThreshold] exists
+ * only while Filter Invalid Scores is on.
  *
  * @property label Title Case label.
  */
@@ -94,6 +95,18 @@ enum class SongScoreFilterKind(val label: String) {
     HasScores("Has Scores"),
     MissingFCs("Missing FCs"),
     HasFCs("Has FCs"),
+    OverThreshold("Over CHOpt Threshold");
+
+    companion object {
+        /**
+         * Checks the Filter sheet offers.
+         *
+         * @param filterInvalidScores Filter Invalid Scores setting.
+         * @return The four score/FC checks, plus Over CHOpt Threshold when filtering invalid scores.
+         */
+        fun offered(filterInvalidScores: Boolean): List<SongScoreFilterKind> =
+            if (filterInvalidScores) entries else entries - OverThreshold
+    }
 }
 
 /**
@@ -101,8 +114,9 @@ enum class SongScoreFilterKind(val label: String) {
  *
  * @property score Score (0 = no score).
  * @property isFullCombo Explicit FC flag (never inferred from accuracy).
+ * @property overThreshold The raw score shown exceeds the CHOpt maximum (Over CHOpt Threshold view).
  */
-data class ChartScoreFacts(val score: Long, val isFullCombo: Boolean?)
+data class ChartScoreFacts(val score: Long, val isFullCombo: Boolean?, val overThreshold: Boolean = false)
 
 /**
  * Selected-player predicates: AND within one chart's checks, OR across active
@@ -113,15 +127,27 @@ data class ChartScoreFacts(val score: Long, val isFullCombo: Boolean?)
  * @property hasScores Charts requiring a positive score.
  * @property missingFCs Charts without an explicit FC.
  * @property hasFCs Charts with an explicit FC.
+ * @property overThreshold Charts showing only raw scores over the CHOpt maximum (Filter Invalid Scores only).
  */
 data class SongPlayerScoreFilter(
     val missingScores: Set<Instrument> = emptySet(),
     val hasScores: Set<Instrument> = emptySet(),
     val missingFCs: Set<Instrument> = emptySet(),
     val hasFCs: Set<Instrument> = emptySet(),
+    val overThreshold: Set<Instrument> = emptySet(),
 ) {
     /** Whether any check is set. */
-    val isActive: Boolean get() = missingScores.isNotEmpty() || hasScores.isNotEmpty() || missingFCs.isNotEmpty() || hasFCs.isNotEmpty()
+    val isActive: Boolean
+        get() = missingScores.isNotEmpty() || hasScores.isNotEmpty() || missingFCs.isNotEmpty() || hasFCs.isNotEmpty() || overThreshold.isNotEmpty()
+
+    /**
+     * The checks that apply under the current Filter Invalid Scores setting
+     * (Over CHOpt Threshold stays saved but inactive while it is off, like the web).
+     *
+     * @param filterInvalidScores Filter Invalid Scores setting.
+     * @return This filter, or one without [overThreshold].
+     */
+    fun effective(filterInvalidScores: Boolean): SongPlayerScoreFilter = if (filterInvalidScores || overThreshold.isEmpty()) this else copy(overThreshold = emptySet())
 
     /**
      * The set for one check.
@@ -134,6 +160,7 @@ data class SongPlayerScoreFilter(
         SongScoreFilterKind.HasScores -> hasScores
         SongScoreFilterKind.MissingFCs -> missingFCs
         SongScoreFilterKind.HasFCs -> hasFCs
+        SongScoreFilterKind.OverThreshold -> overThreshold
     }
 
     /**
@@ -160,6 +187,7 @@ data class SongPlayerScoreFilter(
             SongScoreFilterKind.HasScores -> copy(hasScores = updated)
             SongScoreFilterKind.MissingFCs -> copy(missingFCs = updated)
             SongScoreFilterKind.HasFCs -> copy(hasFCs = updated)
+            SongScoreFilterKind.OverThreshold -> copy(overThreshold = updated)
         }
     }
 
@@ -191,6 +219,7 @@ data class SongPlayerScoreFilter(
      */
     fun scopedTo(visible: Set<Instrument>): SongPlayerScoreFilter = SongPlayerScoreFilter(
         missingScores intersect visible, hasScores intersect visible, missingFCs intersect visible, hasFCs intersect visible,
+        overThreshold intersect visible,
     )
 
     /**
@@ -226,7 +255,8 @@ data class SongPlayerScoreFilter(
         val hasFc = chart in hasFCs
         val scoreMatches = !(missing || has) || (missing && !scored) || (has && scored)
         val comboMatches = !(missingFc || hasFc) || (missingFc && !fullCombo) || (hasFc && fullCombo)
-        return scoreMatches && comboMatches
+        val overMatches = chart !in overThreshold || (scored && facts?.overThreshold == true)
+        return scoreMatches && comboMatches && overMatches
     }
 
     /**
@@ -237,11 +267,17 @@ data class SongPlayerScoreFilter(
     fun encoded(): String {
         if (!isActive) return ""
         fun ids(set: Set<Instrument>) = Instrument.entries.filter { it in set }.map { it.wireId }
-        return Json.encodeToString(Stored.serializer(), Stored(ids(missingScores), ids(hasScores), ids(missingFCs), ids(hasFCs)))
+        return Json.encodeToString(Stored.serializer(), Stored(ids(missingScores), ids(hasScores), ids(missingFCs), ids(hasFCs), ids(overThreshold)))
     }
 
     @Serializable
-    private data class Stored(val missingScores: List<String>, val hasScores: List<String>, val missingFCs: List<String>, val hasFCs: List<String>)
+    private data class Stored(
+        val missingScores: List<String>,
+        val hasScores: List<String>,
+        val missingFCs: List<String>,
+        val hasFCs: List<String>,
+        val overThreshold: List<String> = emptyList(),
+    )
 
     companion object {
         /** Largest accepted saved filter. */
@@ -273,6 +309,7 @@ data class SongPlayerScoreFilter(
                 parse(stored.hasScores) ?: return null,
                 parse(stored.missingFCs) ?: return null,
                 parse(stored.hasFCs) ?: return null,
+                parse(stored.overThreshold) ?: return null,
             )
         }
     }

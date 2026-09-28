@@ -84,6 +84,9 @@ data class PlayerScore(
     @SerialName("validScore") val validScore: Int? = null,
     @SerialName("validAccuracy") val rawValidAccuracy: Double? = null,
     @SerialName("validIsFullCombo") val validIsFullCombo: Boolean? = null,
+    @SerialName("validRank") val validRank: Int? = null,
+    @SerialName("validStars") val validStars: Int? = null,
+    @SerialName("validTotalEntries") val validTotalEntries: Int? = null,
     @SerialName("ml") val minLeeway: Double? = null,
     @SerialName("vs") val validScores: List<PlayerValidScoreVariant>? = null,
     @SerialName("et") val endTime: String? = null,
@@ -107,6 +110,7 @@ data class PlayerScore(
         get() = songId.length in 1..200 && !ProfileText.containsUnsafe(songId) && instrument != null && score >= 0 &&
             (rank == null || rank >= 0) && (totalEntries == null || totalEntries >= 0) && (stars == null || stars in 0..6) &&
             (season == null || season >= 0) && (validScore == null || validScore >= 0) && inRange(accuracy) && inRange(validAccuracy) &&
+            (validRank == null || validRank >= 0) && (validStars == null || validStars in 0..6) && (validTotalEntries == null || validTotalEntries >= 0) &&
             (difficulty == null || (difficulty.isFinite() && difficulty >= 0)) && (minLeeway == null || minLeeway.isFinite()) &&
             percentile.let { it == null || (it.isFinite() && it in 0.0..100.0) } &&
             (validScores ?: emptyList()).all { it.isWellFormed }

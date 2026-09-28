@@ -22,6 +22,15 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.PauseCircle
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -44,7 +53,12 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.settings.MetadataField
+import com.festivalscoretracker.android.core.model.Song
 import com.festivalscoretracker.android.core.shop.ShopHighlight
+import com.festivalscoretracker.android.core.shop.ShopPulse
+import com.festivalscoretracker.android.core.songs.InvalidScoreWarning
+import com.festivalscoretracker.android.core.songs.SongLastPlayed
+import com.festivalscoretracker.android.core.songs.SongMaxScorePill
 import com.festivalscoretracker.android.core.songs.SongInstrumentBadge
 import com.festivalscoretracker.android.core.songs.SongInstrumentStatus
 import com.festivalscoretracker.android.core.songs.SongMetadataPill
@@ -88,12 +102,27 @@ internal object SongsTokens {
     }
 
     /**
-     * Shop row border.
+     * Shop outline pulse color (web `shopHighlight*`: the chips' green/gold/red).
      *
-     * @param highlight Accent.
-     * @return Red for Leaving Tomorrow, gold for New.
+     * @param pulse Pulse.
+     * @return Green in the Shop, gold New, red Leaving Tomorrow.
      */
-    fun shop(highlight: ShopHighlight): Color = if (highlight == ShopHighlight.LeavingTomorrow) BrandTokens.statusRed else BrandTokens.gold
+    fun pulse(pulse: ShopPulse): Color = when (pulse) {
+        ShopPulse.InShop -> BrandTokens.statusGreen
+        ShopPulse.New -> BrandTokens.gold
+        ShopPulse.LeavingTomorrow -> BrandTokens.statusRed
+    }
+
+    /**
+     * Web `maxScoreColor`: red at 0% of the CHOpt maximum to green at 100%.
+     *
+     * @param percent Score as a percent of the maximum.
+     * @return Fill.
+     */
+    fun maxScore(percent: Double): Color {
+        val t = (percent / 100).coerceIn(0.0, 1.0).toFloat()
+        return Color(red = (220 * (1 - t) + 34 * t) / 255f, green = (40 * (1 - t) + 139 * t) / 255f, blue = (40 * (1 - t) + 34 * t) / 255f)
+    }
 }
 
 // endregion
@@ -102,66 +131,155 @@ internal object SongsTokens {
 
 /**
  * One glass Songs card: art, marquee title and `artist · year · duration`, the
- * Shop accent, then selected-player chips or metadata pills (or an explicit score
- * state). The whole card is one tap target and one TalkBack stop that speaks
- * [SongRowModel.announcement].
+ * pulsing Shop outline, then selected-player chips or metadata pills (or an
+ * explicit score state). The card is one tap target and one TalkBack stop that
+ * speaks [SongRowModel.announcement]; an invalid-score icon is a second stop.
  *
  * @param row Projected row.
  * @param artUrl Resolved artwork, or null.
  * @param selected Highlighted in two-pane layouts.
+ * @param pulse Shared Shop outline alpha, read only while drawing.
+ * @param onWarning Open the invalid-score alert (shown when the row has a warning).
  * @param onClick Open the song.
  */
 @Composable
-fun SongRow(row: SongRowModel, artUrl: String?, selected: Boolean = false, onClick: () -> Unit) {
+fun SongRow(
+    row: SongRowModel,
+    artUrl: String?,
+    selected: Boolean = false,
+    pulse: () -> Float = { 0f },
+    onWarning: (() -> Unit)? = null,
+    onClick: () -> Unit,
+) {
     val song = row.song
+    val outline = row.pulse?.let(SongsTokens::pulse)
     GlassCard(
         onClick = onClick,
-        accent = row.highlight?.let(SongsTokens::shop),
         modifier = Modifier
             .fillMaxWidth()
+            .then(if (outline != null) Modifier.pulseOutline(outline, pulse) else Modifier)
             .testTag("fst.songs.row.${song.songId}")
             .semantics {
                 this.selected = selected
                 contentDescription = row.announcement
             },
     ) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier
-                .background(if (selected) BrandTokens.accentPurple.copy(alpha = 0.35f) else Color.Transparent)
-                .padding(horizontal = 12.dp, vertical = 10.dp)
-                .clearAndSetSemantics { },
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                AsyncImage(
-                    model = artUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)).background(BrandTokens.surfaceMuted),
-                )
-                Column(Modifier.weight(1f)) {
-                    MarqueeLine(song.title, MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold), BrandTokens.textPrimary)
-                    MarqueeLine(song.subtitle, MaterialTheme.typography.bodyMedium, BrandTokens.textSecondary)
-                    if (row.namesChart) {
-                        Text(
-                            "${row.chart!!.label} chart",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = BrandTokens.textSecondary,
-                            modifier = Modifier.testTag("fst.songs.metadata.chart.${song.songId}"),
-                        )
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.background(if (selected) BrandTokens.accentPurple.copy(alpha = 0.35f) else Color.Transparent)) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                    .clearAndSetSemantics { },
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    AsyncImage(
+                        model = artUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)).background(BrandTokens.surfaceMuted),
+                    )
+                    Column(Modifier.weight(1f)) {
+                        MarqueeLine(song.title, MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold), BrandTokens.textPrimary)
+                        MarqueeLine(song.subtitle, MaterialTheme.typography.bodyMedium, BrandTokens.textSecondary)
+                        if (row.namesChart) {
+                            Text(
+                                "${row.chart!!.label} chart",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = BrandTokens.textSecondary,
+                                modifier = Modifier.testTag("fst.songs.metadata.chart.${song.songId}"),
+                            )
+                        }
                     }
+                    val lastPlayed = row.lastPlayed
+                    val maxScore = row.maxScore
+                    when {
+                        lastPlayed != null -> LastPlayedEntry(lastPlayed, song)
+                        maxScore != null -> MaxScoreDual(maxScore, song.songId)
+                        else -> row.metadata.firstOrNull()?.let { MetadataPill(it, song.songId) }
+                    }
+                    val raw = row.chartRaw
+                    if (row.metadata.isEmpty() && maxScore == null && raw != null) DifficultyMeter(raw)
+                    row.highlight?.let { ShopBadge(it, song.songId) }
                 }
-                row.metadata.firstOrNull()?.let { MetadataPill(it, song.songId) }
-                val raw = row.chartRaw
-                if (row.metadata.isEmpty() && raw != null) DifficultyMeter(raw)
-                row.highlight?.let { ShopBadge(it, song.songId) }
+                if (row.chips.isNotEmpty()) StatusChips(row.chips, song.songId, song.usesKeyboardIcon)
+                val rest = if (row.lastPlayed == null && row.maxScore == null) row.metadata.drop(1) else row.metadata
+                if (rest.isNotEmpty() || row.maxScore != null) {
+                    MetadataPills(rest, song.songId, row.maxScore)
+                }
+                row.scoreState?.let { ScoreState(it, song.songId) }
             }
-            if (row.chips.isNotEmpty()) StatusChips(row.chips, song.songId, song.usesKeyboardIcon)
-            if (row.metadata.size > 1) {
-                MetadataPills(row.metadata.drop(1), song.songId)
-            }
-            row.scoreState?.let { ScoreState(it, song.songId) }
+            if (row.warning != null && onWarning != null) InvalidScoreIcon(row.warning.warning, song.songId, pulse, onWarning)
         }
+    }
+}
+
+/**
+ * The Shop outline pulse (web `shopPulse::after`: a 2 px border fading 0 -> 0.7 -> 0),
+ * drawn over the card. [alpha] is read in the draw phase only.
+ *
+ * @param color Outline color.
+ * @param alpha Current alpha.
+ * @param corner Card corner radius.
+ * @return Modifier.
+ */
+internal fun Modifier.pulseOutline(color: Color, alpha: () -> Float, corner: Dp = 12.dp): Modifier = drawWithContent {
+    drawContent()
+    val stroke = 2.dp.toPx()
+    drawRoundRect(
+        color = color,
+        alpha = alpha().coerceIn(0f, 1f),
+        topLeft = Offset(stroke / 2, stroke / 2),
+        size = Size(size.width - stroke, size.height - stroke),
+        cornerRadius = CornerRadius(corner.toPx()),
+        style = Stroke(stroke),
+    )
+}
+
+/**
+ * The invalid-score indicator (web `InvalidScoreIcon`): red alert for a filtered
+ * score, gold warning when only raw over-threshold scores are shown; it pulses
+ * (1 -> 0.4 opacity, still under reduced motion) and opens the Filtered Score alert.
+ */
+@Composable
+private fun InvalidScoreIcon(warning: Boolean, songId: String, pulse: () -> Float, onClick: () -> Unit) {
+    val still = LocalFestivalAccessibility.current.reduceMotion
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier
+            .testTag("fst.songs.invalid-score.$songId")
+            .semantics { contentDescription = InvalidScoreWarning.LABEL }
+            .graphicsLayer { alpha = if (still) 1f else 1f - pulse() / SHOP_PULSE_PEAK * 0.6f },
+    ) {
+        Icon(
+            if (warning) Icons.Filled.Warning else Icons.Outlined.ErrorOutline,
+            contentDescription = null,
+            tint = if (warning) BrandTokens.gold else BrandTokens.statusRed,
+            modifier = Modifier.size(22.dp),
+        )
+    }
+}
+
+@Composable
+private fun LastPlayedEntry(entry: SongLastPlayed, song: Song) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.testTag("fst.songs.last-played.${song.songId}")) {
+        val keys = song.usesKeyboardIcon && (entry.chart == Instrument.Lead || entry.chart == Instrument.ProLead)
+        InstrumentIcon(entry.chart, keyboard = keys, size = 24.dp, decorative = true)
+        Text(
+            entry.text.removePrefix("Last played "),
+            style = MaterialTheme.typography.labelLarge,
+            color = BrandTokens.textSecondary,
+            modifier = Modifier.padding(start = 6.dp),
+        )
+    }
+}
+
+@Composable
+private fun MaxScoreDual(pill: SongMaxScorePill, songId: String) {
+    Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.testTag("fst.songs.max-score.$songId")) {
+        Text(pill.score, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)
+        Text(" / ", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)
+        Text(pill.max ?: "—", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = if (pill.max == null) BrandTokens.textMuted else BrandTokens.textPrimary)
     }
 }
 
@@ -283,13 +401,17 @@ private val CHIP_SIDE = 34.dp
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun MetadataPills(pills: List<SongMetadataPill>, songId: String) {
+private fun MetadataPills(pills: List<SongMetadataPill>, songId: String, maxScore: SongMaxScorePill? = null) {
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End),
         verticalArrangement = Arrangement.spacedBy(6.dp),
         itemVerticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().testTag("fst.songs.metadata.$songId"),
     ) {
+        maxScore?.let { pill ->
+            val fill = pill.percent?.let(SongsTokens::maxScore) ?: BrandTokens.surfaceMuted
+            PillBox(pill.metric, fill, null, BrandTokens.textPrimary, Modifier.testTag("fst.songs.metadata.max-metric.$songId"))
+        }
         pills.forEach { MetadataPill(it, songId) }
     }
 }
