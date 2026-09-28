@@ -69,7 +69,7 @@ The installed app always uses the **mobile shell**: `useIsMobileChrome()` is tru
 | First-run carousels | Per page, on first visit (Songs, Song Detail, Leaderboards, Player History, Shop …), plus **What's New** after the first launch (`compact/*-first-visit.png`). Slide change: card content 200 ms fades, title/description `fadeInUp` 400 ms at 300/375/500 ms delays; demo rows animate on a 6 s loop (`compact/fre-carousel.anims.json`, `fre-carousel.mp4`) |
 | Sort / Quick Links | Bottom sheet over a dimmed page: `transform` + `opacity` 300 ms `ease`; frame-stepped open ≈ 280 ms, close ≈ 180 ms (`compact/songs.mp4`). Escape closes |
 | Global search / profile sheet | Same sheet pattern at 250 ms; tabs Songs / Players / Bands; "Enter at least two characters" (`compact/search-open.png`, `profile-sheet.png`) |
-| Paths modal | Opens from **View Paths**; the first Escape is swallowed, the second closes it (`compact/song-detail.log.json`; handler `pages/songinfo/components/path/PathsModal.tsx:240-247`) |
+| Paths modal | Opens from **View Paths**; it needed two Escapes. `PathsModal.tsx:240-247` ignores Escape while its *Some Instruments Unavailable* alert (OK / Don't show again) is up, which Android captured on open (`android/FST_Phone/song-detail-paths.png`) |
 | FAB search | Pill expands (`width`/`flex-basis` 360 ms `ease`) into a local Songs filter with a **Clear Search** ✕; the filter persists across routes until cleared (`compact/songs-search.png`) |
 
 ## Scroll

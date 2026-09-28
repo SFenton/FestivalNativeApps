@@ -24,3 +24,28 @@ Every command holds the `emulator` lock (≤300 s, `device.py` helpers) and boot
 | Reduced motion | Chrome reports `prefers-reduced-motion: reduce` when `animator_duration_scale` is 0 — the FST AVDs' default. PWA captures must run at 1× |
 | Cold start | `am kill` after HOME, not `am force-stop` (leaves Chrome "stopped") |
 | DevTools | `adb forward tcp:9444 localabstract:chrome_devtools_remote`; the webapp page is a normal page target of Chrome |
+
+## Standalone chrome and launch
+
+| Aspect | Observed (Chrome 149, API 37, `FST_Phone` 1080×2424 @ 420, viewport 411×845 CSS px, DPR 2.625) |
+|---|---|
+| System bars | Status bar tinted with `theme_color` `#1A0830`, light icons. The gesture-navigation area below the web bottom tab bar is **light/white** (not themed), so a white strip with a dark handle sits under the app (`FST_Phone/*.png`) |
+| No browser UI | No URL bar in `WebappActivity`; while a page is outside scope or loading, Chrome shows a thin top bar with ✕ and the origin (`FST_Phone/launch.mp4`) |
+| Splash | Chrome's WebApp splash: theme-colour background, centred FST icon, "Festival Score Tracker" at the bottom (~6.5 s on the software-rendered emulator), then the web loader spinner, then content (`FST_Phone/launch.mp4`). Launch → `WebappActivity` on top 7.0 s; DOMContentLoaded 2.0 s, first paint 3.2 s (`FST_Phone/launch.json`; emulator timings, not device timings) |
+| Orientation | Manifest `orientation: portrait` locks the app: rotating the phone to 90° keeps the portrait layout (`FST_Phone/rotate-landscape.png`, `rotate.mp4`) |
+| Keyboard | Focusing the FAB Songs search raises the soft keyboard over the bottom bar; the dock rides above it (`FST_Phone/songs-search.png`) |
+| Back | System Back walks the hash history like the in-page **‹ Back** link. Pagination adds no entries: two Backs from song leaderboard page 2 land on Songs (Songs → Detail → Leaderboard; `FST_Phone/song-detail-back.png`) |
+
+## Layout and navigation (phone)
+
+Same mobile shell as every other platform ([windows.md](windows.md#layout-per-window-size)): top bar (hamburger, title, profile, search), bottom tabs (anonymous: Songs, Leaderboards, Settings), FAB dock. Differences seen on the phone:
+
+| Surface | Phone behaviour |
+|---|---|
+| Item Shop | List rows (art, title, artist · year, cart icon, chevron), not the art grid Windows shows at ≥500 epx (`FST_Phone/shop.png` vs `windows/compact/shop.png`) |
+| Song Detail | Intensity grid two columns; leaderboard cards single column; header pins while scrolling; song-leaderboard title marquees when truncated (`FST_Phone/song-leaderboard-page2.png`) |
+| Drawer | **Does not open from a touch tap.** Trace: `pointerdown → touchstart → pointerup → mousedown → click`; the tap's compatibility `mousedown` reaches `Sidebar`'s document outside-click listener and closes the drawer it just opened (`FortniteFestivalWeb/src/components/shell/desktop/Sidebar.tsx:111-118`, `usePressAction.ts:69-84`). Reproduced with DevTools touch and `adb input tap` on the emulator; confirm on hardware (TODO(orchestrator)) |
+| Global search / profile sheet | Bottom sheets as on Windows; profile sheet placeholder "Search players or bands…" with Players/Bands tabs (`FST_Phone/search-open.png`, `profile-sheet.png`) |
+| Paths | Opens with a *Some Instruments Unavailable — Karaoke is not available for path visualization yet* alert (OK / Don't show again) over the chart (`FST_Phone/song-detail-paths.png`) |
+
+Measured animations are identical to Windows (same CSS): background 6 s pan/zoom + 1 s crossfade, rows `fadeInUp` 400 ms / 125 ms stagger, Song Detail and Settings sections 300 ms, sheets 250–300 ms, bottom-tab colour 150 ms, shop pulse 2 s (`FST_Phone/*.anims.json`). `prefers-reduced-motion` is false only because the lab runs at 1× system animation scale.
