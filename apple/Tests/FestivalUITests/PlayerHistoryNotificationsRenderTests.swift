@@ -29,6 +29,13 @@ actor HostedHistoryTransport: HTTPTransport {
     ]}
     """.utf8)
 
+    /// Replace the fixture `/api/player/{id}/notifications` response body.
+    ///
+    /// - Parameter body: Raw JSON envelope bytes to serve for subsequent requests.
+    func setNotificationsBody(_ body: Data) {
+        notificationsBody = body
+    }
+
     func send(_ request: URLRequest) async throws -> HTTPResult {
         guard let url = request.url, request.httpMethod == "GET",
               request.value(forHTTPHeaderField: "X-API-Key") == nil,
@@ -161,6 +168,90 @@ private let fixtureSong = Song(
     host.layoutSubtreeIfNeeded()
     let image = try nativeHostedImage(host)
     _ = try nativeHostedPNG(image, filename: "notifications.png", environment: "FST_HISTORY_RENDER_OUT")
+    #expect(image.width > 0 && image.height > 0)
+}
+
+/// No selected profile shows "Choose a Profile" rather than an empty feed
+/// (`notifications` control's `no-profile` state).
+@MainActor
+@Test func notificationsSheetRendersNoProfileState() async throws {
+    let transport = HostedHistoryTransport()
+    // A session with no stored selection at all: `selectedPlayer` is nil.
+    let client = try! FestivalAPI(baseURL: URL(string: "http://localhost")!, transport: transport)
+    let session = FestivalSession(factory: { client })
+    #expect(session.selectedPlayer == nil)
+    let size = CGSize(width: 420, height: 500)
+    let host = nativeHostedView(
+        NotificationsSheet(session: session)
+            .frame(width: size.width, height: size.height)
+            .preferredColorScheme(.dark)
+            .background(BrandTokens.appBackground),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    try await Task.sleep(for: .milliseconds(200))
+    host.layoutSubtreeIfNeeded()
+    let image = try nativeHostedImage(host)
+    _ = try nativeHostedPNG(image, filename: "notifications-no-profile.png", environment: "FST_HISTORY_RENDER_OUT")
+    #expect(image.width > 0 && image.height > 0)
+}
+
+/// A generated-but-empty feed shows the "will appear here" copy
+/// (`notifications` control's `empty-generated` state).
+@MainActor
+@Test func notificationsSheetRendersEmptyGeneratedState() async throws {
+    let transport = HostedHistoryTransport()
+    await transport.setNotificationsBody(Data("""
+    {"generatedAt":"2024-01-05T00:00:00Z","expiresAfterHours":72,"sourceRunId":1,
+     "sourceCompletedAt":"2024-01-05T00:00:00Z","notificationsGenerated":true,"items":[]}
+    """.utf8))
+    let session = hostedHistorySession(transport: transport)
+    let size = CGSize(width: 420, height: 500)
+    let host = nativeHostedView(
+        NotificationsSheet(session: session)
+            .frame(width: size.width, height: size.height)
+            .preferredColorScheme(.dark)
+            .background(BrandTokens.appBackground),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    try await Task.sleep(for: .milliseconds(300))
+    host.layoutSubtreeIfNeeded()
+    let image = try nativeHostedImage(host)
+    _ = try nativeHostedPNG(
+        image, filename: "notifications-empty-generated.png", environment: "FST_HISTORY_RENDER_OUT"
+    )
+    #expect(image.width > 0 && image.height > 0)
+}
+
+/// A feed that has never been generated shows the "may appear after the next
+/// leaderboard update" copy (`notifications` control's `empty-not-generated` state).
+@MainActor
+@Test func notificationsSheetRendersEmptyNotGeneratedState() async throws {
+    let transport = HostedHistoryTransport()
+    await transport.setNotificationsBody(Data("""
+    {"generatedAt":"2024-01-05T00:00:00Z","expiresAfterHours":72,"sourceRunId":null,
+     "sourceCompletedAt":null,"notificationsGenerated":false,"items":[]}
+    """.utf8))
+    let session = hostedHistorySession(transport: transport)
+    let size = CGSize(width: 420, height: 500)
+    let host = nativeHostedView(
+        NotificationsSheet(session: session)
+            .frame(width: size.width, height: size.height)
+            .preferredColorScheme(.dark)
+            .background(BrandTokens.appBackground),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    try await Task.sleep(for: .milliseconds(300))
+    host.layoutSubtreeIfNeeded()
+    let image = try nativeHostedImage(host)
+    _ = try nativeHostedPNG(
+        image, filename: "notifications-empty-not-generated.png", environment: "FST_HISTORY_RENDER_OUT"
+    )
     #expect(image.width > 0 && image.height > 0)
 }
 #endif

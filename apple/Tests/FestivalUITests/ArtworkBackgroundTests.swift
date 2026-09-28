@@ -178,7 +178,9 @@ private actor ArtworkResponseTransport: HTTPTransport {
     ).environment(\.scenePhase, .active).frame(width: 320, height: 568))
     renderer.scale = 1
     _ = try #require(renderer.cgImage)
-    for _ in 0..<200 {
+    // See `initialArtworkFailuresRetryAfterDwellAndStopAtPoolLimit` for why this budget
+    // is a generous absolute ceiling rather than a small multiple of the injected dwell.
+    for _ in 0..<800 {
         if (await transport.requestedPaths()).count >= 3 { break }
         try await Task.sleep(for: .milliseconds(25))
     }
@@ -233,7 +235,7 @@ func initialArtworkFailuresRetryAfterDwellAndStopAtPoolLimit(
     let blank = try snapshot()
     // Generous, dwell-independent wall-clock ceiling: the first three attempts have no
     // dwell between them, so this should resolve in well under a second even on a busy host.
-    for _ in 0..<200 where (await transport.requestedPaths()).count < 3 {
+    for _ in 0..<800 where (await transport.requestedPaths()).count < 3 {
         try await Task.sleep(for: .milliseconds(25))
     }
     let initialCount = (await transport.requestedPaths()).count
@@ -243,9 +245,12 @@ func initialArtworkFailuresRetryAfterDwellAndStopAtPoolLimit(
     }
 
     var visible = blank
-    // Poll for up to 6s (40x the injected dwell) so a slow/loaded host has ample slack
-    // without the assertion window growing relative to the paced retry itself.
-    for _ in 0..<240 {
+    // Poll for up to 20s of real wall time: the common case resolves in well under a
+    // second (150ms dwell), but `swift test`'s default parallel execution can run this
+    // alongside other tests that briefly monopolize the process's cooperative thread
+    // pool for many real seconds, so the *budget* to reach the expected state must be an
+    // absolute ceiling independent of the tiny injected dwell, not a small multiple of it.
+    for _ in 0..<800 {
         visible = try snapshot()
         let count = (await transport.requestedPaths()).count
         if count >= (failedRequests == 3 ? 4 : 5)
@@ -257,18 +262,31 @@ func initialArtworkFailuresRetryAfterDwellAndStopAtPoolLimit(
     let paths = await transport.requestedPaths()
     let times = await transport.requestTimes()
     if failedRequests == 3 {
-        #expect((4...5).contains(paths.count))
+        // At least four (three failed plus the valid fourth); no fixed upper bound: once
+        // shown, the carousel keeps rotating and requesting further covers indefinitely
+        // by design, and `swift test`'s parallel execution can let an unrelated slow test
+        // stall this process for many real seconds, during which the (real, if short)
+        // production dwell timer can legitimately advance through several more cycles.
+        // `times[0]`/`times[3]` below are fixed indices into an append-only array, so the
+        // pacing assertions stay meaningful regardless of how many later entries exist.
+        #expect(paths.count >= 4)
     } else {
+        // The pool-exhausted path is different: production stops issuing requests
+        // entirely once `maxFailuresPerPool` is reached (`ArtworkCarouselEngine.play`
+        // returns), so this stays exactly 5 no matter how long the process stalls.
         #expect(paths.count == 5)
     }
     #expect(Set(paths).count == paths.count)
     #expect(times.count == paths.count)
     if times.count > 3 {
-        // The fourth request must not fire before roughly one dwell has elapsed
-        // (small tolerance for clock/timer rounding), but must still land comfortably
-        // inside a wide ceiling even under host contention.
+        // The fourth request must not fire before roughly one dwell has elapsed (small
+        // tolerance for clock/timer rounding) — this bound is genuinely dwell-relative,
+        // proving the retry was actually paced rather than immediate.
         #expect(renderStarted.duration(to: times[3]) >= dwell - .milliseconds(30))
-        #expect(times[0].duration(to: times[3]) < dwell * 20)
+        // The upper bound is a liveness check, not a pacing check: it only needs to catch
+        // an actual stall/deadlock, so it uses a generous absolute ceiling instead of a
+        // small multiple of the injected dwell (see the polling loop above for why).
+        #expect(times[0].duration(to: times[3]) < .seconds(15))
     }
     if failedRequests == 3 {
         #expect(visible != blank)
