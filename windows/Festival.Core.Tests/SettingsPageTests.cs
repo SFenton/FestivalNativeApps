@@ -50,6 +50,7 @@ public class SettingsPageTests
         Assert.Equal("Note · Beat · Time · OD · Score", vm.PathColumnSummary);
         var first = vm.SongRowOrder[0];
         Assert.Equal(("Score", "1", "Score, position 1 of 8", "fst.settings.song-row-order.score"), (first.Label, first.Position, first.AccessibleName, first.AutomationId));
+        Assert.Equal(("Move Score up", "Move Score down"), (first.MoveUpName, first.MoveDownName));
         Assert.False(first.MoveUpCommand.CanExecute(null));
         Assert.True(first.MoveDownCommand.CanExecute(null));
         first.MoveDownCommand.Execute(null);

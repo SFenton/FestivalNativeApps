@@ -20,6 +20,8 @@
                   BackRequested="OnBackRequested" PaneToggleRequested="OnPaneToggleRequested"
                   AutomationProperties.AutomationId="fst.shell.title-bar">
             <TitleBar.RightHeader>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <ContentControl x:Name="NotificationsHost" VerticalAlignment="Center" IsTabStop="False" />
                 <Button x:Name="ProfileButton" Padding="4" Margin="0,0,8,0" Background="Transparent" BorderThickness="0"
                         AutomationProperties.Name="{x:Bind Shell.ProfileButtonName, Mode=OneWay}"
                         AutomationProperties.AutomationId="fst.shell.profile"
@@ -94,6 +96,7 @@
                         </Flyout>
                     </Button.Flyout>
                 </Button>
+                </StackPanel>
             </TitleBar.RightHeader>
         </TitleBar>
 

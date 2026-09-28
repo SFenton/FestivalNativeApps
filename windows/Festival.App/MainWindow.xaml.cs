@@ -48,6 +48,7 @@ public sealed partial class MainWindow : Window
         Resize(options.Width ?? 1280, options.Height ?? 820);
 
         Instance = this;
+        InitializeSettingsFeatures();
         Nav.Loaded += (_, _) =>
         {
             if (Nav.SettingsItem is NavigationViewItem settingsItem) Configure(settingsItem);
@@ -105,6 +106,7 @@ public sealed partial class MainWindow : Window
         AppRoute.Leaderboards => typeof(LeaderboardsPage),
         AppRoute.FullRankings => typeof(LeaderboardsFullRankingsPage),
         AppRoute.BandRankings => typeof(LeaderboardsBandRankingsPage),
+        AppRoute.Licenses => typeof(LicensesPage),
         _ => typeof(PlaceholderPage),
     };
 
@@ -157,6 +159,8 @@ public sealed partial class MainWindow : Window
     {
         var frame = frames.GetValueOrDefault(current);
         AppTitleBar.IsBackButtonEnabled = frame?.CanGoBack == true;
+        if (frame is not null) TrackRoutes(frame);
+        QueueFirstRun();
         if (frame?.Content is IBackdropPage { UsesSongCover: true } page) Backdrop.ShowSong(page.BackdropArt);
         else Backdrop.ShowCarousel();
     }
@@ -359,7 +363,7 @@ public sealed partial class MainWindow : Window
                 value is SolidColorBrush brush)
             {
                 var color = brush.Color;
-                color.A = uiSettings.AdvancedEffectsEnabled ? (byte)0xC7 : (byte)0xFF;
+                color.A = uiSettings.AdvancedEffectsEnabled && !session.Settings.LessTransparency ? (byte)0xC7 : (byte)0xFF;
                 brush.Color = color;
             }
         }

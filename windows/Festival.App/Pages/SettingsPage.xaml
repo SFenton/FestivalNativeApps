@@ -4,78 +4,514 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Festival.App.Controls"
     xmlns:vm="using:Festival.Core.ViewModels"
+    xmlns:services="using:Festival.App.Services"
     NavigationCacheMode="Required"
     Background="Transparent">
-    <ScrollViewer AutomationProperties.AutomationId="fst.settings">
-        <StackPanel Padding="24,12,24,32" Spacing="4" MaxWidth="880" HorizontalAlignment="Left">
-            <TextBlock Text="Settings" Style="{StaticResource FSTPageTitleStyle}" AutomationProperties.HeadingLevel="Level1" Margin="0,0,0,8" />
+    <Page.Resources>
+        <services:LeewayThumbConverter x:Key="FSTLeeway" />
+        <!-- Right-align bare switches like Windows Settings cards (the default reserves room for On/Off text). -->
+        <x:Double x:Key="ToggleSwitchThemeMinWidth">0</x:Double>
+        <!-- Setting row: title + description on the left, control on the right (Windows Settings card layout). -->
+        <Style x:Key="SettingTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyTextBlockStyle}">
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="SettingDescriptionStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
+            <Setter Property="Foreground" Value="{ThemeResource FSTSecondaryTextBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="SectionSubtitleStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
+            <Setter Property="Foreground" Value="{ThemeResource FSTSecondaryTextBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,-4,0,8" />
+        </Style>
+        <Style x:Key="SettingSwitchStyle" TargetType="ToggleSwitch">
+            <Setter Property="OnContent" Value="" />
+            <Setter Property="OffContent" Value="" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <DataTemplate x:Key="ReorderRowTemplate" x:DataType="vm:ReorderItemViewModel">
+            <Grid ColumnSpacing="8" MinHeight="40" AutomationProperties.Name="{x:Bind AccessibleName}"
+                  AutomationProperties.AutomationId="{x:Bind AutomationId}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="28" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{x:Bind Position}" VerticalAlignment="Center" Foreground="{ThemeResource FSTSecondaryTextBrush}"
+                           AutomationProperties.AccessibilityView="Raw" />
+                <TextBlock Grid.Column="1" Text="{x:Bind Label}" VerticalAlignment="Center" />
+                <Button Grid.Column="2" Command="{x:Bind MoveUpCommand}" Padding="8,4" Background="Transparent" BorderThickness="0"
+                        AutomationProperties.Name="{x:Bind MoveUpName}"
+                        ToolTipService.ToolTip="Move up">
+                    <FontIcon Glyph="&#xE70E;" FontSize="12" />
+                </Button>
+                <Button Grid.Column="3" Command="{x:Bind MoveDownCommand}" Padding="8,4" Background="Transparent" BorderThickness="0"
+                        AutomationProperties.Name="{x:Bind MoveDownName}"
+                        ToolTipService.ToolTip="Move down">
+                    <FontIcon Glyph="&#xE70D;" FontSize="12" />
+                </Button>
+            </Grid>
+        </DataTemplate>
+    </Page.Resources>
 
-            <TextBlock Text="Profile" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
-            <Border Style="{StaticResource FSTCardStyle}">
-                <Grid ColumnSpacing="12">
+    <Grid x:Name="Root" SizeChanged="OnRootSizeChanged">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+
+
+        <ScrollViewer x:Name="Scroller" AutomationProperties.AutomationId="fst.settings">
+            <StackPanel Padding="24,12,24,32" Spacing="4" MaxWidth="880" HorizontalAlignment="Left">
+                <Grid Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="{x:Bind ViewModel.ProfileText, Mode=OneWay}" VerticalAlignment="Center" />
-                    <Button Grid.Column="1" Content="Deselect Player" Command="{x:Bind ViewModel.DeselectPlayerCommand}"
-                            Visibility="{x:Bind ViewModel.HasPlayer, Mode=OneWay}"
-                            AutomationProperties.AutomationId="fst.settings.deselect-player" />
+                    <TextBlock Text="Settings" Style="{StaticResource FSTPageTitleStyle}" AutomationProperties.HeadingLevel="Level1" />
+                    <Border x:Name="MenuHost" Grid.Column="1" VerticalAlignment="Center">
+                        <controls:QuickLinksMenuButton x:Name="QuickLinksMenu" />
+                    </Border>
                 </Grid>
-            </Border>
 
-            <TextBlock Text="Instruments" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
-            <Border Style="{StaticResource FSTCardStyle}" Padding="16,8">
-                <ItemsRepeater ItemsSource="{x:Bind ViewModel.Instruments}">
-                    <ItemsRepeater.ItemTemplate>
-                        <DataTemplate x:DataType="vm:InstrumentToggle">
-                            <Grid ColumnSpacing="12" MinHeight="48">
+                <TextBlock Text="Profile" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
+                <Border Style="{StaticResource FSTCardStyle}">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{x:Bind ViewModel.ProfileText, Mode=OneWay}" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Content="Deselect Player" Command="{x:Bind ViewModel.DeselectPlayerCommand}"
+                                Visibility="{x:Bind ViewModel.HasPlayer, Mode=OneWay}"
+                                AutomationProperties.AutomationId="fst.settings.deselect-player" />
+                    </Grid>
+                </Border>
+
+                <!-- App Settings -->
+                <StackPanel controls:QuickLinkAnchor.Id="app-settings">
+                    <TextBlock Text="App Settings" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
+                    <TextBlock Text="General Festival Score Tracker app settings." Style="{StaticResource SectionSubtitleStyle}" />
+                    <Border Style="{StaticResource FSTCardStyle}" Padding="16,8">
+                        <StackPanel Spacing="4">
+                            <Grid ColumnSpacing="12" MinHeight="56">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <controls:InstrumentIcon File="{x:Bind IconFile}" Label="{x:Bind Label}" VerticalAlignment="Center" />
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <TextBlock Text="{x:Bind Label}" />
-                                    <TextBlock Text="{x:Bind Description, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
-                                               Foreground="{ThemeResource FSTSecondaryTextBrush}"
-                                               Visibility="{x:Bind IsEnabled, Mode=OneWay, Converter={StaticResource FSTInverseVisibility}}" />
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Show Instrument Icons" Style="{StaticResource SettingTitleStyle}" />
+                                    <TextBlock Text="Display instrument icons on each song row showing which parts have leaderboard scores or FCs." Style="{StaticResource SettingDescriptionStyle}" />
                                 </StackPanel>
-                                <ToggleSwitch Grid.Column="2" IsOn="{x:Bind IsOn, Mode=TwoWay}" IsEnabled="{x:Bind IsEnabled, Mode=OneWay}"
-                                              OnContent="" OffContent="" MinWidth="0"
-                                              AutomationProperties.Name="{x:Bind Label}"
-                                              AutomationProperties.HelpText="{x:Bind Description, Mode=OneWay}"
-                                              AutomationProperties.AutomationId="{x:Bind AutomationId}" />
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind ViewModel.ShowInstrumentIcons, Mode=TwoWay}"
+                                              AutomationProperties.Name="Show Instrument Icons"
+                                              AutomationProperties.AutomationId="fst.settings.show-instrument-icons" />
                             </Grid>
-                        </DataTemplate>
-                    </ItemsRepeater.ItemTemplate>
-                </ItemsRepeater>
-            </Border>
-
-            <TextBlock Text="Accessibility" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
-            <Border Style="{StaticResource FSTCardStyle}" Padding="16,8">
-                <StackPanel>
-                    <ToggleSwitch Header="Reduce Motion" IsOn="{x:Bind ViewModel.ReduceMotion, Mode=TwoWay}"
-                                  AutomationProperties.AutomationId="fst.settings.reduce-motion" />
-                    <ToggleSwitch Header="Disable Animated Artwork" IsOn="{x:Bind ViewModel.DisableAnimatedArtwork, Mode=TwoWay}"
-                                  AutomationProperties.AutomationId="fst.settings.disable-animated-artwork" />
-                    <ToggleSwitch Header="Hide Artwork (Save Data)" IsOn="{x:Bind ViewModel.SaveData, Mode=TwoWay}"
-                                  AutomationProperties.AutomationId="fst.settings.save-data" />
-                    <TextBlock Text="These only add to the Windows animation and transparency settings; they never turn system effects back on."
-                               Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap" Margin="0,4,0,8"
-                               Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                            <Grid ColumnSpacing="12" MinHeight="56">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Enable Independent Song Row Visual Order" Style="{StaticResource SettingTitleStyle}" />
+                                    <TextBlock Text="When enabled, the metadata display order on song rows is controlled separately from sort priority. When disabled, metadata follows sort priority order." Style="{StaticResource SettingDescriptionStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind ViewModel.EnableVisualOrder, Mode=TwoWay}"
+                                              AutomationProperties.Name="Enable Independent Song Row Visual Order"
+                                              AutomationProperties.AutomationId="fst.settings.enable-visual-order" />
+                            </Grid>
+                            <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                      Visibility="{x:Bind ViewModel.EnableVisualOrder, Mode=OneWay}"
+                                      AutomationProperties.Name="Song Row Visual Order"
+                                      AutomationProperties.AutomationId="fst.settings.song-row-order">
+                                <Expander.Header>
+                                    <StackPanel Padding="0,8">
+                                        <TextBlock Text="Song Row Visual Order" Style="{StaticResource SettingTitleStyle}" />
+                                        <TextBlock Text="{x:Bind ViewModel.VisualOrderSummary, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}" />
+                                    </StackPanel>
+                                </Expander.Header>
+                                <StackPanel>
+                                    <TextBlock Text="When filtering to a single instrument in the song list, extra metadata is displayed. Choose the order it appears in on the bottom row."
+                                               Style="{StaticResource SettingDescriptionStyle}" Margin="0,0,0,8" />
+                                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.SongRowOrder, Mode=OneWay}" ItemTemplate="{StaticResource ReorderRowTemplate}" />
+                                </StackPanel>
+                            </Expander>
+                            <Grid ColumnSpacing="12" MinHeight="56">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Filter Invalid Scores" Style="{StaticResource SettingTitleStyle}" />
+                                    <TextBlock Text="Hide song scores that exceed the mathematical maximum by more than the leeway percentage." Style="{StaticResource SettingDescriptionStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind ViewModel.FilterInvalidScores, Mode=TwoWay}"
+                                              AutomationProperties.Name="Filter Invalid Scores"
+                                              AutomationProperties.AutomationId="fst.settings.filter-invalid-scores" />
+                            </Grid>
+                            <StackPanel Visibility="{x:Bind ViewModel.FilterInvalidScores, Mode=OneWay}" Padding="0,0,0,8">
+                                <Slider Header="{x:Bind ViewModel.LeewayText, Mode=OneWay}" Minimum="-5" Maximum="5" StepFrequency="0.1"
+                                        SmallChange="0.1" LargeChange="1" TickFrequency="1" TickPlacement="Outside"
+                                        Value="{x:Bind ViewModel.Leeway, Mode=TwoWay}" ThumbToolTipValueConverter="{StaticResource FSTLeeway}"
+                                        AutomationProperties.Name="Maximum Score Leeway"
+                                        AutomationProperties.ItemStatus="{x:Bind ViewModel.LeewayValue, Mode=OneWay}"
+                                        AutomationProperties.AutomationId="fst.settings.leeway" />
+                                <TextBlock Text="{x:Bind ViewModel.LeewayDescription, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}" />
+                            </StackPanel>
+                            <Grid ColumnSpacing="12" MinHeight="56">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="CHOpt Path Default View" Style="{StaticResource SettingTitleStyle}" />
+                                    <TextBlock Text="Choose whether CHOpt paths open as an image or text table by default." Style="{StaticResource SettingDescriptionStyle}" />
+                                </StackPanel>
+                                <ComboBox Grid.Column="1" VerticalAlignment="Center" MinWidth="120" SelectedIndex="{x:Bind ViewModel.PathDefaultViewIndex, Mode=TwoWay}"
+                                          AutomationProperties.Name="CHOpt Path Default View"
+                                          AutomationProperties.AutomationId="fst.settings.path-default-view">
+                                    <x:String>Image</x:String>
+                                    <x:String>Text</x:String>
+                                </ComboBox>
+                            </Grid>
+                            <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                      AutomationProperties.Name="CHOpt Text Path Column Order"
+                                      AutomationProperties.AutomationId="fst.settings.path-column-order">
+                                <Expander.Header>
+                                    <StackPanel Padding="0,8">
+                                        <TextBlock Text="CHOpt Text Path Column Order" Style="{StaticResource SettingTitleStyle}" />
+                                        <TextBlock Text="{x:Bind ViewModel.PathColumnSummary, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}" />
+                                    </StackPanel>
+                                </Expander.Header>
+                                <StackPanel>
+                                    <TextBlock Text="Choose the order columns appear in the CHOpt text path view."
+                                               Style="{StaticResource SettingDescriptionStyle}" Margin="0,0,0,8" />
+                                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.PathColumnOrder, Mode=OneWay}" ItemTemplate="{StaticResource ReorderRowTemplate}" />
+                                </StackPanel>
+                            </Expander>
+                            <Grid ColumnSpacing="12" MinHeight="56">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Enable Experimental Leaderboard Ranks" Style="{StaticResource SettingTitleStyle}" />
+                                    <TextBlock Text="Enable this to see more ranking mechanisms in the Leaderboards page. Not yet available." Style="{StaticResource SettingDescriptionStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind ViewModel.ExperimentalRanks, Mode=OneWay}" IsEnabled="False"
+                                              AutomationProperties.Name="Enable Experimental Leaderboard Ranks"
+                                              AutomationProperties.HelpText="Experimental ranks are not yet available."
+                                              AutomationProperties.AutomationId="fst.settings.experimental-ranks" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-            </Border>
 
-            <TextBlock Text="About" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
-            <Border Style="{StaticResource FSTCardStyle}">
-                <StackPanel Spacing="4">
-                    <TextBlock x:Name="VersionText" />
-                    <TextBlock Text="{x:Bind ViewModel.ServiceOrigin}" Style="{StaticResource CaptionTextBlockStyle}"
-                               Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                <!-- Diagnostics (Debug only) -->
+                <StackPanel controls:QuickLinkAnchor.Id="diagnostics" Visibility="{x:Bind ViewModel.IsDebugBuild}">
+                    <TextBlock Text="Diagnostics" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
+                    <TextBlock Text="Debug-only tools for investigating tap and navigation issues." Style="{StaticResource SectionSubtitleStyle}" />
+                    <Border Style="{StaticResource FSTCardStyle}" Padding="16,8">
+                        <StackPanel Spacing="4">
+                            <Grid ColumnSpacing="12" MinHeight="56">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Tap Diagnostics" Style="{StaticResource SettingTitleStyle}" />
+                                    <TextBlock Text="Capture recent taps, hit targets, routes, and shell state in a local diagnostic buffer on this device." Style="{StaticResource SettingDescriptionStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind ViewModel.TapDiagnostics, Mode=TwoWay}"
+                                              AutomationProperties.Name="Tap Diagnostics"
+                                              AutomationProperties.AutomationId="fst.settings.tap-diagnostics" />
+                            </Grid>
+                            <Grid ColumnSpacing="12" MinHeight="56">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Upload Tap Telemetry" Style="{StaticResource SettingTitleStyle}" />
+                                    <TextBlock Text="{x:Bind ViewModel.TapTelemetryDescription, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind ViewModel.TapTelemetry, Mode=TwoWay}"
+                                              IsEnabled="{x:Bind ViewModel.TapDiagnostics, Mode=OneWay}"
+                                              AutomationProperties.Name="Upload Tap Telemetry"
+                                              AutomationProperties.HelpText="{x:Bind ViewModel.TapTelemetryDescription, Mode=OneWay}"
+                                              AutomationProperties.AutomationId="fst.settings.tap-telemetry" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-            </Border>
-        </StackPanel>
-    </ScrollViewer>
+
+                <!-- Item Shop -->
+                <StackPanel controls:QuickLinkAnchor.Id="item-shop">
+                    <TextBlock Text="Item Shop" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
+                    <TextBlock Text="Control how Item Shop availability is displayed." Style="{StaticResource SectionSubtitleStyle}" />
+                    <Border Style="{StaticResource FSTCardStyle}" Padding="16,8">
+                        <StackPanel Spacing="4">
+                            <Grid ColumnSpacing="12" MinHeight="56">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Hide Item Shop" Style="{StaticResource SettingTitleStyle}" />
+                                    <TextBlock Text="Also hides its navigation entry. Your highlight preference is kept." Style="{StaticResource SettingDescriptionStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind ViewModel.HideShop, Mode=TwoWay}"
+                                              AutomationProperties.Name="Hide Item Shop"
+                                              AutomationProperties.AutomationId="fst.settings.hide-shop" />
+                            </Grid>
+                            <Grid ColumnSpacing="12" MinHeight="56">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Highlight Shop Items" Style="{StaticResource SettingTitleStyle}" />
+                                    <TextBlock Text="Pulse songs that are in the Item Shop on the Songs page." Style="{StaticResource SettingDescriptionStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind ViewModel.HighlightShopItems, Mode=TwoWay}"
+                                              IsEnabled="{x:Bind ViewModel.CanToggleShopHighlight, Mode=OneWay}"
+                                              AutomationProperties.Name="Highlight Shop Items"
+                                              AutomationProperties.AutomationId="fst.settings.shop-highlights" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Show Instruments -->
+                <StackPanel controls:QuickLinkAnchor.Id="show-instruments">
+                    <TextBlock Text="Show Instruments" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
+                    <TextBlock Text="Choose which instruments to display throughout the app." Style="{StaticResource SectionSubtitleStyle}" />
+                    <Border Style="{StaticResource FSTCardStyle}" Padding="16,8">
+                        <ItemsRepeater ItemsSource="{x:Bind ViewModel.Instruments}">
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="vm:InstrumentToggle">
+                                    <Grid ColumnSpacing="12" MinHeight="48">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <controls:InstrumentIcon File="{x:Bind IconFile}" Label="{x:Bind Label}" VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{x:Bind Label}" />
+                                            <TextBlock Text="{x:Bind Description, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}"
+                                                       Visibility="{x:Bind IsEnabled, Mode=OneWay, Converter={StaticResource FSTInverseVisibility}}" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="2" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind IsOn, Mode=TwoWay}" IsEnabled="{x:Bind IsEnabled, Mode=OneWay}"
+                                                      AutomationProperties.Name="{x:Bind Label}"
+                                                      AutomationProperties.HelpText="{x:Bind Description, Mode=OneWay}"
+                                                      AutomationProperties.AutomationId="{x:Bind AutomationId}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
+                    </Border>
+                </StackPanel>
+
+                <!-- Show Instrument Metadata -->
+                <StackPanel controls:QuickLinkAnchor.Id="show-metadata">
+                    <TextBlock Text="Show Instrument Metadata" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
+                    <TextBlock Text="{x:Bind ViewModel.MetadataDescription, Mode=OneWay}" Style="{StaticResource SectionSubtitleStyle}" />
+                    <Border Style="{StaticResource FSTCardStyle}" Padding="16,8">
+                        <ItemsRepeater ItemsSource="{x:Bind ViewModel.Metadata}">
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="vm:MetadataToggle">
+                                    <Grid ColumnSpacing="12" MinHeight="48">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="{x:Bind Label}" />
+                                            <TextBlock Text="{x:Bind Description, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}"
+                                                       Visibility="{x:Bind IsEnabled, Mode=OneWay, Converter={StaticResource FSTInverseVisibility}}" />
+                                        </StackPanel>
+                                        <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind IsOn, Mode=TwoWay}" IsEnabled="{x:Bind IsEnabled, Mode=OneWay}"
+                                                      AutomationProperties.Name="{x:Bind Label}"
+                                                      AutomationProperties.HelpText="{x:Bind Description, Mode=OneWay}"
+                                                      AutomationProperties.AutomationId="{x:Bind AutomationId}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
+                    </Border>
+                </StackPanel>
+
+                <!-- Accessibility (native additive section) -->
+                <StackPanel controls:QuickLinkAnchor.Id="accessibility">
+                    <TextBlock Text="Accessibility" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
+                    <TextBlock Text="Off follows Windows; On adds an app override. Narrator and text size are managed in Windows Settings."
+                               Style="{StaticResource SectionSubtitleStyle}" />
+                    <Border Style="{StaticResource FSTCardStyle}" Padding="16,8">
+                        <StackPanel Spacing="4">
+                            <Grid ColumnSpacing="12" MinHeight="48">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Reduce Motion" Style="{StaticResource SettingTitleStyle}" VerticalAlignment="Center" />
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind ViewModel.ReduceMotion, Mode=TwoWay}"
+                                              AutomationProperties.Name="Reduce Motion" AutomationProperties.AutomationId="fst.settings.reduce-motion" />
+                            </Grid>
+                            <Grid ColumnSpacing="12" MinHeight="48">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Disable Animated Artwork" Style="{StaticResource SettingTitleStyle}" VerticalAlignment="Center" />
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind ViewModel.DisableAnimatedArtwork, Mode=TwoWay}"
+                                              AutomationProperties.Name="Disable Animated Artwork" AutomationProperties.AutomationId="fst.settings.disable-artwork-animation" />
+                            </Grid>
+                            <Grid ColumnSpacing="12" MinHeight="48">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Increase Contrast" Style="{StaticResource SettingTitleStyle}" />
+                                    <TextBlock Text="Brighter secondary text and stronger card outlines." Style="{StaticResource SettingDescriptionStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind ViewModel.MoreContrast, Mode=TwoWay}"
+                                              AutomationProperties.Name="Increase Contrast" AutomationProperties.AutomationId="fst.settings.more-contrast" />
+                            </Grid>
+                            <Grid ColumnSpacing="12" MinHeight="48">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Reduce Transparency" Style="{StaticResource SettingTitleStyle}" />
+                                    <TextBlock Text="Replaces translucent cards with solid surfaces." Style="{StaticResource SettingDescriptionStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind ViewModel.LessTransparency, Mode=TwoWay}"
+                                              AutomationProperties.Name="Reduce Transparency" AutomationProperties.AutomationId="fst.settings.less-transparency" />
+                            </Grid>
+                            <Grid ColumnSpacing="12" MinHeight="48">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Hide Artwork (Save Data)" Style="{StaticResource SettingTitleStyle}" />
+                                    <TextBlock Text="Skips album art downloads and shows the brand background." Style="{StaticResource SettingDescriptionStyle}" />
+                                </StackPanel>
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" IsOn="{x:Bind ViewModel.SaveData, Mode=TwoWay}"
+                                              AutomationProperties.Name="Hide Artwork (Save Data)" AutomationProperties.AutomationId="fst.settings.save-data" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Version -->
+                <StackPanel controls:QuickLinkAnchor.Id="version">
+                    <TextBlock Text="Festival Score Tracker Version" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
+                    <TextBlock Text="Festival Score Tracker information to help with debugging." Style="{StaticResource SectionSubtitleStyle}" />
+                    <Border Style="{StaticResource FSTCardStyle}">
+                        <Grid ColumnSpacing="12" RowSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="App Version" />
+                            <TextBlock Grid.Column="1" Text="{x:Bind ViewModel.AppVersion}" Foreground="{ThemeResource FSTSecondaryTextBrush}"
+                                       IsTextSelectionEnabled="True" AutomationProperties.AutomationId="fst.settings.app-version" />
+                            <TextBlock Grid.Row="1" Text="Build Configuration" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{x:Bind ViewModel.BuildConfiguration}" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                            <TextBlock Grid.Row="2" Text="Service Version" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{x:Bind ViewModel.ServiceVersion}" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <!-- Service -->
+                <StackPanel controls:QuickLinkAnchor.Id="service-info">
+                    <TextBlock Text="Service" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
+                    <TextBlock Text="Check the live score publication." Style="{StaticResource SectionSubtitleStyle}" />
+                    <Border Style="{StaticResource FSTCardStyle}">
+                        <StackPanel Spacing="8">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <Button Content="Check Publication" Command="{x:Bind ViewModel.CheckPublicationCommand}"
+                                        AutomationProperties.AutomationId="fst.settings.check-publication" />
+                                <ProgressRing IsActive="{x:Bind ViewModel.IsCheckingPublication, Mode=OneWay}" Width="20" Height="20" />
+                            </StackPanel>
+                            <TextBlock Text="{x:Bind ViewModel.PublicationStatus, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}"
+                                       AutomationProperties.LiveSetting="Polite"
+                                       AutomationProperties.AutomationId="fst.settings.publication-status" />
+                            <TextBlock Text="{x:Bind ViewModel.ServiceOrigin}" Style="{StaticResource SettingDescriptionStyle}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- First Run Guides -->
+                <StackPanel controls:QuickLinkAnchor.Id="first-run">
+                    <TextBlock Text="First Run Guides" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
+                    <TextBlock Text="Show a page's introduction again, including every slide." Style="{StaticResource SectionSubtitleStyle}" />
+                    <Border Style="{StaticResource FSTCardStyle}" Padding="16,8">
+                        <ItemsRepeater ItemsSource="{x:Bind ViewModel.FirstRunPages}">
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="vm:FirstRunReplayItem">
+                                    <Grid ColumnSpacing="12" MinHeight="48">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="{x:Bind Label}" />
+                                            <TextBlock Text="{x:Bind Detail}" Style="{StaticResource SettingDescriptionStyle}" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Content="Show" Click="OnReplayClick" Tag="{x:Bind Page}" MinWidth="80"
+                                                AutomationProperties.Name="{x:Bind ButtonName}"
+                                                AutomationProperties.AutomationId="{x:Bind AutomationId}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
+                    </Border>
+                </StackPanel>
+
+                <!-- Licenses -->
+                <StackPanel controls:QuickLinkAnchor.Id="licenses">
+                    <TextBlock Text="Licenses" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
+                    <TextBlock Text="Open source package license details." Style="{StaticResource SectionSubtitleStyle}" />
+                    <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="16,12" Click="OnLicensesClick"
+                            Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}"
+                            CornerRadius="{StaticResource OverlayCornerRadius}"
+                            AutomationProperties.Name="View Licenses" AutomationProperties.AutomationId="fst.settings.licenses">
+                        <Grid>
+                            <TextBlock Text="View Licenses" />
+                            <FontIcon Glyph="&#xE76C;" FontSize="12" HorizontalAlignment="Right" AutomationProperties.AccessibilityView="Raw" />
+                        </Grid>
+                    </Button>
+                </StackPanel>
+
+                <!-- Reset -->
+                <StackPanel controls:QuickLinkAnchor.Id="reset">
+                    <TextBlock Text="Reset Settings" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
+                    <TextBlock Text="Restore all settings to their default values. Your profile, song filters and navigation stay."
+                               Style="{StaticResource SectionSubtitleStyle}" />
+                    <Border Style="{StaticResource FSTCardStyle}">
+                        <Button Content="Reset All Settings" Click="OnResetClick"
+                                AutomationProperties.AutomationId="fst.settings.reset" />
+                    </Border>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+
+        <controls:QuickLinksPane x:Name="Pane" Grid.Column="1" Width="240" Margin="0,64,24,24" Visibility="Collapsed"
+                                 Model="{x:Bind ViewModel.QuickLinks}" />
+    </Grid>
 </Page>

@@ -1,0 +1,35 @@
+<UserControl
+    x:Class="Festival.App.Controls.QuickLinksPane"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Festival.Core.ViewModels">
+    <!-- Wide (≥1440 epx) persistent jump pane: a labelled navigation landmark; the current section is selected. -->
+    <Border Style="{StaticResource FSTCardStyle}" Padding="8,12" VerticalAlignment="Top"
+            AutomationProperties.LandmarkType="Navigation"
+            AutomationProperties.Name="{x:Bind Model.Title, Mode=OneWay}"
+            AutomationProperties.AutomationId="fst.quick-links.pane">
+        <StackPanel Spacing="4">
+            <TextBlock Text="{x:Bind Model.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="8,0,8,4"
+                       AutomationProperties.HeadingLevel="Level2" />
+            <ListView x:Name="List" ItemsSource="{x:Bind Model.Items, Mode=OneWay}" SelectionMode="Single"
+                      IsItemClickEnabled="True" ItemClick="OnItemClick" SelectedItem="{x:Bind Model.ActiveItem, Mode=OneWay}"
+                      AutomationProperties.Name="{x:Bind Model.Title, Mode=OneWay}"
+                      AutomationProperties.AutomationId="fst.quick-links.list">
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
+                        <Setter Property="MinHeight" Value="36" />
+                        <Setter Property="Padding" Value="8,0" />
+                    </Style>
+                </ListView.ItemContainerStyle>
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="vm:QuickLinkItemViewModel">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <FontIcon Glyph="{x:Bind Glyph}" FontSize="14" AutomationProperties.AccessibilityView="Raw" />
+                            <TextBlock Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+        </StackPanel>
+    </Border>
+</UserControl>

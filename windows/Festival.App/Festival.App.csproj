@@ -51,5 +51,6 @@
     <!-- Brand colours generated from contracts/fluent-tokens.json (read-only; owned by contracts/). -->
     <Page Include="..\..\contracts\generated\windows\BrandTokens.xaml" Link="Themes\BrandTokens.xaml" />
     <Content Include="Assets\Instruments\*.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\licenses.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

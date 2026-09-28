@@ -525,6 +525,12 @@ public sealed partial class ReorderItemViewModel
     /// <summary>Narrator name, e.g. "Score, position 1 of 8".</summary>
     public string AccessibleName => $"{Label}, position {Index + 1} of {Count}";
 
+    /// <summary>Move Up button name.</summary>
+    public string MoveUpName => $"Move {Label} up";
+
+    /// <summary>Move Down button name.</summary>
+    public string MoveDownName => $"Move {Label} down";
+
     /// <summary>Whether Move Up is possible.</summary>
     public bool CanMoveUp => Index > 0;
 

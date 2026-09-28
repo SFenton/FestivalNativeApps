@@ -17,8 +17,8 @@ public class QuickLinksTests
         Assert.False(QuickLinks.IsAvailable(0));
         Assert.False(QuickLinks.IsAvailable(1));
         Assert.True(QuickLinks.IsAvailable(2));
-        Assert.False(QuickLinks.UsesPane(1439));
-        Assert.True(QuickLinks.UsesPane(1440));
+        Assert.False(QuickLinks.UsesPane(1149));
+        Assert.True(QuickLinks.UsesPane(1150));
     }
 
     [Fact]

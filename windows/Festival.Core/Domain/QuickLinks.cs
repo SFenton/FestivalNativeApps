@@ -60,8 +60,11 @@ public static class QuickLinks
     /// <summary>Scroll drift tolerated before a settled jump releases ownership.</summary>
     public const double CompleteThreshold = 8;
 
-    /// <summary>Windows width (epx) at which the persistent jump pane replaces the menu (web rail breakpoint).</summary>
-    public const double PaneMinimumWidth = 1440;
+    /// <summary>
+    /// Page-area width (epx) at which the persistent jump pane replaces the menu: the web rail appears at a 1440 px
+    /// viewport; beside the 240 epx navigation pane that leaves about 1150 epx of page area.
+    /// </summary>
+    public const double PaneMinimumWidth = 1150;
 
     /// <summary>Whether a page shows its entry point.</summary>
     /// <param name="sectionCount">Section count.</param>
@@ -69,9 +72,9 @@ public static class QuickLinks
     public static bool IsAvailable(int sectionCount) => sectionCount >= MinimumSectionCount;
 
     /// <summary>Whether the wide persistent pane is used rather than the menu.</summary>
-    /// <param name="windowWidth">Window width in epx.</param>
-    /// <returns><see langword="true"/> at 1440 epx and wider.</returns>
-    public static bool UsesPane(double windowWidth) => windowWidth >= PaneMinimumWidth;
+    /// <param name="pageWidth">Page-area width in epx.</param>
+    /// <returns><see langword="true"/> at <see cref="PaneMinimumWidth"/> and wider.</returns>
+    public static bool UsesPane(double pageWidth) => pageWidth >= PaneMinimumWidth;
 
     /// <summary>Ordered, de-duplicated sections: an explicit list wins over discovered ones.</summary>
     /// <param name="explicitSections">Page-declared sections, or <see langword="null"/>.</param>
