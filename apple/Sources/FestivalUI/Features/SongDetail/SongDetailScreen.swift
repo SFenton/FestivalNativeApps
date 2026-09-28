@@ -16,6 +16,7 @@ struct SongDetailScreen: View {
     private var disableShopHighlighting = false
     @State private var pathsPresented = false
     @State private var shopRefreshFailure: String?
+    @State private var quickLinks = QuickLinksController()
 
     private struct ShopDetailTaskKey: Equatable {
         let publicationRevision: Int
@@ -41,6 +42,19 @@ struct SongDetailScreen: View {
             for: shopOffer, hidden: hideShop,
             highlightingDisabled: disableShopHighlighting
         )
+    }
+
+    /// Intensity, then one entry per visible leaderboard card, in source order
+    /// (`.agents/controls/quick-links/ios.md`; band/score-history sections are
+    /// not built yet).
+    private var quickLinkSections: [QuickLinkSection] {
+        [QuickLinkSection(id: "intensity", title: "Intensity", icon: .system("chart.bar.fill"))]
+            + charted.filter(visibleInstruments.contains).map { instrument in
+                QuickLinkSection(
+                    id: "instrument-\(instrument.rawValue)", title: instrument.label,
+                    icon: .instrument(instrument)
+                )
+            }
     }
 
     /// Supply enabled chart links without hiding the PWA's full Intensity grid.
@@ -138,6 +152,7 @@ struct SongDetailScreen: View {
                     .festivalGlass(.card, cornerRadius: 16)
                 }
                 .accessibilityIdentifier("fst.song-detail.intensity")
+                .quickLinkSection(id: "intensity", title: "Intensity", symbol: "chart.bar.fill")
 
                 VStack(alignment: .leading, spacing: 12) {
                     FestivalSectionHeader("Leaderboards")
@@ -149,12 +164,17 @@ struct SongDetailScreen: View {
                             SongScorePreview(
                                 song: song, instrument: instrument, session: session
                             )
+                            .quickLinkSection(QuickLinkSection(
+                                id: "instrument-\(instrument.rawValue)", title: instrument.label,
+                                icon: .instrument(instrument)
+                            ))
                         }
                     }
                 }
             }
             .padding(16)
         }
+        .quickLinks(quickLinks, title: "Quick Links", sections: quickLinkSections)
         .festivalBackground(.song(song.albumArt), session: session)
         .navigationTitle("")
         .toolbar {
@@ -176,6 +196,7 @@ struct SongDetailScreen: View {
                     .accessibilityIdentifier("fst.song-detail.paths")
                 }
             }
+            QuickLinksToolbarItem(quickLinks)
         }
         .sheet(isPresented: $pathsPresented) {
             if let first = pathInstruments.first {

@@ -35,6 +35,7 @@ struct SongsScreen: View {
     @State private var sortPresented = false
     @State private var filterPresented = false
     @State private var debugPushedSong: Song?
+    @State private var quickLinks = QuickLinksController()
     @Environment(\.openProfile) private var openProfile
     @AppStorage("fst.songs.sortMode") private var sortMode = SongSortMode.title
     @AppStorage("fst.songs.sortAscending") private var sortAscending = true
@@ -373,27 +374,16 @@ struct SongsScreen: View {
         .navigationTitle("Songs")
         .searchable(text: $searchText, prompt: Text("Search"))
         .toolbar {
-            #if os(iOS)
-            ToolbarItemGroup(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: Self.pageActionPlacement) {
                 sortAction
                 if canPresentFilter {
                     filterAction
                 }
             }
-            #else
-            ToolbarItemGroup(placement: .primaryAction) {
-                sortAction
-                if canPresentFilter {
-                    filterAction
-                }
-            }
-            #endif
-            #if os(iOS)
-            if #available(iOS 26.0, *) {
-                ToolbarSpacer(.fixed, placement: .topBarTrailing)
-            }
-            #endif
+            QuickLinksToolbarItem(quickLinks)
+            FestivalRootTrailingItems(session: session)
         }
+        .festivalProvidesRootTrailingItems()
         .festivalRootChrome(session: session)
         .sheet(isPresented: $sortPresented) {
             SongsSortSheet(
@@ -496,6 +486,16 @@ struct SongsScreen: View {
                 state = .failed("Search could not finish: \(error.localizedDescription)")
             }
         }
+    }
+
+    /// Tab-root page actions must precede the shared bell/avatar capsule; iOS pins
+    /// `.primaryAction` to the trailing edge, so use `.topBarTrailing` there.
+    private static var pageActionPlacement: ToolbarItemPlacement {
+        #if os(iOS)
+        .topBarTrailing
+        #else
+        .primaryAction
+        #endif
     }
 
     /// Open a native Sort sheet while retaining the current instrument selection.
@@ -758,45 +758,30 @@ struct SongsScreen: View {
     ) -> some View {
         let indexSections = SongSectionIndex.sections(visible, mode: effectiveMode)
         let showsIndex = indexSections.count > 1
+        let shopSections = effectiveMode == .shop
+            ? shopOffersForCurrentSongs.map { SongCatalogSort.shopSections(visible, offersById: $0) }
+            : nil
+        let durationSections = effectiveMode == .duration
+            ? SongCatalogSort.durationSections(visible) : nil
         return ScrollViewReader { scrollProxy in
             ZStack(alignment: .trailing) {
                 List {
                     if hasDisclosure(for: payload) {
                         disclosures(for: payload)
                     }
-                    if effectiveMode == .shop, let shopOffersForCurrentSongs {
-                        let sections = SongCatalogSort.shopSections(
-                            visible, offersById: shopOffersForCurrentSongs
-                        )
-                        if sections.count > 1 {
-                            ForEach(sections) { section in
-                                HStack {
-                                    Text(section.kind.label.uppercased())
-                                        .font(.headline)
-                                        .foregroundStyle(BrandTokens.textPrimary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                        .accessibilityLabel(section.kind.label)
-                                        .accessibilityAddTraits(.isHeader)
-                                        .accessibilityIdentifier(
-                                            "fst.songs.shop-section." + section.kind.rawValue
-                                        )
-                                    Spacer(minLength: 0)
-                                }
-                                .padding(8)
-                                .background(
-                                    BrandTokens.cardBackground, in: RoundedRectangle(cornerRadius: 8)
+                    if let shopSections, shopSections.count > 1 {
+                        ForEach(shopSections) { section in
+                            shopSectionHeader(section)
+                            ForEach(section.songs) { song in
+                                songLink(
+                                    for: song, catalogueObservation: payload.observedPublicationId
                                 )
-                                .listRowSeparator(.hidden)
-                                .listRowBackground(Color.clear)
-                                .listRowInsets(songRowInsets)
-                                ForEach(section.songs) { song in
-                                    songLink(
-                                        for: song, catalogueObservation: payload.observedPublicationId
-                                    )
-                                }
                             }
-                        } else {
-                            ForEach(visible) { song in
+                        }
+                    } else if let durationSections, durationSections.count > 1 {
+                        ForEach(durationSections) { section in
+                            durationSectionHeader(section)
+                            ForEach(section.songs) { song in
                                 songLink(
                                     for: song, catalogueObservation: payload.observedPublicationId
                                 )
@@ -827,6 +812,12 @@ struct SongsScreen: View {
                 .accessibilityIdentifier("fst.songs.list")
                 .scrollContentBackground(.hidden)
                 .refreshable { await reload() }
+                .quickLinks(
+                    quickLinks, title: "\(effectiveMode.label) Quick Links",
+                    sections: showsIndex ? [] : quickLinkSections(
+                        shopSections: shopSections, durationSections: durationSections
+                    )
+                )
                 if showsIndex {
                     SongSectionIndexScrubber(sections: indexSections) { id in
                         withAnimation(.easeInOut(duration: 0.15)) {
@@ -839,6 +830,70 @@ struct SongsScreen: View {
             }
             .animation(.easeInOut(duration: 0.2), value: showsIndex)
         }
+    }
+
+    /// Quick-link, the scrubber's counterpart for sorts it does not cover: Duration
+    /// and Item Shop (`.agents/controls/quick-links/ios.md`). Title/Artist/Year
+    /// return empty so the menu stays hidden while the scrubber is visible.
+    ///
+    /// - Parameters:
+    ///   - shopSections: Grouped Shop buckets, when the current sort is `.shop`.
+    ///   - durationSections: Grouped Duration buckets, when the current sort is `.duration`.
+    /// - Returns: One quick-link section per visible, nonempty bucket.
+    private func quickLinkSections(
+        shopSections: [SongShopSection]?, durationSections: [SongDurationSection]?
+    ) -> [QuickLinkSection] {
+        if let shopSections, shopSections.count > 1 {
+            return shopSections.map {
+                QuickLinkSection(id: "shop:\($0.kind.rawValue)", title: $0.kind.label)
+            }
+        }
+        if let durationSections, durationSections.count > 1 {
+            return durationSections.map {
+                QuickLinkSection(id: "duration:\($0.bucket.rawValue)", title: $0.bucket.label)
+            }
+        }
+        return []
+    }
+
+    /// Shop bucket header, also the quick-link jump target for its section.
+    private func shopSectionHeader(_ section: SongShopSection) -> some View {
+        HStack {
+            Text(section.kind.label.uppercased())
+                .font(.headline)
+                .foregroundStyle(BrandTokens.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityLabel(section.kind.label)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("fst.songs.shop-section." + section.kind.rawValue)
+            Spacer(minLength: 0)
+        }
+        .padding(8)
+        .background(BrandTokens.cardBackground, in: RoundedRectangle(cornerRadius: 8))
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+        .listRowInsets(songRowInsets)
+        .quickLinkSection(id: "shop:\(section.kind.rawValue)", title: section.kind.label)
+    }
+
+    /// Duration bucket header, also the quick-link jump target for its section.
+    private func durationSectionHeader(_ section: SongDurationSection) -> some View {
+        HStack {
+            Text(section.bucket.label.uppercased())
+                .font(.headline)
+                .foregroundStyle(BrandTokens.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityLabel(section.bucket.label)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("fst.songs.duration-section.\(section.bucket.rawValue)")
+            Spacer(minLength: 0)
+        }
+        .padding(8)
+        .background(BrandTokens.cardBackground, in: RoundedRectangle(cornerRadius: 8))
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+        .listRowInsets(songRowInsets)
+        .quickLinkSection(id: "duration:\(section.bucket.rawValue)", title: section.bucket.label)
     }
 
     /// Keep every grouped and ungrouped Song row on the same navigation path.

@@ -129,3 +129,13 @@ private func sortingSongs() throws -> [Song] {
     #expect(empty[0].songs.map(\.songId) == ascending.map(\.songId))
     #expect(SongCatalogSort.shopSections([], offersById: offers).isEmpty)
 }
+
+/// Duration buckets mirror the web thresholds and keep missing duration in "Unknown".
+@Test func durationSectionsBucketBySourceThresholds() throws {
+    let songs = try sortingSongs()
+    let ascending = try SongCatalogSort.sorted(songs, mode: .duration, ascending: true)
+    let sections = SongCatalogSort.durationSections(ascending)
+    #expect(sections.map(\.bucket) == [.unknown, .lt2, .twoToThree, .threeToFour])
+    #expect(sections.map { $0.songs.map(\.songId) } == [["gamma"], ["beta"], ["delta"], ["alpha"]])
+    #expect(SongCatalogSort.durationSections([]).isEmpty)
+}

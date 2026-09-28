@@ -41,6 +41,54 @@ public struct SongShopSection: Identifiable, Sendable {
     public var id: SongShopSectionKind { kind }
 }
 
+/// Duration quick-link buckets, ported from web `songQuickLinks.ts:193-202`.
+public enum SongDurationBucket: String, Identifiable, CaseIterable, Sendable {
+    case unknown
+    case lt2
+    case twoToThree = "2to3"
+    case threeToFour = "3to4"
+    case fourToFive = "4to5"
+    case gte5
+
+    public var id: String { rawValue }
+
+    /// Web's long bucket label, used as the quick-link title.
+    public var label: String {
+        switch self {
+        case .unknown: "Unknown Duration"
+        case .lt2: "<2m"
+        case .twoToThree: "2-3m"
+        case .threeToFour: "3-4m"
+        case .fourToFive: "4-5m"
+        case .gte5: "5m+"
+        }
+    }
+
+    /// Classify a catalogue duration into its bucket.
+    ///
+    /// - Parameter seconds: `Song.durationSeconds`, or nil.
+    /// - Returns: `.unknown` for a missing or nonpositive duration.
+    public init(seconds: Int?) {
+        guard let seconds, seconds > 0 else {
+            self = .unknown
+            return
+        }
+        if seconds < 120 { self = .lt2 }
+        else if seconds < 180 { self = .twoToThree }
+        else if seconds < 240 { self = .threeToFour }
+        else if seconds < 300 { self = .fourToFive }
+        else { self = .gte5 }
+    }
+}
+
+/// A nonempty Duration bucket whose songs preserve their relative sorted order.
+public struct SongDurationSection: Identifiable, Sendable {
+    public let bucket: SongDurationBucket
+    public internal(set) var songs: [Song]
+
+    public var id: SongDurationBucket { bucket }
+}
+
 /// Sort typed catalogue fields and validated public Shop membership, never profile scores.
 public enum SongCatalogSort {
     /// Order catalogue rows with source ties and a stable ID for otherwise equal songs.
@@ -116,6 +164,24 @@ public enum SongCatalogSort {
                 sections[index].songs.append(song)
             } else {
                 sections.append(SongShopSection(kind: kind, songs: [song]))
+            }
+        }
+        return sections
+    }
+
+    /// Group sorted Duration rows into the source's quick-link buckets.
+    ///
+    /// - Parameter sortedSongs: Catalogue songs already ordered by `.duration`.
+    /// - Returns: Nonempty buckets in first-seen order; ascending duration keeps
+    ///   `.unknown` (sorted as zero) first, descending keeps it last.
+    public static func durationSections(_ sortedSongs: [Song]) -> [SongDurationSection] {
+        var sections: [SongDurationSection] = []
+        for song in sortedSongs {
+            let bucket = SongDurationBucket(seconds: song.durationSeconds)
+            if let index = sections.firstIndex(where: { $0.bucket == bucket }) {
+                sections[index].songs.append(song)
+            } else {
+                sections.append(SongDurationSection(bucket: bucket, songs: [song]))
             }
         }
         return sections
