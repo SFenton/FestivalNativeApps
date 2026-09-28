@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.settings
 
+import com.festivalscoretracker.android.ui.design.popupTestTags
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -188,7 +189,7 @@ fun SettingsScreen(
             },
             dismissButton = { TextButton(onClick = { confirmReset = false }, modifier = Modifier.testTag("fst.settings.reset.cancel")) { Text("Cancel") } },
             containerColor = BrandTokens.cardBackground,
-            modifier = Modifier.testTag("fst.settings.reset.dialog"),
+            modifier = Modifier.popupTestTags().testTag("fst.settings.reset.dialog"),
         )
     }
 }

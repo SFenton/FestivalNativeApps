@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.settings
 
+import com.festivalscoretracker.android.ui.design.popupTestTags
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -164,7 +165,7 @@ private fun LicenseSheet(item: LicensedPackage, text: String, onDismiss: () -> U
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = BrandTokens.cardBackground,
-        modifier = Modifier.testTag("fst.licenses.detail").semantics { paneTitle = item.name },
+        modifier = Modifier.popupTestTags().testTag("fst.licenses.detail").semantics { paneTitle = item.name },
     ) {
         Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 24.dp)) {
             Text(item.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = Modifier.semantics { heading() })

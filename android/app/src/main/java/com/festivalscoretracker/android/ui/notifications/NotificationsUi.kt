@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.notifications
 
+import com.festivalscoretracker.android.ui.design.popupTestTags
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -120,7 +121,7 @@ fun NotificationsSheet(viewModel: NotificationsViewModel, onDismiss: () -> Unit,
         onDismissRequest = close,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = BrandTokens.cardBackground,
-        modifier = Modifier.testTag("fst.notifications.sheet").semantics { paneTitle = "Notifications" },
+        modifier = Modifier.popupTestTags().testTag("fst.notifications.sheet").semantics { paneTitle = "Notifications" },
     ) {
         Text(
             "Notifications",

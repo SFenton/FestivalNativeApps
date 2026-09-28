@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.quicklinks
 
+import com.festivalscoretracker.android.ui.design.popupTestTags
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -229,7 +230,7 @@ fun QuickLinksAction(controller: QuickLinksController, windowWidthDp: Int) {
             modifier = Modifier.testTag("fst.quick-links.open").semantics { contentDescription = label },
         ) { Icon(Icons.AutoMirrored.Outlined.Toc, contentDescription = null) }
         if (!QuickLinks.usesSheet(windowWidthDp)) {
-            DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.testTag("fst.quick-links.menu")) {
+            DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.popupTestTags().testTag("fst.quick-links.menu")) {
                 controller.sections.forEach { section ->
                     val current = section.id == controller.activeId
                     DropdownMenuItem(
@@ -252,7 +253,7 @@ fun QuickLinksAction(controller: QuickLinksController, windowWidthDp: Int) {
             onDismissRequest = { open = false },
             sheetState = sheetState,
             containerColor = BrandTokens.cardBackground,
-            modifier = Modifier.testTag("fst.quick-links.sheet").semantics { paneTitle = controller.title },
+            modifier = Modifier.popupTestTags().testTag("fst.quick-links.sheet").semantics { paneTitle = controller.title },
         ) {
             Text(
                 controller.title,

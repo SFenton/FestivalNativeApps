@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.firstrun
 
+import com.festivalscoretracker.android.ui.design.popupTestTags
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -80,6 +81,7 @@ fun FirstRunCarouselDialog(carousel: FirstRunCarousel, compact: Boolean, onCompl
                 .padding(if (compact) 16.dp else 0.dp)
                 .widthIn(max = 560.dp)
                 .fillMaxWidth()
+                .popupTestTags()
                 .testTag("fst.first-run.dialog")
                 .semantics { paneTitle = "Feature tour: ${carousel.page.label}" },
         ) {
