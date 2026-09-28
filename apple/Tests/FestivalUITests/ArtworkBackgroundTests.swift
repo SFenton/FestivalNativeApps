@@ -21,7 +21,7 @@ private actor ArtworkResponseTransport: HTTPTransport {
     let failures: Set<String>
     let failFirstRequests: Int
     private var paths: [String] = []
-    private var times: [ContinuousClock.Instant] = []
+    private var waiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
 
     /// Supply fully synthetic outcomes without any remote image requests.
     ///
@@ -49,7 +49,9 @@ private actor ArtworkResponseTransport: HTTPTransport {
             throw FestivalAPIError.invalidResource
         }
         paths.append(path)
-        times.append(ContinuousClock().now)
+        let ready = waiters.filter { $0.count <= paths.count }
+        waiters.removeAll { $0.count <= paths.count }
+        ready.forEach { $0.continuation.resume() }
         if failures.contains(path) || paths.count <= failFirstRequests {
             return HTTPResult(status: 404, data: Data())
         }
@@ -63,10 +65,17 @@ private actor ArtworkResponseTransport: HTTPTransport {
     /// - Returns: Original synthetic artwork paths requested.
     func requestedPaths() -> [String] { paths }
 
-    /// Return monotonic request instants for the paced retry assertions.
+    /// Wait, without any wall-clock deadline, until `count` requests have arrived.
     ///
-    /// - Returns: One timestamp for every synthetic artwork request.
-    func requestTimes() -> [ContinuousClock.Instant] { times }
+    /// - Parameter count: Number of requests to wait for.
+    /// - Returns: Original synthetic artwork paths requested so far.
+    @discardableResult
+    func requests(atLeast count: Int) async -> [String] {
+        if paths.count < count {
+            await withCheckedContinuation { waiters.append((count, $0)) }
+        }
+        return paths
+    }
 }
 
 /// Readable five-second instants must not grow to six after the fade finishes.
@@ -155,12 +164,12 @@ private actor ArtworkResponseTransport: HTTPTransport {
 
 /// A 100-cover failure may retry after the dwell but never exhaust 100 URLs.
 ///
-/// Same injected-dwell approach as `initialArtworkFailuresRetryAfterDwellAndStopAtPoolLimit`
-/// (see its doc comment): avoids a multi-second real wall-clock wait so this stays
-/// deterministic under concurrent lane load.
+/// Paced by a `ManualTestClock`, like
+/// `initialArtworkFailuresRetryAfterDwellAndStopAtPoolLimit` (see its doc comment).
 @MainActor
-@Test func firstArtworkFailureCapsRequestsBeforeShowingBrandSurface() async throws {
-    let dwell = Duration.milliseconds(150)
+@Test(.timeLimit(.minutes(10)))
+func firstArtworkFailureCapsRequestsBeforeShowingBrandSurface() async throws {
+    let clock = ManualTestClock()
     let url = try #require(Bundle.module.url(forResource: "pulse", withExtension: "png"))
     let failures = Set((0..<105).map { "/covers/cover-\($0).png" })
     let transport = ArtworkResponseTransport(
@@ -172,45 +181,40 @@ private actor ArtworkResponseTransport: HTTPTransport {
     )
     _ = try await session.catalog()
     #expect(session.artworkPaths.count == 100)
-    let renderStarted = ContinuousClock().now
     let renderer = ImageRenderer(content: ArtworkBackground(
-        mode: .carousel, session: session, saveDataOverride: false, dwellOverride: dwell
+        mode: .carousel, session: session, saveDataOverride: false, clock: clock
     ).environment(\.scenePhase, .active).frame(width: 320, height: 568))
     renderer.scale = 1
     _ = try #require(renderer.cgImage)
-    // See `initialArtworkFailuresRetryAfterDwellAndStopAtPoolLimit` for why this budget
-    // is a generous absolute ceiling rather than a small multiple of the injected dwell.
-    for _ in 0..<800 {
-        if (await transport.requestedPaths()).count >= 3 { break }
-        try await Task.sleep(for: .milliseconds(25))
-    }
-    try await Task.sleep(for: dwell + .milliseconds(100))
-    let paths = await transport.requestedPaths()
-    let times = await transport.requestTimes()
-    #expect((3...5).contains(paths.count))
+
+    // Three initial failures, then a sleep until one dwell after the first attempt.
+    let dwell = ArtworkTransitionSchedule.dwell
+    #expect(await clock.sleepers(atLeast: 1) == [.init(offset: dwell)])
+    #expect((await transport.requestedPaths()).count == 3)
+
+    // One more dwell spends the rest of the five-failure pool budget and stops.
+    clock.advance(by: dwell)
+    let paths = await transport.requests(atLeast: 5)
+    #expect(paths.count == 5)
     #expect(Set(paths).count == paths.count)
-    #expect(times.count == paths.count)
-    if times.count > 3 {
-        #expect(renderStarted.duration(to: times[3]) >= dwell - .milliseconds(30))
-    }
 }
 
 /// Retry timing starts with the view's first attempt, before its first artwork GET.
 ///
 /// Three failed covers cannot hide a valid fourth; five failed covers exhaust the pool.
 ///
-/// Uses an injected `dwellOverride` (`ArtworkBackground.init(dwellOverride:)`) instead of
-/// the real five-second production dwell: this used to wait on real wall-clock sleeps
-/// (`Task.sleep`/`ContinuousClock.sleep(until:)` over several seconds) and was reported
-/// flaky under concurrent lane load, where CPU contention could push scheduling past the
-/// original fixed 8-second poll budget. A short injected dwell keeps the same paced-retry
-/// behavior under test while leaving 10-20x real-time margin instead of ~1.6x.
+/// The dwell runs on a `ManualTestClock` passed as `ArtworkBackground.init(clock:)`.
+/// Real sleeps flaked here: hosted snapshot tests share the one main actor, and a busy
+/// suite delayed a short dwell past any fixed wall-clock ceiling. The test now waits for
+/// events (engine asleep, requests arrived) and checks pacing in clock time, so a slow
+/// host only makes it take longer. `.timeLimit` is a hang guard, not a pacing bound.
 @MainActor
-@Test(arguments: [3, 5])
+@Test(.timeLimit(.minutes(10)), arguments: [3, 5])
 func initialArtworkFailuresRetryAfterDwellAndStopAtPoolLimit(
     failedRequests: Int
 ) async throws {
-    let dwell = Duration.milliseconds(150)
+    let clock = ManualTestClock()
+    let dwell = ArtworkTransitionSchedule.dwell
     let url = try #require(Bundle.module.url(forResource: "pulse", withExtension: "png"))
     let transport = ArtworkResponseTransport(
         data: try Data(contentsOf: url), failures: [],
@@ -221,9 +225,8 @@ func initialArtworkFailuresRetryAfterDwellAndStopAtPoolLimit(
         factory: { client }, artwork: ArtworkCache(transport: transport)
     )
     _ = try await session.catalog()
-    let renderStarted = ContinuousClock().now
     let renderer = ImageRenderer(content: ArtworkBackground(
-        mode: .carousel, session: session, saveDataOverride: false, dwellOverride: dwell
+        mode: .carousel, session: session, saveDataOverride: false, clock: clock
     ).environment(\.scenePhase, .active).frame(width: 320, height: 568))
     renderer.scale = 1
     func snapshot() throws -> Data {
@@ -233,68 +236,65 @@ func initialArtworkFailuresRetryAfterDwellAndStopAtPoolLimit(
         )
     }
     let blank = try snapshot()
-    // Generous, dwell-independent wall-clock ceiling: the first three attempts have no
-    // dwell between them, so this should resolve in well under a second even on a busy host.
-    for _ in 0..<800 where (await transport.requestedPaths()).count < 3 {
-        try await Task.sleep(for: .milliseconds(25))
-    }
-    let initialCount = (await transport.requestedPaths()).count
-    #expect(initialCount >= 3)
-    if initialCount == 3 {
+
+    // Three failed attempts, then the engine sleeps until exactly one dwell after the
+    // view's first attempt; no fourth request can fire before the clock gets there.
+    #expect(await clock.sleepers(atLeast: 1) == [.init(offset: dwell)])
+    #expect((await transport.requestedPaths()).count == 3)
+    #expect(try snapshot() == blank)
+
+    clock.advance(by: dwell)
+    if failedRequests == 3 {
+        // The valid fourth cover shows, the fifth is staged as standby, and the
+        // crossfade waits one more dwell from the retry.
+        #expect(await clock.sleepers(atLeast: 1) == [.init(offset: dwell * 2)])
+        let paths = await transport.requestedPaths()
+        #expect(paths.count == 5)
+        #expect(Set(paths).count == paths.count)
+        // The first cover's one-second fade-in runs on real time; wait it out.
+        var visible = try snapshot()
+        while visible == blank {
+            try await Task.sleep(for: .milliseconds(50))
+            visible = try snapshot()
+        }
+    } else {
+        // Two more failures spend the five-failure pool; the engine stops for good.
+        let paths = await transport.requests(atLeast: 5)
+        #expect(paths.count == 5)
+        #expect(Set(paths).count == paths.count)
         #expect(try snapshot() == blank)
     }
+}
 
-    var visible = blank
-    // Poll for up to 20s of real wall time: the common case resolves in well under a
-    // second (150ms dwell), but `swift test`'s default parallel execution can run this
-    // alongside other tests that briefly monopolize the process's cooperative thread
-    // pool for many real seconds, so the *budget* to reach the expected state must be an
-    // absolute ceiling independent of the tiny injected dwell, not a small multiple of it.
-    for _ in 0..<800 {
-        visible = try snapshot()
-        let count = (await transport.requestedPaths()).count
-        if count >= (failedRequests == 3 ? 4 : 5)
-            && (failedRequests == 5 || visible != blank) {
-            break
-        }
-        try await Task.sleep(for: .milliseconds(25))
+/// The carousel engine returns, rather than sleeping again, once five covers fail.
+@MainActor
+@Test(.timeLimit(.minutes(10)))
+func artworkEngineStopsAfterPoolFailureBudget() async throws {
+    let clock = ManualTestClock()
+    let url = try #require(Bundle.module.url(forResource: "pulse", withExtension: "png"))
+    let transport = ArtworkResponseTransport(
+        data: try Data(contentsOf: url), failures: [], failFirstRequests: 100
+    )
+    let client = try FestivalAPI(transport: ArtworkPoolTransport())
+    let session = FestivalSession(
+        factory: { client }, artwork: ArtworkCache(transport: transport)
+    )
+    _ = try await session.catalog()
+    let engine = ArtworkCarouselEngine(session: session)
+    let policy = ArtworkPlaybackPolicy(
+        activeScene: true, visiblePage: true, reduceMotion: false,
+        disableAnimation: false, reduceTransparency: false, saveData: false,
+        lowPower: false, artCount: session.artworkPaths.count
+    )
+    let run = Task {
+        await engine.play(session.artworkPaths, maxPixels: 64, policy: policy, clock: clock)
     }
-    let paths = await transport.requestedPaths()
-    let times = await transport.requestTimes()
-    if failedRequests == 3 {
-        // At least four (three failed plus the valid fourth); no fixed upper bound: once
-        // shown, the carousel keeps rotating and requesting further covers indefinitely
-        // by design, and `swift test`'s parallel execution can let an unrelated slow test
-        // stall this process for many real seconds, during which the (real, if short)
-        // production dwell timer can legitimately advance through several more cycles.
-        // `times[0]`/`times[3]` below are fixed indices into an append-only array, so the
-        // pacing assertions stay meaningful regardless of how many later entries exist.
-        #expect(paths.count >= 4)
-    } else {
-        // The pool-exhausted path is different: production stops issuing requests
-        // entirely once `maxFailuresPerPool` is reached (`ArtworkCarouselEngine.play`
-        // returns), so this stays exactly 5 no matter how long the process stalls.
-        #expect(paths.count == 5)
-    }
-    #expect(Set(paths).count == paths.count)
-    #expect(times.count == paths.count)
-    if times.count > 3 {
-        // The fourth request must not fire before roughly one dwell has elapsed (small
-        // tolerance for clock/timer rounding) — this bound is genuinely dwell-relative,
-        // proving the retry was actually paced rather than immediate.
-        #expect(renderStarted.duration(to: times[3]) >= dwell - .milliseconds(30))
-        // The upper bound is a liveness check, not a pacing check: it only needs to catch
-        // an actual stall/deadlock, so it uses a generous absolute ceiling instead of a
-        // small multiple of the injected dwell (see the polling loop above for why).
-        #expect(times[0].duration(to: times[3]) < .seconds(15))
-    }
-    if failedRequests == 3 {
-        #expect(visible != blank)
-    } else {
-        #expect(visible == blank)
-        try await Task.sleep(for: dwell * 4)
-        #expect((await transport.requestedPaths()).count == 5)
-    }
+    await clock.sleepers(atLeast: 1)
+    clock.advance(by: ArtworkTransitionSchedule.dwell)
+    await run.value
+    #expect((await transport.requestedPaths()).count == 5)
+    #expect(clock.pendingDeadlines.isEmpty)
+    #expect(!engine.state.hasImage)
 }
 
 /// The original PWA uses ten bounded six-second zoom/pan presets.

@@ -467,3 +467,4 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Windows | Launched win-infra + win-a11y (Windows enters accessibility phase) |
 | 2026-09-28 | Android | and-suggestions landed (3-platform generator parity) |
 | 2026-09-28 | Android | and-rivals landed (incl. Compete); combo rankings endpoints recorded as pure reads; mock ranking/band accuracy scale fixed (`0212604`) |
+| 2026-09-28 | Apple tests | Wall-clock flakes fixed: Retry-After countdown (`\.serviceRetryClock`) and artwork dwell (`ArtworkBackground(clock:)`) run on an injected `ManualTestClock` in tests, with no wall-clock deadlines; see [hosted-snapshots](.agents/testing/apple/hosted-snapshots.md) |

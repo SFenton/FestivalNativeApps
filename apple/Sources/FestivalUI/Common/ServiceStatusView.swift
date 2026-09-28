@@ -2,6 +2,15 @@ import SwiftUI
 import FestivalCore
 import FestivalDesign
 
+// MARK: - Countdown clock
+
+extension EnvironmentValues {
+    /// Clock that paces automatic-retry countdowns: the real continuous clock in
+    /// the app; hosted tests inject a manual clock so a countdown never races
+    /// wall-clock deadlines on a busy shared main actor.
+    @Entry var serviceRetryClock: any Clock<Duration> = ContinuousClock()
+}
+
 // MARK: - Shared retry backoff
 
 /// Process-wide automatic-retry history so consecutive freezes on one screen back off
@@ -27,11 +36,12 @@ enum ServiceRetryScheduler {
     ///   - issue: Failure being shown.
     ///   - scope: Backoff identifier.
     ///   - heading: Spoken heading, or nil to stay silent (inline sections).
+    ///   - clock: Paces the one-second ticks.
     ///   - update: Receives the remaining seconds, or nil when not counting down.
     ///   - retry: Called when the countdown reaches zero.
     static func countdown(
         issue: ServiceIssue, scope: String, announcing heading: String?,
-        update: (Int?) -> Void, retry: () -> Void
+        clock: any Clock<Duration>, update: (Int?) -> Void, retry: () -> Void
     ) async {
         guard issue.retriesAutomatically else {
             update(nil)
@@ -49,7 +59,7 @@ enum ServiceRetryScheduler {
         }
         for tick in stride(from: delay - 1, through: 0, by: -1) {
             do {
-                try await Task.sleep(for: .seconds(1))
+                try await clock.sleep(for: .seconds(1))
             } catch {
                 return
             }
@@ -75,6 +85,7 @@ struct ServiceStatusView: View {
     let retry: () -> Void
 
     @State private var remaining: Int?
+    @Environment(\.serviceRetryClock) private var clock
     @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
 
@@ -173,7 +184,7 @@ struct ServiceStatusView: View {
     /// Announce the state, then count down and retry for a scrape freeze.
     private func run() async {
         await ServiceRetryScheduler.countdown(
-            issue: issue, scope: scope, announcing: heading,
+            issue: issue, scope: scope, announcing: heading, clock: clock,
             update: { remaining = $0 }, retry: retry
         )
     }
@@ -215,6 +226,7 @@ struct ServiceStatusInline: View {
     let retry: () -> Void
 
     @State private var remaining: Int?
+    @Environment(\.serviceRetryClock) private var clock
 
     /// Create an inline status.
     ///
@@ -254,7 +266,7 @@ struct ServiceStatusInline: View {
         .accessibilityIdentifier("fst.service-status.inline")
         .task(id: issue) {
             await ServiceRetryScheduler.countdown(
-                issue: issue, scope: scope, announcing: nil,
+                issue: issue, scope: scope, announcing: nil, clock: clock,
                 update: { remaining = $0 }, retry: retry
             )
         }
