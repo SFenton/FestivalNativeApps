@@ -215,7 +215,8 @@ private fun FestivalShell(container: AppContainer, shellViewModel: ShellViewMode
         end = safeEnd,
         bottom = navBars.calculateBottomPadding() + if (layout == NavigationLayout.BottomBar) BAR_HEIGHT_DP.dp else 0.dp,
     )
-    val openDrawer: (() -> Unit)? = if (layout == NavigationLayout.PermanentDrawer) null else ({ scope.launch { drawerState.open() } })
+    // Only the phone top bar shows a hamburger; the rail header owns it on medium widths.
+    val openDrawer: (() -> Unit)? = if (layout == NavigationLayout.BottomBar) ({ scope.launch { drawerState.open() } }) else null
     val actions = ShellActions(
         navigate = { route -> scope.launch { drawerState.close() }; navController.navigate(route) },
         back = { navController.popBackStack() },
@@ -263,7 +264,7 @@ private fun FestivalShell(container: AppContainer, shellViewModel: ShellViewMode
                         container = container,
                         shellViewModel = shellViewModel,
                         settings = settings,
-                        twoPane = AdaptiveLayoutPolicy.showsTwoPanes(widthDp - railWidth, hinge != null),
+                        twoPane = AdaptiveLayoutPolicy.showsTwoPanes(widthDp, hinge != null),
                         listPaneWidth = AdaptiveLayoutPolicy.listPaneWidth(
                             widthDp - railWidth,
                             hinge?.let { with(density) { it.bounds.left.toDp().value.toInt() } - railWidth },

@@ -137,7 +137,8 @@ object AdaptiveLayoutPolicy {
     /**
      * Whether list-detail screens show both panes.
      *
-     * @param widthDp Content width in dp.
+     * @param widthDp **Window** width in dp (Material's expanded class), not the
+     *   content width left after a rail.
      * @param separatingHinge Whether a vertical separating fold splits the window.
      * @return True for expanded widths or a separating vertical hinge.
      */

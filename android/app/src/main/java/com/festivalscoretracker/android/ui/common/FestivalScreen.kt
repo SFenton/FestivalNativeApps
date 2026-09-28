@@ -50,7 +50,7 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
  *
  * @property navigate Push a route on the current tab.
  * @property back Pop the current tab stack.
- * @property openDrawer Open the modal drawer, or null when the drawer is permanent.
+ * @property openDrawer Open the modal drawer from the top bar (phone layout only), else null.
  * @property openProfile Open profile selection.
  * @property selectedPlayer Current selected player.
  * @property bottomPadding Space reserved by the bottom bar / system navigation.

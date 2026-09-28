@@ -52,6 +52,48 @@ def forward_to_device(args: list[str]) -> int:
     env = dict(os.environ, PYTHONIOENCODING="utf-8")
     return subprocess.call([sys.executable, str(device_tool()), *args], env=env)
 
+def session(avd: str, apk: Path, shots: list[str], hold: int, wait_timeout: int) -> None:
+    """Install the APK and take several screenshots inside **one** shared-lock hold.
+
+    The device lab boots every AVD fresh (``-no-snapshot``) and may shut it down
+    between holds, so separate ``install`` and ``shot`` calls can lose the app.
+
+    Args:
+        avd: FST AVD name.
+        apk: Debug APK path.
+        shots: Specs ``out.png|posture|wait|KEY=VALUE,KEY=VALUE`` (posture may be empty).
+        hold: Lock hold budget in seconds (≤300).
+        wait_timeout: Seconds to queue for the lock.
+    """
+    import importlib.util
+    import json
+    import time
+    tool = device_tool()
+    sys.path.insert(0, str(tool.parent))
+    spec = importlib.util.spec_from_file_location("fst_device", tool)
+    device_module = importlib.util.module_from_spec(spec)
+    sys.modules["fst_device"] = device_module
+    spec.loader.exec_module(device_module)
+    args = argparse.Namespace(avd=avd, window=False, gpu="swiftshader_indirect", allow_foreign=False,
+                              animations=False, hold=hold, wait_timeout=wait_timeout)
+    with device_module._lock(args, f"android-lane session {avd}") as lock:
+        device = device_module._booted(args, lock)
+        print(device.adb("install", "-r", "-t", "-g", str(apk), cap=180).stdout.strip())
+        for raw in shots:
+            out, posture, wait, extras = (raw.split("|") + ["", "", "", ""])[:4]
+            if posture:
+                device_module.apply_posture(device, avd, posture)
+            pairs = dict(item.split("=", 1) for item in extras.split(",") if "=" in item)
+            launch = argparse.Namespace(package=PACKAGE, activity=".MainActivity", tab=pairs.pop("FST_DEBUG_TAB", None),
+                                        route=pairs.pop("FST_DEBUG_ROUTE", None), extra=[f"{k}={v}" for k, v in pairs.items()])
+            device_module._launch(device, launch)
+            time.sleep(float(wait or 10))
+            path = Path(out)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            device.screenshot(path)
+            path.with_suffix(".json").write_text(json.dumps(device.metadata(avd), indent=2), encoding="utf-8")
+            print(path)
+
 # endregion
 
 
@@ -124,8 +166,17 @@ def main() -> None:
     cov.add_argument("--files", action="store_true", help="print per-file coverage")
 
     sub.add_parser("device", help="forward to the shared locked emulator tool (device.py)")
+    ses = sub.add_parser("session", help="install + several screenshots in one shared-lock hold")
+    ses.add_argument("--avd", required=True)
+    ses.add_argument("--apk", type=Path, default=ANDROID / "app" / "build" / "outputs" / "apk" / "debug" / "app-debug.apk")
+    ses.add_argument("--hold", type=int, default=300)
+    ses.add_argument("--wait-timeout", type=int, default=1800)
+    ses.add_argument("shots", nargs="+", help="out.png|posture|waitSeconds|KEY=VALUE,KEY=VALUE")
 
     ns = parser.parse_args()
+    if ns.command == "session":
+        session(ns.avd, ns.apk, ns.shots, ns.hold, ns.wait_timeout)
+        return
     if ns.command == "build":
         tasks = [":app:assembleDebug"]
         if ns.release:
