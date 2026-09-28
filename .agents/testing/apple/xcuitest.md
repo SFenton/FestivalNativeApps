@@ -56,12 +56,18 @@ Settings-specific product bug was found on inspection (no `TimelineView`/
 `repeatForever`/`Timer` anywhere in `Features/Settings/**` or
 `FirstRunSettingsSection.swift`, unlike the `MarqueeText` cause above) or
 reproduced via `ios_sim.py drive` against the live simulator (a plain load,
-then a scroll-and-tap sequence, both completed in under 20s). Re-run via
-`ios_sim.py uitest` after the shared-helper fix (Settings doesn't use
-`MarqueeText`, so only that fix applied here), `testSongRowOrderReorderSheetOpensAndCloses`
-passed on its own in 267.8s (including a cold build-for-testing pass) — see
-this lane's final report for the full three-test batch result and whether the
-skips were removed.
+then a scroll-and-tap sequence, both completed in under 20s). Re-run
+individually via `ios_sim.py uitest` after the shared-helper fix (Settings
+doesn't use `MarqueeText`, so only that fix applied here), all three passed:
+`testSongRowOrderReorderSheetOpensAndCloses` in 267.8s (cold build-for-testing),
+`testResetAppSettingsRestoresChangedToggle` in 68.2s,
+`testAccessibilityToggleSurvivesRelaunch` (full terminate+relaunch) in
+281.8s — all three skips removed. Running two together in one 200s batch did
+time out once during this investigation; the wide per-test spread (68s–282s)
+under varying concurrent-lane load is consistent with the original hang
+being contention, not a deterministic bug. Batch Settings tests with a
+generous `--timeout` (300s+ per selector) rather than the 300s *total*
+default when running more than one together.
 
 ### Retired: `tools/apple_native_matrix.py` (removed 2026-09-28)
 

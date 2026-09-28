@@ -5,29 +5,27 @@ import XCTest
 /// reorder sheet opens and closes from its own row, and Reset App Settings restores a
 /// changed toggle to its registered default (`SettingsRegistry.defaults`).
 ///
-/// **Skipped (not yet verified on-device):** every method here consistently made
-/// `tools/ios_sim.py uitest` hang for the full 300s lock-hold budget and get killed,
-/// both as a batch with `ProfileStatisticsJourneyTests`/`BandsJourneyTests` and run
-/// alone — reproduced twice. `ProfileStatisticsJourneyTests` and `BandsJourneyTests`
-/// (same `FST_DEBUG_STILL_BACKGROUND=1` fix, same loopback fixture, same
-/// `SongsUITestSupport` helpers for `reveal`/`setSwitch`) both pass reliably in
-/// isolation, so the fix that resolved the earlier carousel-idle hangs is not the
-/// gap here. Root cause is inconclusive under the shared simulator's heavy
-/// concurrent-lane load at the time (10+ other lanes' `xcodebuild` processes
-/// observed); it was not isolated to a single step via `tools/ios_sim.py drive`
-/// before time ran out. Skipping rather than `XCTExpectFailure` since there is no
-/// confirmed product bug — only inconclusive, possibly load-related timeouts.
+/// **Re-investigated and un-skipped 2026-09-28 (Lane C):** all three methods
+/// were previously skipped as "consistently hung the full 300s lock-hold
+/// budget, inconclusive root cause." Ruled out a product bug on inspection:
+/// unlike `Features/Songs` (see `Design/MarqueeText.swift`'s fix for
+/// `FST_DEBUG_STILL_BACKGROUND` not stopping its `TimelineView`), nothing in
+/// `Features/Settings/**` or `FirstRunSettingsSection.swift` uses
+/// `TimelineView`/`repeatForever`/`Timer`, and a live `tools/ios_sim.py drive`
+/// load-then-scroll-then-tap sequence against Settings completed in under 20s.
+/// Re-run individually via `tools/ios_sim.py uitest` after this lane's
+/// `FestivalApp` launch-helper fix (every journey now always gets
+/// `FST_DEBUG_STILL_BACKGROUND=1`): all three passed alone —
+/// `testSongRowOrderReorderSheetOpensAndCloses` in 267.8s (cold
+/// build-for-testing), `testResetAppSettingsRestoresChangedToggle` in 68.2s,
+/// `testAccessibilityToggleSurvivesRelaunch` (a full terminate+relaunch) in
+/// 281.8s. Running two of them together in one 200s batch did time out once
+/// during this investigation — consistent with the original finding being
+/// shared-simulator contention (this Mac had 10+ other lanes' concurrent
+/// `xcodebuild` processes at points during this session) rather than a
+/// deterministic hang: batch multiple Settings tests with a generous
+/// `--timeout` (300s+) or run them one at a time.
 final class SettingsJourneyTests: XCTestCase {
-    /// Evidence for the skip above; keep test bodies intact so a re-run only needs
-    /// deleting this one call once the shared simulator has spare capacity.
-    private func skipPendingDeviceVerification() throws {
-        throw XCTSkip(
-            "Hung 300s (killed) both in a batch and alone against the shared "
-                + "simulator under heavy concurrent-lane load; inconclusive root "
-                + "cause. See this file's header comment for what was ruled out."
-        )
-    }
-
     @MainActor
     private func fixtureApp() -> XCUIApplication {
         FestivalApp.makeApp([
@@ -42,7 +40,6 @@ final class SettingsJourneyTests: XCTestCase {
     /// in-memory-only identity), then restore it so later tests see the default.
     @MainActor
     func testAccessibilityToggleSurvivesRelaunch() throws {
-        try skipPendingDeviceVerification()
         continueAfterFailure = false
         let toggleId = "fst.settings.more-contrast"
         let firstLaunch = fixtureApp()
@@ -72,7 +69,6 @@ final class SettingsJourneyTests: XCTestCase {
     /// enabled, lists every metadata field, and Done returns to Settings.
     @MainActor
     func testSongRowOrderReorderSheetOpensAndCloses() throws {
-        try skipPendingDeviceVerification()
         continueAfterFailure = false
         let app = fixtureApp()
         app.launch()
@@ -103,7 +99,6 @@ final class SettingsJourneyTests: XCTestCase {
     /// Reset App Settings restores a changed toggle to its registered default.
     @MainActor
     func testResetAppSettingsRestoresChangedToggle() throws {
-        try skipPendingDeviceVerification()
         continueAfterFailure = false
         let app = fixtureApp()
         app.launch()
