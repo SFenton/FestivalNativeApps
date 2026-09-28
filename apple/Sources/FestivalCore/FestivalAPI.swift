@@ -5,6 +5,8 @@ public enum PublicEndpoint: Sendable {
     case songs
     case shop
     case player(accountId: String)
+    case playerHistory(accountId: String, songId: String? = nil, instrument: String? = nil)
+    case playerNotifications(accountId: String, limit: Int = 50)
     case leaderboard(
         songId: String, instrument: String, top: Int = 25, offset: Int = 0, leeway: Double? = nil
     )
@@ -33,6 +35,25 @@ public enum PublicEndpoint: Sendable {
                 throw FestivalAPIError.invalidPlayerProfile
             }
             segments = ["api", "player", accountId]
+        case let .playerHistory(accountId, songId, instrument):
+            guard ProfileSearchText.isValidAccountId(accountId) else {
+                throw FestivalAPIError.invalidPlayerProfile
+            }
+            if let songId, songId.isEmpty || songId.contains("/") {
+                throw FestivalAPIError.invalidResource
+            }
+            if let instrument, instrument.isEmpty || instrument.contains("/") {
+                throw FestivalAPIError.invalidResource
+            }
+            segments = ["api", "player", accountId, "history"]
+            if let songId { query.append(URLQueryItem(name: "songId", value: songId)) }
+            if let instrument { query.append(URLQueryItem(name: "instrument", value: instrument)) }
+        case let .playerNotifications(accountId, limit):
+            guard ProfileSearchText.isValidAccountId(accountId), (1...200).contains(limit) else {
+                throw FestivalAPIError.invalidPlayerProfile
+            }
+            segments = ["api", "player", accountId, "notifications"]
+            query = [URLQueryItem(name: "limit", value: String(limit))]
         case let .leaderboard(songId, instrument, top, offset, leeway):
             guard !songId.isEmpty, !instrument.isEmpty,
                   !songId.contains("/"), !instrument.contains("/"),
@@ -105,8 +126,10 @@ public enum PublicEndpoint: Sendable {
     ///
     /// - Returns: False for account profiles, including HTTP 202 syncing envelopes.
     var allowsSnapshotCache: Bool {
-        if case .player = self { return false }
-        return true
+        switch self {
+        case .player, .playerHistory, .playerNotifications: false
+        default: true
+        }
     }
 }
 
@@ -575,7 +598,10 @@ public actor FestivalAPI {
             throw FestivalAPIError.invalidPublication
         }
         if response.status == 202 {
-            guard case .player = endpoint else {
+            switch endpoint {
+            case .player, .playerHistory:
+                break
+            default:
                 throw FestivalAPIError.invalidResponse
             }
             try Task.checkCancellation()

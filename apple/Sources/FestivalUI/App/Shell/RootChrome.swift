@@ -45,9 +45,9 @@ extension View {
     ///
     /// - Parameters:
     ///   - session: Shared app session (drives the profile avatar).
-    ///   - showsNotifications: Reserve the notifications slot beside the profile button.
+    ///   - showsNotifications: Show the notifications bell beside the profile button.
     /// - Returns: The page with shared chrome attached.
-    func festivalRootChrome(session: FestivalSession, showsNotifications: Bool = false) -> some View {
+    func festivalRootChrome(session: FestivalSession, showsNotifications: Bool = true) -> some View {
         modifier(FestivalRootChrome(session: session, showsNotifications: showsNotifications))
     }
 }
@@ -68,7 +68,7 @@ struct FestivalRootChrome: ViewModifier {
                 }
             }
             if showsNotifications {
-                ToolbarItem(placement: .topBarTrailing) { NotificationsButton() }
+                ToolbarItem(placement: .topBarTrailing) { NotificationsButton(session: session) }
             }
             if #available(iOS 26.0, *) {
                 // Keep the profile avatar in its own glass bubble, apart from page actions.
@@ -102,14 +102,38 @@ struct DrawerButton: View {
     }
 }
 
-/// Reserved notifications slot (web `HeaderActions` bell); hidden until the feed exists.
+/// Notifications bell (web `HeaderActions` bell): unread badge, opens the native sheet.
+///
+/// Owned by the Notifications feature lane; see `Features/Notifications/NotificationsSheet.swift`.
 struct NotificationsButton: View {
+    let session: FestivalSession
+    @State private var presented = false
+    private var center: NotificationsCenter { session.notificationsCenter }
+
     var body: some View {
-        Button {} label: {
+        Button {
+            presented = true
+        } label: {
             Label("Notifications", systemImage: "bell")
         }
-        .disabled(true)
+        .tint(BrandTokens.textPrimary)
+        .accessibilityLabel(center.unreadCount > 0
+            ? "Notifications, \(center.unreadCount) unread" : "Notifications")
         .accessibilityIdentifier("fst.shell.notifications")
+        .overlay(alignment: .topTrailing) {
+            if center.unreadCount > 0 {
+                Circle()
+                    .fill(BrandTokens.gold)
+                    .frame(width: 9, height: 9)
+                    .offset(x: 2, y: -1)
+                    .accessibilityHidden(true)
+            }
+        }
+        .task(id: session.selectionRevision) { await center.refresh(session: session) }
+        .sheet(isPresented: $presented) {
+            NotificationsSheet(session: session)
+                .festivalSheet(.large)
+        }
     }
 }
 
