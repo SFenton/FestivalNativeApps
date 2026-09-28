@@ -65,6 +65,29 @@ struct SongScorePreview: View {
             .accessibilityIdentifier(
                 "fst.song-detail.leaderboard.\(instrument.rawValue)"
             )
+            if session.selectedPlayer != nil {
+                // Web's only route to `/history` is a "View all scores" action
+                // under the selected player's own score-history chart on this
+                // page (`ScoreHistoryChart.tsx`); that chart is not yet ported,
+                // so this is the equivalent entry point until it is.
+                NavigationLink(value: AppRoute.playerHistory(song, instrument)) {
+                    Label(
+                        "View \(instrument.label) score history",
+                        systemImage: "chart.line.uptrend.xyaxis"
+                    )
+                    .font(.body)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .background(
+                        BrandTokens.appBackground,
+                        in: RoundedRectangle(cornerRadius: 10)
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier(
+                    "fst.song-detail.history.\(instrument.rawValue)"
+                )
+            }
             switch state {
             case .loading:
                 ProgressView("Loading \(instrument.label) scores")
