@@ -39,11 +39,15 @@ None of these navigate. Selecting adds the profile tabs in place; deselecting on
 
 ## Quick Links
 
-Web `PlayerContent` quick links: `global` "Global Statistics" (jumps to Overview), `instrument:<wire>` (instrument label, instrument icon), `top-songs` "Top Songs", `bands` "Bands" (the web shows Bands only with player-stats data; here it jumps to the Bands link). Shared controller ([quick-links/android.md](../../controls/quick-links/android.md)) over the staggered grid: top-bar action (sheet < 600 dp, menu otherwise); persistent 240 dp pane when the page is ≥ 960 dp **and** no separating hinge exists (with a hinge the two content panels are more useful than a navigation panel).
+Web `PlayerContent` quick links: `global` "Global Statistics" (jumps to Overview), `instrument:<wire>` (instrument label, instrument icon), `top-songs` "Top Songs", `bands` "Bands" (jumps to the Bands section). Shared controller ([quick-links/android.md](../../controls/quick-links/android.md)) over the staggered grid: top-bar action (sheet < 600 dp, menu otherwise); persistent 240 dp pane when the page is ≥ 960 dp **and** no separating hinge exists (with a hinge the two content panels are more useful than a navigation panel).
 
 ## Top songs
 
 `PlayerTopSongs.build` (web `buildTopSongsItems`): scores with `rank > 0 && te > 0`, stable-sorted by `rank / te`; top five, and when more than five are ranked the last five reversed ("Bottom Five Songs", which may overlap the top list, as on the web). Titles/art from the in-process catalogue (`FestivalApi.catalog`); a missing song shows the first eight ID characters. Pill: `ScoreFormatting.percentileBucket` ("Top 5%", gold ≤ 5%). No ranked score: "No scores yet" empty state. Rows open Song Detail.
+
+## Bands section
+
+Web `PlayerBandsSection` ("{name}'s Bands", See all, band cards, "View all bands (N)") fills from player-stats (blocked). Android reads one keyless page instead: `GET /api/player/{id}/bands?group=all&page=1&pageSize=4` (`FestivalApi.playerBands`, Bands lane; never band search or `/api/bands/{id}`), started when the row is shown (`ensureBands`) and reset per account/publication. Cards are the Bands lane's `PlayerBandCard` → `BandRoute`; "See all"/"View all bands (N)" → `PlayerBandsRoute`. States: loading, empty ("No bands yet"), inline retry. The web's separate Duos/Trios/Quads previews would need three reads; the full list page has the group picker.
 
 ## Tap-to-filter tiles
 
@@ -65,12 +69,12 @@ Not shown. The web adds Adjusted/Weighted/FC Rate/Max Score rank tiles only when
 
 ## IDs
 
-`fst.player`, `fst.player.{loading,syncing,no-profile,retry,available,header,name,select,deselect,identity-notice,action-error,overview,bands-link,top-songs}`, `fst.player.switch-confirm[.ok|.cancel]`, `fst.player.deselect-confirm[.ok|.cancel]`, `fst.player.action-switch-confirm[.ok|.cancel]`, `fst.player.instrument.<wire>`, `fst.player.instrument-empty.<wire>`, `fst.player.global-rank.<wire>.{loading,unranked,available,error}`, `fst.player.rank-history.<wire>`, `fst.player.percentiles.<wire>`, `fst.player.tile.<overview|wire|rank.wire>.<label-slug>`, `fst.player.top-songs.<wire>`, `fst.player.top-songs-empty.<wire>`, `fst.player.{top,bottom}-song.<wire>.<songId>`.
+`fst.player`, `fst.player.{loading,syncing,no-profile,retry,available,header,name,select,deselect,identity-notice,action-error,overview,bands,bands-link,bands.loading,bands.empty,bands.view-all,top-songs}`, `fst.player.switch-confirm[.ok|.cancel]`, `fst.player.deselect-confirm[.ok|.cancel]`, `fst.player.action-switch-confirm[.ok|.cancel]`, `fst.player.instrument.<wire>`, `fst.player.instrument-empty.<wire>`, `fst.player.global-rank.<wire>.{loading,unranked,available,error}`, `fst.player.rank-history.<wire>`, `fst.player.percentiles.<wire>`, `fst.player.tile.<overview|wire|rank.wire>.<label-slug>`, `fst.player.top-songs.<wire>`, `fst.player.top-songs-empty.<wire>`, `fst.player.{top,bottom}-song.<wire>.<songId>`.
 
 ## Tests
 
 - JVM: `core/profile/{PlayerProfileCoreTest,ProfileParityCoreTest}` (top songs, presets, fold columns, sections, chart geometry), `data/profile/{FestivalApiProfileTest,ProfileSongsPresetsTest}`, `presentation/profile/{SelectedProfileStoreTest,ProfileViewModelsTest,ProfileActionsTest}`.
-- Robolectric: `ui/profile/ProfileUiTest` (search → view → select → Statistics → deselect, switch, cold start, history), `ProfileParityUiTest` (Quick Links sheet, top songs, tile → Songs filter, confirmed switch before a tile, paused selection, Global Rank → Full Rankings), `ProfileChartsDrawTest` (`@GraphicsMode(NATIVE)`, draws the window so the Canvas code runs), `ProfileParityExpandedUiTest` (pane at 1280 dp).
+- Robolectric: `ui/profile/ProfileUiTest` (search → view → select → Statistics → deselect, switch, cold start, history), `ProfileParityUiTest` (Quick Links sheet, top songs, Bands preview/empty, tile → Songs filter, confirmed switch before a tile, paused selection, Global Rank → Full Rankings), `ProfileChartsDrawTest` (`@GraphicsMode(NATIVE)`, draws the window so the Canvas code runs), `ProfileParityExpandedUiTest` (pane at 1280 dp).
 - Device: `androidTest/.../profile/ProfileDeviceJourneyTest` (select/deselect and switch stay on the page, tile → Songs filter, top song → Song Detail, history sort; asserts no card crosses a separating hinge). Run `python tools/android/device.py test com.festivalscoretracker.android.profile.ProfileDeviceJourneyTest --avd FST_Phone` and `--avd FST_Book_Fold --posture half`. `androidTest` shares the JVM tests' synthetic `testing/` fixtures.
 
 ## Gaps

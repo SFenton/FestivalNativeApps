@@ -18,4 +18,4 @@
 
 ## Open
 
-- Entry point from the player profile page belongs to the Profile lane (`PlayerBandsRoute`). No `?name=` carry-through (band search is blocked).
+- Entry points from the player page: its Bands section ("See all", "View all bands (N)"; [player-profile/android.md](../player-profile/android.md#bands-section)). No `?name=` carry-through (band search is blocked).

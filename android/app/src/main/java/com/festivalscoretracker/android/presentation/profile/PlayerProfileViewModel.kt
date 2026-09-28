@@ -2,6 +2,7 @@ package com.festivalscoretracker.android.presentation.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.festivalscoretracker.android.core.bands.PlayerBandListResponse
 import com.festivalscoretracker.android.core.format.ScoreFormatting
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.SelectedPlayer
@@ -53,12 +54,15 @@ import kotlinx.coroutines.launch
  * @property ranking `FestivalApi.playerInstrumentRanking`.
  * @property rankHistory `FestivalApi.playerRankHistory` (30 days).
  * @property catalog Catalogue songs for top-song titles and art (`FestivalApi.catalog`, cached in process).
+ * @property bands First page of the player's bands (`FestivalApi.playerBands`, group All,
+ *   [PlayerProfileViewModel.BANDS_PREVIEW_SIZE] rows; a pure read, never band search).
  */
 class ProfileReads(
     val profile: suspend (String) -> PlayerProfilePayload,
     val ranking: suspend (Instrument, String) -> PlayerInstrumentRankingPayload,
     val rankHistory: suspend (Instrument, String) -> PlayerRankHistory,
     val catalog: suspend () -> List<Song> = { emptyList() },
+    val bands: suspend (String) -> PlayerBandListResponse = { PlayerBandListResponse(accountId = it) },
 )
 
 // endregion
@@ -183,6 +187,26 @@ sealed interface RankLoad {
     data class Failed(val issue: ServiceIssue) : RankLoad
 }
 
+/** Bands preview lifecycle (web `PlayerBandsSection`). */
+sealed interface BandsLoad {
+    /** Loading. */
+    data object Loading : BandsLoad
+
+    /**
+     * Loaded.
+     *
+     * @property bands First page (group All).
+     */
+    data class Loaded(val bands: PlayerBandListResponse) : BandsLoad
+
+    /**
+     * Failed with an inline retry.
+     *
+     * @property issue Classified failure.
+     */
+    data class Failed(val issue: ServiceIssue) : BandsLoad
+}
+
 /** Rank-history lifecycle for one chart. */
 sealed interface RankHistoryLoad {
     /** Loading. */
@@ -295,6 +319,7 @@ class PlayerProfileViewModel(
     private val actionError = MutableStateFlow<String?>(null)
     private val rankLoads = MutableStateFlow<Map<Instrument, RankLoad>>(emptyMap())
     private val historyLoads = MutableStateFlow<Map<Instrument, RankHistoryLoad>>(emptyMap())
+    private val bandsLoad = MutableStateFlow<BandsLoad?>(null)
     private val sectionJobs = mutableMapOf<String, Job>()
     private var sectionKey: String? = null
     private var memo: Triple<PlayerProfileResponse, Set<Instrument>, Pair<List<PlayerStatTile>, List<PlayerInstrumentSection>>>? = null
@@ -329,6 +354,9 @@ class PlayerProfileViewModel(
 
     /** Rank history per chart, loaded when its section is shown. */
     val rankHistories: StateFlow<Map<Instrument, RankHistoryLoad>> = historyLoads.asStateFlow()
+
+    /** Bands preview, loaded when its section is shown (null until then). */
+    val bands: StateFlow<BandsLoad?> = bandsLoad.asStateFlow()
 
     init {
         if (followsSelection) {
@@ -426,6 +454,18 @@ class PlayerProfileViewModel(
         if (instrument !in historyLoads.value) loadRankHistory(current.accountId, instrument)
     }
 
+    /** Start the Bands preview read once (when its section is shown). */
+    fun ensureBands() {
+        val current = state.value
+        if (current.phase != ProfilePhase.Loaded || bandsLoad.value != null) return
+        loadBands(current.accountId)
+    }
+
+    /** Retry the Bands preview. */
+    fun retryBands() {
+        loadBands(state.value.accountId)
+    }
+
     /**
      * Retry one chart's global rank.
      *
@@ -499,6 +539,20 @@ class PlayerProfileViewModel(
                 throw cancelled
             } catch (error: Exception) {
                 emptyMap()
+            }
+        }
+    }
+
+    private fun loadBands(account: String) {
+        sectionJobs.remove("bands")?.cancel()
+        bandsLoad.value = BandsLoad.Loading
+        sectionJobs["bands"] = viewModelScope.launch {
+            bandsLoad.value = try {
+                BandsLoad.Loaded(reads.bands(account))
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                BandsLoad.Failed(ServiceIssue.from(error))
             }
         }
     }
@@ -595,6 +649,7 @@ class PlayerProfileViewModel(
         sectionJobs.clear()
         rankLoads.value = emptyMap()
         historyLoads.value = emptyMap()
+        bandsLoad.value = null
     }
 
     private fun sections(profile: PlayerProfileResponse, visible: Set<Instrument>): Pair<List<PlayerStatTile>, List<PlayerInstrumentSection>> {
@@ -669,6 +724,11 @@ class PlayerProfileViewModel(
     private fun accuracyText(stats: PlayerStats): String = stats.averageAccuracy?.let { ScoreFormatting.accuracy(it) + "%" } ?: "—"
 
     // endregion
+
+    companion object {
+        /** Band cards the player page previews before "View all bands". */
+        const val BANDS_PREVIEW_SIZE = 4
+    }
 }
 
 // endregion

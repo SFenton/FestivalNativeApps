@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.presentation.profile
 
+import com.festivalscoretracker.android.core.bands.PlayerBandListResponse
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.model.Song
@@ -49,6 +50,8 @@ class ProfileActionsTest {
     private var header: Int? = 7
     private var catalogFailure: Exception? = null
     private var catalogReads = 0
+    private var bandsFailure: Exception? = null
+    private val bandReads = mutableListOf<String>()
     private val presets = mutableListOf<SongsPreset>()
     private val selected = mutableListOf<SelectedPlayer?>()
 
@@ -76,6 +79,11 @@ class ProfileActionsTest {
             catalogReads++
             catalogFailure?.let { throw it }
             listOf(Song("s-alpha", "Alpha Song", "Alpha Artist", year = 2021, albumArt = "alpha.jpg"))
+        },
+        bands = { account ->
+            bandReads += account
+            bandsFailure?.let { throw it }
+            PlayerBandListResponse(accountId = account, totalCount = 0)
         },
     )
 
@@ -207,6 +215,33 @@ class ProfileActionsTest {
         assertEquals(ProfileActionResult.Unavailable, vm.run(PlayerTileAction.FilterSongs(lead)))
         assertTrue(presets.isEmpty())
         assertTrue(selected.isEmpty())
+    }
+
+    @Test
+    fun bandsPreviewLoadsOnceRetriesAndResetsPerAccount() = runTest(main.dispatcher) {
+        val vm = viewModel(this, null)
+        advanceUntilIdle()
+        // Statistics with no selection reads nothing.
+        vm.ensureBands()
+        assertNull(vm.bands.value)
+        settings.value = AppSettings(selectedPlayer = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"))
+        advanceUntilIdle()
+        bandsFailure = IOException("offline")
+        vm.ensureBands()
+        advanceUntilIdle()
+        assertTrue(vm.bands.value is BandsLoad.Failed)
+        vm.ensureBands()
+        advanceUntilIdle()
+        assertEquals(1, bandReads.size)
+        bandsFailure = null
+        vm.retryBands()
+        advanceUntilIdle()
+        assertEquals(PlayerBandListResponse(accountId = Fixtures.ACCOUNT_A), (vm.bands.value as BandsLoad.Loaded).bands)
+        // Another selected account resets the preview until its section is shown again.
+        settings.value = AppSettings(selectedPlayer = SelectedPlayer(Fixtures.ACCOUNT_B, "Other"))
+        advanceUntilIdle()
+        assertNull(vm.bands.value)
+        assertEquals(listOf(Fixtures.ACCOUNT_A, Fixtures.ACCOUNT_A), bandReads)
     }
 
     @Test

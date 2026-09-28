@@ -24,7 +24,6 @@ import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridS
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -199,6 +198,7 @@ private fun LoadedProfile(viewModel: PlayerProfileViewModel, state: PlayerProfil
     val shell = LocalShellActions.current
     val ranks by viewModel.ranks.collectAsStateWithLifecycle()
     val histories by viewModel.rankHistories.collectAsStateWithLifecycle()
+    val bands by viewModel.bands.collectAsStateWithLifecycle()
     var confirm by rememberSaveable { mutableStateOf<PlayerIdentityAction?>(null) }
     var pendingAction by remember { mutableStateOf<PlayerTileAction?>(null) }
     val scope = rememberCoroutineScope()
@@ -245,7 +245,10 @@ private fun LoadedProfile(viewModel: PlayerProfileViewModel, state: PlayerProfil
                     is ProfileRow.TopSongs -> state.topSongs.firstOrNull { it.instrument == row.instrument }?.let { top ->
                         TopSongsCard(top, state.displayName, state, onAction)
                     }
-                    ProfileRow.Bands -> BandsLink(state) { shell.navigate(PlayerBandsRoute(state.accountId, state.displayName)) }
+                    ProfileRow.Bands -> {
+                        LaunchedEffect(state.accountId) { viewModel.ensureBands() }
+                        ProfileBandsSection(state, bands, onRetry = viewModel::retryBands, onNavigate = shell.navigate)
+                    }
                 }
             }
         }
@@ -279,21 +282,6 @@ private fun LoadedProfile(viewModel: PlayerProfileViewModel, state: PlayerProfil
             onConfirm = { pendingAction = null; runAction(action, true) },
             onDismiss = { pendingAction = null },
         )
-    }
-}
-
-@Composable
-private fun BandsLink(state: PlayerProfileUiState, onClick: () -> Unit) {
-    GlassCard(onClick = onClick, modifier = Modifier.fillMaxWidth().testTag("fst.player.bands-link")) {
-        Row(Modifier.padding(16.dp).heightIn(min = 24.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.Groups, contentDescription = null, tint = BrandTokens.textPrimary)
-            Text(
-                "View ${state.displayName}'s Bands",
-                style = MaterialTheme.typography.titleSmall,
-                color = BrandTokens.textPrimary,
-                modifier = Modifier.padding(start = 12.dp),
-            )
-        }
     }
 }
 

@@ -18,6 +18,7 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.AppContainer
+import com.festivalscoretracker.android.bands.BandFixtures
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
@@ -181,6 +182,31 @@ class ProfileParityUiTest {
             rule.onAllNodesWithTag("fst.player.available").fetchSemanticsNodes().isEmpty()
         }
         rule.onNodeWithText("Lead Rankings").assertIsDisplayed()
+    }
+
+    @Test
+    fun bandsPreviewOpensBandsAndTheFullList() {
+        journey.transport.on("/api/player/${Fixtures.ACCOUNT_A}/bands") { BandFixtures.playerBands(6, 1, 4) }
+        journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
+        journey.scrollTo("fst.player.bands")
+        journey.waitForTag("fst.player.bands.view-all")
+        rule.onNodeWithText("View all bands (6)").assertIsDisplayed()
+        listOf(BandFixtures.DUO_ID, "band-1", "band-2", "band-3").forEach { journey.waitForTag("fst.player-bands.row.$it") }
+        assertTrue(rule.onAllNodesWithTag("fst.player-bands.row.band-4").fetchSemanticsNodes().isEmpty())
+        val sent = journey.transport.sent("/api/player/${Fixtures.ACCOUNT_A}/bands").single()
+        assertTrue(sent.url.contains("group=all") && sent.url.contains("pageSize=4"))
+        assertTrue(journey.transport.requests.none { it.url.contains("/api/bands") })
+        journey.tap("fst.player.bands.view-all")
+        journey.waitForTag("fst.player-bands.screen")
+    }
+
+    @Test
+    fun bandsPreviewEmptyState() {
+        journey.transport.on("/api/player/${Fixtures.ACCOUNT_A}/bands") { BandFixtures.playerBands(0, 1, 4) }
+        journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
+        journey.scrollTo("fst.player.bands")
+        journey.waitForTag("fst.player.bands.empty")
+        rule.onNodeWithText("No bands yet").assertIsDisplayed()
     }
 
     @Test
