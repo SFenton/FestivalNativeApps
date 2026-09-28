@@ -19,6 +19,9 @@ enum SettingsRegistry {
     /// Key → default, in display order.
     static let defaults: [(key: String, value: SettingDefault)] = [
         ("fst.settings.showInstrumentIcons", .bool(true)),
+        ("fst.settings.enableVisualOrder", .bool(false)),
+        ("fst.settings.songRowVisualOrder", .string(SettingsOrder.encode(MetadataField.allCases))),
+        ("fst.settings.pathColumnOrder", .string(SettingsOrder.encode(PathColumnKey.allCases))),
         ("fst.settings.filterInvalidScores", .bool(false)),
         ("fst.settings.leeway", .double(1)),
         ("fst.settings.pathDefaultView", .string(PathDisplayMode.image.rawValue)),
@@ -26,6 +29,8 @@ enum SettingsRegistry {
         ("fst.settings.experimentalRanks", .bool(false)),
         ("fst.settings.hideShop", .bool(false)),
         ("fst.settings.disableShopHighlighting", .bool(false)),
+        ("fst.settings.tapDiagnostics", .bool(false)),
+        ("fst.settings.tapTelemetry", .bool(false)),
         ("fst.settings.showLead", .bool(true)),
         ("fst.settings.showBass", .bool(true)),
         ("fst.settings.showDrums", .bool(true)),
