@@ -38,7 +38,7 @@ import org.junit.Rule
 import org.junit.Test
 
 /** Scriptable rankings reads that record every call. */
-private class FakeReads {
+internal class FakeReads {
     val calls = mutableListOf<String>()
     var inFlight = 0
     var maxInFlight = 0
@@ -47,6 +47,9 @@ private class FakeReads {
     var hold: CompletableDeferred<Unit>? = null
     var unranked = setOf<Instrument>()
     var selectedRank = RankingsFixtures.SELECTED_RANK
+    var accounts = RankingsFixtures.TOTAL_ACCOUNTS
+    var failBands: Exception? = null
+    var holdOwnRow: CompletableDeferred<Unit>? = null
 
     private suspend fun <T> track(label: String, block: () -> T): T {
         calls += label
@@ -65,17 +68,19 @@ private class FakeReads {
     val reads = RankingsReads(
         rankings = { instrument, metric, page, size ->
             track("rankings:${instrument.wireId}:${metric.wireId}:$page:$size") {
-                val json = RankingsFixtures.rankings(instrument.wireId, metric.wireId, page, size)
+                val json = RankingsFixtures.rankings(instrument.wireId, metric.wireId, page, size, total = accounts)
                 RankingsPayload(FestivalApi.JSON.decodeFromString(RankingsResponse.serializer(), json), 7)
             }
         },
         bandRankings = { bandType, metric, page, size ->
             track("bands:${bandType.wireId}:${metric.wireId}:$page:$size") {
+                failBands?.let { throw it }
                 val json = RankingsFixtures.bandRankings(bandType.wireId, metric.wireId, page, size)
                 BandRankingsPayload(FestivalApi.JSON.decodeFromString(BandRankingsResponse.serializer(), json), 7)
             }
         },
         playerRanking = { instrument, accountId ->
+            holdOwnRow?.await()
             track("own:${instrument.wireId}:$accountId") {
                 failOwnRow?.let { failOwnRow = null; throw it }
                 if (instrument in unranked) {
