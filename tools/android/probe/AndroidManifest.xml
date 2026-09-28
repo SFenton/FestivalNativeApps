@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Device-lab WindowManager probe; built without Gradle by device.py (see ProbeActivity). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.fst.lab.probe">
+    <application android:label="FST Probe" android:resizeableActivity="true">
+        <uses-library android:name="androidx.window.extensions" android:required="false" />
+        <activity
+            android:name=".ProbeActivity"
+            android:exported="true"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|density">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
