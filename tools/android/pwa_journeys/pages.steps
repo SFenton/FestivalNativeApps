@@ -1,0 +1,149 @@
+# Page sweep: every anonymous-safe page from .agents/pages/*/spec.md (Manual excluded).
+# Skipped for service safety: player-profile (GET /stats may store tiers), band-detail
+# (GET /api/bands/{id} rebuilds rows), player-bands/rival-detail/rivalry (need an identity).
+# {out} is the output directory. First visits capture the page's first-run carousel, if any.
+?click:text=Dismiss@2   # What's New after an update/fresh profile
+# home-redirect
+route:/
+wait:3.5
+shot:{out}/home-redirect-first-visit.png
+?click:testid=fre-close@1
+?click:text=Dismiss@0.5
+wait:0.8
+shot:{out}/home-redirect.png
+# songs
+route:/songs
+wait:3.5
+shot:{out}/songs-first-visit.png
+?click:testid=fre-close@1
+?click:text=Dismiss@0.5
+wait:0.8
+shot:{out}/songs.png
+# song-detail
+route:/songs/75d14ea0-99b6-41a6-8c68-bca89bddded7
+wait:3.5
+shot:{out}/song-detail-first-visit.png
+?click:testid=fre-close@1
+?click:text=Dismiss@0.5
+wait:0.8
+shot:{out}/song-detail.png
+# song-leaderboard
+route:/songs/75d14ea0-99b6-41a6-8c68-bca89bddded7/Solo_Guitar
+wait:3.5
+shot:{out}/song-leaderboard-first-visit.png
+?click:testid=fre-close@1
+?click:text=Dismiss@0.5
+wait:0.8
+shot:{out}/song-leaderboard.png
+# song-band-leaderboard
+route:/songs/75d14ea0-99b6-41a6-8c68-bca89bddded7/bands/Band_Duets
+wait:3.5
+shot:{out}/song-band-leaderboard-first-visit.png
+?click:testid=fre-close@1
+?click:text=Dismiss@0.5
+wait:0.8
+shot:{out}/song-band-leaderboard.png
+# player-history
+route:/songs/75d14ea0-99b6-41a6-8c68-bca89bddded7/Solo_Guitar/history
+wait:3.5
+shot:{out}/player-history-first-visit.png
+?click:testid=fre-close@1
+?click:text=Dismiss@0.5
+wait:0.8
+shot:{out}/player-history.png
+# leaderboards
+route:/leaderboards
+wait:3.5
+shot:{out}/leaderboards-first-visit.png
+?click:testid=fre-close@1
+?click:text=Dismiss@0.5
+wait:0.8
+shot:{out}/leaderboards.png
+# full-rankings
+route:/leaderboards/all?instrument=Solo_Guitar
+wait:3.5
+shot:{out}/full-rankings-first-visit.png
+?click:testid=fre-close@1
+?click:text=Dismiss@0.5
+wait:0.8
+shot:{out}/full-rankings.png
+# band-rankings
+route:/leaderboards/bands/Band_Duets
+wait:3.5
+shot:{out}/band-rankings-first-visit.png
+?click:testid=fre-close@1
+?click:text=Dismiss@0.5
+wait:0.8
+shot:{out}/band-rankings.png
+# bands
+route:/bands
+wait:3.5
+shot:{out}/bands-first-visit.png
+?click:testid=fre-close@1
+?click:text=Dismiss@0.5
+wait:0.8
+shot:{out}/bands.png
+# rivals
+route:/rivals
+wait:3.5
+shot:{out}/rivals-first-visit.png
+?click:testid=fre-close@1
+?click:text=Dismiss@0.5
+wait:0.8
+shot:{out}/rivals.png
+# all-rivals
+route:/rivals/all
+wait:3.5
+shot:{out}/all-rivals-first-visit.png
+?click:testid=fre-close@1
+?click:text=Dismiss@0.5
+wait:0.8
+shot:{out}/all-rivals.png
+# statistics
+route:/statistics
+wait:3.5
+shot:{out}/statistics-first-visit.png
+?click:testid=fre-close@1
+?click:text=Dismiss@0.5
+wait:0.8
+shot:{out}/statistics.png
+# suggestions
+route:/suggestions
+wait:3.5
+shot:{out}/suggestions-first-visit.png
+?click:testid=fre-close@1
+?click:text=Dismiss@0.5
+wait:0.8
+shot:{out}/suggestions.png
+# compete
+route:/compete
+wait:3.5
+shot:{out}/compete-first-visit.png
+?click:testid=fre-close@1
+?click:text=Dismiss@0.5
+wait:0.8
+shot:{out}/compete.png
+# shop
+route:/shop
+wait:3.5
+shot:{out}/shop-first-visit.png
+?click:testid=fre-close@1
+?click:text=Dismiss@0.5
+wait:0.8
+shot:{out}/shop.png
+# settings
+route:/settings
+wait:3.5
+shot:{out}/settings-first-visit.png
+?click:testid=fre-close@1
+?click:text=Dismiss@0.5
+wait:0.8
+shot:{out}/settings.png
+# licenses
+route:/settings/licenses
+wait:3.5
+shot:{out}/licenses-first-visit.png
+?click:testid=fre-close@1
+?click:text=Dismiss@0.5
+wait:0.8
+shot:{out}/licenses.png
