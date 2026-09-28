@@ -13,6 +13,7 @@ import com.festivalscoretracker.android.data.OkHttpTransport
 import com.festivalscoretracker.android.data.SettingsRepository
 import com.festivalscoretracker.android.data.profile.playerProfile
 import com.festivalscoretracker.android.data.rankings.LeaderboardPreferences
+import com.festivalscoretracker.android.data.rivals.RivalsRepository
 import com.festivalscoretracker.android.presentation.BackgroundController
 import com.festivalscoretracker.android.presentation.profile.SelectedProfileStore
 import okhttp3.OkHttpClient
@@ -53,6 +54,9 @@ class AppContainer(
 
     /** Shared automatic-retry backoff. */
     val backoff = ServiceRetryBackoff()
+
+    /** Rivals reads over an in-process cache. */
+    val rivals = RivalsRepository(api)
 
     /** Shared animated backdrop state. */
     val background = BackgroundController(loadCatalog = { api.catalog() }, artworkUrl = api::artworkUrl)

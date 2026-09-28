@@ -67,7 +67,6 @@ import androidx.navigation.toRoute
 import com.festivalscoretracker.android.AppContainer
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.nav.AdaptiveLayoutPolicy
-import com.festivalscoretracker.android.core.nav.AllRivalsRoute
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.nav.CompeteRoute
 import com.festivalscoretracker.android.core.nav.CompeteTab
@@ -79,10 +78,6 @@ import com.festivalscoretracker.android.core.nav.LicensesRoute
 import com.festivalscoretracker.android.core.nav.NavigationLayout
 import com.festivalscoretracker.android.core.nav.PlayerHistoryRoute
 import com.festivalscoretracker.android.core.nav.PlayerRoute
-import com.festivalscoretracker.android.core.nav.RivalDetailRoute
-import com.festivalscoretracker.android.core.nav.RivalryRoute
-import com.festivalscoretracker.android.core.nav.RivalsRoute
-import com.festivalscoretracker.android.core.nav.RivalsTab
 import com.festivalscoretracker.android.core.nav.SettingsTab
 import com.festivalscoretracker.android.core.nav.ShopRoute
 import com.festivalscoretracker.android.core.nav.SongDetailRoute
@@ -110,6 +105,7 @@ import com.festivalscoretracker.android.ui.profile.ProfileSheet
 import com.festivalscoretracker.android.ui.profile.StatisticsScreen
 import com.festivalscoretracker.android.ui.profile.playerHistoryViewModel
 import com.festivalscoretracker.android.ui.profile.profileViewModel
+import com.festivalscoretracker.android.ui.rivals.rivalsDestinations
 import com.festivalscoretracker.android.ui.settings.SettingsScreen
 import com.festivalscoretracker.android.ui.songdetail.SongDetailScreen
 import com.festivalscoretracker.android.ui.songdetail.SongLeaderboardScreen
@@ -560,7 +556,6 @@ private fun FestivalNavHost(
         }
         placeholder<SuggestionsTab>("Suggestions", isRoot = true)
         placeholder<CompeteTab>("Compete", isRoot = true)
-        placeholder<RivalsTab>("Rivals", isRoot = true)
         composable<StatisticsTab> {
             StatisticsScreen(profileViewModel(container, shellViewModel, accountId = null, name = null))
         }
@@ -576,10 +571,7 @@ private fun FestivalNavHost(
             PlayerHistoryScreen(playerHistoryViewModel(container, shellViewModel, route))
         }
         bandsDestinations(container)
-        placeholder<RivalsRoute>("Rivals")
-        placeholder<AllRivalsRoute>("All Rivals")
-        placeholder<RivalDetailRoute>("Rival")
-        placeholder<RivalryRoute>("Rivalry")
+        rivalsDestinations(container, settings)
         placeholder<SuggestionsRoute>("Suggestions")
         placeholder<CompeteRoute>("Compete")
         placeholder<ShopRoute>("Item Shop")
