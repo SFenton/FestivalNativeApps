@@ -16,6 +16,7 @@ struct CompeteScreen: View {
     let session: FestivalSession
     @State private var quickLinks = QuickLinksController()
     @Environment(\.openProfile) private var openProfile
+    @Environment(\.deviceLayout) private var layout
     private var visible = VisibleInstrumentsReader()
 
     /// Create the screen.
@@ -43,6 +44,26 @@ struct CompeteScreen: View {
     }
 
     @ViewBuilder private var hub: some View {
+        // iPhone Duo inner display, portrait: leaderboards and rivals become two
+        // swipeable sources stacked around the fold (`CompeteDualSource.swift`).
+        DualSourceLayout {
+            if DualSourcePolicy.isActive(layout) {
+                CompeteLeaderboardsCarousel(session: session, instruments: visible.instruments)
+            } else {
+                stackedHub
+            }
+        } secondary: {
+            CompeteRivalsCarousel(session: session, instruments: visible.instruments)
+        }
+        // Every section below loads for `session.selectedPlayer` but keys its
+        // `task(id:)` only on instrument/scope; this hub survives a profile switch
+        // (tab root, or pushed on a stack the switch does not reset), so key the
+        // sections' state by the selected account or they keep the old account's
+        // rivals (`.agents/platforms/apple/architecture.md`, "Per-entity screens").
+        .id(session.selectedPlayer?.accountId)
+    }
+
+    private var stackedHub: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 leaderboardsSection
@@ -51,12 +72,6 @@ struct CompeteScreen: View {
             .padding(.vertical, 12)
         }
         .quickLinks(quickLinks, title: "Quick Links")
-        // Every section below loads for `session.selectedPlayer` but keys its
-        // `task(id:)` only on instrument/scope; this hub survives a profile switch
-        // (tab root, or pushed on a stack the switch does not reset), so key the
-        // sections' state by the selected account or they keep the old account's
-        // rivals (`.agents/platforms/apple/architecture.md`, "Per-entity screens").
-        .id(session.selectedPlayer?.accountId)
     }
 
     // MARK: Leaderboards

@@ -69,7 +69,13 @@ struct SuggestionsScreen: View {
                     Task { await session.refreshSelectedPlayer() }
                 }
             } else {
-                content
+                // iPhone Duo inner display, portrait: suggestions on top, the ones in
+                // today's Item Shop below (`SuggestionsDualSource.swift`).
+                DualSourceLayout {
+                    content
+                } secondary: {
+                    SuggestionsCarouselPane(session: session, source: .itemShop, seeAll: .shop)
+                }
             }
         }
         .navigationTitle("Suggestions")

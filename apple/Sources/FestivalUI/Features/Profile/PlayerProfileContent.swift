@@ -231,33 +231,45 @@ struct PlayerProfileContent: View {
             ServiceStatusView(issue, title: "Profile Unavailable") { retryRevision += 1 }
             .accessibilityIdentifier("fst.player.error")
         case let .available(payload):
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    header(payload)
-                    overallSection(payload)
-                    if layout.widthClass == .regular {
-                        // Two flexible columns on a regular-width window (Duo unfolded,
-                        // iPad): each instrument's stats card and charts read as one
-                        // dashboard tile instead of stretching full width
-                        // (`.agents/design/apple/duo.md`).
-                        LazyVGrid(columns: instrumentGridColumns, alignment: .leading, spacing: 20) {
-                            ForEach(visibleInstruments) { instrument in
-                                instrumentTile(payload, instrument: instrument)
-                            }
-                        }
-                    } else {
+            // iPhone Duo inner display, portrait: overview on top, graphs as swipeable
+            // cards below (`PlayerProfileDualSource.swift`).
+            DualSourceLayout {
+                profileScroll(payload)
+            } secondary: {
+                PlayerChartsCarousel(
+                    session: session, accountId: accountId, payload: payload, instruments: visibleInstruments
+                )
+            }
+        }
+    }
+
+    private func profileScroll(_ payload: PlayerProfilePayload) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                header(payload)
+                overallSection(payload)
+                if layout.widthClass == .regular {
+                    // Two flexible columns on a regular-width window (Duo unfolded,
+                    // iPad): each instrument's stats card and charts read as one
+                    // dashboard tile instead of stretching full width
+                    // (`.agents/design/apple/duo.md`).
+                    LazyVGrid(columns: instrumentGridColumns, alignment: .leading, spacing: 20) {
                         ForEach(visibleInstruments) { instrument in
-                            instrumentSection(payload, instrument: instrument)
-                            instrumentCharts(payload, instrument: instrument)
+                            instrumentTile(payload, instrument: instrument)
                         }
                     }
-                    bandsLink
+                } else {
+                    ForEach(visibleInstruments) { instrument in
+                        instrumentSection(payload, instrument: instrument)
+                        instrumentCharts(payload, instrument: instrument)
+                    }
                 }
-                .padding(16)
+                bandsLink
             }
-            .quickLinks(quickLinks, title: "Quick Links")
-            .accessibilityIdentifier("fst.player.available")
+            .padding(16)
         }
+        .quickLinks(quickLinks, title: "Quick Links")
+        .accessibilityIdentifier("fst.player.available")
     }
 
     // MARK: Header
@@ -419,7 +431,8 @@ struct PlayerProfileContent: View {
     ///   - instrument: Settings-visible solo chart.
     @ViewBuilder
     private func instrumentCharts(_ payload: PlayerProfilePayload, instrument: Instrument) -> some View {
-        if payload.profile.instrumentStats(instrument).songsPlayed > 0 {
+        // Split around the Duo fold, the graphs live in the bottom region instead.
+        if !DualSourcePolicy.isActive(layout), payload.profile.instrumentStats(instrument).songsPlayed > 0 {
             PlayerRankHistoryCard(session: session, accountId: accountId, instrument: instrument)
             PlayerPercentileChartCard(
                 buckets: payload.profile.percentileBuckets(instrument), instrument: instrument

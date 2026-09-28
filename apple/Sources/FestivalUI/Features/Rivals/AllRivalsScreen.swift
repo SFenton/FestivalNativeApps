@@ -13,6 +13,8 @@ struct AllRivalsScreen: View {
     let session: FestivalSession
     let scope: RivalScope
     @State private var state: RivalsLoadState<[AllRivalsRow]> = .loading
+    /// Rival shown in the dual-source bottom region (Duo inner display, portrait).
+    @State private var dualSelection: AppRoute?
     @Environment(\.openProfile) private var openProfile
 
     /// Create the screen.
@@ -88,24 +90,34 @@ struct AllRivalsScreen: View {
                 description: Text("No rivals have been found for this scope yet.")
             )
         case let .loaded(rows):
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    FestivalGlassSection(title) {
-                        ForEach(rows) { row in
-                            ListDetailLink(
-                                value: AppRoute.rivalDetail(
-                                    rivalId: row.accountId, name: row.displayName, scope: scope
-                                )
-                            ) {
-                                row.content
-                            }
-                            .accessibilityIdentifier("fst.all-rivals.row.\(row.accountId)")
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                }
-                .padding(.vertical, 12)
+            // iPhone Duo inner display, portrait: the list on top, the selected
+            // rival's rivalry below (`RivalsDualSource.swift`).
+            DualSourceLayout {
+                list(rows).dualSourceSelection($dualSelection, section: .rivals)
+            } secondary: {
+                RivalDualDetailPane(session: session, selection: dualSelection)
             }
+        }
+    }
+
+    private func list(_ rows: [AllRivalsRow]) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                FestivalGlassSection(title) {
+                    ForEach(rows) { row in
+                        ListDetailLink(
+                            value: AppRoute.rivalDetail(
+                                rivalId: row.accountId, name: row.displayName, scope: scope
+                            )
+                        ) {
+                            row.content
+                        }
+                        .accessibilityIdentifier("fst.all-rivals.row.\(row.accountId)")
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+            .padding(.vertical, 12)
         }
     }
 

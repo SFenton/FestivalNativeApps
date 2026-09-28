@@ -34,6 +34,16 @@ final class SuggestionsViewModel {
     /// One page of newly generated categories per `loadMore()` call.
     static let pageSize = 10
 
+    /// When set, the generator considers only these catalogue songs (the Item Shop
+    /// suggestions region on iPhone Duo, `SuggestionsDualSource.swift`); nil = every song.
+    @ObservationIgnored
+    private(set) var candidateSongIds: Set<String>?
+    /// Observed publication the candidate IDs were read from; the catalogue must match it.
+    @ObservationIgnored
+    private var candidatePublicationId: Int?
+    /// True while the candidate feed and the catalogue come from different publications:
+    /// nothing is generated until they match again (paused, never re-labelled).
+    private(set) var candidatesPaused = false
     @ObservationIgnored
     private var generator: SuggestionGenerator?
     @ObservationIgnored
@@ -44,6 +54,22 @@ final class SuggestionsViewModel {
     /// - Parameter filter: Persisted `SuggestionFilterSettings`.
     init(filter: SuggestionFilterSettings) {
         self.filter = filter
+    }
+
+    /// Restrict (or stop restricting) the generator's candidate songs, rebuilding it
+    /// on the next `ensureLoaded` when the set actually changed.
+    ///
+    /// The caller proves the IDs come from a feed of the same observed publication as
+    /// the catalogue (Shop invariant, `AGENTS.md`).
+    ///
+    /// - Parameters:
+    ///   - songIds: Candidate song IDs, or nil for the whole catalogue.
+    ///   - publicationId: Observed publication of the feed the IDs came from.
+    func restrictCandidates(to songIds: Set<String>?, publicationId: Int?) {
+        guard songIds != candidateSongIds || publicationId != candidatePublicationId else { return }
+        candidateSongIds = songIds
+        candidatePublicationId = songIds == nil ? nil : publicationId
+        invalidate()
     }
 
     /// Identity of the (player, catalogue) pair the current generator was built from.
@@ -84,6 +110,15 @@ final class SuggestionsViewModel {
         if categories.isEmpty, loadState != .loading { loadState = .loading }
         do {
             let payload = try await session.catalog()
+            if let required = candidatePublicationId, required != payload.observedPublicationId {
+                generator = nil
+                sourceIdentity = nil
+                categories = []
+                candidatesPaused = true
+                loadState = .loaded
+                return
+            }
+            candidatesPaused = false
             let identity = Self.identity(
                 accountId: player.accountId, observedPublicationId: payload.observedPublicationId
             )
@@ -93,7 +128,9 @@ final class SuggestionsViewModel {
                     currentSeason: payload.catalog.currentSeason, scores: session.selectedPlayerScores
                 )
                 let engine = SuggestionGenerator(options: .init(currentSeason: season))
-                engine.setSource(songs: payload.catalog.songs, scoresIndex: session.selectedPlayerScores)
+                let songs = candidateSongIds.map { ids in payload.catalog.songs.filter { ids.contains($0.songId) } }
+                    ?? payload.catalog.songs
+                engine.setSource(songs: songs, scoresIndex: session.selectedPlayerScores)
                 if let rivalsAll = await rivalsAll(session: session, accountId: player.accountId) {
                     engine.setRivalData(RivalDataIndex.build(from: rivalsAll))
                 }

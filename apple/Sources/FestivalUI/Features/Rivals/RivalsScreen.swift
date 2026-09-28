@@ -23,6 +23,8 @@ struct RivalsScreen: View {
     @State private var rankBy: RivalRankMetric = .totalscore
     @State private var quickLinks = QuickLinksController()
     @State private var findRivalPresented = false
+    /// Rival shown in the dual-source bottom region (Duo inner display, portrait).
+    @State private var dualSelection: AppRoute?
     @Environment(\.openProfile) private var openProfile
     private var visible = VisibleInstrumentsReader()
 
@@ -90,6 +92,22 @@ struct RivalsScreen: View {
     private var comboScope: RivalComboScope? { RivalCombo.deriveScope(visible: instruments) }
 
     @ViewBuilder private var hub: some View {
+        // iPhone Duo inner display, portrait: the hub on top, the selected rival's
+        // rivalry below; rows select instead of pushing (`RivalsDualSource.swift`).
+        DualSourceLayout {
+            hubList.dualSourceSelection($dualSelection, section: .rivals)
+        } secondary: {
+            RivalDualDetailPane(session: session, selection: dualSelection)
+        }
+        // Every section below loads for `session.selectedPlayer` but keys its
+        // `task(id:)` only on instrument/scope; this hub survives a profile switch
+        // (tab root, or pushed on a stack the switch does not reset), so key the
+        // sections' state by the selected account or they keep the old account's
+        // rivals (`.agents/platforms/apple/architecture.md`, "Per-entity screens").
+        .id(session.selectedPlayer?.accountId)
+    }
+
+    private var hubList: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 Picker("View", selection: $tab) {
@@ -127,12 +145,6 @@ struct RivalsScreen: View {
             .padding(.bottom, 24)
         }
         .quickLinks(quickLinks, title: "Quick Links")
-        // Every section below loads for `session.selectedPlayer` but keys its
-        // `task(id:)` only on instrument/scope; this hub survives a profile switch
-        // (tab root, or pushed on a stack the switch does not reset), so key the
-        // sections' state by the selected account or they keep the old account's
-        // rivals (`.agents/platforms/apple/architecture.md`, "Per-entity screens").
-        .id(session.selectedPlayer?.accountId)
     }
 
     private var rankByPicker: some View {
