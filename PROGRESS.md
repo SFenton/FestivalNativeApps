@@ -86,13 +86,15 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 
 ### Wave 1 — parallel lanes (iPhone, iOS 26.5)
 
-**Lane A — Shell & Liquid Glass chrome** (Opus) — 🟨 running in `~/repos/FestivalNativeApps-lanes/shell`
-- ⬜ Conditional tabs mirroring web `BottomNav`: Songs · Suggestions* · Leaderboards / Compete* · Statistics* · Settings (*when a profile is selected)
-- ⬜ Profile button **top-right** on every tab root (notifications slot reserved beside it)
-- ⬜ Apple-style hamburger drawer (leading) with expanded options — Item Shop, Bands, Rivals, Manual, Licenses, profile-specific actions
-- ⬜ Liquid Glass judgment pass → `.agents/design/apple/liquid-glass.md`; apply to Settings sections and other glass containers
-- ⬜ Modals: dark glass backgrounds, native sheet detents, Title Case white section headers (`festivalSheet` style)
-- ⬜ Settings persist across cold starts (verify every setting)
+**Lane A — Shell & Liquid Glass chrome** (Opus) — ✅ landed `4b1f11c`…`0f4ebd9`
+- ✅ Conditional tabs mirroring web `BottomNav`: Songs · Suggestions* · Leaderboards / Compete* · Statistics* · Settings (*when a profile is selected)
+- ✅ Profile button **top-right** on every tab root (notifications slot reserved beside it)
+- ✅ Apple-style hamburger drawer (leading) with expanded options — Item Shop, Bands, Rivals, Manual, Licenses, profile-specific actions
+- ✅ Liquid Glass judgment pass → `.agents/design/apple/liquid-glass.md`; apply to Settings sections and other glass containers
+- ✅ Modals: dark glass backgrounds, native sheet detents, Title Case white section headers (`festivalSheet` style)
+- ✅ Settings persist across cold starts (verify every setting)
+
+  - Follow-ups: drawer swipe/VoiceOver dismissal and tab re-tap untested (no tap tooling → Lane T); band tab rules unit-tested only
 
 **Lane S — Songs, Song Detail, Shop** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/songs`
 - ⬜ Native toolbar controls on Liquid Glass nav bar: search, sort, filter (Item Shop button removed → drawer)
@@ -104,7 +106,7 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 - ⬜ Song Detail: intensity card uses instrument icons instead of text
 - ⬜ Remove offline/warm-cache disclosure UI (online-only)
 
-**Lane P — Profile** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/profile`
+**Lane P — Profile + Statistics tab** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/profile`
 - ⬜ Fix: selected profile survives app close / cold start
 - ⬜ Player profile page `/player/:accountId` — viewed (unselected) and selected states, select/deselect action
 - ⬜ Profile selection sheet redesign: native, dark glass, "Find Player"/"Find Band", centered "Enter at least…" hint, Title Case headers
@@ -124,8 +126,19 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 - ⬜ Router tables with direct pointers at every level; workflow docs for the lane model
 - ⬜ Remove tandem-research requirements; encode testing phases
 
-### Wave 2 — remaining pages (after Wave 1 shell lands)
-- ⬜ Rivals (hub, all, detail, rivalry) · ⬜ Statistics · ⬜ Suggestions · ⬜ Compete
+### Wave 2 — remaining pages
+
+**Lane T — Simulator driver tooling** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/tooling`
+- ⬜ `ios_sim.py drive`: scripted tap/swipe/type/scroll/screenshot/accessibility-tree via an XCUITest driver, under the simulator lock
+
+**Lane R — Rivals & Compete** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/rivals`
+- ⬜ Compete hub · ⬜ Rivals hub · ⬜ All rivals · ⬜ Rival detail · ⬜ Rivalry
+
+**Lane G — Suggestions** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/suggestions`
+- ⬜ Port suggestion algorithms to Core (unit-tested) · ⬜ Suggestions screen + filter sheet
+
+Not yet assigned:
+- ⬜ Statistics = selected player's profile page (assigned to Lane P)
 - ⬜ Bands (lookup, detail, player bands, song band leaderboard) · ⬜ Player history
 - ⬜ Settings completion (all web sections) · ⬜ Manual · ⬜ Licenses · ⬜ First-run carousels · ⬜ Notifications
 
@@ -154,3 +167,5 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 |---|---|---|
 | 2026-09-27 | Orchestrator | Read Copilot history (11 checkpoints, 7 operator messages); designed lane model; landed foundation `9a5754a` |
 | 2026-09-27 | Orchestrator | Launched Wave 1 lanes A, S, P, L, B, D in parallel worktrees |
+| 2026-09-27 | Lane A | Landed tabs, root chrome, drawer, Liquid Glass doc, Settings glass, festivalSheet, settings persistence |
+| 2026-09-27 | Orchestrator | Launched Lanes T (sim driver), R (Rivals/Compete), G (Suggestions); Statistics folded into Lane P |
