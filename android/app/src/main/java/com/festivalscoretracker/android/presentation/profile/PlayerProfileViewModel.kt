@@ -5,6 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.festivalscoretracker.android.core.format.ScoreFormatting
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.SelectedPlayer
+import com.festivalscoretracker.android.core.model.Song
+import com.festivalscoretracker.android.core.nav.AppRoute
+import com.festivalscoretracker.android.core.nav.FullRankingsRoute
+import com.festivalscoretracker.android.core.nav.SongDetailRoute
+import com.festivalscoretracker.android.core.nav.SongsTab
 import com.festivalscoretracker.android.core.profile.PercentileBar
 import com.festivalscoretracker.android.core.profile.PlayerInstrumentRankingPayload
 import com.festivalscoretracker.android.core.profile.PlayerProfilePayload
@@ -13,11 +18,15 @@ import com.festivalscoretracker.android.core.profile.PlayerProfileState
 import com.festivalscoretracker.android.core.profile.PlayerRankHistory
 import com.festivalscoretracker.android.core.profile.PlayerStatistics
 import com.festivalscoretracker.android.core.profile.PlayerStats
+import com.festivalscoretracker.android.core.profile.PlayerTileAction
+import com.festivalscoretracker.android.core.profile.PlayerTopSongs
 import com.festivalscoretracker.android.core.profile.ProfileFormatting
 import com.festivalscoretracker.android.core.profile.RankHistoryChartModel
+import com.festivalscoretracker.android.core.profile.SongsPreset
 import com.festivalscoretracker.android.core.service.ServiceIssue
 import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import com.festivalscoretracker.android.core.settings.AppSettings
+import com.festivalscoretracker.android.core.songs.SongScoreFilterKind
 import com.festivalscoretracker.android.presentation.LoadState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -43,11 +52,13 @@ import kotlinx.coroutines.launch
  * @property profile `FestivalApi.playerProfile`.
  * @property ranking `FestivalApi.playerInstrumentRanking`.
  * @property rankHistory `FestivalApi.playerRankHistory` (30 days).
+ * @property catalog Catalogue songs for top-song titles and art (`FestivalApi.catalog`, cached in process).
  */
 class ProfileReads(
     val profile: suspend (String) -> PlayerProfilePayload,
     val ranking: suspend (Instrument, String) -> PlayerInstrumentRankingPayload,
     val rankHistory: suspend (Instrument, String) -> PlayerRankHistory,
+    val catalog: suspend () -> List<Song> = { emptyList() },
 )
 
 // endregion
@@ -104,10 +115,27 @@ sealed interface ProfilePhase {
  * @property label Label.
  * @property value Value text.
  * @property gold Gold tint (gold stars, full combos, top 5%).
+ * @property action What tapping does (web `StatBox.onClick`), or null for a flat tile.
  */
-data class PlayerStatTile(val label: String, val value: String, val gold: Boolean = false) {
+data class PlayerStatTile(val label: String, val value: String, val gold: Boolean = false, val action: PlayerTileAction? = null) {
     /** Screen-reader text. */
     val announcement: String get() = "$label: $value"
+}
+
+/** Outcome of a tile or top-song tap. */
+sealed interface ProfileActionResult {
+    /**
+     * Show a destination (the Songs filter is already saved).
+     *
+     * @property route Destination.
+     */
+    data class Navigate(val route: AppRoute) : ProfileActionResult
+
+    /** Another player is selected: confirm the switch first (web "Switch to {name}"). */
+    data object ConfirmSwitch : ProfileActionResult
+
+    /** Selection is paused (unverified or changed publication), so the Songs filter cannot apply. */
+    data object Unavailable : ProfileActionResult
 }
 
 /**
@@ -179,6 +207,7 @@ sealed interface RankHistoryLoad {
  * @property overview Overview tiles.
  * @property instruments One section per Settings-visible chart.
  * @property actionError Why the last Select failed.
+ * @property topSongs Top/bottom five per Settings-visible chart.
  */
 data class PlayerProfileUiState(
     val accountId: String = "",
@@ -189,7 +218,18 @@ data class PlayerProfileUiState(
     val overview: List<PlayerStatTile> = emptyList(),
     val instruments: List<PlayerInstrumentSection> = emptyList(),
     val actionError: String? = null,
+    val topSongs: List<PlayerTopSongs> = emptyList(),
 ) {
+    /**
+     * Whether a tile action can run now: selected pages always can; a viewed page can
+     * when selecting it is possible, or when the action does not need the selection.
+     *
+     * @param action Action.
+     * @return True when the tile is interactive.
+     */
+    fun canRun(action: PlayerTileAction): Boolean =
+        isSelected || identity == PlayerIdentityAction.Select || identity == PlayerIdentityAction.Switch || !action.requiresSelection
+
     /** "This Is Me" or "Public Profile". */
     val subtitle: String get() = if (isSelected) "This Is Me" else "Public Profile"
 
@@ -224,6 +264,8 @@ data class PlayerProfileUiState(
  * @param backoff Shared scrape-freeze backoff.
  * @param onSelect Persist a selection (`ShellViewModel.selectPlayer`).
  * @param onDeselect Persist a deselection.
+ * @param saveSongsPreset Persist a stat tile's Songs filter before showing Songs.
+ * @param artworkUrl Resolve catalogue art for top-song rows (`FestivalApi.artworkUrl`).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class PlayerProfileViewModel(
@@ -236,6 +278,8 @@ class PlayerProfileViewModel(
     private val backoff: ServiceRetryBackoff,
     private val onSelect: (SelectedPlayer) -> Unit,
     private val onDeselect: () -> Unit,
+    private val saveSongsPreset: suspend (SongsPreset) -> Unit = {},
+    private val artworkUrl: (String?) -> String? = { null },
 ) : ViewModel() {
     /** Whether this is the Statistics root (always the selected player). */
     val followsSelection: Boolean = accountId == null
@@ -250,6 +294,9 @@ class PlayerProfileViewModel(
     private val sectionJobs = mutableMapOf<String, Job>()
     private var sectionKey: String? = null
     private var memo: Triple<PlayerProfileResponse, Set<Instrument>, Pair<List<PlayerStatTile>, List<PlayerInstrumentSection>>>? = null
+    private var topMemo: Triple<PlayerProfileResponse, Set<Instrument>, Pair<Map<String, Song>, List<PlayerTopSongs>>>? = null
+    private val catalog = MutableStateFlow<Map<String, Song>>(emptyMap())
+    private var catalogJob: Job? = null
 
     private val selectedAccount = settings.map { it?.selectedPlayer?.accountId }.distinctUntilChanged()
 
@@ -269,8 +316,8 @@ class PlayerProfileViewModel(
         }
 
     /** Page state. */
-    val state: StateFlow<PlayerProfileUiState> = combine(source, settings, publications, actionError) { (account, load), current, publication, error ->
-        build(account, load, current, publication, error)
+    val state: StateFlow<PlayerProfileUiState> = combine(source, settings, publications, actionError, catalog) { (account, load), current, publication, error, songs ->
+        build(account, load, current, publication, error, songs)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, PlayerProfileUiState(accountId = target.value))
 
     /** Global rank per chart, loaded when its section is shown. */
@@ -316,6 +363,36 @@ class PlayerProfileViewModel(
         actionError.value = null
         store.seed(player, payload)
         onSelect(player)
+    }
+
+    /**
+     * Run a tile or top-song action (web `withProfileSwitch`): a viewed player is selected
+     * first when possible (a switch needs [confirmedSwitch]); a Songs filter is saved
+     * before the Songs route is returned.
+     *
+     * @param action Action.
+     * @param confirmedSwitch The user confirmed replacing another selected player.
+     * @return Where to go, or why not yet.
+     */
+    suspend fun run(action: PlayerTileAction, confirmedSwitch: Boolean = false): ProfileActionResult {
+        val current = state.value
+        if (!current.isSelected) {
+            when (current.identity) {
+                PlayerIdentityAction.Select -> select()
+                PlayerIdentityAction.Switch -> if (confirmedSwitch) select() else return ProfileActionResult.ConfirmSwitch
+                else -> if (action.requiresSelection) return ProfileActionResult.Unavailable
+            }
+            if (action.requiresSelection && actionError.value != null) return ProfileActionResult.Unavailable
+        }
+        val route = when (action) {
+            is PlayerTileAction.FilterSongs -> {
+                saveSongsPreset(action.preset)
+                SongsTab
+            }
+            is PlayerTileAction.OpenSong -> SongDetailRoute(action.songId)
+            is PlayerTileAction.OpenRankings -> FullRankingsRoute(action.instrument.wireId, action.metric.wireId)
+        }
+        return ProfileActionResult.Navigate(route)
     }
 
     /** Deselect the shown (selected) player; the caller confirms first. Never navigates. */
@@ -408,6 +485,20 @@ class PlayerProfileViewModel(
         }
     }
 
+    private fun ensureCatalog() {
+        if (catalogJob != null) return
+        catalogJob = viewModelScope.launch {
+            // Titles are optional: a failed read keeps the web's song-ID fallback.
+            catalog.value = try {
+                reads.catalog().associateBy { it.songId }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                emptyMap()
+            }
+        }
+    }
+
     private fun loadRank(account: String, instrument: Instrument) {
         sectionJobs.remove("rank:$instrument")?.cancel()
         rankLoads.value = rankLoads.value + (instrument to RankLoad.Loading)
@@ -419,7 +510,7 @@ class PlayerProfileViewModel(
                 } else {
                     RankLoad.Available(
                         listOf(
-                            PlayerStatTile("Global Rank", ProfileFormatting.rank(ranking.totalScoreRank)),
+                            PlayerStatTile("Global Rank", ProfileFormatting.rank(ranking.totalScoreRank), action = PlayerTileAction.OpenRankings(instrument)),
                             PlayerStatTile("Total Score", ProfileFormatting.count(ranking.totalScore)),
                             PlayerStatTile(
                                 "Percentile",
@@ -463,6 +554,7 @@ class PlayerProfileViewModel(
         current: AppSettings?,
         publication: Int?,
         error: String?,
+        songs: Map<String, Song>,
     ): PlayerProfileUiState {
         val selected = current?.selectedPlayer
         val isSelected = account.isNotEmpty() && selected?.accountId.equals(account, ignoreCase = true)
@@ -484,12 +576,12 @@ class PlayerProfileViewModel(
             selected != null -> PlayerIdentityAction.Switch
             else -> PlayerIdentityAction.Select
         }
-        val (overview, instruments) = if (phase == ProfilePhase.Loaded && payload != null) {
-            sections(payload.profile, current?.visibleInstruments ?: Instrument.entries.toSet())
-        } else {
-            emptyList<PlayerStatTile>() to emptyList()
-        }
-        return PlayerProfileUiState(account, name, isSelected, phase, identity, overview, instruments, error)
+        val visible = current?.visibleInstruments ?: Instrument.entries.toSet()
+        val profile = payload?.profile?.takeIf { phase == ProfilePhase.Loaded }
+        if (profile != null) ensureCatalog()
+        val (overview, instruments) = if (profile != null) sections(profile, visible) else emptyList<PlayerStatTile>() to emptyList()
+        val topSongs = if (profile != null) topSongs(profile, visible, songs) else emptyList()
+        return PlayerProfileUiState(account, name, isSelected, phase, identity, overview, instruments, error, topSongs)
     }
 
     private fun resetSections(key: String) {
@@ -505,11 +597,15 @@ class PlayerProfileViewModel(
         memo?.let { (p, v, result) -> if (p === profile && v == visible) return result }
         val stats = PlayerStatistics.overall(profile, visible)
         val overview = listOf(
-            PlayerStatTile("Songs Played", ProfileFormatting.count(stats.songsPlayed.toLong())),
-            PlayerStatTile("Full Combos", fullComboText(stats)),
+            PlayerStatTile(
+                "Songs Played",
+                ProfileFormatting.count(stats.songsPlayed.toLong()),
+                action = PlayerTileAction.FilterSongs(SongsPreset.Overall(SongScoreFilterKind.HasScores, visible)),
+            ),
+            PlayerStatTile("Full Combos", fullComboText(stats), action = PlayerTileAction.FilterSongs(SongsPreset.Overall(SongScoreFilterKind.HasFCs, visible))),
             PlayerStatTile("Gold Stars", ProfileFormatting.count(stats.goldStarCount.toLong()), gold = true),
             PlayerStatTile("Avg Accuracy", accuracyText(stats)),
-            PlayerStatTile("Best Rank", stats.bestRank?.let(ProfileFormatting::rank) ?: "—"),
+            PlayerStatTile("Best Rank", stats.bestRank?.let(ProfileFormatting::rank) ?: "—", action = bestRankAction(stats)),
         )
         val instruments = Instrument.entries.filter { it in visible }.map { instrument ->
             val chart = PlayerStatistics.forInstrument(profile, instrument)
@@ -517,12 +613,22 @@ class PlayerProfileViewModel(
                 instrument = instrument,
                 hasScores = chart.songsPlayed > 0,
                 stats = listOf(
-                    PlayerStatTile("Songs Played", ProfileFormatting.count(chart.songsPlayed.toLong())),
-                    PlayerStatTile("Full Combos", fullComboText(chart), gold = chart.fullComboCount > 0),
+                    PlayerStatTile(
+                        "Songs Played",
+                        ProfileFormatting.count(chart.songsPlayed.toLong()),
+                        action = PlayerTileAction.FilterSongs(SongsPreset.ForInstrument(SongScoreFilterKind.HasScores, instrument)),
+                    ),
+                    PlayerStatTile(
+                        "Full Combos",
+                        fullComboText(chart),
+                        gold = chart.fullComboCount > 0,
+                        action = PlayerTileAction.FilterSongs(SongsPreset.ForInstrument(SongScoreFilterKind.HasFCs, instrument))
+                            .takeIf { chart.fullComboCount > 0 },
+                    ),
                     PlayerStatTile("Gold Stars", ProfileFormatting.count(chart.goldStarCount.toLong()), gold = true),
                     PlayerStatTile("5 Stars", ProfileFormatting.count(chart.fiveStarCount.toLong())),
                     PlayerStatTile("Avg Accuracy", accuracyText(chart)),
-                    PlayerStatTile("Best Rank", chart.bestRank?.let(ProfileFormatting::rank) ?: "—"),
+                    PlayerStatTile("Best Rank", chart.bestRank?.let(ProfileFormatting::rank) ?: "—", action = bestRankAction(chart)),
                 ),
                 percentiles = PercentileBar.build(PlayerStatistics.percentileBuckets(profile, instrument)),
             )
@@ -530,6 +636,19 @@ class PlayerProfileViewModel(
         val result = overview to instruments
         memo = Triple(profile, visible, result)
         return result
+    }
+
+    private fun topSongs(profile: PlayerProfileResponse, visible: Set<Instrument>, songs: Map<String, Song>): List<PlayerTopSongs> {
+        topMemo?.let { (p, v, cached) -> if (p === profile && v == visible && cached.first === songs) return cached.second }
+        val result = Instrument.entries.filter { it in visible }.map { PlayerTopSongs.build(profile, it, songs, artworkUrl) }
+        topMemo = Triple(profile, visible, songs to result)
+        return result
+    }
+
+    private fun bestRankAction(stats: PlayerStats): PlayerTileAction? {
+        val song = stats.bestRankSongId ?: return null
+        val instrument = stats.bestRankInstrument ?: return null
+        return PlayerTileAction.OpenSong(song, instrument)
     }
 
     private fun fullComboText(stats: PlayerStats): String =

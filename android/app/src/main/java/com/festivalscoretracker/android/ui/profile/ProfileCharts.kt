@@ -30,6 +30,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.festivalscoretracker.android.core.profile.ChartGeometry
 import com.festivalscoretracker.android.core.profile.ChartPoint
 import com.festivalscoretracker.android.core.profile.ChartTick
 import com.festivalscoretracker.android.core.profile.PercentileBar
@@ -56,13 +57,13 @@ fun RankHistoryChart(chart: RankHistoryChartModel, modifier: Modifier = Modifier
             AxisLabels(chart.rankTicks, Modifier.width(52.dp).height(CHART_HEIGHT.dp))
             Canvas(Modifier.weight(1f).height(CHART_HEIGHT.dp)) {
                 gridLines(chart.rankTicks)
-                val barWidth = (size.width / (chart.scoreBars.size.coerceAtLeast(1) * 1.6f)).coerceIn(2f, 24.dp.toPx())
+                val barWidth = ChartGeometry.barWidth(chart.scoreBars.size, size.width, 24.dp.toPx())
                 chart.scoreBars.forEach { bar ->
-                    val h = bar.height * size.height * 0.45f
+                    val rect = ChartGeometry.bar(bar, size.width, size.height, barWidth, 8.dp.toPx())
                     drawRoundRect(
                         BrandTokens.accentBlue.copy(alpha = 0.35f),
-                        topLeft = Offset(inset(bar.x, size.width) - barWidth / 2, size.height - h),
-                        size = Size(barWidth, h),
+                        topLeft = Offset(rect.left, rect.top),
+                        size = Size(rect.width, rect.height),
                         cornerRadius = CornerRadius(3.dp.toPx()),
                     )
                 }
@@ -100,7 +101,7 @@ fun PercentileBars(bars: List<PercentileBar>, modifier: Modifier = Modifier) {
                 Box(Modifier.weight(1f).height(14.dp)) {
                     Box(
                         Modifier
-                            .fillMaxWidth(bar.fraction.coerceIn(0.02f, 1f))
+                            .fillMaxWidth(ChartGeometry.percentileFraction(bar.fraction))
                             .height(14.dp)
                             .background(if (bar.gold) BrandTokens.gold else BrandTokens.accentPurple, RoundedCornerShape(4.dp)),
                     )
@@ -147,11 +148,8 @@ fun ScoreHistoryChart(chart: ScoreHistoryChartModel, modifier: Modifier = Modifi
 
 private const val CHART_HEIGHT = 140
 
-/** Horizontal inset so end points and bars stay inside the canvas. */
-private fun DrawScope.inset(x: Float, width: Float): Float {
-    val pad = 8.dp.toPx()
-    return pad + x * (width - 2 * pad)
-}
+/** Axis label line height in dp. */
+private const val AXIS_LABEL_HEIGHT = 14f
 
 private fun DrawScope.gridLines(ticks: List<ChartTick>) {
     ticks.forEach { tick ->
@@ -162,16 +160,13 @@ private fun DrawScope.gridLines(ticks: List<ChartTick>) {
 
 private fun DrawScope.line(points: List<ChartPoint>, color: Color, highlight: Color) {
     if (points.isEmpty()) return
+    val pad = 8.dp.toPx()
+    val pixels = points.map { ChartGeometry.point(it, size.width, size.height, pad) }
     val path = Path()
-    points.forEachIndexed { i, p ->
-        val x = inset(p.x, size.width)
-        val y = p.y * size.height
-        if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-    }
+    pixels.forEachIndexed { i, p -> if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y) }
     drawPath(path, color, style = Stroke(width = 2.5.dp.toPx()))
-    points.forEach { p ->
-        val center = Offset(inset(p.x, size.width), p.y * size.height)
-        drawCircle(if (p.highlight) highlight else color, radius = (if (p.highlight) 5 else 3).dp.toPx(), center = center)
+    points.forEachIndexed { i, p ->
+        drawCircle(if (p.highlight) highlight else color, radius = (if (p.highlight) 5 else 3).dp.toPx(), center = Offset(pixels[i].x, pixels[i].y))
     }
 }
 
@@ -186,7 +181,7 @@ private fun AxisLabels(ticks: List<ChartTick>, modifier: Modifier) {
                 maxLines = 1,
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(top = (tick.y * (CHART_HEIGHT - 14)).dp),
+                    .padding(top = ChartGeometry.labelTop(tick, CHART_HEIGHT.toFloat(), AXIS_LABEL_HEIGHT).dp),
             )
         }
     }

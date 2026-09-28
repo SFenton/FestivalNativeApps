@@ -3,25 +3,24 @@ package com.festivalscoretracker.android.ui.profile
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.calculateEndPadding
-import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyGridScope
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -38,32 +37,46 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
+import androidx.compose.material3.adaptive.currentWindowSize
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.PlayerBandsRoute
+import com.festivalscoretracker.android.core.profile.PlayerTileAction
+import com.festivalscoretracker.android.core.profile.ProfileRow
+import com.festivalscoretracker.android.core.profile.ProfileSections
+import com.festivalscoretracker.android.core.quicklinks.QuickLinks
 import com.festivalscoretracker.android.presentation.profile.PlayerIdentityAction
 import com.festivalscoretracker.android.presentation.profile.PlayerInstrumentSection
 import com.festivalscoretracker.android.presentation.profile.PlayerProfileUiState
 import com.festivalscoretracker.android.presentation.profile.PlayerProfileViewModel
 import com.festivalscoretracker.android.presentation.profile.PlayerStatTile
+import com.festivalscoretracker.android.presentation.profile.ProfileActionResult
 import com.festivalscoretracker.android.presentation.profile.ProfilePhase
 import com.festivalscoretracker.android.presentation.profile.RankHistoryLoad
 import com.festivalscoretracker.android.presentation.profile.RankLoad
@@ -74,7 +87,11 @@ import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.SectionHeader
+import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
+import com.festivalscoretracker.android.ui.quicklinks.QuickLinksPane
+import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import kotlinx.coroutines.launch
 
 // region Screens
 
@@ -86,9 +103,7 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
 @Composable
 fun PlayerProfileScreen(viewModel: PlayerProfileViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    FestivalScreen(title = state.displayName.ifEmpty { "Player" }, isRoot = false, modifier = Modifier.semantics { testTagsAsResourceId = true }.testTag("fst.player")) { padding ->
-        PlayerProfileContent(viewModel, padding)
-    }
+    ProfileScaffold(viewModel, title = state.displayName.ifEmpty { "Player" }, isRoot = false, tag = "fst.player")
 }
 
 /**
@@ -99,8 +114,42 @@ fun PlayerProfileScreen(viewModel: PlayerProfileViewModel) {
  */
 @Composable
 fun StatisticsScreen(viewModel: PlayerProfileViewModel, isRoot: Boolean = true) {
-    FestivalScreen(title = "Statistics", isRoot = isRoot, modifier = Modifier.semantics { testTagsAsResourceId = true }.testTag("fst.statistics")) { padding ->
-        PlayerProfileContent(viewModel, padding)
+    ProfileScaffold(viewModel, title = "Statistics", isRoot = isRoot, tag = "fst.statistics")
+}
+
+/**
+ * Top bar, Quick Links (top-bar entry, or the trailing pane on wide pages without a
+ * fold) and the profile body.
+ */
+@Composable
+private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, isRoot: Boolean, tag: String) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val gridState = rememberLazyStaggeredGridState()
+    val loaded = state.phase == ProfilePhase.Loaded
+    val visible = state.instruments.map { it.instrument }
+    val rows = remember(visible, loaded) { if (loaded) ProfileSections.rows(visible) else emptyList() }
+    val sections = remember(visible, loaded, state.displayName) { if (loaded) ProfileSections.quickLinks(visible, state.displayName) else emptyList() }
+    val quickLinks = rememberQuickLinks(gridState, "Quick Links", sections) { id ->
+        rows.indexOfFirst { it.key == ProfileSections.rowKey(id) }.takeIf { it >= 0 }
+    }
+    val density = LocalDensity.current
+    val windowWidthDp = with(density) { currentWindowSize().width.toDp().value.toInt() }
+    val folded = currentWindowAdaptiveInfo().windowPosture.hingeList.any { it.isSeparating && it.isVertical }
+    val scrolled by remember(gridState) { derivedStateOf { gridState.canScrollBackward } }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val pane = !folded && QuickLinks.usesPane(maxWidth.value.toInt())
+        FestivalScreen(
+            title = title,
+            isRoot = isRoot,
+            scrolled = scrolled,
+            actions = { if (!pane) QuickLinksAction(quickLinks, windowWidthDp) },
+            modifier = Modifier.semantics { testTagsAsResourceId = true }.testTag(tag),
+        ) { padding ->
+            Row(Modifier.fillMaxSize()) {
+                Box(Modifier.weight(1f)) { PlayerProfileContent(viewModel, padding, gridState, rows) }
+                if (pane) QuickLinksPane(quickLinks, Modifier.padding(top = padding.calculateTopPadding()))
+            }
+        }
     }
 }
 
@@ -110,14 +159,17 @@ fun StatisticsScreen(viewModel: PlayerProfileViewModel, isRoot: Boolean = true) 
 
 /**
  * The shared player-profile body: header with identity actions, Overview, one card
- * per Settings-visible chart (stats, global rank, rank history, percentiles) and
- * the Bands link. Select/Switch/Deselect never navigate away.
+ * per Settings-visible chart (stats, global rank, rank history, percentiles), top and
+ * bottom five songs per chart and the Bands link. Select/Switch/Deselect never
+ * navigate away; stat tiles and song rows do (web `withProfileSwitch`).
  *
  * @param viewModel Page model.
  * @param padding Scaffold padding.
+ * @param gridState Grid state shared with Quick Links.
+ * @param rows Rows in page order.
  */
 @Composable
-fun PlayerProfileContent(viewModel: PlayerProfileViewModel, padding: PaddingValues) {
+fun PlayerProfileContent(viewModel: PlayerProfileViewModel, padding: PaddingValues, gridState: LazyStaggeredGridState, rows: List<ProfileRow>) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     when (val phase = state.phase) {
         ProfilePhase.NoAccount -> Message(
@@ -137,63 +189,62 @@ fun PlayerProfileContent(viewModel: PlayerProfileViewModel, padding: PaddingValu
             onRetry = viewModel::retry,
         )
         is ProfilePhase.Failed -> ServiceStatusView(phase.issue, "Profile unavailable", phase.countdown, viewModel::retry, contentPadding = padding)
-        ProfilePhase.Loaded -> LoadedProfile(viewModel, state, padding)
+        ProfilePhase.Loaded -> LoadedProfile(viewModel, state, padding, gridState, rows)
     }
 }
 
 @Composable
-private fun LoadedProfile(viewModel: PlayerProfileViewModel, state: PlayerProfileUiState, padding: PaddingValues) {
+private fun LoadedProfile(viewModel: PlayerProfileViewModel, state: PlayerProfileUiState, padding: PaddingValues, gridState: LazyStaggeredGridState, rows: List<ProfileRow>) {
     val shell = LocalShellActions.current
     val ranks by viewModel.ranks.collectAsStateWithLifecycle()
     val histories by viewModel.rankHistories.collectAsStateWithLifecycle()
     var confirm by rememberSaveable { mutableStateOf<PlayerIdentityAction?>(null) }
-    val direction = LocalLayoutDirection.current
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 340.dp),
-        contentPadding = PaddingValues(
-            start = padding.calculateStartPadding(direction) + 16.dp,
-            end = padding.calculateEndPadding(direction) + 16.dp,
-            top = padding.calculateTopPadding() + 8.dp,
-            bottom = padding.calculateBottomPadding() + 24.dp,
-        ),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        modifier = Modifier.fillMaxSize().testTag("fst.player.available"),
-    ) {
-        fullWidth("header") {
-            Header(state, onSelect = {
-                if (state.identity == PlayerIdentityAction.Switch) confirm = PlayerIdentityAction.Switch else viewModel.select()
-            }, onDeselect = { confirm = PlayerIdentityAction.Deselect })
-        }
-        fullWidth("overview") {
-            Column(Modifier.testTag("fst.player.overview")) {
-                SectionHeader("Overview")
-                TileFlow(state.overview)
+    var pendingAction by remember { mutableStateOf<PlayerTileAction?>(null) }
+    val scope = rememberCoroutineScope()
+    val runAction: (PlayerTileAction, Boolean) -> Unit = { action, confirmed ->
+        scope.launch {
+            when (val result = viewModel.run(action, confirmed)) {
+                is ProfileActionResult.Navigate -> shell.navigate(result.route)
+                ProfileActionResult.ConfirmSwitch -> pendingAction = action
+                ProfileActionResult.Unavailable -> Unit
             }
         }
-        items(state.instruments, key = { it.instrument.wireId }) { section ->
-            LaunchedEffect(section.instrument, section.hasScores) { viewModel.ensureInstrument(section.instrument) }
-            InstrumentCard(
-                section = section,
-                rank = ranks[section.instrument],
-                history = histories[section.instrument],
-                onRetryRank = { viewModel.retryRank(section.instrument) },
-                onRetryHistory = { viewModel.retryRankHistory(section.instrument) },
-            )
-        }
-        fullWidth("bands") {
-            GlassCard(
-                onClick = { shell.navigate(PlayerBandsRoute(state.accountId, state.displayName)) },
-                modifier = Modifier.fillMaxWidth().testTag("fst.player.bands-link"),
-            ) {
-                Row(Modifier.padding(16.dp).heightIn(min = 24.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Groups, contentDescription = null, tint = BrandTokens.textPrimary)
-                    Text(
-                        "View ${state.displayName}'s Bands",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = BrandTokens.textPrimary,
-                        modifier = Modifier.padding(start = 12.dp),
-                    )
+    }
+    val onAction: (PlayerTileAction) -> Unit = { runAction(it, false) }
+    val direction = LocalLayoutDirection.current
+    ProfileGrid(
+        state = gridState,
+        contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding() + 24.dp),
+        modifier = Modifier.padding(start = padding.calculateStartPadding(direction) + 16.dp, end = padding.calculateEndPadding(direction) + 16.dp),
+    ) { split ->
+        rows.forEach { row ->
+            val span = if (row.fullWidth && !split) StaggeredGridItemSpan.FullLine else StaggeredGridItemSpan.SingleLane
+            item(key = row.key, span = span) {
+                when (row) {
+                    ProfileRow.Header -> Header(state, onSelect = {
+                        if (state.identity == PlayerIdentityAction.Switch) confirm = PlayerIdentityAction.Switch else viewModel.select()
+                    }, onDeselect = { confirm = PlayerIdentityAction.Deselect })
+                    ProfileRow.Overview -> Column(Modifier.testTag("fst.player.overview")) {
+                        SectionHeader("Overview")
+                        TileFlow(state.overview, "overview", state, onAction)
+                    }
+                    is ProfileRow.InstrumentStats -> state.instruments.firstOrNull { it.instrument == row.instrument }?.let { section ->
+                        LaunchedEffect(section.instrument, section.hasScores) { viewModel.ensureInstrument(section.instrument) }
+                        InstrumentCard(
+                            section = section,
+                            rank = ranks[section.instrument],
+                            history = histories[section.instrument],
+                            state = state,
+                            onAction = onAction,
+                            onRetryRank = { viewModel.retryRank(section.instrument) },
+                            onRetryHistory = { viewModel.retryRankHistory(section.instrument) },
+                        )
+                    }
+                    ProfileRow.TopSongsHeading -> TopSongsHeading(state.displayName)
+                    is ProfileRow.TopSongs -> state.topSongs.firstOrNull { it.instrument == row.instrument }?.let { top ->
+                        TopSongsCard(top, state.displayName, state, onAction)
+                    }
+                    ProfileRow.Bands -> BandsLink(state) { shell.navigate(PlayerBandsRoute(state.accountId, state.displayName)) }
                 }
             }
         }
@@ -217,10 +268,32 @@ private fun LoadedProfile(viewModel: PlayerProfileViewModel, state: PlayerProfil
         )
         else -> Unit
     }
+    pendingAction?.let { action ->
+        // Web `ConfirmAlert` "Switch to {name}": a tile needs this player selected first.
+        ConfirmDialog(
+            title = "Switch to ${state.displayName}?",
+            text = "In order to see ${state.displayName}'s scores, you will have to set them as your selected profile. Would you like to continue?",
+            confirmLabel = "Switch",
+            tag = "fst.player.action-switch-confirm",
+            onConfirm = { pendingAction = null; runAction(action, true) },
+            onDismiss = { pendingAction = null },
+        )
+    }
 }
 
-private fun LazyGridScope.fullWidth(key: String, content: @Composable () -> Unit) {
-    item(key = key, span = { GridItemSpan(maxLineSpan) }) { content() }
+@Composable
+private fun BandsLink(state: PlayerProfileUiState, onClick: () -> Unit) {
+    GlassCard(onClick = onClick, modifier = Modifier.fillMaxWidth().testTag("fst.player.bands-link")) {
+        Row(Modifier.padding(16.dp).heightIn(min = 24.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.Groups, contentDescription = null, tint = BrandTokens.textPrimary)
+            Text(
+                "View ${state.displayName}'s Bands",
+                style = MaterialTheme.typography.titleSmall,
+                color = BrandTokens.textPrimary,
+                modifier = Modifier.padding(start = 12.dp),
+            )
+        }
+    }
 }
 
 // endregion
@@ -302,22 +375,15 @@ private fun InstrumentCard(
     section: PlayerInstrumentSection,
     rank: RankLoad?,
     history: RankHistoryLoad?,
+    state: PlayerProfileUiState,
+    onAction: (PlayerTileAction) -> Unit,
     onRetryRank: () -> Unit,
     onRetryHistory: () -> Unit,
 ) {
     val instrument = section.instrument
     GlassCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.testTag("fst.player.instrument.${instrument.wireId}")) {
-                InstrumentIcon(instrument, size = 32.dp, decorative = true)
-                Text(
-                    instrument.label,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = BrandTokens.textPrimary,
-                    modifier = Modifier.padding(start = 12.dp).semantics { heading() },
-                )
-            }
+            InstrumentHeading(instrument, "fst.player.instrument.${instrument.wireId}")
             if (!section.hasScores) {
                 Text(
                     "No ${instrument.label} scores recorded yet.",
@@ -328,9 +394,9 @@ private fun InstrumentCard(
                 return@Column
             }
             Spacer(Modifier.size(12.dp))
-            TileFlow(section.stats)
+            TileFlow(section.stats, instrument.wireId, state, onAction)
             SubHeader("Global Rank")
-            GlobalRank(instrument, rank, onRetryRank)
+            GlobalRank(instrument, rank, state, onAction, onRetryRank)
             when (history) {
                 is RankHistoryLoad.Loaded -> history.chart?.let { chart ->
                     SubHeader("Rank History")
@@ -351,7 +417,21 @@ private fun InstrumentCard(
 }
 
 @Composable
-private fun GlobalRank(instrument: Instrument, rank: RankLoad?, onRetry: () -> Unit) {
+internal fun InstrumentHeading(instrument: Instrument, tag: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.testTag(tag)) {
+        InstrumentIcon(instrument, size = 32.dp, decorative = true)
+        Text(
+            instrument.label,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = BrandTokens.textPrimary,
+            modifier = Modifier.padding(start = 12.dp).semantics { heading() },
+        )
+    }
+}
+
+@Composable
+private fun GlobalRank(instrument: Instrument, rank: RankLoad?, state: PlayerProfileUiState, onAction: (PlayerTileAction) -> Unit, onRetry: () -> Unit) {
     val tag = "fst.player.global-rank.${instrument.wireId}"
     when (rank) {
         null, RankLoad.Loading -> CircularProgressIndicator(Modifier.size(24.dp).testTag("$tag.loading"))
@@ -361,13 +441,13 @@ private fun GlobalRank(instrument: Instrument, rank: RankLoad?, onRetry: () -> U
             color = BrandTokens.textSecondary,
             modifier = Modifier.testTag("$tag.unranked"),
         )
-        is RankLoad.Available -> Box(Modifier.testTag("$tag.available")) { TileFlow(rank.tiles) }
+        is RankLoad.Available -> Box(Modifier.testTag("$tag.available")) { TileFlow(rank.tiles, "rank.${instrument.wireId}", state, onAction) }
         is RankLoad.Failed -> Box(Modifier.testTag("$tag.error")) { ServiceStatusInline(rank.issue, "Global rank unavailable", null, onRetry) }
     }
 }
 
 @Composable
-private fun SubHeader(text: String) {
+internal fun SubHeader(text: String) {
     Text(
         text,
         style = MaterialTheme.typography.titleSmall,
@@ -383,23 +463,36 @@ private fun SubHeader(text: String) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun TileFlow(tiles: List<PlayerStatTile>) {
+private fun TileFlow(tiles: List<PlayerStatTile>, scope: String, state: PlayerProfileUiState, onAction: (PlayerTileAction) -> Unit) {
     FlowRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        tiles.forEach { tile -> StatTile(tile, Modifier.widthIn(min = 104.dp).weight(1f)) }
+        tiles.forEach { tile ->
+            val action = tile.action?.takeIf(state::canRun)
+            StatTile(
+                tile,
+                onClick = action?.let { { onAction(it) } },
+                modifier = Modifier.widthIn(min = 104.dp).weight(1f).testTag("fst.player.tile.$scope.${tileSlug(tile.label)}"),
+            )
+        }
     }
 }
 
+/** "Songs Played" → `songs-played`. */
+internal fun tileSlug(label: String): String = label.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-')
+
+/** TalkBack action label for a tile. */
+internal fun actionLabel(action: PlayerTileAction): String = when (action) {
+    is PlayerTileAction.FilterSongs -> "Show in Songs"
+    is PlayerTileAction.OpenSong -> "Open song"
+    is PlayerTileAction.OpenRankings -> "Open rankings"
+}
+
 @Composable
-private fun StatTile(tile: PlayerStatTile, modifier: Modifier = Modifier) {
-    Surface(
-        color = BrandTokens.surfaceSubtle.copy(alpha = 0.7f),
-        shape = RoundedCornerShape(10.dp),
-        modifier = modifier.clearAndSetSemantics { contentDescription = tile.announcement },
-    ) {
+private fun StatTile(tile: PlayerStatTile, onClick: (() -> Unit)?, modifier: Modifier = Modifier) {
+    val content: @Composable () -> Unit = {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             Text(
                 tile.value,
@@ -410,6 +503,24 @@ private fun StatTile(tile: PlayerStatTile, modifier: Modifier = Modifier) {
             )
             Text(tile.label, style = MaterialTheme.typography.labelSmall, color = BrandTokens.textMuted, maxLines = 1)
         }
+    }
+    val color = BrandTokens.surfaceSubtle.copy(alpha = 0.7f)
+    val shape = RoundedCornerShape(10.dp)
+    if (onClick == null) {
+        Surface(color = color, shape = shape, modifier = modifier.clearAndSetSemantics { contentDescription = tile.announcement }, content = content)
+    } else {
+        val label = tile.action?.let(::actionLabel)
+        Surface(
+            onClick = onClick,
+            color = color,
+            shape = shape,
+            modifier = modifier.heightIn(min = 48.dp).clearAndSetSemantics {
+                contentDescription = tile.announcement
+                role = Role.Button
+                onClick(label = label) { onClick(); true }
+            },
+            content = content,
+        )
     }
 }
 

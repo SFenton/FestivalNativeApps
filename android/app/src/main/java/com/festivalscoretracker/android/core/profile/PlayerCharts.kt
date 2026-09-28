@@ -34,6 +34,107 @@ data class ChartTick(val y: Float, val label: String)
  */
 data class ChartBar(val x: Float, val height: Float)
 
+/**
+ * A pixel rectangle.
+ *
+ * @property left Left edge.
+ * @property top Top edge.
+ * @property width Width.
+ * @property height Height.
+ */
+data class ChartRect(val left: Float, val top: Float, val width: Float, val height: Float)
+
+/**
+ * A pixel position.
+ *
+ * @property x Horizontal pixels.
+ * @property y Vertical pixels from the top.
+ */
+data class ChartOffset(val x: Float, val y: Float)
+
+/**
+ * Unit-to-pixel mapping for the profile charts, kept pure so canvas code only draws
+ * what these functions return (the draw lambdas have no logic of their own).
+ */
+object ChartGeometry {
+    /** Bars take at most this share of the chart height, leaving room for the rank line. */
+    const val BAR_HEIGHT_SHARE = 0.45f
+
+    /** Slot width per bar relative to the bar (gaps between bars). */
+    const val BAR_SLOT = 1.6f
+
+    /** Thinnest bar in pixels. */
+    const val MIN_BAR_WIDTH = 2f
+
+    /** Shortest visible percentile bar as a share of the track. */
+    const val MIN_PERCENTILE_FRACTION = 0.02f
+
+    /**
+     * Horizontal position with an end inset, so end points and bars stay inside the canvas.
+     *
+     * @param x Unit x (0–1).
+     * @param width Canvas width.
+     * @param pad Inset on each side.
+     * @return Pixel x.
+     */
+    fun x(x: Float, width: Float, pad: Float): Float = pad + x * (width - 2 * pad)
+
+    /**
+     * Width of each Total Score bar.
+     *
+     * @param count Bars.
+     * @param width Canvas width.
+     * @param maxWidth Widest bar in pixels.
+     * @return Bar width between [MIN_BAR_WIDTH] and [maxWidth].
+     */
+    fun barWidth(count: Int, width: Float, maxWidth: Float): Float =
+        (width / (count.coerceAtLeast(1) * BAR_SLOT)).coerceIn(MIN_BAR_WIDTH, maxWidth.coerceAtLeast(MIN_BAR_WIDTH))
+
+    /**
+     * A bar's rectangle, bottom-aligned.
+     *
+     * @param bar Unit bar.
+     * @param width Canvas width.
+     * @param height Canvas height.
+     * @param barWidth Bar width ([barWidth]).
+     * @param pad Horizontal inset.
+     * @return Pixel rectangle.
+     */
+    fun bar(bar: ChartBar, width: Float, height: Float, barWidth: Float, pad: Float): ChartRect {
+        val h = bar.height * height * BAR_HEIGHT_SHARE
+        return ChartRect(x(bar.x, width, pad) - barWidth / 2, height - h, barWidth, h)
+    }
+
+    /**
+     * A line point in pixels.
+     *
+     * @param point Unit point.
+     * @param width Canvas width.
+     * @param height Canvas height.
+     * @param pad Horizontal inset.
+     * @return Pixel position.
+     */
+    fun point(point: ChartPoint, width: Float, height: Float, pad: Float): ChartOffset = ChartOffset(x(point.x, width, pad), point.y * height)
+
+    /**
+     * Top offset of a y-axis label so the last label still fits above the bottom edge.
+     *
+     * @param tick Tick.
+     * @param chartHeight Chart height.
+     * @param labelHeight Label line height.
+     * @return Offset from the top, in the same unit as the inputs.
+     */
+    fun labelTop(tick: ChartTick, chartHeight: Float, labelHeight: Float): Float = tick.y * (chartHeight - labelHeight)
+
+    /**
+     * Visible share of a percentile bar's track (never zero, never over full).
+     *
+     * @param fraction Count relative to the largest band.
+     * @return Fraction in `[MIN_PERCENTILE_FRACTION, 1]`.
+     */
+    fun percentileFraction(fraction: Float): Float = fraction.coerceIn(MIN_PERCENTILE_FRACTION, 1f)
+}
+
 // endregion
 
 // region Rank history chart

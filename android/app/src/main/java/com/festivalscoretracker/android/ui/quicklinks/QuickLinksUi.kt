@@ -10,13 +10,14 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListLayoutInfo
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.automirrored.outlined.Toc
 import androidx.compose.material.icons.outlined.Accessibility
+import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Dns
@@ -73,17 +74,77 @@ import kotlinx.coroutines.launch
 // region Controller
 
 /**
- * Quick Links state for one page backed by a `LazyColumn` whose sections are
- * items. Layout is observed only through `snapshotFlow` of the list's layout
- * info, and [activeId] changes only when the active section changes, so
+ * One laid-out lazy item.
+ *
+ * @property index Item index.
+ * @property top Top edge relative to the viewport (the list's `offset`).
+ * @property bottom Bottom edge.
+ */
+internal data class QuickLinkItem(val index: Int, val top: Int, val bottom: Int)
+
+/**
+ * A lazy layout's visible items.
+ *
+ * @property items Visible items.
+ * @property viewportHeight Viewport height without the trailing content padding.
+ */
+internal data class QuickLinkLayout(val items: List<QuickLinkItem>, val viewportHeight: Float)
+
+/** The scrolling surface a controller drives: a `LazyColumn` or a staggered grid. */
+internal interface QuickLinkScroller {
+    /** Current layout; reads snapshot state, so `snapshotFlow` follows it. */
+    fun layout(): QuickLinkLayout
+
+    /**
+     * Bring an item to the top.
+     *
+     * @param index Item index.
+     * @param animate Animate the scroll.
+     */
+    suspend fun scrollTo(index: Int, animate: Boolean)
+}
+
+/** [QuickLinkScroller] over a `LazyColumn`. */
+private class ListScroller(private val state: LazyListState) : QuickLinkScroller {
+    override fun layout(): QuickLinkLayout {
+        val info = state.layoutInfo
+        return QuickLinkLayout(
+            info.visibleItemsInfo.map { QuickLinkItem(it.index, it.offset, it.offset + it.size) },
+            (info.viewportEndOffset - info.afterContentPadding).toFloat(),
+        )
+    }
+
+    override suspend fun scrollTo(index: Int, animate: Boolean) {
+        if (animate) state.animateScrollToItem(index) else state.scrollToItem(index)
+    }
+}
+
+/** [QuickLinkScroller] over a `LazyVerticalStaggeredGrid` (several items can share a row). */
+private class StaggeredScroller(private val state: LazyStaggeredGridState) : QuickLinkScroller {
+    override fun layout(): QuickLinkLayout {
+        val info = state.layoutInfo
+        return QuickLinkLayout(
+            info.visibleItemsInfo.map { QuickLinkItem(it.index, it.offset.y, it.offset.y + it.size.height) },
+            (info.viewportEndOffset - info.afterContentPadding).toFloat(),
+        )
+    }
+
+    override suspend fun scrollTo(index: Int, animate: Boolean) {
+        if (animate) state.animateScrollToItem(index) else state.scrollToItem(index)
+    }
+}
+
+/**
+ * Quick Links state for one page backed by a lazy list or staggered grid whose
+ * sections are items. Layout is observed only through `snapshotFlow` of the
+ * layout info, and [activeId] changes only when the active section changes, so
  * scrolling does not recompose the page.
  *
- * @property listState The page's list state.
  * @property title Title Case title (web `settings.quickLinks` etc.).
  */
 @Stable
 class QuickLinksController internal constructor(
-    val listState: LazyListState,
+    private val scroller: QuickLinkScroller,
     val title: String,
     private val scope: CoroutineScope,
     private val activationPx: Float,
@@ -94,7 +155,7 @@ class QuickLinksController internal constructor(
     var sections: List<QuickLinkSection> by mutableStateOf(emptyList())
         internal set
 
-    /** Section ID → list item index. */
+    /** Section ID → item index. */
     internal var indexOf: (String) -> Int? = { null }
 
     /** Whether jumps animate (off under reduce motion). */
@@ -120,30 +181,27 @@ class QuickLinksController internal constructor(
         tracker.beginJump(id)
         activeId = tracker.activeId
         scope.launch {
-            if (animate) listState.animateScrollToItem(index) else listState.scrollToItem(index)
-            val info = listState.layoutInfo
-            tracker.settle(sections, frames(info), viewportHeight(info))
+            scroller.scrollTo(index, animate)
+            val layout = scroller.layout()
+            tracker.settle(sections, frames(layout), layout.viewportHeight)
             activeId = tracker.activeId
         }
     }
 
-    internal fun onLayout(info: LazyListLayoutInfo) {
-        tracker.update(sections, frames(info), viewportHeight(info))
+    internal fun onLayout(layout: QuickLinkLayout) {
+        tracker.update(sections, frames(layout), layout.viewportHeight)
         if (activeId != tracker.activeId) activeId = tracker.activeId
     }
 
-    private fun viewportHeight(info: LazyListLayoutInfo): Float = (info.viewportEndOffset - info.afterContentPadding).toFloat()
-
     /** Frames: visible items from layout; items above the first visible one are "far above"; below is unknown. */
-    private fun frames(info: LazyListLayoutInfo): Map<String, QuickLinkFrame> {
-        val visible = info.visibleItemsInfo
-        val first = visible.firstOrNull()?.index ?: return emptyMap()
+    private fun frames(layout: QuickLinkLayout): Map<String, QuickLinkFrame> {
+        val first = layout.items.minOfOrNull { it.index } ?: return emptyMap()
         val result = HashMap<String, QuickLinkFrame>()
         sections.forEach { section ->
             val index = indexOf(section.id) ?: return@forEach
-            val item = visible.firstOrNull { it.index == index }
+            val item = layout.items.firstOrNull { it.index == index }
             when {
-                item != null -> result[section.id] = QuickLinkFrame(item.offset.toFloat(), (item.offset + item.size).toFloat())
+                item != null -> result[section.id] = QuickLinkFrame(item.top.toFloat(), item.bottom.toFloat())
                 index < first -> result[section.id] = QuickLinkFrame(-1_000_000f, -999_999f)
             }
         }
@@ -161,15 +219,32 @@ class QuickLinksController internal constructor(
  * @return Controller.
  */
 @Composable
-fun rememberQuickLinks(listState: LazyListState, title: String, sections: List<QuickLinkSection>, indexOf: (String) -> Int?): QuickLinksController {
+fun rememberQuickLinks(listState: LazyListState, title: String, sections: List<QuickLinkSection>, indexOf: (String) -> Int?): QuickLinksController =
+    rememberQuickLinks(remember(listState) { ListScroller(listState) }, title, sections, indexOf)
+
+/**
+ * Remember a Quick Links controller for a page laid out as a staggered grid.
+ *
+ * @param gridState The page's grid state.
+ * @param title Quick Links title.
+ * @param sections Sections in order (duplicates are dropped).
+ * @param indexOf Section ID → grid item index.
+ * @return Controller.
+ */
+@Composable
+fun rememberQuickLinks(gridState: LazyStaggeredGridState, title: String, sections: List<QuickLinkSection>, indexOf: (String) -> Int?): QuickLinksController =
+    rememberQuickLinks(remember(gridState) { StaggeredScroller(gridState) }, title, sections, indexOf)
+
+@Composable
+private fun rememberQuickLinks(scroller: QuickLinkScroller, title: String, sections: List<QuickLinkSection>, indexOf: (String) -> Int?): QuickLinksController {
     val scope = rememberCoroutineScope()
     val activationPx = with(LocalDensity.current) { 16.dp.toPx() }
-    val controller = remember(listState, title) { QuickLinksController(listState, title, scope, activationPx) }
+    val controller = remember(scroller, title) { QuickLinksController(scroller, title, scope, activationPx) }
     controller.sections = QuickLinks.ordered(sections)
     controller.indexOf = indexOf
     controller.animate = !LocalFestivalAccessibility.current.reduceMotion
     LaunchedEffect(controller) {
-        snapshotFlow { listState.layoutInfo }.collect(controller::onLayout)
+        snapshotFlow { scroller.layout() }.collect(controller::onLayout)
     }
     return controller
 }
@@ -197,6 +272,7 @@ fun quickLinkIcon(token: String?): ImageVector = when (token) {
     "accessibility" -> Icons.Outlined.Accessibility
     "trophy" -> Icons.Outlined.EmojiEvents
     "people" -> Icons.Outlined.People
+    "chart" -> Icons.Outlined.BarChart
     else -> Icons.AutoMirrored.Outlined.Toc
 }
 

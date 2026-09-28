@@ -355,7 +355,12 @@ private fun FestivalShell(
     // Only the phone top bar shows a hamburger; the rail header owns it on medium widths.
     val openDrawer: (() -> Unit)? = if (layout == NavigationLayout.BottomBar) ({ scope.launch { drawerState.open() } }) else null
     val actions = ShellActions(
-        navigate = { route -> scope.launch { drawerState.close() }; navController.navigate(route) },
+        navigate = { route ->
+            scope.launch { drawerState.close() }
+            // A tab root (e.g. Songs after a profile tile saved its filter) switches tabs rather than pushing a copy.
+            val section = FestivalSection.entries.firstOrNull { it.root == route }
+            if (section != null && section in sections) navController.selectSection(section, selected) else navController.navigate(route)
+        },
         back = { navController.popBackStack() },
         openDrawer = openDrawer,
         openProfile = { showProfile = true },

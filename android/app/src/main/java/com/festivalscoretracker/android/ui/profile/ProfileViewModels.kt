@@ -5,6 +5,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.festivalscoretracker.android.AppContainer
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.nav.PlayerHistoryRoute
+import com.festivalscoretracker.android.data.profile.applyPreset
 import com.festivalscoretracker.android.data.profile.playerHistory
 import com.festivalscoretracker.android.data.profile.playerInstrumentRanking
 import com.festivalscoretracker.android.data.profile.playerProfile
@@ -36,6 +37,7 @@ fun profileViewModel(container: AppContainer, shell: ShellViewModel, accountId: 
                 profile = { api.playerProfile(it) },
                 ranking = { instrument, account -> api.playerInstrumentRanking(instrument, account) },
                 rankHistory = { instrument, account -> api.playerRankHistory(instrument, account) },
+                catalog = { api.catalog().catalog.songs },
             ),
             store = container.selectedProfile,
             settings = shell.settings,
@@ -43,6 +45,8 @@ fun profileViewModel(container: AppContainer, shell: ShellViewModel, accountId: 
             backoff = container.backoff,
             onSelect = shell::selectPlayer,
             onDeselect = shell::deselectPlayer,
+            saveSongsPreset = { preset -> container.songsPreferences.applyPreset(container.settings, preset) },
+            artworkUrl = api::artworkUrl,
         )
     }
 }
