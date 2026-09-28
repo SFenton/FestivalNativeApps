@@ -377,6 +377,7 @@ struct PlayerProfileContent: View {
     @ViewBuilder
     private func instrumentSection(_ payload: PlayerProfilePayload, instrument: Instrument) -> some View {
         let stats = payload.profile.instrumentStats(instrument)
+        let stars = payload.profile.starBreakdown(instrument)
         FestivalGlassSection {
             HStack(spacing: 8) {
                 InstrumentIcon(instrument, size: 22)
@@ -388,17 +389,24 @@ struct PlayerProfileContent: View {
                 FestivalFootnote("No \(instrument.label) scores recorded yet.")
                     .accessibilityIdentifier("fst.player.instrument-empty.\(instrument.rawValue)")
             } else {
-                statGrid(items: [
-                    ("Songs Played", "\(stats.songsPlayed)", nil),
-                    (
-                        "Full Combos",
-                        stats.fullComboCount == 0 ? "0" : "\(stats.fullComboCount) (\(percentText(stats.fullComboPercent))%)",
-                        stats.fullComboCount > 0 ? BrandTokens.gold : nil
+                // Web `InstrumentStatsSection` order: star counts (non-zero only), then
+                // Avg Accuracy, Avg Stars (five gold stars at a 6.0 average), Best Rank.
+                statGrid(tiles: [
+                    StatTile(label: "Songs Played", value: "\(stats.songsPlayed)"),
+                    StatTile(
+                        label: "Full Combos",
+                        value: stats.fullComboCount == 0 ? "0" : "\(stats.fullComboCount) (\(percentText(stats.fullComboPercent))%)",
+                        tint: stats.fullComboCount > 0 ? BrandTokens.gold : nil
                     ),
-                    ("Gold Stars", "\(stats.goldStarCount)", BrandTokens.gold),
-                    ("5 Stars", "\(stats.fiveStarCount)", nil),
-                    ("Avg Accuracy", accuracyText(stats.averageAccuracy), nil),
-                    ("Best Rank", stats.bestRank.map { "#\($0)" } ?? "—", nil),
+                ] + stars.countCards.map { card in
+                    StatTile(
+                        label: card.label, value: card.count.formatted(),
+                        tint: card.stars == 6 ? BrandTokens.gold : nil
+                    )
+                } + [
+                    StatTile(label: "Avg Accuracy", value: accuracyText(stats.averageAccuracy)),
+                    StatTile(label: "Avg Stars", value: stars.averageText, goldStars: stars.isAllGold),
+                    StatTile(label: "Best Rank", value: stats.bestRank.map { "#\($0)" } ?? "—"),
                 ])
                 InstrumentGlobalRankView(session: session, accountId: accountId, instrument: instrument)
             }
@@ -642,26 +650,43 @@ private struct InstrumentGlobalRankView: View {
 /// A row of small, flat (non-glass) value/label tiles inside one glass section.
 ///
 /// Kept flat per `.agents/design/apple/liquid-glass.md` ("never glass-on-glass").
-private struct StatTile: Identifiable {
+struct StatTile: Identifiable {
     let id = UUID()
     let label: String
     let value: String
-    let tint: Color?
+    var tint: Color?
+    /// Draw five gold stars (`StarRating`, web `GoldStars`) instead of `value`.
+    var goldStars = false
 }
 
 /// Lay out stat tiles as an adaptive grid, matching the web's `StatBox` grid.
 private func statGrid(items: [(label: String, value: String, tint: Color?)]) -> some View {
-    let tiles = items.map { StatTile(label: $0.label, value: $0.value, tint: $0.tint) }
-    return LazyVGrid(
+    statGrid(tiles: items.map { StatTile(label: $0.label, value: $0.value, tint: $0.tint) })
+}
+
+/// Lay out prepared stat tiles as an adaptive grid.
+///
+/// - Parameter tiles: Tiles in display order.
+private func statGrid(tiles: [StatTile]) -> some View {
+    LazyVGrid(
         columns: [GridItem(.adaptive(minimum: 96), spacing: 8)], spacing: 8
     ) {
         ForEach(tiles) { tile in
             VStack(spacing: 2) {
-                Text(tile.value)
-                    .font(.title3.bold())
-                    .foregroundStyle(tile.tint ?? BrandTokens.accentBlue)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                Group {
+                    if tile.goldStars {
+                        StarRating(stars: 6, gold: true, size: 16)
+                            .frame(minHeight: 28)
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel("5 gold stars")
+                    } else {
+                        Text(tile.value)
+                            .font(.title3.bold())
+                            .foregroundStyle(tile.tint ?? BrandTokens.accentBlue)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                }
                 Text(tile.label)
                     .font(.caption2)
                     .foregroundStyle(FestivalText.primary)
