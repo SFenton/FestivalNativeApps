@@ -1,8 +1,7 @@
 package com.festivalscoretracker.android.ui.songs
 
-import androidx.compose.foundation.MarqueeAnimationMode
+import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import androidx.compose.foundation.background
-import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -47,9 +46,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -204,8 +201,8 @@ fun SongRow(
                         modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)).background(BrandTokens.surfaceMuted),
                     )
                     Column(Modifier.weight(1f)) {
-                        MarqueeLine(song.title, MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold), BrandTokens.textPrimary)
-                        MarqueeLine(song.subtitle, MaterialTheme.typography.bodyMedium, BrandTokens.textSecondary)
+                        FestivalMarqueeText(song.title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold), color = BrandTokens.textPrimary)
+                        FestivalMarqueeText(song.subtitle, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary)
                         if (row.namesChart) {
                             Text(
                                 "${row.chart!!.label} chart",
@@ -306,40 +303,6 @@ private fun MaxScoreDual(pill: SongMaxScorePill, songId: String) {
         Text(pill.max ?: "—", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = if (pill.max == null) BrandTokens.textMuted else BrandTokens.textPrimary)
     }
 }
-
-/**
- * Single-line text that marquees only when it overflows, and truncates instead
- * under reduced motion (web `MarqueeText`). `basicMarquee` animates in the draw
- * phase only, so it never recomposes the row.
- *
- * @param text Text.
- * @param style Style.
- * @param color Color.
- */
-@Composable
-internal fun MarqueeLine(text: String, style: TextStyle, color: Color) {
-    val still = LocalFestivalAccessibility.current.reduceMotion
-    Text(
-        text,
-        style = style,
-        color = color,
-        maxLines = 1,
-        overflow = if (still) TextOverflow.Ellipsis else TextOverflow.Clip,
-        modifier = if (still) {
-            Modifier
-        } else {
-            Modifier.basicMarquee(
-                iterations = Int.MAX_VALUE,
-                animationMode = MarqueeAnimationMode.Immediately,
-                repeatDelayMillis = MARQUEE_DWELL_MS,
-                initialDelayMillis = MARQUEE_DWELL_MS,
-            )
-        },
-    )
-}
-
-/** Dwell at each end, like the web keyframe's pauses. */
-private const val MARQUEE_DWELL_MS = 1_200
 
 /**
  * The row's Item Shop indicator: a circle breathing in the status color (green in
