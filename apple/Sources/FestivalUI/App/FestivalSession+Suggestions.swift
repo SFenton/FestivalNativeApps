@@ -27,6 +27,8 @@ final class SuggestionsViewModel {
     private(set) var categories: [SuggestionCategory] = []
     private(set) var loadState: SuggestionsLoadState = .idle
     private(set) var isLoadingMore = false
+    /// Effective current season for the loaded source (row season pills highlight it).
+    private(set) var currentSeason: Int?
     /// False once a `getNext` call returns nothing more for the current mix.
     private(set) var hasMore = true
     var filter: SuggestionFilterSettings
@@ -127,6 +129,7 @@ final class SuggestionsViewModel {
                 let season = SuggestionSeason.effective(
                     currentSeason: payload.catalog.currentSeason, scores: session.selectedPlayerScores
                 )
+                currentSeason = season
                 let engine = SuggestionGenerator(options: .init(currentSeason: season))
                 let songs = candidateSongIds.map { ids in payload.catalog.songs.filter { ids.contains($0.songId) } }
                     ?? payload.catalog.songs

@@ -168,7 +168,10 @@ struct SuggestionsCarouselPane: View {
         ) { card in
             switch card {
             case let .category(category):
-                SuggestionCategoryCardView(category: category, session: session)
+                SuggestionCategoryCardView(
+                    category: category, session: session, currentSeason: viewModel.currentSeason,
+                    visibleInstruments: Set(visible.instruments)
+                )
             case .end:
                 endCard
             }

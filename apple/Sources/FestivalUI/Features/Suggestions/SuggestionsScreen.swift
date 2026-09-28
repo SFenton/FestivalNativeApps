@@ -184,7 +184,10 @@ struct SuggestionsScreen: View {
         ScrollView {
             LazyVStack(spacing: 20) {
                 ForEach(Array(visibleCategories.enumerated()), id: \.element.id) { index, category in
-                    SuggestionCategoryCardView(category: category, session: session)
+                    SuggestionCategoryCardView(
+                        category: category, session: session,
+                        currentSeason: viewModel.currentSeason, visibleInstruments: visibleInstruments
+                    )
                         .padding(.horizontal, 16)
                         // Web `getCardDelay`: the first screenful staggers 125 ms apart.
                         .festivalFadeIn(isLoaded: true, index: index)

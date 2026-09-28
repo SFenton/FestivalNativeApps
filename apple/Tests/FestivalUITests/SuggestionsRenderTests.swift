@@ -107,7 +107,7 @@ private func filterSheetHost(
     applied: SuggestionFilterSettings, visible: [Instrument] = [.lead, .bass, .drums]
 ) -> NSHostingView<some View> {
     nativeHostedView(
-        SuggestionsFilterSheet(applied: applied, visibleInstruments: visible, onApply: { _ in })
+        SuggestionsFilterSheet(applied: applied, visibleInstruments: visible, onChange: { _ in })
             .preferredColorScheme(.dark),
         size: CGSize(width: 402, height: 900)
     )

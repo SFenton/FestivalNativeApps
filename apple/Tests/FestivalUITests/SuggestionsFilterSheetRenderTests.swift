@@ -43,7 +43,7 @@ import FestivalDesign
         let host = nativeHostedView(
             SuggestionsFilterSheet(
                 applied: scenario.applied, visibleInstruments: scenario.visible,
-                onApply: { _ in }
+                onChange: { _ in }
             )
             .preferredColorScheme(.dark)
             .tint(BrandTokens.accentBlue)
@@ -66,13 +66,14 @@ import FestivalDesign
     #expect(images["bass-disabled"] != images["no-visible-instruments"])
     let ax = nativeHostedAccessibility(
         nativeHostedView(
-            SuggestionsFilterSheet(applied: .defaults(), visibleInstruments: [.lead], onApply: { _ in })
+            SuggestionsFilterSheet(applied: .defaults(), visibleInstruments: [.lead], onChange: { _ in })
                 .preferredColorScheme(.dark)
                 .background(BrandTokens.appBackground),
             size: CGSize(width: 390, height: 700)
         )
     )
-    #expect(ax.texts.contains("Filter Suggestions"))
+    // The title and Done live in the sheet's navigation bar, which an off-window
+    // macOS host does not place; the journey test asserts them on device.
     #expect(ax.identifiers.contains("fst.suggestions.filter.form"))
 }
 #endif

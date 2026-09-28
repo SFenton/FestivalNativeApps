@@ -3,7 +3,7 @@ import XCTest
 
 /// Fixture-backed native journeys for the Suggestions tab: the no-profile guard, the
 /// generated-list-or-empty transition once a player is selected, the Filter sheet's staged
-/// draft (Apply/Cancel-with-discard/Reset) and incremental loading when enough categories
+/// live filter (Done/Reset) and incremental loading when enough categories
 /// exist.
 ///
 /// The shared loopback fixture (`tools/mock_service.py`, default scenario) only serves two
@@ -89,11 +89,12 @@ final class SuggestionsJourneyTests: XCTestCase {
         }
     }
 
-    /// Stage instrument/category filter changes and prove Apply/Cancel/Reset semantics.
+    /// Filter changes apply live (no Cancel/Apply), persist across reopening, and Reset
+    /// restores defaults; Done is the sheet's only toolbar action.
     ///
-    /// - Throws: A missing form control, a silently discarded draft or a stuck Apply state.
+    /// - Throws: A missing form control or a change that did not persist.
     @MainActor
-    func testSuggestionsFilterDraftApplyDiscardAndReset() throws {
+    func testSuggestionsFilterAppliesLiveAndResets() throws {
         continueAfterFailure = false
         let app = fixtureApp()
         app.launchEnvironment["FST_DEBUG_PROFILE"] = "fixture-player-1:Fixture Player 1"
@@ -103,16 +104,14 @@ final class SuggestionsJourneyTests: XCTestCase {
         XCTAssertTrue(filterButton.waitForExistence(timeout: 15))
         filterButton.tap()
 
-        let title = app.staticTexts["fst.suggestions.filter.title"]
-        XCTAssertTrue(title.waitForExistence(timeout: 10))
-        XCTAssertEqual(title.label, "Filter Suggestions")
+        XCTAssertTrue(app.navigationBars["Filter Suggestions"].waitForExistence(timeout: 10))
         let form = app.descendants(matching: .any)
             .matching(identifier: "fst.suggestions.filter.form").firstMatch
         XCTAssertTrue(form.exists)
-        let apply = app.buttons["fst.suggestions.filter.apply"]
-        let cancel = app.buttons["fst.suggestions.filter.cancel"]
-        XCTAssertTrue(apply.exists && cancel.exists)
-        XCTAssertFalse(apply.isEnabled, "Apply must start disabled with no draft changes")
+        let done = app.buttons["fst.suggestions.filter.done"]
+        XCTAssertTrue(done.exists)
+        XCTAssertFalse(app.buttons["fst.suggestions.filter.apply"].exists)
+        XCTAssertFalse(app.buttons["fst.suggestions.filter.cancel"].exists)
         record(app, name: "suggestions-filter-default")
 
         let nearFC = app.switches["fst.suggestions.filter.type.nearFC"]
@@ -123,37 +122,18 @@ final class SuggestionsJourneyTests: XCTestCase {
             predicate: NSPredicate(format: "value != %@", before ?? "1"), object: nearFC
         )
         XCTAssertEqual(XCTWaiter.wait(for: [changed], timeout: 5), .completed)
-        XCTAssertTrue(apply.isEnabled, "Apply must enable once the draft differs")
-        record(app, name: "suggestions-filter-draft-changed")
-
-        cancel.tap()
-        let discard = app.buttons["Discard Changes"]
-        XCTAssertTrue(discard.waitForExistence(timeout: 10))
-        let keepEditing = app.buttons["Continue Editing"]
-        XCTAssertTrue(keepEditing.exists)
-        keepEditing.tap()
-        XCTAssertEqual(nearFC.value as? String, before == "1" ? "0" : "1")
-        cancel.tap()
-        XCTAssertTrue(app.buttons["Discard Changes"].waitForExistence(timeout: 10))
-        app.buttons["Discard Changes"].tap()
+        record(app, name: "suggestions-filter-live-changed")
+        done.tap()
         XCTAssertTrue(filterButton.waitForExistence(timeout: 10))
-        record(app, name: "suggestions-filter-discarded")
 
         filterButton.tap()
         XCTAssertTrue(nearFC.waitForExistence(timeout: 10))
-        XCTAssertEqual(nearFC.value as? String, before)
-        nearFC.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
-        XCTAssertTrue(apply.isEnabled)
-        apply.tap()
-        XCTAssertTrue(filterButton.waitForExistence(timeout: 10))
-        record(app, name: "suggestions-filter-applied")
-
-        filterButton.tap()
+        XCTAssertNotEqual(nearFC.value as? String, before, "A live change did not persist")
         let reset = app.buttons["fst.suggestions.filter.reset"]
         XCTAssertTrue(reset.waitForExistence(timeout: 10))
         reset.tap()
-        XCTAssertTrue(apply.isEnabled)
-        apply.tap()
+        XCTAssertEqual(nearFC.value as? String, before)
+        app.buttons["fst.suggestions.filter.done"].tap()
         XCTAssertTrue(filterButton.waitForExistence(timeout: 10))
         record(app, name: "suggestions-filter-reset")
     }

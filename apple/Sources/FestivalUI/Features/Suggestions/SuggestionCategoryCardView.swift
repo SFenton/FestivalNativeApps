@@ -4,24 +4,45 @@ import FestivalDesign
 
 // MARK: - Category card
 
-/// One `SuggestionCategory` as a Liquid Glass group (web `CategoryCard` + `SectionHeader`):
-/// a single glass card per category, with flat rows inside (`.agents/design/apple/liquid-glass.md`
-/// — "Settings, Profile, Statistics, Suggestions, Rivals, Leaderboard groups").
+/// One `SuggestionCategory` as a Liquid Glass group, ported card by card from the web
+/// `CategoryCard` (`pages/suggestions/components/CategoryCard.tsx`).
+///
+/// The title, description and (for single-instrument categories) the category's
+/// instrument icon sit **above** the card (operator rule, 2026-09-28: headers never
+/// inside containers); the song rows are flat inside one glass card
+/// (`.agents/design/apple/liquid-glass.md`). Each row's right-hand metadata follows the
+/// web's per-category `getRowLayout` (`SuggestionRowLayout` in FestivalCore).
 struct SuggestionCategoryCardView: View {
     let category: SuggestionCategory
     let session: FestivalSession
+    /// Effective current season, which season pills highlight (web `SeasonPill`).
+    var currentSeason: Int?
+    /// Settings-visible charts for the instrument status chips.
+    var visibleInstruments: Set<Instrument> = Set(Instrument.allCases)
 
     var body: some View {
-        FestivalGlassSection(category.title, subtitle: category.description) {
-            ForEach(category.songs) { item in
-                NavigationLink(value: AppRoute.songDetail(item.song)) {
-                    SuggestionSongRowView(
-                        item: item, session: session,
-                        showsStars: SuggestionSongRowView.showsStars(categoryKey: category.key)
-                    )
+        let categoryInstrument = SuggestionRowLayout.categoryInstrument(category.key)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 12) {
+                FestivalSectionHeader(category.title, subtitle: category.description)
+                if let categoryInstrument {
+                    InstrumentIcon(categoryInstrument, size: 36)
+                        .accessibilityHidden(true)
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("fst.suggestions.row.\(item.id)")
+            }
+            .padding(.horizontal, 4)
+            FestivalGlassSection {
+                ForEach(category.songs) { item in
+                    NavigationLink(value: AppRoute.songDetail(item.song)) {
+                        SuggestionSongRowView(
+                            item: item, session: session, categoryKey: category.key,
+                            categoryInstrument: categoryInstrument, currentSeason: currentSeason,
+                            visibleInstruments: visibleInstruments
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("fst.suggestions.row.\(item.id)")
+                }
             }
         }
         .accessibilityIdentifier("fst.suggestions.category.\(category.key)")
@@ -30,29 +51,63 @@ struct SuggestionCategoryCardView: View {
 
 // MARK: - Song row
 
-/// One flat row inside a category's glass card (web `SongCard` used by `CategoryCard`).
+/// One flat row inside a category's glass card (web `CategoryCard` `SongRow`): album art,
+/// title and "artist · year" (web `SongInfo`), then the category's metadata. On a compact
+/// width the metadata wraps to a right-aligned second line unless it is only an icon or
+/// pill (web `twoRow` / `iconOnly`).
 struct SuggestionSongRowView: View {
     let item: SuggestionSongItem
     let session: FestivalSession
-    /// Whether this category draws the star row (web `CategoryCard.showStars`).
-    var showsStars = false
+    var categoryKey = ""
+    /// The category's own instrument; rows fall back to it like the web, whose items
+    /// carry the instrument key for single-instrument categories.
+    var categoryInstrument: Instrument?
+    var currentSeason: Int?
+    var visibleInstruments: Set<Instrument> = Set(Instrument.allCases)
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
-    /// Web `CategoryCard` draws its star PNG row only for star-progress categories
-    /// (`star_gains*`, `band_star_progress*`); every other category hides stars.
+    /// Web `CategoryCard.showStars`: star-progress categories only.
     ///
     /// - Parameter categoryKey: `SuggestionCategory.key`.
     /// - Returns: Whether rows in that category show stars.
     nonisolated static func showsStars(categoryKey: String) -> Bool {
-        categoryKey.hasPrefix("star_gains") || categoryKey.hasPrefix("band_star_progress")
+        SuggestionRowLayout.showsStars(categoryKey: categoryKey)
     }
 
+    private var layout: SuggestionRowLayout { SuggestionRowLayout.forCategory(categoryKey) }
+    private var showsStars: Bool { Self.showsStars(categoryKey: categoryKey) && (item.stars ?? 0) > 0 }
+    private var rowInstrument: Instrument? { item.instrument ?? categoryInstrument }
+
+    /// Web `SongInfo` subtitle: artist, then the release year when known.
     private var subtitle: String {
-        var parts = [item.song.artist]
-        if let instrument = item.instrument { parts.append(instrument.label) }
-        return parts.joined(separator: " \u{00B7} ")
+        [item.song.artist, item.song.year.map(String.init)].compactMap { $0 }
+            .joined(separator: " \u{00B7} ")
+    }
+
+    private var twoRow: Bool {
+        sizeClass != .regular && layout != .hidden && !layout.isCompact(showsStars: showsStars)
     }
 
     var body: some View {
+        Group {
+            if twoRow {
+                VStack(alignment: .trailing, spacing: 6) {
+                    songInfo
+                    metadata
+                }
+            } else {
+                HStack(spacing: 12) {
+                    songInfo
+                    metadata
+                }
+            }
+        }
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+    }
+
+    private var songInfo: some View {
         HStack(spacing: 12) {
             ArtworkTile(raw: item.song.albumArt, session: session, size: 44)
                 .accessibilityHidden(true)
@@ -62,72 +117,111 @@ struct SuggestionSongRowView: View {
                 MarqueeText(subtitle, font: .caption)
                     .foregroundStyle(FestivalText.primary)
             }
-            Spacer(minLength: 8)
-            trailing
+            Spacer(minLength: 0)
         }
-        .frame(minHeight: 44)
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
     }
 
-    @ViewBuilder private var trailing: some View {
-        VStack(alignment: .trailing, spacing: 2) {
-            if let rivalName = item.rivalName {
-                rivalBadge(rivalName, delta: item.rivalRankDelta ?? 0)
-            }
-            if showsStars, let stars = item.stars, stars > 0 {
-                starRow(stars)
-            }
-            HStack(spacing: 6) {
-                if item.fullCombo == true {
-                    Text("FC")
-                        .font(.caption2.bold())
-                        .foregroundStyle(BrandTokens.statusGreen)
-                        .accessibilityHidden(true)
+    // MARK: Metadata by layout
+
+    @ViewBuilder private var metadata: some View {
+        switch layout {
+        case .hidden:
+            EmptyView()
+        case .rival:
+            HStack(spacing: 8) {
+                if let rivalName = item.rivalName { rivalBadge(rivalName) }
+                if let delta = item.rivalRankDelta, delta != 0 {
+                    Text(delta > 0 ? "+\(delta)" : "\(delta)")
+                        .font(.footnote.bold().monospacedDigit())
+                        .foregroundStyle(delta > 0 ? BrandTokens.statusGreen : BrandTokens.statusRed)
+                        .accessibilityLabel(delta > 0 ? "\(delta) ranks ahead" : "\(-delta) ranks behind")
                 }
-                if let percent = item.percent {
-                    Text(percent.formatted(.number.precision(.fractionLength(0...1))) + "%")
-                        .font(.caption2)
-                        .foregroundStyle(FestivalText.primary)
+                instrumentIcon
+            }
+        case .unfcAccuracy:
+            if let accuracy = SuggestionRowLayout.unfcAccuracy(percent: item.percent) {
+                SongMetadataFieldView(
+                    field: .accuracy(
+                        accuracy, fullCombo: false, percentageVisible: true,
+                        tint: try? ScoreFormatting.accuracyTint(accuracy)
+                    ),
+                    songId: item.song.songId
+                )
+            }
+        case .season:
+            if let season = seasonAchieved, season > 0 {
+                SongMetadataFieldView(
+                    field: .season(season, current: season == currentSeason), songId: item.song.songId
+                )
+            }
+        case .percentile:
+            HStack(spacing: 8) {
+                if let display = item.percentileDisplay {
+                    SongMetadataFieldView(
+                        field: .percentile(display, tier: Self.tier(display)), songId: item.song.songId
+                    )
                 }
+                instrumentIcon
             }
-            if let percentileDisplay = item.percentileDisplay {
-                Text(percentileDisplay)
-                    .font(.caption2)
-                    .foregroundStyle(FestivalText.primary)
+        case .singleInstrument:
+            HStack(spacing: 8) {
+                if showsStars, let stars = item.stars {
+                    StarRating(stars: stars, size: 18)
+                        .accessibilityLabel(stars >= 6 ? "5 gold stars" : "\(stars) stars")
+                }
+                instrumentIcon
             }
-        }
-        .accessibilityHidden(true)
-    }
-
-    /// A `song_rival_*` category's rival annotation (web `CategoryCard`'s `layout: 'rival'`
-    /// `RightContent`): the rival's name in a tinted capsule plus a colored signed rank delta.
-    /// Always the "song rival" color (blue) here — every rival family this app ports comes
-    /// from `/rivals/all`'s per-song data; there is no leaderboard-rival source yet to need
-    /// the web's second (gold) color.
-    private func rivalBadge(_ name: String, delta: Int) -> some View {
-        HStack(spacing: 6) {
-            Text(name.count > 12 ? "\(name.prefix(11))\u{2026}" : name)
-                .font(.caption2.weight(.semibold))
-                .lineLimit(1)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Capsule().fill(BrandTokens.accentBlue.opacity(0.2)))
-                .foregroundStyle(BrandTokens.accentBlue)
-            if delta != 0 {
-                Text(delta > 0 ? "+\(delta)" : "\(delta)")
-                    .font(.caption2.bold())
-                    .foregroundStyle(delta > 0 ? BrandTokens.statusGreen : BrandTokens.statusRed)
-            }
+        case .instrumentChips:
+            SongInstrumentStatusChips(
+                songId: item.song.songId,
+                badges: SongInstrumentStatusPolicy.badges(
+                    for: item.song, visibleInstruments: visibleInstruments,
+                    scores: session.selectedPlayerScores[item.song.songId] ?? [:]
+                ),
+                keyboard: item.song.usesKeyboardIcon
+            )
+            .fixedSize()
         }
     }
 
-    /// The web's star PNG row (`CategoryCard.RightContent`): that many white stars, or
-    /// five gold stars for a six-star score.
+    @ViewBuilder private var instrumentIcon: some View {
+        if let rowInstrument {
+            InstrumentIcon(rowInstrument, size: 28)
+                .accessibilityLabel(rowInstrument.label)
+        }
+    }
+
+    /// Season the selected player's current score was set in: this row's chart, or the
+    /// latest across charts for an instrument-agnostic row (web `layout: 'season'`).
+    private var seasonAchieved: Int? {
+        let scores = session.selectedPlayerScores[item.song.songId] ?? [:]
+        if let rowInstrument { return scores[rowInstrument]?.season }
+        return scores.values.compactMap(\.season).max()
+    }
+
+    /// Web `PercentilePill` auto tier: gold italic for Top 1%, gold for Top 5%.
     ///
-    /// - Parameter stars: Raw service star count (1...6).
-    /// - Returns: The bundled-artwork star row.
-    private func starRow(_ stars: Int) -> some View {
-        StarRating(stars: stars, size: 20)
+    /// - Parameter display: "Top N%" label.
+    /// - Returns: The pill tier.
+    static func tier(_ display: String) -> SongPercentileTier {
+        let digits = display.filter { $0.isNumber || $0 == "." }
+        guard let value = Double(digits) else { return .ordinary }
+        return value <= 1 ? .topOne : value <= 5 ? .topFive : .ordinary
     }
+
+    /// A rival category's badge (web `rivalBadge`): the name, truncated past 12
+    /// characters, in a tinted capsule. Song rivals are blue; there is no
+    /// leaderboard-rival source yet to need the web's gold variant.
+    private func rivalBadge(_ name: String) -> some View {
+        Text(name.count > 12 ? "\(name.prefix(11))\u{2026}" : name)
+            .font(.caption2.weight(.semibold))
+            .lineLimit(1)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(RoundedRectangle(cornerRadius: 8).fill(Self.songRivalBlue.opacity(0.2)))
+            .foregroundStyle(Self.songRivalBlue)
+    }
+
+    /// Web song-rival badge colour `#4285F4`.
+    private static let songRivalBlue = Color(.sRGB, red: 66 / 255, green: 133 / 255, blue: 244 / 255)
 }
