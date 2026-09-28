@@ -762,7 +762,7 @@ struct SongsScreen: View {
     /// (`.agents/design/apple/duo.md`'s B4), and a small visual gap so a row's
     /// trailing content doesn't sit flush against the capsule's edge.
     private var scrubberTrailingReserve: CGFloat {
-        22 + max(2, deviceLayout.overlayInsets.trailing) + 8
+        22 + max(2, deviceLayout.cutoutInsets.trailing) + 8
     }
 
     private func populatedList(

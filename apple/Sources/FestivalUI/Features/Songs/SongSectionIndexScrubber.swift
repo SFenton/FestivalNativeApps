@@ -30,10 +30,12 @@ struct SongSectionIndexScrubber: View {
     private let feedback = UISelectionFeedbackGenerator()
     #endif
 
-    /// Keep the strip clear of iPhone Duo's system vertical bar (folded, or inner
-    /// landscape), which does not show up in the safe area the List itself sees.
+    /// The strip sits inside the content's safe area, which on iPhone Duo already
+    /// ends at the system vertical bar; only a hardware cutout beyond it needs extra
+    /// room (`cutoutInsets`). `overlayInsets` here counted the bar twice and left a
+    /// bar-wide gap between the strip and the rail.
     private var trailingMargin: CGFloat {
-        max(2, deviceLayout.overlayInsets.trailing)
+        max(2, deviceLayout.cutoutInsets.trailing)
     }
 
     var body: some View {
