@@ -8,6 +8,7 @@ import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
@@ -89,7 +90,7 @@ class BandsUiTest {
         rule.onNodeWithText("Band search isn't available", substring = true).assertIsDisplayed()
         scrollTo("fst.bands.list", "fst.bands.rankings.Band_Trios")
         click("fst.bands.rankings.Band_Trios")
-        waitForTag("fst.coming-soon")
+        rule.waitUntil(10_000) { rule.onAllNodesWithText("Trios Rankings").fetchSemanticsNodes().isNotEmpty() }
         assertTrue(transport.requests.none { it.url.contains("/api/player/") })
     }
 
