@@ -20,11 +20,11 @@
 |---|---|---|
 | `/api/publication`, `/api/songs` | allowed | Songs ETag/304 valid only within the observed publication |
 | `/api/leaderboard/{song}/{instrument}?top=&offset=[&leeway=]` | allowed | `leeway` only with invalid-score filtering on |
-| `/api/leaderboard/{song}/all?top=10` | 403 on 2026-09-25 | TODO(orchestrator): re-probe; natives use per-chart `top=10` meanwhile |
+| `/api/leaderboard/{song}/all?top=10` | allowed | Re-probed 2026-09-27: 200 keyless |
 | `/api/paths/{song}/{instrument}/{difficulty}` and `/data` | allowed (200) | PNG and schema-2 JSON |
 | `/api/shop` | allowed (200) | Validate outbound URLs are `https://www.fortnite.com/item-shop/jam-tracks/…` |
 | `/api/rankings/*` | allowed (200, re-probed 2026-09-27) | Earlier Cloudflare 1010 denial no longer applies |
-| `/api/account/search?q=&limit=10` | 403 on 2026-09-25 | TODO(orchestrator): re-probe. Publication-bound (`FSTService/Api/ApiPublicationClassification.cs:78-84`). An empty envelope is also returned after a logged DB timeout (`FSTService/Persistence/MetaDatabase.cs:3495-3517,3523-3537`) — never proof of no match |
+| `/api/account/search?q=&limit=10` | allowed | Re-probed 2026-09-27: 200 keyless. Publication-bound (`FSTService/Api/ApiPublicationClassification.cs:78-84`). An empty envelope is also returned after a logged DB timeout (`FSTService/Persistence/MetaDatabase.cs:3495-3517,3523-3537`) — never proof of no match |
 | `/api/player/{accountId}` | allowed, not yet probed live | 202 = syncing; 200 ≠ registered/published (`FSTService/Api/PlayerEndpoints.cs:31-51,85-103`, `FSTService/Scraping/ScrapeTimePrecomputer.cs:911-953,2442-2476`) |
 | band search, player stats, band sync-status | **blocked** | See hard rules |
 

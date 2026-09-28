@@ -18,3 +18,5 @@ jobs:
       - run: python3 tools/parity_backlog.py
       - run: python3 tools/generate_tokens.py --check
       - run: python3 -m tools.contrast_gate
+      - run: python3 .agents/_tools/check_docs.py
+      - run: python3 -m unittest discover -s .agents/_tools

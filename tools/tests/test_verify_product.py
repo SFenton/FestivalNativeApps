@@ -76,7 +76,7 @@ class ProductValidationTests(unittest.TestCase):
             )
             self.assertEqual(validate_product(self.manifest, root=root), [])
             source.write_text(
-                'view.accessibilityIdentifier("fst.songs.unknown-control")',
+                'view.accessibilityIdentifier("fst.unfamiliar-area.unknown-control")',
                 encoding="utf-8",
             )
             errors = validate_product(self.manifest, root=root)

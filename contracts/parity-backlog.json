@@ -6,8 +6,7 @@
     {
       "id": "service-public-data",
       "priority": 0,
-      "status": "blocked",
-      "blockedOn": "The deployed Cloudflare Error 1010 denied nominally public search, rankings and batched chart reads on 2026-09-25; public native-client access is not established. Band search also has a missing-projection GET fallback that writes membership state. The service owner must authorize an accessible, mutation-free native read policy without bypass headers or distributing X-API-Key.",
+      "status": "in_progress",
       "shared": true,
       "dependsOn": [],
       "sourceRefs": [
@@ -16,7 +15,7 @@
       ],
       "acceptance": [
         "Typed, publication-consistent, keyless GETs decode real wire envelopes and reject invalid/late responses.",
-        "Resolve deployed Cloudflare 1010 access-denied responses for public search, rankings and batched chart reads without bypass headers, a privileged key or empty-data fallbacks.",
+        "Public search, rankings and batched chart reads return 200 keyless to native user agents (re-probed 2026-09-27); keep it that way without bypass headers, a privileged key or empty-data fallbacks.",
         "Guarantee band search and all selected-profile-dependent GETs do not write before allowing native clients to issue them; use no selected-profile headers, stats GET or band sync-status GET while that policy is unresolved.",
         "Use opt-in, bounded live schema probes and deterministic local fixtures; never automate production mutations."
       ]
