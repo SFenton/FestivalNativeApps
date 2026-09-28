@@ -20,7 +20,7 @@ Status of record: [contracts/parity-backlog.json](../../contracts/parity-backlog
 | rivalry | `/rivals/:rivalId/rivalry` | player | absent | [spec (stub)](rivalry/spec.md) | [ios](rivalry/ios.md) |
 | statistics | `/statistics` | selection | absent | [spec (stub)](statistics/spec.md) | — |
 | suggestions | `/suggestions` | selection | absent | [spec (stub)](suggestions/spec.md) | [ios](suggestions/ios.md) · [windows](suggestions/windows.md) |
-| shop | `/shop` | none | partial | [spec](shop/spec.md) | [ios](shop/ios.md) · [ipados](shop/ipados.md) |
+| shop | `/shop` | none | partial | [spec](shop/spec.md) | [ios](shop/ios.md) · [ipados](shop/ipados.md) · [windows](shop/windows.md) |
 | leaderboards | `/leaderboards` | none | placeholder | [spec (stub)](leaderboards/spec.md) | [ios](leaderboards/ios.md) · [windows](leaderboards/windows.md) |
 | full-rankings | `/leaderboards/all` | none | absent | [spec (stub)](full-rankings/spec.md) | [ios](full-rankings/ios.md) · [windows](full-rankings/windows.md) |
 | band-rankings | `/leaderboards/bands/:bandType` | none | absent | [spec (stub)](band-rankings/spec.md) | [windows](band-rankings/windows.md) |
