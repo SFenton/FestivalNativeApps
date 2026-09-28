@@ -10,6 +10,7 @@ from urllib.request import Request, urlopen
 from tools.mock_service import (
     DEMO_SONGS, FixtureHandler, FixtureServer, ROOT,
     fixture_artwork, fixture_path_image,
+    _band_detail, _band_ranking_entry, _ranking_entry, _song_band_leaderboard_entry,
 )
 
 
@@ -77,6 +78,20 @@ class MockServiceTests(unittest.TestCase):
         self.assertEqual(error.exception.headers["X-FST-Publication-Id"], "7")
         with urlopen(self.base + "/api/songs?scenario=empty") as response:
             self.assertEqual(json.load(response)["count"], 0)
+
+    def test_ranking_and_band_accuracy_use_the_live_ten_thousandths_scale(self):
+        """Accuracy fields match production (`1000000` = 100%), never a 0–1 fraction or per-mille."""
+        rows = [
+            _ranking_entry(1, "fixture-player-1", "Player"),
+            _band_ranking_entry(1), _band_detail("fixture-team-1", 1, "Band_Duets"),
+        ]
+        values = [row["avgAccuracy"] for row in rows]
+        song_row = _song_band_leaderboard_entry(1, "Band_Duets")
+        values += [song_row["accuracy"], *(m["accuracy"] for m in song_row["members"])]
+        for value in values:
+            with self.subTest(value=value):
+                self.assertGreaterEqual(value, 500_000)
+                self.assertLessEqual(value, 1_000_000)
 
     def test_player_rank_history_is_a_bounded_pure_read(self):
         """Demo players get the committed 7-day series; others are unranked, not 404."""

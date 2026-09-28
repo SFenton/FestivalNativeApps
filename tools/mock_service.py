@@ -153,7 +153,7 @@ def _ranking_entry(rank: int, account_id: str, display_name: str) -> dict:
         "fcRate": max(0.1, 0.6 - rank * 0.1), "fcRateRank": rank,
         "totalScore": 90_000_000 - rank * 1_000_000, "totalScoreRank": rank,
         "maxScorePercent": max(0.5, 0.99 - rank * 0.02), "maxScorePercentRank": rank,
-        "avgAccuracy": 0.99, "fullComboCount": max(0, 20 - rank),
+        "avgAccuracy": 990_000 - rank * 1_000, "fullComboCount": max(0, 20 - rank),
         "avgStars": 4.9, "bestRank": 1, "avgRank": float(rank),
     }
 
@@ -178,7 +178,7 @@ def _band_ranking_entry(rank: int) -> dict:
         "adjustedSkillRank": rank, "weightedRating": 0.05 - rank * 0.01, "weightedRank": rank,
         "fcRate": max(0.1, 0.4 - rank * 0.1), "fcRateRank": rank,
         "totalScore": 50_000_000 - rank * 500_000, "totalScoreRank": rank,
-        "avgAccuracy": 0.95, "fullComboCount": max(0, 10 - rank),
+        "avgAccuracy": 970_000 - rank * 1_000, "fullComboCount": max(0, 10 - rank),
         "avgStars": 4.5, "bestRank": 1, "avgRank": float(rank),
 
     }
@@ -232,7 +232,7 @@ def _band_detail(team_key: str, rank: int, band_type: str) -> dict:
         "adjustedSkillRank": rank, "weightedRating": 0.05 - rank * 0.01, "weightedRank": rank,
         "fcRate": max(0.1, 0.4 - rank * 0.1), "fcRateRank": rank,
         "totalScore": 50_000_000 - rank * 500_000, "totalScoreRank": rank,
-        "avgAccuracy": 0.95, "fullComboCount": max(0, 10 - rank),
+        "avgAccuracy": 970_000 - rank * 1_000, "fullComboCount": max(0, 10 - rank),
         "avgStars": 4.5, "bestRank": 1, "avgRank": float(rank),
         "rawWeightedRating": 0.05 - rank * 0.01, "computedAt": "2024-01-05T00:00:00Z",
     }
@@ -282,17 +282,17 @@ def _song_band_leaderboard_entry(rank: int, band_type: str) -> dict:
             {
                 "accountId": f"fixture-band-{rank}-a", "displayName": f"Band {rank} Member A",
                 "instruments": ["Solo_Guitar"], "score": 95_000 - rank * 500,
-                "accuracy": 970, "isFullCombo": rank == 1, "stars": 5,
+                "accuracy": 970_000, "isFullCombo": rank == 1, "stars": 5,
                 "difficulty": 4, "season": 10,
             },
             {
                 "accountId": f"fixture-band-{rank}-b", "displayName": f"Band {rank} Member B",
                 "instruments": ["Solo_Bass"], "score": 94_500 - rank * 500,
-                "accuracy": 960, "isFullCombo": rank == 1, "stars": 5,
+                "accuracy": 960_000, "isFullCombo": rank == 1, "stars": 5,
                 "difficulty": 4, "season": 10,
             },
         ],
-        "score": 95_000 - rank * 500, "rank": rank, "accuracy": 965,
+        "score": 95_000 - rank * 500, "rank": rank, "accuracy": 965_000,
         "isFullCombo": rank == 1, "stars": 5, "season": 10, "difficulty": 4,
         "percentile": 0.1 * rank, "endTime": None,
     }
@@ -1089,13 +1089,13 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 best = [{
                     "songId": "fixture-pulse", "comboId": None, "rank": 1,
                     "totalEntries": 10, "percentile": 0.1, "score": 95_000,
-                    "accuracy": 970, "isFullCombo": True, "stars": 5,
+                    "accuracy": 970_000, "isFullCombo": True, "stars": 5,
                     "season": 10, "endTime": None,
                 }]
                 worst = [{
                     "songId": "fixture-ghost-song", "comboId": None, "rank": 8,
                     "totalEntries": 10, "percentile": 0.8, "score": 40_000,
-                    "accuracy": 800, "isFullCombo": False, "stars": 2,
+                    "accuracy": 800_000, "isFullCombo": False, "stars": 2,
                     "season": 10, "endTime": None,
                 }]
             else:
