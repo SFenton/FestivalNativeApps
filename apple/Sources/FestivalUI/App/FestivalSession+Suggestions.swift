@@ -58,9 +58,22 @@ final class SuggestionsViewModel {
     /// Load the catalogue and (re)build the generator only when the player or the
     /// catalogue's observed publication has actually changed; otherwise a no-op.
     ///
+    /// Also kicks off the selected player's own score fetch when nothing else has yet
+    /// (e.g. arriving on this tab directly, without ever visiting Songs first — Songs
+    /// opportunistically calls `refreshSelectedPlayer()` on `.loading`/`.failed`, but that
+    /// is per-screen, not automatic; `PlayerProfileContent` similarly does its own fetch
+    /// rather than depending on another screen to have populated the session first).
+    ///
     /// - Parameter session: Shared app session (selected player, score index, catalogue).
     func ensureLoaded(session: FestivalSession) async {
-        guard let player = session.selectedPlayer, session.playerLoadState == .available else { return }
+        guard let player = session.selectedPlayer else { return }
+        switch session.playerLoadState {
+        case .loading, .failed:
+            await session.refreshSelectedPlayer()
+        case .none, .available, .syncing:
+            break
+        }
+        guard session.playerLoadState == .available else { return }
         if categories.isEmpty, loadState != .loading { loadState = .loading }
         do {
             let payload = try await session.catalog()
