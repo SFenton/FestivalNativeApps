@@ -15,20 +15,24 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid ColumnSpacing="12">
+        <Grid ColumnSpacing="12" RowSpacing="8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
             <controls:InstrumentIcon File="{x:Bind ViewModel.IconFile, Mode=OneWay}" Label="{x:Bind ViewModel.InstrumentLabel}"
                                      Width="36" Height="36" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
             <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                <TextBlock Text="{x:Bind ViewModel.Title}" Style="{StaticResource FSTPageTitleStyle}" AutomationProperties.HeadingLevel="Level1" />
+                <TextBlock Text="{x:Bind ViewModel.Title}" Style="{StaticResource FSTPageTitleStyle}" TextWrapping="NoWrap"
+                           TextTrimming="CharacterEllipsis" AutomationProperties.HeadingLevel="Level1" />
                 <TextBlock Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}"
                            AutomationProperties.AutomationId="fst.history.subtitle" />
             </StackPanel>
-            <DropDownButton Grid.Column="2" VerticalAlignment="Center" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
+            <DropDownButton Grid.Row="1" Grid.ColumnSpan="2" HorizontalAlignment="Left" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
                             AutomationProperties.Name="{x:Bind ViewModel.SortAnnouncement, Mode=OneWay}"
                             AutomationProperties.AutomationId="fst.history.sort.open">
                 <StackPanel Orientation="Horizontal" Spacing="8">
@@ -74,21 +78,22 @@
                 <DataTemplate x:DataType="vm:ScoreHistoryRow">
                     <Border Style="{StaticResource FSTCardStyle}" Padding="16,10" AutomationProperties.Name="{x:Bind Announcement}"
                             BorderBrush="{x:Bind controls:PlayerBrushes.Highlight(IsHighScore)}">
-                        <Grid ColumnSpacing="12">
+                        <Grid ColumnSpacing="12" RowSpacing="2">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <StackPanel VerticalAlignment="Center">
-                                <TextBlock Text="{x:Bind Score}" Style="{StaticResource BodyStrongTextBlockStyle}"
-                                           Foreground="{x:Bind controls:PlayerBrushes.Stars(IsHighScore)}" />
-                                <TextBlock Text="{x:Bind Date}" FontSize="12" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-                            </StackPanel>
-                            <TextBlock Grid.Column="1" Text="{x:Bind Stars}" VerticalAlignment="Center"
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="{x:Bind Score}" Style="{StaticResource BodyStrongTextBlockStyle}" VerticalAlignment="Center"
+                                       Foreground="{x:Bind controls:PlayerBrushes.Stars(IsHighScore)}" />
+                            <TextBlock Grid.Column="1" Text="{x:Bind Stars}" VerticalAlignment="Center" HorizontalAlignment="Right"
                                        Foreground="{x:Bind controls:PlayerBrushes.Stars(GoldStars)}" />
-                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <TextBlock Grid.Row="1" Text="{x:Bind Detail}" FontSize="12" VerticalAlignment="Center"
+                                       Foreground="{ThemeResource FSTSecondaryTextBrush}" TextTrimming="CharacterEllipsis" />
+                            <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
                                 <Border CornerRadius="4" Padding="6,2" Background="{ThemeResource FSTSurfaceMutedBrush}" Visibility="{x:Bind HasAccuracy}">
                                     <TextBlock Text="{x:Bind Accuracy}" FontSize="12" />
                                 </Border>
@@ -96,8 +101,6 @@
                                     <TextBlock Text="FC" FontSize="12" FontWeight="SemiBold" Foreground="Black" />
                                 </Border>
                             </StackPanel>
-                            <TextBlock Grid.Column="3" Text="{x:Bind Season}" FontSize="12" VerticalAlignment="Center" MinWidth="64"
-                                       TextAlignment="Right" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
                         </Grid>
                     </Border>
                 </DataTemplate>

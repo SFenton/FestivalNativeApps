@@ -361,6 +361,7 @@ public class PlayerHistoryViewModelTests
         Assert.Equal("99%", best.Accuracy);
         Assert.True(best.HasAccuracy);
         Assert.Equal("Season 9", best.Season);
+        Assert.EndsWith(" · Season 9", best.Detail);
         Assert.Equal("★★★★★", best.Stars);
         Assert.False(best.GoldStars);
         Assert.Contains("personal best", best.Announcement);
@@ -428,6 +429,7 @@ public class PlayerHistoryViewModelTests
         Assert.Equal("", row.Accuracy);
         Assert.False(row.HasAccuracy);
         Assert.Equal("", row.Season);
+        Assert.Equal(row.Date, row.Detail);
         Assert.True(row.GoldStars);
         Assert.Equal("★★★★★", row.Stars);
         Assert.Equal("", new ScoreHistoryRow(new ScoreHistoryEntry { ChangedAt = "x" }, false).Stars);

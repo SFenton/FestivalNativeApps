@@ -20,8 +20,8 @@ public abstract partial class PlayerLineChart : Grid
     private readonly Canvas plot = new();
     private readonly Canvas bars = new();
     private readonly Canvas labels = new();
-    private readonly TextBlock start = new() { FontSize = 12 };
-    private readonly TextBlock end = new() { FontSize = 12, HorizontalAlignment = HorizontalAlignment.Right };
+    private readonly TextBlock start = new() { FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly TextBlock end = new() { FontSize = 12, HorizontalAlignment = HorizontalAlignment.Right, TextTrimming = TextTrimming.CharacterEllipsis };
 
     /// <summary>Builds the layout: plot, optional bar strip, date row.</summary>
     /// <param name="plotHeight">Line plot height.</param>
@@ -40,9 +40,12 @@ public abstract partial class PlayerLineChart : Grid
         Children.Add(bars);
         SetRow(bars, 1);
         SetColumn(bars, 1);
-        var dates = new Grid { Margin = new Thickness(0, 4, 0, 0) };
+        var dates = new Grid { Margin = new Thickness(0, 4, 0, 0), ColumnSpacing = 8 };
+        dates.ColumnDefinitions.Add(new ColumnDefinition());
+        dates.ColumnDefinitions.Add(new ColumnDefinition());
         dates.Children.Add(start);
         dates.Children.Add(end);
+        SetColumn(end, 1);
         Children.Add(dates);
         SetRow(dates, 2);
         SetColumn(dates, 1);

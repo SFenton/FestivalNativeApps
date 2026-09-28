@@ -125,8 +125,10 @@ public sealed record ScoreHistoryChartModel(List<ChartPoint> Points, List<ChartT
         var ticks = new[] { top, (top + bottom) / 2, bottom }
             .Select(v => new ChartTick((top - v) / range, ScoreFormatting.Score(v))).ToList();
         var best = dated[bestIndex];
+        static string Axis(ScoreHistoryEntry e) => e.DisplayDate!.Value.ToLocalTime().ToString(
+            e.DisplayDate.Value.Year == DateTimeOffset.Now.Year ? "MMM d" : "MMM d, yyyy", CultureInfo.CurrentCulture);
         return new ScoreHistoryChartModel(points, ticks,
-            dated[0].DateText, dated[^1].DateText,
+            Axis(dated[0]), Axis(dated[^1]),
             $"{dated.Count} score changes from {dated[0].DateText} to {dated[^1].DateText}. Best {ScoreFormatting.Score(best.NewScore)} on {best.DateText}.");
     }
 }

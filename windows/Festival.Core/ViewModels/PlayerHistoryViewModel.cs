@@ -267,6 +267,9 @@ public sealed record ScoreHistoryRow(ScoreHistoryEntry Entry, bool IsHighScore)
     /// <summary>Score.</summary>
     public string Score => ScoreFormatting.Score(Entry.NewScore);
 
+    /// <summary>"date · Season 9" second line.</summary>
+    public string Detail => Season.Length > 0 ? $"{Date} · {Season}" : Date;
+
     /// <summary>Accuracy, or empty.</summary>
     public string Accuracy => ScoreFormatting.Accuracy(Entry.Accuracy);
 
