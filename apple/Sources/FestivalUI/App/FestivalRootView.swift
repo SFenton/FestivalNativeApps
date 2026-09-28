@@ -139,6 +139,7 @@ public struct FestivalRootView: View {
         }
         .tint(moreContrast || systemContrast == .increased
             ? BrandTokens.textPrimary : BrandTokens.accentBlue)
+        .publishesDeviceLayout(usesSidebarShell: !usesDrawer)
     }
 
     // MARK: - Platform shell
