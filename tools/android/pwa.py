@@ -195,7 +195,11 @@ class AndroidLab:
     # region Device steps
 
     def tree(self) -> str:
-        return self.device.dump_tree()
+        """UIAutomator XML ("" when the dump yields nothing, e.g. mid-transition)."""
+        try:
+            return self.device.dump_tree() or ""
+        except dv.DeviceError:
+            return ""
 
     def try_step(self, step: str) -> bool:
         """Run a ``device.py`` step; ``False`` if its node is absent."""
