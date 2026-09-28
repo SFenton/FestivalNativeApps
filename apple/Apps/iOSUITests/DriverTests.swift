@@ -295,7 +295,10 @@ final class DriverTests: XCTestCase {
                 throw DriverError.elementNotFound(identifier)
             }
         case .back:
-            let button = app.navigationBars.buttons.firstMatch
+            // iPhone Duo puts Back in the system vertical bar, outside any navigation bar.
+            let system = app.buttons["BackButton"]
+            let button = system.waitForExistence(timeout: 2) && system.isHittable
+                ? system : app.navigationBars.buttons.firstMatch
             guard button.waitForExistence(timeout: 10) else {
                 throw DriverError.elementNotFound("navigationBars.buttons.firstMatch")
             }

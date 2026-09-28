@@ -35,12 +35,27 @@ Defined in `apple/Apps/iOSUITests/DriverTests.swift` (`DriverStep.parse`):
 | `type:<text>` | Type into the current first responder |
 | `wait:<seconds>` | Sleep |
 | `waitFor:<id>` | Wait up to 20s for an element to exist |
-| `back` | Tap the leading navigation bar button |
+| `back` | Tap the system `BackButton` (iPhone Duo puts it in the vertical bar), else the leading navigation bar button |
 | `shot:<path>` | Write a full-screen PNG to an absolute host path |
 | `tree:<path>` | Write `app.debugDescription` (the accessibility hierarchy) to an absolute host path — the fastest way to discover identifiers before scripting taps |
-| `rotate:<portrait\|portraitUpsideDown\|landscapeLeft\|landscapeRight\|faceUp\|faceDown>` | Set device orientation |
+| `rotate:<portrait\|portraitUpsideDown\|landscapeLeft\|landscapeRight\|faceUp\|faceDown>` | Set device orientation (ignored by the iPhone Duo outer display) |
 
 A `tree:` dump early in a script is the standard way to find an unknown identifier: run `drive` with just `wait:1; tree:/tmp/x.txt`, `grep` the file for `identifier:`, then script the real steps.
+
+## Duo poses and panels
+
+Xcode 27.1 has **no scripted fold or rotation** for iPhone Duo: no `simctl` subcommand, no `XCUIDevice` API, and `rotate:` leaves the outer window portrait. Set the pose and rotation by hand in Device Hub; the tool can only verify the pose and pick the panel ([platforms/apple/duo.md](../platforms/apple/duo.md#simulator-alias-duo)).
+
+```
+python3 tools/ios_sim.py pose                               # prints folded | unfolded | unknown (lit panel)
+python3 tools/ios_sim.py shot --device duo --pose folded --display auto --out /tmp/duo.png
+python3 tools/ios_sim.py drive --device duo --pose unfolded --steps "wait:3; shot:/tmp/inner.png"
+python3 tools/ios_sim.py shutdown --device duo              # leave the Duo off when done
+```
+
+- `--pose folded|unfolded` (`shot`, `drive`): checked right after boot inside the lock; a mismatch exits **3** with Device Hub instructions and releases the lock.
+- `--display outer|inner|auto` (`shot`): which panel `simctl io screenshot` captures (`primary` / `primary-1`); `auto` is the lit one. Omitted = simctl's first display (outer), as before.
+- Every command boots through `boot_exclusive`, which shuts down other FST devices first.
 
 ## Examples
 

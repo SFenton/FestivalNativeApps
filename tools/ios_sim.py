@@ -325,6 +325,122 @@ def boot_exclusive(udid: str) -> None:
 
 # endregion
 
+# region iPhone Duo panels and pose
+
+#: iPhone Duo panels as ``simctl io --display`` device names (the device type's
+#: ``capabilities.plist`` ``displays``): outer 1398x2034 px, inner 2007x2853 px.
+DUO_PANELS = {"outer": "primary", "inner": "primary-1"}
+
+#: Pose implied by which panel is lit. Only Device Hub can *change* the pose (no
+#: simctl/XCTest hinge control in Xcode 27.1); this tool can only verify it.
+POSE_PANEL = {"folded": "outer", "unfolded": "inner"}
+
+
+def bmp_is_dark(data: bytes, threshold: int = 8) -> bool:
+    """Decide whether an uncompressed BMP screenshot is (near) black.
+
+    An unlit Duo panel screenshots as pure black, so this identifies which panel
+    the system is driving without any image library.
+
+    Args:
+        data: A 24- or 32-bit BMP (``simctl io screenshot --type=bmp``).
+        threshold: Largest colour byte still considered black.
+
+    Returns:
+        True if no colour channel exceeds ``threshold``.
+
+    Raises:
+        ValueError: Not a 24/32-bit uncompressed BMP.
+    """
+    if data[:2] != b"BM" or len(data) < 54:
+        raise ValueError("not a BMP")
+    offset = int.from_bytes(data[10:14], "little")
+    step = int.from_bytes(data[28:30], "little") // 8
+    if step not in (3, 4):
+        raise ValueError(f"unsupported BMP depth {step * 8}")
+    pixels = data[offset:]
+    # 24-bit rows are zero-padded (dark), so every byte may be checked; 32-bit skips alpha.
+    channels = range(step) if step == 3 else range(3)
+    return all(max(pixels[channel::step], default=0) <= threshold for channel in channels)
+
+
+def classify_pose(outer_dark: bool, inner_dark: bool) -> str:
+    """Map lit panels to a pose name.
+
+    Args:
+        outer_dark: The outer (cover) panel screenshot is black.
+        inner_dark: The inner (unfolding) panel screenshot is black.
+
+    Returns:
+        ``"folded"``, ``"unfolded"`` or ``"unknown"`` (both or neither lit).
+    """
+    if not outer_dark and inner_dark:
+        return "folded"
+    if outer_dark and not inner_dark:
+        return "unfolded"
+    return "unknown"
+
+
+def detect_pose(udid: str) -> str:
+    """Screenshot both Duo panels and report the pose. Call under the simulator lock.
+
+    Args:
+        udid: A booted iPhone Duo simulator.
+
+    Returns:
+        ``"folded"``, ``"unfolded"`` or ``"unknown"`` (also for non-Duo devices).
+    """
+    dark = {}
+    with tempfile.TemporaryDirectory() as folder:
+        for panel, display in DUO_PANELS.items():
+            path = Path(folder) / f"{panel}.bmp"
+            result = _run(["xcrun", "simctl", "io", udid, "screenshot", "--type=bmp",
+                           f"--display={display}", str(path)], check=False, capture_output=True)
+            if result.returncode or not path.exists():
+                return "unknown"
+            dark[panel] = bmp_is_dark(path.read_bytes())
+    return classify_pose(dark["outer"], dark["inner"])
+
+
+def require_pose(udid: str, pose: str | None) -> str | None:
+    """Verify the Duo pose before a capture. Call under the simulator lock.
+
+    Args:
+        udid: Booted simulator.
+        pose: Required pose (``folded``/``unfolded``), or None to skip the check.
+
+    Returns:
+        None when satisfied, otherwise a message telling the operator how to fix it.
+    """
+    if pose is None:
+        return None
+    actual = detect_pose(udid)
+    print(f"duo pose: {actual}", file=sys.stderr)
+    if actual == pose:
+        return None
+    return (f"iPhone Duo is {actual}, not {pose}. Change it in Device Hub "
+            "(Xcode > Open Developer Tool > Device Hub; the pose buttons under the device, "
+            "Option-click for the hinge slider), then re-run. simctl/XCTest cannot fold the device.")
+
+
+def screenshot_display(args: argparse.Namespace, udid: str) -> str | None:
+    """Resolve ``--display`` to a ``simctl io --display`` value.
+
+    Args:
+        args: Parsed ``shot`` arguments (``display``).
+        udid: Booted simulator (used by ``auto`` to find the lit panel).
+
+    Returns:
+        A display device name, or None for simctl's default (the first display).
+    """
+    if args.display in DUO_PANELS:
+        return DUO_PANELS[args.display]
+    if args.display == "auto":
+        return DUO_PANELS[POSE_PANEL.get(detect_pose(udid), "outer")]
+    return None
+
+# endregion
+
 # region Commands
 
 
@@ -356,10 +472,11 @@ def cmd_shot(args: argparse.Namespace) -> int:
     """Install, launch and screenshot under the global simulator lock.
 
     Args:
-        args: Parsed CLI arguments (device, tab, route, env, wait, out, keep).
+        args: Parsed CLI arguments (device, tab, route, env, wait, out, keep,
+            pose, display).
 
     Returns:
-        Process exit code.
+        Process exit code (3 when ``--pose`` does not match the device).
     """
     udid = resolve_device(args.device)
     app = app_path()
@@ -371,6 +488,11 @@ def cmd_shot(args: argparse.Namespace) -> int:
         lock.flush()
         boot_exclusive(udid)
         _run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True)
+        problem = require_pose(udid, args.pose)
+        if problem:
+            print(problem, file=sys.stderr)
+            return 3
+        display = screenshot_display(args, udid)
         _run(["xcrun", "simctl", "install", udid, str(app)])
         _run(["xcrun", "simctl", "terminate", udid, BUNDLE_ID], check=False, capture_output=True)
         launch_env = _env()
@@ -385,7 +507,8 @@ def cmd_shot(args: argparse.Namespace) -> int:
         for index, out in enumerate(args.out):
             time.sleep(args.wait if index == 0 else args.interval)
             Path(out).parent.mkdir(parents=True, exist_ok=True)
-            _run(["xcrun", "simctl", "io", udid, "screenshot", out], capture_output=True)
+            selector = [f"--display={display}"] if display else []
+            _run(["xcrun", "simctl", "io", udid, "screenshot", *selector, out], capture_output=True)
             print(out)
         if not args.keep:
             _run(["xcrun", "simctl", "terminate", udid, BUNDLE_ID], check=False, capture_output=True)
@@ -467,6 +590,10 @@ def cmd_drive(args: argparse.Namespace) -> int:
             lock.flush()
             boot_exclusive(udid)
             _run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True)
+            problem = require_pose(udid, args.pose)
+            if problem:
+                print(problem, file=sys.stderr)
+                return 3
             cmd = [
                 "xcodebuild", "-project", "FestivalNativeApple.xcodeproj", "-scheme", "FestivalMobile",
                 "-destination", f"platform=iOS Simulator,id={udid}",
@@ -665,6 +792,57 @@ def _run_uitest_batch(
     elapsed = time.time() - start
     return process.returncode, elapsed, log_path, result_bundle
 
+def _with_sim_lock(udid: str, action) -> int:
+    """Boot ``udid`` exclusively under the simulator lock and run ``action(udid)``.
+
+    Args:
+        udid: Simulator to boot.
+        action: Callable returning an exit code.
+
+    Returns:
+        ``action``'s exit code.
+    """
+    LOCK_PATH.touch(exist_ok=True)
+    with open(LOCK_PATH, "w") as lock:
+        print(f"waiting for simulator lock {LOCK_PATH} ...", file=sys.stderr)
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        lock.write(f"{os.getpid()} {REPO_ROOT}\n")
+        lock.flush()
+        return action(udid)
+
+
+def cmd_pose(args: argparse.Namespace) -> int:
+    """Print the iPhone Duo pose (``folded``/``unfolded``/``unknown``) under the lock.
+
+    Args:
+        args: Parsed CLI arguments (device).
+
+    Returns:
+        0 when the pose is known, 1 otherwise.
+    """
+    def action(udid: str) -> int:
+        boot_exclusive(udid)
+        _run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True)
+        pose = detect_pose(udid)
+        print(pose)
+        return 0 if pose != "unknown" else 1
+    return _with_sim_lock(resolve_device(args.device), action)
+
+
+def cmd_shutdown(args: argparse.Namespace) -> int:
+    """Shut down one product simulator under the lock (e.g. the Duo after a Duo session).
+
+    Args:
+        args: Parsed CLI arguments (device).
+
+    Returns:
+        Process exit code.
+    """
+    def action(udid: str) -> int:
+        _run(["xcrun", "simctl", "shutdown", udid], check=False, capture_output=True)
+        return 0
+    return _with_sim_lock(resolve_device(args.device), action)
+
 # endregion
 
 
@@ -693,6 +871,10 @@ def main(argv: list[str] | None = None) -> int:
     shot.add_argument("--interval", type=float, default=2.0, help="seconds between screenshots")
     shot.add_argument("--out", action="append", required=True, help="screenshot path (repeatable)")
     shot.add_argument("--keep", action="store_true", help="leave the app running")
+    shot.add_argument("--pose", choices=sorted(POSE_PANEL),
+                      help="iPhone Duo: fail (exit 3) unless the device is in this pose (set it in Device Hub)")
+    shot.add_argument("--display", choices=[*sorted(DUO_PANELS), "auto"],
+                      help="iPhone Duo panel to capture; auto = the lit panel (default: simctl's first display)")
     shot.set_defaults(func=cmd_shot)
 
     drive = sub.add_parser(
@@ -705,6 +887,8 @@ def main(argv: list[str] | None = None) -> int:
     drive.add_argument("--timeout", type=float, default=180.0,
                        help="kill the run after this many seconds (default 180) so the sim lock is released")
     drive.add_argument("--route", help="FST_DEBUG_ROUTE, applied at app launch")
+    drive.add_argument("--pose", choices=sorted(POSE_PANEL),
+                       help="iPhone Duo: fail (exit 3) unless the device is in this pose (set it in Device Hub)")
     drive.add_argument("--env", action="append", help="extra KEY=VALUE app launch environment")
     drive.add_argument("--steps", help="';'-separated step script, e.g. 'tap:x; shot:/tmp/a.png'")
     drive.add_argument("--steps-file", help="path to a newline-separated step script")
@@ -731,6 +915,14 @@ def main(argv: list[str] | None = None) -> int:
         "--rebuild", action="store_true", help="force a fresh build-for-testing"
     )
     uitest.set_defaults(func=cmd_uitest)
+
+    pose = sub.add_parser("pose", help="print the iPhone Duo pose from which panel is lit (serialized)")
+    pose.add_argument("--device", default="duo", help=f"alias {sorted(DEVICES)} or UDID")
+    pose.set_defaults(func=cmd_pose)
+
+    shutdown = sub.add_parser("shutdown", help="shut down one product simulator (serialized)")
+    shutdown.add_argument("--device", required=True, help=f"alias {sorted(DEVICES)} or UDID")
+    shutdown.set_defaults(func=cmd_shutdown)
 
     args = parser.parse_args(argv)
     return args.func(args)

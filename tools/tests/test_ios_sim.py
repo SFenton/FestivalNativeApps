@@ -11,6 +11,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from tools.ios_sim import (
+    bmp_is_dark,
+    classify_pose,
     driver_build_stale,
     output_paths,
     parse_steps,
@@ -151,6 +153,45 @@ class DriverBuildStaleTests(unittest.TestCase):
             self._runner_app(derived).mkdir(parents=True)
             write_driver_hash(derived, "same-hash")
             self.assertFalse(driver_build_stale(derived, "same-hash"))
+
+
+def _bmp(pixels: list[tuple[int, int, int]], bits: int = 32) -> bytes:
+    """Build a one-row uncompressed BMP (BGR[A]) for the dark-panel check."""
+    step = bits // 8
+    row = b"".join(bytes((b, g, r) + ((255,) if step == 4 else ())) for r, g, b in pixels)
+    row += b"\0" * ((-len(row)) % 4)
+    header = bytearray(54)
+    header[0:2] = b"BM"
+    header[10:14] = (54).to_bytes(4, "little")
+    header[28:30] = bits.to_bytes(2, "little")
+    return bytes(header) + row
+
+
+class DuoPoseTests(unittest.TestCase):
+    """Panel darkness and pose classification behind ``--pose``/``--display auto``."""
+
+    def test_black_32_bit_panel_is_dark_despite_opaque_alpha(self):
+        self.assertTrue(bmp_is_dark(_bmp([(0, 0, 0)] * 5)))
+
+    def test_any_lit_pixel_is_not_dark(self):
+        self.assertFalse(bmp_is_dark(_bmp([(0, 0, 0), (0, 40, 0)])))
+
+    def test_24_bit_rows_with_padding(self):
+        self.assertTrue(bmp_is_dark(_bmp([(0, 0, 0)] * 3, bits=24)))
+        self.assertFalse(bmp_is_dark(_bmp([(0, 0, 0), (200, 0, 0), (0, 0, 0)], bits=24)))
+
+    def test_near_black_within_threshold(self):
+        self.assertTrue(bmp_is_dark(_bmp([(8, 8, 8)])))
+
+    def test_rejects_non_bmp(self):
+        with self.assertRaises(ValueError):
+            bmp_is_dark(b"\x89PNG" + bytes(60))
+
+    def test_classify_pose(self):
+        self.assertEqual(classify_pose(outer_dark=False, inner_dark=True), "folded")
+        self.assertEqual(classify_pose(outer_dark=True, inner_dark=False), "unfolded")
+        self.assertEqual(classify_pose(outer_dark=True, inner_dark=True), "unknown")
+        self.assertEqual(classify_pose(outer_dark=False, inner_dark=False), "unknown")
 
 
 if __name__ == "__main__":
