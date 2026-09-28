@@ -180,6 +180,13 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 - ⬛ Rival-driven families (`song_rival_*`/`lb_rival_*`) still unported: verified the web needs a combined `GET /api/player/{accountId}/rivals/all` read (`buildRivalDataIndexFromRivalsAll`) that `FestivalAPI+Rivals.swift` doesn't expose yet (only per-instrument reads) — not a service-safety block, just a missing native read; follow-on for whichever lane adds it. Band suggestions still deferred (needs band identity).
 - Coverage: SuggestionGenerator.swift 96.08%, SuggestionFilterSettings.swift 100%, SuggestionModels.swift 96.92% (llvm-cov). 53 `SuggestionGeneratorTests` (was 47), all Core tests green (313 total in the package).
 
+**Lane G3 — Rival-driven suggestions** (Opus) — ✅ landed `9c71219`
+- ✅ `RivalDataIndex.build(from:)` (new `FestivalCore/SuggestionRivalData.swift`) ports the web's `buildRivalDataIndexFromRivalsAll` from `FestivalAPI.rivalsAll(accountId:)`'s `RivalsAllResponse` (Lane K) · ✅ `SuggestionGenerator.setRivalData(_:)` + all ten `song_rival_*` pipelines (`gap`/`protect`/`battleground`/`spotlight`/`slipping`/`dominate` plus the `near_fc`/`stale`/`star_gains`/`pct_push` cross-pollination variants), mirroring the web's two injection paths (join the startup shuffle vs. splice to the front) · ✅ `FestivalSession+Suggestions.swift` loads `rivals/all` alongside the catalogue whenever the generator is (re)built, best-effort (a failed/unavailable read only skips the rival families) · ✅ rival name/delta badge on `SuggestionCategoryCardView`
+- **Finding:** `lb_rival_*` ("Leaderboard Rivals") is dead code on the web itself — `suggestionFilterConfig.ts` reserves the filter type and key prefix, but `buildRivalDataIndexFromRivalsAll` always leaves `leaderboardRivals` empty and no web pipeline ever produces an `lb_rival_*` key. Not ported; documented in `.agents/pages/suggestions/ios.md`.
+- `SuggestionCategoryType` gained `.songRivals`; the filter sheet's existing `SuggestionCategoryType.allCases` iteration picked it up with no UI changes, verified by the existing generic filter tests.
+- 75 `SuggestionGeneratorTests` (was 53) + `RivalDataIndex` tests; Suggestions-Core line coverage 96.13% (SuggestionGenerator.swift 95.71%, SuggestionModels.swift 97.14%, SuggestionFilterSettings.swift 100%, SuggestionRivalData.swift 97.06%). Verified live (`ios_sim.py drive`): "Dominate {rival}" and other rival categories render with the name/delta badge against the live public service.
+- Open: no mid-session re-injection of freshly-updated rival data into an already-built generator (the web's `useSuggestions.ts` re-calls `setRivalData` when its query refreshes; native only calls it once per generator build) — the splice-path code exists and is unit-tested, just not exercised by any current caller.
+
 **Lane K — Service client consolidation + scrape-freeze UX** (Opus) — ✅ landed `7f6e7cb`…`b01585f`
 - ⬜ One typed request path for every public GET (Rivals/Bands/History/Notifications/Rankings migrated) · ⬜ One error vocabulary · ⬜ Shared `ServiceStatusView` with scrape-freeze auto-retry (`Retry-After`) adopted across screens · ⬜ `add-endpoint` skill + architecture rules
 
@@ -189,8 +196,6 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 - ✅ `Common/ServiceStatusView` / `ServiceStatusInline` / `.serviceStatusOverlay` ("Scores are updating" countdown, announcements, Reduce Motion) adopted on every service screen; `FST_DEBUG_FORCE_FREEZE=1`
 - ✅ `GET /api/player/{id}/rivals/all` exposed as `rivalsAll(accountId:)` (pure read verified; typed model + fixture) for the Suggestions rival families
 - Docs: architecture "one request path" rule, service-safety freeze semantics, `skills/add-endpoint.md`, `controls/service-status/`
-
-**Lane G3 — Rival-driven suggestions** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/rivalsugg`
 
 ### Wave 3 — UX tests (started for completed features)
 
@@ -328,3 +333,4 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-28 | Orchestrator | Launched Lane Z (bug fixes from UX tests) |
 | 2026-09-28 | Lane W | Duo research (27.1 SDK: vertical bar, `ReservedRegion`, `onHingeChange`, `ArrangementView`), per-pose decisions, `App/Layout` model + env, pose/display tooling, folded baselines (B1–B8), W1–W4 plan |
 | 2026-09-28 | Lane W | Duo research (APIs, poses, cutouts), `DeviceLayout` model + env, `ios_sim.py pose/--pose/shutdown`, folded baseline breakages, W1–W4 lane plan |
+| 2026-09-28 | Lane G3 | Rival-driven suggestions: `RivalDataIndex` from `/rivals/all`, all ten `song_rival_*` pipelines, rivals loaded alongside the catalogue (best-effort), rival badge on category rows; found `lb_rival_*` is dead code on the web itself; 75 tests, 96.13% Suggestions-Core coverage |
