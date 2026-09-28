@@ -1,6 +1,7 @@
 package com.festivalscoretracker.android.ui.leaderboards
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -15,6 +16,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.material3.adaptive.currentWindowSize
@@ -53,6 +56,9 @@ import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.leaderboards.LeaderboardsViewModel
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LocalShellActions
+import com.festivalscoretracker.android.ui.common.fadeInStagger
+import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
@@ -221,25 +227,33 @@ private fun BandsHeader(onBrowse: () -> Unit) {
 
 /**
  * Card header shown above (outside) the card, like the web's `InstrumentHeader`:
- * icon, Title Case heading and the metric subtitle.
+ * the instrument icon (none for band sizes) and the Title Case name; the Rank By
+ * metric is not repeated here (operator 2026-09-28).
  *
  * @param title Card title.
- * @param subtitle Metric label.
- * @param icon Leading icon.
+ * @param icon Leading icon, or null.
  */
 @Composable
-private fun CardHeader(title: String, subtitle: String, icon: @Composable () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)) {
-        icon()
-        Column(Modifier.padding(start = 12.dp).semantics(mergeDescendants = true) { heading() }) {
-            Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)
-            Text(subtitle, style = MaterialTheme.typography.labelLarge, color = BrandTokens.textPrimary)
-        }
+private fun CardHeader(title: String, icon: (@Composable () -> Unit)? = null) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.heightIn(min = 40.dp).padding(start = 4.dp, bottom = 8.dp),
+    ) {
+        icon?.invoke()
+        Text(
+            title,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = BrandTokens.textPrimary,
+            modifier = Modifier.semantics { heading() },
+        )
     }
 }
 
 /**
- * "View all rankings (N)" (web `rankings.viewAllRankingsWithCount`).
+ * "View all rankings (N)" (web `rankings.viewAllRankingsWithCount`) as the card's
+ * purple filled button, below the top ten (and the selected player's row).
  *
  * @param label Button text.
  * @param tag Test tag.
@@ -247,8 +261,12 @@ private fun CardHeader(title: String, subtitle: String, icon: @Composable () -> 
  */
 @Composable
 private fun ViewAllButton(label: String, tag: String, onClick: () -> Unit) {
-    TextButton(onClick = onClick, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag(tag)) {
-        Text(label, fontWeight = FontWeight.SemiBold, color = BrandTokens.textPrimary)
+    Button(
+        onClick = onClick,
+        colors = ButtonDefaults.buttonColors(containerColor = BrandTokens.accentPurple, contentColor = BrandTokens.textPrimary),
+        modifier = Modifier.fillMaxWidth().padding(top = 6.dp).heightIn(min = 48.dp).testTag(tag),
+    ) {
+        Text(label, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -275,8 +293,9 @@ internal fun viewAllLabel(noun: String, total: Int): String =
 private fun InstrumentCard(instrument: Instrument, viewModel: LeaderboardsViewModel, metric: RankingMetric, selected: String?, navigate: (AppRoute) -> Unit) {
     val state by viewModel.card(instrument).collectAsStateWithLifecycle()
     val tag = "fst.leaderboards.card.${instrument.wireId}"
+    val revealed = rememberRevealed(state is LoadState.Loaded)
     Column(Modifier.fillMaxWidth().testTag(tag)) {
-        CardHeader(instrument.label, metric.label) { InstrumentIcon(instrument, size = 40.dp, decorative = true) }
+        CardHeader(instrument.label) { InstrumentIcon(instrument, size = 40.dp, decorative = true) }
         GlassCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             when (val current = state) {
@@ -287,19 +306,23 @@ private fun InstrumentCard(instrument: Instrument, viewModel: LeaderboardsViewMo
                     if (entries.isEmpty()) {
                         Text("No ranked ${instrument.label} players yet.", style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textPrimary, modifier = Modifier.padding(8.dp))
                     }
-                    entries.forEach { entry ->
-                        AccountRankingRow(
-                            entry = entry,
-                            metric = metric,
-                            isSelected = RankingSpotlight.isSelected(selected, entry.accountId),
-                            route = RankingNavigation.playerRoute(entry.accountId, entry.displayName, selected),
-                            onOpen = navigate,
-                        )
+                    entries.forEachIndexed { index, entry ->
+                        Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
+                            AccountRankingRow(
+                                entry = entry,
+                                metric = metric,
+                                isSelected = RankingSpotlight.isSelected(selected, entry.accountId),
+                                route = RankingNavigation.playerRoute(entry.accountId, entry.displayName, selected),
+                                onOpen = navigate,
+                            )
+                        }
                     }
-                    CardSpotlight(instrument, viewModel, metric, selected, entries, navigate, tag)
-                    if (entries.isNotEmpty()) {
-                        ViewAllButton(viewAllLabel("rankings", current.value.rankings.totalAccounts), "$tag.view-all") {
-                            navigate(FullRankingsRoute(instrument.wireId, metric.wireId))
+                    Column(Modifier.festivalFadeIn(revealed, fadeInStagger(entries.size))) {
+                        CardSpotlight(instrument, viewModel, metric, selected, entries, navigate, tag)
+                        if (entries.isNotEmpty()) {
+                            ViewAllButton(viewAllLabel("rankings", current.value.rankings.totalAccounts), "$tag.view-all") {
+                                navigate(FullRankingsRoute(instrument.wireId, metric.wireId))
+                            }
                         }
                     }
                 }
@@ -360,8 +383,9 @@ private fun BandCard(bandType: BandType, viewModel: LeaderboardsViewModel, metri
     val state by viewModel.bandCard(bandType).collectAsStateWithLifecycle()
     val bandMetric = metric.bandMetric
     val tag = "fst.leaderboards.band-card.${bandType.wireId}"
+    val revealed = rememberRevealed(state is LoadState.Loaded)
     Column(Modifier.fillMaxWidth().testTag(tag)) {
-        CardHeader(bandType.label, bandMetric.label) { BandGlyph() }
+        CardHeader(bandType.label)
         GlassCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             when (val current = state) {
@@ -372,12 +396,16 @@ private fun BandCard(bandType: BandType, viewModel: LeaderboardsViewModel, metri
                     if (entries.isEmpty()) {
                         Text("No ranked ${bandType.label.lowercase()} yet.", style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textPrimary, modifier = Modifier.padding(8.dp))
                     }
-                    entries.forEach { entry ->
-                        BandRankingRow(entry, bandMetric, entry.includes(selected), RankingNavigation.bandRoute(entry, bandType), navigate)
+                    entries.forEachIndexed { index, entry ->
+                        Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
+                            BandRankingRow(entry, bandMetric, entry.includes(selected), RankingNavigation.bandRoute(entry, bandType), navigate)
+                        }
                     }
                     if (entries.isNotEmpty()) {
-                        ViewAllButton(viewAllLabel("band rankings", current.value.rankings.totalTeams), "$tag.view-all") {
-                            navigate(BandRankingsRoute(bandType.wireId))
+                        Box(Modifier.festivalFadeIn(revealed, fadeInStagger(entries.size))) {
+                            ViewAllButton(viewAllLabel("band rankings", current.value.rankings.totalTeams), "$tag.view-all") {
+                                navigate(BandRankingsRoute(bandType.wireId))
+                            }
                         }
                     }
                 }

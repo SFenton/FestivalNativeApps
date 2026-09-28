@@ -51,6 +51,9 @@ import com.festivalscoretracker.android.presentation.SongLeaderboardViewModel
 import com.festivalscoretracker.android.presentation.profile.SelectedProfileState
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LocalShellActions
+import com.festivalscoretracker.android.ui.common.fadeInStagger
+import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
@@ -123,6 +126,7 @@ fun SongLeaderboardScreen(
     val loaded = payload?.leaderboard
     val profile = selectedProfile?.collectAsStateWithLifecycle()?.value
     val showStars = LocalConfiguration.current.screenWidthDp >= STARS_MIN_WIDTH_DP
+    val revealed = rememberRevealed(loaded != null)
     val footer = payload?.let {
         SongScoreSpotlight.footer(
             player = profile?.player?.takeIf { player -> RankingSpotlight.isSelected(selectedAccountId, player.accountId) },
@@ -169,14 +173,16 @@ fun SongLeaderboardScreen(
                         when {
                             loaded == null -> RankingsSkeletonRows(10)
                             loaded.entries.isEmpty() -> Text("No scores yet", color = BrandTokens.textPrimary, modifier = Modifier.padding(16.dp))
-                            else -> loaded.entries.forEach { entry ->
-                                SongLeaderboardRow(
-                                    entry = entry,
-                                    isSelected = RankingSpotlight.isSelected(selectedAccountId, entry.accountId),
-                                    route = RankingNavigation.playerRoute(entry.accountId, entry.displayName, selectedAccountId),
-                                    onOpen = navigate,
-                                    showStars = showStars,
-                                )
+                            else -> loaded.entries.forEachIndexed { index, entry ->
+                                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
+                                    SongLeaderboardRow(
+                                        entry = entry,
+                                        isSelected = RankingSpotlight.isSelected(selectedAccountId, entry.accountId),
+                                        route = RankingNavigation.playerRoute(entry.accountId, entry.displayName, selectedAccountId),
+                                        onOpen = navigate,
+                                        showStars = showStars,
+                                    )
+                                }
                             }
                         }
                     }

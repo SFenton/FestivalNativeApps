@@ -1,6 +1,7 @@
 package com.festivalscoretracker.android.ui.leaderboards
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -27,6 +28,9 @@ import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.leaderboards.BandRankingsViewModel
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LocalShellActions
+import com.festivalscoretracker.android.ui.common.fadeInStagger
+import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.design.GlassCard
@@ -56,6 +60,7 @@ fun BandRankingsScreen(viewModel: BandRankingsViewModel, selectedAccountId: Stri
     val navigate = LocalShellActions.current.navigate
     val listState = rememberLazyListState()
     val entries = current?.rankings?.entries.orEmpty()
+    val revealed = rememberRevealed(board !is LoadState.Loading && current != null)
 
     LaunchedEffect(current) { listState.scrollToItem(0) }
 
@@ -106,8 +111,10 @@ fun BandRankingsScreen(viewModel: BandRankingsViewModel, selectedAccountId: Stri
                         when {
                             current == null -> RankingsSkeletonRows(10)
                             entries.isEmpty() -> Text("No ranked bands yet.", color = BrandTokens.textPrimary, modifier = Modifier.padding(8.dp))
-                            else -> entries.forEach { entry ->
-                                BandRankingRow(entry, metric, entry.includes(selectedAccountId), RankingNavigation.bandRoute(entry, bandType), navigate)
+                            else -> entries.forEachIndexed { index, entry ->
+                                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
+                                    BandRankingRow(entry, metric, entry.includes(selectedAccountId), RankingNavigation.bandRoute(entry, bandType), navigate)
+                                }
                             }
                         }
                     }

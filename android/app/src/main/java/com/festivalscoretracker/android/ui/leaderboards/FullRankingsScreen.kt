@@ -1,6 +1,7 @@
 package com.festivalscoretracker.android.ui.leaderboards
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -38,6 +39,9 @@ import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.leaderboards.FullRankingsViewModel
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LocalShellActions
+import com.festivalscoretracker.android.ui.common.fadeInStagger
+import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.design.GlassCard
@@ -69,6 +73,8 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
     val entries = current?.rankings?.entries.orEmpty()
     val totalPages = current?.rankings?.pageCount ?: 1
     val revealsSelected = entries.any { RankingSpotlight.isSelected(selected, it.accountId) }
+    // Rows fade in (staggered, like the web) each time a page finishes loading.
+    val revealed = rememberRevealed(board !is LoadState.Loading && current != null)
 
     // A new page starts at the top, unless it holds the selected row (revealed instead).
     LaunchedEffect(current) {
@@ -101,7 +107,7 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
             footer = { FullRankingsFooter(instrument, metric, selected, entries, spotlight, current != null, viewModel, navigate) },
             pager = { RankingsPager(page, totalPages, "fst.full-rankings", viewModel::goTo) },
         ) {
-            rankingRows(current == null, entries, metric, selected, navigate)
+            rankingRows(current == null, revealed, entries, metric, selected, navigate)
         }
     }
 }
@@ -128,6 +134,7 @@ private fun FullRankingsControls(metric: RankingMetric, current: RankingsPayload
  * Row items for one page of account rankings.
  *
  * @param loading Whether no page is available yet (skeleton).
+ * @param revealed Whether the rows have finished loading ([festivalFadeIn]).
  * @param entries Page rows.
  * @param metric Selected metric.
  * @param selected Selected player.
@@ -135,6 +142,7 @@ private fun FullRankingsControls(metric: RankingMetric, current: RankingsPayload
  */
 private fun LazyListScope.rankingRows(
     loading: Boolean,
+    revealed: Boolean,
     entries: List<AccountRankingEntry>,
     metric: RankingMetric,
     selected: String?,
@@ -146,15 +154,17 @@ private fun LazyListScope.rankingRows(
                 when {
                     loading -> RankingsSkeletonRows(10)
                     entries.isEmpty() -> Text("No ranked players yet.", color = BrandTokens.textPrimary, modifier = Modifier.padding(8.dp))
-                    else -> entries.forEach { entry ->
-                        AccountRankingRow(
-                            entry = entry,
-                            metric = metric,
-                            isSelected = RankingSpotlight.isSelected(selected, entry.accountId),
-                            route = RankingNavigation.playerRoute(entry.accountId, entry.displayName, selected),
-                            onOpen = navigate,
-                            reveal = true,
-                        )
+                    else -> entries.forEachIndexed { index, entry ->
+                        Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
+                            AccountRankingRow(
+                                entry = entry,
+                                metric = metric,
+                                isSelected = RankingSpotlight.isSelected(selected, entry.accountId),
+                                route = RankingNavigation.playerRoute(entry.accountId, entry.displayName, selected),
+                                onOpen = navigate,
+                                reveal = true,
+                            )
+                        }
                     }
                 }
             }

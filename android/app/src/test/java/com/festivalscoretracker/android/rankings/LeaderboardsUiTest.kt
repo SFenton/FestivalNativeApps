@@ -123,7 +123,7 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         click("fst.rankings.rank-by-menu")
         click("fst.rankings.rank-by.fcrate")
         rule.waitUntil(10_000) { settle(100); transport.requests.any { it.url.contains("rankBy=fcrate") } }
-        waitForText("FC Rate")
+        waitForDescription("Rank By, FC Rate")
         assertEquals("fcrate", store.current[LeaderboardPreferences.KEY_RANK_BY])
 
         scrollTo("fst.leaderboards", "$lead.view-all")
