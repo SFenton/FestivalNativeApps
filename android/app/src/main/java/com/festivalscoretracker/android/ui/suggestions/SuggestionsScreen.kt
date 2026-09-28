@@ -45,6 +45,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
@@ -119,6 +120,7 @@ internal fun SuggestionsScreenContent(
     FestivalScreen(
         title = "Suggestions",
         isRoot = isRoot,
+        modifier = Modifier.semantics { testTagsAsResourceId = true },
         actions = {
             if (state.phase != SuggestionsPhase.NoPlayer) {
                 val active = state.filter.isActive

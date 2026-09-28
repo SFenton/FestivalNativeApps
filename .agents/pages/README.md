@@ -19,7 +19,7 @@ Status of record: [contracts/parity-backlog.json](../../contracts/parity-backlog
 | rival-detail | `/rivals/:rivalId` | player | absent | [spec (stub)](rival-detail/spec.md) | [ios](rival-detail/ios.md) · [windows](rival-detail/windows.md) |
 | rivalry | `/rivals/:rivalId/rivalry` | player | absent | [spec (stub)](rivalry/spec.md) | [ios](rivalry/ios.md) · [windows](rivalry/windows.md) |
 | statistics | `/statistics` | selection | absent | [spec (stub)](statistics/spec.md) | [android](statistics/android.md) · [windows](statistics/windows.md) |
-| suggestions | `/suggestions` | selection | absent | [spec (stub)](suggestions/spec.md) | [ios](suggestions/ios.md) · [windows](suggestions/windows.md) |
+| suggestions | `/suggestions` | selection | absent | [spec (stub)](suggestions/spec.md) | [ios](suggestions/ios.md) · [android](suggestions/android.md) · [windows](suggestions/windows.md) |
 | shop | `/shop` | none | partial | [spec](shop/spec.md) | [ios](shop/ios.md) · [ipados](shop/ipados.md) · [windows](shop/windows.md) |
 | leaderboards | `/leaderboards` | none | placeholder | [spec (stub)](leaderboards/spec.md) | [ios](leaderboards/ios.md) · [windows](leaderboards/windows.md) |
 | full-rankings | `/leaderboards/all` | none | absent | [spec (stub)](full-rankings/spec.md) | [ios](full-rankings/ios.md) · [windows](full-rankings/windows.md) |

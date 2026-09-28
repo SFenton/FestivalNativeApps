@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.model.Instrument
@@ -85,7 +86,12 @@ fun SuggestionsFilterSheet(
     val requestClose = { if (hasChanges) confirmDiscard = true else onDismiss() }
     val pickedInstrument = instruments.firstOrNull { it.wireId == selected }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = BrandTokens.cardBackground) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = BrandTokens.cardBackground,
+        modifier = Modifier.semantics { testTagsAsResourceId = true },
+    ) {
         // Pinned toolbar: Cancel and Apply stay reachable however far the form scrolls.
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = requestClose, modifier = Modifier.testTag("fst.suggestions.filter.cancel")) { Text("Cancel") }
