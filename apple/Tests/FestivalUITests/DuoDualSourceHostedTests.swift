@@ -218,4 +218,27 @@ private struct SelectionProbe<Label: View>: View {
     )
     _ = try nativeHostedPNG(image, filename: "dual-compete.png", environment: "FST_DUO_RENDER_OUT")
 }
+
+/// Anonymous, the Song Detail history and Leaderboards rank-history regions offer
+/// Choose Profile instead of loading.
+@MainActor
+@Test func historyPanesAnonymousOfferChooseProfile() async throws {
+    let session = offlineSession()
+    let song = try JSONDecoder().decode(Song.self, from: Data("""
+    {"songId":"fixture-song","title":"Fixture Song","artist":"Fixture Artist"}
+    """.utf8))
+    let songPage = DualSourceLayout { Text("Fixture Song Detail") } secondary: {
+        SongHistoryCarouselPane(session: session, song: song)
+    }
+    let (songHosted, songWindow) = host(songPage, layout: halfFoldPortrait, size: innerPortraitSize)
+    defer { songWindow.orderOut(nil) }
+    try await nativeHostedSettle(songHosted, untilText: ["Your Score History", "No Profile Selected", "Choose Profile"])
+
+    let boardsPage = DualSourceLayout { Text("Fixture Boards") } secondary: {
+        LeaderboardsRankHistoryPane(session: session)
+    }
+    let (boardsHosted, boardsWindow) = host(boardsPage, layout: unfoldedPortrait, size: innerPortraitSize)
+    defer { boardsWindow.orderOut(nil) }
+    try await nativeHostedSettle(boardsHosted, untilText: ["Your Rank History", "No Profile Selected"])
+}
 #endif
