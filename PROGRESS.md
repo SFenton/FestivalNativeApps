@@ -169,8 +169,10 @@ Legend: ⬜ not started · 🟨 in progress · ✅ landed · ⛔ blocked
 
 **Lane S follow-ups** — ✅ landed …`bb77ed4`: avatar-rightmost toolbar on Songs, Quick Links on Songs (Duration/Shop sorts) + Song Detail, row visual order + path column order consumers, `Song.maxScores`
 
-**Lane D2 — FRE live demos** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/fredemos`
-- ⬜ Live mini-demos for the 31 non-Songs slides (Song Info, History, Statistics, Suggestions, Leaderboards, Compete, Rivals, Shop)
+**Lane D2 — FRE live demos** (Sonnet) — ✅ landed `789ff77`…`bdcf36e`
+- ✅ Live native mini-demos for all 31 non-Songs slides (Song Info 8, Player History 2, Statistics 6, Suggestions 4, Leaderboards 3, Compete 3, Rivals 3, Item Shop 4) — every one of the 42 catalog slides now resolves to a live demo, unit-tested (`FirstRunDemoCoverageTests`)
+- New: `firstRunPulse`/`firstRunStagger` reduce-motion-aware helpers, `FirstRunDemoPool` shared static sample data — see `.agents/controls/first-run/ios.md`
+- **Open issue (not this lane's files):** launching directly into a non-default tab (e.g. `--tab statistics`/`--tab leaderboards`) with `FST_DEBUG_FIRST_RUN=force` reproducibly shows the first-run sheet chrome (close/skip/done) but with **zero** slides in the `TabView` (`PageIndicator: page 1 of 0`) — confirmed on 5/5 attempts across two pages. `--tab songs` (the default/first tab) shows all 9 slides correctly every time. Suspect a `TabView(selection:)` initial-tab race (transiently rendering the first `ForEach` tab before honoring the debug-selected one) in `FestivalRootView.swift`/`FirstRunModifier.swift`/`FirstRunCarouselView.swift` — none owned by this lane. `FirstRunSlideEvaluator`/`FirstRunCatalog`'s own unit tests all pass, so the slide-selection logic itself is not implicated; screenshots: `/tmp/laneD2/{statistics_a,leaderboards,leaderboards2}.png` + matching `.tree.txt` dumps.
 
 **Lane G2 — Suggestions follow-ups** (Sonnet) — 🟨 running in `~/repos/FestivalNativeApps-lanes/suggestions2`
 - ⬜ `near_max_*` families (seed-parity test) · ⬜ `visibleInstruments` from root · ⬜ Rival-driven families if a pure-read source exists · band suggestions deferred (needs band identity)
@@ -259,3 +261,4 @@ Not yet assigned:
 | 2026-09-28 | Lane G | Suggestions: full generator port (seeded PRNG, 11 families + decades, 61 tests, ~96% Core coverage), filter sheet, incremental loading; fixed direct-landing load hang |
 | 2026-09-28 | Lane S | Toolbar order, Quick Links (Songs/Detail), settings consumers, `Song.maxScores` — lane complete |
 | 2026-09-28 | Orchestrator | Launched Lane G2 (Suggestions follow-ups) and Lane U2 (UX tests for Songs/Detail/Paths/Shop/Suggestions) |
+| 2026-09-28 | Lane D2 | FRE live demos: all 42 catalog slides now render a live native mini-demo (was Songs-only, 9/42); found a likely pre-existing TabView initial-tab race in debug launch + force mode for non-default tabs (see Lane D2 entry above) |
