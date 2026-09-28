@@ -361,6 +361,8 @@ private fun SearchField(
         },
         colors = colors,
         modifier = Modifier
+            // Fill the docked panel (Material measures the field loosely, at its 360 dp minimum).
+            .fillMaxWidth()
             .testTag(GlobalSearchTags.FIELD)
             .semantics { contentDescription = GlobalSearchResults.FIELD_NAME }
             // Escape clears the text first, then collapses (adaptive quality Keyboard_Exit).

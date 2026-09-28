@@ -44,6 +44,7 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
  * @param player Selected player.
  * @param onSection Select a tab.
  * @param onRoute Push a route.
+ * @param showShop False while Settings' Hide Item Shop is on (web/Apple/Windows drop the entry).
  */
 @Composable
 fun DrawerContent(
@@ -52,6 +53,7 @@ fun DrawerContent(
     player: SelectedPlayer?,
     onSection: (FestivalSection) -> Unit,
     onRoute: (AppRoute) -> Unit,
+    showShop: Boolean = true,
 ) {
     Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 16.dp).testTag("fst.nav.drawer-sheet")) {
         Text(
@@ -68,7 +70,7 @@ fun DrawerContent(
             HorizontalDivider(Modifier.padding(vertical = 8.dp), color = BrandTokens.glassBorder)
         }
         DrawerLabel("Browse")
-        DrawerItem("Item Shop", Icons.Outlined.ShoppingBag, tag = "fst.nav.drawer.shop") { onRoute(ShopRoute) }
+        if (showShop) DrawerItem("Item Shop", Icons.Outlined.ShoppingBag, tag = "fst.nav.drawer.shop") { onRoute(ShopRoute) }
         DrawerItem("Bands", Icons.Outlined.Groups, tag = "fst.nav.drawer.bands") { onRoute(BandsRoute) }
         if (player != null) {
             DrawerLabel(player.displayName)

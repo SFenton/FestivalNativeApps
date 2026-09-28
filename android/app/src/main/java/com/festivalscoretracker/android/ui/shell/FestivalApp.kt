@@ -240,11 +240,6 @@ private fun NavHostController.selectSection(target: FestivalSection, current: Fe
 /** Hinge bounds in window pixels. */
 private fun HingeInfo.pxRect(): PxRect = PxRect(bounds.left.toInt(), bounds.top.toInt(), bounds.right.toInt(), bounds.bottom.toInt())
 
-/** Latest reported search-entry bounds (non-snapshot, so layout reports never recompose the shell). */
-private class SearchAnchorHolder {
-    var last: PxRect? = null
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FestivalShell(
@@ -303,13 +298,14 @@ private fun FestivalShell(
     }
     val searchState = rememberSearchBarState()
     val presentation = GlobalSearchLayout.presentation(widthDp)
-    val anchors = remember { SearchAnchorHolder() }
     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val fallbackRequester = with(density) {
         // Where the top bar's search action sits (before the avatar) when nothing reported yet.
         val top = (statusTop + 8.dp).roundToPx()
         PxRect(windowSize.width - 104.dp.roundToPx(), top, windowSize.width - 56.dp.roundToPx(), top + 48.dp.roundToPx())
     }
+    // Live bounds of the one search entry in the window. Structural equality means an
+    // unchanged layout report is a no-op; a fold, rotation or resize re-anchors an open surface.
     var requester by remember { mutableStateOf<PxRect?>(null) }
     val anchor = remember(presentation, requester, windowSize, verticalHinge, horizontalHinge, fallbackRequester) {
         GlobalSearchLayout.anchor(
@@ -323,15 +319,8 @@ private fun FestivalShell(
         )
     }
     val openSearch: (PxRect?) -> Unit = { rect ->
-        requester = rect ?: anchors.last
+        if (rect != null) requester = rect
         searchViewModel.open()
-    }
-    // Folding, rotating or resizing while open re-anchors to the entry the new layout reports.
-    LaunchedEffect(presentation, windowSize) {
-        if (searchViewModel.state.value.expanded) {
-            withFrameNanos {}
-            requester = anchors.last
-        }
     }
     val pageFind = remember { PageFindRegistry() }
     val latestOpen by rememberUpdatedState(openSearch)
@@ -348,7 +337,6 @@ private fun FestivalShell(
     LaunchedEffect(Unit) {
         launch.searchQuery?.let { query ->
             withFrameNanos {}
-            requester = anchors.last
             searchViewModel.open(query)
             launch.searchScope?.let(searchViewModel::toggleScope)
         }
@@ -373,7 +361,7 @@ private fun FestivalShell(
         openProfile = { showProfile = true },
         selectedPlayer = settings.selectedPlayer,
         bottomPadding = bottomPadding,
-        search = SearchChrome(presentation = presentation, open = openSearch, report = { anchors.last = it }),
+        search = SearchChrome(presentation = presentation, open = openSearch, report = { requester = it }),
         notifications = { NotificationsBell(notificationsViewModel) { showNotifications = true } },
     )
     val openDestination: (SearchDestination) -> Unit = { destination ->
@@ -416,6 +404,7 @@ private fun FestivalShell(
                     player = settings.selectedPlayer,
                     onSection = { navController.selectSection(it, selected) },
                     onRoute = actions.navigate,
+                    showShop = !settings.hideShop,
                 )
             } else {
                 sections.forEach { section ->
@@ -464,7 +453,7 @@ private fun FestivalShell(
             drawerState = drawerState,
             // Edge swipes belong to system back; the drawer opens from the menu button only.
             gesturesEnabled = drawerState.isOpen,
-            drawerContent = { ModalDrawerSheet(drawerContainerColor = BrandTokens.cardBackground) { DrawerContent(emptyList(), selected, settings.selectedPlayer, { navController.selectSection(it, selected) }, actions.navigate) } },
+            drawerContent = { ModalDrawerSheet(drawerContainerColor = BrandTokens.cardBackground) { DrawerContent(emptyList(), selected, settings.selectedPlayer, { navController.selectSection(it, selected) }, actions.navigate, showShop = !settings.hideShop) } },
         ) { content() }
     }
     GlobalSearchHost(
