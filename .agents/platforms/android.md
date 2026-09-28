@@ -108,6 +108,7 @@ Compose `testTag`s appear as resource ids only when the app sets `testTagsAsReso
 - `FestivalApi` bootstraps `/api/publication`, sends `X-FST-Publication-Id` only while `readyForPinning && pinningEnabled`, retries one `publication_changed` 409, adopts a newer response publication when unpinned, and keeps an in-process ETag body cache + decoded catalogue per publication (cleared on change). No HTTP disk cache (online-only).
 - Origin: keyless `https://festivalscoretracker.com` in debug and release (`BuildConfig.SERVICE_ORIGIN`); a fixture run passes `FST_ORIGIN=http://10.0.2.2:<port>` (loopback/emulator host only; debug network config allows cleartext only there).
 - Add an endpoint: a `ServiceEndpoint` case with validated segments + one typed method on `FestivalApi` + fake-transport tests (same steps as [add-endpoint](../skills/add-endpoint.md)).
+- `FestivalApi.readPinnedResponse(endpoint)` returns `PinnedRead(body, status, responsePublicationId?, observedPublicationId)`: use it when a 202 envelope is documented (returned uncached, without publication checks) or when selection needs header-verified provenance (player profile).
 - `/api/songs` is ~4.6 MB (population tiers); the decoder skips unknown keys and streams from bytes.
 
 ## Navigation
