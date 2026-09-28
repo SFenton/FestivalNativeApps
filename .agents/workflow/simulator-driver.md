@@ -53,15 +53,15 @@ python3 tools/ios_sim.py pose --list-controls               # Device Hub accessi
 python3 tools/ios_sim.py shot --device duo --pose half --set-pose --display auto --out /tmp/half.png
 python3 tools/ios_sim.py shot --device duo --pose folded --set-pose --rotate right --out /tmp/rot.png
 python3 tools/ios_sim.py drive --device duo --pose unfolded --steps "wait:3; shot:/tmp/inner.png"
-python3 tools/ios_sim.py drive --device duo --pose folded --record /tmp/pop.mov --display outer --steps "…"
+python3 tools/ios_sim.py drive --device duo --pose folded --record /tmp/pop.mp4 --display outer --steps "…"
 python3 tools/ios_sim.py shutdown --device duo              # leave the Duo off when done
 ```
 
 - `--pose folded|unfolded|half` (`shot`, `drive`): checked right after boot inside the lock. `half` (partially open) runs on the inner panel, so it verifies like `unfolded`. A mismatch exits **3** with instructions; `--set-pose` presses the Device Hub control first (same lock hold, so another lane's shutdown cannot reset the pose in between).
 - `--rotate left|right` (`shot`, repeatable): rotates through Device Hub after the pose check; verified by an unchanged pose plus a changed lit-panel image.
 - `pose --set …`: same actions standalone. Exit codes: 3 pose not reached, 4 no permission, 5 no matching Device Hub control (run `--list-controls` and adjust `_POSE_KEYWORDS` in `tools/ios_sim.py`; the keywords are uncalibrated guesses until the first run with permission).
-- `--display outer|inner|auto` (`shot`; `drive --record`): which panel is captured (`primary` / `primary-1`); `auto` is the lit one.
-- `drive --record <file.mov>`: `simctl io recordVideo` for the whole run. `shot:` steps run only after XCUITest sees the app idle, so they never show push/pop or toolbar transitions; a recording does.
+- `--display outer|inner|auto` (`shot`; `drive` with `--record`): which panel is captured or recorded (`primary` / `primary-1`); `auto` is the lit one (`shot` only).
+- `--record <file.mp4>` (`shot`, `drive`): `simctl io recordVideo` for the run. `shot:` steps run only after XCUITest sees the app idle, so they never show push/pop or toolbar transitions; a recording does.
 - Every command boots through `boot_exclusive`, which shuts down other FST devices first. A pose does not survive the Duo being shut down (it boots closed), so set it in the same command as the capture.
 
 ### Accessibility permission (UI scripting)

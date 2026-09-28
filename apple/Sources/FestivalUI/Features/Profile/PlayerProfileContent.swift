@@ -260,7 +260,7 @@ struct PlayerProfileContent: View {
 
     /// Whether the Select/Switch action is offered (same rule as ``identityAction(_:)``).
     private var canSelect: Bool {
-        guard case let .available(payload) = phase, !isSelected else { return false }
+        guard case let .available(payload) = shownPhase, !isSelected else { return false }
         return payload.publicationId != nil && payload.publicationId == session.publicationId
     }
 
