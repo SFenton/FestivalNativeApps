@@ -121,7 +121,7 @@ def expand(steps: list[str], shots: Path | None, size: str) -> list[str]:
     return out
 
 
-def run(name: str, port: int, shots: Path | None, size: str) -> None:
+def run(name: str, port: int, shots: Path | None, size: str, exe: Path = EXE) -> None:
     """Launches, drives and closes one scenario.
 
     Args:
@@ -129,16 +129,21 @@ def run(name: str, port: int, shots: Path | None, size: str) -> None:
         port: Fixture port.
         shots: Screenshot directory, if any.
         size: Window preset.
+        exe: App executable (Debug build by default; pass the NativeAOT publish to check the ship build).
     """
     env, route, steps = SCENARIOS[name]
-    args = ["launch", str(EXE), "--timeout", "60", "--wait", "1", "--preset", size,
-            f"--arg=--base-url=http://127.0.0.1:{port}/"]
+    # --first-run=off: the first-run carousel is modal and would swallow the scripted clicks.
+    args = ["launch", str(exe), "--timeout", "60", "--wait", "1", "--preset", size,
+            f"--arg=--base-url=http://127.0.0.1:{port}/", "--arg=--first-run=off"]
     # An absent settings file gives defaults (all nine charts), independent of the operator's saved settings.
+    # Passed as app arguments (not FST_DEBUG_* variables), which Release/NativeAOT builds also honour.
     isolated = Path(tempfile.gettempdir()) / "fst-rivals-journey" / "settings.json"
-    for key, value in {**env, "FST_SETTINGS_PATH": str(isolated)}.items():
-        args += [f"--arg={key}"] if key.startswith("--") else ["--extra", f"{key}={value}"]
+    flags = {"FST_DEBUG_PROFILE": "--profile", "FST_DEBUG_ANONYMOUS": "--anonymous"}
+    for key, value in env.items():
+        args += [f"--arg={flags[key]}={value}"] if key == "FST_DEBUG_PROFILE" else [f"--arg={flags[key]}"]
+    args.append(f"--arg=--settings-path={isolated}")
     if route:
-        args += ["--route", route]
+        args.append(f"--arg=--route={route}")
     uiwin(*args)
     try:
         with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as handle:
@@ -169,6 +174,7 @@ def main() -> int:
     parser.add_argument("--shots", type=Path)
     parser.add_argument("--only", choices=sorted(SCENARIOS))
     parser.add_argument("--sizes", default="medium", help="comma-separated presets for the populated journey")
+    parser.add_argument("--exe", type=Path, default=EXE, help="app executable (e.g. windows/.artifacts/app/Release-aot/FestivalScoreTracker.exe)")
     options = parser.parse_args()
     server = subprocess.Popen([sys.executable, str(ROOT / "tools" / "windows" / "rivals_fixture.py"), "--port", str(options.port)],
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -186,7 +192,7 @@ def main() -> int:
             sizes = options.sizes.split(",") if name == "populated" else ["medium"]
             for size in sizes:
                 try:
-                    run(name, options.port, options.shots, size)
+                    run(name, options.port, options.shots, size, options.exe)
                 except RuntimeError as error:
                     failures += 1
                     print(f"FAIL {name} [{size}]: {error}")

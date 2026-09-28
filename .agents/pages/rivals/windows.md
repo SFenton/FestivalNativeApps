@@ -34,7 +34,7 @@ Rivals reads are unpinned operational GETs through `RequestGate` (see [service-s
 | Layer | Where |
 |---|---|
 | Core | `RivalsCoreTests` (models, endpoints, client, scope/combos/categories/formatting), `RivalsViewModelTests` (hub, Find Rival, pages, session merge, cache), route round-trips in `RoutingSettingsLaunchTests` |
-| UI journeys | `python tools/windows/rivals_journey.py [--shots DIR] [--sizes compact,medium,wide]`: populated hub → both tabs → Jump To → detail → rivalry sort → All Rivals, empty (`fixture-player-empty`), scrape freeze (`fixture-player-503`), no player (`FST_DEBUG_ANONYMOUS`), `/compete` |
+| UI journeys | `python tools/windows/rivals_journey.py [--shots DIR] [--sizes compact,medium,wide] [--exe <Release-aot exe>]` (app args, not `FST_DEBUG_*`, so the NativeAOT ship build runs too; `--first-run=off` because the modal carousel swallows clicks): populated hub → both tabs → Jump To → detail → rivalry sort → All Rivals, empty (`fixture-player-empty`), scrape freeze (`fixture-player-503`), no player (`FST_DEBUG_ANONYMOUS`), `/compete` |
 | Fixture | `tools/windows/rivals_fixture.py` = `tools/mock_service.py` with anonymized rival names (committable screenshots) |
 | Screenshots | `windows/reports/screenshots/rivals-*-{compact,medium,wide}.png` (fixture mode) |
 
