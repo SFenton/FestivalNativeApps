@@ -12,7 +12,16 @@ struct BandRankingsScreen: View {
     @State private var rankBy: BandRankingMetric
     @State private var page = 1
     @State private var state: RankLoadState<BandRankingsPayload> = .loading
+    /// Ranked-team count and page count for the current size and metric, kept
+    /// across page loads (no pager/subtitle flicker); cleared on a size/metric change.
+    @State private var board: BoardSummary?
     @Environment(\.deviceLayout) private var layout
+
+    /// Count facts that survive a page change.
+    private struct BoardSummary: Equatable {
+        let totalTeams: Int
+        let totalPages: Int
+    }
 
     private struct RequestKey: Equatable {
         let bandType: BandType
@@ -46,43 +55,54 @@ struct BandRankingsScreen: View {
                     Task { await load() }
                 }
             case let .loaded(payload):
-                VStack(spacing: 0) {
-                    List {
+                ScrollView {
+                    LazyVStack(spacing: 6) {
+                        if let board {
+                            RankingsCountHeader(
+                                text: RankingsCountText.rankedBands(board.totalTeams),
+                                id: "fst.band-rankings.ranked-count"
+                            )
+                        }
                         if payload.rankings.entries.isEmpty {
                             Text("No ranked \(bandType.label.lowercased()) yet.")
-                                .foregroundStyle(BrandTokens.textSecondary)
-                                .listRowBackground(Color.clear)
+                                .foregroundStyle(BrandTokens.textPrimary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         ForEach(payload.rankings.entries) { entry in
-                            BandRankingRow(entry: entry, metric: rankBy, bandType: bandType)
-                                .listRowBackground(BrandTokens.cardBackground)
+                            BandRankingRow(entry: entry, metric: rankBy, bandType: bandType, glassSurface: true)
                         }
                     }
-                    .scrollContentBackground(.hidden)
-                    .rankingsListRailClearance(layout)
-                    RankingsPagerView(
-                        page: page, totalPages: payload.rankings.pageCount,
-                        idPrefix: "fst.band-rankings"
-                    ) { destination in
-                        page = destination
-                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            RankingsFloatingBar(
+                pager: board.map { RankingsPagerState(page: page, totalPages: $0.totalPages) },
+                idPrefix: "fst.band-rankings"
+            ) { destination in
+                page = destination
+            } menu: { showsTitle in
+                bandTypeMenu(showsTitle: showsTitle)
+            }
+        }
         .festivalBackground(.carousel, session: session)
         .navigationTitle("\(bandType.label) Rankings")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 HStack(spacing: 4) {
-                    bandTypeMenu
+                    if layout.sectionChrome.isVerticalBar {
+                        bandTypeMenu(showsTitle: false)
+                    }
                     BandRankByMenu(selection: $rankBy)
                 }
             }
             #if os(iOS)
-            if case let .loaded(payload) = state {
+            if let board {
                 RankingsPagerToolbarContent(
-                    page: page, totalPages: payload.rankings.pageCount,
+                    page: page, totalPages: board.totalPages,
                     idPrefix: "fst.band-rankings"
                 ) { destination in
                     page = destination
@@ -90,12 +110,23 @@ struct BandRankingsScreen: View {
             }
             #endif
         }
-        .onChange(of: bandType) { _, _ in page = 1 }
-        .onChange(of: rankBy) { _, _ in page = 1 }
+        .onChange(of: bandType) { _, _ in
+            page = 1
+            board = nil
+        }
+        .onChange(of: rankBy) { _, _ in
+            page = 1
+            board = nil
+        }
         .task(id: requestKey) { await load() }
     }
 
-    private var bandTypeMenu: some View {
+    /// Band-size switcher: a glass pill in the floating bar, or an icon-only
+    /// toolbar menu in the iPhone Duo rail.
+    ///
+    /// - Parameter showsTitle: Whether the pill shows the band size's name.
+    /// - Returns: The native `Menu`, keeping `fst.band-rankings.band-type-menu`.
+    private func bandTypeMenu(showsTitle: Bool) -> some View {
         Menu {
             Picker("Band Size", selection: $bandType) {
                 ForEach(BandType.allCases) { size in
@@ -103,10 +134,20 @@ struct BandRankingsScreen: View {
                 }
             }
         } label: {
-            Image(systemName: "person.3.fill")
+            if layout.sectionChrome.isVerticalBar {
+                Image(systemName: "person.3.fill")
+            } else {
+                RankingsSwitcherPillLabel(title: bandType.label, showsTitle: showsTitle) {
+                    Image(systemName: "person.3.fill")
+                        .font(.body)
+                        .frame(width: 28, height: 28)
+                }
+            }
         }
+        .buttonStyle(.plain)
         .accessibilityIdentifier("fst.band-rankings.band-type-menu")
-        .accessibilityLabel("Band size: \(bandType.label)")
+        .accessibilityLabel("Band size")
+        .accessibilityValue(bandType.label)
     }
 
     /// Load the current page, rejecting late responses from a previous selection.
@@ -125,6 +166,10 @@ struct BandRankingsScreen: View {
                 page = corrected
                 return
             }
+            board = BoardSummary(
+                totalTeams: payload.rankings.totalTeams,
+                totalPages: payload.rankings.pageCount
+            )
             state = .loaded(payload)
         } catch is CancellationError {
             return

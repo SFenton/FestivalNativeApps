@@ -233,10 +233,10 @@ private func hostedRankingsSessionWithSelection(
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
     let image = try await nativeHostedSettle(
-        host, untilText: ["Fixture Rank 1", "Fixture Rank 3", "View All"]
+        host, untilText: ["Fixture Rank 1", "Fixture Rank 3", "View all rankings (3)"]
     )
     _ = try nativeHostedPNG(image, filename: "leaderboards-overview.png", environment: "FST_LEADERBOARDS_RENDER_OUT")
-    assertRendersContent(host, image: image, containing: ["Fixture Rank 1", "Fixture Rank 3", "View All"])
+    assertRendersContent(host, image: image, containing: ["Fixture Rank 1", "Fixture Rank 3", "View all rankings (3)"])
 }
 
 /// The "no ranked players yet" / "no ranked … yet" empty-card text for every card.
@@ -277,9 +277,9 @@ private func hostedRankingsSessionWithSelection(
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    let image = try await nativeHostedSettle(host, untilText: ["Fixture Rank 1", "Fixture Rank 3", "1 / 1"])
+    let image = try await nativeHostedSettle(host, untilText: ["Fixture Rank 1", "Fixture Rank 3", "First Page", "Lead"])
     _ = try nativeHostedPNG(image, filename: "full-rankings.png", environment: "FST_LEADERBOARDS_RENDER_OUT")
-    assertRendersContent(host, image: image, containing: ["Fixture Rank 1", "Fixture Rank 3", "1 / 1"])
+    assertRendersContent(host, image: image, containing: ["Fixture Rank 1", "Fixture Rank 3", "First Page", "Lead"])
 }
 
 // MARK: - BandRankingsScreen
@@ -298,9 +298,9 @@ private func hostedRankingsSessionWithSelection(
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    let image = try await nativeHostedSettle(host, untilText: ["Member 1A", "Member 2B", "1 / 1"])
+    let image = try await nativeHostedSettle(host, untilText: ["Member 1A", "Member 2B", "First Page", "Duos"])
     _ = try nativeHostedPNG(image, filename: "band-rankings.png", environment: "FST_LEADERBOARDS_RENDER_OUT")
-    assertRendersContent(host, image: image, containing: ["Member 1A", "Member 2B", "1 / 1"])
+    assertRendersContent(host, image: image, containing: ["Member 1A", "Member 2B", "First Page", "Duos"])
 }
 
 // MARK: - LeaderboardsScreen selected-player spotlight

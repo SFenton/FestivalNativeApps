@@ -22,6 +22,10 @@ struct FullRankingsScreen: View {
     @State private var page = 1
     @State private var state: RankLoadState<RankingsPayload> = .loading
     @State private var lastRequest: RequestKey?
+    /// Ranked-account count and page count for the current instrument and metric,
+    /// kept while another page loads so the floating pager and the subtitle don't
+    /// flicker; cleared when the instrument or metric changes.
+    @State private var board: BoardSummary?
     /// The selected player's own row on this instrument's board, independent of
     /// the current page — mirroring the web client's separate `playerRanking`
     /// query on `FullRankingsPage.tsx`.
@@ -35,6 +39,12 @@ struct FullRankingsScreen: View {
 
     private var spotlightKey: SpotlightKey {
         SpotlightKey(instrument: instrument, accountId: session.selectedPlayer?.accountId)
+    }
+
+    /// Count facts that survive a page change.
+    private struct BoardSummary: Equatable {
+        let totalAccounts: Int
+        let totalPages: Int
     }
 
     private struct RequestKey: Equatable {
@@ -83,47 +93,62 @@ struct FullRankingsScreen: View {
                     Task { await load() }
                 }
             case let .loaded(payload):
-                VStack(spacing: 0) {
-                    List {
+                ScrollView {
+                    LazyVStack(spacing: 6) {
+                        if let board {
+                            RankingsCountHeader(
+                                text: RankingsCountText.rankedPlayers(board.totalAccounts),
+                                id: "fst.full-rankings.ranked-count"
+                            )
+                        }
                         if payload.rankings.entries.isEmpty {
                             Text("No ranked players yet.")
-                                .foregroundStyle(BrandTokens.textSecondary)
-                                .listRowBackground(Color.clear)
+                                .foregroundStyle(BrandTokens.textPrimary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
                         ForEach(payload.rankings.entries) { entry in
                             AccountRankingRow(
                                 entry: entry, metric: rankBy,
-                                isSelected: isSelectedAccount(entry.accountId)
+                                isSelected: isSelectedAccount(entry.accountId), glassSurface: true
                             )
-                            .listRowBackground(BrandTokens.cardBackground)
                         }
                     }
-                    .scrollContentBackground(.hidden)
-                    .rankingsListRailClearance(layout)
-                    spotlightFooter(entries: payload.rankings.entries)
-                    RankingsPagerView(
-                        page: page, totalPages: payload.rankings.pageCount,
-                        idPrefix: "fst.full-rankings"
-                    ) { destination in
-                        page = destination
-                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 8) {
+                if case let .loaded(payload) = state {
+                    spotlightFooter(entries: payload.rankings.entries)
+                }
+                RankingsFloatingBar(
+                    pager: board.map { RankingsPagerState(page: page, totalPages: $0.totalPages) },
+                    idPrefix: "fst.full-rankings"
+                ) { destination in
+                    page = destination
+                } menu: { showsTitle in
+                    instrumentMenu(showsTitle: showsTitle)
+                }
+            }
+        }
         .festivalBackground(.carousel, session: session)
         .navigationTitle("\(instrument.label) Rankings")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 HStack(spacing: 4) {
-                    instrumentMenu
+                    if layout.sectionChrome.isVerticalBar {
+                        instrumentMenu(showsTitle: false)
+                    }
                     RankByMenu(selection: $rankBy)
                 }
             }
             #if os(iOS)
-            if case let .loaded(payload) = state {
+            if let board {
                 RankingsPagerToolbarContent(
-                    page: page, totalPages: payload.rankings.pageCount,
+                    page: page, totalPages: board.totalPages,
                     idPrefix: "fst.full-rankings"
                 ) { destination in
                     page = destination
@@ -131,8 +156,14 @@ struct FullRankingsScreen: View {
             }
             #endif
         }
-        .onChange(of: instrument) { _, _ in page = 1 }
-        .onChange(of: rankBy) { _, _ in page = 1 }
+        .onChange(of: instrument) { _, _ in
+            page = 1
+            board = nil
+        }
+        .onChange(of: rankBy) { _, _ in
+            page = 1
+            board = nil
+        }
         .task(id: requestKey) { await load() }
         .task(id: spotlightKey) { await loadSpotlight() }
     }
@@ -176,30 +207,36 @@ struct FullRankingsScreen: View {
                         Task { await loadSpotlight() }
                     }
                     .padding(12)
+                    .festivalGlass(.card, cornerRadius: 12)
+                    .padding(.horizontal, 16)
                 } else {
                     RankingSpotlightLoadingRow()
-                        .padding(12)
+                        .padding(8)
                         .accessibilityIdentifier("fst.full-rankings.spotlight-footer.loading")
                 }
             case .unranked:
                 RankingSpotlightUnrankedRow(message: "You're not yet ranked on \(instrument.label).")
-                    .padding(12)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .festivalGlassCapsule(.card)
                     .accessibilityIdentifier("fst.full-rankings.spotlight-footer.unranked")
             case let .footer(entry):
                 HStack(spacing: 8) {
-                    AccountRankingRow(entry: entry, metric: rankBy, isSelected: true)
+                    AccountRankingRow(entry: entry, metric: rankBy, isSelected: true, glassSurface: true)
                     Button {
                         page = LeaderboardPaging.page(forRank: entry.rank(for: rankBy), pageSize: 25)
                     } label: {
                         Image(systemName: "arrow.right.circle.fill")
                             .font(.title3)
                             .foregroundStyle(BrandTokens.accentPurple)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Circle())
                     }
+                    .buttonStyle(.plain)
                     .accessibilityLabel("Jump to your page")
                     .accessibilityIdentifier("fst.full-rankings.spotlight-jump")
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .padding(.horizontal, 16)
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("fst.full-rankings.spotlight-footer")
             }
@@ -220,7 +257,12 @@ struct FullRankingsScreen: View {
         }
     }
 
-    private var instrumentMenu: some View {
+    /// Instrument switcher: a glass pill in the floating bar, or an icon-only
+    /// toolbar menu in the iPhone Duo rail.
+    ///
+    /// - Parameter showsTitle: Whether the pill shows the instrument's name.
+    /// - Returns: The native `Menu`, keeping `fst.full-rankings.instrument-menu`.
+    private func instrumentMenu(showsTitle: Bool) -> some View {
         Menu {
             Picker("Instrument", selection: $instrument) {
                 ForEach(visibleInstruments) { chart in
@@ -233,10 +275,18 @@ struct FullRankingsScreen: View {
                 }
             }
         } label: {
-            InstrumentIcon(instrument, size: 20)
+            if layout.sectionChrome.isVerticalBar {
+                InstrumentIcon(instrument, size: 20)
+            } else {
+                RankingsSwitcherPillLabel(title: instrument.label, showsTitle: showsTitle) {
+                    InstrumentIcon(instrument, size: 28)
+                }
+            }
         }
+        .buttonStyle(.plain)
         .accessibilityIdentifier("fst.full-rankings.instrument-menu")
-        .accessibilityLabel("Instrument: \(instrument.label)")
+        .accessibilityLabel("Instrument")
+        .accessibilityValue(instrument.label)
     }
 
     /// Load the current page, rejecting late responses from a previous selection.
@@ -256,6 +306,10 @@ struct FullRankingsScreen: View {
                 page = corrected
                 return
             }
+            board = BoardSummary(
+                totalAccounts: payload.rankings.totalAccounts,
+                totalPages: payload.rankings.pageCount
+            )
             state = .loaded(payload)
         } catch is CancellationError {
             return

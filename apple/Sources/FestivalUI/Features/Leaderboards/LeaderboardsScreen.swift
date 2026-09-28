@@ -124,11 +124,11 @@ struct LeaderboardsScreen: View {
         ScrollView {
             Group {
                 if layout.widthClass == .regular {
-                    LazyVGrid(columns: regularWidthColumns, alignment: .leading, spacing: 20) {
+                    LazyVGrid(columns: regularWidthColumns, alignment: .leading, spacing: 24) {
                         cards
                     }
                 } else {
-                    LazyVStack(spacing: 20) {
+                    LazyVStack(spacing: 24) {
                         cards
                     }
                 }
@@ -161,44 +161,46 @@ struct LeaderboardsScreen: View {
 
     // MARK: Instrument cards
 
+    /// One instrument's top ten: an icon header, then compact glass rows and the
+    /// "View all rankings (N)" row — the web's `RankingCard.tsx` layout, where the
+    /// rows themselves are the frosted cards and the section has no outer card.
     @ViewBuilder
     private func instrumentCard(_ instrument: Instrument) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                InstrumentIcon(instrument, size: 22)
-                FestivalSectionHeader(instrument.label, subtitle: rankBy.label)
+        VStack(alignment: .leading, spacing: 6) {
+            cardHeader(instrument.label, metric: rankBy.label) {
+                InstrumentIcon(instrument, size: 36)
             }
             switch instrumentStates[instrument] ?? .loading {
             case .loading:
-                RankingsSkeletonRows(count: 5)
+                RankingsSkeletonRows(count: 5, glassRows: true)
             case let .failed(issue):
                 ServiceStatusInline(issue, scope: "leaderboards.\(instrument.rawValue)") {
                     Task { await loadInstrument(instrument, rankBy: rankBy) }
                 }
+                .modifier(CardMessageSurface())
             case let .loaded(payload):
                 if payload.rankings.entries.isEmpty {
                     cardEmpty("No ranked \(instrument.label) players yet.")
                 } else {
-                    VStack(spacing: 4) {
-                        ForEach(payload.rankings.entries) { entry in
-                            AccountRankingRow(
-                                entry: entry, metric: rankBy,
-                                isSelected: isSelectedAccount(entry.accountId)
-                            )
-                        }
+                    ForEach(payload.rankings.entries) { entry in
+                        AccountRankingRow(
+                            entry: entry, metric: rankBy,
+                            isSelected: isSelectedAccount(entry.accountId), glassSurface: true
+                        )
                     }
                 }
                 spotlightSection(instrument: instrument, entries: payload.rankings.entries)
                 if !payload.rankings.entries.isEmpty {
                     viewAllLink(
                         AppRoute.fullRankings(instrument: instrument, rankBy: rankByRaw),
+                        title: RankingsCountText.viewAllRankings(
+                            totalAccounts: payload.rankings.totalAccounts
+                        ),
                         id: "fst.leaderboards.card.\(instrument.rawValue).view-all"
                     )
                 }
             }
         }
-        .padding(16)
-        .festivalGlass(.card)
         // `.contain` must precede `.accessibilityIdentifier` on a container that
         // wraps interactive children (rows, "View All"): without it, the
         // container's own identifier shadows every descendant's, and
@@ -208,6 +210,32 @@ struct LeaderboardsScreen: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.leaderboards.card.\(instrument.rawValue)")
         .quickLinkSection(Self.quickLink(for: instrument))
+    }
+
+    /// Section header: the board's icon and title (web `InstrumentHeader` MD), with
+    /// the active rank-by metric trailing on the same line.
+    ///
+    /// - Parameters:
+    ///   - title: Instrument or band-size name.
+    ///   - metric: Active metric label.
+    ///   - icon: 36 pt icon.
+    /// - Returns: A single-line header.
+    private func cardHeader<Icon: View>(
+        _ title: String, metric: String, @ViewBuilder icon: () -> Icon
+    ) -> some View {
+        HStack(spacing: 10) {
+            icon()
+                .accessibilityHidden(true)
+            Text(title)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(BrandTokens.textPrimary)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 8)
+            Text(metric)
+                .font(.subheadline)
+                .foregroundStyle(BrandTokens.textPrimary)
+        }
+        .padding(.bottom, 2)
     }
 
     // MARK: Selected-player spotlight
@@ -249,19 +277,18 @@ struct LeaderboardsScreen: View {
                     ServiceStatusInline(issue, scope: "leaderboards.spotlight.\(instrument.rawValue)") {
                         Task { await loadSpotlight(instrument) }
                     }
-                    .padding(.top, 4)
+                    .modifier(CardMessageSurface())
                 } else {
                     RankingSpotlightLoadingRow()
-                        .padding(.top, 4)
+                        .frame(maxWidth: .infinity, minHeight: 44)
                         .accessibilityIdentifier("fst.leaderboards.card.\(instrument.rawValue).spotlight.loading")
                 }
             case .unranked:
                 RankingSpotlightUnrankedRow(message: "Not yet ranked on \(instrument.label).")
-                    .padding(.top, 4)
+                    .modifier(CardMessageSurface())
                     .accessibilityIdentifier("fst.leaderboards.card.\(instrument.rawValue).spotlight.unranked")
             case let .footer(entry):
-                AccountRankingRow(entry: entry, metric: rankBy, isSelected: true)
-                    .padding(.top, 4)
+                AccountRankingRow(entry: entry, metric: rankBy, isSelected: true, glassSurface: true)
                     .accessibilityIdentifier("fst.leaderboards.card.\(instrument.rawValue).spotlight")
             }
         }
@@ -272,39 +299,39 @@ struct LeaderboardsScreen: View {
     @ViewBuilder
     private func bandCard(_ bandType: BandType) -> some View {
         let metric = rankBy.bandMetric
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
+            cardHeader(bandType.label, metric: metric.label) {
                 Image(systemName: "person.3.fill")
-                    .font(.system(size: 18))
-                    .foregroundStyle(BrandTokens.textSecondary)
-                    .frame(width: 22, height: 22)
-                FestivalSectionHeader(bandType.label, subtitle: metric.label)
+                    .font(.system(size: 16))
+                    .foregroundStyle(BrandTokens.textPrimary)
+                    .frame(width: 36, height: 36)
+                    .background(BrandTokens.surfaceMuted, in: Circle())
             }
             switch bandStates[bandType] ?? .loading {
             case .loading:
-                RankingsSkeletonRows(count: 5)
+                RankingsSkeletonRows(count: 5, glassRows: true)
             case let .failed(issue):
                 ServiceStatusInline(issue, scope: "leaderboards.\(bandType.rawValue)") {
                     Task { await loadBand(bandType, rankBy: metric) }
                 }
+                .modifier(CardMessageSurface())
             case let .loaded(payload):
                 if payload.rankings.entries.isEmpty {
                     cardEmpty("No ranked \(bandType.label.lowercased()) yet.")
                 } else {
-                    VStack(spacing: 4) {
-                        ForEach(payload.rankings.entries) { entry in
-                            BandRankingRow(entry: entry, metric: metric, bandType: bandType)
-                        }
+                    ForEach(payload.rankings.entries) { entry in
+                        BandRankingRow(entry: entry, metric: metric, bandType: bandType, glassSurface: true)
                     }
                     viewAllLink(
                         AppRoute.bandRankings(bandType: bandType.rawValue),
+                        title: RankingsCountText.viewAllBandRankings(
+                            totalTeams: payload.rankings.totalTeams
+                        ),
                         id: "fst.leaderboards.band-card.\(bandType.rawValue).view-all"
                     )
                 }
             }
         }
-        .padding(16)
-        .festivalGlass(.card)
         // See the matching comment in `instrumentCard`: `.contain` keeps
         // `BandRankingRow`'s own identifier from being shadowed by the card's.
         .accessibilityElement(children: .contain)
@@ -316,18 +343,30 @@ struct LeaderboardsScreen: View {
 
     private func cardEmpty(_ message: String) -> some View {
         Text(message)
-            .font(.footnote)
-            .foregroundStyle(BrandTokens.textSecondary)
+            .font(.subheadline)
+            .foregroundStyle(BrandTokens.textPrimary)
+            .modifier(CardMessageSurface())
     }
 
-    private func viewAllLink(_ route: AppRoute, id: String) -> some View {
+    /// The card's last glass row, "View all rankings (868,901)" (web `viewAllButton`).
+    ///
+    /// - Parameters:
+    ///   - route: Full board to push.
+    ///   - title: Label including the ranked count when known.
+    ///   - id: Existing per-card `…view-all` identifier.
+    /// - Returns: A full-width glass navigation row.
+    private func viewAllLink(_ route: AppRoute, title: String, id: String) -> some View {
         NavigationLink(value: route) {
-            Text("View All")
-                .font(.subheadline.weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
+            Text(title)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(BrandTokens.textPrimary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .padding(.vertical, 4)
+                .contentShape(Rectangle())
+                .modifier(RankingRowSurface(isSelected: false))
         }
-        .foregroundStyle(BrandTokens.accentBlue)
+        .buttonStyle(.plain)
         .accessibilityIdentifier(id)
     }
 
@@ -420,6 +459,20 @@ struct LeaderboardsScreen: View {
         } catch {
             bandStates[bandType] = .failed(ServiceIssue(error))
         }
+    }
+}
+
+// MARK: - Card message surface
+
+/// Glass row for a card's non-row states (failure, empty, unranked), so they sit on
+/// the same surface as the rows they replace.
+private struct CardMessageSurface: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .festivalGlass(.card, cornerRadius: 12)
     }
 }
 

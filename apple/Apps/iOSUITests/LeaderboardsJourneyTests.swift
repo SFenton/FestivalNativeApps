@@ -144,4 +144,43 @@ final class LeaderboardsJourneyTests: XCTestCase {
         XCTAssertTrue(quickLinks.waitForExistence(timeout: 10))
         XCTAssertEqual(quickLinks.value as? String, "Quads")
     }
+
+    /// Gap #9/#10 (Lane PB): the Lead card's footer carries the ranked total, and it
+    /// opens Full Rankings with the floating glass pager (single fixture page, so
+    /// every step is disabled) and the instrument pill, whose menu switches boards.
+    @MainActor
+    func testViewAllCountOpensFloatingPagerAndInstrumentSwitch() throws {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launch()
+        XCTAssertTrue(app.navigationBars["Leaderboards"].waitForExistence(timeout: 15))
+        let viewAll = app.buttons["fst.leaderboards.card.Solo_Guitar.view-all"]
+        XCTAssertTrue(viewAll.waitForExistence(timeout: 15))
+        XCTAssertEqual(viewAll.label, "View all rankings (3)")
+        viewAll.tap()
+
+        XCTAssertTrue(app.navigationBars["Lead Rankings"].waitForExistence(timeout: 15))
+        let info = app.descendants(matching: .any)
+            .matching(identifier: "fst.full-rankings.page-info").firstMatch
+        XCTAssertTrue(info.waitForExistence(timeout: 15))
+        XCTAssertEqual(info.value as? String, "1 of 1")
+        for step in ["first", "previous", "next", "last"] {
+            let button = app.buttons["fst.full-rankings.page-\(step)"]
+            XCTAssertTrue(button.exists, step)
+            XCTAssertFalse(button.isEnabled, step)
+        }
+        XCTAssertTrue(app.staticTexts["3 ranked players"].exists)
+
+        let menu = app.buttons["fst.full-rankings.instrument-menu"]
+        XCTAssertTrue(menu.isHittable)
+        XCTAssertEqual(menu.value as? String, "Lead")
+        menu.tap()
+        let bass = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Bass'")).firstMatch
+        XCTAssertTrue(bass.waitForExistence(timeout: 10))
+        bass.tap()
+        XCTAssertTrue(app.navigationBars["Bass Rankings"].waitForExistence(timeout: 15))
+        XCTAssertTrue(info.waitForExistence(timeout: 15))
+        XCTAssertEqual(info.value as? String, "1 of 1")
+        XCTAssertTrue(app.buttons["fst.rankings.row.fixture-player-1"].waitForExistence(timeout: 15))
+    }
 }
