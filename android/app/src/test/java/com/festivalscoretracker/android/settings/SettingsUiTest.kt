@@ -252,6 +252,8 @@ class SettingsUiTest {
         waitForTag("fst.notifications.no-player")
         rule.onNodeWithText("Select Player Profile").performSemanticsAction(SemanticsActions.OnClick)
         waitGone("fst.notifications.sheet")
+        // No profile: the bell is not shown (web parity).
+        assertTrue(rule.onAllNodesWithTag("fst.shell.notifications").fetchSemanticsNodes().isEmpty())
         assertTrue(runBlocking { transport.sent("/api/player/${Fixtures.ACCOUNT_A}/notifications").isEmpty() })
     }
 }

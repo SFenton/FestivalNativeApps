@@ -377,7 +377,8 @@ private fun FestivalShell(
         selectedPlayer = settings.selectedPlayer,
         bottomPadding = bottomPadding,
         search = SearchChrome(presentation = presentation, open = openSearch, report = { requester = it }),
-        notifications = { NotificationsBell(notificationsViewModel) { showNotifications = true } },
+        // Web: the bell only exists while a profile is selected (operator 2026-09-28).
+        notifications = if (settings.selectedPlayer != null) ({ NotificationsBell(notificationsViewModel) { showNotifications = true } }) else null,
         floatingToolbar = if (usesFloatingToolbar) floatingToolbar else null,
     )
     val openDestination: (SearchDestination) -> Unit = { destination ->
