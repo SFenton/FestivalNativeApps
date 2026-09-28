@@ -61,18 +61,22 @@ struct ProfileActionButton: View {
 /// with `FestivalSectionHeader` and a tinted `listRowBackground`, never a nested
 /// glass card, to avoid glass-on-glass inside the already-glass sheet).
 ///
-/// **Navigation choice — push inside the sheet's own stack, not dismiss-then-push:**
-/// a result (or the selected-profile summary's "View Profile") pushes the *real*
-/// `AppRoute.player` route through the shared `AppRouteDestination`, the exact same
-/// screen the Songs/Leaderboards tabs push, using this sheet's own `NavigationStack`.
-/// This needed no cross-lane seam change: `AppRoute`/`AppRouteDestination` are
-/// orchestrator types already visible within `FestivalUI`. Dismissing the sheet and
-/// pushing onto the *presenting tab's* own path instead would require
-/// `FestivalRootView` (Lane A, which owns the sheet presentation and per-tab paths)
-/// to expose a new callback/environment action — flagged as a follow-up rather than
-/// done here. Because the pushed screen already offers Select/Switch/Deselect,
-/// closing the sheet from there returns straight to the tab it was opened from,
-/// which matches how Contacts/Messages "New Message" search behaves.
+/// **Navigation choice — dismiss the sheet, then push onto the presenting tab:**
+/// a result row and the selected-profile summary's "View Profile" both dismiss this
+/// sheet and push the *real* `AppRoute.player` route onto whichever tab presented it,
+/// via the `openRoute` closure parameter `FestivalRootView` passes in (see that
+/// property's own doc comment for why it is a plain closure and not the
+/// environment-based `OpenRouteAction`/`\.openRoute` the rest of the app uses for
+/// this same dismiss-then-push shape). An earlier draft pushed `AppRoute.player`
+/// inside this sheet's own `NavigationStack`
+/// instead — genuinely simpler (no cross-lane seam) but the wrong UX once compared to
+/// native search flows: the pushed player screen offers Select/Switch/Deselect
+/// actions that change app-wide state (the selected profile, visible tabs, Songs
+/// filters), and having those actions live one level inside a still-presented sheet
+/// reads as "still searching" rather than "you're now on your new profile" — closing
+/// the sheet afterward is an extra, unnecessary step. Dismiss-then-push matches how
+/// Contacts/Messages "New Message" search hands off to the real destination, and
+/// keeps this sheet a pure finder with no navigation state of its own.
 ///
 /// **Search field — a styled `TextField`, not literal `.searchable`:** HIG prefers
 /// `.searchable` for a search pill, but this sheet is exercised by macOS
@@ -85,7 +89,6 @@ struct ProfileActionButton: View {
 /// while staying a directly hosted, testable control.
 struct ProfileSelectionSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var path: [AppRoute] = []
     @State private var scope = ProfileSearchScope.players
     @State private var query = ""
     @State private var searchPhase = PlayerSearchPhase.enterQuery
@@ -94,6 +97,18 @@ struct ProfileSelectionSheet: View {
     @FocusState private var searchFocused: Bool
 
     let session: FestivalSession
+    /// Dismiss-then-push hook, called after `dismiss()` with the route to push onto
+    /// the presenting tab. A plain closure parameter, **not** `\.openRoute`
+    /// (`FestivalRootView`'s environment action of the same shape): verified
+    /// empirically that a custom `@Entry` environment value set by the presenting
+    /// view — this one, and the pre-existing `\.openDrawer` — never actually fires
+    /// once read from inside this sheet's own content, even though both read
+    /// correctly everywhere else in the app. `FestivalRootView` passes its
+    /// `paths[selected, default: []].append` directly here instead, the same
+    /// closure-capture mechanism `FestivalDrawer`'s proven-working `onIntent:
+    /// handleDrawer` already uses. Defaults to a no-op for hosted previews/tests
+    /// that construct this sheet without the root shell.
+    var openRoute: (AppRoute) -> Void = { _ in }
 
     private struct SearchKey: Hashable {
         let query: String
@@ -102,7 +117,7 @@ struct ProfileSelectionSheet: View {
     }
 
     var body: some View {
-        NavigationStack(path: $path) {
+        NavigationStack {
             Form {
                 if let selected = session.selectedPlayer {
                     Section {
@@ -136,12 +151,6 @@ struct ProfileSelectionSheet: View {
                     Button("Close") { dismiss() }
                         .accessibilityIdentifier("fst.profile.close")
                 }
-            }
-            .navigationDestination(for: AppRoute.self) { route in
-                AppRouteDestination(
-                    route: route, session: session, visibleInstruments: [],
-                    path: $path, isVisible: true
-                )
             }
         }
         .onChange(of: query) { _, _ in searchPhase = .enterQuery }
@@ -220,10 +229,8 @@ struct ProfileSelectionSheet: View {
             }
             .foregroundStyle(BrandTokens.textPrimary)
             HStack(spacing: 16) {
-                NavigationLink(value: AppRoute.player(
-                    accountId: selected.accountId, displayName: selected.displayName
-                )) {
-                    Text("View Profile")
+                Button("View Profile") {
+                    openPlayer(accountId: selected.accountId, displayName: selected.displayName)
                 }
                 .accessibilityIdentifier("fst.profile.view-selected")
                 Button("Deselect", role: .destructive) { deselectPending = true }
@@ -288,9 +295,9 @@ struct ProfileSelectionSheet: View {
                     LazyVStack(spacing: 0) {
                         ForEach(results) { player in
                             Divider().overlay(BrandTokens.glassBorder)
-                            NavigationLink(value: AppRoute.player(
-                                accountId: player.accountId, displayName: player.displayName
-                            )) {
+                            Button {
+                                openPlayer(accountId: player.accountId, displayName: player.displayName)
+                            } label: {
                                 Label(player.displayName, systemImage: "person.crop.circle")
                                     .foregroundStyle(BrandTokens.textPrimary)
                                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
@@ -318,6 +325,19 @@ struct ProfileSelectionSheet: View {
                 .padding(16)
             }
         }
+    }
+
+    /// Dismiss this sheet, then push the real player-profile route on the presenting
+    /// tab, so its Select/Switch/Deselect actions land back on that tab, not inside
+    /// a sheet the user still has to close afterward.
+    ///
+    /// - Parameters:
+    ///   - accountId: Public account key from the selected identity or a search result.
+    ///   - displayName: Name known before the pushed screen's own read completes.
+    private func openPlayer(accountId: String, displayName: String) {
+        let route = AppRoute.player(accountId: accountId, displayName: displayName)
+        dismiss()
+        openRoute(route)
     }
 
     /// Debounce and cancel an obsolete search instead of presenting older results.
