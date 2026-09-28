@@ -21,6 +21,13 @@ struct LeaderboardsScreen: View {
     @AppStorage("fst.leaderboards.rankBy") private var rankByRaw = RankingMetric.totalscore.rawValue
     @State private var instrumentStates: [Instrument: RankLoadState<RankingsPayload>] = [:]
     @State private var bandStates: [BandType: RankLoadState<BandRankingsPayload>] = [:]
+    /// The selected player's own row on each instrument's board, fetched only when
+    /// they are not already among the loaded top ten — see `spotlightSection(_:entries:)`.
+    /// Band cards have no equivalent: the app has no persisted "selected band"
+    /// identity yet (unlike the web client's `useSelectedProfile()` band branch),
+    /// so band spotlighting is intentionally not ported this pass — see
+    /// `.agents/pages/leaderboards/ios.md`.
+    @State private var spotlightStates: [Instrument: RankLoadState<PlayerInstrumentRankingPayload>] = [:]
     @State private var quickLinks = QuickLinksController()
 
     /// Create the screen.
@@ -50,9 +57,11 @@ struct LeaderboardsScreen: View {
         return Instrument.allCases.filter(shown.contains)
     }
 
-    /// Reload every card whenever the metric or the visible instrument set changes.
+    /// Reload every card whenever the metric, the visible instrument set, or the
+    /// selected player changes (the last so a new selection's spotlight loads).
     private var reloadKey: String {
-        "\(rankByRaw)|\(visibleInstruments.map(\.rawValue).joined(separator: ","))"
+        "\(rankByRaw)|\(visibleInstruments.map(\.rawValue).joined(separator: ","))|" +
+            (session.selectedPlayer?.accountId ?? "")
     }
 
     /// One quick link per card, in card order (web ids `instrument:<key>` / `band:<type>`).
@@ -135,9 +144,15 @@ struct LeaderboardsScreen: View {
                 } else {
                     VStack(spacing: 4) {
                         ForEach(payload.rankings.entries) { entry in
-                            AccountRankingRow(entry: entry, metric: rankBy)
+                            AccountRankingRow(
+                                entry: entry, metric: rankBy,
+                                isSelected: isSelectedAccount(entry.accountId)
+                            )
                         }
                     }
+                }
+                spotlightSection(instrument: instrument, entries: payload.rankings.entries)
+                if !payload.rankings.entries.isEmpty {
                     viewAllLink(
                         AppRoute.fullRankings(instrument: instrument, rankBy: rankByRaw),
                         id: "fst.leaderboards.card.\(instrument.rawValue).view-all"
@@ -156,6 +171,63 @@ struct LeaderboardsScreen: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.leaderboards.card.\(instrument.rawValue)")
         .quickLinkSection(Self.quickLink(for: instrument))
+    }
+
+    // MARK: Selected-player spotlight
+
+    /// Whether `accountId` is the currently selected player, matching case-insensitively
+    /// as the wire's account ids sometimes vary in casing.
+    ///
+    /// - Parameter accountId: Row's account id.
+    /// - Returns: True only when a player is selected and it is this account.
+    private func isSelectedAccount(_ accountId: String) -> Bool {
+        guard let selected = session.selectedPlayer?.accountId else { return false }
+        return selected.caseInsensitiveCompare(accountId) == .orderedSame
+    }
+
+    /// Show the selected player's own row below one instrument's top ten when they
+    /// are not already visible among `entries`, mirroring the web client's
+    /// `RankingCard` spotlight footer (`RankingCard.tsx:97-102`).
+    ///
+    /// - Parameters:
+    ///   - instrument: Card's instrument.
+    ///   - entries: This card's currently loaded top-ten rows.
+    @ViewBuilder
+    private func spotlightSection(instrument: Instrument, entries: [AccountRankingEntry]) -> some View {
+        if let accountId = session.selectedPlayer?.accountId {
+            let source: RankingSpotlightSource = {
+                switch spotlightStates[instrument] {
+                case .none, .loading: return .notLoaded
+                case let .loaded(payload): return payload.ranking.map { .available($0.entry) } ?? .unranked
+                case .failed: return .notLoaded
+                }
+            }()
+            switch RankingSpotlight.placement(
+                selectedAccountId: accountId, visibleEntries: entries, source: source
+            ) {
+            case .none, .inline:
+                EmptyView()
+            case .pending:
+                if case let .failed(issue) = spotlightStates[instrument] {
+                    ServiceStatusInline(issue, scope: "leaderboards.spotlight.\(instrument.rawValue)") {
+                        Task { await loadSpotlight(instrument) }
+                    }
+                    .padding(.top, 4)
+                } else {
+                    RankingSpotlightLoadingRow()
+                        .padding(.top, 4)
+                        .accessibilityIdentifier("fst.leaderboards.card.\(instrument.rawValue).spotlight.loading")
+                }
+            case .unranked:
+                RankingSpotlightUnrankedRow(message: "Not yet ranked on \(instrument.label).")
+                    .padding(.top, 4)
+                    .accessibilityIdentifier("fst.leaderboards.card.\(instrument.rawValue).spotlight.unranked")
+            case let .footer(entry):
+                AccountRankingRow(entry: entry, metric: rankBy, isSelected: true)
+                    .padding(.top, 4)
+                    .accessibilityIdentifier("fst.leaderboards.card.\(instrument.rawValue).spotlight")
+            }
+        }
     }
 
     // MARK: Band cards
@@ -247,8 +319,36 @@ struct LeaderboardsScreen: View {
                 instrument: instrument, rankBy: rankBy, page: 1, pageSize: 10
             )
             instrumentStates[instrument] = .loaded(payload)
+            if let selected = session.selectedPlayer?.accountId,
+               !payload.rankings.entries.contains(where: {
+                   $0.accountId.caseInsensitiveCompare(selected) == .orderedSame
+               }) {
+                await loadSpotlight(instrument)
+            } else {
+                spotlightStates[instrument] = nil
+            }
         } catch {
             instrumentStates[instrument] = .failed(ServiceIssue(error))
+        }
+    }
+
+    /// Read the selected player's own row on one instrument's board, only called
+    /// when they are not already among the loaded top ten.
+    ///
+    /// - Parameter instrument: Chart to look up.
+    private func loadSpotlight(_ instrument: Instrument) async {
+        guard let accountId = session.selectedPlayer?.accountId else {
+            spotlightStates[instrument] = nil
+            return
+        }
+        spotlightStates[instrument] = .loading
+        do {
+            let payload = try await session.playerInstrumentRanking(
+                instrument: instrument, accountId: accountId
+            )
+            spotlightStates[instrument] = .loaded(payload)
+        } catch {
+            spotlightStates[instrument] = .failed(ServiceIssue(error))
         }
     }
 

@@ -21,7 +21,16 @@ enum RankLoadState<Value> {
 struct AccountRankingRow: View {
     let entry: AccountRankingEntry
     let metric: RankingMetric
+    /// True for the selected player's own row, whether it is highlighted in place
+    /// among the top rows or shown as a separate spotlight below them — matching
+    /// the web client's `isPlayer` accent treatment
+    /// (`RankingCard.tsx`'s `playerEntryRow` style: a tinted fill plus border).
+    var isSelected: Bool = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var displayName: String {
+        entry.displayName.flatMap { $0.isEmpty ? nil : $0 } ?? "Unknown User"
+    }
 
     var body: some View {
         NavigationLink(
@@ -34,7 +43,7 @@ struct AccountRankingRow: View {
                     .foregroundStyle(BrandTokens.textSecondary)
                     .frame(minWidth: 36, alignment: .trailing)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(entry.displayName.flatMap { $0.isEmpty ? nil : $0 } ?? "Unknown User")
+                    Text(displayName)
                         .font(.body)
                         .foregroundStyle(BrandTokens.textPrimary)
                         .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
@@ -56,9 +65,70 @@ struct AccountRankingRow: View {
                 }
             }
             .padding(.vertical, 6)
+            .padding(.horizontal, isSelected ? 8 : 0)
             .contentShape(Rectangle())
+            .background(
+                isSelected ? BrandTokens.accentPurple.opacity(0.18) : Color.clear,
+                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+            )
+            .overlay {
+                if isSelected {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(BrandTokens.accentPurple, lineWidth: 1)
+                }
+            }
         }
         .accessibilityIdentifier("fst.rankings.row.\(entry.accountId)")
+        .modifier(SelectedRankAccessibilityLabel(
+            isSelected: isSelected, rank: entry.rank(for: metric), name: displayName
+        ))
+    }
+}
+
+// MARK: - Selected-row accessibility
+
+/// Overrides a rankings row's spoken label only for the selected player's own
+/// row (e.g. "Your rank, 1,234th. PlayerName."); every other row keeps SwiftUI's
+/// default combined label so unrelated VoiceOver behavior is unchanged.
+struct SelectedRankAccessibilityLabel: ViewModifier {
+    let isSelected: Bool
+    let rank: Int
+    let name: String
+
+    func body(content: Content) -> some View {
+        if isSelected {
+            content.accessibilityLabel("Your rank, \(RankingFormatting.ordinal(rank)). \(name).")
+        } else {
+            content
+        }
+    }
+}
+
+// MARK: - Spotlight placeholders
+
+/// Compact "your rank" loading placeholder shown while the selected player's own
+/// per-account ranking read (`GET /api/rankings/{instrument}/{accountId}`) is in flight.
+struct RankingSpotlightLoadingRow: View {
+    var body: some View {
+        HStack(spacing: 6) {
+            ProgressView().controlSize(.small)
+            Text("Loading your rank…")
+                .font(.footnote)
+                .foregroundStyle(BrandTokens.textSecondary)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Loading your rank")
+    }
+}
+
+/// "Not yet ranked" text shown when the selected player has no row on this board.
+struct RankingSpotlightUnrankedRow: View {
+    let message: String
+
+    var body: some View {
+        Text(message)
+            .font(.footnote)
+            .foregroundStyle(BrandTokens.textSecondary)
     }
 }
 

@@ -14,6 +14,40 @@ public struct LeaderboardEntry: Decodable, Sendable, Identifiable, Equatable {
     public let difficulty: Double?
 
     public var id: String { accountId }
+
+    /// Build a synthetic row from already-loaded data — e.g. the selected
+    /// player's own score index (`FestivalSession.selectedPlayerScores`) — for a
+    /// spotlight footer that needs no extra network read. `Decodable`'s
+    /// synthesized `init(from:)` suppresses the automatic memberwise
+    /// initializer, so this is declared explicitly.
+    ///
+    /// - Parameters:
+    ///   - accountId: Selected player's public account key.
+    ///   - displayName: Selected player's display name.
+    ///   - score: Score value to show.
+    ///   - rank: 1-based rank on this song/instrument's board.
+    ///   - localRank: Rank within only the locally-visible entries, if known.
+    ///   - accuracy: Accuracy fraction, if known.
+    ///   - isFullCombo: Full-combo flag, if known.
+    ///   - stars: Star rating, if known.
+    ///   - season: Season number, if known.
+    ///   - difficulty: Difficulty tier, if known.
+    public init(
+        accountId: String, displayName: String?, score: Int, rank: Int,
+        localRank: Int? = nil, accuracy: Double?, isFullCombo: Bool?, stars: Int?,
+        season: Int?, difficulty: Double?
+    ) {
+        self.accountId = accountId
+        self.displayName = displayName
+        self.score = score
+        self.rank = rank
+        self.localRank = localRank
+        self.accuracy = accuracy
+        self.isFullCombo = isFullCombo
+        self.stars = stars
+        self.season = season
+        self.difficulty = difficulty
+    }
 }
 
 /// Pagination metadata comes from local entries, not from the current rows.
@@ -82,6 +116,19 @@ public enum LeaderboardPaging {
     /// - Returns: A one-based page inside the available range.
     public static func corrected(requested: Int, totalPages: Int) -> Int {
         min(max(1, requested), max(1, totalPages))
+    }
+
+    /// Map a 1-based rank to the page that contains it, mirroring the web client's
+    /// `getLeaderboardPageForRank` (`rankingHelpers.ts:48-51`). Used to jump a
+    /// paginated board straight to the selected player's own page.
+    ///
+    /// - Parameters:
+    ///   - rank: 1-based rank, e.g. from `AccountRankingEntry.rank(for:)`.
+    ///   - pageSize: Rows per page for this board.
+    /// - Returns: A 1-based page number; falls back to 1 for a non-positive input.
+    public static func page(forRank rank: Int, pageSize: Int) -> Int {
+        guard rank > 0, pageSize > 0 else { return 1 }
+        return (rank - 1) / pageSize + 1
     }
 }
 

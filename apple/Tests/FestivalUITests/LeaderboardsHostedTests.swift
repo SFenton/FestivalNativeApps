@@ -18,6 +18,17 @@ actor HostedRankingsTransport: HTTPTransport {
     /// When true, every rankings/band-rankings request returns zero entries
     /// (the "no ranked players yet" empty state).
     var empty = false
+    /// Single-account spotlight fixture, keyed by `"<instrument>:<accountId>"`.
+    /// Absent keys 404 (the honest "not ranked yet" state).
+    var spotlightRanks: [String: Int] = [:]
+    /// When true, every single-account spotlight request fails.
+    var spotlightFails = false
+    /// Artificial delay before answering a single-account spotlight request, to
+    /// deterministically capture its loading state in a hosted screenshot.
+    var spotlightDelayMs: UInt64 = 0
+    /// Count of single-account spotlight reads actually sent, to prove the
+    /// screen skips the read entirely when the row is already visible.
+    private(set) var spotlightCalls = 0
 
     func send(_ request: URLRequest) async throws -> HTTPResult {
         guard let url = request.url, request.httpMethod == "GET",
@@ -44,21 +55,43 @@ actor HostedRankingsTransport: HTTPTransport {
         )
         let page = Int(query["page"] ?? "1") ?? 1
         let rankBy = query["rankBy"] ?? "totalscore"
-        if url.pathComponents.count == 4, url.pathComponents[1] == "api",
-           url.pathComponents[2] == "rankings" {
-            let instrument = url.pathComponents[3]
-            return HTTPResult(
-                status: 200,
-                data: try rankingsBody(instrument: instrument, rankBy: rankBy, page: page),
-                headers: ["X-FST-Publication-Id": String(generation)]
-            )
-        }
         if url.pathComponents.count == 5, url.pathComponents[1] == "api",
            url.pathComponents[2] == "rankings", url.pathComponents[3] == "bands" {
             let bandType = url.pathComponents[4]
             return HTTPResult(
                 status: 200,
                 data: try bandRankingsBody(bandType: bandType, rankBy: rankBy, page: page),
+                headers: ["X-FST-Publication-Id": String(generation)]
+            )
+        }
+        if url.pathComponents.count == 5, url.pathComponents[1] == "api",
+           url.pathComponents[2] == "rankings" {
+            let instrument = url.pathComponents[3]
+            let accountId = url.pathComponents[4]
+            spotlightCalls += 1
+            if spotlightDelayMs > 0 {
+                try await Task.sleep(nanoseconds: spotlightDelayMs * 1_000_000)
+            }
+            if spotlightFails {
+                throw FestivalAPIError.httpStatus(500)
+            }
+            guard let rank = spotlightRanks["\(instrument):\(accountId)"] else {
+                throw FestivalAPIError.httpStatus(404)
+            }
+            return HTTPResult(
+                status: 200,
+                data: try singleAccountRankingBody(
+                    instrument: instrument, accountId: accountId, rank: rank
+                ),
+                headers: ["X-FST-Publication-Id": String(generation)]
+            )
+        }
+        if url.pathComponents.count == 4, url.pathComponents[1] == "api",
+           url.pathComponents[2] == "rankings" {
+            let instrument = url.pathComponents[3]
+            return HTTPResult(
+                status: 200,
+                data: try rankingsBody(instrument: instrument, rankBy: rankBy, page: page),
                 headers: ["X-FST-Publication-Id": String(generation)]
             )
         }
@@ -70,6 +103,44 @@ actor HostedRankingsTransport: HTTPTransport {
     /// - Parameter value: True to serve zero entries for every instrument/band.
     func setEmpty(_ value: Bool) {
         empty = value
+    }
+
+    /// Register a fixture rank for one account's single-account spotlight read.
+    ///
+    /// - Parameters:
+    ///   - instrument: Requested chart.
+    ///   - accountId: Requested account.
+    ///   - rank: Rank to serve for every metric (kept equal for simplicity).
+    func setSpotlightRank(instrument: String, accountId: String, rank: Int) {
+        spotlightRanks["\(instrument):\(accountId)"] = rank
+    }
+
+    /// Force every subsequent single-account spotlight read to fail.
+    ///
+    /// - Parameter value: True to throw a 500 for the spotlight endpoint.
+    func setSpotlightFails(_ value: Bool) {
+        spotlightFails = value
+    }
+
+    /// Delay every subsequent single-account spotlight read.
+    ///
+    /// - Parameter milliseconds: Artificial delay before responding.
+    func setSpotlightDelay(_ milliseconds: UInt64) {
+        spotlightDelayMs = milliseconds
+    }
+
+    private func singleAccountRankingBody(instrument: String, accountId: String, rank: Int) throws -> Data {
+        let body: [String: Any] = [
+            "accountId": accountId, "displayName": "Spotlight Player",
+            "instrument": instrument, "totalRankedAccounts": 500,
+            "songsPlayed": 30, "totalChartedSongs": 50, "coverage": 0.6,
+            "rawSkillRating": 0.02, "adjustedSkillRating": 0.02, "adjustedSkillRank": rank,
+            "weightedRating": 0.03, "weightedRank": rank, "fcRate": 0.5, "fcRateRank": rank,
+            "totalScore": 40_000_000, "totalScoreRank": rank,
+            "maxScorePercent": 0.9, "maxScorePercentRank": rank, "avgAccuracy": 0.9,
+            "fullComboCount": 10, "avgStars": 4.2, "bestRank": rank, "avgRank": Double(rank),
+        ]
+        return try JSONSerialization.data(withJSONObject: body)
     }
 
     private func rankingsBody(instrument: String, rankBy: String, page: Int) throws -> Data {
@@ -120,6 +191,29 @@ actor HostedRankingsTransport: HTTPTransport {
 private func hostedRankingsSession(transport: HostedRankingsTransport) -> FestivalSession {
     let client = try! FestivalAPI(baseURL: URL(string: "http://localhost")!, transport: transport)
     return FestivalSession(factory: { client })
+}
+
+/// Build a fixture-backed session with a player already selected in memory
+/// (`debugSelectedPlayer`), for the selected-player spotlight hosted renders —
+/// never touches real `UserDefaults`.
+///
+/// - Parameters:
+///   - transport: Shared rankings fixture transport.
+///   - accountId: Selected player's fixture account id.
+///   - displayName: Selected player's fixture display name.
+/// - Returns: A session that already reports this player selected.
+@MainActor
+private func hostedRankingsSessionWithSelection(
+    transport: HostedRankingsTransport, accountId: String, displayName: String
+) throws -> FestivalSession {
+    let client = try! FestivalAPI(baseURL: URL(string: "http://localhost")!, transport: transport)
+    let result = try JSONDecoder().decode(PlayerSearchResult.self, from: Data("""
+    {"accountId":"\(accountId)","displayName":"\(displayName)"}
+    """.utf8))
+    return FestivalSession(
+        factory: { client },
+        debugSelectedPlayer: try SelectedPlayerIdentity(searchResult: result)
+    )
 }
 
 // MARK: - LeaderboardsScreen overview
@@ -210,6 +304,171 @@ private func hostedRankingsSession(transport: HostedRankingsTransport) -> Festiv
     host.layoutSubtreeIfNeeded()
     let image = try nativeHostedImage(host)
     _ = try nativeHostedPNG(image, filename: "band-rankings.png", environment: "FST_LEADERBOARDS_RENDER_OUT")
+    #expect(image.width > 0 && image.height > 0)
+}
+
+// MARK: - LeaderboardsScreen selected-player spotlight
+
+/// The selected player's row is highlighted in place when already in the top ten.
+@MainActor
+@Test func leaderboardsScreenHighlightsSelectedRowWhenInTopTen() async throws {
+    let transport = HostedRankingsTransport()
+    // The fixture top-ten rows are "fixture-rank-1"/"2"/"3"; selecting one of
+    // them must highlight it inline rather than adding a spotlight footer.
+    let session = try hostedRankingsSessionWithSelection(
+        transport: transport, accountId: "fixture-rank-2", displayName: "Fixture Rank 2"
+    )
+    let size = CGSize(width: 402, height: 1200)
+    let host = nativeHostedView(
+        LeaderboardsScreen(session: session)
+            .frame(width: size.width, height: size.height)
+            .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    try await Task.sleep(for: .milliseconds(400))
+    host.layoutSubtreeIfNeeded()
+    let image = try nativeHostedImage(host)
+    _ = try nativeHostedPNG(
+        image, filename: "leaderboards-spotlight-inline.png", environment: "FST_LEADERBOARDS_RENDER_OUT"
+    )
+    #expect(image.width > 0 && image.height > 0)
+    // No live single-account read was needed since the row was already visible.
+    #expect(await transport.spotlightCalls == 0)
+}
+
+/// A selected player ranked below the top ten shows a separate spotlight row.
+@MainActor
+@Test func leaderboardsScreenShowsSpotlightFooterWhenBelowTopTen() async throws {
+    let transport = HostedRankingsTransport()
+    await transport.setSpotlightRank(instrument: "Solo_Guitar", accountId: "fixture-far-player", rank: 57)
+    let session = try hostedRankingsSessionWithSelection(
+        transport: transport, accountId: "fixture-far-player", displayName: "Fixture Far Player"
+    )
+    let size = CGSize(width: 402, height: 1200)
+    let host = nativeHostedView(
+        LeaderboardsScreen(session: session)
+            .frame(width: size.width, height: size.height)
+            .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    try await Task.sleep(for: .milliseconds(500))
+    host.layoutSubtreeIfNeeded()
+    let image = try nativeHostedImage(host)
+    _ = try nativeHostedPNG(
+        image, filename: "leaderboards-spotlight-footer.png", environment: "FST_LEADERBOARDS_RENDER_OUT"
+    )
+    #expect(image.width > 0 && image.height > 0)
+}
+
+/// A selected player with no rank yet on a board shows the "not yet ranked" text.
+@MainActor
+@Test func leaderboardsScreenShowsUnrankedSpotlightText() async throws {
+    let transport = HostedRankingsTransport()
+    // No `setSpotlightRank` call: every single-account read 404s.
+    let session = try hostedRankingsSessionWithSelection(
+        transport: transport, accountId: "fixture-never-ranked", displayName: "Never Ranked"
+    )
+    let size = CGSize(width: 402, height: 1200)
+    let host = nativeHostedView(
+        LeaderboardsScreen(session: session)
+            .frame(width: size.width, height: size.height)
+            .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    try await Task.sleep(for: .milliseconds(500))
+    host.layoutSubtreeIfNeeded()
+    let image = try nativeHostedImage(host)
+    _ = try nativeHostedPNG(
+        image, filename: "leaderboards-spotlight-unranked.png", environment: "FST_LEADERBOARDS_RENDER_OUT"
+    )
+    #expect(image.width > 0 && image.height > 0)
+}
+
+/// A failed single-account read shows the shared inline service status, not a crash.
+@MainActor
+@Test func leaderboardsScreenShowsSpotlightFailureInline() async throws {
+    let transport = HostedRankingsTransport()
+    await transport.setSpotlightFails(true)
+    let session = try hostedRankingsSessionWithSelection(
+        transport: transport, accountId: "fixture-far-player", displayName: "Fixture Far Player"
+    )
+    let size = CGSize(width: 402, height: 1200)
+    let host = nativeHostedView(
+        LeaderboardsScreen(session: session)
+            .frame(width: size.width, height: size.height)
+            .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    try await Task.sleep(for: .milliseconds(500))
+    host.layoutSubtreeIfNeeded()
+    let image = try nativeHostedImage(host)
+    _ = try nativeHostedPNG(
+        image, filename: "leaderboards-spotlight-failed.png", environment: "FST_LEADERBOARDS_RENDER_OUT"
+    )
+    #expect(image.width > 0 && image.height > 0)
+}
+
+/// The loading placeholder renders while the single-account read is still in flight.
+@MainActor
+@Test func leaderboardsScreenShowsSpotlightLoadingPlaceholder() async throws {
+    let transport = HostedRankingsTransport()
+    await transport.setSpotlightDelay(2_000)
+    let session = try hostedRankingsSessionWithSelection(
+        transport: transport, accountId: "fixture-far-player", displayName: "Fixture Far Player"
+    )
+    let size = CGSize(width: 402, height: 1200)
+    let host = nativeHostedView(
+        LeaderboardsScreen(session: session)
+            .frame(width: size.width, height: size.height)
+            .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    // The top-ten board itself resolves quickly; only the delayed single-account
+    // spotlight read is still pending at this point.
+    try await Task.sleep(for: .milliseconds(300))
+    host.layoutSubtreeIfNeeded()
+    let image = try nativeHostedImage(host)
+    _ = try nativeHostedPNG(
+        image, filename: "leaderboards-spotlight-loading.png", environment: "FST_LEADERBOARDS_RENDER_OUT"
+    )
+    #expect(image.width > 0 && image.height > 0)
+}
+
+// MARK: - FullRankingsScreen selected-player spotlight
+
+/// The Full Rankings board shows the same spotlight footer with a jump-to-page control.
+@MainActor
+@Test func fullRankingsScreenShowsSpotlightFooterWithJumpControl() async throws {
+    let transport = HostedRankingsTransport()
+    await transport.setSpotlightRank(instrument: "Solo_Guitar", accountId: "fixture-far-player", rank: 57)
+    let session = try hostedRankingsSessionWithSelection(
+        transport: transport, accountId: "fixture-far-player", displayName: "Fixture Far Player"
+    )
+    let size = CGSize(width: 402, height: 900)
+    let host = nativeHostedView(
+        FullRankingsScreen(session: session, instrument: .lead, rankBy: "totalscore")
+            .frame(width: size.width, height: size.height)
+            .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    try await Task.sleep(for: .milliseconds(500))
+    host.layoutSubtreeIfNeeded()
+    let image = try nativeHostedImage(host)
+    _ = try nativeHostedPNG(
+        image, filename: "full-rankings-spotlight-footer.png", environment: "FST_LEADERBOARDS_RENDER_OUT"
+    )
     #expect(image.width > 0 && image.height > 0)
 }
 

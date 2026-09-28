@@ -84,10 +84,17 @@ struct SoloLeaderboardScreen: View {
                                 .listRowBackground(Color.clear)
                         }
                         ForEach(payload.leaderboard.entries) { entry in
+                            let isSelectedRow = isSelectedAccount(entry.accountId)
                             NavigationLink(value: playerRoute(for: entry)) {
                                 SongLeaderboardEntryRow(entry: entry)
                                     .padding(12)
                                     .festivalGlass(.card)
+                                    .overlay {
+                                        if isSelectedRow {
+                                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                                .stroke(BrandTokens.accentPurple, lineWidth: 2)
+                                        }
+                                    }
                             }
                             .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                             .listRowBackground(Color.clear)
@@ -100,6 +107,7 @@ struct SoloLeaderboardScreen: View {
                     }
                     .listStyle(.plain)
                     .scrollContentBackground(.hidden)
+                    selectedPlayerFooter(payload)
                     RankingsPagerView(
                         page: page, totalPages: payload.leaderboard.pageCount,
                         idPrefix: "fst.song-leaderboard"
@@ -137,6 +145,75 @@ struct SoloLeaderboardScreen: View {
             } else if let lastRequest, lastRequest != requestKey {
                 await loadPage()
             }
+        }
+    }
+
+    // MARK: Selected-player spotlight
+
+    /// Whether `accountId` is the currently selected player, matching case-insensitively.
+    ///
+    /// - Parameter accountId: Row's account id.
+    /// - Returns: True only when a player is selected and it is this account.
+    private func isSelectedAccount(_ accountId: String) -> Bool {
+        guard let selected = session.selectedPlayer?.accountId else { return false }
+        return selected.caseInsensitiveCompare(accountId) == .orderedSame
+    }
+
+    /// The selected player's own score footer for this song/instrument, built from
+    /// the score index already loaded for their profile (`FestivalSession.selectedPlayerScores`)
+    /// — no extra network read, matching the web client's `playerData.scores` lookup
+    /// (`LeaderboardPage.tsx:88-91`). Shown whenever they have a score here, since the
+    /// paginated board may or may not currently show their row.
+    ///
+    /// Tapping the row opens Statistics, matching the web client's footer
+    /// (`LeaderboardPage.tsx:476-500`, `navigate('/statistics')`); a trailing jump
+    /// control — a native addition beyond web — moves straight to their page when
+    /// they are not visible on the current one.
+    ///
+    /// - Parameter payload: Current page's loaded leaderboard.
+    @ViewBuilder
+    private func selectedPlayerFooter(_ payload: LeaderboardPayload) -> some View {
+        if let selected = session.selectedPlayer,
+           let score = session.selectedPlayerScores[song.songId]?[instrument],
+           let rank = score.rank {
+            let entry = LeaderboardEntry(
+                accountId: selected.accountId, displayName: selected.displayName,
+                score: score.score, rank: rank, localRank: nil,
+                accuracy: score.accuracy, isFullCombo: score.isFullCombo,
+                stars: score.stars, season: score.season, difficulty: score.difficulty
+            )
+            let isVisible = payload.leaderboard.entries.contains {
+                $0.accountId.caseInsensitiveCompare(selected.accountId) == .orderedSame
+            }
+            HStack(spacing: 8) {
+                NavigationLink(value: AppRoute.statistics) {
+                    SongLeaderboardEntryRow(entry: entry)
+                        .padding(12)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Your rank, \(RankingFormatting.ordinal(rank)).")
+                if !isVisible {
+                    Button {
+                        move(to: LeaderboardPaging.page(forRank: rank, pageSize: 25))
+                    } label: {
+                        Image(systemName: "arrow.right.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(BrandTokens.accentPurple)
+                    }
+                    .accessibilityLabel("Jump to your page")
+                    .accessibilityIdentifier("fst.song-leaderboard.spotlight-jump")
+                }
+            }
+            .padding(.horizontal, 4)
+            .background(BrandTokens.accentPurple.opacity(0.18), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(BrandTokens.accentPurple, lineWidth: 1)
+            )
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("fst.song-leaderboard.spotlight-footer")
         }
     }
 

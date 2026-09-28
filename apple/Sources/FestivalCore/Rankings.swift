@@ -389,4 +389,15 @@ public enum RankingFormatting {
         if magnitude < 1 { return String(format: "%.2f", value) }
         return String(format: "%.1f", value)
     }
+
+    /// Format a rank as a spoken ordinal for VoiceOver, e.g. "1,234th", matching
+    /// the "Your rank, 1,234th" spotlight phrasing.
+    ///
+    /// - Parameter rank: 1-based rank.
+    /// - Returns: A locale-formatted ordinal, or "#N" if ordinal formatting fails.
+    public static func ordinal(_ rank: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .ordinal
+        return formatter.string(from: NSNumber(value: rank)) ?? "#\(rank)"
+    }
 }
