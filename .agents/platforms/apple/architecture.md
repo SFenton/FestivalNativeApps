@@ -9,7 +9,7 @@
 | `apple/Sources/FestivalCore` | URLSession wire models, publication consistency (pin / 409 retry / 304 ETag), session cache, policies (`SongShopFilter`, `SongPlayerScoreFilter`, `SongInstrumentStatusPolicy`, …). New domains go in `FestivalAPI+<Domain>.swift` |
 | `apple/Sources/FestivalDesign` | Generated `BrandTokens.swift` ([tokens](../../design/fluent.md)), branded controls (difficulty meter) |
 | `apple/Sources/FestivalUI/App` | `AppRoute`, `AppRouteDestination`, `FestivalTabStack` (orchestrator); `FestivalRootView`, `Shell/*`; `FestivalSession` (+ `FestivalSession+<Feature>.swift`) |
-| `apple/Sources/FestivalUI/{Background,Common,Design}` | Animated background host; status views; `festivalGlass`, `FestivalSectionHeader`, `InstrumentIcon` |
+| `apple/Sources/FestivalUI/{Background,Common,Design}` | Animated background host; status views; `festivalGlass`, `FestivalSectionHeader`, `InstrumentIcon`, `StarRating` |
 | `apple/Sources/FestivalUI/Features/<Feature>` | One folder per page family (Songs, SongDetail, Shop, Profile, Leaderboards, SongLeaderboard, Settings, Rivals, …) |
 | `apple/Apps/{iOS,macOS}`, `apple/Apps/*UITests` | App entry points and XCUITests (UITests frozen during Wave 1) |
 | `apple/Tests/{FestivalCoreTests,FestivalDesignTests,FestivalUITests}` | SwiftPM tests; hosted snapshot helpers in `FestivalUITests` |
@@ -44,6 +44,7 @@ Never put several default-style `Button`s or `NavigationLink`s in **one** `List`
 
 | Use | Not | Why |
 |---|---|---|
+| `StarRating(stars:gold:style:)` (`Design/StarRating.swift`; web `star_white`/`star_gold` in `Resources/Stars.xcassets`; 6 → five gold; `.inline` 14 pt or `.mini` web `MiniStars` circles) | SF Symbol `star`/`star.fill` | Operator rule (2026-09-28): stars use the game's own artwork everywhere |
 | `ServiceStatusView(ServiceIssue(error), title:)` (`.title2`/`.body`, heading trait, opaque ≥44pt Retry, scrolls at large text, freeze countdown) | `ContentUnavailableView` or a bare message for service errors | iOS 26.5's system view failed Dynamic Type audits; one vocabulary for freeze/offline/syncing |
 | `.refreshable` on the loaded List only | on an error `ScrollView` | Replacing an active refresh source can strand a spinner |
 | Explicit scaled `frame` inside shared badges | SwiftUI `padding` inside the fixed score badge | Padding caused an iPad split-view layout loop ([score-accuracy](../../controls/score-accuracy/ipados.md)) |
