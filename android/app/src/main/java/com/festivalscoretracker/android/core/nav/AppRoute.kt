@@ -81,7 +81,7 @@ data class BandRoute(
 @Serializable data object LeaderboardsRoute : AppRoute
 
 /** `/leaderboards/all?instrument=&rankBy=`. */
-@Serializable data class FullRankingsRoute(val instrument: String, val rankBy: String = "adjusted") : AppRoute
+@Serializable data class FullRankingsRoute(val instrument: String, val rankBy: String = "totalscore") : AppRoute
 
 /** `/leaderboards/bands/:bandType`. */
 @Serializable data class BandRankingsRoute(val bandType: String) : AppRoute

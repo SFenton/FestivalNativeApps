@@ -69,14 +69,11 @@ import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.nav.AdaptiveLayoutPolicy
 import com.festivalscoretracker.android.core.nav.AllRivalsRoute
 import com.festivalscoretracker.android.core.nav.AppRoute
-import com.festivalscoretracker.android.core.nav.BandRankingsRoute
 import com.festivalscoretracker.android.core.nav.CompeteRoute
 import com.festivalscoretracker.android.core.nav.CompeteTab
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.core.nav.FestivalSection
 import com.festivalscoretracker.android.core.nav.FestivalTabPolicy
-import com.festivalscoretracker.android.core.nav.FullRankingsRoute
-import com.festivalscoretracker.android.core.nav.LeaderboardsRoute
 import com.festivalscoretracker.android.core.nav.LeaderboardsTab
 import com.festivalscoretracker.android.core.nav.LicensesRoute
 import com.festivalscoretracker.android.core.nav.NavigationLayout
@@ -106,6 +103,7 @@ import com.festivalscoretracker.android.ui.bands.bandsDestinations
 import com.festivalscoretracker.android.ui.common.ComingSoonScreen
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ShellActions
+import com.festivalscoretracker.android.ui.leaderboards.leaderboardsGraph
 import com.festivalscoretracker.android.ui.settings.SettingsScreen
 import com.festivalscoretracker.android.ui.songdetail.SongDetailScreen
 import com.festivalscoretracker.android.ui.songdetail.SongLeaderboardScreen
@@ -544,22 +542,19 @@ private fun FestivalNavHost(
             val boardViewModel: SongLeaderboardViewModel = viewModel {
                 SongLeaderboardViewModel(route.songId, instrument, route.page, { api.catalog(it) }, api::leaderboard, container.backoff)
             }
-            SongLeaderboardScreen(boardViewModel)
+            SongLeaderboardScreen(boardViewModel, settings.selectedPlayer?.accountId)
         }
+        leaderboardsGraph(container, shellViewModel, container.leaderboardPreferences)
         composable<SettingsTab> {
             SettingsScreen(settings = settings, shellViewModel = shellViewModel, serviceOrigin = api.origin)
         }
         placeholder<SuggestionsTab>("Suggestions", isRoot = true)
-        placeholder<LeaderboardsTab>("Leaderboards", isRoot = true)
         placeholder<CompeteTab>("Compete", isRoot = true)
         placeholder<RivalsTab>("Rivals", isRoot = true)
         placeholder<StatisticsTab>("Statistics", isRoot = true)
         bandsDestinations(container)
         placeholder<PlayerHistoryRoute>("Score History")
         placeholder<PlayerRoute>("Player")
-        placeholder<LeaderboardsRoute>("Leaderboards")
-        placeholder<FullRankingsRoute>("Full Rankings")
-        placeholder<BandRankingsRoute>("Band Rankings")
         placeholder<RivalsRoute>("Rivals")
         placeholder<AllRivalsRoute>("All Rivals")
         placeholder<RivalDetailRoute>("Rival")

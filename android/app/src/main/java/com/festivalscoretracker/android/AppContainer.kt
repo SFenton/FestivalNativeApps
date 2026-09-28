@@ -12,6 +12,7 @@ import com.festivalscoretracker.android.data.HttpTransport
 import com.festivalscoretracker.android.data.OkHttpTransport
 import com.festivalscoretracker.android.data.SettingsRepository
 import com.festivalscoretracker.android.data.profile.playerProfile
+import com.festivalscoretracker.android.data.rankings.LeaderboardPreferences
 import com.festivalscoretracker.android.presentation.BackgroundController
 import com.festivalscoretracker.android.presentation.profile.SelectedProfileStore
 import okhttp3.OkHttpClient
@@ -46,6 +47,9 @@ class AppContainer(
 
     /** Persisted settings. */
     val settings = SettingsRepository(settingsStore ?: context.applicationContext.settingsDataStore)
+
+    /** Persisted Leaderboards Rank By (same store, its own key). */
+    val leaderboardPreferences = LeaderboardPreferences(settingsStore ?: context.applicationContext.settingsDataStore)
 
     /** Shared automatic-retry backoff. */
     val backoff = ServiceRetryBackoff()

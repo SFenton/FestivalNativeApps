@@ -3,6 +3,7 @@ package com.festivalscoretracker.android.ui
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -115,11 +116,11 @@ class ShellUiTest {
         waitForTag("fst.song-detail.view-all.Solo_Guitar")
         rule.onNodeWithTag("fst.song-detail.view-all.Solo_Guitar").performSemanticsAction(SemanticsActions.OnClick)
         waitForTag("fst.song-leaderboard.list")
-        rule.onNodeWithTag("fst.song-leaderboard.list").performScrollToNode(hasTestTag("fst.song-leaderboard.pager"))
-        rule.onNodeWithText("Page 1 of 3").assertIsDisplayed()
+        rule.waitUntil(5_000) { settle(100); rule.onAllNodes(hasContentDescription("Page 1 of 3")).fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("fst.song-leaderboard.page-info").assertIsDisplayed()
         rule.onNodeWithContentDescription("Next page").performSemanticsAction(SemanticsActions.OnClick)
         settle()
-        rule.waitUntil(5_000) { settle(100); rule.onAllNodes(hasText("Page 2 of 3")).fetchSemanticsNodes().isNotEmpty() }
+        rule.waitUntil(5_000) { settle(100); rule.onAllNodes(hasContentDescription("Page 2 of 3")).fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("fst.nav.back").performClick()
         waitForTag("fst.song-detail.intensity")
         rule.onNodeWithTag("fst.nav.back").performClick()
