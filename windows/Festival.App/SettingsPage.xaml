@@ -1,0 +1,12 @@
+<Page
+    x:Class="Festival.App.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel Padding="24" Spacing="12">
+        <TextBlock Text="Settings" Style="{ThemeResource TitleTextBlockStyle}" />
+        <TextBlock x:Name="ConnectionMode" TextWrapping="Wrap"
+                   AutomationProperties.AutomationId="fst.settings.connection-mode" />
+        <TextBlock Text="Windows accessibility, contrast, text scaling and motion preferences are controlled by the system."
+                   TextWrapping="Wrap" />
+    </StackPanel>
+</Page>

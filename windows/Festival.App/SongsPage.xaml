@@ -1,0 +1,40 @@
+<Page
+    x:Class="Festival.App.SongsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Festival.App">
+    <Grid Padding="24" RowSpacing="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <StackPanel Spacing="8">
+            <TextBlock Text="Songs" Style="{ThemeResource TitleTextBlockStyle}" />
+            <TextBlock Text="{Binding Publication, Mode=OneWay}" AutomationProperties.AutomationId="fst.songs.publication" />
+            <Button Content="Refresh songs" Click="OnRefresh" AutomationProperties.AutomationId="fst.songs.refresh" />
+            <TextBlock Text="{Binding Status, Mode=OneWay}" TextWrapping="Wrap"
+                       AutomationProperties.LiveSetting="Polite" AutomationProperties.AutomationId="fst.songs.status" />
+        </StackPanel>
+        <ProgressRing Grid.Row="1" HorizontalAlignment="Left" IsActive="{Binding IsLoading, Mode=OneWay}" />
+        <ListView Grid.Row="2" ItemsSource="{Binding Songs}" AutomationProperties.AutomationId="fst.songs.list">
+            <ListView.ItemTemplate>
+                <DataTemplate>
+                    <Grid Padding="8" ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="{Binding Title}" Style="{ThemeResource SubtitleTextBlockStyle}" />
+                            <TextBlock Text="{Binding Artist}" />
+                        </StackPanel>
+                        <local:DifficultyMeter Grid.Column="1" Value="{Binding Difficulty}"
+                                               VerticalAlignment="Center"
+                                               AutomationProperties.AutomationId="fst.songs.difficulty-meter" />
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+    </Grid>
+</Page>
