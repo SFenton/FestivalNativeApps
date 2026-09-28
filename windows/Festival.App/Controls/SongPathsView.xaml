@@ -1,0 +1,111 @@
+<UserControl
+    x:Class="Festival.App.Controls.SongPathsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Festival.App.Controls"
+    xmlns:data="using:Festival.Core.Data">
+
+    <Grid RowSpacing="12" AutomationProperties.AutomationId="fst.song-detail.paths-dialog">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Selectors: instrument, difficulty, image/text. -->
+        <Grid x:Name="Selectors" ColumnSpacing="16" RowSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <ComboBox x:Name="InstrumentPicker" Header="Instrument" MinWidth="200"
+                      ItemsSource="{x:Bind ViewModel.InstrumentLabels}" SelectedIndex="{x:Bind ViewModel.InstrumentIndex, Mode=TwoWay}"
+                      AutomationProperties.AutomationId="fst.paths.instrument" />
+            <RadioButtons x:Name="DifficultyPicker" Grid.Column="1" Header="Difficulty" MaxColumns="4"
+                          ItemsSource="{x:Bind ViewModel.DifficultyLabels}" SelectedIndex="{x:Bind ViewModel.DifficultyIndex, Mode=TwoWay}"
+                          AutomationProperties.AutomationId="fst.paths.difficulty" />
+            <RadioButtons x:Name="DisplayPicker" Grid.Column="2" Header="Display" MaxColumns="2"
+                          SelectedIndex="{x:Bind ViewModel.DisplayIndex, Mode=TwoWay}"
+                          AutomationProperties.AutomationId="fst.paths.display">
+                <x:String>Image</x:String>
+                <x:String>Text</x:String>
+            </RadioButtons>
+        </Grid>
+
+        <InfoBar Grid.Row="1" IsOpen="{x:Bind ViewModel.ShowWarning, Mode=OneWay}" Severity="Informational" IsClosable="True"
+                 Title="Some Instruments Unavailable" Message="Karaoke is not available for path visualization yet."
+                 CloseButtonClick="OnWarningClosed" AutomationProperties.AutomationId="fst.paths.warning">
+            <InfoBar.ActionButton>
+                <Button Content="Don't Show Again" Click="OnWarningDismissForever" AutomationProperties.AutomationId="fst.paths.warning.dismiss" />
+            </InfoBar.ActionButton>
+        </InfoBar>
+
+        <Grid Grid.Row="2" MinHeight="320">
+            <ProgressRing IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Width="40" Height="40"
+                          AutomationProperties.Name="Loading path" />
+
+            <controls:ServiceStatusView Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
+                                        Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}"
+                                        AutomationProperties.AutomationId="fst.paths.error" />
+
+            <!-- Image: native pinch / Ctrl+wheel zoom plus explicit buttons. -->
+            <Grid RowSpacing="8" Visibility="{x:Bind ViewModel.ShowImage, Mode=OneWay}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Click="OnZoomOut" IsEnabled="{x:Bind ViewModel.CanZoomOut, Mode=OneWay}" AutomationProperties.Name="Zoom out"
+                            AutomationProperties.AutomationId="fst.paths.zoom-out">
+                        <FontIcon Glyph="&#xE71F;" FontSize="14" />
+                    </Button>
+                    <TextBlock Text="{x:Bind ViewModel.ZoomText, Mode=OneWay}" VerticalAlignment="Center" MinWidth="48" TextAlignment="Center"
+                               AutomationProperties.LiveSetting="Polite" />
+                    <Button Click="OnZoomIn" IsEnabled="{x:Bind ViewModel.CanZoomIn, Mode=OneWay}" AutomationProperties.Name="Zoom in"
+                            AutomationProperties.AutomationId="fst.paths.zoom-in">
+                        <FontIcon Glyph="&#xE8A3;" FontSize="14" />
+                    </Button>
+                </StackPanel>
+                <ScrollViewer x:Name="ImageScroller" Grid.Row="1" ZoomMode="Enabled" MinZoomFactor="1" MaxZoomFactor="3"
+                              HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" HorizontalScrollMode="Auto"
+                              ViewChanged="OnImageViewChanged" SizeChanged="OnImageScrollerSizeChanged">
+                    <Image x:Name="PathImage" Stretch="Uniform" HorizontalAlignment="Left" VerticalAlignment="Top"
+                           AutomationProperties.Name="{x:Bind ViewModel.ImageDescription, Mode=OneWay}"
+                           AutomationProperties.AutomationId="fst.paths.image" />
+                </ScrollViewer>
+            </Grid>
+
+            <!-- Text: summary and activation cards in the saved column order. -->
+            <ScrollViewer Visibility="{x:Bind ViewModel.ShowTable, Mode=OneWay}" Padding="0,0,12,0">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="{x:Bind ViewModel.Summary, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" TextWrapping="Wrap"
+                               AutomationProperties.AutomationId="fst.paths.text-summary" />
+                    <TextBlock Text="{x:Bind ViewModel.MaxScoreText, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" />
+                    <TextBlock Text="No path activations for this chart." Visibility="{x:Bind ViewModel.HasNoActivations, Mode=OneWay}"
+                               Style="{StaticResource FSTSecondaryTextStyle}" />
+                    <ItemsRepeater x:Name="Activations" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" ElementPrepared="OnActivationPrepared">
+                        <ItemsRepeater.Layout>
+                            <StackLayout Spacing="8" />
+                        </ItemsRepeater.Layout>
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="data:PathActivationRow">
+                                <Border Style="{StaticResource FSTCardStyle}" Padding="12">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock x:Name="Heading" Style="{StaticResource BodyStrongTextBlockStyle}" AutomationProperties.HeadingLevel="Level3" />
+                                        <TextBlock Text="{x:Bind Instruction}" TextWrapping="Wrap" />
+                                        <Grid x:Name="Columns" ColumnSpacing="12" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</UserControl>

@@ -49,12 +49,20 @@ public sealed partial class InstrumentIcon : ContentControl
     {
         AutomationProperties.SetName(this, Label ?? "");
         if (File is not { Length: > 0 } file) return;
+        image.Source = Bitmap(file);
+    }
+
+    /// <summary>The shared decoded bitmap for an icon file (for lightweight <see cref="Image"/> uses such as status chips).</summary>
+    /// <param name="file">Icon file name.</param>
+    /// <returns>Shared bitmap.</returns>
+    public static BitmapImage Bitmap(string file)
+    {
         if (!Shared.TryGetValue(file, out var bitmap))
         {
             bitmap = new BitmapImage(new Uri($"ms-appx:///Assets/Instruments/{file}")) { DecodePixelWidth = 72 };
             Shared[file] = bitmap;
         }
-        image.Source = bitmap;
+        return bitmap;
     }
 }
 #endregion

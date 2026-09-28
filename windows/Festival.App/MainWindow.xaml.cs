@@ -96,6 +96,11 @@ public sealed partial class MainWindow : Window
             Show(AppSection.Rivals);
             return;
         }
+        if (route is AppRoute.Shop)
+        {
+            Show(AppSection.Shop);
+            return;
+        }
         frames[current].Navigate(PageFor(route), route);
     }
 
@@ -159,6 +164,7 @@ public sealed partial class MainWindow : Window
         AppSection.Statistics => typeof(StatisticsPage),
         AppSection.Leaderboards => typeof(LeaderboardsPage),
         AppSection.Rivals => typeof(RivalsPage),
+        AppSection.Shop => typeof(ShopPage),
         _ => typeof(PlaceholderPage),
     };
 
@@ -244,6 +250,7 @@ public sealed partial class MainWindow : Window
         AppSection.Suggestions => "",
         AppSection.Leaderboards => "",
         AppSection.Rivals => "",
+        AppSection.Shop => "",
         AppSection.Statistics => "",
         _ => "",
     };

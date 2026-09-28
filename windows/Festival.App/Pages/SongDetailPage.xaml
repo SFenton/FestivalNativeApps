@@ -25,8 +25,33 @@
                                    AutomationProperties.AutomationId="fst.song-detail.title" />
                         <TextBlock Text="{x:Bind ViewModel.Song.Subtitle, Mode=OneWay}" Style="{StaticResource BodyLargeTextBlockStyle}"
                                    Foreground="{ThemeResource FSTSecondaryTextBrush}" TextWrapping="Wrap" />
+                        <Border x:Name="ShopBadge" HorizontalAlignment="Left" Padding="10,4" CornerRadius="12" Margin="0,4,0,0"
+                                Visibility="{x:Bind ViewModel.HasShopBadge, Mode=OneWay}"
+                                AutomationProperties.AutomationId="fst.song-detail.shop-badge">
+                            <TextBlock x:Name="ShopBadgeLabel" Text="{x:Bind ViewModel.ShopBadgeText, Mode=OneWay}" FontSize="12" FontWeight="Bold" />
+                        </Border>
+                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+                            <Button Click="OnPathsClick" Visibility="{x:Bind ViewModel.HasPaths, Mode=OneWay}" Style="{StaticResource AccentButtonStyle}"
+                                    AutomationProperties.Name="Paths" AutomationProperties.AutomationId="fst.song-detail.paths">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE707;" FontSize="14" />
+                                    <TextBlock Text="Paths" />
+                                </StackPanel>
+                            </Button>
+                            <Button Click="OnShopClick" Visibility="{x:Bind ViewModel.HasShopLink, Mode=OneWay}"
+                                    AutomationProperties.Name="Open in Item Shop" AutomationProperties.AutomationId="fst.song-detail.shop"
+                                    ToolTipService.ToolTip="Open the official Item Shop page">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <FontIcon Glyph="&#xE719;" FontSize="14" />
+                                    <TextBlock Text="Item Shop" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
                     </StackPanel>
                 </Grid>
+
+                <InfoBar IsOpen="{x:Bind ViewModel.HasShopIssue, Mode=OneWay}" IsClosable="False" Severity="Warning"
+                         Message="{x:Bind ViewModel.ShopIssueText, Mode=OneWay}" AutomationProperties.AutomationId="fst.song-detail.shop-error" />
 
                 <TextBlock Text="Intensity" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
                 <Border Style="{StaticResource FSTCardStyle}" AutomationProperties.AutomationId="fst.song-detail.intensity">
@@ -67,6 +92,8 @@
                                         <TextBlock Text="{x:Bind Title}" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0"
                                                    VerticalAlignment="Center" AutomationProperties.HeadingLevel="Level3" />
                                     </StackPanel>
+                                    <TextBlock Text="{x:Bind PlayerSummary}" Visibility="{x:Bind HasPlayerSummary}" TextWrapping="Wrap"
+                                               Style="{StaticResource BodyStrongTextBlockStyle}" Foreground="{ThemeResource FSTGoldBrush}" />
                                     <ProgressRing IsActive="{x:Bind IsLoading, Mode=OneWay}" HorizontalAlignment="Left" Width="24" Height="24"
                                                   Visibility="{x:Bind IsLoading, Mode=OneWay}" />
                                     <TextBlock Text="No scores yet." Visibility="{x:Bind ShowEmpty, Mode=OneWay}"
@@ -83,13 +110,15 @@
                                         </ItemsRepeater.Layout>
                                         <ItemsRepeater.ItemTemplate>
                                             <DataTemplate x:DataType="vm:LeaderboardRow">
-                                                <Grid ColumnSpacing="12" Height="30" AutomationProperties.Name="{x:Bind Announcement}">
+                                                <Grid ColumnSpacing="12" Height="30" Padding="4,0" CornerRadius="4" AutomationProperties.Name="{x:Bind Announcement}">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="56" />
                                                         <ColumnDefinition Width="*" />
                                                         <ColumnDefinition Width="Auto" />
                                                         <ColumnDefinition Width="64" />
                                                     </Grid.ColumnDefinitions>
+                                                    <Border Grid.ColumnSpan="4" Margin="-4,0" CornerRadius="4" Background="#33FFD700" BorderBrush="{ThemeResource FSTGoldBrush}"
+                                                            BorderThickness="1" Visibility="{x:Bind IsSelectedPlayer}" />
                                                     <TextBlock Text="{x:Bind Rank}" VerticalAlignment="Center" Style="{StaticResource FSTSecondaryTextStyle}" />
                                                     <TextBlock Grid.Column="1" Text="{x:Bind Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                                     <TextBlock Grid.Column="2" Text="{x:Bind Score}" VerticalAlignment="Center"
@@ -104,6 +133,8 @@
                                         </ItemsRepeater.ItemTemplate>
                                     </ItemsRepeater>
                                     <HyperlinkButton Content="View Full Leaderboard" Tag="{x:Bind}" Click="OnViewFull" Padding="0,4" />
+                                    <HyperlinkButton Content="{x:Bind HistoryLabel}" Tag="{x:Bind}" Click="OnViewHistory" Padding="0,4"
+                                                     Visibility="{x:Bind HasPlayer}" />
                                 </StackPanel>
                             </Border>
                         </DataTemplate>
