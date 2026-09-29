@@ -216,3 +216,16 @@ func selectionKeepsVisibleTabAndPaths(selected: FestivalSection) {
     #expect(malformed.debugSelectedPlayer() == nil)
 }
 #endif
+
+// MARK: - Profile-only routes
+
+/// Without a player, Rivals/Statistics/Suggestions/Compete routes (and anything above
+/// them) are dropped; with one, paths are untouched.
+@Test func profileOnlyRoutesDropWithoutPlayer() {
+    let path: [AppRoute] = [.shop, .rivals, .player(accountId: "a", displayName: nil)]
+    #expect(ProfileRoutePolicy.resolve(path, hasPlayer: false) == [.shop])
+    #expect(ProfileRoutePolicy.resolve(path, hasPlayer: true) == path)
+    #expect(ProfileRoutePolicy.resolve([.leaderboards], hasPlayer: false) == [.leaderboards])
+    #expect(ProfileRoutePolicy.requiresPlayer(.statistics))
+    #expect(!ProfileRoutePolicy.requiresPlayer(.bands))
+}

@@ -20,9 +20,7 @@ final class GlobalSearchJourneyTests: XCTestCase {
         let open = app.buttons.matching(identifier: "fst.global-search.open").firstMatch
         XCTAssertTrue(open.waitForExistence(timeout: 15))
         open.tap()
-        let field = app.searchFields.matching(
-            NSPredicate(format: "placeholderValue == %@", "Search songs or players")
-        ).firstMatch
+        let field = app.textFields["fst.global-search.field"]
         XCTAssertTrue(field.waitForExistence(timeout: 10))
         return field
     }
@@ -36,7 +34,11 @@ final class GlobalSearchJourneyTests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
         let field = openSearch(in: app)
-        XCTAssertTrue(app.staticTexts["fst.global-search.hint"].waitForExistence(timeout: 5))
+        let hint = app.staticTexts["fst.global-search.hint"]
+        XCTAssertTrue(hint.waitForExistence(timeout: 5))
+        // The hint is centred between the scope bar and the bottom of the sheet.
+        let scope = app.segmentedControls["fst.global-search.scope"]
+        XCTAssertGreaterThan(hint.frame.minY, scope.frame.maxY + 40)
         field.tap()
         field.typeText("Fixture")
         // Focusing the field must not hide the sheet's own Close (operator bug, 2026-09-28).

@@ -336,7 +336,10 @@ public struct FestivalRootView: View {
     /// - Returns: Read/write binding that defaults to an empty path.
     private func path(for section: FestivalSection) -> Binding<[AppRoute]> {
         Binding {
-            paths[section] ?? []
+            // Profile-only pages disappear without a player (`ProfileRoutePolicy`).
+            ProfileRoutePolicy.resolve(
+                paths[section] ?? [], hasPlayer: session.selectedPlayer != nil
+            )
         } set: { value in
             paths[section] = value
         }

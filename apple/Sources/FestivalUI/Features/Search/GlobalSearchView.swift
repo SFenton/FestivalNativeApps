@@ -7,7 +7,7 @@ import FestivalDesign
 /// Global search results: a scope bar (All · Songs · Players · Bands) over one section per
 /// kind, mirroring the web `SearchModal` (`.agents/controls/global-search/spec.md`).
 ///
-/// The search field belongs to ``GlobalSearchSheet``. Every result is its own `List` row
+/// The search field and scope bar sit on top; results or a centred message fill the rest. Every result is its own `List` row
 /// holding one action (`.agents/platforms/apple/architecture.md`, "List rows hold one
 /// action"). Placement per layout: `.agents/controls/global-search/ios.md`.
 struct GlobalSearchResults: View {
@@ -17,39 +17,60 @@ struct GlobalSearchResults: View {
     let open: (AppRoute) -> Void
 
     var body: some View {
-        List {
-            Section {
-                // HIG scope bar: a segmented control, broadest scope first.
-                Picker("Search Scope", selection: $model.scope) {
-                    ForEach(GlobalSearchScope.allCases) { scope in
-                        Text(scope.title).tag(scope)
-                    }
+        VStack(spacing: 10) {
+            GlobalSearchField(text: $model.query, prompt: GlobalSearch.prompt(for: model.scope))
+                .padding(.horizontal, 16)
+            // HIG scope bar: a segmented control, broadest scope first.
+            Picker("Search Scope", selection: $model.scope) {
+                ForEach(GlobalSearchScope.allCases) { scope in
+                    Text(scope.title).tag(scope)
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .accessibilityIdentifier("fst.global-search.scope")
             }
-            .listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 16)
+            .accessibilityIdentifier("fst.global-search.scope")
+            results
+        }
+        .padding(.top, 8)
+        .accessibilityIdentifier("fst.global-search.surface")
+    }
 
-            if model.scope == .bands {
-                bandsUnavailable
-            } else if !model.hasQuery {
-                messageSection("Enter at least two characters to search.")
-            } else {
+    /// The area below the scope bar: a centred message, or the result sections.
+    @ViewBuilder private var results: some View {
+        if model.scope == .bands {
+            resultList { bandsUnavailable }
+        } else if !model.hasQuery {
+            centeredMessage("Enter at least two characters to search.")
+        } else if model.scope == .all && allEmpty {
+            centeredMessage("No results found.")
+        } else {
+            resultList {
                 if model.scope.sections.contains(.songs) { songsSection }
                 if model.scope.sections.contains(.players) { playersSection }
-                if model.scope == .all && allEmpty {
-                    messageSection("No results found.")
-                }
             }
+        }
+    }
+
+    private func resultList<Rows: View>(@ViewBuilder rows: () -> Rows) -> some View {
+        List {
+            rows()
         }
         #if os(iOS)
         .listStyle(.insetGrouped)
         #endif
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.immediately)
-        .accessibilityIdentifier("fst.global-search.surface")
+    }
+
+    /// Vertically centred between the scope bar and the bottom safe area.
+    private func centeredMessage(_ text: String) -> some View {
+        Text(text)
+            .foregroundStyle(FestivalText.primary)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .accessibilityIdentifier("fst.global-search.hint")
     }
 
     /// Both live sections finished with nothing to show.
@@ -239,7 +260,6 @@ struct GlobalSearchSheet: View {
     /// actions do not reliably reach sheet content, see `ProfileSelectionSheet`).
     let open: (AppRoute) -> Void
     @State private var model = GlobalSearchModel()
-    @State private var fieldPresented = true
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -251,18 +271,7 @@ struct GlobalSearchSheet: View {
             .navigationTitle("Search")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(
-                text: $model.query, isPresented: $fieldPresented,
-                placement: .navigationBarDrawer(displayMode: .always),
-                prompt: Text(GlobalSearch.prompt(for: model.scope))
-            )
-            #else
-            .searchable(
-                text: $model.query, isPresented: $fieldPresented,
-                prompt: Text(GlobalSearch.prompt(for: model.scope))
-            )
             #endif
-            .modifier(KeepsSheetBarWhileSearching())
             .task(id: model.runKey) { await model.search(session: session) }
             .toolbar {
                 // Dismiss-only modal: trailing (modal standard, operator 2026-09-28).
@@ -275,14 +284,46 @@ struct GlobalSearchSheet: View {
     }
 }
 
-/// Keep the sheet's title and Close visible while the search field is active
-/// (`.searchable` hides the navigation bar by default on iPhone).
-struct KeepsSheetBarWhileSearching: ViewModifier {
-    func body(content: Content) -> some View {
-        if #available(iOS 17.1, macOS 14.1, *) {
-            content.searchPresentationToolbarBehavior(.avoidHidingContent)
-        } else {
-            content
+/// The sheet's own search field (not `.searchable`, whose active state hid the sheet's
+/// title and Close and added a second X beside the field): magnifier, text, and a clear
+/// button inside the field. Focused when the sheet opens.
+struct GlobalSearchField: View {
+    @Binding var text: String
+    let prompt: String
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(FestivalText.deemphasized)
+                .accessibilityHidden(true)
+            TextField(prompt, text: $text)
+                .focused($focused)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+                #if os(iOS)
+                .textInputAutocapitalization(.never)
+                #endif
+                .foregroundStyle(FestivalText.primary)
+                .accessibilityLabel("Search songs, players and bands")
+                .accessibilityIdentifier("fst.global-search.field")
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(FestivalText.deemphasized)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear Search")
+                .accessibilityIdentifier("fst.global-search.clear")
+            }
+        }
+        .padding(.horizontal, 12)
+        .frame(minHeight: 44)
+        .background(Color.white.opacity(0.1), in: Capsule())
+        .onAppear {
+            Task { @MainActor in focused = true }
         }
     }
 }
