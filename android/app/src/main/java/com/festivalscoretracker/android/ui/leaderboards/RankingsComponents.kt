@@ -65,6 +65,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.Immutable
+import com.festivalscoretracker.android.ui.design.RowChevron
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.rankings.AccountRankingEntry
@@ -229,6 +230,8 @@ private fun RankingRowLayout(
                 Text(bayesian, style = MaterialTheme.typography.labelSmall, fontWeight = weight, color = BrandTokens.textSecondary, maxLines = 1)
             }
         }
+        // In-card chevron on navigable rows (7.3); anonymous rows keep the slot so columns align.
+        if (route != null) RowChevron() else Spacer(Modifier.width(20.dp))
     }
 }
 
@@ -416,9 +419,9 @@ fun RankingsPager(page: Int, totalPages: Int, idPrefix: String, onChange: (Int) 
         modifier = modifier.testTag("$idPrefix.pager"),
     ) {
         if (showEnds) {
-            PagerButton(Icons.Filled.KeyboardDoubleArrowLeft, "First page", "$idPrefix.page-first", page > 1) { onChange(1) }
+            FrostedPagerButton(Icons.Filled.KeyboardDoubleArrowLeft, "First page", "$idPrefix.page-first", page > 1) { onChange(1) }
         }
-        PagerButton(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Previous page", "$idPrefix.page-previous", page > 1) { onChange(page - 1) }
+        FrostedPagerButton(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Previous page", "$idPrefix.page-previous", page > 1) { onChange(page - 1) }
         Surface(
             shape = RoundedCornerShape(24.dp),
             color = PagerSurface,
@@ -440,9 +443,9 @@ fun RankingsPager(page: Int, totalPages: Int, idPrefix: String, onChange: (Int) 
                     },
             )
         }
-        PagerButton(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Next page", "$idPrefix.page-next", page < totalPages) { onChange(page + 1) }
+        FrostedPagerButton(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Next page", "$idPrefix.page-next", page < totalPages) { onChange(page + 1) }
         if (showEnds) {
-            PagerButton(Icons.Filled.KeyboardDoubleArrowRight, "Last page", "$idPrefix.page-last", page < totalPages) { onChange(totalPages) }
+            FrostedPagerButton(Icons.Filled.KeyboardDoubleArrowRight, "Last page", "$idPrefix.page-last", page < totalPages) { onChange(totalPages) }
         }
     }
 }
@@ -452,6 +455,7 @@ private val PagerSurface: Color get() = BrandTokens.cardBackground.copy(alpha = 
 
 /**
  * One frosted circular pager button (web `PaginatorButton`): 48 dp, dimmed when disabled.
+ * Shared by the boards' pager and the Rank History charts' pagers (operator 7.4).
  *
  * @param icon Glyph.
  * @param label Accessible name.
@@ -460,7 +464,7 @@ private val PagerSurface: Color get() = BrandTokens.cardBackground.copy(alpha = 
  * @param onClick Action.
  */
 @Composable
-private fun PagerButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tag: String, enabled: Boolean, onClick: () -> Unit) {
+internal fun FrostedPagerButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tag: String, enabled: Boolean, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         enabled = enabled,

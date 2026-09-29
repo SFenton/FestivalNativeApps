@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.festivalscoretracker.android.ui.design.RowChevron
 import com.festivalscoretracker.android.ui.design.ViewFullLeaderboardButton
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.Song
@@ -152,7 +153,7 @@ fun RivalRow(entry: RivalEntry, onClick: () -> Unit, modifier: Modifier = Modifi
     ) {
         Row(Modifier.height(IntrinsicSize.Min)) {
             Box(Modifier.width(4.dp).fillMaxHeight().background(if (winning) BrandTokens.statusGreen else BrandTokens.statusRed))
-            Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.weight(1f).padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     // Web `RivalRow` truncates names with an ellipsis (operator 7.14: never marquee
                     // every name on Compete/Rivals).
@@ -172,6 +173,7 @@ fun RivalRow(entry: RivalEntry, onClick: () -> Unit, modifier: Modifier = Modifi
                     RivalPill(behind, win = false)
                 }
             }
+            if (rival.isNavigable) RowChevron(Modifier.align(Alignment.CenterVertically).padding(end = 10.dp))
         }
     }
 }

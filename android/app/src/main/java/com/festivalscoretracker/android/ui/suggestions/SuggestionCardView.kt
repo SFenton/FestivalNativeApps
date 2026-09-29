@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.festivalscoretracker.android.ui.design.RowChevron
 import com.festivalscoretracker.android.core.format.ScoreFormatting
 import com.festivalscoretracker.android.core.suggestions.PercentileTier
 import com.festivalscoretracker.android.core.suggestions.SuggestionRowLayout
@@ -183,6 +184,7 @@ fun SuggestionRowView(row: SuggestionRow, narrow: Boolean, artUrl: String?, onCl
                 FestivalMarqueeText(p.subtitle, style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp), color = SuggestionTokens.textSubtle)
             }
             if (!twoRow) RowMetadata(p, row.usesKeyboardIcon)
+            RowChevron()
         }
         if (twoRow) {
             Box(Modifier.fillMaxWidth().padding(top = 4.dp), contentAlignment = Alignment.CenterEnd) { RowMetadata(p, row.usesKeyboardIcon) }

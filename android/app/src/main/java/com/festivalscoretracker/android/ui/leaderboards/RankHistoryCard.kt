@@ -317,11 +317,8 @@ private fun HistoryPager(window: RankHistoryWindow, onChange: (RankHistoryWindow
 }
 
 @Composable
-private fun HistoryPagerButton(icon: ImageVector, label: String, id: String, enabled: Boolean, onClick: () -> Unit) {
-    FilledTonalIconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(48.dp).testTag("fst.leaderboards.rank-history.$id")) {
-        Icon(icon, contentDescription = label)
-    }
-}
+private fun HistoryPagerButton(icon: ImageVector, label: String, id: String, enabled: Boolean, onClick: () -> Unit) =
+    FrostedPagerButton(icon, label, "fst.leaderboards.rank-history.$id", enabled, onClick)
 
 private fun shortDate(point: RankHistoryPoint): String = point.date.format(DateTimeFormatter.ofPattern("M/d/yy"))
 

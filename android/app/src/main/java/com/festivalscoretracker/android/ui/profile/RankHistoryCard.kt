@@ -61,6 +61,7 @@ import com.festivalscoretracker.android.core.profile.RankHistoryChartModel
 import com.festivalscoretracker.android.core.profile.RankHistoryColors
 import com.festivalscoretracker.android.core.profile.RankHistoryPlot
 import com.festivalscoretracker.android.core.profile.RankHistoryWindow
+import com.festivalscoretracker.android.ui.leaderboards.FrostedPagerButton
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlin.math.abs
 
@@ -236,12 +237,10 @@ private fun Pager(window: RankHistoryWindow, onChange: (RankHistoryWindow) -> Un
     }
 }
 
+/** The web GraphCard pager: the same frosted circle buttons as the boards' pager. */
 @Composable
-private fun PagerButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tag: String, enabled: Boolean, onClick: () -> Unit) {
-    FilledTonalIconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(48.dp).testTag(tag)) {
-        Icon(icon, contentDescription = label)
-    }
-}
+private fun PagerButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tag: String, enabled: Boolean, onClick: () -> Unit) =
+    FrostedPagerButton(icon, label, tag, enabled, onClick)
 
 @Composable
 private fun Detail(point: PlayerRankHistorySnapshot, totalAccounts: Int) {

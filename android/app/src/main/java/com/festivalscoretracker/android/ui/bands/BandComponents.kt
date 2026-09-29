@@ -41,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.festivalscoretracker.android.ui.design.RowChevron
 import com.festivalscoretracker.android.core.bands.BandFormatting
 import com.festivalscoretracker.android.core.bands.BandLayout
 import com.festivalscoretracker.android.core.bands.BandMember
@@ -163,12 +164,15 @@ internal fun PlayerBandCard(entry: PlayerBandEntry, onClick: () -> Unit, modifie
             .semantics(mergeDescendants = true) { contentDescription = "View band ${entry.membersLabel}, $size, $appearances" },
         onClick = onClick,
     ) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            BandMemberChips(entry.members)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Pill(size)
-                Text(appearances, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary)
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                BandMemberChips(entry.members)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Pill(size)
+                    Text(appearances, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary)
+                }
             }
+            RowChevron(Modifier.padding(start = 8.dp))
         }
     }
 }

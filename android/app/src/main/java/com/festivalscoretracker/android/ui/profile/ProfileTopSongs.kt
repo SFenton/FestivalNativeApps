@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.festivalscoretracker.android.ui.design.RowChevron
 import com.festivalscoretracker.android.core.profile.PlayerSongPlacement
 import com.festivalscoretracker.android.core.profile.PlayerTileAction
 import com.festivalscoretracker.android.core.profile.PlayerTopSongs
@@ -148,6 +149,7 @@ private fun SongRow(row: PlayerSongPlacement, onClick: (() -> Unit)?, modifier: 
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                 )
             }
+            if (onClick != null) RowChevron(Modifier.padding(start = 6.dp))
         }
     }
     if (onClick == null) {
