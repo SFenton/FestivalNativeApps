@@ -53,7 +53,12 @@ public struct FestivalRootView: View {
         initialRoute = debug.route
         _drawerPresented = State(initialValue: debug.opensDrawer)
         _rootProfilePresented = State(initialValue: debug.opensProfileSheet)
-        if ProcessInfo.processInfo.environment["FST_UI_TEST_CLEAR_PROFILE"] == "1" {
+        // Once per process: SwiftUI may build the root view again (a new scene or an
+        // App body pass), and clearing then would erase a selection the journey made
+        // since launch, so a cold relaunch came back anonymous.
+        if ProcessInfo.processInfo.environment["FST_UI_TEST_CLEAR_PROFILE"] == "1",
+           !Self.debugProfileCleared {
+            Self.debugProfileCleared = true
             UserDefaults.standard.removeObject(forKey: SelectedPlayerIdentity.storageKey)
         }
         // In memory only: never written to `selectionStorage`. Parallel lanes share
@@ -165,7 +170,26 @@ public struct FestivalRootView: View {
             #endif
         }
         .publishesDeviceLayout(usesSidebarShell: !usesDrawer)
+        // Debug only: lay the whole app out in a narrower canvas (e.g. 375 pt, iPhone
+        // SE width) on a wider simulator, so small-width chrome (title truncation,
+        // toolbar crowding) can be captured without an SE simulator.
+        .frame(maxWidth: Self.debugCanvasWidth)
     }
+
+    #if DEBUG
+    /// Whether this process already applied `FST_UI_TEST_CLEAR_PROFILE`.
+    @MainActor private static var debugProfileCleared = false
+    #endif
+
+    /// `FST_DEBUG_CANVAS_WIDTH=<points>` (Debug builds only); nil fills the window.
+    private static let debugCanvasWidth: CGFloat? = {
+        #if DEBUG
+        ProcessInfo.processInfo.environment["FST_DEBUG_CANVAS_WIDTH"]
+            .flatMap(Double.init).map { CGFloat($0) }
+        #else
+        nil
+        #endif
+    }()
 
     // MARK: - Platform shell
 
