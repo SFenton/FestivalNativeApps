@@ -134,6 +134,41 @@ class RivalsDataTest {
     }
 
     @Test
+    fun aFrozenRefreshKeepsTheLastGoodRivalForTenMinutes() = runTest {
+        // Operator 7.13: the web keeps a rival it already loaded while public reads are frozen.
+        var now = 0L
+        var failure: Exception? = null
+        val repository = RivalsRepository(
+            lists = { _, scope -> RivalsListResponse.empty(scope) },
+            leaderboardLists = { _, instrument, _ -> LeaderboardRivalsListResponse.empty(instrument) },
+            details = { _, _, id, _ -> failure?.let { throw it } ?: RivalDetailResponse(RivalIdentity(id, "Fresh")) },
+            leaderboardDetails = { _, _, id, _ -> failure?.let { throw it } ?: RivalDetailResponse(RivalIdentity(id, "Board")) },
+            clock = { now },
+        )
+        val request = RivalDetailRequest.Scopes(listOf("Solo_Guitar"))
+        assertThrowsSuspend<FestivalApiException.PublicReadFrozen> {
+            failure = FestivalApiException.PublicReadFrozen("scrape", null)
+            repository.detail(player, rival, request)
+        }
+        failure = null
+        assertEquals("Fresh", repository.detail(player, rival, request).rival.displayName)
+        failure = FestivalApiException.PublicReadFrozen("scrape", null)
+        now += RivalsRepository.TTL_MILLIS
+        assertEquals("Fresh", repository.detail(player, rival, request, refresh = true).rival.displayName)
+        failure = FestivalApiException.HttpStatus(503)
+        assertEquals("Fresh", repository.detail(player, rival, request).rival.displayName)
+        // Bad data is never hidden behind the stale copy.
+        failure = FestivalApiException.InvalidResponse()
+        assertThrowsSuspend<FestivalApiException.InvalidResponse> { repository.detail(player, rival, request) }
+        // Past ten minutes the freeze surfaces.
+        failure = FestivalApiException.Unavailable(null)
+        now += RivalsRepository.STALE_MILLIS
+        assertThrowsSuspend<FestivalApiException.Unavailable> { repository.detail(player, rival, request) }
+        assertTrue(RivalsRepository.isFreeze(FestivalApiException.HttpStatus(503)))
+        assertFalse(RivalsRepository.isFreeze(FestivalApiException.HttpStatus(500)))
+    }
+
+    @Test
     fun repositoryMergesScopesAndToleratesPartialFailure() = runTest {
         val live = mutableListOf<Boolean>()
         val repository = RivalsRepository(

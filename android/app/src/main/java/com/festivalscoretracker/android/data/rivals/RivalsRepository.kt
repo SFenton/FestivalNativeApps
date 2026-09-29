@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.data.rivals
 
+import com.festivalscoretracker.android.core.model.FestivalApiException
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.rivals.LeaderboardRivalsListResponse
 import com.festivalscoretracker.android.core.rivals.RivalDetailRequest
@@ -20,7 +21,9 @@ import kotlinx.coroutines.sync.withLock
  * The Rivals reads screens use, over an in-process cache (online-only speed cache,
  * not offline storage): successful reads live [TTL_MILLIS] (the service's `max-age`),
  * failures are never cached, and at most [MAX_ENTRIES] results are kept. Hub → All
- * Rivals and Rival Detail → Rivalry therefore reuse one read.
+ * Rivals and Rival Detail → Rivalry therefore reuse one read. When a newer read is
+ * refused by a public-read freeze or a 503, a result read within [STALE_MILLIS] keeps
+ * showing, as the web keeps a rival it already loaded (operator 7.13).
  *
  * @param lists Song-scope list read `(accountId, scope)`.
  * @param leaderboardLists Leaderboard list read.
@@ -130,7 +133,15 @@ class RivalsRepository(
                 if (hit != null && clock() - hit.atMillis < TTL_MILLIS) return hit.value as T
             }
         }
-        val value = load()
+        val value = try {
+            load()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            if (!isFreeze(error)) throw error
+            // Serve the last good read as is: re-caching it would restart its age.
+            return mutex.withLock { cache[key]?.takeIf { clock() - it.atMillis < STALE_MILLIS }?.value as T? } ?: throw error
+        }
         mutex.withLock {
             cache.remove(key)
             cache[key] = Entry(value, clock())
@@ -145,6 +156,19 @@ class RivalsRepository(
 
         /** Most results kept. */
         const val MAX_ENTRIES = 64
+
+        /** How long a result may stand in for a read refused by a freeze or 503. */
+        const val STALE_MILLIS = 600_000L
+
+        /**
+         * Whether a failure is a temporary public-read refusal (freeze or 503), not bad data.
+         *
+         * @param error Failure.
+         * @return True for a freeze or unavailable response.
+         */
+        fun isFreeze(error: Throwable): Boolean =
+            error is FestivalApiException.PublicReadFrozen || error is FestivalApiException.Unavailable ||
+                (error is FestivalApiException.HttpStatus && error.status == 503)
     }
 }
 
