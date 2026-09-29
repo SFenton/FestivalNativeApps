@@ -318,8 +318,9 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
             }
             IsDebouncing = false;
             SettledQuery = text;
-            Players = [];
             PlayersState = GlobalSearchResults.CanSearchPlayers(text) ? LoadState.Loading : LoadState.Empty;
+            // Earlier matches that still fit stay while the account search runs (the list no longer shrinks per keystroke).
+            Players = PlayersState == LoadState.Loading ? GlobalSearchResults.RetainMatching(Players, text) : [];
             if (playersOnly)
             {
                 SongsState = LoadState.Empty;

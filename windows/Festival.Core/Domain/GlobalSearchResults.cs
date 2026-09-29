@@ -150,6 +150,20 @@ public static class GlobalSearchResults
     /// <returns>Trimmed text.</returns>
     public static string Normalize(string? query) => (query ?? "").Trim();
 
+    /// <summary>
+    /// Earlier player matches that still contain the new text, kept while the new account search runs so the
+    /// suggestion list doesn't collapse and regrow on every keystroke (operator batch 6.21). Never adds a name that
+    /// doesn't match what is typed.
+    /// </summary>
+    /// <param name="players">Previous matches.</param>
+    /// <param name="query">New user text.</param>
+    /// <returns>Matches that still apply.</returns>
+    public static List<GlobalPlayerResult> RetainMatching(IEnumerable<GlobalPlayerResult> players, string? query)
+    {
+        var text = Normalize(query);
+        return text.Length < MinQueryLength ? [] : [.. players.Where(p => p.DisplayName.Contains(text, StringComparison.OrdinalIgnoreCase))];
+    }
+
     /// <summary>Whether the trimmed query is long enough to search.</summary>
     /// <param name="query">User text.</param>
     /// <returns><see langword="true"/> at two or more characters.</returns>

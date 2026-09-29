@@ -68,6 +68,16 @@ public class GlobalSearchResultsTests
     }
 
     [Fact]
+    public void RetainMatching_KeepsOnlyNamesThatStillMatch()
+    {
+        var players = new List<GlobalPlayerResult> { new("a", "FireStarter", false), new("b", "Firefly", false), new("c", "Fiona", false) };
+        Assert.Equal(["a", "b"], GlobalSearchResults.RetainMatching(players, " FIRE ").Select(p => p.AccountId));
+        Assert.Equal(["b"], GlobalSearchResults.RetainMatching(players, "refl").Select(p => p.AccountId));
+        Assert.Empty(GlobalSearchResults.RetainMatching(players, "f"));
+        Assert.Empty(GlobalSearchResults.RetainMatching(players, "zz"));
+    }
+
+    [Fact]
     public void Suggestions_SongsThenPlayersThenSeeAll()
     {
         Assert.Empty(GlobalSearchResults.Suggestions("a", [], []));
@@ -233,6 +243,35 @@ public class GlobalSearchViewModelTests
         Assert.Equal(["acc2"], vm.Players.Select(p => p.AccountId));
         Assert.Equal("beta", vm.SettledQuery);
         first.TrySetCanceled();
+    }
+
+    [Fact]
+    public async Task MatchingPlayersStayWhileTheNextSearchRuns()
+    {
+        var pending = new TaskCompletionSource<HttpResponseMessage>();
+        var calls = 0;
+        var (service, time, session) = Create();
+        var inner = service.Handler.Responder;
+        service.Handler.Responder = (r, t) =>
+        {
+            if (r.RequestUri!.AbsolutePath != SearchPath) return inner(r, t);
+            return ++calls == 1
+                ? Task.FromResult(Wire.Ok("""{"results":[{"accountId":"acc1","displayName":"Alphabet"},{"accountId":"acc2","displayName":"Alpine"}]}"""))
+                : pending.Task;
+        };
+        var vm = new GlobalSearchViewModel(session);
+        await Type(vm, time, "alp");
+        Assert.Equal(["acc1", "acc2"], vm.Players.Select(p => p.AccountId));
+        vm.Query = "alpha";
+        await Async.Settle();
+        time.Advance(GlobalSearchViewModel.Debounce);
+        await Async.Until(() => calls == 2);
+        // While "alpha" is searched, "Alphabet" (still a match) stays and "Alpine" (no longer one) goes.
+        Assert.True(vm.PlayersLoading);
+        Assert.Equal(["acc1"], vm.Players.Select(p => p.AccountId));
+        pending.SetResult(Wire.Ok("""{"results":[{"accountId":"acc3","displayName":"Alpha"}]}"""));
+        await Async.Until(() => vm.IsSettled);
+        Assert.Equal(["acc3"], vm.Players.Select(p => p.AccountId));
     }
 
     [Fact]

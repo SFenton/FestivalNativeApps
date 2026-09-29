@@ -79,6 +79,9 @@
     <Thickness x:Key="NavigationViewContentGridBorderThickness">0</Thickness>
     <Thickness x:Key="NavigationViewMinimalContentGridBorderThickness">0</Thickness>
     <CornerRadius x:Key="NavigationViewContentGridCornerRadius">0</CornerRadius>
+    <!-- The first pane item lines up with the page title beside it (operator 2026-09-28, Android pane rule): the default
+         3 epx top margin left it ~7 epx above the title's centre. -->
+    <Thickness x:Key="NavigationViewPaneContentGridMargin">-1,10,-1,3</Thickness>
     <CornerRadius x:Key="NavigationViewMinimalContentGridCornerRadius">0</CornerRadius>
 
     <!-- The title bar's search, bell and avatar keep full opacity while the window is inactive (it often sits inactive
