@@ -83,6 +83,7 @@ public sealed partial class LeaderboardsSongRow : UserControl, ISeparatedRow
         AutomationProperties.SetName(RowButton, row.Announcement);
         AutomationProperties.SetAutomationId(RowButton, row.AutomationId);
         RowButton.IsHitTestVisible = RowButton.IsTabStop = row.Route is not null;
+        Chevron.Visibility = row.Route is not null ? Visibility.Visible : Visibility.Collapsed;
         // The selected player's row is bold throughout (web isPlayer; operator batch 6.42).
         var weight = row.IsSelected ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
         RankText.FontWeight = NameText.FontWeight = SeasonText.FontWeight = PillText.FontWeight = weight;

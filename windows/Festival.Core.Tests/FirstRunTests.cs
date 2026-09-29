@@ -383,20 +383,23 @@ public class FirstRunTests
         Assert.Null(center.Active);
         Assert.Equal(Now, center.Store.Load()["songs-song-list"].SeenAt);
         Assert.Equal(Now, center.Store.Load()["songs-leaving-tomorrow"].SeenAt);
-        // Jumping straight to the last slide skipped the middle ones: they stay unseen and come back.
+        // Jumping straight to the last slide skipped the middle ones: they stay unseen and come back next session
+        // (this session the page stays quiet).
         Assert.False(center.Store.Load().ContainsKey("songs-sort"));
-        Assert.Equal(["songs-sort", "songs-navigation", "songs-shop-highlight", "songs-new-in-shop"],
-            center.TryBegin(FirstRunPageKey.Songs, new AppSettings())!.Slides.Select(s => s.Id));
-        center.Active!.GoTo(3);
-        center.Active.GoTo(0);
-        center.Active.GoTo(1);
-        center.Active.GoTo(2);
-        center.Active.Complete();
         Assert.Null(center.TryBegin(FirstRunPageKey.Songs, new AppSettings()));
+        var next = new FirstRunCenter(center.Store, FirstRunMode.Normal, time);
+        Assert.Equal(["songs-sort", "songs-navigation", "songs-shop-highlight", "songs-new-in-shop"],
+            next.TryBegin(FirstRunPageKey.Songs, new AppSettings())!.Slides.Select(s => s.Id));
+        next.Active!.GoTo(3);
+        next.Active.GoTo(0);
+        next.Active.GoTo(1);
+        next.Active.GoTo(2);
+        next.Active.Complete();
+        Assert.Null(new FirstRunCenter(center.Store).TryBegin(FirstRunPageKey.Songs, new AppSettings()));
 
-        // Selecting a player later reveals only the newly eligible player slides.
+        // Selecting a player later (next session) reveals only the newly eligible player slides.
         var player = new AppSettings { SelectedPlayer = new SelectedPlayer("abc", "P") };
-        Assert.Equal(["songs-filter", "songs-icons", "songs-metadata"], center.TryBegin(FirstRunPageKey.Songs, player)!.Slides.Select(s => s.Id));
+        Assert.Equal(["songs-filter", "songs-icons", "songs-metadata"], new FirstRunCenter(center.Store).TryBegin(FirstRunPageKey.Songs, player)!.Slides.Select(s => s.Id));
     }
 
     [Fact]
@@ -414,7 +417,9 @@ public class FirstRunTests
     {
         var force = Center(FirstRunMode.Force);
         force.TryBegin(FirstRunPageKey.Rivals, new AppSettings())!.Complete();
-        Assert.NotNull(force.TryBegin(FirstRunPageKey.Rivals, new AppSettings()));
+        // Force shows everything again on the next launch, but not twice in one session.
+        Assert.Null(force.TryBegin(FirstRunPageKey.Rivals, new AppSettings()));
+        Assert.NotNull(new FirstRunCenter(force.Store, FirstRunMode.Force).TryBegin(FirstRunPageKey.Rivals, new AppSettings()));
 
         var off = Center(FirstRunMode.Off);
         Assert.Empty(off.PendingSlides(FirstRunPageKey.Songs, new AppSettings()));

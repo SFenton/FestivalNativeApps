@@ -16,6 +16,7 @@
                     <ColumnDefinition x:Name="RankColumn" Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <!-- Left-aligned in a width shared by ranks of the same length (web computeRankWidth), so names align. -->
                 <TextBlock x:Name="RankText" VerticalAlignment="Center" HorizontalAlignment="Left" TextWrapping="NoWrap" />
@@ -29,6 +30,9 @@
                     <TextBlock x:Name="BayesianText" Style="{StaticResource CaptionTextBlockStyle}" HorizontalAlignment="Right"
                                Foreground="{ThemeResource FSTSecondaryTextBrush}" />
                 </StackPanel>
+                <!-- In-card chevron: the row opens a page (operator batch 7.3); hidden on rows without a destination. -->
+                <FontIcon x:Name="Chevron" Grid.Column="3" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center"
+                          Foreground="{ThemeResource FSTSecondaryTextBrush}" AutomationProperties.AccessibilityView="Raw" />
             </Grid>
         </Button>
         <Border x:Name="Separator" Height="1" VerticalAlignment="Top" Margin="12,0" Visibility="Collapsed"

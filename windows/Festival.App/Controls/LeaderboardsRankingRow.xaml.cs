@@ -89,6 +89,7 @@ public sealed partial class LeaderboardsRankingRow : UserControl, ISeparatedRow
         }
         // Rows without a usable identity (production serves some empty account IDs) are shown but not interactive.
         RowButton.IsHitTestVisible = RowButton.IsTabStop = route is not null;
+        Chevron.Visibility = route is not null ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>Writes texts, accessibility and the selected-player accent.</summary>

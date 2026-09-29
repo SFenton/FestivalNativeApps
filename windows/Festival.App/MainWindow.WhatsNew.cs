@@ -19,6 +19,9 @@ public sealed partial class MainWindow
     private bool whatsNewPending;
     private bool whatsNewOpen;
 
+    /// <summary>Whether the visible page's first-run check has run: What's New waits for it so a carousel goes first.</summary>
+    private bool firstRunEvaluated;
+
     /// <summary>Launch-check timer, held in a field: a local timer was collected before it fired, so the launch dialog never showed.</summary>
     private DispatcherQueueTimer? whatsNewTimer;
 
@@ -48,7 +51,9 @@ public sealed partial class MainWindow
     private void ShowPendingWhatsNew()
     {
         if (!whatsNewPending) return;
-        if (!windowVisible || minimized || RootGrid.XamlRoot is null)
+        // The first page's carousel claims the dialog slot first (web order): wait until its check has run, however long
+        // the launch took, as well as for a visible window.
+        if (!windowVisible || minimized || RootGrid.XamlRoot is null || (firstRun is not null && !firstRunEvaluated))
         {
             // Try again shortly: never present into a hidden window.
             DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, async () =>

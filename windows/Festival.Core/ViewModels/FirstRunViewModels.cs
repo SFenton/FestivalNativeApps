@@ -14,6 +14,7 @@ namespace Festival.Core.ViewModels;
 public sealed class FirstRunCenter(FirstRunSeenStore store, FirstRunMode mode = FirstRunMode.Normal, TimeProvider? time = null)
 {
     private readonly TimeProvider clock = time ?? TimeProvider.System;
+    private readonly HashSet<FirstRunPageKey> closedThisSession = [];
 
     /// <summary>Launch mode.</summary>
     public FirstRunMode Mode { get; } = mode;
@@ -52,7 +53,9 @@ public sealed class FirstRunCenter(FirstRunSeenStore store, FirstRunMode mode = 
     /// <returns>The carousel to present, or <see langword="null"/> when nothing is pending or another carousel is showing.</returns>
     public FirstRunCarouselViewModel? TryBegin(FirstRunPageKey page, AppSettings settings)
     {
-        if (Active is not null) return null;
+        // A page's carousel shows at most once per session: slides the user closed without viewing come back on the next
+        // launch, not on the next settings change or navigation (Settings replay is unaffected).
+        if (Active is not null || closedThisSession.Contains(page)) return null;
         var slides = PendingSlides(page, settings);
         if (slides.Count == 0) return null;
         return Active = new FirstRunCarouselViewModel(this, page, slides, isReplay: false);
@@ -77,6 +80,7 @@ public sealed class FirstRunCenter(FirstRunSeenStore store, FirstRunMode mode = 
     internal void Complete(FirstRunCarouselViewModel carousel)
     {
         Store.MarkSeen(carousel.ViewedSlides, clock.GetUtcNow());
+        closedThisSession.Add(carousel.Page);
         if (ReferenceEquals(Active, carousel)) Active = null;
     }
 }

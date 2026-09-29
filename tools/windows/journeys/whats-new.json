@@ -25,6 +25,7 @@
     "extra": {"FST_DEBUG_FIRST_RUN": "force"},
     "steps": [
       "waitfor:id=fst.first-run.dialog@20",
+      "wait:1.5",
       "click:1250,1000",
       "wait:1",
       "click:id=fst.songs.sort",

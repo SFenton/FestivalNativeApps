@@ -64,14 +64,18 @@
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <Border x:Name="RowSeparator" Grid.ColumnSpan="2" Height="1" VerticalAlignment="Top" Margin="0,-6,0,0"
+                                            <Border x:Name="RowSeparator" Grid.ColumnSpan="3" Height="1" VerticalAlignment="Top" Margin="0,-6,0,0"
                                                     Background="{ThemeResource FSTRowSeparatorBrush}" Visibility="Collapsed" />
                                             <controls:SongArt Art="{x:Bind Art}" />
                                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                                 <controls:MarqueeText Text="{x:Bind Title}" TextStyle="{StaticResource FSTMarqueeTitleStyle}" />
                                                 <controls:MarqueeText Text="{x:Bind Artist}" TextStyle="{StaticResource FSTMarqueeSecondaryStyle}" />
                                             </StackPanel>
+                                            <!-- In-card chevron: every result opens a page (operator batch 7.3). -->
+                                            <FontIcon Grid.Column="2" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center"
+                                                      Foreground="{ThemeResource FSTSecondaryTextBrush}" AutomationProperties.AccessibilityView="Raw" />
                                         </Grid>
                                     </DataTemplate>
                                 </ListView.ItemTemplate>
@@ -105,8 +109,9 @@
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <Border x:Name="RowSeparator" Grid.ColumnSpan="2" Height="1" VerticalAlignment="Top" Margin="0,-6,0,0"
+                                            <Border x:Name="RowSeparator" Grid.ColumnSpan="3" Height="1" VerticalAlignment="Top" Margin="0,-6,0,0"
                                                     Background="{ThemeResource FSTRowSeparatorBrush}" Visibility="Collapsed" />
                                             <PersonPicture Width="36" Height="36" DisplayName="{x:Bind DisplayName}"
                                                            AutomationProperties.AccessibilityView="Raw" />
@@ -114,6 +119,9 @@
                                                 <controls:MarqueeText Text="{x:Bind DisplayName}" TextStyle="{StaticResource FSTMarqueeTitleStyle}" />
                                                 <controls:MarqueeText Text="{x:Bind Subtitle}" TextStyle="{StaticResource FSTMarqueeSecondaryStyle}" />
                                             </StackPanel>
+                                            <!-- In-card chevron: every result opens a page (operator batch 7.3). -->
+                                            <FontIcon Grid.Column="2" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center"
+                                                      Foreground="{ThemeResource FSTSecondaryTextBrush}" AutomationProperties.AccessibilityView="Raw" />
                                         </Grid>
                                     </DataTemplate>
                                 </ListView.ItemTemplate>

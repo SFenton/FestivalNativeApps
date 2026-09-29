@@ -110,6 +110,7 @@ public sealed partial class MainWindow
         if (!frames.TryGetValue(current, out var frame) || frame.Content is PlaceholderPage || !windowVisible || minimized) return;
         TrackRoutes(frame);
         var route = routeStacks[frame].Peek();
+        firstRunEvaluated = true;
         if (FirstRunPages.For(current, route) is not { } page) return;
         if (FirstRun.TryBegin(page, session.Settings) is { } carousel) _ = ShowCarouselAsync(carousel);
     }
