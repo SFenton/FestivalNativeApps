@@ -199,8 +199,11 @@ public static class NotificationRouting
 /// <param name="Flag">Title Case flag label (web <c>notifications.flags.*</c>), or <see langword="null"/> for shop songs.</param>
 /// <param name="DetectedAt">Detection time.</param>
 /// <param name="Destination">Navigation target, if any.</param>
+/// <param name="AlbumArt">Leading media: the song's art (web <c>NotificationMediaRail</c> "song"), if any.</param>
+/// <param name="MediaInstrument">Leading media when there is no art: the instrument (web "soloInstrument").</param>
 public sealed record NotificationPresentation(
-    string Id, string Title, string Message, string? Flag, DateTimeOffset DetectedAt, NotificationDestination? Destination);
+    string Id, string Title, string Message, string? Flag, DateTimeOffset DetectedAt, NotificationDestination? Destination,
+    string? AlbumArt = null, Instrument? MediaInstrument = null);
 
 /// <summary>
 /// The player-scoped single-event subset of the web <c>notificationText.ts</c> / <c>en.json</c> copy engine. Band copy,
@@ -244,16 +247,18 @@ public static class NotificationText
     /// <summary>Formats a row.</summary>
     /// <param name="item">Notification.</param>
     /// <param name="songTitle">Catalogue title for the song, when resolved.</param>
+    /// <param name="albumArt">Catalogue album art for the song, when resolved (the row's leading media).</param>
     /// <returns>Presentation.</returns>
-    public static NotificationPresentation Format(ImprovementNotification item, string? songTitle)
+    public static NotificationPresentation Format(ImprovementNotification item, string? songTitle, string? albumArt = null)
     {
         var destination = NotificationRouting.Destination(item);
+        var art = string.IsNullOrWhiteSpace(albumArt) ? null : albumArt;
         if (item.EventKind == "service_new_shop_song")
         {
             var shopTitle = Trimmed(item.Payload?.SongTitle) ?? Trimmed(songTitle) ?? "New Song";
             var artist = Trimmed(item.Payload?.Artist) ?? "Unknown Artist";
             return new(item.NotificationGuid, $"New Song · {shopTitle} - {artist}", $"{shopTitle} by {artist} has been added to the Item Shop.",
-                null, item.DetectedAt, destination);
+                null, item.DetectedAt, destination, art);
         }
 
         var instrumentLabel = item.ParsedInstrument?.Label();
@@ -262,7 +267,9 @@ public static class NotificationText
             ? Fill(template, item, song, instrumentLabel ?? "this instrument") + "."
             : "New improvement detected.";
         if (item.EventKind == "player_first_score") message = message[..^1] + $" and started at {Rank(item.NewRank)}.";
-        return new(item.NotificationGuid, Title(item, songTitle, instrumentLabel), message, Flag(item.EventKind), item.DetectedAt, destination);
+        // Web media rail: the song's art for song events, else the instrument (rank events).
+        return new(item.NotificationGuid, Title(item, songTitle, instrumentLabel), message, Flag(item.EventKind), item.DetectedAt, destination,
+            art, art is null ? item.ParsedInstrument : null);
     }
 
     /// <summary>Row title (web <c>formatNotificationTitle</c>, single event).</summary>

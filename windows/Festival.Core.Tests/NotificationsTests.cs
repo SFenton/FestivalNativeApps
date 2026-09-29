@@ -56,6 +56,25 @@ public class NotificationsTests
     }
 
     [Fact]
+    public void Format_LeadingMediaIsSongArtElseTheInstrument()
+    {
+        var song = NotificationText.Format(Item("player_score_pb"), "Song", "art.jpg");
+        Assert.Equal(("art.jpg", (Instrument?)null), (song.AlbumArt, song.MediaInstrument));
+        var rank = NotificationText.Format(Item("player_total_score_rank_improved"), null);
+        Assert.Null(rank.AlbumArt);
+        Assert.NotNull(rank.MediaInstrument);
+        var row = new NotificationRowViewModel(rank, true, "1h ago");
+        Assert.False(row.HasArt);
+        Assert.True(row.HasMediaIcon);
+        Assert.EndsWith(".png", row.MediaIconFile, StringComparison.Ordinal);
+        var songRow = new NotificationRowViewModel(song, false, "1h ago");
+        Assert.True(songRow.HasArt);
+        Assert.False(songRow.HasMediaIcon);
+        Assert.Equal("art.jpg", songRow.Art);
+        Assert.Null(NotificationText.Format(Item("player_score_pb"), "Song", " ").AlbumArt);
+    }
+
+    [Fact]
     public void Text_FallbacksWithoutValuesTitleOrInstrument()
     {
         var p = NotificationText.Format(Item("player_score_pb", instrument: "bogus"), null);

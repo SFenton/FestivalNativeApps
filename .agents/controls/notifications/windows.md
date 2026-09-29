@@ -14,6 +14,8 @@
 
 ## Behavior
 
+- Rows follow the web `NotificationRow` (operator batch 6.34/7.20): a 44 epx leading media rail (the song's album art via `SongArt`, else the event's instrument icon; `NotificationPresentation.AlbumArt` / `MediaInstrument`), title, sentence, flag + time, and on the trailing edge the unread dot beside the chevron. "New"/"Older" headers are white. The two lists don't scroll or virtualize themselves inside the flyout's scroller (rows used to vanish and reappear when scrolling back up).
+
 - Row activation marks it seen; a song destination opens Song Detail (with chart) on the Songs stack; a rank destination saves `LeaderboardRankBy` and shows Leaderboards (web `/leaderboards?rankBy=`). Closing the flyout marks every loaded row seen.
 - Never sends selected-profile headers (the gate rejects them).
 

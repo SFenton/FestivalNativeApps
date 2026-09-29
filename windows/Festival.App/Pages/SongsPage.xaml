@@ -385,10 +385,18 @@
                                     <!-- Spans the wrapped second row only while it has content (SongsPage.BuildTrailing): a Grid shares a spanning
                                          child's height across Auto rows, so an empty second row got half the art's height
                                          as dead space under anonymous rows (operator batch 6.3). -->
-                                    <Border x:Name="ArtHost" Width="44" Height="44" CornerRadius="6" VerticalAlignment="Center"
-                                            Background="{StaticResource FSTSurfaceMutedBrush}">
-                                        <Image x:Name="Art" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
-                                    </Border>
+                                    <Grid x:Name="ArtHost" Width="44" Height="44" VerticalAlignment="Center">
+                                        <Border CornerRadius="6" Background="{StaticResource FSTSurfaceMutedBrush}">
+                                            <Image x:Name="Art" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
+                                        </Border>
+                                        <!-- Item Shop bag on songs in the Shop, coloured like the row's pulse (operator batch 7.19);
+                                             the row's UIA name already carries the Shop state. -->
+                                        <Border x:Name="ShopBadge" Width="18" Height="18" CornerRadius="9" Margin="0,0,-5,-5"
+                                                HorizontalAlignment="Right" VerticalAlignment="Bottom" Visibility="Collapsed"
+                                                BorderThickness="1.5" BorderBrush="#FF121826" AutomationProperties.AccessibilityView="Raw">
+                                            <FontIcon Glyph="&#xE719;" FontSize="10" Foreground="#FF121826" />
+                                        </Border>
+                                    </Grid>
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                         <controls:MarqueeText x:Name="TitleText" Text="{x:Bind Title}" TextStyle="{StaticResource SongTitleStyle}" />
                                         <controls:MarqueeText x:Name="SubtitleText" Text="{x:Bind Subtitle}" TextStyle="{StaticResource SongSubtitleStyle}" />

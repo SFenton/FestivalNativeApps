@@ -193,7 +193,7 @@ public sealed partial class NotificationsViewModel : ObservableObject
         var seen = loadedAccount is { } account ? seenStore.Seen(account) : new HashSet<string>();
         var rows = items.OrderByDescending(i => i.DetectedAt)
             .Select(i => new NotificationRowViewModel(
-                NotificationText.Format(i, i.SongId is { } id ? session.FindSong(id)?.Title : null),
+                NotificationText.Format(i, i.SongId is { } id ? session.FindSong(id)?.Title : null, i.SongId is { } artId ? session.FindSong(artId)?.AlbumArt : null),
                 !seen.Contains(i.NotificationGuid), RelativeTime(i.DetectedAt)))
             .ToList();
         NewItems = rows.Where(r => r.IsUnread).ToList();
@@ -263,6 +263,18 @@ public sealed partial class NotificationRowViewModel : ObservableObject
 
     /// <summary>Whether a flag is shown.</summary>
     public bool HasFlag => Presentation.Flag is not null;
+
+    /// <summary>Leading album art reference, if any.</summary>
+    public string? Art => Presentation.AlbumArt;
+
+    /// <summary>Whether the leading rail shows album art.</summary>
+    public bool HasArt => Presentation.AlbumArt is not null;
+
+    /// <summary>Leading instrument icon file when there is no art ("" for none).</summary>
+    public string MediaIconFile => Presentation.MediaInstrument?.IconFile() ?? "";
+
+    /// <summary>Whether the leading rail shows an instrument icon.</summary>
+    public bool HasMediaIcon => Presentation.AlbumArt is null && Presentation.MediaInstrument is not null;
 
     /// <summary>Relative time.</summary>
     public string TimeText { get; }

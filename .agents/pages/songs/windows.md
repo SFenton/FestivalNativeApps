@@ -18,6 +18,8 @@
 - Jump index: `SemanticZoom` over group headers plus a **Jump** toolbar button (`fst.songs.section-index-button`); disabled when there is a single unlabeled group and under the **Year** sort (no quick-jump there, operator 2026-09-28).
 - Rows stagger in with the shared fade (`FadeIn`, after the art-priming gate) and re-stagger on sort/filter/search changes.
 - First-paint gate: the first reveal waits (≤ 900 ms) for the first 12 rows' art to decode, then fades in (instant under reduced motion).
+- Songs in the Item Shop carry a small bag badge on the album art, coloured like the row's pulse (green / gold New / red Leaving; operator batch 7.19). Metadata pills, stars and the intensity meter share one 22 epx height (7.18); the primary metric stays top-right, so a long title never pushes it down.
+- Sort flyout: Sort By radio list, then Ascending / Descending rows with the web descriptions ("A–Z, low–high") as subtitles (7.21); Sort and Filter Reset are the web's full-width red button (7.10).
 - `MarqueeText` for titles/subtitles (see [design/windows.md](../../design/windows.md#motion)).
 
 ## Layout by window size

@@ -73,11 +73,12 @@ public static class SongRowVisuals
                 SongPercentileTier.TopFive => Box(Text(field.Text, 12, FontWeights.SemiBold, Brush("FSTGoldBrush")), null, Brush("FSTGoldBrush")),
                 _ => Box(Text(field.Text, 12, FontWeights.SemiBold, null), Brush("FSTSurfaceMutedBrush"), null),
             },
-            MetadataField.Stars => new StarRow { Stars = field.Stars.Gold ? StarRating.GoldValue : field.Stars.Count, StarSize = 14 },
+            // Stars and intensity sit in the same 22 epx slot as the text pills so every pill lines up (operator batch 7.18).
+            MetadataField.Stars => Slot(new StarRow { Stars = field.Stars.Gold ? StarRating.GoldValue : field.Stars.Count, StarSize = 14 }),
             MetadataField.Season => field.CurrentSeason
                 ? Box(Text(field.Text, 12, FontWeights.Bold, new SolidColorBrush(Colors.Black)), new SolidColorBrush(Colors.White), null)
                 : Box(Text(field.Text, 12, FontWeights.SemiBold, null), null, Brush("FSTBorderSubtleBrush")),
-            MetadataField.Intensity => new DifficultyMeter { Raw = field.IntensityRaw ?? 0, VerticalAlignment = VerticalAlignment.Center },
+            MetadataField.Intensity => Slot(new DifficultyMeter { Raw = field.IntensityRaw ?? 0, VerticalAlignment = VerticalAlignment.Center }),
             MetadataField.Difficulty => Box(
                 Text(field.Text, 12, FontWeights.Bold, new SolidColorBrush(field.GameDifficulty is 0 or 2 ? Colors.Black : Colors.White)),
                 Brush(field.GameDifficulty switch { 0 => "FSTDiffPillEasyBrush", 1 => "FSTDiffPillMediumBrush", 2 => "FSTDiffPillHardBrush", _ => "FSTDiffPillExpertBrush" }),
@@ -103,6 +104,18 @@ public static class SongRowVisuals
         return block;
     }
 
+    /// <summary>Height of every metadata pill.</summary>
+    private const double PillHeight = 22;
+
+    /// <summary>Centres unboxed content (stars, the intensity meter) in a pill-height slot.</summary>
+    /// <param name="content">Content.</param>
+    /// <returns>Slot.</returns>
+    private static Border Slot(FrameworkElement content)
+    {
+        content.VerticalAlignment = VerticalAlignment.Center;
+        return new Border { Child = content, Height = PillHeight };
+    }
+
     /// <summary>Wraps content in a rounded pill.</summary>
     /// <param name="content">Content.</param>
     /// <param name="background">Fill, or none.</param>
@@ -111,8 +124,8 @@ public static class SongRowVisuals
     private static Border Box(UIElement content, Brush? background, Brush? border) => new()
     {
         Child = content,
-        Padding = new Thickness(6, 2, 6, 2),
-        MinHeight = 22,
+        Padding = new Thickness(6, 0, 6, 0),
+        Height = PillHeight,
         CornerRadius = new CornerRadius(4),
         Background = background ?? new SolidColorBrush(Colors.Transparent),
         BorderBrush = border,

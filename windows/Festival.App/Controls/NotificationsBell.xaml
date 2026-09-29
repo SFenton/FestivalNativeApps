@@ -5,16 +5,21 @@
     xmlns:controls="using:Festival.App.Controls"
     xmlns:vm="using:Festival.Core.ViewModels">
     <UserControl.Resources>
+        <!-- Web NotificationRow (operator batch 6.34/7.20): leading media rail (song art, else the instrument), title,
+             sentence, flag + time, then the unread dot beside the chevron on the trailing edge. -->
         <DataTemplate x:Key="RowTemplate" x:DataType="vm:NotificationRowViewModel">
-            <Grid ColumnSpacing="10" Padding="0,8" AutomationProperties.Name="{x:Bind AccessibleName, Mode=OneWay}"
+            <Grid ColumnSpacing="12" Padding="0,8" AutomationProperties.Name="{x:Bind AccessibleName, Mode=OneWay}"
                   AutomationProperties.AutomationId="{x:Bind AutomationId}">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="10" />
+                    <ColumnDefinition Width="44" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <Ellipse Width="8" Height="8" VerticalAlignment="Top" Margin="0,6,0,0" Fill="{ThemeResource SystemFillColorCautionBrush}"
-                         Visibility="{x:Bind IsUnread, Mode=OneWay}" AutomationProperties.AccessibilityView="Raw" />
+                <Grid Width="44" Height="44" VerticalAlignment="Top" AutomationProperties.AccessibilityView="Raw">
+                    <controls:SongArt Art="{x:Bind Art}" Width="44" Height="44" Visibility="{x:Bind HasArt}" />
+                    <controls:InstrumentIcon File="{x:Bind MediaIconFile}" Width="36" Height="36" HorizontalAlignment="Center"
+                                             VerticalAlignment="Center" Visibility="{x:Bind HasMediaIcon}" />
+                </Grid>
                 <StackPanel Grid.Column="1" Spacing="2">
                     <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis" />
                     <TextBlock Text="{x:Bind Message}" TextWrapping="Wrap" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
@@ -25,8 +30,12 @@
                         <TextBlock Text="{x:Bind TimeText}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource FSTDeemphasisTextBrush}" />
                     </StackPanel>
                 </StackPanel>
-                <FontIcon Grid.Column="2" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center" Visibility="{x:Bind HasDestination}"
-                          AutomationProperties.AccessibilityView="Raw" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Ellipse Width="8" Height="8" VerticalAlignment="Center" Fill="{ThemeResource SystemFillColorCautionBrush}"
+                             Visibility="{x:Bind IsUnread, Mode=OneWay}" AutomationProperties.AccessibilityView="Raw" />
+                    <FontIcon Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center" Visibility="{x:Bind HasDestination}"
+                              AutomationProperties.AccessibilityView="Raw" />
+                </StackPanel>
             </Grid>
         </DataTemplate>
     </UserControl.Resources>
@@ -73,15 +82,15 @@
                     <ScrollViewer Grid.Row="1" Visibility="{x:Bind Model.IsLoaded, Mode=OneWay}" Padding="0,0,12,0"
                                   AutomationProperties.AutomationId="fst.notifications.list">
                         <StackPanel Spacing="4">
-                            <TextBlock Text="New" Style="{StaticResource BodyStrongTextBlockStyle}" Visibility="{x:Bind Model.HasNew, Mode=OneWay}"
+                            <TextBlock Text="New" Style="{StaticResource BodyStrongTextBlockStyle}" Foreground="White" Visibility="{x:Bind Model.HasNew, Mode=OneWay}"
                                        AutomationProperties.HeadingLevel="Level3" />
                             <ListView ItemsSource="{x:Bind Model.NewItems, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="64" ItemTemplate="{StaticResource RowTemplate}"
-                                      SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnRowClick"
+                                      SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnRowClick" ScrollViewer.VerticalScrollMode="Disabled"
                                       Visibility="{x:Bind Model.HasNew, Mode=OneWay}" AutomationProperties.Name="New notifications" />
-                            <TextBlock Text="Older" Style="{StaticResource BodyStrongTextBlockStyle}" Visibility="{x:Bind Model.HasOlder, Mode=OneWay}"
+                            <TextBlock Text="Older" Style="{StaticResource BodyStrongTextBlockStyle}" Foreground="White" Visibility="{x:Bind Model.HasOlder, Mode=OneWay}"
                                        AutomationProperties.HeadingLevel="Level3" />
                             <ListView ItemsSource="{x:Bind Model.OlderItems, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="64" ItemTemplate="{StaticResource RowTemplate}"
-                                      SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnRowClick"
+                                      SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnRowClick" ScrollViewer.VerticalScrollMode="Disabled"
                                       Visibility="{x:Bind Model.HasOlder, Mode=OneWay}" AutomationProperties.Name="Older notifications" />
                         </StackPanel>
                     </ScrollViewer>

@@ -194,6 +194,10 @@ public sealed partial class SongsPage : Page, IPageBack
             AutomationProperties.SetName(container, row.Announcement);
             AutomationProperties.SetAutomationId(container, $"fst.songs.row.{row.Song.SongId}");
             ((ShopPulseRing)root.FindName("ShopRing")).Apply(row.Pulse);
+            var badge = (Border)root.FindName("ShopBadge");
+            badge.Visibility = row.Pulse is null ? Visibility.Collapsed : Visibility.Visible;
+            if (row.Pulse is { } pulse)
+                badge.Background = new SolidColorBrush(Color.FromArgb(0xFF, (byte)(pulse.Argb >> 16), (byte)(pulse.Argb >> 8), (byte)pulse.Argb));
             // Not Handled: x:Bind template bindings run in this same event.
             args.RegisterUpdateCallback(1, OnContainerContentChanging);
             return;
