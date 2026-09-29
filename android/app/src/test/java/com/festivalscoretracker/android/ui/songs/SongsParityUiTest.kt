@@ -83,7 +83,8 @@ class SongsParityUiTest {
     }
 
     private fun waitForTag(tag: String, unmerged: Boolean = false) {
-        rule.waitUntil(10_000) {
+        // 20 s: the full Robolectric suite runs these journeys under heavy load (seen flaking at 10 s).
+        rule.waitUntil(20_000) {
             settle(100)
             rule.onAllNodesWithTag(tag, useUnmergedTree = unmerged).fetchSemanticsNodes().isNotEmpty()
         }
