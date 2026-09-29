@@ -107,6 +107,8 @@ struct PlayerRankHistoryCard: View {
                     }
                 }
                 .festivalFadeIn(isLoaded: true)
+                // `.contain` first, or the identifier replaces every tile's own.
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("fst.player.rank-history.\(instrument.rawValue)")
                 .quickLinkSection(QuickLinkSection(
                     id: "rank-history:\(instrument.rawValue)", title: "Rank History",
@@ -586,6 +588,8 @@ struct PlayerPercentileChartCard: View {
                     )
                 }
             }
+            // `.contain` first, or the identifier replaces every tile's own.
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("fst.player.percentiles.\(instrument.rawValue)")
             .quickLinkSection(QuickLinkSection(
                 id: "percentiles:\(instrument.rawValue)", title: "Percentiles",

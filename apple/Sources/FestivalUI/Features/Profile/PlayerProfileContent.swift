@@ -463,6 +463,8 @@ struct PlayerProfileContent: View {
                 ),
             ], scope: "overview", onSelect: open)
         }
+        // `.contain` first, or the identifier replaces every tile's own.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.player.overview")
         .quickLinkSection(id: "global", title: "Global Statistics", symbol: "chart.bar.fill")
     }
@@ -488,6 +490,8 @@ struct PlayerProfileContent: View {
                 )
             }
         }
+        // `.contain` first, or the identifier replaces every tile's own.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.player.instrument.\(instrument.rawValue)")
         .quickLinkSection(QuickLinkSection(
             id: "instrument:\(instrument.rawValue)", title: instrument.label, icon: .instrument(instrument)
