@@ -209,6 +209,11 @@ public sealed partial class RankingCardViewModel : ObservableObject
         Status = new ServiceStatusViewModel($"leaderboards.{instrument.ServiceId()}", $"{instrument.Label()} unavailable",
             () => LoadAsync(), session.Time);
         Spotlight = new RankingSpotlightViewModel(instrument, reader, session.Time, $"leaderboards.spotlight.{instrument.ServiceId()}");
+        // The pinned row arrives after the top ten: widen every rank column to fit it (operator batch 7.9).
+        Spotlight.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(RankingSpotlightViewModel.Row)) RankingRowViewModel.ShareRankWidth(Rows, Spotlight.Row);
+        };
     }
 
     /// <summary>Board.</summary>
@@ -306,6 +311,7 @@ public sealed partial class RankingCardViewModel : ObservableObject
         Rows = entries.Select(e => new RankingRowViewModel(e, Metric, RankingSpotlight.SameAccount(e.AccountId, selected))).ToList();
         State = entries.Count == 0 ? LoadState.Empty : LoadState.Loaded;
         Spotlight.Apply(selected, entries, Metric, 1, LeaderboardPaging.CardSize);
+        RankingRowViewModel.ShareRankWidth(Rows, Spotlight.Row);
         await Spotlight.EnsureLoadedAsync(selected, !entries.Any(e => RankingSpotlight.SameAccount(e.AccountId, selected)), cancellationToken);
     }
 }

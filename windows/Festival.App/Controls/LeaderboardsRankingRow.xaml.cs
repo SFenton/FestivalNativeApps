@@ -24,7 +24,7 @@ public sealed partial class LeaderboardsRankingRow : UserControl, ISeparatedRow
 
     /// <summary>Row model: <see cref="RankingRowViewModel"/> or <see cref="BandRankingRowViewModel"/>.</summary>
     public static readonly DependencyProperty RowProperty = DependencyProperty.Register(
-        nameof(Row), typeof(object), typeof(LeaderboardsRankingRow), new PropertyMetadata(null, (d, _) => ((LeaderboardsRankingRow)d).Update()));
+        nameof(Row), typeof(object), typeof(LeaderboardsRankingRow), new PropertyMetadata(null, (d, e) => ((LeaderboardsRankingRow)d).OnRowChanged(e.OldValue)));
 
     /// <summary>Creates the row.</summary>
     public LeaderboardsRankingRow()
@@ -71,6 +71,30 @@ public sealed partial class LeaderboardsRankingRow : UserControl, ISeparatedRow
     /// <summary>Destination for the current row.</summary>
     private AppRoute? route;
 
+    /// <summary>Follows the board's shared rank width on the new row (it widens when the pinned row arrives).</summary>
+    /// <param name="old">Previous row.</param>
+    private void OnRowChanged(object? old)
+    {
+        if (old is RankingRowViewModel previous) previous.PropertyChanged -= OnRowPropertyChanged;
+        if (Row is RankingRowViewModel current) current.PropertyChanged += OnRowPropertyChanged;
+        Update();
+    }
+
+    /// <summary>Re-sizes the rank column when the board's shared width changes.</summary>
+    /// <param name="sender">Row.</param>
+    /// <param name="e">Change.</param>
+    private void OnRowPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(RankingRowViewModel.RankChars)) UpdateRankWidth();
+    }
+
+    /// <summary>Rank column minimum: the board's shared width (web computeRankWidth) or this rank's own.</summary>
+    private void UpdateRankWidth()
+    {
+        var chars = Math.Max(RankText.Text.Length, (Row as RankingRowViewModel)?.RankChars ?? 0);
+        RankColumn.MinWidth = Math.Max(MinRankWidth, Math.Ceiling(chars * RankCharWidth));
+    }
+
     /// <summary>Projects the model into the template.</summary>
     private void Update()
     {
@@ -113,7 +137,7 @@ public sealed partial class LeaderboardsRankingRow : UserControl, ISeparatedRow
         AutomationProperties.SetName(RowButton, announcement);
         AutomationProperties.SetAutomationId(RowButton, automationId);
         // Ranks of equal length share a width, so names line up down a card or page (web computeRankWidth).
-        RankColumn.MinWidth = Math.Max(MinRankWidth, Math.Ceiling(rank.Length * RankCharWidth));
+        UpdateRankWidth();
         // The selected player's row is bold throughout (web RankingEntry isPlayer; operator batch 6.42).
         var weight = selected ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
         RankText.FontWeight = NameText.FontWeight = SongsText.FontWeight = BayesianText.FontWeight = weight;

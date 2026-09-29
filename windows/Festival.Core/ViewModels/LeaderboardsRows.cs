@@ -8,7 +8,7 @@ namespace Festival.Core.ViewModels;
 /// One account-rankings row shared by overview cards, their spotlight and Full Rankings. Opens the viewed
 /// player's profile (web row link to <c>/player/:accountId</c>).
 /// </summary>
-public sealed class RankingRowViewModel
+public sealed partial class RankingRowViewModel : ObservableObject
 {
     /// <summary>Creates a row.</summary>
     /// <param name="entry">Wire row.</param>
@@ -34,6 +34,23 @@ public sealed class RankingRowViewModel
 
     /// <summary>Rank for the metric.</summary>
     public int Rank => Entry.Rank(Metric);
+
+    /// <summary>
+    /// Rank characters every row of this board reserves (web <c>computeRankWidth</c> over the rows and the pinned
+    /// selected-player row), so ranks, names and values line up down the card (operator batch 7.9). 0 = own width.
+    /// </summary>
+    [ObservableProperty]
+    private int rankChars;
+
+    /// <summary>Gives a board's rows and its pinned row one rank width: the longest rank text among them.</summary>
+    /// <param name="rows">Board rows.</param>
+    /// <param name="pinned">Pinned selected-player row, if shown.</param>
+    public static void ShareRankWidth(IReadOnlyList<RankingRowViewModel> rows, RankingRowViewModel? pinned)
+    {
+        var chars = rows.Select(r => r.RankText.Length).Append(pinned?.RankText.Length ?? 0).Max();
+        foreach (var row in rows) row.RankChars = chars;
+        if (pinned is not null) pinned.RankChars = chars;
+    }
 
     /// <summary><c>#1,234</c>.</summary>
     public string RankText => ScoreFormatting.Rank(Rank);

@@ -198,12 +198,21 @@ public sealed partial class FullRankingsViewModel : ObservableObject
         var selected = session.SelectedPlayer?.AccountId;
         Rows = entries.Select(e => new RankingRowViewModel(e, Metric, RankingSpotlight.SameAccount(e.AccountId, selected))).ToList();
         Spotlight.Apply(selected, entries, Metric, Page, LeaderboardPaging.PageSize);
+        RankingRowViewModel.ShareRankWidth(Rows, Spotlight.Row);
     }
 
     /// <summary>Creates the spotlight for the current instrument with a jump back into this board.</summary>
     /// <returns>Spotlight.</returns>
-    private RankingSpotlightViewModel NewSpotlight() =>
-        new(Instrument, reader, session.Time, "full-rankings.spotlight." + Instrument.ServiceId(), GoToPageAsync);
+    private RankingSpotlightViewModel NewSpotlight()
+    {
+        var created = new RankingSpotlightViewModel(Instrument, reader, session.Time, "full-rankings.spotlight." + Instrument.ServiceId(), GoToPageAsync);
+        // The pinned row arrives after the page: widen every rank column to fit it (operator batch 7.9).
+        created.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(RankingSpotlightViewModel.Row)) RankingRowViewModel.ShareRankWidth(Rows, created.Row);
+        };
+        return created;
+    }
 }
 #endregion
 
