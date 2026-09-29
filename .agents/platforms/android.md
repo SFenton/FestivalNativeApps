@@ -142,6 +142,28 @@ String intent extras, same names as Apple: `FST_DEBUG_TAB`, `FST_DEBUG_ROUTE` (`
 - Screenshots of live data show production names, titles and third-party art: keep them as `android/reports/screenshots/*.local.png` (gitignored), never commit them ([service safety](service-safety.md)).
 - Foldables: `--avd FST_Book_Fold --posture folded|unfolded` (and `device features` to see what WindowManager reports).
 
+## Performance
+
+Measured 2026-09-29 (FST-and-a11y2) with `tools/android/frame_stats.py --animations-on` on the **`benchmark` build type** (release-like, not debuggable, debug-signed, keeps the `FST_*` extras; `./gradlew :app:assembleBenchmark`), against the `--large-catalogue --large-rankings` mock service, 8 swipes up + 4 down per scroll. A debuggable debug build measures about 2× slower on the UI thread (Songs scroll p50 15.6 ms vs 9.8 ms under the older Vsync-based metric), so never judge jank from a debug build. SwiftShader renders on the host CPU, so **total** frame times (30–85 ms) are an emulator artefact; the UI-thread time (`HandleInputStart` → `SyncQueued`) is the app's own cost.
+
+| Scenario | Device | Frames | UI p50 / p90 / p99 ms | UI > 8.33 ms | Composition / layout / draw p90 ms |
+|---|---|---|---|---|---|
+| Songs scroll | FST_Phone | 348 | 2.7 / 9.6 / 16.3 | 14% | 8.1 / 0.1 / 1.8 |
+| Songs scroll | FST_Book_Fold unfolded | 259 | 1.7 / 3.8 / 15.7 | 3% | 3.2 / 0.2 / 0.7 |
+| Song Detail scroll | FST_Phone | 301 | 1.9 / 6.0 / 18.0 | 5% | 4.9 / 0.2 / 1.2 |
+| Song Detail scroll | FST_Book_Fold unfolded | 251 | 2.0 / 6.0 / 15.4 | 3% | 3.9 / 0.2 / 1.4 |
+| Leaderboards scroll | FST_Phone | 340 | 2.2 / 6.6 / 24.3 | 7% | 5.5 / 0.2 / 0.9 |
+| Leaderboards scroll | FST_Book_Fold unfolded | 240 | 2.9 / 7.3 / 23.4 | 6% | 4.6 / 0.1 / 1.3 |
+| Full Rankings scroll | FST_Phone | 353 | 1.1 / 3.8 / 9.3 | 1% | 3.1 / 0.2 / 0.3 |
+| Background animation (Settings, idle 15 s) | FST_Phone | 942 | 0.5 / 0.9 / 3.4 | 0 | 0.8 / 0.1 / 0.0 |
+| Background + Shop pulse (Songs, idle 12 s) | FST_Phone | 745 | 0.6 / 1.3 / 6.2 | 2 frames | 1.1 / 0.1 / 0.0 |
+| Background animation | FST_Book_Fold unfolded | 856 | 0.6 / 1.3 / 8.2 | 6 frames | 1.1 / 0.1 / 0.0 |
+
+- No per-frame recomposition: the idle scenarios render every frame (artwork Ken Burns, Shop pulse/breathe, marquee) at 0.5–0.6 ms of UI work, all in the draw phase (`graphicsLayer`, `drawBehind`, `basicMarquee`).
+- The remaining cost is composing rows that scroll in (Songs rows on a phone, p90 ≈ 8 ms on the emulator; a device CPU is faster). Changes made: instrument/star PNGs decoded once (`ui/design/BundledBitmaps.kt`; `painterResource` decoded them per call site) and the nine Songs status chips drawn by one node (`ChipGrid`) instead of a `BoxWithConstraints` subcomposition plus ~18 nodes. Both were within the emulator's run-to-run noise (±25% on the over-budget share), so neither is claimed as a measured win.
+- Leaderboards/Song Detail p99 spikes (18–24 ms) are cards composing as they enter (rank history, instrument cards).
+- Open: a Perfetto trace with `androidx.compose.runtime:runtime-tracing` on a real device to split Songs row composition by composable; a Macrobenchmark module (not added: needs a separate test module and a device lab that holds the emulator for longer than the 300 s lock).
+
 ## Devices
 
 - One emulator per host, only through `device.py` (FST AVDs, API 37). Never start `Pixel_5_API_36`/`Pixel_9_Pro_Fold` by hand while lanes share the host; headless `-gpu auto` in session 0 wedged adb shell — the shared tool uses `swiftshader_indirect`.
