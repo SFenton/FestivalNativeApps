@@ -28,8 +28,6 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowLeft
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowRight
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -70,6 +68,7 @@ import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentSelector
 import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.design.ViewFullLeaderboardButton
+import com.festivalscoretracker.android.ui.leaderboards.FrostedPagerButton
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import java.text.NumberFormat
 import java.time.OffsetDateTime
@@ -257,19 +256,13 @@ private fun LegendItem(label: String, swatch: @Composable () -> Unit) {
 
 @Composable
 private fun Pager(paging: SongHistoryPaging, onChange: (SongHistoryPaging) -> Unit) {
-    Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth().testTag("fst.song-detail.history.pager")) {
-        IconButton(onClick = { onChange(paging.step(-paging.maxBars)) }, enabled = !paging.backDisabled) {
-            Icon(Icons.Filled.KeyboardDoubleArrowLeft, contentDescription = "Back one page")
-        }
-        IconButton(onClick = { onChange(paging.step(-1)) }, enabled = !paging.backDisabled) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Back one entry")
-        }
-        IconButton(onClick = { onChange(paging.step(1)) }, enabled = !paging.forwardDisabled) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Forward one entry")
-        }
-        IconButton(onClick = { onChange(paging.step(paging.maxBars)) }, enabled = !paging.forwardDisabled) {
-            Icon(Icons.Filled.KeyboardDoubleArrowRight, contentDescription = "Forward one page")
-        }
+    // The web GraphCard pager: the same frosted circle buttons as the boards and Rank History (7.4).
+    val tag = "fst.song-detail.history"
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), modifier = Modifier.fillMaxWidth().testTag("$tag.pager")) {
+        FrostedPagerButton(Icons.Filled.KeyboardDoubleArrowLeft, "Back one page", "$tag.back-page", !paging.backDisabled) { onChange(paging.step(-paging.maxBars)) }
+        FrostedPagerButton(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Back one entry", "$tag.back-entry", !paging.backDisabled) { onChange(paging.step(-1)) }
+        FrostedPagerButton(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Forward one entry", "$tag.forward-entry", !paging.forwardDisabled) { onChange(paging.step(1)) }
+        FrostedPagerButton(Icons.Filled.KeyboardDoubleArrowRight, "Forward one page", "$tag.forward-page", !paging.forwardDisabled) { onChange(paging.step(paging.maxBars)) }
     }
 }
 
@@ -367,11 +360,11 @@ private fun summary(points: List<SongHistoryPoint>, chart: Instrument): String {
         "Best ${NumberFormat.getIntegerInstance().format(best.score)} on ${best.dateLabel}."
 }
 
-/** Web `purpleHighlight` (rgba 75 15 99 / 75%): selected-player and best-score rows. */
-internal val PurpleHighlight = Color(0xBF4B0F63)
+/** Web `purpleHighlight`: selected-player and best-score rows. */
+internal val PurpleHighlight get() = BrandTokens.purpleHighlight
 
-/** Web `purpleHighlightBorder` (rgba 124 58 237 / 50%). */
-internal val PurpleHighlightBorder = Color(0x807C3AED)
+/** Web `purpleHighlightBorder`. */
+internal val PurpleHighlightBorder get() = BrandTokens.purpleHighlightBorder
 
 private val SCORE_BLUE = Color(0xFF4C7DFF)
 private val CHART_HEIGHT = 220.dp

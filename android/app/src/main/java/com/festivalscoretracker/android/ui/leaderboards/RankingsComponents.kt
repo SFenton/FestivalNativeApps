@@ -82,9 +82,6 @@ import java.text.NumberFormat
 
 // region Rows
 
-/** Accent fill for the selected player's row (web `playerEntryRow`, `Colors.purpleHighlight`). */
-private val SelectedFill = BrandTokens.accentPurple.copy(alpha = 0.18f)
-
 /** Rating text (web `Colors.accentBlueBright` #4C7DFF). */
 private val RatingBlue = Color(0xFF4C7DFF)
 
@@ -191,7 +188,8 @@ private fun RankingRowLayout(
         .fillMaxWidth()
         .heightIn(min = 48.dp)
         .clip(shape)
-    if (isSelected) rowModifier = rowModifier.background(SelectedFill).border(BorderStroke(1.dp, BrandTokens.accentPurple), shape)
+    // Same selected-player treatment as the song boards (web `playerEntryRow`, 7.7).
+    if (isSelected) rowModifier = rowModifier.background(BrandTokens.purpleHighlight).border(BorderStroke(1.dp, BrandTokens.purpleHighlightBorder), shape)
     if (route != null) rowModifier = rowModifier.clickable(role = Role.Button, onClickLabel = "Open") { onOpen(route) }
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -209,7 +207,7 @@ private fun RankingRowLayout(
         val columns = LocalRankingColumns.current
         Text(
             RankingFormatting.rankLabel(rank),
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.labelLarge,
             fontWeight = weight,
             color = BrandTokens.textPrimary,
             maxLines = 1,

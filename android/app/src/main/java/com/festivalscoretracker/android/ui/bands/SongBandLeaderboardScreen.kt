@@ -221,12 +221,12 @@ internal fun BandScoreRow(
             .testTag(tag)
             .semantics(mergeDescendants = true) { contentDescription = announcement },
         onClick = onClick,
-        accent = if (selected) SelectedBandBorder else null,
+        accent = if (selected) BrandTokens.purpleHighlightBorder else null,
     ) {
         // Narrow cards (phones, one side of a hinge) move the team score under the members
         // (web `scoreFooter`), so member names keep their width.
         // The card's description is the whole announcement; the texts inside add nothing for TalkBack.
-        BoxWithConstraints(Modifier.background(if (selected) SelectedBandFill else Color.Transparent).padding(12.dp).clearAndSetSemantics { }) {
+        BoxWithConstraints(Modifier.background(if (selected) BrandTokens.purpleHighlight else Color.Transparent).padding(12.dp).clearAndSetSemantics { }) {
             val stacked = maxWidth < BAND_ROW_STACK_WIDTH
             val teamScore: @Composable () -> Unit = {
                 Text(BandFormatting.count(entry.score), fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)
@@ -283,9 +283,5 @@ internal fun BandScoreRow(
 
 /** Card width below which the team score moves under the members. */
 private val BAND_ROW_STACK_WIDTH = 400.dp
-
-/** Web `purpleHighlight` / `purpleHighlightBorder`: the selected player's band card. */
-private val SelectedBandFill = Color(0xBF4B0F63)
-private val SelectedBandBorder = Color(0x807C3AED)
 
 // endregion

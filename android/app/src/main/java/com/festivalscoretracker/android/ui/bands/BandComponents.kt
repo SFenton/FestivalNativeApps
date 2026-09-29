@@ -13,13 +13,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.FirstPage
-import androidx.compose.material.icons.filled.LastPage
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -33,7 +27,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -41,7 +34,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.festivalscoretracker.android.ui.design.RowChevron
 import com.festivalscoretracker.android.core.bands.BandFormatting
 import com.festivalscoretracker.android.core.bands.BandLayout
 import com.festivalscoretracker.android.core.bands.BandMember
@@ -50,6 +42,8 @@ import com.festivalscoretracker.android.core.bands.PlayerBandEntry
 import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
+import com.festivalscoretracker.android.ui.design.RowChevron
+import com.festivalscoretracker.android.ui.leaderboards.RankingsPager
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 
 // region Layout
@@ -238,7 +232,8 @@ internal fun <T> BandSegmentedControl(
 // region Pager
 
 /**
- * First/Previous/`page / pages`/Next/Last paging, hidden for a single page.
+ * The shared web pager (frosted « ‹ page / pages › » buttons, [RankingsPager]) centred
+ * under a band list, hidden for a single page (7.4: one pager everywhere boards page).
  *
  * @param page Current page.
  * @param pageCount Pages.
@@ -249,31 +244,8 @@ internal fun <T> BandSegmentedControl(
 @Composable
 internal fun BandPager(page: Int, pageCount: Int, tagPrefix: String, onGo: (Int) -> Unit, modifier: Modifier = Modifier) {
     if (pageCount <= 1) return
-    Row(
-        modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconButton(onClick = { onGo(1) }, enabled = page > 1, modifier = Modifier.testTag("$tagPrefix.page-first")) {
-            Icon(Icons.Filled.FirstPage, contentDescription = "First page")
-        }
-        IconButton(onClick = { onGo(page - 1) }, enabled = page > 1, modifier = Modifier.testTag("$tagPrefix.page-previous")) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous page")
-        }
-        Text(
-            "${BandFormatting.count(page.toLong())} / ${BandFormatting.count(pageCount.toLong())}",
-            color = BrandTokens.textPrimary,
-            modifier = Modifier
-                .padding(horizontal = 12.dp)
-                .testTag("$tagPrefix.page-info")
-                .clearAndSetSemantics { contentDescription = "Page $page of $pageCount" },
-        )
-        IconButton(onClick = { onGo(page + 1) }, enabled = page < pageCount, modifier = Modifier.testTag("$tagPrefix.page-next")) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next page")
-        }
-        IconButton(onClick = { onGo(pageCount) }, enabled = page < pageCount, modifier = Modifier.testTag("$tagPrefix.page-last")) {
-            Icon(Icons.Filled.LastPage, contentDescription = "Last page")
-        }
+    Box(modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+        RankingsPager(page, pageCount, tagPrefix, onGo)
     }
 }
 

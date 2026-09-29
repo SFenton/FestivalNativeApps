@@ -31,6 +31,12 @@ object BrandTokens {
     val cardBackground = Color(0xFF0B1220)
     val glassBorder = Color(0x14FFFFFF)
     val gold = Color(0xFFFFD700)
+
+    /** Web `purpleHighlight` (rgba 75 15 99 / 75%): the selected player's row on every board. */
+    val purpleHighlight = Color(0xBF4B0F63)
+
+    /** Web `purpleHighlightBorder` (rgba 124 58 237 / 50%). */
+    val purpleHighlightBorder = Color(0x807C3AED)
     val statusGreen = Color(0xFF2ECC71)
     val statusRed = Color(0xFFC62828)
     val surfaceFrosted = Color(0xC7121826)
