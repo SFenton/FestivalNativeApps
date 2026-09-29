@@ -1,7 +1,23 @@
 package com.festivalscoretracker.android.ui.profile
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import com.festivalscoretracker.android.core.profile.PlayerTileAction
+import com.festivalscoretracker.android.core.suggestions.PercentileTier
+import com.festivalscoretracker.android.presentation.profile.PercentileRow
+import com.festivalscoretracker.android.ui.design.GlassCard
+import com.festivalscoretracker.android.ui.suggestions.PercentilePill
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,7 +26,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,50 +45,85 @@ import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.profile.ChartGeometry
 import com.festivalscoretracker.android.core.profile.ChartPoint
 import com.festivalscoretracker.android.core.profile.ChartTick
-import com.festivalscoretracker.android.core.profile.PercentileBar
 import com.festivalscoretracker.android.core.profile.ScoreHistoryChartModel
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 
 // region Percentiles
 
 /**
- * Horizontal placement bars ("Top 5%" gold), one accessibility element per bar.
+ * The web's percentile table card (`PlayerPercentileHeader` + `PlayerPercentileRow`):
+ * a "PERCENTILE | SONGS" header, then one row per non-empty band with a "Top N%" pill
+ * and its song count, hairline separators between rows. A row with an action opens
+ * Songs filtered to that band (web `instPercentileBucketUpdater`).
  *
- * @param bars Bars, best first.
- * @param modifier Modifier.
+ * @param rows Bands, best first.
+ * @param canRun Whether a row's action is available now.
+ * @param onAction Row tap.
+ * @param modifier Modifier (carries the test tag).
  */
 @Composable
-fun PercentileBars(bars: List<PercentileBar>, modifier: Modifier = Modifier) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        bars.forEach { bar ->
-            Row(
-                Modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = bar.announcement },
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    bar.label,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (bar.gold) BrandTokens.gold else BrandTokens.textPrimary,
-                    modifier = Modifier.width(76.dp),
-                )
-                Box(Modifier.weight(1f).height(14.dp)) {
-                    Box(
-                        Modifier
-                            .fillMaxWidth(ChartGeometry.percentileFraction(bar.fraction))
-                            .height(14.dp)
-                            .background(if (bar.gold) BrandTokens.gold else BrandTokens.accentPurple, RoundedCornerShape(4.dp)),
-                    )
+internal fun PercentileTable(rows: List<PercentileRow>, canRun: (PlayerTileAction) -> Boolean, onAction: (PlayerTileAction) -> Unit, modifier: Modifier = Modifier) {
+    GlassCard(modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp).clearAndSetSemantics { }) {
+            TableHeader("Percentile", Modifier.weight(1f))
+            TableHeader("Songs")
+        }
+        rows.forEachIndexed { index, row ->
+            HorizontalDivider(color = BrandTokens.glassBorder)
+            val action = row.action?.takeIf(canRun)
+            val content: @Composable () -> Unit = {
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.weight(1f)) { PercentilePill(row.bucket.label, percentileTier(row.bucket.topPercent)) }
+                    Text(row.bucket.count.toString(), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = BrandTokens.textPrimary)
+                    if (action != null) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = BrandTokens.textPrimary,
+                            modifier = Modifier.padding(start = 8.dp).size(20.dp),
+                        )
+                    }
                 }
-                Text(
-                    bar.count.toString(),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = BrandTokens.textPrimary,
-                    textAlign = TextAlign.End,
-                    modifier = Modifier.width(44.dp),
+            }
+            val tag = Modifier.testTag("fst.player.percentile-row.${row.bucket.topPercent}")
+            if (action == null) {
+                Box(tag.clearAndSetSemantics { contentDescription = row.announcement }) { content() }
+            } else {
+                Surface(
+                    onClick = { onAction(action) },
+                    color = Color.Transparent,
+                    modifier = tag.clearAndSetSemantics {
+                        contentDescription = row.announcement
+                        role = Role.Button
+                        onClick(label = actionLabel(action)) { onAction(action); true }
+                    },
+                    content = content,
                 )
             }
         }
     }
+}
+
+@Composable
+private fun TableHeader(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 0.6.sp,
+        color = BrandTokens.textSecondary,
+        modifier = modifier,
+    )
+}
+
+/** Web `PercentilePill` tier for a band: gold italic at Top 1%, gold outline to Top 5%. */
+internal fun percentileTier(topPercent: Int): PercentileTier = when {
+    topPercent <= 1 -> PercentileTier.Top1
+    topPercent <= 5 -> PercentileTier.Top5
+    else -> PercentileTier.Default
 }
 
 // endregion

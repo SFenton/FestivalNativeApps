@@ -59,6 +59,7 @@ import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
+import com.festivalscoretracker.android.ui.design.SeeAllButton
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import java.text.NumberFormat
 
@@ -208,13 +209,12 @@ fun RivalSectionHeader(
             if (description != null) Text(description, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary)
         }
         if (onSeeAll != null) {
-            TextButton(
+            SeeAllButton(
                 onClick = onSeeAll,
-                modifier = Modifier
-                    .heightIn(min = 48.dp)
-                    .let { if (seeAllTag != null) it.testTag(seeAllTag) else it }
-                    .semantics { contentDescription = "${RivalText.SEE_ALL}: $title" },
-            ) { Text(RivalText.SEE_ALL) }
+                modifier = if (seeAllTag != null) Modifier.testTag(seeAllTag) else Modifier,
+                label = RivalText.SEE_ALL,
+                spokenLabel = "${RivalText.SEE_ALL}: $title",
+            )
         }
     }
 }

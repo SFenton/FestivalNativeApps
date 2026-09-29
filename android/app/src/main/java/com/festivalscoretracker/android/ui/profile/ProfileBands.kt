@@ -31,6 +31,7 @@ import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.design.GlassCard
+import com.festivalscoretracker.android.ui.design.SeeAllButton
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 
 // region Bands
@@ -60,7 +61,7 @@ internal fun ProfileBandsSection(state: PlayerProfileUiState, bands: BandsLoad?,
                     color = BrandTokens.textPrimary,
                     modifier = Modifier.weight(1f).semantics { heading() },
                 )
-                TextButton(onClick = { onNavigate(all) }, modifier = Modifier.heightIn(min = 48.dp).testTag("fst.player.bands-link")) { Text("See all") }
+                SeeAllButton(onClick = { onNavigate(all) }, modifier = Modifier.testTag("fst.player.bands-link"), label = "See all", spokenLabel = "See all ${state.displayName}'s bands")
             }
             when (bands) {
                 null, BandsLoad.Loading -> FestivalLoading("Loading bands", Modifier.testTag("fst.player.bands.loading"), size = 24.dp)

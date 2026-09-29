@@ -3,6 +3,7 @@ package com.festivalscoretracker.android.ui.profile
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -102,7 +103,7 @@ class ProfileUiTest {
         assertEquals(0, rule.onAllNodesWithText("Public Profile").fetchSemanticsNodes().size)
         rule.onNodeWithTag("fst.player.select").assertIsDisplayed()
         assertEquals(0, rule.onAllNodesWithTag("fst.nav.tab.statistics").fetchSemanticsNodes().size)
-        rule.onNodeWithTag("fst.player.available").performScrollToNode(hasTestTag("fst.player.global-rank.Solo_Guitar.available"))
+        rule.onNodeWithTag("fst.player.available").performScrollToNode(hasTestTag("fst.player.tile.Solo_Guitar.global-rank"))
         waitForTag("fst.player.rank-history.Solo_Guitar")
         rule.onNodeWithTag("fst.player.available").performScrollToNode(hasTestTag("fst.player.percentiles.Solo_Guitar"))
         rule.onNodeWithTag("fst.player.available").performScrollToNode(hasTestTag("fst.player.instrument-empty.Solo_Drums"))
@@ -220,7 +221,8 @@ class ProfileExpandedUiTest {
         rule.onNodeWithTag("fst.nav.tab.statistics").performClick()
         waitForTag("fst.player.overview")
         waitForTag("fst.player.global-rank.Solo_Guitar.error")
-        rule.onNodeWithTag("fst.player.available").performScrollToNode(hasTestTag("fst.player.global-rank.Solo_Bass.unranked"))
-        rule.onNodeWithText("Not yet ranked globally on Bass.").assertIsDisplayed()
+        // Unranked keeps the rank tile (an em dash) so the grid keeps its shape.
+        rule.onNodeWithTag("fst.player.available").performScrollToNode(hasTestTag("fst.player.tile.Solo_Bass.global-rank"))
+        rule.onNodeWithTag("fst.player.tile.Solo_Bass.global-rank").assertContentDescriptionEquals("Total Score Rank: —")
     }
 }

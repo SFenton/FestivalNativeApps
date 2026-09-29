@@ -297,7 +297,7 @@ private fun SeasonPill(text: String) = Pill(
 
 /** Web `PercentilePill`: gold outline, italic (web skews it), for Top 1%, gold outline for Top 5%, subtle white otherwise. */
 @Composable
-private fun PercentilePill(text: String, tier: PercentileTier) = when (tier) {
+internal fun PercentilePill(text: String, tier: PercentileTier) = when (tier) {
     PercentileTier.Top1 -> Pill(text, Color.Transparent, BrandTokens.gold, BorderStroke(2.dp, SuggestionTokens.goldStroke), 72, italicSkew = true)
     PercentileTier.Top5 -> Pill(text, Color.Transparent, BrandTokens.gold, BorderStroke(2.dp, SuggestionTokens.goldStroke), 72)
     PercentileTier.Default -> Pill(text, SuggestionTokens.surfaceWhiteSubtle, BrandTokens.textSecondary, minWidth = 72)

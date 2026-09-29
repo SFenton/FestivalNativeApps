@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -234,11 +236,11 @@ private fun LoadedProfile(
                     }, onDeselect = { confirm = PlayerIdentityAction.Deselect })
                     ProfileRow.Overview -> Column(Modifier.testTag("fst.player.overview")) {
                         SectionHeader("Overview")
-                        TileFlow(state.overview, "overview", state, onAction)
+                        StatGrid(state.overview, "overview", state::canRun, onAction)
                     }
                     is ProfileRow.InstrumentStats -> state.instruments.firstOrNull { it.instrument == row.instrument }?.let { section ->
                         LaunchedEffect(section.instrument, section.hasScores) { viewModel.ensureInstrument(section.instrument) }
-                        InstrumentCard(
+                        InstrumentSection(
                             section = section,
                             rank = ranks[section.instrument],
                             history = histories[section.instrument],
@@ -330,8 +332,10 @@ private fun Header(state: PlayerProfileUiState, onSelect: () -> Unit, onDeselect
                     onClick = onSelect,
                     modifier = Modifier.padding(top = 12.dp).heightIn(min = 48.dp).testTag("fst.player.select"),
                 ) { Text(state.selectLabel) }
-                PlayerIdentityAction.Deselect -> OutlinedButton(
+                PlayerIdentityAction.Deselect -> Button(
                     onClick = onDeselect,
+                    // Web `btnDanger`: status red fill, white text.
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandTokens.statusRed, contentColor = BrandTokens.textPrimary),
                     modifier = Modifier.padding(top = 12.dp).heightIn(min = 48.dp).testTag("fst.player.deselect"),
                 ) { Text("Deselect Profile") }
                 else -> Unit
@@ -364,10 +368,16 @@ private fun ConfirmDialog(title: String, text: String, confirmLabel: String, tag
 
 // endregion
 
-// region Instrument card
+// region Instrument section
 
+/**
+ * One chart's statistics in web order and web cards: the instrument header above
+ * them, then Rank History (its own card), the stat tiles (each its own card, the
+ * Total Score Rank tile in place with a fixed-size placeholder while it loads) and
+ * the percentile table (its own card). An unplayed chart shows only its empty state.
+ */
 @Composable
-private fun InstrumentCard(
+private fun InstrumentSection(
     section: PlayerInstrumentSection,
     rank: RankLoad?,
     history: RankHistoryLoad?,
@@ -377,43 +387,82 @@ private fun InstrumentCard(
     onRetryHistory: () -> Unit,
 ) {
     val instrument = section.instrument
-    Column(Modifier.fillMaxWidth()) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Web: the instrument header sits above its cards, never inside them.
         InstrumentHeading(instrument, "fst.player.instrument.${instrument.wireId}")
-        GlassCard(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp)) {
-                if (!section.hasScores) {
-                    Text(
-                        "No ${instrument.label} scores recorded yet.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = BrandTokens.textPrimary,
-                        modifier = Modifier.testTag("fst.player.instrument-empty.${instrument.wireId}"),
-                    )
-                    return@Column
+        if (!section.hasScores) {
+            GlassCard(Modifier.fillMaxWidth()) {
+                Text(
+                    "No ${instrument.label} scores recorded yet.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = BrandTokens.textPrimary,
+                    modifier = Modifier.padding(16.dp).testTag("fst.player.instrument-empty.${instrument.wireId}"),
+                )
+            }
+            return@Column
+        }
+        RankHistorySection(instrument, history, onRetryHistory)
+        StatGrid(
+            section.stats + RankLoad.tile(rank) + section.trailing,
+            instrument.wireId,
+            state::canRun,
+            onAction,
+            Modifier.testTag("fst.player.stats.${instrument.wireId}"),
+        )
+        if (rank is RankLoad.Failed) {
+            Box(Modifier.testTag("fst.player.global-rank.${instrument.wireId}.error")) {
+                ServiceStatusInline(rank.issue, "Global rank unavailable", null, onRetryRank)
+            }
+        }
+        if (section.percentiles.isNotEmpty()) {
+            PercentileTable(section.percentiles, state::canRun, onAction, Modifier.testTag("fst.player.percentiles.${instrument.wireId}"))
+        }
+    }
+}
+
+/**
+ * The web's Rank History graph card: title and hint inside the card, the chart, and a
+ * placeholder of the chart's height while it loads, so nothing below it moves when it
+ * arrives. No card for a chart without ranked snapshots (web: no ranking row, no chart).
+ */
+@Composable
+private fun RankHistorySection(instrument: Instrument, history: RankHistoryLoad?, onRetry: () -> Unit) {
+    val tag = "fst.player.rank-history.${instrument.wireId}"
+    if (history is RankHistoryLoad.Loaded && history.chart == null) return
+    GlassCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                "Rank History",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = BrandTokens.textPrimary,
+                modifier = Modifier.semantics { heading() },
+            )
+            Text(
+                "Your ranking progression over the past ${RANK_HISTORY_DAYS} days.",
+                style = MaterialTheme.typography.bodySmall,
+                color = BrandTokens.textSecondary,
+            )
+            Spacer(Modifier.size(6.dp))
+            val chartRevealed = rememberRevealed(history is RankHistoryLoad.Loaded)
+            when (history) {
+                is RankHistoryLoad.Loaded -> history.chart?.let { chart ->
+                    RankHistoryChart(chart, Modifier.festivalFadeIn(chartRevealed).testTag(tag))
                 }
-                TileFlow(section.stats, instrument.wireId, state, onAction)
-                SubHeader("Global Rank")
-                GlobalRank(instrument, rank, state, onAction, onRetryRank)
-                val chartRevealed = rememberRevealed(history is RankHistoryLoad.Loaded)
-                when (history) {
-                    is RankHistoryLoad.Loaded -> history.chart?.let { chart ->
-                        SubHeader("Rank History")
-                        RankHistoryChart(chart, Modifier.festivalFadeIn(chartRevealed).testTag("fst.player.rank-history.${instrument.wireId}"))
-                    }
-                    is RankHistoryLoad.Failed -> {
-                        SubHeader("Rank History")
-                        ServiceStatusInline(history.issue, "Rank history unavailable", null, onRetryHistory)
-                    }
-                    else -> Unit
-                }
-                if (section.percentiles.isNotEmpty()) {
-                    SubHeader("Percentiles")
-                    PercentileBars(section.percentiles, Modifier.testTag("fst.player.percentiles.${instrument.wireId}"))
+                is RankHistoryLoad.Failed -> ServiceStatusInline(history.issue, "Rank history unavailable", null, onRetry)
+                else -> Box(Modifier.fillMaxWidth().height(RANK_HISTORY_PLACEHOLDER_HEIGHT.dp).testTag("$tag.loading"), contentAlignment = Alignment.Center) {
+                    FestivalLoading("Loading rank history", size = 24.dp)
                 }
             }
         }
     }
 }
+
+/** Days the Rank History card covers (web default). */
+private const val RANK_HISTORY_DAYS = 30
+
+/** Loading placeholder height: legend + plot + date axis, the loaded chart's height without snapshot rows. */
+private const val RANK_HISTORY_PLACEHOLDER_HEIGHT = 300
 
 @Composable
 internal fun InstrumentHeading(instrument: Instrument, tag: String) {
@@ -426,23 +475,6 @@ internal fun InstrumentHeading(instrument: Instrument, tag: String) {
             color = BrandTokens.textPrimary,
             modifier = Modifier.padding(start = 12.dp).semantics { heading() },
         )
-    }
-}
-
-@Composable
-private fun GlobalRank(instrument: Instrument, rank: RankLoad?, state: PlayerProfileUiState, onAction: (PlayerTileAction) -> Unit, onRetry: () -> Unit) {
-    val tag = "fst.player.global-rank.${instrument.wireId}"
-    val revealed = rememberRevealed(rank is RankLoad.Available)
-    when (rank) {
-        null, RankLoad.Loading -> FestivalLoading(null, Modifier.testTag("$tag.loading"), size = 24.dp)
-        RankLoad.Unranked -> Text(
-            "Not yet ranked globally on ${instrument.label}.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = BrandTokens.textPrimary,
-            modifier = Modifier.testTag("$tag.unranked"),
-        )
-        is RankLoad.Available -> Box(Modifier.festivalFadeIn(revealed).testTag("$tag.available")) { TileFlow(rank.tiles, "rank.${instrument.wireId}", state, onAction) }
-        is RankLoad.Failed -> Box(Modifier.testTag("$tag.error")) { ServiceStatusInline(rank.issue, "Global rank unavailable", null, onRetry) }
     }
 }
 
@@ -460,74 +492,6 @@ internal fun SubHeader(text: String, first: Boolean = false) {
 // endregion
 
 // region Tiles and messages
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun TileFlow(tiles: List<PlayerStatTile>, scope: String, state: PlayerProfileUiState, onAction: (PlayerTileAction) -> Unit) {
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        tiles.forEach { tile ->
-            val action = tile.action?.takeIf(state::canRun)
-            StatTile(
-                tile,
-                onClick = action?.let { { onAction(it) } },
-                modifier = Modifier.widthIn(min = 104.dp).weight(1f).testTag("fst.player.tile.$scope.${tileSlug(tile.label)}"),
-            )
-        }
-    }
-}
-
-/** "Songs Played" → `songs-played`. */
-internal fun tileSlug(label: String): String = label.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-')
-
-/** TalkBack action label for a tile. */
-internal fun actionLabel(action: PlayerTileAction): String = when (action) {
-    is PlayerTileAction.FilterSongs -> "Show in Songs"
-    is PlayerTileAction.OpenSong -> "Open song"
-    is PlayerTileAction.OpenRankings -> "Open rankings"
-}
-
-@Composable
-private fun StatTile(tile: PlayerStatTile, onClick: (() -> Unit)?, modifier: Modifier = Modifier) {
-    val content: @Composable () -> Unit = {
-        Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-            val stars = tile.stars
-            if (stars != null) {
-                StarRating(stars, Modifier.heightIn(min = 24.dp), size = 18.dp)
-            } else {
-                Text(
-                    tile.value,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = if (tile.gold) BrandTokens.gold else BrandTokens.textPrimary,
-                    maxLines = 2,
-                )
-            }
-            Text(tile.label, style = MaterialTheme.typography.labelSmall, color = BrandTokens.textPrimary, maxLines = 1)
-        }
-    }
-    val color = BrandTokens.surfaceSubtle.copy(alpha = 0.7f)
-    val shape = RoundedCornerShape(10.dp)
-    if (onClick == null) {
-        Surface(color = color, shape = shape, modifier = modifier.clearAndSetSemantics { contentDescription = tile.announcement }, content = content)
-    } else {
-        val label = tile.action?.let(::actionLabel)
-        Surface(
-            onClick = onClick,
-            color = color,
-            shape = shape,
-            modifier = modifier.heightIn(min = 48.dp).clearAndSetSemantics {
-                contentDescription = tile.announcement
-                role = Role.Button
-                onClick(label = label) { onClick(); true }
-            },
-            content = content,
-        )
-    }
-}
 
 @Composable
 private fun Message(title: String, body: String, padding: PaddingValues, modifier: Modifier, onRetry: (() -> Unit)? = null) {

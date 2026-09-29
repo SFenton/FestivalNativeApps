@@ -122,15 +122,27 @@ class ProfileActionsTest {
         assertEquals(PlayerTileAction.FilterSongs(lead), leadTiles[0].action)
         assertEquals(PlayerTileAction.FilterSongs(SongsPreset.ForInstrument(SongScoreFilterKind.HasFCs, Instrument.Lead)), leadTiles[1].action)
         // Avg Stars: a 6-star and a 5-star row average 5.5 (web formatClamped2).
-        assertEquals(PlayerStatTile("Avg Stars", "5.5"), leadTiles[5])
+        assertEquals(PlayerStatTile("avg-stars", "Avg Stars", "5.5"), leadTiles[5])
         assertEquals(PlayerTileAction.OpenSong("s-alpha", Instrument.Lead), leadTiles[6].action)
+        assertEquals("Best Lead Song Rank", leadTiles[6].label)
+        // Web star cards: non-zero counts only, gold first.
+        assertEquals(listOf("stars-6", "stars-5"), leadTiles.filter { it.id.startsWith("stars-") }.map { it.id })
+        assertTrue(leadTiles[2].gold)
+        // Web percentile tiles after the rank card sort Songs by Percentile.
+        val trailing = state.instruments.first { it.instrument == Instrument.Lead }.trailing
+        assertEquals(PlayerTileAction.FilterSongs(SongsPreset.Percentile(Instrument.Lead, scoredOnly = false)), trailing[0].action)
+        assertEquals(PlayerTileAction.FilterSongs(SongsPreset.Percentile(Instrument.Lead, scoredOnly = true)), trailing[1].action)
+        assertEquals("Songs Played percentile: ${trailing[1].value}", trailing[1].announcement)
         // Bass has no full combo, so its FC tile is flat (the web omits the card).
         val bassTiles = state.instruments.first { it.instrument == Instrument.Bass }.stats
         assertNull(bassTiles[1].action)
         vm.ensureInstrument(Instrument.Lead)
         advanceUntilIdle()
         val rank = vm.ranks.value[Instrument.Lead] as RankLoad.Available
-        assertEquals(PlayerTileAction.OpenRankings(Instrument.Lead), rank.tiles[0].action)
+        val open = rank.tiles.single().action as PlayerTileAction.OpenRankings
+        assertEquals(Instrument.Lead, open.instrument)
+        assertEquals(RankLoad.TILE_LABEL, rank.tiles.single().label)
+        assertEquals(1, open.page)
     }
 
     @Test

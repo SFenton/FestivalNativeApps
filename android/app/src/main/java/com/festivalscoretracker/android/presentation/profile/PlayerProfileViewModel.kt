@@ -11,8 +11,8 @@ import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.nav.FullRankingsRoute
 import com.festivalscoretracker.android.core.nav.SongDetailRoute
 import com.festivalscoretracker.android.core.nav.SongsTab
-import com.festivalscoretracker.android.core.profile.PercentileBar
 import com.festivalscoretracker.android.core.profile.PlayerInstrumentRankingPayload
+import com.festivalscoretracker.android.core.profile.PlayerPercentileBucket
 import com.festivalscoretracker.android.core.profile.PlayerProfilePayload
 import com.festivalscoretracker.android.core.profile.PlayerProfileResponse
 import com.festivalscoretracker.android.core.profile.PlayerProfileState
@@ -24,6 +24,7 @@ import com.festivalscoretracker.android.core.profile.PlayerTopSongs
 import com.festivalscoretracker.android.core.profile.ProfileFormatting
 import com.festivalscoretracker.android.core.profile.RankHistoryChartModel
 import com.festivalscoretracker.android.core.profile.SongsPreset
+import com.festivalscoretracker.android.core.profile.StatTints
 import com.festivalscoretracker.android.core.service.ServiceIssue
 import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import com.festivalscoretracker.android.core.settings.AppSettings
@@ -114,23 +115,43 @@ sealed interface ProfilePhase {
 }
 
 /**
- * One stat tile (value over a label).
+ * One stat tile (web `StatBox`: value over an uppercase label, its own card).
  *
+ * @property id Stable key within its grid (`songs-played`, `stars-6`…), the lazy key and test-tag suffix.
  * @property label Label.
  * @property value Value text.
- * @property gold Gold tint (gold stars, full combos, top 5%).
+ * @property tint Value colour `0xRRGGBB` ([StatTints]), or null for the default blue.
  * @property action What tapping does (web `StatBox.onClick`), or null for a flat tile.
  * @property stars Show this many star images instead of [value] (6 = five gold stars; web `GoldStars`).
+ * @property placeholder Still loading: [value] is a same-width stand-in drawn redacted.
+ * @property spokenLabel Screen-reader label when [label] is ambiguous on its own.
  */
 data class PlayerStatTile(
+    val id: String,
     val label: String,
     val value: String,
-    val gold: Boolean = false,
+    val tint: Int? = null,
     val action: PlayerTileAction? = null,
     val stars: Int? = null,
+    val placeholder: Boolean = false,
+    val spokenLabel: String = label,
 ) {
+    /** Gold value (gold stars, 100% full combos, top 5%). */
+    val gold: Boolean get() = tint == StatTints.GOLD
+
     /** Screen-reader text. */
-    val announcement: String get() = "$label: $value"
+    val announcement: String get() = if (placeholder) "$spokenLabel: loading" else "$spokenLabel: $value"
+}
+
+/**
+ * One percentile table row (web `PlayerPercentileRow`).
+ *
+ * @property bucket Band.
+ * @property action Songs filtered to the band (web `instPercentileBucketUpdater`), or null while Songs lacks a percentile filter.
+ */
+data class PercentileRow(val bucket: PlayerPercentileBucket, val action: PlayerTileAction? = null) {
+    /** Screen-reader text. */
+    val announcement: String get() = "${bucket.label}: ${bucket.count} ${if (bucket.count == 1) "song" else "songs"}"
 }
 
 /** Outcome of a tile or top-song tap. */
@@ -152,16 +173,21 @@ sealed interface ProfileActionResult {
 /**
  * One Settings-visible chart's client-side section.
  *
+ * The web's tile order is [stats], then the global-rank tile (loaded separately,
+ * [RankLoad.tile]), then [trailing].
+ *
  * @property instrument Chart.
  * @property hasScores Whether the chart has any scores (unplayed charts read nothing).
- * @property stats Stat tiles.
- * @property percentiles Placement bars.
+ * @property stats Tiles before the rank tile (Songs Played … Best Song Rank).
+ * @property percentiles Percentile table rows, best first.
+ * @property trailing Tiles after the rank tile (Percentile, Songs Played percentile).
  */
 data class PlayerInstrumentSection(
     val instrument: Instrument,
     val hasScores: Boolean,
     val stats: List<PlayerStatTile>,
-    val percentiles: List<PercentileBar>,
+    val percentiles: List<PercentileRow>,
+    val trailing: List<PlayerStatTile> = emptyList(),
 )
 
 /** Global-rank lifecycle for one chart. */
@@ -175,7 +201,7 @@ sealed interface RankLoad {
     /**
      * Rank shown.
      *
-     * @property tiles Global Rank, Total Score and Percentile tiles.
+     * @property tiles The Total Score Rank tile.
      */
     data class Available(val tiles: List<PlayerStatTile>) : RankLoad
 
@@ -185,6 +211,27 @@ sealed interface RankLoad {
      * @property issue Classified failure.
      */
     data class Failed(val issue: ServiceIssue) : RankLoad
+
+    companion object {
+        /** The rank tile's stable id. */
+        const val TILE_ID = "global-rank"
+
+        /** The rank tile's label (web `player.totalScoreRank`). */
+        const val TILE_LABEL = "Total Score Rank"
+
+        /**
+         * The rank tile for any state, so the grid keeps its shape: a same-width
+         * placeholder while loading, an em dash when unranked or failed.
+         *
+         * @param load State, or null before the read starts.
+         * @return Tile.
+         */
+        fun tile(load: RankLoad?): PlayerStatTile = when (load) {
+            is Available -> load.tiles.first()
+            null, Loading -> PlayerStatTile(TILE_ID, TILE_LABEL, "#0,000", placeholder = true)
+            Unranked, is Failed -> PlayerStatTile(TILE_ID, TILE_LABEL, "—")
+        }
+    }
 }
 
 /** Bands preview lifecycle (web `PlayerBandsSection`). */
@@ -322,7 +369,7 @@ class PlayerProfileViewModel(
     private val bandsLoad = MutableStateFlow<BandsLoad?>(null)
     private val sectionJobs = mutableMapOf<String, Job>()
     private var sectionKey: String? = null
-    private var memo: Triple<PlayerProfileResponse, Set<Instrument>, Pair<List<PlayerStatTile>, List<PlayerInstrumentSection>>>? = null
+    private var memo: Pair<Triple<PlayerProfileResponse, Set<Instrument>, Int>, Pair<List<PlayerStatTile>, List<PlayerInstrumentSection>>>? = null
     private var topMemo: Triple<PlayerProfileResponse, Set<Instrument>, Pair<Map<String, Song>, List<PlayerTopSongs>>>? = null
     private val catalog = MutableStateFlow<Map<String, Song>>(emptyMap())
     private var catalogJob: Job? = null
@@ -422,7 +469,7 @@ class PlayerProfileViewModel(
                 SongsTab
             }
             is PlayerTileAction.OpenSong -> SongDetailRoute(action.songId)
-            is PlayerTileAction.OpenRankings -> FullRankingsRoute(action.instrument.wireId, action.metric.wireId)
+            is PlayerTileAction.OpenRankings -> FullRankingsRoute(action.instrument.wireId, action.metric.wireId, action.page)
         }
         return ProfileActionResult.Navigate(route)
     }
@@ -566,14 +613,16 @@ class PlayerProfileViewModel(
                 if (ranking == null) {
                     RankLoad.Unranked
                 } else {
+                    // Web per-metric rank card (Total Score; experimental metrics stay off):
+                    // opens the full rankings on the page holding this rank.
+                    val rank = ranking.totalScoreRank
                     RankLoad.Available(
                         listOf(
-                            PlayerStatTile("Global Rank", ProfileFormatting.rank(ranking.totalScoreRank), action = PlayerTileAction.OpenRankings(instrument)),
-                            PlayerStatTile("Total Score", ProfileFormatting.count(ranking.totalScore)),
                             PlayerStatTile(
-                                "Percentile",
-                                ranking.totalScorePercentile?.let(ProfileFormatting::topPercent) ?: "—",
-                                gold = ranking.isTopFive,
+                                RankLoad.TILE_ID,
+                                RankLoad.TILE_LABEL,
+                                if (rank > 0) ProfileFormatting.rank(rank) else "—",
+                                action = PlayerTileAction.OpenRankings(instrument, rank = rank).takeIf { rank > 0 },
                             ),
                         ),
                     )
@@ -637,7 +686,7 @@ class PlayerProfileViewModel(
         val visible = current?.visibleInstruments ?: Instrument.entries.toSet()
         val profile = payload?.profile?.takeIf { phase == ProfilePhase.Loaded }
         if (profile != null) ensureCatalog()
-        val (overview, instruments) = if (profile != null) sections(profile, visible) else emptyList<PlayerStatTile>() to emptyList()
+        val (overview, instruments) = if (profile != null) sections(profile, visible, songs.size) else emptyList<PlayerStatTile>() to emptyList()
         val topSongs = if (profile != null) topSongs(profile, visible, songs) else emptyList()
         return PlayerProfileUiState(account, name, isSelected, phase, identity, overview, instruments, error, topSongs)
     }
@@ -652,50 +701,104 @@ class PlayerProfileViewModel(
         bandsLoad.value = null
     }
 
-    private fun sections(profile: PlayerProfileResponse, visible: Set<Instrument>): Pair<List<PlayerStatTile>, List<PlayerInstrumentSection>> {
-        memo?.let { (p, v, result) -> if (p === profile && v == visible) return result }
+    private fun sections(profile: PlayerProfileResponse, visible: Set<Instrument>, totalSongs: Int): Pair<List<PlayerStatTile>, List<PlayerInstrumentSection>> {
+        memo?.let { (key, result) -> if (key.first === profile && key.second == visible && key.third == totalSongs) return result }
         val stats = PlayerStatistics.overall(profile, visible)
+        // Web `buildOverallSummaryItems`.
         val overview = listOf(
             PlayerStatTile(
+                "songs-played",
                 "Songs Played",
                 ProfileFormatting.count(stats.songsPlayed.toLong()),
+                tint = StatTints.GREEN.takeIf { totalSongs > 0 && stats.songsPlayed >= totalSongs },
                 action = PlayerTileAction.FilterSongs(SongsPreset.Overall(SongScoreFilterKind.HasScores, visible)),
             ),
-            PlayerStatTile("Full Combos", fullComboText(stats), action = PlayerTileAction.FilterSongs(SongsPreset.Overall(SongScoreFilterKind.HasFCs, visible))),
-            PlayerStatTile("Gold Stars", ProfileFormatting.count(stats.goldStarCount.toLong()), gold = true),
-            PlayerStatTile("Avg Accuracy", accuracyText(stats)),
-            PlayerStatTile("Best Rank", stats.bestRank?.let(ProfileFormatting::rank) ?: "—", action = bestRankAction(stats)),
+            PlayerStatTile(
+                "full-combos",
+                "Full Combos",
+                fullComboText(stats),
+                tint = StatTints.GOLD.takeIf { stats.allFullCombos },
+                action = PlayerTileAction.FilterSongs(SongsPreset.Overall(SongScoreFilterKind.HasFCs, visible)),
+            ),
+            PlayerStatTile("gold-stars", "Gold Stars", ProfileFormatting.count(stats.goldStarCount.toLong()), tint = StatTints.GOLD),
+            accuracyTile(stats),
+            PlayerStatTile("best-rank", "Best Song Rank", stats.bestRank?.let(ProfileFormatting::rank) ?: "—", action = bestRankAction(stats)),
         )
         val instruments = Instrument.entries.filter { it in visible }.map { instrument ->
             val chart = PlayerStatistics.forInstrument(profile, instrument)
             PlayerInstrumentSection(
                 instrument = instrument,
                 hasScores = chart.songsPlayed > 0,
-                stats = listOf(
-                    PlayerStatTile(
-                        "Songs Played",
-                        ProfileFormatting.count(chart.songsPlayed.toLong()),
-                        action = PlayerTileAction.FilterSongs(SongsPreset.ForInstrument(SongScoreFilterKind.HasScores, instrument)),
-                    ),
-                    PlayerStatTile(
-                        "Full Combos",
-                        fullComboText(chart),
-                        gold = chart.fullComboCount > 0,
-                        action = PlayerTileAction.FilterSongs(SongsPreset.ForInstrument(SongScoreFilterKind.HasFCs, instrument))
-                            .takeIf { chart.fullComboCount > 0 },
-                    ),
-                    PlayerStatTile("Gold Stars", ProfileFormatting.count(chart.goldStarCount.toLong()), gold = true),
-                    PlayerStatTile("5 Stars", ProfileFormatting.count(chart.fiveStarCount.toLong())),
-                    PlayerStatTile("Avg Accuracy", accuracyText(chart)),
-                    averageStarsTile(chart),
-                    PlayerStatTile("Best Rank", chart.bestRank?.let(ProfileFormatting::rank) ?: "—", action = bestRankAction(chart)),
-                ),
-                percentiles = PercentileBar.build(PlayerStatistics.percentileBuckets(profile, instrument)),
+                stats = instrumentTiles(chart, instrument, totalSongs),
+                percentiles = PlayerStatistics.percentileBuckets(profile, instrument).map { PercentileRow(it) },
+                trailing = percentileTiles(chart, instrument, totalSongs),
             )
         }
         val result = overview to instruments
-        memo = Triple(profile, visible, result)
+        memo = Triple(profile, visible, totalSongs) to result
         return result
+    }
+
+    /** Web `buildInstrumentStatsItems` tiles before the rank card, in its order. */
+    private fun instrumentTiles(chart: PlayerStats, instrument: Instrument, totalSongs: Int): List<PlayerStatTile> = buildList {
+        add(
+            PlayerStatTile(
+                "songs-played",
+                "Songs Played",
+                ProfileFormatting.count(chart.songsPlayed.toLong()),
+                tint = StatTints.GREEN.takeIf { totalSongs > 0 && chart.songsPlayed >= totalSongs },
+                action = PlayerTileAction.FilterSongs(SongsPreset.ForInstrument(SongScoreFilterKind.HasScores, instrument)),
+            ),
+        )
+        if (chart.fullComboCount > 0) {
+            add(
+                PlayerStatTile(
+                    "full-combos",
+                    "FCs",
+                    fullComboText(chart),
+                    tint = StatTints.GOLD.takeIf { chart.allFullCombos },
+                    action = PlayerTileAction.FilterSongs(SongsPreset.ForInstrument(SongScoreFilterKind.HasFCs, instrument)),
+                    spokenLabel = "Full Combos",
+                ),
+            )
+        }
+        // Star cards stay flat until Songs has a stars filter (web `instStarsUpdater`).
+        chart.starCounts.forEach { (stars, count) ->
+            add(PlayerStatTile("stars-$stars", starLabel(stars), ProfileFormatting.count(count.toLong()), tint = StatTints.GOLD.takeIf { stars == 6 }))
+        }
+        add(accuracyTile(chart))
+        add(averageStarsTile(chart))
+        add(
+            PlayerStatTile(
+                "best-rank",
+                "Best ${instrument.label} Song Rank",
+                chart.bestRank?.let(ProfileFormatting::rank) ?: "—",
+                action = bestRankAction(chart),
+            ),
+        )
+    }
+
+    /** Web "Percentile" (catalogue-wide) and average-percentile ("Songs Played") tiles after the rank card. */
+    private fun percentileTiles(chart: PlayerStats, instrument: Instrument, totalSongs: Int): List<PlayerStatTile> {
+        val overall = chart.overallPercentile(totalSongs) ?: "—"
+        val average = chart.averagePercentile() ?: "—"
+        return listOf(
+            PlayerStatTile(
+                "percentile",
+                "Percentile",
+                overall,
+                tint = StatTints.percentile(overall),
+                action = PlayerTileAction.FilterSongs(SongsPreset.Percentile(instrument, scoredOnly = false)),
+            ),
+            PlayerStatTile(
+                "songs-played-percentile",
+                "Songs Played",
+                average,
+                tint = StatTints.percentile(average),
+                action = PlayerTileAction.FilterSongs(SongsPreset.Percentile(instrument, scoredOnly = true)),
+                spokenLabel = "Songs Played percentile",
+            ),
+        )
     }
 
     private fun topSongs(profile: PlayerProfileResponse, visible: Set<Instrument>, songs: Map<String, Song>): List<PlayerTopSongs> {
@@ -707,9 +810,9 @@ class PlayerProfileViewModel(
 
     /** Web "Avg Stars": five gold star images at a perfect 6, else two trimmed decimals. */
     private fun averageStarsTile(stats: PlayerStats): PlayerStatTile {
-        val average = stats.averageStars ?: return PlayerStatTile("Avg Stars", "—")
-        if (average >= 6.0) return PlayerStatTile("Avg Stars", "Gold stars", gold = true, stars = 6)
-        return PlayerStatTile("Avg Stars", ProfileFormatting.twoDecimals(average))
+        val average = stats.averageStars ?: return PlayerStatTile("avg-stars", "Avg Stars", "—")
+        if (average >= 6.0) return PlayerStatTile("avg-stars", "Avg Stars", "Gold stars", tint = StatTints.GOLD, stars = 6)
+        return PlayerStatTile("avg-stars", "Avg Stars", ProfileFormatting.twoDecimals(average))
     }
 
     private fun bestRankAction(stats: PlayerStats): PlayerTileAction? {
@@ -718,10 +821,26 @@ class PlayerProfileViewModel(
         return PlayerTileAction.OpenSong(song, instrument)
     }
 
-    private fun fullComboText(stats: PlayerStats): String =
-        if (stats.fullComboCount == 0) "0" else "${ProfileFormatting.count(stats.fullComboCount.toLong())} (${ProfileFormatting.percent(stats.fullComboPercent)}%)"
+    /** Web FC value: the count alone at 0 or 100%, otherwise "count (pct%)". */
+    private fun fullComboText(stats: PlayerStats): String {
+        val count = ProfileFormatting.count(stats.fullComboCount.toLong())
+        return if (stats.fullComboCount == 0 || stats.allFullCombos) count else "$count (${ProfileFormatting.percent(stats.fullComboPercent)}%)"
+    }
 
     private fun accuracyText(stats: PlayerStats): String = stats.averageAccuracy?.let { ScoreFormatting.accuracy(it) + "%" } ?: "—"
+
+    /** Web "Avg Accuracy": red-to-green by accuracy, gold at a perfect 100% with every chart full-combed. */
+    private fun accuracyTile(stats: PlayerStats): PlayerStatTile {
+        val tint = stats.averageAccuracy?.takeIf { it > 0 }?.let { StatTints.accuracy(it / 10_000, stats.allFullCombos) }
+        return PlayerStatTile("avg-accuracy", "Avg Accuracy", accuracyText(stats), tint = tint)
+    }
+
+    /** Web star-card labels: "Gold Stars", "5 Stars" … "1 Star". */
+    private fun starLabel(stars: Int): String = when (stars) {
+        6 -> "Gold Stars"
+        1 -> "1 Star"
+        else -> "$stars Stars"
+    }
 
     // endregion
 

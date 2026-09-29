@@ -118,7 +118,8 @@ class ProfileViewModelsTest {
         assertEquals("Synthetic Player", state.displayName)
         assertEquals(PlayerIdentityAction.Select, state.identity)
         assertEquals("Select Profile", state.selectLabel)
-        assertEquals(listOf("Songs Played", "Full Combos", "Gold Stars", "Avg Accuracy", "Best Rank"), state.overview.map { it.label })
+        assertEquals(listOf("Songs Played", "Full Combos", "Gold Stars", "Avg Accuracy", "Best Song Rank"), state.overview.map { it.label })
+        assertEquals(listOf("songs-played", "full-combos", "gold-stars", "avg-accuracy", "best-rank"), state.overview.map { it.id })
         assertEquals("3", state.overview.first().value)
         assertEquals(Instrument.entries.size, state.instruments.size)
         assertTrue(state.instruments.first { it.instrument == Instrument.Lead }.hasScores)
@@ -128,8 +129,8 @@ class ProfileViewModelsTest {
         vm.ensureInstrument(Instrument.Drums)
         advanceUntilIdle()
         val rank = vm.ranks.value[Instrument.Lead] as RankLoad.Available
-        assertEquals("#8", rank.tiles.first().value)
-        assertTrue(rank.tiles.last().gold)
+        assertEquals("#8", rank.tiles.single().value)
+        assertEquals(RankLoad.tile(vm.ranks.value[Instrument.Lead]), rank.tiles.single())
         assertNotNull((vm.rankHistories.value[Instrument.Lead] as RankHistoryLoad.Loaded).chart)
         assertNull(vm.ranks.value[Instrument.Drums])
 
@@ -244,7 +245,12 @@ class ProfileViewModelsTest {
         vm.retryRankHistory(Instrument.Lead)
         advanceUntilIdle()
         assertTrue(vm.rankHistories.value[Instrument.Lead] is RankHistoryLoad.Loaded)
-        assertEquals("Lead: x", PlayerStatTile("Lead", "x").announcement)
+        assertEquals("Lead: x", PlayerStatTile("lead", "Lead", "x").announcement)
+        // The rank tile keeps the grid's shape in every state.
+        assertTrue(RankLoad.tile(null).placeholder)
+        assertEquals("Total Score Rank: loading", RankLoad.tile(RankLoad.Loading).announcement)
+        assertEquals("—", RankLoad.tile(RankLoad.Unranked).value)
+        assertEquals("—", RankLoad.tile(vm.ranks.value[Instrument.Lead]).value)
     }
 
     // endregion

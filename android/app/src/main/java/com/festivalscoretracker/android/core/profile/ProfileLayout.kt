@@ -79,6 +79,72 @@ object ProfileColumns {
 
 // endregion
 
+// region Stat tiles
+
+/**
+ * Column count for the player page's stat-tile grids: two on phones, three or four as
+ * the grid widens (an adaptive grid with a minimum tile width, clamped), matching
+ * Apple's `StatGridColumns` (Lane AP3).
+ */
+object StatGridColumns {
+    /** Narrowest tile in dp before a column is dropped. */
+    const val MIN_TILE_DP = 140f
+
+    /** Space between tiles in dp, both axes. */
+    const val SPACING_DP = 8f
+
+    /** Phones always get two columns, even at large font scales. */
+    const val MIN_COLUMNS = 2
+
+    /** Wide grids stop at four so tiles never shrink to a sliver of text. */
+    const val MAX_COLUMNS = 4
+
+    /**
+     * Columns for a grid width.
+     *
+     * @param widthDp Grid width in dp.
+     * @return Between [MIN_COLUMNS] and [MAX_COLUMNS].
+     */
+    fun count(widthDp: Float): Int =
+        ((widthDp + SPACING_DP) / (MIN_TILE_DP + SPACING_DP)).toInt().coerceIn(MIN_COLUMNS, MAX_COLUMNS)
+}
+
+/** Stat-tile value colours (`0xRRGGBB`; web `StatBox` `color`). */
+object StatTints {
+    /** Default value colour (web `Colors.accentBlueBright`). */
+    const val DEFAULT: Int = 0x4C7DFF
+
+    /** Gold stars, 100% full combos, top-5% percentiles (web `Colors.gold`). */
+    const val GOLD: Int = 0xFFD700
+
+    /** Every catalogue song played (web `Colors.statusGreen`). */
+    const val GREEN: Int = 0x2ECC71
+
+    /** Scores over the CHOpt threshold (web `Colors.statusRed`). */
+    const val RED: Int = 0xC62828
+
+    /**
+     * Web average-accuracy colour: gold for a perfect 100% with every chart full-combed,
+     * else `accuracyColor` (red at 0% to green at 100%).
+     *
+     * @param percent Average accuracy percent.
+     * @param allFullCombos Whether the FC share is 100%.
+     * @return Colour.
+     */
+    fun accuracy(percent: Double, allFullCombos: Boolean): Int =
+        if (percent >= 100 && allFullCombos) GOLD else RankHistoryColors.accuracy(percent)
+
+    /**
+     * Web `pctGold`: gold for "Top 1%" to "Top 5%".
+     *
+     * @param text Percentile text.
+     * @return Colour, or null for the default.
+     */
+    fun percentile(text: String): Int? = if (Regex("^Top [1-5]%$").matches(text)) GOLD else null
+}
+
+// endregion
+
 // region Sections and Quick Links
 
 /** Player-page rows, in web order (`PlayerContent.tsx`). */

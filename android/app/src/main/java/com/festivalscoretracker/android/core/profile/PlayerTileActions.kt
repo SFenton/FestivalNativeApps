@@ -2,6 +2,7 @@ package com.festivalscoretracker.android.core.profile
 
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.rankings.RankingMetric
+import com.festivalscoretracker.android.core.rankings.RankingPaging
 import com.festivalscoretracker.android.core.songs.SongFilter
 import com.festivalscoretracker.android.core.songs.SongPlayerScoreFilter
 import com.festivalscoretracker.android.core.songs.SongScoreFilterKind
@@ -30,8 +31,9 @@ data class SongsFilterState(
 /**
  * A stat tile's Songs filter (web `playerFilterHelpers.ts` and the `*Updater`s in
  * `OverallSummarySection.tsx`/`InstrumentStatsSection.tsx`). Only the presets whose
- * filters the Android Songs page supports exist; star, percentile and CHOpt-threshold
- * presets need Songs filters that are not ported yet, so those tiles stay flat.
+ * filters the Android Songs page supports exist; star, percentile-bucket and
+ * CHOpt-threshold presets need Songs filters that are not ported yet, so those tiles
+ * and percentile rows stay flat.
  */
 sealed interface SongsPreset {
     /**
@@ -64,14 +66,47 @@ sealed interface SongsPreset {
      */
     data class ForInstrument(val kind: SongScoreFilterKind, val instrument: Instrument) : SongsPreset {
         override fun apply(current: SongsFilterState): SongsFilterState {
-            val cleared = SongScoreFilterKind.entries.fold(current.playerFilter) { filter, check -> filter.with(check, instrument, false) }
             return current.copy(
                 filter = SongFilter(instrument = instrument),
-                playerFilter = cleared.with(kind, instrument, true),
+                playerFilter = cleaned(current.playerFilter, instrument).with(kind, instrument, true),
                 sort = SongSortMode.Score,
                 ascending = true,
             )
         }
+    }
+
+    /**
+     * An instrument's "Percentile" tile, or with [scoredOnly] its average-percentile
+     * ("Songs Played") tile: that chart only, its checks cleared, sorted by Percentile
+     * ascending; [scoredOnly] also sets Has Scores (web `instPercentileUpdater` /
+     * `instPercentileWithScoresUpdater`).
+     *
+     * @property instrument Chart.
+     * @property scoredOnly Also require a score.
+     */
+    data class Percentile(val instrument: Instrument, val scoredOnly: Boolean) : SongsPreset {
+        override fun apply(current: SongsFilterState): SongsFilterState {
+            val cleared = cleaned(current.playerFilter, instrument)
+            return current.copy(
+                filter = SongFilter(instrument = instrument),
+                playerFilter = if (scoredOnly) cleared.with(SongScoreFilterKind.HasScores, instrument, true) else cleared,
+                sort = SongSortMode.Percentile,
+                ascending = true,
+            )
+        }
+    }
+
+    companion object {
+        /**
+         * Web `cleanFilters` for the checks Android models: the chart's own
+         * has/missing/over-threshold checks off, other charts' checks kept.
+         *
+         * @param filter Saved checks.
+         * @param instrument Chart.
+         * @return Cleaned checks.
+         */
+        fun cleaned(filter: SongPlayerScoreFilter, instrument: Instrument): SongPlayerScoreFilter =
+            SongScoreFilterKind.entries.fold(filter) { next, check -> next.with(check, instrument, false) }
     }
 }
 
@@ -106,12 +141,17 @@ sealed interface PlayerTileAction {
     data class OpenSong(val songId: String, val instrument: Instrument) : PlayerTileAction
 
     /**
-     * Open an instrument's full rankings (the Total Score rank tile).
+     * Open an instrument's full rankings (the Total Score rank tile) on the page that
+     * holds [rank] (web `getLeaderboardPageForRank`).
      *
      * @property instrument Chart.
      * @property metric Rank By.
+     * @property rank The player's rank, or 0 for page 1.
      */
-    data class OpenRankings(val instrument: Instrument, val metric: RankingMetric = RankingMetric.TotalScore) : PlayerTileAction
+    data class OpenRankings(val instrument: Instrument, val metric: RankingMetric = RankingMetric.TotalScore, val rank: Int = 0) : PlayerTileAction {
+        /** One-based page of [RankingPaging.PAGE_SIZE] rows holding [rank]. */
+        val page: Int get() = if (rank <= 0) 1 else (rank - 1) / RankingPaging.PAGE_SIZE + 1
+    }
 }
 
 // endregion

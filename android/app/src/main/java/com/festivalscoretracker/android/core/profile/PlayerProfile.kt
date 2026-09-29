@@ -293,6 +293,11 @@ data class PlayerProfilePayload(
  * @property bestRank Best positive rank.
  * @property bestRankSongId Song holding [bestRank].
  * @property bestRankInstrument Chart holding [bestRank].
+ * @property fourStarCount Rows with exactly 4 stars.
+ * @property threeStarCount Rows with exactly 3 stars.
+ * @property twoStarCount Rows with exactly 2 stars.
+ * @property oneStarCount Rows with exactly 1 star.
+ * @property placements `rank / totalEntries` (0–1) for every ranked row (web `percentiled`).
  */
 data class PlayerStats(
     val songsPlayed: Int,
@@ -305,7 +310,44 @@ data class PlayerStats(
     val bestRankSongId: String?,
     val bestRankInstrument: Instrument?,
     val averageStars: Double? = null,
-)
+    val fourStarCount: Int = 0,
+    val threeStarCount: Int = 0,
+    val twoStarCount: Int = 0,
+    val oneStarCount: Int = 0,
+    val placements: List<Double> = emptyList(),
+) {
+    /** Web `fcPercent === '100.0'`: every played chart full-combed. */
+    val allFullCombos: Boolean get() = fullComboCount > 0 && fullComboPercent >= 100.0
+
+    /**
+     * The web's star cards, best first (`STAR_CARDS`: key 6 = Gold Stars, then 5…1),
+     * non-zero counts only.
+     */
+    val starCounts: List<Pair<Int, Int>>
+        get() = listOf(6 to goldStarCount, 5 to fiveStarCount, 4 to fourStarCount, 3 to threeStarCount, 2 to twoStarCount, 1 to oneStarCount)
+            .filter { it.second > 0 }
+
+    /**
+     * Web `avgPercentile`: the mean placement of ranked songs as a "Top N%" bucket.
+     *
+     * @return Text, or null with no ranked song.
+     */
+    fun averagePercentile(): String? =
+        if (placements.isEmpty()) null else PlayerStatistics.percentileBucketText(placements.average() * 100)
+
+    /**
+     * Web `overallPercentile`: placements summed with every unplayed catalogue song
+     * counted as last place, over the catalogue size, as a "Top N%" bucket.
+     *
+     * @param totalSongs Catalogue size (web `songs.length`).
+     * @return Text, or null with no ranked song or an unknown catalogue.
+     */
+    fun overallPercentile(totalSongs: Int): String? {
+        if (placements.isEmpty() || totalSongs <= 0) return null
+        val unplayed = totalSongs - songsPlayed
+        return PlayerStatistics.percentileBucketText((placements.sum() + unplayed) / totalSongs * 100)
+    }
+}
 
 /**
  * One "Top N%" placement band (web `PlayerPercentileTable`).
@@ -388,7 +430,23 @@ object PlayerStatistics {
             bestRankSongId = best?.songId,
             bestRankInstrument = best?.instrument,
             averageStars = if (starred.isEmpty()) null else starred.average(),
+            fourStarCount = rows.count { it.stars == 4 },
+            threeStarCount = rows.count { it.stars == 3 },
+            twoStarCount = rows.count { it.stars == 2 },
+            oneStarCount = rows.count { it.stars == 1 },
+            placements = rows.filter { (it.rank ?: 0) > 0 && (it.totalEntries ?: 0) > 0 }.map { it.rank!!.toDouble() / it.totalEntries!! },
         )
+    }
+
+    /**
+     * Web `formatPercentileBucket`: clamp to 1–100 and name the first threshold at or above it.
+     *
+     * @param percent Placement percent.
+     * @return "Top 5%".
+     */
+    fun percentileBucketText(percent: Double): String {
+        val clamped = percent.coerceIn(1.0, 100.0)
+        return "Top ${PERCENTILE_THRESHOLDS.firstOrNull { clamped <= it } ?: 100}%"
     }
 }
 
