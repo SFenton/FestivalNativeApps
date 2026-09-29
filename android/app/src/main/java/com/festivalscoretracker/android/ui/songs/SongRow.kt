@@ -438,7 +438,8 @@ fun MetadataPill(pill: SongMetadataPill, songId: String) {
             SongPercentileTier.TopFive -> PillBox(pill.text, Color.Transparent, BrandTokens.gold, BrandTokens.gold, tag)
             SongPercentileTier.Ordinary -> PillBox(pill.text, BrandTokens.surfaceMuted, null, BrandTokens.textPrimary, tag)
         }
-        MetadataField.Stars -> StarRating(if (pill.goldStars) 6 else pill.starCount, tag)
+        // Stars and the intensity meter sit in a pill-height box so every pill in a row shares one height (7.18).
+        MetadataField.Stars -> Box(Modifier.heightIn(min = PILL_HEIGHT), contentAlignment = Alignment.Center) { StarRating(if (pill.goldStars) 6 else pill.starCount, tag) }
         MetadataField.Season -> PillBox(
             pill.text,
             if (pill.currentSeason) BrandTokens.textPrimary else BrandTokens.surfaceMuted,
@@ -446,7 +447,7 @@ fun MetadataPill(pill: SongMetadataPill, songId: String) {
             if (pill.currentSeason) SongsTokens.darkGlyph else BrandTokens.textPrimary,
             tag,
         )
-        MetadataField.Intensity -> pill.intensityRaw?.let { DifficultyMeter(it, modifier = tag) }
+        MetadataField.Intensity -> pill.intensityRaw?.let { Box(Modifier.heightIn(min = PILL_HEIGHT), contentAlignment = Alignment.Center) { DifficultyMeter(it, modifier = tag) } }
         MetadataField.Difficulty -> {
             val (fill, glyph) = when (pill.gameDifficulty) {
                 0 -> SongsTokens.diffEasy to SongsTokens.darkGlyph
@@ -459,6 +460,9 @@ fun MetadataPill(pill: SongMetadataPill, songId: String) {
         MetadataField.LastPlayed -> Text(pill.text, style = label, color = BrandTokens.textSecondary, modifier = tag)
     }
 }
+
+/** Height of one metadata pill (label text plus its 2 dp vertical padding). */
+private val PILL_HEIGHT = 24.dp
 
 @Composable
 private fun PillBox(text: String, fill: Color, stroke: Color?, textColor: Color, modifier: Modifier = Modifier) {
