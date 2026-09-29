@@ -959,9 +959,10 @@ struct SongsScreen: View {
                 )
                 if showsIndex {
                     SongSectionIndexScrubber(sections: indexSections) { id in
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            scrollProxy.scrollTo(id, anchor: .top)
-                        }
+                        // Instant, like Contacts and the Quick Links jumps.
+                        var instant = Transaction()
+                        instant.disablesAnimations = true
+                        withTransaction(instant) { scrollProxy.scrollTo(id, anchor: .top) }
                     }
                     // Centered between a *fixed* top (status bar + collapsed inline bar)
                     // and the bottom safe area (tab bar + floating tools), so it neither

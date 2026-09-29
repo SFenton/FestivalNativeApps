@@ -93,7 +93,6 @@ struct QuickLinksContainerModifier: ViewModifier {
     let sections: [QuickLinkSection]?
     let activationOffset: Double
     @Namespace private var rotorNamespace
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
         ScrollViewReader { proxy in
@@ -162,18 +161,14 @@ struct QuickLinksContainerModifier: ViewModifier {
     /// - Parameter proxy: Reader proxy for the wrapped scroll view.
     private func scroll(_ proxy: ScrollViewProxy) {
         guard let target = controller.jumpTarget else { return }
-        if reduceMotion {
+        // Jumps are instant ("teleport", operator batch 7), with or without Reduce
+        // Motion; the corrective pass then lands a lazily built target exactly.
+        var instant = Transaction()
+        instant.disablesAnimations = true
+        withTransaction(instant) {
             proxy.scrollTo(target, anchor: .top)
-            Task { @MainActor in await correctAndSettle(proxy, target: target, initialFloor: .zero) }
-        } else {
-            withAnimation(.smooth(duration: 0.45), completionCriteria: .logicallyComplete) {
-                proxy.scrollTo(target, anchor: .top)
-            } completion: {
-                Task { @MainActor in
-                    await correctAndSettle(proxy, target: target, initialFloor: .milliseconds(450))
-                }
-            }
         }
+        Task { @MainActor in await correctAndSettle(proxy, target: target, initialFloor: .zero) }
     }
 
     /// Re-target the scroll once past `initialFloor`, then poll until the
