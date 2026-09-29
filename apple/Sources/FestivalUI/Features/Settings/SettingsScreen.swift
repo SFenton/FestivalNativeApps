@@ -2,25 +2,6 @@ import SwiftUI
 import FestivalCore
 import FestivalDesign
 
-/// Publication checks must disclose whether the associated Songs read was stale or unpinned.
-enum SettingsServiceSummary {
-    /// Present a validated bootstrap without inventing response provenance.
-    ///
-    /// - Parameter payload: Typed Songs result from the same publication check.
-    /// - Returns: Visible success, stale-memory, or unverified-live explanation.
-    static func message(for payload: CatalogPayload) -> String {
-        let prefix = "Publication \(payload.observedPublicationId)"
-        if payload.isStale {
-            return payload.publicationId == nil
-                ? "\(prefix); songs offline - last seen (publication unverified)"
-                : "\(prefix); songs offline - showing verified cached data"
-        }
-        return payload.publicationId == nil
-            ? "\(prefix); songs live (publication unverified)"
-            : prefix
-    }
-}
-
 /// Native, persistent first-slice preferences and additive accessibility aids.
 struct SettingsScreen: View {
     @AppStorage("fst.settings.showInstrumentIcons") private var showInstrumentIcons = true
@@ -71,17 +52,17 @@ struct SettingsScreen: View {
     @AppStorage("fst.accessibility.lessTransparency") private var lessTransparency = false
 
     @State private var resetPending = false
-    @State private var serviceStatus: String?
     @State private var serviceVersion: String?
     @State private var serviceVersionFailed = false
     @State private var showingWhatsNew = false
-    @State private var showingVisualOrderSheet = false
-    @State private var showingPathColumnSheet = false
     @State private var quickLinks = QuickLinksController()
+    /// A reorder row is lifted, so the page must not scroll under the drag.
+    @State private var reorderDragging = false
 
     let session: FestivalSession
     let isVisible: Bool
     @Environment(\.deviceLayout) private var layout
+    @Environment(\.accessibilityReduceMotion) private var reduceMotionEnvironment
 
     /// Keep settings on the same process-scoped API session as the Songs tab.
     ///
@@ -95,31 +76,54 @@ struct SettingsScreen: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 28) {
-                appSettings
-                diagnostics
+            // A plain VStack (not Lazy): the page is short, and a lazily recycled card would
+            // replay its load-in fade when scrolled back into view.
+            VStack(alignment: .leading, spacing: 28) {
+                appSettings.festivalFadeIn(isLoaded: true, index: 0)
+                diagnostics.festivalFadeIn(isLoaded: true, index: 1)
                 accessibility
+                    .quickLinkSection(
+                        id: "accessibility", title: "Accessibility", symbol: "accessibility"
+                    )
+                    .festivalFadeIn(isLoaded: true, index: 2)
                 itemShop.quickLinkSection(id: "item-shop", title: "Item Shop", symbol: "bag.fill")
+                    .festivalFadeIn(isLoaded: true, index: 3)
                 instruments.quickLinkSection(
                     id: "show-instruments", title: "Show Instruments", symbol: "music.note"
                 )
+                .festivalFadeIn(isLoaded: true, index: 4)
                 metadata.quickLinkSection(
                     id: "show-metadata", title: "Show Instrument Metadata", symbol: "list.bullet"
                 )
-                version.quickLinkSection(id: "version", title: "Version", symbol: "info.circle")
-                service.quickLinkSection(
-                    id: "service-info", title: ServiceInfoText.title, symbol: "server.rack"
+                .festivalFadeIn(isLoaded: true, index: 5)
+                version.quickLinkSection(
+                    id: "version", title: "Festival Score Tracker Version", symbol: "info.circle"
                 )
+                    .festivalFadeIn(isLoaded: true, index: 6)
+                SettingsServiceInfoSection(session: session, isVisible: isVisible)
+                    .quickLinkSection(
+                        id: "service-info", title: ServiceInfoText.title, symbol: "server.rack"
+                    )
+                    .festivalFadeIn(isLoaded: true, index: 7)
+                if SettingsFixtureTools.isEnabled() {
+                    SettingsFixtureToolsSection(session: session)
+                }
+                // Past the first screenful: `festivalFadeIn` shows these without a delay.
                 FirstRunSettingsSection(session: session)
                     .quickLinkSection(id: "first-run", title: "First Run Guides", symbol: "sparkles")
-                about.quickLinkSection(id: "licenses", title: "Licenses", symbol: "doc.text")
+                    .festivalFadeIn(isLoaded: true, index: 8)
+                licensesRow.quickLinkSection(id: "licenses", title: "Licenses", symbol: "doc.text")
+                    .festivalFadeIn(isLoaded: true, index: 9)
                 reset.quickLinkSection(id: "reset", title: "Reset Settings", symbol: "trash")
+                    .festivalFadeIn(isLoaded: true, index: 10)
             }
             .padding(.horizontal, 16)
             .padding(.top, 8)
             .padding(.bottom, 32)
             .modifier(ReadableWidthContainer(isRegularWidth: layout.widthClass == .regular))
         }
+        .scrollDisabled(reorderDragging)
+        .onPreferenceChange(SettingsReorderDragActiveKey.self) { reorderDragging = $0 }
         .quickLinks(quickLinks, title: "Quick Links")
         .scrollDismissesKeyboard(.interactively)
         .festivalBackground(.carousel, session: session, visible: isVisible)
@@ -130,24 +134,18 @@ struct SettingsScreen: View {
         }
         .festivalProvidesRootTrailingItems()
         .confirmationDialog(
-            "Reset app settings only?",
+            "Reset Settings",
             isPresented: $resetPending,
             titleVisibility: .visible
         ) {
             Button("Reset App Settings", role: .destructive) { resetAppSettings() }
         } message: {
-            Text("Your profile, song filters and navigation history will remain.")
-        }
-        .sheet(isPresented: $showingVisualOrderSheet) {
-            SettingsReorderSheet(
-                title: "Song Row Order",
-                subtitle: "Sets the order visible metadata fields appear on Songs cards. "
-                    + "Fields turned off in Show Instrument Metadata are skipped.",
-                items: songRowVisualOrder,
-                label: \.label
+            Text(
+                "Are you sure you want to restore all settings to their default values? "
+                    + "Your profile, song filters and navigation history will remain."
             )
         }
-        .sheet(isPresented: $showingWhatsNew) {
+        .whatsNewPresentation(isPresented: $showingWhatsNew) {
             WhatsNewSheet(
                 version: WhatsNewGate.appVersion(), entries: Changelog.displayEntries()
             ) {
@@ -158,14 +156,6 @@ struct SettingsScreen: View {
         .task(id: isVisible) {
             guard isVisible, serviceVersion == nil else { return }
             await loadServiceVersion()
-        }
-        .sheet(isPresented: $showingPathColumnSheet) {
-            SettingsReorderSheet(
-                title: "Path Column Order",
-                subtitle: "Sets the column order for the CHOpt Paths text table.",
-                items: pathColumnOrder,
-                label: \.label
-            )
         }
     }
 
@@ -187,43 +177,37 @@ struct SettingsScreen: View {
                     + "unfiltered Songs cards when a player is selected"
             )
             .accessibilityIdentifier("fst.settings.show-instrument-icons")
-            Toggle(isOn: $enableVisualOrder) {
+            Toggle(isOn: $enableVisualOrder.animation(reduceMotionAnimation)) {
                 SettingLabel(
-                    "Enable Song Row Visual Order",
-                    detail: "Reorder which visible metadata field appears first on Songs cards."
+                    "Enable Independent Song Row Visual Order",
+                    detail: "When enabled, the metadata display order on song rows is controlled "
+                        + "separately from sort priority. When disabled, metadata follows sort "
+                        + "priority order."
                 )
             }
             .accessibilityIdentifier("fst.settings.enable-visual-order")
             if enableVisualOrder {
-                reorderRow(
-                    "Song Row Order",
-                    detail: visibleVisualOrderSummary,
-                    identifier: "fst.settings.song-row-order"
-                ) { showingVisualOrderSheet = true }
-            }
-            Toggle(isOn: $filterInvalidScores) {
-                SettingLabel(
-                    "Filter Invalid Scores",
-                    detail: "Hide scores that exceed the CHOpt maximum by more than the leeway."
-                )
-            }
-            .accessibilityIdentifier("fst.settings.filter-invalid-scores")
-            if filterInvalidScores {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Max Score Leeway: \(ScoreFormatting.leeway(leeway))")
-                        .foregroundStyle(FestivalText.primary)
-                    Text("Scores up to \(maxEffectiveScore) count as valid before filtering.")
-                        .font(.footnote)
-                        .foregroundStyle(FestivalText.primary)
-                    Slider(
-                        value: Binding(
-                            get: { leeway },
-                            set: { leeway = min(5, max(-5, ($0 * 10).rounded() / 10)) }
-                        ), in: -5...5, step: 0.1
-                    )
-                    .accessibilityLabel("Max Score Leeway")
-                    .accessibilityValue(ScoreFormatting.leeway(leeway))
-                    .accessibilityIdentifier("fst.settings.leeway")
+                // Shown directly under its switch, like the web's collapse (no disclosure).
+                reorderBlock(
+                    "Song Row Visual Order",
+                    detail: "When filtering to a single instrument in the song list, extra "
+                        + "metadata is displayed. Choose the order it appears in on the bottom row."
+                ) {
+                    if visibleVisualOrder.isEmpty {
+                        Text("No metadata fields are currently visible.")
+                            .font(.subheadline)
+                            .foregroundStyle(FestivalText.primary)
+                    } else {
+                        SettingsReorderList(
+                            items: visibleVisualOrder,
+                            identifier: "fst.settings.song-row-order",
+                            label: \.reorderLabel, key: \.rawValue
+                        ) { reordered in
+                            songRowVisualOrder.wrappedValue = SettingsReorder.merging(
+                                visible: reordered, into: songRowVisualOrder.wrappedValue
+                            )
+                        }
+                    }
                 }
             }
             SettingsChoiceRow(
@@ -233,11 +217,48 @@ struct SettingsScreen: View {
                 selection: $pathDefaultView,
                 identifier: "fst.settings.path-default-view"
             )
-            reorderRow(
-                "CHOpt Path Column Order",
-                detail: pathColumnOrder.wrappedValue.map(\.label).joined(separator: " · "),
-                identifier: "fst.settings.path-column-order"
-            ) { showingPathColumnSheet = true }
+            reorderBlock(
+                "CHOpt Text Path Column Order",
+                detail: "Choose the order columns appear in the CHOpt text path view."
+            ) {
+                SettingsReorderList(
+                    items: pathColumnOrder.wrappedValue,
+                    identifier: "fst.settings.path-column-order",
+                    label: \.label, key: \.rawValue
+                ) { pathColumnOrder.wrappedValue = $0 }
+            }
+            Toggle(isOn: $filterInvalidScores.animation(reduceMotionAnimation)) {
+                SettingLabel(
+                    "Filter Invalid Scores",
+                    detail: "When enabled, the app will attempt to filter out invalid leaderboard "
+                        + "values based on the maximum score derived from the CHOpt path."
+                )
+            }
+            .accessibilityIdentifier("fst.settings.filter-invalid-scores")
+            if filterInvalidScores {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Maximum Score Leeway: \(ScoreFormatting.leeway(leeway))")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(FestivalText.primary)
+                    Text(
+                        "A CHOpt path with a max score of 100k and "
+                            + "\(ScoreFormatting.leeway(leeway)) leeway accepts scores up to "
+                            + "\(maxEffectiveScore) as valid."
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(FestivalText.primary)
+                    Slider(
+                        value: Binding(
+                            get: { leeway },
+                            set: { leeway = InvalidScoreFilter.normalized($0) }
+                        ),
+                        in: InvalidScoreFilter.range, step: InvalidScoreFilter.step
+                    )
+                    .accessibilityLabel("Max Score Leeway")
+                    .accessibilityValue(ScoreFormatting.leeway(leeway))
+                    .accessibilityIdentifier("fst.settings.leeway")
+                }
+            }
             Toggle(isOn: $experimentalRanks) {
                 SettingLabel(
                     "Experimental Ranks",
@@ -322,8 +343,8 @@ struct SettingsScreen: View {
                 : showInstrumentIcons
                     ? "With icons and All instruments, status chips replace score "
                         + "metadata. Turn icons off or filter one chart to show these fields."
-                    : "Visible score fields update Songs cards. Enable Song Row Visual "
-                        + "Order above to choose which field leads; Last Played sort is "
+                    : "Visible score fields update Songs cards. Enable Independent Song Row "
+                        + "Visual Order above to choose which field leads; Last Played sort is "
                         + "still being ported."
         ) {
             ForEach(MetadataField.allCases) { field in
@@ -371,7 +392,10 @@ struct SettingsScreen: View {
     }
 
     private var version: some View {
-        FestivalGlassSection("Version", subtitle: "Build information for support requests.") {
+        FestivalGlassSection(
+            "Festival Score Tracker Version",
+            subtitle: "Festival Score Tracker information to help with debugging."
+        ) {
             versionRow("App Version", value: appVersionText)
             versionRow("Build Configuration", value: buildConfigurationText)
             versionRow("Service Version", value: serviceVersionText)
@@ -400,79 +424,70 @@ struct SettingsScreen: View {
         }
     }
 
-    /// Live Service Info card; the on-demand publication check (used by Songs journeys to
-    /// force a catalogue re-read) stays as its last row.
-    private var service: some View {
-        SettingsServiceInfoSection(session: session, isVisible: isVisible) {
-            VStack(alignment: .leading, spacing: 4) {
-                Button("Check Publication") { Task { await refreshService() } }
+    /// The web's standalone Licenses link: its section title and description with a
+    /// trailing chevron, the whole row tappable, no card (`SettingsPage.tsx` "Licenses").
+    private var licensesRow: some View {
+        NavigationLink(value: AppRoute.licenses) {
+            HStack(alignment: .center, spacing: 16) {
+                FestivalSectionHeader("Licenses", subtitle: "Open source package license details.")
                     .frame(maxWidth: .infinity, alignment: .leading)
-                if let serviceStatus {
-                    Text(serviceStatus)
-                        .font(.subheadline)
-                        .foregroundStyle(FestivalText.primary)
-                        .accessibilityIdentifier("fst.settings.publication-status")
-                }
-            }
-        }
-    }
-
-    private var about: some View {
-        FestivalGlassSection("Licenses", subtitle: "Open source package license details.") {
-            navigationRow("View Licenses", route: .licenses, identifier: "fst.settings.licenses")
-        }
-    }
-
-    private func navigationRow(_ title: String, route: AppRoute, identifier: String) -> some View {
-        NavigationLink(value: route) {
-            HStack {
-                SettingLabel(title)
-                Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(FestivalText.deemphasized)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(FestivalText.primary)
                     .accessibilityHidden(true)
             }
+            .padding(.horizontal, 4)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityIdentifier(identifier)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("View Licenses")
+        .accessibilityHint("Open source package license details")
+        .accessibilityIdentifier("fst.settings.licenses")
     }
 
-    /// A settings row that opens a `SettingsReorderSheet` instead of toggling in place.
+    /// An inline reorder list with its bold title and description, the web's
+    /// `innerSectionTitle` + `sectionHint` + `ReorderList` block.
     ///
     /// - Parameters:
-    ///   - title: Title Case row label.
-    ///   - detail: Current order, summarized for the collapsed row.
-    ///   - identifier: Accessibility identifier for the row.
-    ///   - open: Action that presents the reorder sheet.
-    private func reorderRow(
-        _ title: String, detail: String, identifier: String, open: @escaping () -> Void
+    ///   - title: Title Case block title.
+    ///   - detail: Sentence-case description.
+    ///   - list: The reorder list (or its empty state).
+    private func reorderBlock<List: View>(
+        _ title: String, detail: String, @ViewBuilder list: () -> List
     ) -> some View {
-        Button(action: open) {
-            HStack {
-                SettingLabel(title, detail: detail)
-                Spacer(minLength: 8)
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(FestivalText.deemphasized)
-                    .accessibilityHidden(true)
-            }
-            .contentShape(Rectangle())
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(FestivalText.primary)
+                .accessibilityAddTraits(.isHeader)
+            Text(detail)
+                .font(.subheadline)
+                .foregroundStyle(FestivalText.primary)
+                .fixedSize(horizontal: false, vertical: true)
+            list()
+                .padding(.top, 8)
         }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(identifier)
     }
 
     private var reset: some View {
-        FestivalGlassSection(
-            "Reset Settings", subtitle: "Restore all settings to their default values."
-        ) {
-            Button("Reset App Settings", role: .destructive) {
+        // The web's reset block: header, then a full-width red (`btnDanger`) button.
+        VStack(alignment: .leading, spacing: 12) {
+            FestivalSectionHeader(
+                "Reset Settings", subtitle: "Restore all settings to their default values."
+            )
+            .padding(.horizontal, 4)
+            Button(role: .destructive) {
                 resetPending = true
+            } label: {
+                Text("Reset App Settings")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
             }
+            .buttonStyle(.borderedProminent)
             .tint(.red)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .foregroundStyle(.white)
             .accessibilityIdentifier("fst.settings.reset")
         }
     }
@@ -495,23 +510,21 @@ struct SettingsScreen: View {
         )
     }
 
-    /// Summarize the fields Song rows would actually show, in the saved order.
-    ///
-    /// - Returns: Order preview limited to metadata fields that are currently visible.
-    private var visibleVisualOrderSummary: String {
-        let visible = songRowVisualOrder.wrappedValue.filter { metadataBinding(for: $0).wrappedValue }
-        return visible.isEmpty
-            ? "No metadata fields are currently visible."
-            : visible.map(\.label).joined(separator: " · ")
+    /// The saved Song row order limited to currently visible metadata fields (the web's
+    /// `visualOrderItems`); hidden fields keep their place after a reorder.
+    private var visibleVisualOrder: [MetadataField] {
+        songRowVisualOrder.wrappedValue.filter { metadataBinding(for: $0).wrappedValue }
     }
 
-    /// CHOpt's engine-enforced highest raw score for any solo chart.
-    private static let choptMaxScore = 100_000
+    /// Enable/disable animation for inline blocks, none under Reduce Motion.
+    private var reduceMotionAnimation: Animation? {
+        reduceMotionEnvironment || reduceMotion ? nil : .easeInOut(duration: 0.2)
+    }
 
-    /// The highest score Filter Invalid Scores currently accepts as valid.
+    /// The highest score Filter Invalid Scores accepts for the web's 100k example path.
     private var maxEffectiveScore: String {
-        let value = Int((Double(Self.choptMaxScore) * (1 + leeway / 100)).rounded())
-        return value.formatted()
+        InvalidScoreFilter.ceiling(maxScore: InvalidScoreFilter.exampleMaxScore, leeway: leeway)
+            .formatted()
     }
 
     /// The app's marketing/build version, e.g. "1.0 (12)".
@@ -624,32 +637,6 @@ struct SettingsScreen: View {
 
     // MARK: - Service and reset
 
-    /// Show publication state, or an explicit failure, without a privileged key.
-    func refreshService() async {
-        do {
-            let publication = try await session.refreshPublication()
-            do {
-                let catalog = try await session.catalog()
-                try Task.checkCancellation()
-                serviceStatus = SettingsServiceSummary.message(for: catalog)
-            } catch is CancellationError {
-                return
-            } catch let error as URLError where error.code == .cancelled {
-                return
-            } catch {
-                serviceStatus = "Publication \(publication.publicationId); songs update failed: "
-                    + error.localizedDescription
-                return
-            }
-        } catch is CancellationError {
-            return
-        } catch let error as URLError where error.code == .cancelled {
-            return
-        } catch {
-            serviceStatus = "Publication unavailable: \(error.localizedDescription)"
-        }
-    }
-
     /// Restore app settings only, never a selected profile or Songs navigation.
     func resetAppSettings() {
         showInstrumentIcons = true
@@ -718,7 +705,8 @@ struct ReadableWidthContainer: ViewModifier {
 
 // MARK: - Row label
 
-/// Title plus optional muted description, the web's setting-row layout.
+/// Title plus optional description, the web's setting-row layout (`toggleLabel` is
+/// semibold; the description stays regular and white per the white-text rule).
 struct SettingLabel: View {
     let title: String
     let detail: String?
@@ -736,6 +724,7 @@ struct SettingLabel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
+                .font(.body.weight(.semibold))
                 .foregroundStyle(FestivalText.primary)
             if let detail {
                 Text(detail)
@@ -766,9 +755,14 @@ enum MetadataField: String, CaseIterable, Identifiable, Hashable {
         case .percentile: "Percentile"
         case .season: "Season Achieved"
         case .intensity: "Intensity"
-        case .difficulty: "Game Difficulty"
+        case .difficulty: "Difficulty"
         case .stars: "Stars"
         case .lastPlayed: "Last Played"
         }
+    }
+
+    /// Row title in the Song Row Visual Order list (web `METADATA_SORT_DISPLAY`).
+    var reorderLabel: String {
+        self == .intensity ? "Song Intensity" : label
     }
 }

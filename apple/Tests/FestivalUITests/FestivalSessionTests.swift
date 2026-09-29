@@ -205,7 +205,7 @@ func sessionTracksHeaderlessPublicationWithoutInventingProvenance(advances: Bool
     }
 }
 
-/// The actual Settings refresh must refill art before reporting publication eight.
+/// The fixture-only publication check must refill art before reporting publication eight.
 @MainActor
 @Test func settingsPublicationCheckRestoresCurrentArtworkPaths() async throws {
     let transport = PublicationTransitionTransport()
@@ -213,8 +213,7 @@ func sessionTracksHeaderlessPublicationWithoutInventingProvenance(advances: Bool
     let session = FestivalSession(factory: { client })
     _ = try await session.catalog()
     #expect(session.artworkPaths == ["/__fixture__/art/pulse.png"])
-    let settings = SettingsScreen(session: session)
-    await settings.refreshService()
+    _ = await SettingsPublicationCheck.run(session: session)
     #expect(session.publicationId == 8)
     #expect(session.artworkPaths == ["/__fixture__/art/pulse.png"])
     #expect(await transport.pinnedCatalogues() == [7, 8])

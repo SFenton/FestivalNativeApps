@@ -270,7 +270,7 @@ private struct Boom: Error {}
     let host = nativeHostedView(
         SettingsServiceInfoSection(
             session: session, isVisible: false, initialPhase: try serviceInfoUpdatingSnapshot()
-        ) { Text("Check Publication") }
+        )
             .padding(16)
             .frame(width: size.width, height: size.height, alignment: .top)
             .background(BrandTokens.cardBackground)

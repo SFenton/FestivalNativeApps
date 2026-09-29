@@ -1,9 +1,10 @@
 import UIKit
 import XCTest
 
-/// Native journeys for Settings: a toggle survives a cold relaunch, the visual-order
-/// reorder sheet opens and closes from its own row, and Reset App Settings restores a
-/// changed toggle to its registered default (`SettingsRegistry.defaults`).
+/// Native journeys for Settings: a toggle survives a cold relaunch, the inline reorder
+/// lists drag to reorder, View Licenses opens a third-party-only page, and Reset App
+/// Settings restores a changed toggle to its registered default
+/// (`SettingsRegistry.defaults`). Needs `tools/mock_service.py --port 18790`.
 ///
 /// **Re-investigated and un-skipped 2026-09-28 (Lane C):** all three methods
 /// were previously skipped as "consistently hung the full 300s lock-hold
@@ -65,35 +66,80 @@ final class SettingsJourneyTests: XCTestCase {
         SongsUITestSupport.setSwitch(restoredToggle, to: original)
     }
 
-    /// The Song Row Order reorder sheet opens from its row once visual order is
-    /// enabled, lists every metadata field, and Done returns to Settings.
+    /// Operator batch 6 (6.11): enabling Independent Song Row Visual Order shows its
+    /// reorder list inline (no sheet), and CHOpt Text Path Column Order rows reorder by
+    /// dragging their grip handle; Reset restores the default order.
     @MainActor
-    func testSongRowOrderReorderSheetOpensAndCloses() throws {
+    func testInlineReorderListsDragToReorder() throws {
         continueAfterFailure = false
         let app = fixtureApp()
         app.launch()
         let enable = app.switches["fst.settings.enable-visual-order"]
         SongsUITestSupport.reveal(enable, in: app, scrollingUp: true)
         SongsUITestSupport.setSwitch(enable, to: "1")
+        let visualScore = app.descendants(matching: .any)
+            .matching(identifier: "fst.settings.song-row-order.score").firstMatch
+        XCTAssertTrue(visualScore.waitForExistence(timeout: 10), "Visual order list is not inline")
+        XCTAssertFalse(app.buttons["Done"].exists, "No reorder sheet")
 
-        let reorderRow = app.buttons["fst.settings.song-row-order"]
-        SongsUITestSupport.reveal(reorderRow, in: app, scrollingUp: false)
-        reorderRow.tap()
+        func row(_ key: String) -> XCUIElement {
+            app.descendants(matching: .any)
+                .matching(identifier: "fst.settings.path-column-order.\(key)").firstMatch
+        }
+        let note = row("note")
+        let score = row("score")
+        SongsUITestSupport.reveal(score, in: app, scrollingUp: true)
+        SongsUITestSupport.reveal(note, in: app, scrollingUp: false)
+        XCTAssertLessThan(note.frame.minY, score.frame.minY)
+        XCTAssertEqual(score.value as? String, "5 of 5")
+        SongsUITestSupport.record(app, name: "settings-path-columns-before-drag")
 
-        let firstField = app.staticTexts["Score"]
-        XCTAssertTrue(firstField.waitForExistence(timeout: 10), "Reorder sheet did not list its metadata fields")
-        XCTAssertTrue(app.staticTexts["Percentage"].exists)
-        SongsUITestSupport.record(app, name: "settings-reorder-sheet-open")
-
-        app.buttons["Done"].tap()
-        XCTAssertTrue(
-            app.switches["fst.settings.enable-visual-order"].waitForExistence(timeout: 10),
-            "Reorder sheet did not dismiss back to Settings"
+        // Drag by the leading grip handle.
+        score.coordinate(withNormalizedOffset: CGVector(dx: 0.06, dy: 0.5)).press(
+            forDuration: 0.3,
+            thenDragTo: note.coordinate(withNormalizedOffset: CGVector(dx: 0.06, dy: 0.3))
         )
-        // Leave visual order off for later tests/lanes.
-        let enableAfter = app.switches["fst.settings.enable-visual-order"]
-        SongsUITestSupport.reveal(enableAfter, in: app, scrollingUp: true)
-        SongsUITestSupport.setSwitch(enableAfter, to: "0")
+        let moved = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "1 of 5"), object: score
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [moved], timeout: 10), .completed, "Score was not dragged to the top")
+        XCTAssertEqual(note.value as? String, "2 of 5")
+        SongsUITestSupport.record(app, name: "settings-path-columns-after-drag")
+
+        // A quick swipe that starts on the list still scrolls the page.
+        let before = score.frame.minY
+        app.swipeUp()
+        XCTAssertNotEqual(score.frame.minY, before, "Swiping over a reorder list must scroll the page")
+
+        let resetButton = app.buttons["fst.settings.reset"]
+        SongsUITestSupport.reveal(resetButton, in: app, scrollingUp: true)
+        resetButton.tap()
+        let confirm = app.buttons["Reset App Settings"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 10))
+        confirm.tap()
+        SongsUITestSupport.reveal(score, in: app, scrollingUp: false)
+        let restored = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "5 of 5"), object: score
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [restored], timeout: 10), .completed)
+        XCTAssertFalse(visualScore.exists, "Reset turns the independent visual order off")
+    }
+
+    /// Operator batch 6 (6.17): View Licenses opens the Licenses page without a Bundled
+    /// Assets section or iconography entry.
+    @MainActor
+    func testLicensesRowOpensThirdPartyOnlyPage() throws {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launch()
+        let licenses = app.buttons["fst.settings.licenses"]
+        SongsUITestSupport.reveal(licenses, in: app, scrollingUp: true)
+        licenses.tap()
+        XCTAssertTrue(app.staticTexts["Third-Party Software"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["Bundled Assets"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS %@", "Iconography")).firstMatch.exists)
+        SongsUITestSupport.record(app, name: "settings-licenses-page")
     }
 
     /// Reset App Settings restores a changed toggle to its registered default.

@@ -9,8 +9,8 @@ import FestivalDesign
 
 // MARK: - Fixture session
 //
-// `SettingsScreen` never issues a network read on appear (only an explicit
-// "Check Publication" tap does), so every state here is driven purely by the
+// `SettingsScreen`'s only reads (Service Info, Service Version) fail instantly on this
+// throwing session, so every state here is driven purely by the
 // `@AppStorage` values seeded into a private `UserDefaults` suite passed as
 // `.defaultAppStorage`, matching `SettingsPersistenceTests.swift`'s own
 // direct-`UserDefaults` approach for the same registry.
@@ -134,48 +134,56 @@ private func freshSuite() -> UserDefaults {
     #expect(image.width > 0 && image.height > 0)
 }
 
-// MARK: - SettingsReorderSheet
+// MARK: - Inline reorder lists (operator batch 6, item 6.11)
 
 @MainActor
-@Test func settingsReorderSheetRendersMetadataFieldOrder() throws {
-    let items = Binding<[MetadataField]>(
-        get: { MetadataField.allCases }, set: { _ in }
-    )
+@Test func settingsExpandedAppSettingsShowInlineReorderListsWithoutPublicationCheck() async throws {
+    let storage = freshSuite()
+    storage.set(true, forKey: "fst.settings.enableVisualOrder")
+    storage.set(true, forKey: "fst.settings.filterInvalidScores")
+    let size = CGSize(width: 402, height: 2600)
     let host = nativeHostedView(
-        SettingsReorderSheet(
-            title: "Song Row Order", subtitle: "Sets the order visible fields appear.",
-            items: items, label: \.label
-        )
-        .preferredColorScheme(.dark),
-        size: CGSize(width: 402, height: 700)
+        NavigationStack { SettingsScreen(session: settingsSession(selected: true)) }
+            .defaultAppStorage(storage)
+            .preferredColorScheme(.dark),
+        size: size
     )
-    let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 700))
+    let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
-    _ = try nativeHostedPNG(image, filename: "settings-reorder-metadata.png", environment: "FST_SETTINGS_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    let expected = [
+        "Enable Independent Song Row Visual Order", "Song Row Visual Order", "Song Intensity",
+        "CHOpt Text Path Column Order", "OD", "Maximum Score Leeway: +1.0%", "Difficulty",
+        "View Licenses",
+    ]
+    let image = try await nativeHostedSettle(host, untilText: expected)
+    _ = try nativeHostedPNG(image, filename: "settings-inline-reorder.png", environment: "FST_SETTINGS_RENDER_OUT")
+    assertRendersContent(
+        host, image: image, containing: expected,
+        notContaining: ["Check Publication", "Game Difficulty", "Song Row Order"]
+    )
 }
 
 @MainActor
-@Test func settingsReorderSheetRendersPathColumnOrder() throws {
-    let items = Binding<[PathColumnKey]>(
-        get: { PathColumnKey.allCases }, set: { _ in }
-    )
+@Test func settingsReorderListRendersRowsAndMovesByAccessibilityAction() async throws {
+    var order = PathColumnKey.allCases
+    let size = CGSize(width: 402, height: 400)
     let host = nativeHostedView(
-        SettingsReorderSheet(
-            title: "Path Column Order", subtitle: "Sets the CHOpt Paths column order.",
-            items: items, label: \.label
-        )
-        .preferredColorScheme(.dark),
-        size: CGSize(width: 402, height: 700)
+        SettingsReorderList(
+            items: order, identifier: "fst.settings.path-column-order",
+            label: \.label, key: \.rawValue
+        ) { order = $0 }
+        .padding(16)
+        .frame(width: size.width, height: size.height, alignment: .top)
+        .background(BrandTokens.cardBackground),
+        size: size
     )
-    let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 700))
+    let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    host.layoutSubtreeIfNeeded()
-    let image = try nativeHostedImage(host)
-    _ = try nativeHostedPNG(image, filename: "settings-reorder-path.png", environment: "FST_SETTINGS_RENDER_OUT")
-    #expect(image.width > 0 && image.height > 0)
+    let expected = ["Note", "Beat", "Time", "OD", "Score"]
+    let image = try await nativeHostedSettle(host, untilText: expected)
+    _ = try nativeHostedPNG(image, filename: "settings-reorder-list.png", environment: "FST_SETTINGS_RENDER_OUT")
+    assertRendersContent(host, image: image, containing: expected)
+    #expect(order == PathColumnKey.allCases, "Rendering must not reorder")
 }
 
 // MARK: - SettingsServiceSummary (pure logic, exercised via the Service section's message builder)
@@ -202,4 +210,21 @@ private func freshSuite() -> UserDefaults {
             == "Publication 7; songs offline - last seen (publication unverified)"
     )
 }
+// MARK: - Fixture-only publication check and What's New pull-down (batch 6)
+
+@Test func fixtureToolsOnlyRenderForLoopbackOriginsInDebug() {
+    #expect(SettingsFixtureTools.isEnabled(environment: ["FST_API_BASE_URL": "http://127.0.0.1:8765"]))
+    #expect(SettingsFixtureTools.isEnabled(environment: ["FST_API_BASE_URL": "http://localhost:8765"]))
+    #expect(!SettingsFixtureTools.isEnabled(environment: [:]))
+    #expect(!SettingsFixtureTools.isEnabled(
+        environment: ["FST_API_BASE_URL": "https://festivalscoretracker.com"]
+    ))
+}
+
+@Test func whatsNewPullDownDismissesOnlyPastThreshold() {
+    #expect(!PullDownToDismiss.shouldDismiss(pull: 0))
+    #expect(!PullDownToDismiss.shouldDismiss(pull: PullDownToDismiss.threshold - 1))
+    #expect(PullDownToDismiss.shouldDismiss(pull: PullDownToDismiss.threshold))
+}
+
 #endif

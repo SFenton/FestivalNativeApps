@@ -6,51 +6,54 @@ import FestivalDesign
 
 /// `/settings/licenses` — the native form of `LicensesPage.tsx:27-77`.
 ///
-/// Lists this app's actual dependencies rather than importing the web's npm/NuGet
-/// manifest (see `LicenseManifest.swift`). A tapped row opens its full license text in a
-/// sheet; dismissing the sheet returns focus to that row, matching the web's modal.
+/// Lists this app's actual third-party software rather than importing the web's npm/NuGet
+/// manifest (see `LicenseManifest.swift`); no bundled-asset section (operator batch 6). One
+/// card of rows, each with a chevron and a pressed highlight so it reads as tappable; a
+/// tapped row opens its full license text in a sheet with a centred **Close**, and
+/// dismissing the sheet returns focus to that row, matching the web's modal.
 struct LicensesScreen: View {
     let session: FestivalSession
+    let entries: [SoftwareLicense]
     @State private var selected: SoftwareLicense?
+    @Environment(\.deviceLayout) private var layout
 
     /// Create the screen.
     ///
-    /// - Parameter session: Shared app session (used only for the animated backdrop).
-    init(session: FestivalSession) {
+    /// - Parameters:
+    ///   - session: Shared app session (used only for the animated backdrop).
+    ///   - entries: Rows to list; the app's real manifest by default (hosted tests inject).
+    init(session: FestivalSession, entries: [SoftwareLicense] = LicenseManifest.thirdPartySoftware) {
         self.session = session
+        self.entries = entries
     }
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: 28) {
                 FestivalGlassSection(
                     "Third-Party Software",
                     subtitle: "Open source packages bundled in this build."
                 ) {
-                    if LicenseManifest.thirdPartySoftware.isEmpty {
+                    if entries.isEmpty {
                         FestivalFootnote(
                             "This build has no external Swift package dependencies — "
                                 + "every module (FestivalCore, FestivalDesign, FestivalUI) "
                                 + "is first-party. This list updates the day one is added."
                         )
+                        .accessibilityIdentifier("fst.licenses.empty")
                     } else {
-                        ForEach(LicenseManifest.thirdPartySoftware) { entry in
+                        ForEach(entries) { entry in
                             licenseRow(entry)
                         }
                     }
                 }
-                FestivalGlassSection(
-                    "Bundled Assets",
-                    subtitle: "Non-code resources shipped with this app."
-                ) {
-                    ForEach(LicenseManifest.bundledAssets) { entry in
-                        licenseRow(entry)
-                    }
-                }
+                .festivalFadeIn(isLoaded: true, index: 0)
             }
             .padding(.horizontal, 16)
             .padding(.top, 8)
             .padding(.bottom, 32)
+            // Same readable, centred column as Settings on wide windows.
+            .modifier(ReadableWidthContainer(isRegularWidth: layout.widthClass == .regular))
         }
         .festivalBackground(.carousel, session: session)
         .navigationTitle("Licenses")
@@ -63,9 +66,10 @@ struct LicensesScreen: View {
         Button {
             selected = entry
         } label: {
-            HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(entry.name)
+                        .font(.body.weight(.semibold))
                         .foregroundStyle(FestivalText.primary)
                     Text(entry.versionOrRole)
                         .font(.footnote)
@@ -80,21 +84,37 @@ struct LicensesScreen: View {
                     .background(BrandTokens.surfaceFrosted, in: Capsule())
                 Image(systemName: "chevron.right")
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(FestivalText.deemphasized)
+                    .foregroundStyle(FestivalText.primary)
                     .accessibilityHidden(true)
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(LicenseRowButtonStyle())
         .accessibilityLabel("\(entry.name), \(entry.versionOrRole), \(entry.licenseType)")
+        .accessibilityHint("Shows the full license text")
         .accessibilityIdentifier("fst.licenses.\(entry.id)")
+    }
+}
+
+// MARK: - Row style
+
+/// A pressed highlight behind a license row, so it visibly responds to touch.
+struct LicenseRowButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.white.opacity(configuration.isPressed ? 0.12 : 0))
+                    .padding(-6)
+            }
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
 
 // MARK: - License detail
 
-/// Full license text for one entry, presented as a dismissible sheet.
-private struct LicenseDetailSheet: View {
+/// Full license text for one entry, presented as a dismissible sheet with a centred Close.
+struct LicenseDetailSheet: View {
     let entry: SoftwareLicense
     @Environment(\.dismiss) private var dismiss
 
@@ -114,15 +134,23 @@ private struct LicenseDetailSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(16)
             }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                Button { dismiss() } label: {
+                    Text("Close")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(BrandTokens.accentBlue)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .accessibilityIdentifier("fst.licenses.close")
+            }
             .navigationTitle("\(entry.name) · \(entry.licenseType)")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
         }
         .festivalSheet(.large)
     }

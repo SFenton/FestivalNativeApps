@@ -129,14 +129,13 @@ struct ServiceInfoRows: Equatable {
 // MARK: - Section
 
 /// Settings "Service Info" card: live leaderboard update state, phase progress and last
-/// publication, plus the pre-existing on-demand publication check.
+/// publication, refreshed every 5 s while Settings is visible (web `useServiceInfo`).
 ///
 /// Reads only the keyless operational `/api/service-info` (documented in
 /// `.agents/platforms/service-safety.md`); polls every 5 s only while `isVisible`.
-struct SettingsServiceInfoSection<Footer: View>: View {
+struct SettingsServiceInfoSection: View {
     let session: FestivalSession
     let isVisible: Bool
-    let footer: () -> Footer
     @State private var model: SettingsServiceInfoModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -146,15 +145,12 @@ struct SettingsServiceInfoSection<Footer: View>: View {
     ///   - session: Shared session whose client performs the keyless reads.
     ///   - isVisible: Poll only while true (Settings tab selected).
     ///   - initialPhase: Starting state; hosted tests pass a fixed snapshot with `isVisible` false.
-    ///   - footer: Trailing rows (the publication check).
     init(
         session: FestivalSession, isVisible: Bool,
-        initialPhase: SettingsServiceInfoModel.Phase = .loading,
-        @ViewBuilder footer: @escaping () -> Footer
+        initialPhase: SettingsServiceInfoModel.Phase = .loading
     ) {
         self.session = session
         self.isVisible = isVisible
-        self.footer = footer
         _model = State(initialValue: SettingsServiceInfoModel(phase: initialPhase))
     }
 
@@ -165,15 +161,9 @@ struct SettingsServiceInfoSection<Footer: View>: View {
             if let title = rows.phaseTitle {
                 phaseRow(title: title, rows: rows)
             }
-            if let notice = rows.freezeNotice {
-                SettingLabel("Public Reads", detail: notice)
-                    .accessibilityElement(children: .combine)
-                    .accessibilityIdentifier("fst.settings.service-info.freeze")
-            }
             SettingLabel(ServiceInfoText.lastPublishedTitle, detail: rows.lastPublished)
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("fst.settings.service-info.last-published")
-            footer()
         }
         .task(id: isVisible) {
             guard isVisible else { return }
@@ -201,20 +191,15 @@ struct SettingsServiceInfoSection<Footer: View>: View {
         .accessibilityIdentifier("fst.settings.service-info.state")
     }
 
+    /// The web's phase row: title then the bar alone (percent and units are spoken, not
+    /// printed — `SettingsServiceProgressCard` shows neither).
     private func phaseRow(title: String, rows: ServiceInfoRows) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .foregroundStyle(FestivalText.primary)
             if let barPercent = rows.barPercent {
                 ServiceProgressBar(percent: barPercent, reduceMotion: reduceMotion)
-                Text(rows.progressText ?? "")
-                    .font(.footnote)
-                    .foregroundStyle(FestivalText.primary)
-                if let units = rows.unitsText {
-                    Text(units)
-                        .font(.footnote)
-                        .foregroundStyle(FestivalText.primary)
-                }
+                    .padding(.top, 2)
             }
         }
         .accessibilityElement(children: .ignore)
@@ -226,9 +211,10 @@ struct SettingsServiceInfoSection<Footer: View>: View {
 
 // MARK: - Bar
 
-/// Web-style capsule progress bar (purple fill on a muted track). An unknown total shows the
-/// empty track with the "total not yet known" caption instead of the web's looping shimmer:
-/// a `repeatForever` animation keeps XCUITest from idling and adds motion without information.
+/// Web-style capsule progress bar (purple fill on a muted track, 0.65 rem tall). An unknown
+/// total shows the web's sliding 38 % segment (1.25 s ease-in-out); it holds still under
+/// Reduce Motion and in UI-test runs (`FST_DEBUG_STILL_BACKGROUND`), where a perpetual
+/// animation would keep XCUITest from idling.
 private struct ServiceProgressBar: View {
     /// 0–100, or nil for an unknown total.
     let percent: Double?
@@ -242,11 +228,33 @@ private struct ServiceProgressBar: View {
                     Capsule()
                         .fill(BrandTokens.accentPurple)
                         .frame(width: max(8, proxy.size.width * percent / 100))
+                } else if !reduceMotion && !DebugAnimationOverride.stillBackground {
+                    IndeterminateSegment(width: proxy.size.width)
                 }
             }
+            .clipShape(Capsule())
         }
-        .frame(height: 8)
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.3), value: percent)
+        .frame(height: 10)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: percent)
         .accessibilityHidden(true)
+    }
+}
+
+/// The web's `settings-progress-indeterminate` keyframes: a 38 %-wide segment sweeping
+/// across the track.
+private struct IndeterminateSegment: View {
+    let width: CGFloat
+    @State private var leading = false
+
+    var body: some View {
+        Capsule()
+            .fill(BrandTokens.accentPurple)
+            .frame(width: width * 0.38)
+            .offset(x: leading ? width : -width * 0.38)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 1.25).repeatForever(autoreverses: false)) {
+                    leading = true
+                }
+            }
     }
 }
