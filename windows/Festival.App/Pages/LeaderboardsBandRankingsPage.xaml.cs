@@ -32,6 +32,7 @@ public sealed partial class LeaderboardsBandRankingsPage : Page, IRouteHost
     public LeaderboardsBandRankingsPage()
     {
         InitializeComponent();
+        BoardFooter.Inset(Footer, RowsRepeater);
         SizeChanged += (_, e) => ApplySplit(e.NewSize.Width >= SplitWidth);
     }
 
@@ -136,14 +137,14 @@ public sealed partial class LeaderboardsBandRankingsPage : Page, IRouteHost
     /// <param name="args">Row.</param>
     private void OnRowPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
     {
-        if (args.Element is LeaderboardsRankingRow row) row.IsCurrent = split && row.Route == detailRoute;
+        if (args.Element is LeaderboardEntryRow row) row.IsCurrent = split && row.Route == detailRoute;
     }
 
     /// <summary>Re-marks every realized row.</summary>
     private void MarkCurrentRows()
     {
         for (var i = 0; i < VisualTreeHelper.GetChildrenCount(RowsRepeater); i++)
-            if (VisualTreeHelper.GetChild(RowsRepeater, i) is LeaderboardsRankingRow row) row.IsCurrent = split && row.Route == detailRoute;
+            if (VisualTreeHelper.GetChild(RowsRepeater, i) is LeaderboardEntryRow row) row.IsCurrent = split && row.Route == detailRoute;
     }
     #endregion
 

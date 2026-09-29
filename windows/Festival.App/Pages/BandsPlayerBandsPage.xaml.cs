@@ -10,7 +10,11 @@ namespace Festival.App.Pages;
 public sealed partial class BandsPlayerBandsPage : Page
 {
     /// <summary>Creates the page.</summary>
-    public BandsPlayerBandsPage() => InitializeComponent();
+    public BandsPlayerBandsPage()
+    {
+        InitializeComponent();
+        Controls.BoardFooter.Inset(Footer, Cards);
+    }
 
     /// <summary>Page model (set on navigation).</summary>
     public PlayerBandsViewModel ViewModel { get; private set; } = null!;

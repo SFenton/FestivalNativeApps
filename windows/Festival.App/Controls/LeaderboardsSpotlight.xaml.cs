@@ -28,6 +28,13 @@ public sealed partial class LeaderboardsSpotlight : UserControl
         IsTabStop = false;
     }
 
+    /// <summary>Whether the pinned row floats over a board's rows (Full Rankings footer): gives it an opaque backplate.</summary>
+    public bool IsFloating
+    {
+        get => PinnedRow.IsFloating;
+        set => PinnedRow.IsFloating = value;
+    }
+
     /// <summary>Spotlight model.</summary>
     public RankingSpotlightViewModel? Spotlight
     {

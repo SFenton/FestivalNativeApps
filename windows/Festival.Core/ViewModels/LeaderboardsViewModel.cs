@@ -417,7 +417,9 @@ public sealed partial class BandRankingCardViewModel : ObservableObject
         {
             var board = await session.Api.GetBandRankingsAsync(BandType, Metric, 1, LeaderboardPaging.CardSize, cancellationToken);
             Status.Clear();
-            Rows = board.Entries.Select(e => new BandRankingRowViewModel(e, BandType, Metric)).ToList();
+            var rows = board.Entries.Select(e => new BandRankingRowViewModel(e, BandType, Metric)).ToList();
+            BandRankingRowViewModel.ShareRankWidth(rows);
+            Rows = rows;
             ViewAllText = RankingViewAll.Label(board.TotalTeams);
             State = Rows.Count == 0 ? LoadState.Empty : LoadState.Loaded;
         }

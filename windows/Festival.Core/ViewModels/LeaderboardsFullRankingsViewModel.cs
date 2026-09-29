@@ -364,7 +364,9 @@ public sealed partial class BandRankingsViewModel : ObservableObject
             Status.Clear();
             TotalText = $"{board.TotalTeams:N0} ranked bands";
             Pager.Update(requestedPage, board.PageCount);
-            Rows = board.Entries.Select(e => new BandRankingRowViewModel(e, requestedType, requestedMetric)).ToList();
+            var rows = board.Entries.Select(e => new BandRankingRowViewModel(e, requestedType, requestedMetric)).ToList();
+            BandRankingRowViewModel.ShareRankWidth(rows);
+            Rows = rows;
             State = Rows.Count == 0 ? LoadState.Empty : LoadState.Loaded;
             IsRefreshing = false;
         }

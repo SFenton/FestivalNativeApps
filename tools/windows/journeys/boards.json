@@ -1,0 +1,10 @@
+[
+  {"name": "boards-song-detail", "route": "/songs/fixture-pulse", "profile": "fixture-player-1:Demo Player", "ready": ["waitfor:id=fst.song-detail.title@20", "wait:2"]},
+  {"name": "boards-song-detail-previews", "route": "/songs/fixture-pulse", "profile": "fixture-player-1:Demo Player", "ready": ["waitfor:id=fst.song-detail.title@20", "wait:2", "scroll:id=fst.song-detail.title,-30", "wait:1"]},
+  {"name": "boards-song-leaderboard", "route": "/songs/fixture-pulse/Solo_Guitar", "profile": "fixture-player-1:Demo Player", "ready": ["waitfor:id=fst.song-leaderboard.list@20", "wait:1"]},
+  {"name": "boards-leaderboards", "route": "/leaderboards", "profile": "fixture-player-1:Demo Player", "ready": ["waitfor:id=fst.leaderboards.card.Solo_Guitar@20", "wait:1"]},
+  {"name": "boards-full-rankings", "route": "/leaderboards/all?instrument=Solo_Guitar", "profile": "fixture-player-1:Demo Player", "ready": ["waitfor:id=fst.full-rankings.list@20", "wait:1"]},
+  {"name": "boards-band-rankings", "route": "/leaderboards/bands/Band_Duets", "profile": "fixture-player-1:Demo Player", "ready": ["waitfor:id=fst.band-rankings.list@20", "wait:1"]},
+  {"name": "boards-song-band-leaderboard", "route": "/songs/fixture-pulse/bands/Band_Duets", "profile": "fixture-player-1:Demo Player", "ready": ["waitfor:id=fst.song-band-leaderboard.list@20", "wait:1"]},
+  {"name": "boards-player-bands", "route": "/bands/player/fixture-player-1", "profile": "fixture-player-1:Demo Player", "ready": ["waitfor:id=fst.player-bands.list@20", "wait:1"]}
+]

@@ -1,3 +1,4 @@
+using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -5,7 +6,7 @@ namespace Festival.Core.ViewModels;
 
 #region Pager
 /// <summary>First/Previous/page-info/Next/Last paging state for band lists (25 rows per page).</summary>
-public sealed partial class BandsPagerViewModel : ObservableObject
+public sealed partial class BandsPagerViewModel : ObservableObject, IBoardPager
 {
     private readonly Func<int, Task> goTo;
 
@@ -15,13 +16,13 @@ public sealed partial class BandsPagerViewModel : ObservableObject
 
     /// <summary>Current one-based page.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(PageText), nameof(PageAnnouncement), nameof(CanGoBack), nameof(CanGoForward), nameof(IsVisible))]
+    [NotifyPropertyChangedFor(nameof(PageText), nameof(PageAnnouncement), nameof(CanGoBack), nameof(CanGoForward), nameof(IsVisible), nameof(InfoText), nameof(InfoAnnouncement), nameof(IsPaged))]
     [NotifyCanExecuteChangedFor(nameof(FirstCommand), nameof(PreviousCommand), nameof(NextCommand), nameof(LastCommand))]
     private int page = 1;
 
     /// <summary>Known page count (at least one).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(PageText), nameof(PageAnnouncement), nameof(CanGoBack), nameof(CanGoForward), nameof(IsVisible))]
+    [NotifyPropertyChangedFor(nameof(PageText), nameof(PageAnnouncement), nameof(CanGoBack), nameof(CanGoForward), nameof(IsVisible), nameof(InfoText), nameof(InfoAnnouncement), nameof(IsPaged))]
     [NotifyCanExecuteChangedFor(nameof(FirstCommand), nameof(PreviousCommand), nameof(NextCommand), nameof(LastCommand))]
     private int pageCount = 1;
 
@@ -59,6 +60,23 @@ public sealed partial class BandsPagerViewModel : ObservableObject
     /// <returns>Load task.</returns>
     [RelayCommand(CanExecute = nameof(CanGoForward))]
     private Task LastAsync() => goTo(PageCount);
+
+    /// <inheritdoc />
+    public string InfoText => PageText;
+
+    /// <inheritdoc />
+    public string InfoAnnouncement => PageAnnouncement;
+
+    /// <inheritdoc />
+    public bool IsPaged => IsVisible;
+
+    ICommand IBoardPager.FirstCommand => FirstCommand;
+
+    ICommand IBoardPager.PreviousCommand => PreviousCommand;
+
+    ICommand IBoardPager.NextCommand => NextCommand;
+
+    ICommand IBoardPager.LastCommand => LastCommand;
 }
 #endregion
 

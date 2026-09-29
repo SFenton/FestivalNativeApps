@@ -4,7 +4,7 @@
     "route": "/leaderboards/bands/Band_Duets",
     "preset": "wide",
     "steps": [
-      "waitfor:id=fst.band-rankings.page-info@20",
+      "waitfor:id=fst.band-rankings.list@20",
       "waitfor:id=fst.band-rankings.detail-pane@10",
       "waitfor:id=fst.band.title@20",
       "wait:1",
@@ -16,7 +16,7 @@
     "route": "/leaderboards/bands/Band_Duets",
     "preset": "medium",
     "steps": [
-      "waitfor:id=fst.band-rankings.page-info@20",
+      "waitfor:id=fst.band-rankings.list@20",
       "shot:{shots}/band-rankings-medium.png@screen"
     ]
   },

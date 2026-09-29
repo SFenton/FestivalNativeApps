@@ -6,20 +6,25 @@
     <!-- Selected player's rank below a board: loading, inline failure, unranked, or their row (+ Jump to your page). -->
     <StackPanel x:Name="Root" Spacing="6" Visibility="{x:Bind Spotlight.IsVisible, Mode=OneWay, FallbackValue=Collapsed}">
         <!-- A white ring only (audit 2026-09-28: no "Loading your rank…" subtitle); UIA keeps the name. -->
-        <StackPanel x:Name="LoadingRow" Orientation="Horizontal" Padding="12,4"
+        <StackPanel x:Name="LoadingRow" Orientation="Horizontal" Padding="12,0" MinHeight="48" CornerRadius="12" BorderThickness="1"
+                    Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}"
                     Visibility="{x:Bind Spotlight.ShowLoading, Mode=OneWay, FallbackValue=Collapsed}">
             <ProgressRing IsActive="{x:Bind Spotlight.ShowLoading, Mode=OneWay, FallbackValue=False}" Width="20" Height="20"
                           Foreground="White" AutomationProperties.Name="Loading your rank" />
         </StackPanel>
-        <StackPanel Spacing="6" Padding="12,4" Visibility="{x:Bind Spotlight.ShowFailed, Mode=OneWay, FallbackValue=Collapsed}"
+        <StackPanel Spacing="6" Padding="12,8" CornerRadius="12" BorderThickness="1"
+                    Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}"
+                    Visibility="{x:Bind Spotlight.ShowFailed, Mode=OneWay, FallbackValue=Collapsed}"
                     AutomationProperties.AutomationId="fst.service-status.inline">
             <TextBlock Text="{x:Bind Spotlight.Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
             <TextBlock Text="{x:Bind Spotlight.Status.Message, Mode=OneWay}" TextWrapping="Wrap" />
             <Button Content="{x:Bind Spotlight.Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Spotlight.Status.RetryCommand, Mode=OneWay}" />
         </StackPanel>
-        <TextBlock x:Name="Unranked" Text="{x:Bind Spotlight.UnrankedText, Mode=OneWay}" Padding="12,4"
-                   Style="{StaticResource FSTSecondaryTextStyle}"
-                   Visibility="{x:Bind Spotlight.ShowUnranked, Mode=OneWay, FallbackValue=Collapsed}" />
+        <!-- Board rows are separate frosted rows (operator batch 7.7), so the unranked note sits on the same surface. -->
+        <Border Style="{StaticResource FSTCardStyle}" Padding="12,10" CornerRadius="12"
+                Visibility="{x:Bind Spotlight.ShowUnranked, Mode=OneWay, FallbackValue=Collapsed}">
+            <TextBlock x:Name="Unranked" Text="{x:Bind Spotlight.UnrankedText, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" />
+        </Border>
         <!-- The pinned row is full width like the board's rows, so its rank, name and value line up with them
              (operator batch 7.9); "Your Page" sits above it instead of taking its width. -->
         <StackPanel x:Name="RowHost" Spacing="4" Visibility="{x:Bind Spotlight.ShowRow, Mode=OneWay, FallbackValue=Collapsed}">
@@ -32,7 +37,7 @@
                     <TextBlock x:Name="JumpText" Text="Your Page" />
                 </StackPanel>
             </Button>
-            <controls:LeaderboardsRankingRow Row="{x:Bind Spotlight.Row, Mode=OneWay}" />
+            <controls:LeaderboardEntryRow x:Name="PinnedRow" Row="{x:Bind Spotlight.Row, Mode=OneWay}" />
         </StackPanel>
     </StackPanel>
 </UserControl>

@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Festival.App.Controls;
 using Festival.App.Services;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -14,7 +15,11 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
     private int shownPage;
 
     /// <summary>Creates the page.</summary>
-    public LeaderboardsSongPage() => InitializeComponent();
+    public LeaderboardsSongPage()
+    {
+        InitializeComponent();
+        BoardFooter.Inset(Footer, ScrollContent);
+    }
 
     /// <summary>Page model (set on navigation).</summary>
     public SongLeaderboardViewModel ViewModel { get; private set; } = null!;

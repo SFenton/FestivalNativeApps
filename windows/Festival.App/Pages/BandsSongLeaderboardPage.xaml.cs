@@ -16,6 +16,7 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
     public BandsSongLeaderboardPage()
     {
         InitializeComponent();
+        Controls.BoardFooter.Inset(Footer, Rows);
         SizeChanged += (_, e) => ApplyWidth(e.NewSize.Width);
     }
 

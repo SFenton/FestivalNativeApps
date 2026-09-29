@@ -75,20 +75,22 @@
 
         <ProgressBar Grid.Row="1" IsIndeterminate="True" VerticalAlignment="Top"
                      Visibility="{x:Bind ViewModel.IsRefreshing, Mode=OneWay}" AutomationProperties.Name="Loading page" />
-        <ScrollViewer x:Name="Scroller" Grid.Row="1" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
+        <!-- One frosted row per entry, 4 epx apart (web entryRow list, operator batch 7.7); the rows scroll on beneath the
+             floating footer (BoardFooter). -->
+        <ScrollViewer x:Name="Scroller" Grid.Row="1" Grid.RowSpan="3" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
                       AutomationProperties.AutomationId="fst.full-rankings.list">
-            <Border Style="{StaticResource FSTRowsCardStyle}" Margin="0,4,0,0" VerticalAlignment="Top">
-                <ItemsRepeater XYFocusKeyboardNavigation="Enabled" controls:RowSeparators.Enabled="True" x:Name="RowsRepeater" ElementPrepared="OnRowPrepared" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}">
-                    <ItemsRepeater.Layout>
-                        <StackLayout Spacing="0" />
-                    </ItemsRepeater.Layout>
-                    <ItemsRepeater.ItemTemplate>
-                        <DataTemplate x:DataType="vm:RankingRowViewModel">
-                            <controls:LeaderboardsRankingRow Row="{x:Bind}" />
-                        </DataTemplate>
-                    </ItemsRepeater.ItemTemplate>
-                </ItemsRepeater>
-            </Border>
+            <ItemsRepeater XYFocusKeyboardNavigation="Enabled" x:Name="RowsRepeater" Margin="0,4,0,0" VerticalAlignment="Top"
+                           ElementPrepared="OnRowPrepared" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52"
+                           ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}">
+                <ItemsRepeater.Layout>
+                    <StackLayout Spacing="4" />
+                </ItemsRepeater.Layout>
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate x:DataType="vm:RankingRowViewModel">
+                        <controls:LeaderboardEntryRow Row="{x:Bind}" />
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
         </ScrollViewer>
         <TextBlock Grid.Row="1" Text="No ranked players yet." Style="{StaticResource FSTSecondaryTextStyle}"
                    HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -98,15 +100,15 @@
         <controls:ServiceStatusView Grid.Row="1" Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
                                     Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}" />
 
-        <Border Grid.Row="2" Style="{StaticResource FSTRowsCardStyle}"
-                Visibility="{x:Bind ViewModel.Spotlight.IsVisible, Mode=OneWay}">
+        <!-- Web fixed footer: the pinned "your rank" row, then the pager, floating over the rows. -->
+        <StackPanel x:Name="Footer" Grid.Row="1" Grid.RowSpan="3" VerticalAlignment="Bottom" Spacing="8">
             <controls:LeaderboardsSpotlight Spotlight="{x:Bind ViewModel.Spotlight, Mode=OneWay}"
                                             IdPrefix="fst.full-rankings.spotlight-footer"
-                                            JumpAutomationId="fst.full-rankings.spotlight-jump" />
-        </Border>
-
-        <controls:LeaderboardsPager Grid.Row="3" Pager="{x:Bind ViewModel.Pager}"
-                                    Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" />
+                                            JumpAutomationId="fst.full-rankings.spotlight-jump" IsFloating="True"
+                                            Visibility="{x:Bind ViewModel.Spotlight.IsVisible, Mode=OneWay}" />
+            <controls:LeaderboardsPager Pager="{x:Bind ViewModel.Pager}"
+                                        Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" />
+        </StackPanel>
 
         <Frame x:Name="DetailFrame" Grid.Column="1" Grid.RowSpan="4" Margin="12,-12,-24,-12" Visibility="Collapsed"
                IsNavigationStackEnabled="False" AutomationProperties.Name="Player profile"

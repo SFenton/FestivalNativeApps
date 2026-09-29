@@ -16,8 +16,7 @@ invoke:id=fst.rankings.rank-by.totalscore
 waitfor:id=fst.leaderboards.card.Solo_Guitar.view-all@15
 # Full Rankings: pager, instrument switcher, back.
 invoke:id=fst.leaderboards.card.Solo_Guitar.view-all
-waitfor:id=fst.full-rankings.page-info@15
-waitfor:id=fst.full-rankings.page-first@5
+waitfor:id=fst.full-rankings.list@15
 invoke:id=fst.full-rankings.instrument-menu
 waitfor:id=fst.full-rankings.instrument.Solo_Bass@5
 invoke:id=fst.full-rankings.instrument.Solo_Bass
@@ -33,7 +32,7 @@ scroll:down
 scroll:down
 waitfor:id=fst.leaderboards.band-card.Band_Duets@10
 invoke:id=fst.leaderboards.band-card.Band_Duets.view-all
-waitfor:id=fst.band-rankings.page-info@15
+waitfor:id=fst.band-rankings.list@15
 invoke:id=fst.band-rankings.band-type-menu
 waitfor:id=fst.band-rankings.band-type.Band_Quad@5
 invoke:id=fst.band-rankings.band-type.Band_Quad

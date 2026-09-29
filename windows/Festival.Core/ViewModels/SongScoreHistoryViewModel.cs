@@ -349,8 +349,32 @@ public sealed record ScoreHistoryBar(int Index, ScoreHistoryPoint Point, bool Is
 /// <summary>A list or detail row: date, season/difficulty pills, score, accuracy (web <c>LeaderboardEntry</c> with a date label).</summary>
 /// <param name="Point">Point.</param>
 /// <param name="IsBest">Personal best (purple highlight and bold, web <c>isPlayer</c>).</param>
-public sealed record ScoreHistoryListRow(ScoreHistoryPoint Point, bool IsBest)
+public sealed record ScoreHistoryListRow(ScoreHistoryPoint Point, bool IsBest) : ILeaderboardScoreRow
 {
+    /// <summary>History rows have no rank: the date is the first column (web <c>LeaderboardEntry</c> <c>label</c>).</summary>
+    public string RankText => "";
+
+    /// <summary>Date in the name column.</summary>
+    public string Name => Date;
+
+    /// <summary>The personal best is drawn like the selected player's row (web <c>scoreListCardBestStyle</c>).</summary>
+    public bool IsSelected => IsBest;
+
+    /// <inheritdoc />
+    public int RankChars => 0;
+
+    /// <inheritdoc />
+    public int ScoreChars => 0;
+
+    /// <summary>History rows show no stars.</summary>
+    public int StarCount => 0;
+
+    /// <summary>History rows open nothing.</summary>
+    public AppRoute? Route => null;
+
+    /// <summary>UIA automation ID (<c>fst.song-detail.history.row.&lt;yyyyMMddHHmmss&gt;</c>).</summary>
+    public string AutomationId => "fst.song-detail.history.row." + Point.Date.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture);
+
     /// <summary>Date label.</summary>
     public string Date => Point.LongDate;
 

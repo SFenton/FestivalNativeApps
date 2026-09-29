@@ -8,7 +8,7 @@
 - Title `<Name>'s Bands` from the selected player (same account) or the account's own member row; otherwise `Player Bands`. Subtitle `<Group> · N bands`.
 - Group filter: Fluent `SelectorBar` (All Bands · Duos · Trios · Quads) instead of the web's filter sheet; changing it returns to page 1.
 - Cards (`BandCardView`, `UniformGridLayout` min 320 epx: one column compact/medium, 2–3 wide): distinct members with name and 28 px instrument icons, band-size pill, `N appearances`, chevron. The card opens `AppRoute.Band(bandId, bandType, teamKey)`.
-- Paging: shared `BandsPager` (First/Previous/`1 / N`/Next/Last), hidden for one page; a page past the end (list shrank) reloads the last page. Late responses for an older group/page are discarded.
+- Paging: the shared board pager (`LeaderboardsPager` over `IBoardPager`, operator batch 7.4; floating over the cards), hidden for one page; a page past the end (list shrank) reloads the last page. Late responses for an older group/page are discarded.
 - States: loading ring, empty (`No bands found` + `No <group> have been recorded for this player yet.`), failure (`ServiceStatusView`, Retry).
 
 ## Evidence

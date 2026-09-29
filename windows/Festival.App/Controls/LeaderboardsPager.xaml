@@ -3,8 +3,13 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <!--
-        Web Paginator + LeaderboardPaginationFooter (operator batch 6.30): round 40 epx card-surface buttons with chevrons
-        (double chevrons for first/last) either side of a small "page / total" badge; no plate behind them.
+        The one board pager (operator batch 7.4; web Paginator in FixedLeaderboardPagination): « ‹ [page / total] › »,
+        each a separate frosted-look surface (opaque #121826 + glassBorder: it floats over scrolling rows, so a solid colour
+        stands in for the web's backdrop blur, which would be recomputed every frame).
+        40 epx circle buttons with textSecondary chevrons (double chevrons for first/last), disabled at 30% opacity, around
+        a 40 epx cardBackground badge (10 epx radius). Hidden with a single page, like the web. « and » drop below 380 epx.
+        Keyboard: Left/Right (and Home/End) page while focus is in the pager (web keyboard ArrowLeft/ArrowRight); Ctrl+Left /
+        Ctrl+Right page from anywhere on the page.
     -->
     <UserControl.Resources>
         <Style x:Key="PagerButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
@@ -12,11 +17,18 @@
             <Setter Property="Height" Value="40" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="CornerRadius" Value="20" />
-            <Setter Property="Background" Value="{ThemeResource FSTCardSurfaceBrush}" />
+            <Setter Property="Background" Value="{ThemeResource FSTPagerButtonBrush}" />
             <Setter Property="BorderBrush" Value="{ThemeResource FSTCardStrokeBrush}" />
+            <Setter Property="Foreground" Value="{ThemeResource FSTPagerGlyphBrush}" />
         </Style>
     </UserControl.Resources>
-    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+    <StackPanel x:Name="Root" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" PreviewKeyDown="OnPreviewKeyDown">
+        <StackPanel.Resources>
+            <!-- Disabled buttons keep their frosted surface and dim as a whole (web Opacity.dimmed) instead of Fluent's gray. -->
+            <StaticResource x:Key="ButtonBackgroundDisabled" ResourceKey="FSTPagerButtonBrush" />
+            <StaticResource x:Key="ButtonBorderBrushDisabled" ResourceKey="FSTCardStrokeBrush" />
+            <StaticResource x:Key="ButtonForegroundDisabled" ResourceKey="FSTPagerGlyphBrush" />
+        </StackPanel.Resources>
         <Button x:Name="First" Style="{StaticResource PagerButtonStyle}" ToolTipService.ToolTip="First page"
                 AutomationProperties.Name="First page">
             <Grid>
@@ -24,17 +36,23 @@
                 <FontIcon Glyph="&#xE76B;" FontSize="12" Margin="8,0,0,0" />
             </Grid>
         </Button>
-        <Button x:Name="Previous" Style="{StaticResource PagerButtonStyle}" ToolTipService.ToolTip="Previous page"
+        <Button x:Name="Previous" Style="{StaticResource PagerButtonStyle}" ToolTipService.ToolTip="Previous page (Ctrl+Left)"
                 AutomationProperties.Name="Previous page">
+            <Button.KeyboardAccelerators>
+                <KeyboardAccelerator Key="Left" Modifiers="Control" />
+            </Button.KeyboardAccelerators>
             <FontIcon Glyph="&#xE76B;" FontSize="14" />
         </Button>
-        <Border Height="40" Padding="20,0" CornerRadius="6" BorderThickness="1" MinWidth="88"
-                Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}">
-            <TextBlock x:Name="Info" VerticalAlignment="Center" TextAlignment="Center" FontSize="13"
-                       AutomationProperties.LiveSetting="Polite" />
+        <Border Height="40" Padding="12,0" CornerRadius="10" BorderThickness="1" MinWidth="72"
+                Background="{ThemeResource FSTPagerBadgeBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}">
+            <TextBlock x:Name="Info" VerticalAlignment="Center" TextAlignment="Center" FontSize="12"
+                       Foreground="{ThemeResource FSTPagerGlyphBrush}" AutomationProperties.LiveSetting="Polite" />
         </Border>
-        <Button x:Name="Next" Style="{StaticResource PagerButtonStyle}" ToolTipService.ToolTip="Next page"
+        <Button x:Name="Next" Style="{StaticResource PagerButtonStyle}" ToolTipService.ToolTip="Next page (Ctrl+Right)"
                 AutomationProperties.Name="Next page">
+            <Button.KeyboardAccelerators>
+                <KeyboardAccelerator Key="Right" Modifiers="Control" />
+            </Button.KeyboardAccelerators>
             <FontIcon Glyph="&#xE76C;" FontSize="14" />
         </Button>
         <Button x:Name="Last" Style="{StaticResource PagerButtonStyle}" ToolTipService.ToolTip="Last page"

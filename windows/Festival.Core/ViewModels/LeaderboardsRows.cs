@@ -1,3 +1,4 @@
+using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -8,7 +9,7 @@ namespace Festival.Core.ViewModels;
 /// One account-rankings row shared by overview cards, their spotlight and Full Rankings. Opens the viewed
 /// player's profile (web row link to <c>/player/:accountId</c>).
 /// </summary>
-public sealed partial class RankingRowViewModel : ObservableObject
+public sealed partial class RankingRowViewModel : ObservableObject, ILeaderboardRankingRow
 {
     /// <summary>Creates a row.</summary>
     /// <param name="entry">Wire row.</param>
@@ -84,7 +85,7 @@ public sealed partial class RankingRowViewModel : ObservableObject
 
 #region Band row
 /// <summary>One band-rankings row. Opens Band Detail with the type and team key so it can use the safe rankings read.</summary>
-public sealed class BandRankingRowViewModel
+public sealed class BandRankingRowViewModel : ILeaderboardRankingRow
 {
     /// <summary>Creates a row.</summary>
     /// <param name="entry">Wire row.</param>
@@ -104,6 +105,20 @@ public sealed class BandRankingRowViewModel
 
     /// <summary>Board's band size.</summary>
     public BandType BandType { get; }
+
+    /// <summary>Band rows are never the selected player's own row.</summary>
+    public bool IsSelected => false;
+
+    /// <summary>Rank characters the board's rows share (web <c>computeRankWidth</c>); 0 = own width.</summary>
+    public int RankChars { get; set; }
+
+    /// <summary>Gives a board's rows one rank width: the longest rank text among them.</summary>
+    /// <param name="rows">Board rows.</param>
+    public static void ShareRankWidth(IReadOnlyList<BandRankingRowViewModel> rows)
+    {
+        var chars = LeaderboardColumns.Widest(rows.Select(r => r.RankText));
+        foreach (var row in rows) row.RankChars = chars;
+    }
 
     /// <summary>Displayed metric.</summary>
     public BandRankingMetric Metric { get; }
@@ -311,7 +326,7 @@ public sealed partial class RankingSpotlightViewModel : ObservableObject
 /// <summary>First/Previous/"page / total"/Next/Last control shared by every paginated board.</summary>
 /// <param name="idPrefix">Automation ID prefix, e.g. <c>fst.full-rankings</c>.</param>
 /// <param name="move">Page change.</param>
-public sealed partial class RankingsPagerViewModel(string idPrefix, Func<int, Task> move) : ObservableObject
+public sealed partial class RankingsPagerViewModel(string idPrefix, Func<int, Task> move) : ObservableObject, IBoardPager
 {
     /// <summary>Automation ID prefix.</summary>
     public string IdPrefix { get; } = idPrefix;
@@ -371,5 +386,13 @@ public sealed partial class RankingsPagerViewModel(string idPrefix, Func<int, Ta
     /// <returns>Move task.</returns>
     [RelayCommand(CanExecute = nameof(CanGoForward))]
     private Task LastAsync() => move(TotalPages);
+
+    ICommand IBoardPager.FirstCommand => FirstCommand;
+
+    ICommand IBoardPager.PreviousCommand => PreviousCommand;
+
+    ICommand IBoardPager.NextCommand => NextCommand;
+
+    ICommand IBoardPager.LastCommand => LastCommand;
 }
 #endregion

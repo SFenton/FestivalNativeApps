@@ -425,7 +425,11 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
                 Route = new AppRoute.SongLeaderboard(Song.SongId, Instrument, (detail.Rank.Value - 1) / 25 + 1),
             });
         }
-        Rows = rows;
+        // One rank and score width for the card, including row eleven (web computeRankWidth / scoreWidth).
+        var rankChars = LeaderboardColumns.Widest(rows.Select(r => r.RankText));
+        var scoreChars = LeaderboardColumns.Widest(rows.Select(r => r.Score));
+        var instrumentId = Instrument.ServiceId();
+        Rows = [.. rows.Select(r => r with { InstrumentId = instrumentId, RankChars = rankChars, ScoreChars = scoreChars })];
         HasPlayerRow = rows.Any(r => r.IsSelectedPlayer);
     }
 
@@ -434,7 +438,7 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
 
     /// <summary>Load lifecycle.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsLoading), nameof(ShowRows), nameof(ShowEmpty), nameof(ShowError))]
+    [NotifyPropertyChangedFor(nameof(IsLoading), nameof(ShowRows), nameof(ShowEmpty), nameof(ShowError), nameof(ShowPlaceholder))]
     private LoadState state = LoadState.Idle;
 
     /// <summary>Rows.</summary>
@@ -446,6 +450,9 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
 
     /// <summary>Whether rows are shown.</summary>
     public bool ShowRows => State == LoadState.Loaded;
+
+    /// <summary>Whether the chart's own card shows (loading, empty or failed); loaded rows are separate frosted rows.</summary>
+    public bool ShowPlaceholder => State != LoadState.Loaded;
 
     /// <summary>Whether "No scores yet" is shown.</summary>
     public bool ShowEmpty => State == LoadState.Empty;
@@ -508,10 +515,35 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
 
 /// <summary>Display projection of one leaderboard entry.</summary>
 /// <param name="Entry">Wire row.</param>
-public sealed record LeaderboardRow(LeaderboardEntry Entry)
+public sealed record LeaderboardRow(LeaderboardEntry Entry) : ILeaderboardScoreRow
 {
     /// <summary><c>#1</c>.</summary>
     public string Rank => ScoreFormatting.Rank(Entry.Rank);
+
+    /// <inheritdoc />
+    public string RankText => Rank;
+
+    /// <inheritdoc />
+    public bool IsSelected => IsSelectedPlayer;
+
+    /// <summary>Card's chart (<see cref="InstrumentInfo.ServiceId"/>), part of the automation ID.</summary>
+    public string InstrumentId { get; init; } = "";
+
+    /// <inheritdoc />
+    public int RankChars { get; init; }
+
+    /// <inheritdoc />
+    public int ScoreChars { get; init; }
+
+    /// <summary>Season text (<c>S15</c>), or empty (web <c>SeasonPill</c>; shown on wide cards).</summary>
+    public string Season => Entry.Season is { } s ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"S{s}") : "";
+
+    /// <summary>Song Detail previews show no stars (web <c>InstrumentCard</c>).</summary>
+    public int StarCount => 0;
+
+    /// <summary>UIA automation ID (<c>fst.song-detail.preview-row.&lt;instrument&gt;.&lt;accountId&gt;</c>, Apple/Android).</summary>
+    public string AutomationId => $"fst.song-detail.preview-row.{InstrumentId}." +
+                                  (string.IsNullOrEmpty(Entry.AccountId) ? "rank-" + Entry.Rank : Entry.AccountId);
 
     /// <summary>Display name, or a neutral placeholder.</summary>
     public string Name => string.IsNullOrWhiteSpace(Entry.DisplayName) ? "Unknown player" : Entry.DisplayName!;

@@ -256,7 +256,7 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
 /// <summary>One solo chart row. The selected player opens Statistics; everyone else opens their profile.</summary>
 /// <param name="Entry">Wire row (or the selected player's synthetic row).</param>
 /// <param name="IsSelected">Whether this is the selected player.</param>
-public sealed record SongLeaderboardRowViewModel(LeaderboardEntry Entry, bool IsSelected)
+public sealed record SongLeaderboardRowViewModel(LeaderboardEntry Entry, bool IsSelected) : ILeaderboardScoreRow
 {
     /// <summary><c>#1,234</c>, or an em dash when unranked.</summary>
     public string RankText => Entry.Rank > 0 ? ScoreFormatting.Rank(Entry.Rank) : "—";

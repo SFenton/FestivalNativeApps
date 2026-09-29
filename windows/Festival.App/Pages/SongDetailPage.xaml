@@ -6,37 +6,10 @@
     xmlns:vm="using:Festival.Core.ViewModels"
     Background="Transparent">
     <Page.Resources>
-        <!-- Score-history list/detail row (web LeaderboardEntry with a date label): date, season pill, score, accuracy badge.
-             The personal best is purple with a bold date (web scoreListCardBestStyle + isPlayer). -->
+        <!-- Score-history list/detail row (web LeaderboardEntry with a date label) in the shared leaderboard row: date, season,
+             score, accuracy badge; the personal best is purple with a bold date (web scoreListCardBestStyle + isPlayer). -->
         <DataTemplate x:Key="HistoryRowTemplate" x:DataType="vm:ScoreHistoryListRow">
-            <Grid ColumnSpacing="12" MinHeight="48" Padding="16,0" CornerRadius="8" BorderThickness="1"
-                  Background="{x:Bind controls:SongDetailVisuals.RowFill(IsBest)}"
-                  BorderBrush="{x:Bind controls:SongDetailVisuals.RowStroke(IsBest)}"
-                  AutomationProperties.Name="{x:Bind Announcement}">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="64" />
-                </Grid.ColumnDefinitions>
-                <TextBlock Text="{x:Bind Date}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                           FontWeight="{x:Bind controls:SongDetailVisuals.Weight(IsBest)}" />
-                <Border Grid.Column="1" CornerRadius="4" Padding="6,1" VerticalAlignment="Center"
-                        Background="{ThemeResource FSTSurfaceMutedBrush}" Visibility="{x:Bind HasSeason}">
-                    <TextBlock Text="{x:Bind Season}" FontSize="12" />
-                </Border>
-                <TextBlock Grid.Column="2" Text="{x:Bind Score}" VerticalAlignment="Center" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                <Border Grid.Column="3" CornerRadius="8" Padding="4,1" Width="56" HorizontalAlignment="Right"
-                        VerticalAlignment="Center" BorderThickness="2"
-                        Background="{x:Bind controls:ScoreBadge.Fill(IsFullCombo, AccuracyValue)}"
-                        BorderBrush="{x:Bind controls:ScoreBadge.Stroke(IsFullCombo)}"
-                        RenderTransform="{x:Bind controls:ScoreBadge.Skew(IsFullCombo)}"
-                        Visibility="{x:Bind HasAccuracy}">
-                    <TextBlock Text="{x:Bind Accuracy}" FontSize="12" FontWeight="Bold" HorizontalAlignment="Center"
-                               Foreground="{x:Bind controls:ScoreBadge.Text(IsFullCombo)}"
-                               FontStyle="{x:Bind controls:ScoreBadge.Style(IsFullCombo)}" />
-                </Border>
-            </Grid>
+            <controls:LeaderboardEntryRow Row="{x:Bind}" />
         </DataTemplate>
     </Page.Resources>
 
@@ -255,77 +228,41 @@
                                 <StackPanel Spacing="8">
                                     <controls:CardHeader Title="{x:Bind Title}" IconFile="{x:Bind IconFile}" HeadingLevel="Level3" MinHeight="44"
                                                          Subtitle="{x:Bind TotalEntriesText, Mode=OneWay}" />
-                                    <Border Style="{StaticResource FSTCardStyle}" MinHeight="96">
-                                        <StackPanel Spacing="8">
-                                            <ProgressRing IsActive="{x:Bind IsLoading, Mode=OneWay}" HorizontalAlignment="Left" Width="24" Height="24"
-                                                          Visibility="{x:Bind IsLoading, Mode=OneWay}" />
-                                            <TextBlock Text="{x:Bind EmptyText}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}" TextWrapping="Wrap"
-                                                       Style="{StaticResource BodyTextBlockStyle}" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-                                            <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8"
-                                                        AutomationProperties.AutomationId="fst.service-status.inline">
-                                                <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                                <TextBlock Text="{x:Bind Status.Message, Mode=OneWay}" TextWrapping="Wrap" />
-                                                <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
+                                    <!-- No card around the rows: each is its own frosted row (web InstrumentCard cardBody,
+                                         operator batch 7.7); loading, empty and failed charts sit on their own card. -->
+                                    <StackPanel Spacing="4">
+                                        <Border Style="{StaticResource FSTCardStyle}" MinHeight="96" Visibility="{x:Bind ShowPlaceholder, Mode=OneWay}">
+                                            <StackPanel Spacing="8">
+                                                <ProgressRing IsActive="{x:Bind IsLoading, Mode=OneWay}" HorizontalAlignment="Left" Width="24" Height="24"
+                                                              Visibility="{x:Bind IsLoading, Mode=OneWay}" />
+                                                <TextBlock Text="{x:Bind EmptyText}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}" TextWrapping="Wrap"
+                                                           Style="{StaticResource BodyTextBlockStyle}" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                                                <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8"
+                                                            AutomationProperties.AutomationId="fst.service-status.inline">
+                                                    <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                                    <TextBlock Text="{x:Bind Status.Message, Mode=OneWay}" TextWrapping="Wrap" />
+                                                    <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
+                                                </StackPanel>
                                             </StackPanel>
-                                            <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}"
-                                                           Visibility="{x:Bind ShowRows, Mode=OneWay}" controls:RowSeparators.Enabled="True"
-                                                           controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="40">
-                                                <ItemsRepeater.Layout>
-                                                    <StackLayout Spacing="0" />
-                                                </ItemsRepeater.Layout>
-                                                <ItemsRepeater.ItemTemplate>
-                                                    <!-- A row is a button across the card (full-row hover): top-ten rows open the player,
-                                                         the player's own row eleven opens the full board at their page (web
-                                                         InstrumentCardRowLink). Hairlines between rows; in-card chevron (operator 7.3). -->
-                                                    <DataTemplate x:DataType="vm:LeaderboardRow">
-                                                        <Grid>
-                                                        <Button Tag="{x:Bind}" Click="OnRowClick" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
-                                                                Padding="8,0" MinHeight="40" CornerRadius="6" BorderThickness="1"
-                                                                Background="{x:Bind controls:SongDetailVisuals.Fill(IsSelectedPlayer)}"
-                                                                BorderBrush="{x:Bind controls:SongDetailVisuals.Stroke(IsSelectedPlayer)}"
-                                                                AutomationProperties.Name="{x:Bind Announcement}">
-                                                        <Grid ColumnSpacing="12">
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="56" />
-                                                                <ColumnDefinition Width="*" />
-                                                                <ColumnDefinition Width="Auto" />
-                                                                <ColumnDefinition Width="56" />
-                                                                <ColumnDefinition Width="Auto" />
-                                                            </Grid.ColumnDefinitions>
-                                                            <TextBlock Text="{x:Bind Rank}" VerticalAlignment="Center" Style="{StaticResource FSTSecondaryTextStyle}"
-                                                                       FontWeight="{x:Bind controls:SongDetailVisuals.Weight(IsSelectedPlayer)}" />
-                                                            <TextBlock Grid.Column="1" Text="{x:Bind Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                                                                       FontWeight="{x:Bind controls:SongDetailVisuals.Weight(IsSelectedPlayer)}" />
-                                                            <TextBlock Grid.Column="2" Text="{x:Bind Score}" VerticalAlignment="Center"
-                                                                       Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                                            <!-- Score first, then the accuracy badge (fixed "XX.X%" width, operator 7.1): gold
-                                                                 skewed outline for FC (web goldOutlineSkew), tinted pill otherwise. -->
-                                                            <Border Grid.Column="3" CornerRadius="8" Padding="4,1" Width="56" HorizontalAlignment="Right"
-                                                                    VerticalAlignment="Center" BorderThickness="2"
-                                                                    Background="{x:Bind controls:ScoreBadge.Fill(IsFullCombo, AccuracyValue)}"
-                                                                    BorderBrush="{x:Bind controls:ScoreBadge.Stroke(IsFullCombo)}"
-                                                                    RenderTransform="{x:Bind controls:ScoreBadge.Skew(IsFullCombo)}"
-                                                                    Visibility="{x:Bind HasAccuracy}">
-                                                                <TextBlock Text="{x:Bind Accuracy}" FontSize="12" FontWeight="Bold" HorizontalAlignment="Center"
-                                                                           TextTrimming="Clip" TextWrapping="NoWrap"
-                                                                           Foreground="{x:Bind controls:ScoreBadge.Text(IsFullCombo)}"
-                                                                           FontStyle="{x:Bind controls:ScoreBadge.Style(IsFullCombo)}" />
-                                                            </Border>
-                                                            <FontIcon Grid.Column="4" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center"
-                                                                      Foreground="{ThemeResource FSTSecondaryTextBrush}" AutomationProperties.AccessibilityView="Raw" />
-                                                        </Grid>
-                                                        </Button>
-                                                        <Border x:Name="RowSeparator" Height="1" VerticalAlignment="Top" Margin="8,0" Visibility="Collapsed"
-                                                                Background="{ThemeResource FSTRowSeparatorBrush}" IsHitTestVisible="False" />
-                                                        </Grid>
-                                                    </DataTemplate>
-                                                </ItemsRepeater.ItemTemplate>
-                                            </ItemsRepeater>
-                                            <Button Content="View Full Leaderboard" Tag="{x:Bind}" Click="OnViewFull" Style="{StaticResource FSTViewAllButtonStyle}"
-                                                    Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName}"
-                                                    AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
-                                        </StackPanel>
-                                    </Border>
+                                        </Border>
+                                        <!-- Top-ten rows open the player; the player's own row eleven opens the full board at their
+                                             page (web InstrumentCardRowLink). -->
+                                        <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}"
+                                                       Visibility="{x:Bind ShowRows, Mode=OneWay}"
+                                                       controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52">
+                                            <ItemsRepeater.Layout>
+                                                <StackLayout Spacing="4" />
+                                            </ItemsRepeater.Layout>
+                                            <ItemsRepeater.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:LeaderboardRow">
+                                                    <controls:LeaderboardEntryRow Row="{x:Bind}" />
+                                                </DataTemplate>
+                                            </ItemsRepeater.ItemTemplate>
+                                        </ItemsRepeater>
+                                        <Button Content="View Full Leaderboard" Tag="{x:Bind}" Click="OnViewFull" Style="{StaticResource FSTViewAllButtonStyle}"
+                                                Margin="0,4,0,0" Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName}"
+                                                AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
+                                    </StackPanel>
                                 </StackPanel>
                             </controls:AccessibleGroup>
                         </DataTemplate>

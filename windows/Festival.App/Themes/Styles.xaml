@@ -28,6 +28,21 @@
             <SolidColorBrush x:Key="FSTMeterEmptyBrush" Color="#FF666666" />
             <!-- Loading indicators are white/neutral, never the accent (audit 6; web loader spinner). -->
             <SolidColorBrush x:Key="FSTLoadingBrush" Color="#FFFFFFFF" />
+            <!-- Leaderboard rows (Controls/LeaderboardEntryRow, operator batch 7.7): the selected player's row is the web's
+                 purpleHighlight fill + purpleHighlightBorder; rankings ratings are accentBlueBright; the row whose
+                 destination fills a detail column gets the muted surface. -->
+            <SolidColorBrush x:Key="FSTPlayerRowBrush" Color="#BF4B0F63" />
+            <SolidColorBrush x:Key="FSTPlayerRowStrokeBrush" Color="#807C3AED" />
+            <SolidColorBrush x:Key="FSTPlayerRowTextBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="FSTCurrentRowBrush" Color="#E6223047" />
+            <SolidColorBrush x:Key="FSTRatingTextBrush" Color="#FF4C7DFF" />
+            <!-- Board pager (web Paginator): textSecondary chevrons and page text, cardBackground page badge. -->
+            <SolidColorBrush x:Key="FSTPagerGlyphBrush" Color="#FFD7DEE8" />
+            <SolidColorBrush x:Key="FSTPagerBadgeBrush" Color="#FF0B1220" />
+            <!-- Opaque stand-ins for the web's frosted surfaces on controls that float over scrolling rows (pager buttons,
+                 pinned row backplate): a solid colour instead of a per-frame backdrop blur. -->
+            <SolidColorBrush x:Key="FSTPagerButtonBrush" Color="#FF121826" />
+            <SolidColorBrush x:Key="FSTFloatingBackplateBrush" Color="#FF0B1220" />
             <!--
                 Shell chrome over the artwork backdrop (MainWindow): the docked pane and the content area are transparent,
                 so the backdrop's dim scrim is the only layer (no Mica, no LayerFill, no 1 px content border). The pane
@@ -72,6 +87,16 @@
             <SolidColorBrush x:Key="FSTMeterFilledBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTMeterEmptyBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
             <SolidColorBrush x:Key="FSTLoadingBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <!-- Selection semantics: the selected player's row is Highlight / HighlightText like a selected list item. -->
+            <SolidColorBrush x:Key="FSTPlayerRowBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="FSTPlayerRowStrokeBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="FSTPlayerRowTextBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="FSTCurrentRowBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="FSTRatingTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTPagerGlyphBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
+            <SolidColorBrush x:Key="FSTPagerBadgeBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="FSTPagerButtonBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
+            <SolidColorBrush x:Key="FSTFloatingBackplateBrush" Color="{ThemeResource SystemColorWindowColor}" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 

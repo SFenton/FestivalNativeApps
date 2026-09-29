@@ -42,7 +42,7 @@
             <SelectorBarItem Text="Quads" AutomationProperties.AutomationId="fst.song-band-leaderboard.band-type.Band_Quad" />
         </SelectorBar>
 
-        <Grid Grid.Row="2">
+        <Grid Grid.Row="2" Grid.RowSpan="2">
             <ListView x:Name="Rows" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="56" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
                       SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnRowClick" Padding="0,0,0,16" MaxWidth="1200"
                       AutomationProperties.Name="Band scores" AutomationProperties.AutomationId="fst.song-band-leaderboard.list">
@@ -139,7 +139,8 @@
             </StackPanel>
         </Grid>
 
-        <controls:BandsPager Grid.Row="3" Pager="{x:Bind ViewModel.Pager, Mode=OneWay}" IdPrefix="fst.song-band-leaderboard"
-                             Margin="0,8,0,12" />
+        <!-- Shared board pager floating over the rows (web FixedLeaderboardPagination; operator batch 7.4). -->
+        <controls:LeaderboardsPager x:Name="Footer" Grid.Row="2" Grid.RowSpan="2" VerticalAlignment="Bottom" Margin="0,0,0,12"
+                                    Pager="{x:Bind ViewModel.Pager, Mode=OneWay}" IdPrefix="fst.song-band-leaderboard" />
     </Grid>
 </Page>

@@ -7,7 +7,6 @@
       "waitfor:id=fst.player.overview@20",
       "scroll:id=fst.player.available,down",
       "scroll:id=fst.player.available,down",
-      "scroll:id=fst.player.available,down",
       "waitfor:id=fst.player.rank-history.Solo_Guitar@20",
       "focus:id=fst.player.rank-history.Solo_Guitar",
       "wait:1",
@@ -34,9 +33,11 @@
       "scroll:id=fst.song-detail,down",
       "scroll:id=fst.song-detail,down",
       "scroll:id=fst.song-detail,down",
-      "waitfor:id=fst.song-detail.view-all.Solo_Guitar@15",
+      "scroll:id=fst.song-detail,down",
+      "scroll:id=fst.song-detail,down",
+      "waitfor:id=fst.song-detail.view-all.Solo_Drums@15",
       "shot:{shots}\\polish-song-detail.png",
-      "invoke:id=fst.song-detail.view-all.Solo_Guitar",
+      "invoke:id=fst.song-detail.view-all.Solo_Drums",
       "waitfor:id=fst.song-leaderboard.list@15"
     ]
   },
@@ -83,6 +84,8 @@
       "waitfor:id=fst.song-detail.pinned-paths@10",
       "shot:{shots}\\polish-song-detail-pinned.png",
       "invoke:id=fst.song-detail.pinned-paths",
+      "waitfor:name=OK@5",
+      "invoke:name=OK",
       "waitfor:id=fst.paths@10",
       "key:esc"
     ]

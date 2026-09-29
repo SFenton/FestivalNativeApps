@@ -8,7 +8,7 @@
 - Header: 72 px song art (the shell background switches to the static song cover), `<Size> Leaderboard` (heading 1), song title as a link to Song Detail, `artist · year · duration`, `<Size> · N entries`.
 - Band size switcher: Fluent `SelectorBar` (Duos · Trios · Quads) switching in place and returning to page 1.
 - Rows (`ListView`, virtualized): rank, each member's instrument icons + name + per-song member score, team score, FC badge (gold outline), accuracy pill, star images (`StarRow`). A row opens `AppRoute.Band(bandId, bandType, teamKey)`.
-- Paging with the shared `BandsPager`; empty state `No band scores found` / `No <Size> scores have been recorded for this song yet.`; failure via `ServiceStatusView`. Late responses for an older size/page are discarded.
+- Paging with the shared board pager (`LeaderboardsPager`, operator batch 7.4; floating over the rows); empty state `No band scores found` / `No <Size> scores have been recorded for this song yet.`; failure via `ServiceStatusView`. Late responses for an older size/page are discarded.
 
 ## Evidence
 

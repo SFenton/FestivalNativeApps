@@ -13,7 +13,7 @@
 - Each card's header sits **above** the card surface like the web's `RankingCard` `cardLabel`, inside the same named UIA group (`Controls/CardHeader`): 36 px instrument icon + name only (no metric subtitle: the Rank By button names it); Duos/Trios/Quads headers have no icon. Cards and rows stagger in (`FadeIn`).
 - F5 reloads every card.
 - Page-ready gate (operator batch 6.41): one ring until the first four instrument cards settle (`IsReady`), then the cards stagger in; a Rank By change repeats it. Rank By loads once (it used to reload every card twice via the settings-change event).
-- Cards of rows (operator batch 6.4/6.5/6.42): 4 epx card inset, rows with 12 epx sides and hairlines between them, left-aligned shared-width ranks, bold selected-player rows (see [design/windows.md](../../design/windows.md)). The "Bands" heading is 26 epx, a size above the Duos/Trios/Quads card headers (6.8).
+- One leaderboard row design (operator batch 7.7): no card around a chart's rows; each is its own frosted `LeaderboardEntryRow` (4 epx apart, shared-width ranks, `X / Y` then the blue rating, purple bold selected-player row); empty or failed charts and the unranked note sit on their own card (see [design/windows.md](../../design/windows.md)). The "Bands" heading is 26 epx, a size above the Duos/Trios/Quads card headers (6.8).
 
 ## Layout
 

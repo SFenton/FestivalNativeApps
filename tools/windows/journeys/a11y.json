@@ -71,14 +71,14 @@
     "name": "full-rankings",
     "route": "/leaderboards/all?instrument=Solo_Guitar",
     "ready": [
-      "waitfor:id=fst.full-rankings.page-info@20"
+      "waitfor:id=fst.full-rankings.list@20"
     ]
   },
   {
     "name": "band-rankings",
     "route": "/leaderboards/bands/Band_Duets",
     "ready": [
-      "waitfor:id=fst.band-rankings.page-info@20"
+      "waitfor:id=fst.band-rankings.list@20"
     ]
   },
   {
@@ -274,7 +274,7 @@
     ],
     "tabs": 0,
     "ready": [
-      "waitfor:id=fst.full-rankings.page-info@20"
+      "waitfor:id=fst.full-rankings.list@20"
     ],
     "after_ready": [
       "focus:id=fst.rankings.rank-by-menu",

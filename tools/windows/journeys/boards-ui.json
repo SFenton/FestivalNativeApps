@@ -1,0 +1,63 @@
+[
+  {
+    "name": "song-board-pager-keyboard-and-rows",
+    "route": "/songs/fixture-pulse/Solo_Guitar",
+    "preset": "medium",
+    "steps": [
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-2@20",
+      "waitfor:id=fst.song-leaderboard.page-info@10",
+      "focus:id=fst.song-leaderboard.page-next",
+      "key:right",
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-26@10",
+      "shot:{shots}/song-board-page2.png",
+      "key:home",
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-2@10",
+      "key:end",
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-26@10",
+      "key:left",
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-2@10",
+      "key:ctrl+right",
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-26@10",
+      "key:ctrl+left",
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-2@10",
+      "invoke:id=fst.song-leaderboard.row.fixture-player-2",
+      "waitfor:id=fst.player.name@15"
+    ]
+  },
+  {
+    "name": "rankings-rows-open-profile",
+    "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "preset": "compact",
+    "steps": [
+      "waitfor:id=fst.full-rankings.list@20",
+      "waitfor:id=fst.rankings.row.fixture-player-2@10",
+      "invoke:id=fst.rankings.row.fixture-player-2",
+      "waitfor:id=fst.player.name@15"
+    ]
+  },
+  {
+    "name": "song-detail-preview-row-opens-player",
+    "route": "/songs/fixture-pulse",
+    "preset": "wide",
+    "steps": [
+      "waitfor:id=fst.song-detail.title@20",
+      "scroll:id=fst.song-detail.title,-30",
+      "waitfor:id=fst.song-detail.preview-row.Solo_Drums.fixture-player-2@10",
+      "invoke:id=fst.song-detail.preview-row.Solo_Drums.fixture-player-2",
+      "waitfor:id=fst.player.name@15"
+    ]
+  },
+  {
+    "name": "player-bands-shared-pager",
+    "route": "/bands/player/fixture-player-1",
+    "preset": "compact",
+    "steps": [
+      "waitfor:id=fst.player-bands.row.fixture-band-1@15",
+      "focus:id=fst.player-bands.page-next",
+      "key:right",
+      "waitfor:id=fst.player-bands.row.fixture-pband-quad-1@10",
+      "key:left",
+      "waitfor:id=fst.player-bands.row.fixture-band-1@10"
+    ]
+  }
+]

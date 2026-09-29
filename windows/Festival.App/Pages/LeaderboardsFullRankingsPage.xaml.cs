@@ -29,6 +29,7 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
     public LeaderboardsFullRankingsPage()
     {
         InitializeComponent();
+        BoardFooter.Inset(Footer, RowsRepeater);
         SizeChanged += (_, e) => ApplySplit(e.NewSize.Width >= SplitWidth);
     }
 
@@ -145,20 +146,20 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
     /// <param name="args">Row.</param>
     private void OnRowPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
     {
-        if (args.Element is LeaderboardsRankingRow row) row.IsCurrent = split && IsCurrent(row);
+        if (args.Element is LeaderboardEntryRow row) row.IsCurrent = split && IsCurrent(row);
     }
 
     /// <summary>Re-marks every realized row.</summary>
     private void MarkCurrentRows()
     {
         for (var i = 0; i < VisualTreeHelper.GetChildrenCount(RowsRepeater); i++)
-            if (VisualTreeHelper.GetChild(RowsRepeater, i) is LeaderboardsRankingRow row) row.IsCurrent = split && IsCurrent(row);
+            if (VisualTreeHelper.GetChild(RowsRepeater, i) is LeaderboardEntryRow row) row.IsCurrent = split && IsCurrent(row);
     }
 
     /// <summary>Whether a row's player is the one in the detail column.</summary>
     /// <param name="row">Row.</param>
     /// <returns><see langword="true"/> for the shown player.</returns>
-    private bool IsCurrent(LeaderboardsRankingRow row) => row.Route is AppRoute.Player p && p.AccountId == detailAccountId;
+    private bool IsCurrent(LeaderboardEntryRow row) => row.Route is AppRoute.Player p && p.AccountId == detailAccountId;
     #endregion
 
     /// <summary>Builds instrument radio items (Settings-visible charts plus the current one).</summary>
