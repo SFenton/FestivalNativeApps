@@ -72,6 +72,7 @@
         <StackPanel x:Name="Footer" Grid.RowSpan="3" VerticalAlignment="Bottom" Spacing="8">
             <StackPanel Spacing="4" Visibility="{x:Bind ViewModel.ShowSpotlight, Mode=OneWay}">
                 <Button HorizontalAlignment="Right" MinHeight="32" Command="{x:Bind ViewModel.JumpCommand}"
+                        Background="{ThemeResource FSTPagerButtonBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}"
                         Visibility="{x:Bind ViewModel.CanJump, Mode=OneWay}"
                         ToolTipService.ToolTip="Jump to your page" AutomationProperties.Name="Jump to your page"
                         AutomationProperties.AutomationId="fst.song-leaderboard.spotlight-jump">

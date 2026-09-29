@@ -25,4 +25,8 @@
 | Two populated columns: Songs, Full Rankings, Band Rankings, All Rivals | win-shell2 / win-next `070f4ea0` (Rivals hub: masonry columns) |
 | Expanded NavigationView pane (no title in the pane, first item aligned with the page title, transparent) | Verified 2026-09-29 (no repro) |
 | Web-parity Songs filter (6.32 / 7.17) | win-next `cd06f0b1` |
+| One leaderboard design (7.7) and the web pager (7.4) | win-unify `d56aecfb` (`Controls/LeaderboardEntryRow`, `LeaderboardsPager` over `IBoardPager`) |
+| Over CHOpt Threshold Songs filter; Songs resolve invalid scores instead of pausing | win-unify `c508ca49` |
+| Contrast-theme status/chip/brand colour decision | win-unify `cc6ac1fc` ([design/windows.md](../design/windows.md)) |
+| Android accessibility learnings mirrored; a11y pass 3; Narrator script steps 13–19 | win-unify `0d3c458e` |
 | Paths journeys after `7f45f884` | win-next `cd06f0b1`, `6a4a1033` |
