@@ -288,7 +288,7 @@ public class SongScoreHistoryViewModelTests
         Assert.Equal("No score history for Lead", vm.EmptyMessage);
         Assert.Equal("Score ↓", vm.SortLabel);
         Assert.Equal("Sort scores by Score, descending", vm.SortAnnouncement);
-        Assert.Equal(("Score History", "View all scores"), (vm.Title, vm.ViewAllLabel));
+        Assert.Equal(("Score History", "View All Scores"), (vm.Title, vm.ViewAllLabel));
         Assert.StartsWith("Select a bar", vm.Subtitle);
         Assert.False(vm.KeyboardLead);
 
@@ -443,6 +443,20 @@ public class SongDetailHistoryPageTests
         await vm.LoadAsync();
         Assert.All(vm.Leaderboards, c => Assert.True(c.ShowRows));
         Assert.Single(service.Handler.To("/api/leaderboard/s1/Solo_Bass"));
+    }
+
+    [Fact]
+    public async Task RowWithoutAccount_HasNoRoute()
+    {
+        var service = new FakeService
+        {
+            Override = r => r.RequestUri!.AbsolutePath.EndsWith("/all", StringComparison.Ordinal)
+                ? Wire.Ok(Wire.AllLeaderboards("s1", 1).Replace("\"accountId\":\"a1\"", "\"accountId\":\"\""), ("X-FST-Publication-Id", "7"))
+                : null,
+        };
+        var vm = new SongDetailViewModel(service.Session(), new AppRoute.SongDetail("s1"));
+        await vm.LoadAsync();
+        Assert.Null(vm.Leaderboards[0].Rows[0].Route);
     }
 
     [Fact]

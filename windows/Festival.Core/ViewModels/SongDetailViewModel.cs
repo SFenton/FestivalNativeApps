@@ -351,6 +351,12 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
     /// <summary>Icon file.</summary>
     public string IconFile => Instrument.IconFile(Song.UsesKeyboardIcon);
 
+    /// <summary>Player-profile route for a top-ten row (none without an account).</summary>
+    /// <param name="entry">Row.</param>
+    /// <returns>Route or <see langword="null"/>.</returns>
+    private static AppRoute? PlayerRoute(LeaderboardEntry entry) =>
+        string.IsNullOrWhiteSpace(entry.AccountId) ? null : new AppRoute.Player(entry.AccountId, entry.DisplayName);
+
     /// <summary>Route for the full 25-row leaderboard.</summary>
     public AppRoute FullRoute => new AppRoute.SongLeaderboard(Song.SongId, Instrument);
 
@@ -399,7 +405,7 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
     private void ComposeRows()
     {
         var inTop = PlayerAccountId is { } id && topRows.Any(r => string.Equals(r.Entry.AccountId, id, StringComparison.OrdinalIgnoreCase));
-        List<LeaderboardRow> rows = [.. topRows];
+        List<LeaderboardRow> rows = [.. topRows.Select(r => r with { Route = PlayerRoute(r.Entry) })];
         if (!inTop && PlayerAccountId is { } account && playerDetail is { Rank: > PreviewSize } detail)
         {
             rows.Add(new LeaderboardRow(new LeaderboardEntry
@@ -412,7 +418,12 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
                 IsFullCombo = detail.IsFullCombo,
                 Stars = detail.Stars,
                 Season = detail.Season,
-            }) { IsSelectedPlayer = true });
+            })
+            {
+                IsSelectedPlayer = true,
+                // Web spotlight row: the full board at the player's page (25 rows a page).
+                Route = new AppRoute.SongLeaderboard(Song.SongId, Instrument, (detail.Rank.Value - 1) / 25 + 1),
+            });
         }
         Rows = rows;
         HasPlayerRow = rows.Any(r => r.IsSelectedPlayer);
@@ -522,6 +533,9 @@ public sealed record LeaderboardRow(LeaderboardEntry Entry)
 
     /// <summary>Whether this row is the selected player (highlighted).</summary>
     public bool IsSelectedPlayer { get; init; }
+
+    /// <summary>Where the row leads (player profile, or the full board for the player's own row eleven).</summary>
+    public AppRoute? Route { get; init; }
 
     /// <summary>Screen-reader summary.</summary>
     public string Announcement => $"Rank {Entry.Rank}, {Name}, {Score} points" +

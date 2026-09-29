@@ -220,6 +220,14 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
             FadeIn.Reset(args.Element);
     }
 
+    /// <summary>Opens a row's destination: the player, or the full board at the selected player's page (row eleven).</summary>
+    /// <param name="sender">Row button.</param>
+    /// <param name="e">Unused.</param>
+    private void OnRowClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: LeaderboardRow { Route: { } route } }) MainWindow.Instance?.Navigate(route);
+    }
+
     /// <summary>Opens a band-size leaderboard for this song.</summary>
     /// <param name="sender">Hyperlink.</param>
     /// <param name="e">Unused.</param>

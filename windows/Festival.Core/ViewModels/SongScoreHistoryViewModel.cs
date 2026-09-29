@@ -59,8 +59,8 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
     /// <summary>Card subtitle (web <c>chart.selectBarHint</c>).</summary>
     public string Subtitle => "Select a bar to see more score details.";
 
-    /// <summary>"View all scores" (web <c>chart.viewAllScores</c>).</summary>
-    public string ViewAllLabel => "View all scores";
+    /// <summary>"View All Scores" (web <c>chart.viewAllScores</c>, Title Case per the capitalization rule).</summary>
+    public string ViewAllLabel => "View All Scores";
 
     /// <summary>Phase.</summary>
     [ObservableProperty]

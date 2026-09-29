@@ -124,6 +124,8 @@ public class SongDetailSongsLaneTests
         var mine = lead.Rows[10];
         Assert.True(mine.IsSelectedPlayer);
         Assert.Equal("#30", mine.Rank);
+        Assert.Equal(new AppRoute.SongLeaderboard("s2", Instrument.Lead, 2), mine.Route); // the player's page of the full board
+        Assert.Equal(new AppRoute.Player("a1", "Player 1"), lead.Rows[0].Route);
         Assert.Equal("Fixture One", mine.Name);
         Assert.True(lead.HasPlayerRow);
         Assert.Equal("fst.song-detail.view-all.Solo_Guitar", lead.ViewAllAutomationId);
