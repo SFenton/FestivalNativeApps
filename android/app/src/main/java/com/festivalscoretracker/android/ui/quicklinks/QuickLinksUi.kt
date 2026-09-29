@@ -54,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.paneTitle
@@ -322,9 +323,9 @@ fun QuickLinksAction(controller: QuickLinksController, windowWidthDp: Int) {
                 controller.sections.forEach { section ->
                     val current = section.id == controller.activeId
                     DropdownMenuItem(
-                        text = { Text(section.title, fontWeight = if (current) FontWeight.Bold else null) },
+                        text = { Text(section.title, fontWeight = if (current) FontWeight.Bold else null, modifier = Modifier.clearAndSetSemantics {}) },
                         leadingIcon = { SectionIcon(section) },
-                        trailingIcon = if (current) ({ Text("Current", style = MaterialTheme.typography.labelSmall, color = BrandTokens.textSecondary) }) else null,
+                        trailingIcon = if (current) ({ Text("Current", style = MaterialTheme.typography.labelSmall, color = BrandTokens.textSecondary, modifier = Modifier.clearAndSetSemantics {}) }) else null,
                         onClick = {
                             open = false
                             controller.jump(section.id)
@@ -364,7 +365,7 @@ private fun SectionList(controller: QuickLinksController, modifier: Modifier, pa
         items(controller.sections, key = { it.id }) { section ->
             val current = section.id == controller.activeId
             NavigationDrawerItem(
-                label = { Text(section.title, maxLines = 2) },
+                label = { Text(section.title, maxLines = 2, modifier = Modifier.clearAndSetSemantics {}) },
                 icon = { SectionIcon(section) },
                 selected = current,
                 onClick = { onSelect(section.id) },
@@ -382,7 +383,10 @@ private fun SectionList(controller: QuickLinksController, modifier: Modifier, pa
     }
 }
 
-/** TalkBack: label plus a "Current section" state (the native `aria-current="location"`). */
+/**
+ * TalkBack: label plus a "Current section" state (the native `aria-current="location"`).
+ * The visible texts are hidden so the label is not read twice.
+ */
 private fun Modifier.currentSection(section: QuickLinkSection, current: Boolean): Modifier = semantics {
     contentDescription = section.accessibleTitle
     selected = current

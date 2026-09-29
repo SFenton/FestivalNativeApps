@@ -35,7 +35,7 @@ data class NotificationRow(val presentation: NotificationPresentation, val unrea
     val id: String get() = presentation.id
 
     /** TalkBack text: unread state, title, message and time. */
-    val accessibleText: String get() = (if (unread) "Unread. " else "") + "${presentation.title}. ${presentation.message} $timeText"
+    val accessibleText: String get() = (if (unread) "Unread. " else "") + "${presentation.title}. ${presentation.message.trimEnd('.')}. $timeText"
 }
 
 /** Notifications sheet states (control spec). */

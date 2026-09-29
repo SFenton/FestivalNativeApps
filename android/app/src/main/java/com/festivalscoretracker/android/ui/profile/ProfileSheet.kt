@@ -45,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
@@ -238,7 +239,8 @@ private fun SearchSection(viewModel: ProfileSearchViewModel, onOpen: (PlayerSear
 
 @Composable
 private fun Avatar(initials: String) {
-    Box(Modifier.size(40.dp).background(BrandTokens.accentPurple, CircleShape), contentAlignment = Alignment.Center) {
+    // Decorative: the name beside it is what TalkBack reads.
+    Box(Modifier.size(40.dp).background(BrandTokens.accentPurple, CircleShape).clearAndSetSemantics {}, contentAlignment = Alignment.Center) {
         Text(initials, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)
     }
 }

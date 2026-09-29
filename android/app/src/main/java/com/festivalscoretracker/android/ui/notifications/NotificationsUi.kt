@@ -272,11 +272,12 @@ private fun NotificationItem(row: NotificationRow, onClick: () -> Unit) {
             .clip(shape)
             .background(BrandTokens.surfaceSubtle, shape)
             .border(1.dp, BORDER_SUBTLE, shape)
-            .clickable(onClick = onClick)
+            // TalkBack: "Double-tap to open notification" on rows that go somewhere.
+            .clickable(onClickLabel = if (navigable) "Open notification" else null, onClick = onClick)
             .padding(10.dp)
             .testTag("fst.notifications.row.${row.id}")
             .clearAndSetSemantics {
-                contentDescription = row.accessibleText + if (navigable) " Open notification." else ""
+                contentDescription = row.accessibleText
                 notificationMediaKind = presentation.media.kindName
                 if (navigable) role = Role.Button
             },

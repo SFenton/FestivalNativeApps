@@ -285,7 +285,7 @@ class SettingsUiTest {
         // No catalogue art for this song in the fixture: the media rail falls back to the instrument icon.
         rule.onNodeWithTag("fst.notifications.row.n-song").assert(SemanticsMatcher.expectValue(NotificationMediaKind, "soloInstrument"))
         rule.onNodeWithTag("fst.notifications.row.n-song").assert(
-            SemanticsMatcher("open hint") { node -> node.config.getOrNull(SemanticsProperties.ContentDescription)?.single()?.endsWith("Open notification.") == true },
+            SemanticsMatcher("open hint") { node -> node.config.getOrNull(SemanticsActions.OnClick)?.label == "Open notification" },
         )
         rule.onNodeWithTag("fst.notifications.row.n-total").performSemanticsAction(SemanticsActions.OnClick) // no destination: stays open
         settle()
