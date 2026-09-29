@@ -383,14 +383,15 @@ public sealed partial class GlobalSearchViewModel : ObservableObject
                 ? response.Results.Where(r => !string.Equals(r.AccountId, selected, StringComparison.OrdinalIgnoreCase))
                 : response.Results;
             Players = GlobalSearchResults.Players(results, selected);
-            PlayersState = Players.Count > 0 ? LoadState.Loaded : LoadState.Empty;
+            // Status first: once the state flips, the query counts as settled and its status must already be current.
             PlayersStatus.Clear();
+            PlayersState = Players.Count > 0 ? LoadState.Loaded : LoadState.Empty;
         }
         catch (FestivalApiException error) when (!token.IsCancellationRequested)
         {
             Players = [];
-            PlayersState = LoadState.Failed;
             PlayersStatus.Report(error);
+            PlayersState = LoadState.Failed;
         }
     }
 
