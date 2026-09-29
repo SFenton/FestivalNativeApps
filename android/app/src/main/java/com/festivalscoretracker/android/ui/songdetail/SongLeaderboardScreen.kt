@@ -35,6 +35,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -104,7 +105,7 @@ fun SongLeaderboardRouteScreen(container: AppContainer, settings: AppSettings, r
         val page by boardViewModel.page.collectAsStateWithLifecycle()
         SyncRouteArguments(routeState, "page" to page)
     }
-    SongLeaderboardScreen(boardViewModel, settings.selectedPlayer?.accountId, container.selectedProfile.state, leeway, settings.visibleInstruments)
+    SongLeaderboardScreen(boardViewModel, settings.selectedPlayer?.accountId, container.selectedProfile.state, leeway, settings.visibleInstruments, api::artworkUrl)
 }
 
 /**
@@ -119,6 +120,7 @@ fun SongLeaderboardRouteScreen(container: AppContainer, settings: AppSettings, r
  * @param selectedProfile Selected player's process-only scores, or null.
  * @param visibleInstruments Settings-visible charts (the header's instrument switcher).
  * @param leeway Filter Invalid Scores leeway (the page is read with it; the spotlight shows the next valid score), or null.
+ * @param artworkUrl Artwork resolver for the song header.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -128,6 +130,7 @@ fun SongLeaderboardScreen(
     selectedProfile: StateFlow<SelectedProfileState>? = null,
     leeway: Double? = null,
     visibleInstruments: Set<Instrument> = Instrument.entries.toSet(),
+    artworkUrl: (String?) -> String? = { null },
 ) {
     val song by viewModel.song.collectAsStateWithLifecycle()
     val board by viewModel.board.collectAsStateWithLifecycle()
@@ -154,7 +157,15 @@ fun SongLeaderboardScreen(
 
     LaunchedEffect(page) { listState.scrollToItem(0) }
 
-    FestivalScreen(title = title, isRoot = false, modifier = Modifier.semantics { testTagsAsResourceId = true }) { padding ->
+    // The song header (art, title, artist, instrument) scrolls with the rows; the top bar
+    // takes the title once it has scrolled away (operator 7.8, like Song Detail).
+    val headerGone by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
+    FestivalScreen(
+        title = if (headerGone) title else "",
+        isRoot = false,
+        scrolled = headerGone,
+        modifier = Modifier.semantics { testTagsAsResourceId = true },
+    ) { padding ->
         val failed = board as? LoadState.Failed
         if (failed != null) {
             ServiceStatusView(failed.issue, "Leaderboard unavailable", failed.countdown, viewModel::retry, contentPadding = padding)
@@ -167,6 +178,7 @@ fun SongLeaderboardScreen(
             loadingOverlay = false,
             controls = {
                 val loadedSong = (song as? LoadState.Loaded)?.value
+                loadedSong?.let { SongHeader(it, artworkUrl(it.albumArt), artSize = 64.dp) }
                 val charts = loadedSong?.let { current -> Instrument.entries.filter { it in visibleInstruments && current.supports(it) } }.orEmpty()
                 InstrumentSwitcher(viewModel.instrument, charts) { chart ->
                     loadedSong?.let { navigate(SongLeaderboardRoute(it.songId, chart.wireId)) }

@@ -318,7 +318,7 @@ private val PAGE_GUTTER = 16.dp
  * overflow. One heading stop.
  */
 @Composable
-private fun SongHeader(song: Song, artUrl: String?) {
+internal fun SongHeader(song: Song, artUrl: String?, artSize: Dp = HEADER_ART) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -331,7 +331,7 @@ private fun SongHeader(song: Song, artUrl: String?) {
             model = artUrl,
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.size(HEADER_ART).clip(RoundedCornerShape(12.dp)).background(BrandTokens.surfaceMuted),
+            modifier = Modifier.size(artSize).clip(RoundedCornerShape(12.dp)).background(BrandTokens.surfaceMuted),
         )
         Column(Modifier.weight(1f).semantics(mergeDescendants = true) { heading() }) {
             FestivalMarqueeText(song.title, style = MaterialTheme.typography.headlineSmall, color = BrandTokens.textPrimary, fontWeight = FontWeight.Bold)

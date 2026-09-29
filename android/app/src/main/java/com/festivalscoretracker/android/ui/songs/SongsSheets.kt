@@ -12,7 +12,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
@@ -29,6 +28,13 @@ import com.festivalscoretracker.android.ui.design.DifficultyMeter
 import com.festivalscoretracker.android.ui.design.InstrumentSelector
 import com.festivalscoretracker.android.ui.design.StarRating
 import com.festivalscoretracker.android.ui.design.starsDescription
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -47,9 +53,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -109,7 +112,12 @@ private fun LiveSheet(
             SectionHeader(title, Modifier.testTag("$tag.title"))
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).testTag("$tag.form")) { content() }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 12.dp)) {
-                TextButton(onClick = onReset, modifier = Modifier.testTag("$tag.reset")) { Text("Reset") }
+                // Destructive action in red (operator 7.10).
+                TextButton(
+                    onClick = onReset,
+                    colors = ButtonDefaults.textButtonColors(contentColor = RESET_RED),
+                    modifier = Modifier.testTag("$tag.reset"),
+                ) { Text("Reset", fontWeight = FontWeight.SemiBold) }
                 Spacer(Modifier.weight(1f))
                 Button(onClick = onDismiss, modifier = Modifier.testTag("$tag.done")) { Text("Done") }
             }
@@ -155,16 +163,10 @@ fun SortSheet(state: SongsUiState, onApply: (SongSortDraft) -> Unit, onDismiss: 
                 }
             }
         }
-        SectionHeader("Direction")
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().testTag("fst.songs.sort.direction")) {
-            listOf(true to "Ascending", false to "Descending").forEachIndexed { index, (value, label) ->
-                SegmentedButton(
-                    selected = draft.ascending == value,
-                    onClick = { change(draft.copy(ascending = value)) },
-                    shape = SegmentedButtonDefaults.itemShape(index, 2),
-                    modifier = Modifier.testTag("fst.songs.sort.${label.lowercase()}"),
-                ) { Text(label) }
-            }
+        SectionHeader("Sort Direction")
+        Column(Modifier.selectableGroup().testTag("fst.songs.sort.direction")) {
+            DirectionRow("Ascending", "A–Z, low–high", Icons.Filled.ArrowUpward, draft.ascending, "fst.songs.sort.ascending") { change(draft.copy(ascending = true)) }
+            DirectionRow("Descending", "Z–A, high–low", Icons.Filled.ArrowDownward, !draft.ascending, "fst.songs.sort.descending") { change(draft.copy(ascending = false)) }
         }
         if (priority.isNotEmpty()) {
             SectionHeader("Metadata Sort Priority")
@@ -179,6 +181,35 @@ fun SortSheet(state: SongsUiState, onApply: (SongSortDraft) -> Unit, onDismiss: 
         }
     }
 }
+
+/**
+ * One direction choice (operator 7.21): the web's ↑/↓ circle (purple when chosen) with
+ * the direction as the title and its meaning as the subtitle.
+ */
+@Composable
+private fun DirectionRow(title: String, subtitle: String, icon: ImageVector, selected: Boolean, tag: String, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .testTag(tag),
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(40.dp).clip(CircleShape).background(if (selected) BrandTokens.accentPurple else BrandTokens.surfaceMuted),
+        ) { Icon(icon, contentDescription = null, tint = if (selected) BrandTokens.textPrimary else BrandTokens.textMuted, modifier = Modifier.size(20.dp)) }
+        Column(Modifier.weight(1f)) {
+            Text(title, color = BrandTokens.textPrimary, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary)
+        }
+    }
+}
+
+/** Web danger red for Reset text (readable on the dark sheet). */
+private val RESET_RED = Color(0xFFFF6B6B)
 
 @Composable
 private fun RadioRow(label: String, selected: Boolean, tag: String, leading: (@Composable () -> Unit)? = null, onClick: () -> Unit) {
@@ -409,12 +440,12 @@ private fun Hint(text: String, modifier: Modifier = Modifier) {
     Text(text, color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodySmall, modifier = modifier.padding(vertical = 4.dp))
 }
 
-/** Web `BulkActions`: Select All / Clear All. */
+/** Web `BulkActions` as trailing text actions on the section's header line (operator 7.17). */
 @Composable
 private fun BulkActions(tag: String, onSelectAll: () -> Unit, onClearAll: () -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        OutlinedButton(onClick = onSelectAll, modifier = Modifier.weight(1f).testTag("$tag.select-all")) { Text("Select All") }
-        OutlinedButton(onClick = onClearAll, modifier = Modifier.weight(1f).testTag("$tag.clear-all")) { Text("Clear All") }
+    Row(horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        TextButton(onClick = onSelectAll, modifier = Modifier.testTag("$tag.select-all")) { Text("Select All") }
+        TextButton(onClick = onClearAll, modifier = Modifier.testTag("$tag.clear-all")) { Text("Clear All") }
     }
 }
 
