@@ -51,6 +51,12 @@ class TalkBackWalkTests(unittest.TestCase):
         self.assertTrue(tw.is_text_field("Editing. Edit box. Search songs"))
         self.assertFalse(tw.is_text_field("Search. Button"))
 
+    def test_wrapped(self):
+        self.assertEqual(tw.wrapped(["A", "B"]), 0)
+        self.assertEqual(tw.wrapped(["A", "B", "A"]), 1)
+        self.assertEqual(tw.wrapped(["H", "A", "B", "C", "A", "B"]), 2)
+        self.assertEqual(tw.wrapped(["H", "More", "X", "More", "Y"]), 0)
+
     def test_input_device_by_name(self):
         out = ('add device 1: /dev/input/event13\n  name:     "qwerty2"\n'
                'add device 13: /dev/input/event1\n  name:     "AT Translated Set 2 keyboard"\n')

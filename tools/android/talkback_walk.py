@@ -112,6 +112,21 @@ def is_text_field(utterance: str) -> bool:
     return "Edit box" in utterance
 
 
+def wrapped(heard: list[str]) -> int:
+    """How many trailing items repeat the walk (0 while it is still new).
+
+    Focus came back to the first item (1), or the last two items repeat an
+    earlier consecutive pair (2): the walk started mid-screen and wrapped past
+    where it began. A single repeated item is not a wrap (repeated per-card
+    controls such as "View All Rivals").
+    """
+    if len(heard) > 1 and heard[-1] == heard[0]:
+        return 1
+    if len(heard) >= 4 and any(heard[i:i + 2] == heard[-2:] for i in range(len(heard) - 3)):
+        return 2
+    return 0
+
+
 def input_device(getevent_output: str, name: str) -> str | None:
     """The ``/dev/input`` path of a named device in ``getevent -pl`` output."""
     path = None
@@ -213,14 +228,15 @@ def walk(dev: device.Device, keyboard: str, swipe: str, limit: int) -> list[str]
         if len(now) == len(heard):
             stalls += 1
             # TalkBack may still be starting before the first utterance.
-            if stalls >= (3 if heard else 12):
+            if stalls >= (5 if heard else 12):
                 break
             continue
         stalls = 0
         heard = now
         print(f"{len(heard):3d} {heard[-1][:100]}", file=sys.stderr)
-        if len(heard) > 1 and heard[-1] == heard[0]:
-            heard.pop()
+        repeated = wrapped(heard)
+        if repeated:
+            del heard[-repeated:]
             break
     return heard
 
@@ -270,6 +286,10 @@ def run(args: argparse.Namespace) -> int:
         time.sleep(3)
         try:
             items = walk(dev, keyboard, swipe, args.max)
+            # Raw speech (every event type) for diagnosing a walk.
+            log = dev.adb("logcat", "-d", "-v", "brief", cap=30).stdout
+            speech = [line for line in log.splitlines() if "Speaking fragment" in line]
+            (out / f"{args.name}.log").write_text("\n".join(speech) + "\n", encoding="utf-8")
             if args.shot:
                 dev.screenshot(out / f"{args.name}.png")
         finally:
