@@ -46,8 +46,6 @@ struct SongsScreen: View {
     @State private var passedSectionHeaders: Set<String> = []
     /// The List has scrolled away from its top (the large title has collapsed).
     @State private var listScrolled = false
-    /// Bottom edge of the section bar (global), for masking rows under it.
-    @State private var sectionBarBottom: CGFloat = 0
     @Environment(\.openProfile) private var openProfile
     @Environment(\.deviceLayout) private var deviceLayout
     /// True where Filter/Sort live in the iPhone bottom dock instead of the toolbar.
@@ -417,13 +415,22 @@ struct SongsScreen: View {
                 }
             }
             QuickLinksToolbarItem(quickLinks)
+            #if os(iOS)
+            if toolsInBar {
+                // With Filter/Sort/Quick Links in the bar the collapsed title had no room
+                // and read "…": an empty principal item takes its slot. (Removing the
+                // title instead changed the bar's height, which moved the content and
+                // flipped the scrolled state forever.)
+                ToolbarItem(placement: .principal) {
+                    Color.clear.frame(width: 1, height: 1).accessibilityHidden(true)
+                }
+            }
+            #endif
             FestivalRootTrailingItems(session: session)
         }
         .festivalProvidesRootTrailingItems()
         .festivalRootChrome(session: session, providesTrailingItems: true)
-        // With Filter/Sort/Quick Links in the bar the inline title had no room and read
-        // "…"; the section bar names the place instead (Back still says "Songs").
-        .modifier(InlineTitleRemoval(removed: toolsInBar))
+
         .sheet(isPresented: $sortPresented) {
             SongsSortSheet(
                 mode: sortMode, ascending: sortAscending,
@@ -979,10 +986,7 @@ struct SongsScreen: View {
                     }
                 }
                 .listStyle(.plain)
-                .modifier(SectionBarRowMask(
-                    barBottom: sectionBarBottom,
-                    active: listScrolled && groups != nil && Self.usesSectionBar
-                ))
+                .environment(\.defaultMinListRowHeight, 0)
                 .overlay(alignment: .top) {
                     // Once scrolled, the current section's title floats just below the
                     // navigation bar and the rows are masked at its bottom edge. An
@@ -990,8 +994,7 @@ struct SongsScreen: View {
                     if Self.usesSectionBar, listScrolled, let groups,
                        let current = currentGroup(in: groups) {
                         SongsSectionBarLabel(
-                            label: current.label, spokenLabel: current.spokenLabel ?? current.label,
-                            barBottom: $sectionBarBottom
+                            label: current.label, spokenLabel: current.spokenLabel ?? current.label
                         )
                     }
                 }
@@ -1159,8 +1162,12 @@ struct SongsScreen: View {
             .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier(group.accessibilityID)
             .onGeometryChange(for: Bool.self) { proxy in
-                proxy.frame(in: .scrollView).minY <= 0.5
+                // Whole points past the top edge, so a title resting at the edge cannot
+                // flicker between states.
+                proxy.frame(in: .scrollView).minY < -2
             } action: { passed in
+                // Mutate only on a real change: every write re-renders the whole page.
+                guard passed != passedSectionHeaders.contains(key) else { return }
                 if passed { passedSectionHeaders.insert(key) } else { passedSectionHeaders.remove(key) }
             }
             .listRowInsets(EdgeInsets())
@@ -1415,13 +1422,12 @@ enum SongsScrollState {
 }
 
 /// iOS 26: the current Songs section title, floating just below the navigation bar once
-/// the List has scrolled. With ``SectionBarRowMask`` rows end exactly at its bottom edge,
-/// with no backing behind the title (operator batch 7).
+/// the List has scrolled, over a continuation of the page's top scrim (no opaque band):
+/// rows fade out under it like under the bar. A mask clipping rows exactly at its edge
+/// kept the main thread busy (every scroll frame re-rendered the masked List).
 private struct SongsSectionBarLabel: View {
     let label: String
     let spokenLabel: String
-    /// Reports the label's bottom edge (global).
-    @Binding var barBottom: CGFloat
 
     var body: some View {
         Text(label)
@@ -1430,8 +1436,13 @@ private struct SongsSectionBarLabel: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: {
-                barBottom = $0
+            .background {
+                LinearGradient(
+                    colors: [Color.black.opacity(0.55), Color.black.opacity(0.35), Color.black.opacity(0)],
+                    startPoint: .top, endPoint: .bottom
+                )
+                .padding(.bottom, -12)
+                .allowsHitTesting(false)
             }
             .accessibilityLabel(spokenLabel)
             .accessibilityAddTraits(.isHeader)
@@ -1439,55 +1450,7 @@ private struct SongsSectionBarLabel: View {
     }
 }
 
-/// Masks the List above the section bar's bottom edge while scrolled, so rows end at the
-/// bar. Inactive at the top, where no row is under the bar and the large title shows.
-///
-/// The mask is a shape whose path may extend past its frame: inactive it covers far
-/// beyond every edge (a mask laid out inside the safe area hid the iOS 26 large title,
-/// and `ignoresSafeArea` on the mask stalled the scroll view), active it starts at the
-/// bar's bottom edge, measured against the mask's own global top.
-private struct SectionBarRowMask: ViewModifier {
-    let barBottom: CGFloat
-    let active: Bool
-    @State private var maskTop: CGFloat = 0
 
-    func body(content: Content) -> some View {
-        content
-            .environment(\.defaultMinListRowHeight, 0)
-            .mask {
-                RowMaskShape(cut: active ? barBottom - maskTop : nil)
-                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: {
-                        maskTop = $0
-                    }
-            }
-    }
-}
-
-/// Everything below `cut` (local points), or everything when `cut` is nil.
-private struct RowMaskShape: Shape {
-    let cut: CGFloat?
-
-    func path(in rect: CGRect) -> Path {
-        let far: CGFloat = 10_000
-        let top = cut.map { rect.minY + max(0, $0) } ?? (rect.minY - far)
-        return Path(CGRect(x: rect.minX - far, y: top, width: rect.width + 2 * far, height: rect.maxY + far - top))
-    }
-}
-
-/// Removes the inline navigation title while the Songs tools occupy the bar (iOS 18+).
-private struct InlineTitleRemoval: ViewModifier {
-    let removed: Bool
-
-    func body(content: Content) -> some View {
-        // One branch per OS (never per state): switching branches would rebuild the
-        // List and lose its scroll position.
-        if #available(iOS 18.0, macOS 15.0, *) {
-            content.toolbar(removing: removed ? .title : nil)
-        } else {
-            content
-        }
-    }
-}
 
 /// Pinned Songs section title backing: none on iOS 26, where the system draws the plain
 /// List's pinned header treatment (EXPERIMENT); the opaque band with a hairline before.

@@ -314,15 +314,20 @@ struct SongRowView: View {
         .padding(.vertical, 10)
         .festivalGlass(.card, cornerRadius: 12)
         .overlay {
-            if inShop {
-                // Web `shopPulse`: a 2pt border fading 0 → 0.7 → 0 every 2 s, green in
-                // the shop, gold when new, red when leaving tomorrow.
-                ShopRowPulseBorder(tone: ShopStatusTone(highlight: shopHighlight), cornerRadius: 12)
-            } else if highContrast {
+            if highContrast && !inShop {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(FestivalText.primary, lineWidth: 2)
             }
         }
         .accessibilityElement(children: .combine)
+        // Outside the row's accessibility element: decoration only, and the contrast
+        // audit must not read it as a layer over the row's text.
+        .overlay {
+            if inShop {
+                // Web `shopPulse`: a 2pt border fading 0 → 0.7 → 0 every 2 s, green in
+                // the shop, gold when new, red when leaving tomorrow.
+                ShopRowPulseBorder(tone: ShopStatusTone(highlight: shopHighlight), cornerRadius: 12)
+            }
+        }
     }
 }

@@ -45,7 +45,7 @@ final class ShopJourneyTests: XCTestCase {
             XCTAssertEqual(app.tabBars.buttons.count, 3)
         }
         SongsUITestSupport.record(app, name: "shop-populated-offers")
-        try app.performAccessibilityAudit(for: .all)
+        try SongsUITestSupport.audit(app)
         let detail = app.buttons["fst.shop.song.fixture-pulse"]
         XCTAssertTrue(detail.waitForExistence(timeout: 10))
         detail.tap()
@@ -104,7 +104,7 @@ final class ShopJourneyTests: XCTestCase {
             .waitForExistence(timeout: 15))
         XCTAssertFalse(app.staticTexts["Item Shop unavailable"].exists)
         SongsUITestSupport.record(app, name: "shop-genuinely-empty")
-        try app.performAccessibilityAudit(for: .all)
+        try SongsUITestSupport.audit(app)
 
         app.terminate()
         app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "error"
@@ -115,7 +115,7 @@ final class ShopJourneyTests: XCTestCase {
         let retry = app.buttons["Retry"]
         XCTAssertTrue(retry.isHittable)
         SongsUITestSupport.record(app, name: "shop-service-error")
-        try app.performAccessibilityAudit(for: .all)
+        try SongsUITestSupport.audit(app)
     }
 
     /// Settings hide/highlight switches change Shop controls without losing saved values.
@@ -203,7 +203,7 @@ final class ShopJourneyTests: XCTestCase {
         XCTAssertTrue(newBadge.waitForExistence(timeout: 15))
         XCTAssertTrue(leaving.exists)
         SongsUITestSupport.record(app, name: "songs-public-shop-membership")
-        try app.performAccessibilityAudit(for: .all)
+        try SongsUITestSupport.audit(app)
         row.tap()
         let official = app.descendants(matching: .any).matching(
             identifier: "fst.song-detail.shop"

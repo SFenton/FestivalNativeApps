@@ -185,6 +185,8 @@ public struct FestivalSheetCloseItem: ToolbarContent {
                     Button("Close", action: action)
                 }
             }
+            // White glyph: the sheet's blue tint on glass missed 4.5:1 contrast.
+            .tint(FestivalText.primary)
             .accessibilityLabel("Close")
             .accessibilityIdentifier(identifier)
         }
