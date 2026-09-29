@@ -151,27 +151,28 @@ enum SongsUITestSupport {
 
     /// Remove only the app's selected identity through its own confirmation action.
     ///
-    /// The profile sheet no longer carries a selected-profile summary (the web's modal
-    /// has none), so this deselects from the selected player's own page on the
-    /// Statistics tab, then returns to Songs.
+    /// Deselect lives in the hamburger drawer (the player page has no Deselect button
+    /// since operator batch 7): open the drawer from the Songs root, tap Deselect and
+    /// confirm.
     ///
     /// - Parameter app: Foreground app with a selected player.
     /// - Throws: Missing accessible confirmation or stale selection.
     @MainActor
     static func deselectFixturePlayer(in app: XCUIApplication) throws {
-        let statistics = rootControl("Statistics", app: app)
-        XCTAssertTrue(statistics.waitForExistence(timeout: 10))
-        statistics.tap()
-        let deselect = app.buttons.matching(identifier: "fst.player.deselect").firstMatch
-        XCTAssertTrue(deselect.waitForExistence(timeout: 15))
+        let songs = rootControl("Songs", app: app)
+        if songs.waitForExistence(timeout: 5) { songs.tap() }
+        let drawerOpen = app.buttons["fst.shell.drawer.open"]
+        XCTAssertTrue(drawerOpen.waitForExistence(timeout: 10))
+        drawerOpen.tap()
+        let deselect = app.buttons["fst.shell.drawer.deselect-profile"]
+        XCTAssertTrue(deselect.waitForExistence(timeout: 10))
         deselect.tap()
         let confirmed = try XCTUnwrap(
             app.buttons.matching(identifier: "Deselect Profile")
                 .allElementsBoundByIndex.first(where: \.isHittable)
         )
         confirmed.tap()
-        let songs = rootControl("Songs", app: app)
-        if songs.waitForExistence(timeout: 5) { songs.tap() }
+        if songs.waitForExistence(timeout: 5), songs.isHittable { songs.tap() }
     }
 
     /// Open Shop from the leading hamburger drawer.

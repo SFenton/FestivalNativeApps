@@ -202,7 +202,9 @@ struct PlayerProfileContent: View {
                 Text("Scores and profile-only content will be hidden; app Settings stay saved.")
             }
             .toolbar {
-                if let identity {
+                // Deselect lives in the drawer, not on the player page (operator batch
+                // 7.10); the page offers only Select / Switch.
+                if let identity, identity != .deselect {
                     if layout.sectionChrome.isVerticalBar {
                         // iPhone Duo: in the rail, its own group after Back (Lane W1).
                         VerticalBarActionItem(
@@ -216,7 +218,7 @@ struct PlayerProfileContent: View {
                             action: identity, onTabRoot: showsRootTrailingItems, perform: perform
                         )
                     }
-                } else if !layout.sectionChrome.isVerticalBar, showsIdentityPlaceholder {
+                } else if !layout.sectionChrome.isVerticalBar, showsIdentityPlaceholder, plannedIdentity != .deselect {
                     // Same button, disabled, while the read is in flight or paused.
                     ProfileIdentityToolbarItem(
                         action: plannedIdentity, onTabRoot: showsRootTrailingItems,

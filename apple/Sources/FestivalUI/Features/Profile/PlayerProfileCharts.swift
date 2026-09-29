@@ -276,6 +276,8 @@ struct RankHistoryCharts: View {
 
     struct Point: Identifiable, Equatable {
         let id: String
+        /// Position in the whole series: the x value, so paging only slides the window.
+        let index: Int
         let label: String
         let rank: Int
         let value: Double
@@ -307,11 +309,12 @@ struct RankHistoryCharts: View {
     }
 
     private var chartPoints: [Point] {
-        points.map {
-            Point(
-                id: $0.snapshotDate, label: RankHistoryChartFormat.axisDate($0.snapshotDate),
-                rank: $0.totalScoreRank, value: Double($0.totalScore ?? 0),
-                rankedAccountCount: $0.rankedAccountCount
+        points.enumerated().map { index, snapshot in
+            let point = snapshot
+            return Point(
+                id: point.snapshotDate, index: index, label: RankHistoryChartFormat.axisDate(point.snapshotDate),
+                rank: point.totalScoreRank, value: Double(point.totalScore ?? 0),
+                rankedAccountCount: point.rankedAccountCount
             )
         }
     }
@@ -333,14 +336,14 @@ struct RankHistoryCharts: View {
 
     var body: some View {
         let data = chartPoints
-        let visible = Array(data[paging.visibleRange(from: start)])
+        let range = paging.visibleRange(from: start)
         VStack(alignment: .leading, spacing: 12) {
             if let latest = points.last {
                 latestSummary(latest)
             }
             HStack(spacing: 2) {
                 axisTitle("Total Score", degrees: -90)
-                chart(visible)
+                chart(data, range: range)
                     .onGeometryChange(for: CGFloat.self, of: { $0.size.width.rounded() }) { width in
                         guard width != chartWidth else { return }
                         // A width change re-pages without animating: the data-change
@@ -356,25 +359,29 @@ struct RankHistoryCharts: View {
                 pager
             }
         }
-        .animation(motion.animation, value: visible)
         .onChange(of: paging) { _, _ in startID = nil }
     }
 
     // MARK: Chart
 
+    /// Every point is plotted at its series index and the x domain is the visible
+    /// window, so paging slides the window (animated) while points keep their places
+    /// instead of re-laying out (operator batch 7.11).
     @ViewBuilder
-    private func chart(_ data: [Point]) -> some View {
+    private func chart(_ data: [Point], range: Range<Int>) -> some View {
         let scale = scale
+        let barWidth = max(8, (chartWidth - Self.axisOverhead) / CGFloat(max(1, range.count)) * 0.85)
+        let visible = data.filter { range.contains($0.index) }
         let base = Chart(data) { point in
             BarMark(
-                x: .value("Date", point.id),
+                x: .value("Date", point.index),
                 y: .value("Total Score", point.value),
-                width: .ratio(0.9)
+                width: .fixed(barWidth)
             )
             .foregroundStyle(Self.barColor(point).opacity(0.8))
             .cornerRadius(4)
             LineMark(
-                x: .value("Date", point.id),
+                x: .value("Date", point.index),
                 y: .value("Rank", scale.y(forRank: point.rank)),
                 series: .value("Series", "Rank")
             )
@@ -382,13 +389,15 @@ struct RankHistoryCharts: View {
             .lineStyle(StrokeStyle(lineWidth: 2))
             .interpolationMethod(.monotone)
             PointMark(
-                x: .value("Date", point.id),
+                x: .value("Date", point.index),
                 y: .value("Rank", scale.y(forRank: point.rank))
             )
             .foregroundStyle(Self.rankLineColor)
             .symbolSize(30)
         }
         .chartYScale(domain: 0 ... scale.valueTop)
+        .chartXScale(domain: Double(range.lowerBound) - 0.5 ... Double(max(range.lowerBound + 1, range.upperBound)) - 0.5)
+        .chartPlotStyle { $0.clipped() }
         .chartYAxis {
             AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
                 AxisGridLine().foregroundStyle(BrandTokens.glassBorder)
@@ -410,10 +419,10 @@ struct RankHistoryCharts: View {
             }
         }
         .chartXAxis {
-            AxisMarks { value in
+            AxisMarks(values: visible.map(\.index)) { value in
                 AxisValueLabel {
-                    if let id = value.as(String.self) {
-                        Text(RankHistoryChartFormat.axisDate(id))
+                    if let index = value.as(Int.self), data.indices.contains(index) {
+                        Text(data[index].label)
                             .foregroundStyle(FestivalText.primary)
                     }
                 }

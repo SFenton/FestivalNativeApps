@@ -99,9 +99,9 @@ final class ProfileJourneyTests: XCTestCase {
         assertSingleBackReturnsToRoot(in: app)
     }
 
-    /// Operator rule: Select and Deselect on the Player Profile page update it in
-    /// place (the action flips Select ⇄ Deselect; there is no "This Is Me" / "Public
-    /// Profile" subtitle, matching the web). They never pop, push or dismiss, and
+    /// Operator rule: Select on the Player Profile page updates it in place (the
+    /// Select action leaves; Deselect lives in the drawer since operator batch 7; there
+    /// is no "This Is Me" / "Public Profile" subtitle, matching the web). They never pop, push or dismiss, and
     /// the page keeps showing the same account throughout. Uses Settings, the one
     /// iPhone tab that exists both with and without a selected player, so tab-set
     /// changes cannot mask a navigation.
@@ -118,23 +118,13 @@ final class ProfileJourneyTests: XCTestCase {
         let select = app.buttons["fst.player.select"]
         XCTAssertTrue(select.waitForExistence(timeout: 10))
         select.tap()
-        XCTAssertTrue(
-            app.buttons["fst.player.deselect"].waitForExistence(timeout: 10),
-            "Select did not update the page to its selected state in place"
-        )
+        // Selected in place: the Select action leaves and no Deselect replaces it (the
+        // drawer owns Deselect since operator batch 7).
+        let selectGone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: select)
+        XCTAssertEqual(XCTWaiter.wait(for: [selectGone], timeout: 10), .completed,
+                       "Select did not update the page to its selected state in place")
+        XCTAssertFalse(app.buttons["fst.player.deselect"].exists, "The player page must not offer Deselect")
         XCTAssertFalse(app.staticTexts["This Is Me"].exists)
-        assertViewing("Fixture Player 1", in: app)
-
-        app.buttons["fst.player.deselect"].tap()
-        let confirm = app.buttons.matching(identifier: "Deselect Profile")
-            .allElementsBoundByIndex.first(where: \.isHittable)
-        XCTAssertNotNil(confirm, "Deselect confirmation missing")
-        confirm?.tap()
-        XCTAssertTrue(
-            app.buttons["fst.player.select"].waitForExistence(timeout: 10),
-            "Deselect did not update the page to its public state in place"
-        )
-        XCTAssertFalse(app.staticTexts["Public Profile"].exists)
         assertViewing("Fixture Player 1", in: app)
         XCTAssertTrue(app.navigationBars.buttons["BackButton"].exists, "The page was popped")
     }

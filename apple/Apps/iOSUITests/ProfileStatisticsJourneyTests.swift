@@ -47,9 +47,9 @@ final class ProfileStatisticsJourneyTests: XCTestCase {
         let statisticsTab = SongsUITestSupport.rootControl("Statistics", app: app)
         XCTAssertTrue(statisticsTab.waitForExistence(timeout: 10), "Statistics tab did not appear after selecting a profile")
         statisticsTab.tap()
-        let deselect = app.buttons["fst.player.deselect"]
+        let ownName = app.staticTexts["fst.player.name"]
         XCTAssertTrue(
-            deselect.waitForExistence(timeout: 15),
+            ownName.waitForExistence(timeout: 15),
             "Statistics tab never reached the selected player's own profile: "
                 + "\(app.staticTexts.allElementsBoundByIndex.prefix(12).map(\.label))"
         )
