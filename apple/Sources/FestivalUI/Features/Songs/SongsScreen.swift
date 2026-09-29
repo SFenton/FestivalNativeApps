@@ -42,6 +42,8 @@ struct SongsScreen: View {
     /// from the floating dock into the navigation bar (operator batch 7), and back at
     /// the top.
     @State private var toolsInBar = false
+    /// In-list section titles (iOS 26) that have scrolled up to the section bar.
+    @State private var passedSectionHeaders: Set<String> = []
     @Environment(\.openProfile) private var openProfile
     @Environment(\.deviceLayout) private var deviceLayout
     /// True where Filter/Sort live in the iPhone bottom dock instead of the toolbar.
@@ -927,9 +929,26 @@ struct SongsScreen: View {
                     if hasDisclosure(for: payload) {
                         disclosures(for: payload)
                     }
-                    if let groups {
-                        // Sticky section titles (operator, 2026-09-28) on an opaque
-                        // backing so rows never show through beneath them. The titles
+                    if let groups, Self.usesSectionBar {
+                        // iOS 26: the current section title sits in a bar above the List
+                        // (`SongsSectionBar`); rows end at its edge under the system's hard
+                        // scroll-edge effect, with no opaque backing (operator batch 7).
+                        // The in-list titles are ordinary rows marking where each section
+                        // starts; the first section's title is the bar itself.
+                        ForEach(groups) { group in
+                            Section {
+                                inlineGroupHeader(group, isFirst: group.id == groups.first?.id)
+                                ForEach(group.songs) { song in
+                                    songLink(
+                                        for: song, catalogueObservation: payload.observedPublicationId,
+                                        fadeIndex: fadeOrder[song.songId]
+                                    )
+                                }
+                            }
+                        }
+                    } else if let groups {
+                        // Before iOS 26: sticky section titles (operator, 2026-09-28) on an
+                        // opaque backing so rows never show through beneath them. The titles
                         // are the scrubber's and Quick Links' jump targets.
                         ForEach(groups) { group in
                             Section {
@@ -953,6 +972,10 @@ struct SongsScreen: View {
                     }
                 }
                 .listStyle(.plain)
+                .modifier(SongsSectionBar(
+                    label: groups.flatMap { currentGroup(in: $0) }.map { $0.spokenLabel ?? $0.label },
+                    visibleLabel: groups.flatMap { currentGroup(in: $0) }?.label
+                ))
                 .modifier(ScrolledAwayTracker { scrolled in
                     let moved = scrolled && actionsInDock && session.selectedPlayer != nil
                     guard moved != toolsInBar else { return }
@@ -998,6 +1021,7 @@ struct SongsScreen: View {
             // Any reordering (sort mode, direction, filters) starts at the top of the new
             // order (operator, 2026-09-28).
             .onChange(of: reorderKey) { _, _ in
+                passedSectionHeaders = []
                 let top: AnyHashable? = groups?.first?.id ?? visible.first.map { AnyHashable($0.id) }
                 if let top { scrollProxy.scrollTo(top, anchor: .top) }
             }
@@ -1074,6 +1098,58 @@ struct SongsScreen: View {
             }
         }
         return nil
+    }
+
+    /// Whether the section title lives in a bar above the List (iOS 26 scroll-edge
+    /// effect) instead of opaque pinned List headers.
+    static var usesSectionBar: Bool {
+        if #available(iOS 26.0, macOS 26.0, *) { return true }
+        return false
+    }
+
+    /// The group whose title belongs in the bar: the last one whose in-list title has
+    /// scrolled up to the bar's edge, else the first.
+    ///
+    /// - Parameter groups: The List's groups in order.
+    /// - Returns: The current group.
+    private func currentGroup(in groups: [SongListGroup]) -> SongListGroup? {
+        groups.last { passedSectionHeaders.contains(Self.headerKey($0)) } ?? groups.first
+    }
+
+    /// Stable key for a group's in-list title.
+    private static func headerKey(_ group: SongListGroup) -> String { "\(group.id)" }
+
+    /// A section's in-list title (iOS 26): a plain row, no backing. The first section's
+    /// is a zero-height anchor (the bar shows its title) that still carries the jump
+    /// target and Quick Links tracking.
+    @ViewBuilder private func inlineGroupHeader(_ group: SongListGroup, isFirst: Bool) -> some View {
+        let key = Self.headerKey(group)
+        let label = Text(group.label)
+            .font(.subheadline.bold())
+            .foregroundStyle(FestivalText.primary)
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            .padding(.bottom, 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: isFirst ? 0 : nil)
+            .opacity(isFirst ? 0 : 1)
+            .accessibilityHidden(isFirst)
+            .listRowInsets(EdgeInsets())
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .accessibilityLabel(group.spokenLabel ?? group.label)
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityIdentifier(group.accessibilityID)
+            .onGeometryChange(for: Bool.self) { proxy in
+                proxy.frame(in: .scrollView).minY <= 0.5
+            } action: { passed in
+                if passed { passedSectionHeaders.insert(key) } else { passedSectionHeaders.remove(key) }
+            }
+        if let link = group.quickLink {
+            label.quickLinkSection(link)
+        } else {
+            label.id(group.id)
+        }
     }
 
     /// A pinned section title: full-width, fully opaque backing (a flat surface with a
@@ -1289,6 +1365,37 @@ private struct ScrolledAwayTracker: ViewModifier {
             } action: { _, scrolled in
                 changed(scrolled)
             }
+        } else {
+            content
+        }
+    }
+}
+
+/// iOS 26: the current Songs section title in a bar above the List. `safeAreaBar` keeps
+/// it out of the scrolling content and extends the system scroll-edge effect beneath it,
+/// set to `.hard` so rows end at the bar's edge (operator batch 7: no odd backing, no rows
+/// under the title). Earlier systems keep the List's pinned headers.
+private struct SongsSectionBar: ViewModifier {
+    /// Spoken title, nil without groups.
+    let label: String?
+    /// Visible title.
+    let visibleLabel: String?
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, macOS 26.0, *), let label, let visibleLabel {
+            content
+                .safeAreaBar(edge: .top, spacing: 0) {
+                    Text(visibleLabel)
+                        .font(.subheadline.bold())
+                        .foregroundStyle(FestivalText.primary)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 6)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityLabel(label)
+                        .accessibilityAddTraits(.isHeader)
+                        .accessibilityIdentifier("fst.songs.section-bar")
+                }
+                .scrollEdgeEffectStyle(.hard, for: .top)
         } else {
             content
         }
