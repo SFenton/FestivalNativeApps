@@ -272,10 +272,17 @@ struct ProfileSelectionSheet: View {
     /// - Parameters:
     ///   - accountId: Public account key from the selected identity or a search result.
     ///   - displayName: Name known before the pushed screen's own read completes.
+    ///
+    /// The page is placed on the stack without a push animation, under the sheet, and
+    /// the sheet's own dismissal reveals it: one system transition. Pushing while the
+    /// sheet slid away ran both at once, and the pushed page's navigation bar (Back,
+    /// actions) only appeared after both finished.
     private func openPlayer(accountId: String, displayName: String) {
         let route = AppRoute.player(accountId: accountId, displayName: displayName)
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { openRoute(route) }
         dismiss()
-        openRoute(route)
     }
 
     /// Debounce and cancel an obsolete search instead of presenting older results.
