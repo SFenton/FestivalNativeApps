@@ -406,7 +406,7 @@ struct RankingsPagerView: View {
             HStack(spacing: 10) {
                 arrow("chevron.left.2", "First page", id: "page-first", enabled: page > 1) { onChange(1) }
                 arrow("chevron.left", "Previous page", id: "page-previous", enabled: page > 1) { onChange(page - 1) }
-                Text("\(page.formatted()) / \(totalPages.formatted())")
+                Text("\(page) / \(totalPages)")
                     .font(.body.weight(.semibold))
                     .monospacedDigit()
                     .foregroundStyle(FestivalText.primary)
@@ -415,7 +415,6 @@ struct RankingsPagerView: View {
                     .padding(.horizontal, 14)
                     .frame(minHeight: 44)
                     .festivalGlassCapsule(.card)
-                    .accessibilityLabel("Page \(page) of \(totalPages)")
                     .accessibilityIdentifier("\(idPrefix).page-info")
                 arrow("chevron.right", "Next page", id: "page-next", enabled: page < totalPages) { onChange(page + 1) }
                 arrow("chevron.right.2", "Last page", id: "page-last", enabled: page < totalPages) { onChange(totalPages) }

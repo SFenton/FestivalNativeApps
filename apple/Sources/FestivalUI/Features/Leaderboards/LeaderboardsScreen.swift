@@ -167,7 +167,10 @@ struct LeaderboardsScreen: View {
                         cards
                     }
                 } else {
-                    LazyVStack(spacing: 24) {
+                    // Eager: every card is loaded before the page shows (operator batch
+                    // 6.41), and a lazy stack's height estimates made Quick Links jumps
+                    // to the last cards land short.
+                    VStack(spacing: 24) {
                         cards
                     }
                 }

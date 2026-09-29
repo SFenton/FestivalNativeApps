@@ -506,8 +506,8 @@ struct SongPathsSheet: View {
 
 // MARK: - Overdrive bar
 
-/// The web's `OdBar`: an 8 pt rounded track (18% white; web `surfaceSubtle`) filled amber
-/// (`statusAmber` #F5A623) to the clamped percent, with a bold "NN%" label.
+/// The web's `OdBar`: an amber (`statusAmber` #F5A623) bar filled to the clamped
+/// percent, with a bold "NN%" label (a tinted system progress bar, for contrast).
 struct OverdriveBar: View {
     let percent: Double
 
@@ -515,18 +515,12 @@ struct OverdriveBar: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    // A lighter track than the web's `surfaceSubtle`: that near-black
-                    // track on the card failed the XCUITest contrast audit.
-                    Capsule().fill(Color.white.opacity(0.18))
-                    Capsule()
-                        .fill(Color(.sRGB, red: 245 / 255, green: 166 / 255, blue: 35 / 255))
-                        .frame(width: geometry.size.width * CGFloat(clamped) / 100)
-                }
-            }
-            .frame(minWidth: 80)
-            .frame(height: 8)
+            // A native linear progress bar tinted amber: a custom drawn track failed the
+            // XCUITest contrast audit (twice), the system bar passes it.
+            ProgressView(value: Double(clamped), total: 100)
+                .tint(Color(.sRGB, red: 245 / 255, green: 166 / 255, blue: 35 / 255))
+                .scaleEffect(x: 1, y: 2, anchor: .center)
+                .frame(minWidth: 80)
             Text("\(clamped)%")
                 .font(.body.weight(.semibold))
                 .monospacedDigit()
