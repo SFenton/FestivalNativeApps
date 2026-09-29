@@ -46,6 +46,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -243,7 +244,8 @@ private fun MembersSection(members: List<BandMember>, onNavigate: (AppRoute) -> 
                                 .semantics(mergeDescendants = true) { contentDescription = memberAnnouncement(member) },
                             onClick = route?.let { { onNavigate(it) } },
                         ) {
-                            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            // The card's description is the announcement; the texts would repeat it.
+                            Row(Modifier.padding(12.dp).clearAndSetSemantics { }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 FestivalMarqueeText(
                                     member.resolvedName,
                                     style = MaterialTheme.typography.titleSmall,
@@ -278,7 +280,7 @@ private fun StatGrid(stats: List<BandStat>, onNavigate: (AppRoute) -> Unit) {
                                 .semantics(mergeDescendants = true) { contentDescription = "${stat.label}, ${stat.value}" },
                             onClick = stat.route?.let { { onNavigate(it) } },
                         ) {
-                            Column(Modifier.padding(12.dp)) {
+                            Column(Modifier.padding(12.dp).clearAndSetSemantics { }) {
                                 Text(stat.label, style = MaterialTheme.typography.labelMedium, color = BrandTokens.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Text(
                                     stat.value,
@@ -360,7 +362,7 @@ private fun HistorySection(state: LoadState<BandRankHistoryResponse>, metric: Ba
                                 .fillMaxWidth()
                                 .heightIn(min = 40.dp)
                                 .testTag("fst.band.history-row.${row.date}")
-                                .semantics(mergeDescendants = true) { contentDescription = "${row.dateText}, rank ${row.rankText}, ${row.valueText}" },
+                                .clearAndSetSemantics { contentDescription = "${row.dateText}, rank ${row.rankText}, ${row.valueText}" },
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(row.dateText, color = BrandTokens.textSecondary, modifier = Modifier.weight(1f))
@@ -450,7 +452,7 @@ private fun SongList(rows: List<BandSongRow>, description: String, tag: String, 
                     .semantics(mergeDescendants = true) { contentDescription = "${row.title}, $percentile, rank $rankText" },
                 onClick = row.route?.let { { onNavigate(it) } },
             ) {
-                Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(Modifier.padding(10.dp).clearAndSetSemantics { }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     AsyncImage(
                         model = artworkUrl(row.song?.albumArt),
                         contentDescription = null,

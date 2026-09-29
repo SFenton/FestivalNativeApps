@@ -3,6 +3,8 @@ package com.festivalscoretracker.android.bands
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.hasTestTag
@@ -152,15 +154,15 @@ class BandsUiTest {
         rule.onNodeWithText("Duos · 29 appearances").assertIsDisplayed()
         assertTrue(exists("fst.band.member.${Fixtures.ACCOUNT_A}"))
         assertTrue(exists("fst.band.stat.rank"))
-        rule.onNodeWithText("Total Score Rank").assertIsDisplayed()
+        rule.onNodeWithTag("fst.band.stat.rank").assert(hasContentDescription("Total Score Rank", substring = true))
         click("fst.band.rank-by")
         click("fst.band.rank-by.fcrate")
-        rule.onNodeWithText("FC Rate Rank").assertIsDisplayed()
+        rule.onNodeWithTag("fst.band.stat.rank").assert(hasContentDescription("FC Rate Rank", substring = true))
         waitForTag("fst.band.history-chart")
         assertTrue(exists("fst.band.history-row.2024-01-03"))
         waitForTag("fst.band.song-row.s-alpha")
         assertTrue(exists("fst.band.song-row.s-missing"))
-        rule.onNodeWithText("Unknown Song").assertExists()
+        rule.onNodeWithTag("fst.band.song-row.s-missing").assert(hasContentDescription("Unknown Song", substring = true))
         click("fst.band.song-row.s-alpha")
         waitForTag("fst.nav.back")
         assertTrue(transport.requests.none { it.url.contains("/api/bands/") })

@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -158,7 +159,8 @@ internal fun PlayerBandCard(entry: PlayerBandEntry, onClick: () -> Unit, modifie
             .semantics(mergeDescendants = true) { contentDescription = "View band ${entry.membersLabel}, $size, $appearances" },
         onClick = onClick,
     ) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        // The card's description is the announcement; the chips and texts would repeat it.
+        Row(Modifier.padding(14.dp).clearAndSetSemantics { }, verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 BandMemberChips(entry.members)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
