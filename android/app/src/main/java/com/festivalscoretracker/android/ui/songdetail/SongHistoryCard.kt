@@ -136,7 +136,7 @@ fun SongHistoryCard(
         if (points.size > SongHistoryChart.TOP_COUNT) {
             ViewFullLeaderboardButton(
                 onClick = { onViewAll(chart) },
-                label = "View all scores",
+                label = "View All Scores",
                 testTag = "fst.song-detail.history.view-all",
                 modifier = Modifier.padding(top = 8.dp),
             )

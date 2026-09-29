@@ -83,7 +83,7 @@ import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
  * @param keyboard Keys artwork for Lead/Pro Lead (song signature).
  * @param previousLabel Compact previous-arrow label.
  * @param nextLabel Compact next-arrow label.
- * @param tag Test tag root (`$tag.<wireId>`, `$tag.previous`, `$tag.next`, `$tag.preview`).
+ * @param tag Test tag root (`$tag.<wireId>`, `$tag.compact`, `$tag.previous`, `$tag.next`, `$tag.preview`).
  * @param content Content revealed while a chart is selected.
  */
 @OptIn(ExperimentalLayoutApi::class)
@@ -124,7 +124,7 @@ fun InstrumentSelector(
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(InstrumentSelection.GAP_DP.dp, Alignment.CenterHorizontally),
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().selectableGroup(),
+                    modifier = Modifier.fillMaxWidth().selectableGroup().testTag("$tag.compact"),
                 ) {
                     IconButton(
                         onClick = { apply(InstrumentSelection.cycle(available, effective, previewIndex, -1, deferSelection, disabled)) },

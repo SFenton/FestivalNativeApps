@@ -45,7 +45,7 @@ fun ViewFullLeaderboardButton(
     }
 }
 
-/** Default label (web `leaderboard.viewFullShort`). */
-const val VIEW_FULL_LEADERBOARD = "View full leaderboard"
+/** Default label (web `leaderboard.viewFullShort`, Title Case per the capitalization rule). */
+const val VIEW_FULL_LEADERBOARD = "View Full Leaderboard"
 
 // endregion
