@@ -170,6 +170,26 @@ public class SongDetailSongsLaneTests
     }
 
     [Fact]
+    public async Task EmptyChart_SaysNoScoresRecordedAndHidesViewAll()
+    {
+        var service = new FakeService();
+        SongsWire.Install(service);
+        var inner = service.Override!;
+        service.Override = r => r.RequestUri!.AbsolutePath.StartsWith("/api/leaderboard/", StringComparison.Ordinal)
+            ? Wire.Ok(Wire.Leaderboard("s1", "Solo_Guitar", 0, total: 0), ("X-FST-Publication-Id", "7"))
+            : inner(r);
+        var vm = new SongDetailViewModel(service.Session(), new AppRoute.SongDetail("s1"));
+        await vm.LoadAsync();
+        var lead = vm.Leaderboards.Single(b => b.Instrument == Instrument.Lead);
+        await lead.EnsureLoadedAsync();
+        Assert.True(lead.ShowEmpty);
+        Assert.False(lead.ShowRows); // View Full Leaderboard is bound to ShowRows
+        Assert.Equal(LeaderboardPreviewViewModel.NoScoresText, lead.TotalEntriesText);
+        Assert.Equal("Lead, No scores recorded yet", lead.HeaderName);
+        Assert.StartsWith("When scores are submitted for Lead", lead.EmptyText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Summary_UpdatesWhenScoresArriveAfterLoad()
     {
         var service = new FakeService();

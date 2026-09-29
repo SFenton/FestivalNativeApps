@@ -23,11 +23,9 @@
             </Grid.ColumnDefinitions>
             <local:SongArt x:Name="Art" Art="{x:Bind Item.AlbumArt, Mode=OneWay}" />
             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                <TextBlock Text="{x:Bind Item.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}"
-                           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
-                <TextBlock Text="{x:Bind Item.Subtitle, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
-                           Foreground="{ThemeResource FSTSecondaryTextBrush}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
-                           Visibility="{x:Bind local:RivalsUi.Not(EffectiveCompact), Mode=OneWay}" />
+                <local:MarqueeText Text="{x:Bind Item.Title, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeTitleStyle}" />
+                <local:MarqueeText Text="{x:Bind Item.Subtitle, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeCaptionStyle}"
+                                   Visibility="{x:Bind local:RivalsUi.Not(EffectiveCompact), Mode=OneWay}" />
                 <TextBlock Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource FSTSecondaryTextBrush}"
                            TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Visibility="{x:Bind EffectiveCompact, Mode=OneWay}">
                     <Run Text="{x:Bind Item.UserRankText, Mode=OneWay}" FontWeight="{x:Bind local:RivalsUi.Weight(Item.IsWinning), Mode=OneWay}" />

@@ -133,7 +133,6 @@ public sealed partial class SongsPage : Page
             AutomationProperties.SetName(container, row.Announcement);
             AutomationProperties.SetAutomationId(container, $"fst.songs.row.{row.Song.SongId}");
             ApplyHighlight(root, row.Highlight);
-            HookMarquee(container);
             // Not Handled: x:Bind template bindings run in this same event.
             args.RegisterUpdateCallback(1, OnContainerContentChanging);
             return;
@@ -218,39 +217,6 @@ public sealed partial class SongsPage : Page
     {
         if (artLoads.Remove(container, out var pending)) pending.Cancel();
     }
-
-    /// <summary>Plays the row's marquees while it is hovered or focused (never while idle).</summary>
-    /// <param name="container">Row container.</param>
-    private void HookMarquee(ListViewItem container)
-    {
-        if (container.Tag is "marquee") return;
-        container.Tag = "marquee";
-        container.PointerEntered += (_, _) => SetMarquee(container, true);
-        container.PointerExited += (_, _) => SetMarquee(container, false);
-        container.PointerCanceled += (_, _) => SetMarquee(container, false);
-        container.GotFocus += (_, _) => SetMarquee(container, container.FocusState == FocusState.Keyboard);
-        container.LostFocus += (_, _) => SetMarquee(container, false);
-    }
-
-    /// <summary>Starts or stops a row's title and subtitle marquees.</summary>
-    /// <param name="container">Row container.</param>
-    /// <param name="play">Whether to play.</param>
-    private static void SetMarquee(ListViewItem container, bool play)
-    {
-        if (container.ContentTemplateRoot is not Grid root) return;
-        MarqueeText.MotionAllowed = MotionAllowed();
-        foreach (var name in new[] { "TitleText", "SubtitleText" })
-        {
-            if (root.FindName(name) is not MarqueeText marquee) continue;
-            if (play) marquee.Play();
-            else marquee.Stop();
-        }
-    }
-
-    /// <summary>Whether in-app and system settings allow motion.</summary>
-    /// <returns><see langword="true"/> when animations may run.</returns>
-    private static bool MotionAllowed() =>
-        !App.Session.Settings.ReduceMotion && !App.Options.ReduceMotion && new Windows.UI.ViewManagement.UISettings().AnimationsEnabled;
 
     /// <summary>Current list width.</summary>
     /// <returns>Width in epx.</returns>

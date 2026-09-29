@@ -57,7 +57,9 @@
                         AutomationProperties.AutomationId="fst.global-search.open">
                     <FontIcon Glyph="&#xE721;" FontSize="16" />
                 </Button>
-                <ContentControl x:Name="NotificationsHost" VerticalAlignment="Center" IsTabStop="False" />
+                <!-- The bell only shows with a selected profile (operator 2026-09-28): notifications are player-scoped. -->
+                <ContentControl x:Name="NotificationsHost" VerticalAlignment="Center" IsTabStop="False"
+                                Visibility="{x:Bind Shell.HasPlayer, Mode=OneWay}" />
                 <Button x:Name="ProfileButton" Padding="4" Margin="0,0,8,0" Background="Transparent" BorderThickness="0"
                         AutomationProperties.Name="{x:Bind Shell.ProfileButtonName, Mode=OneWay}"
                         AutomationProperties.AutomationId="fst.shell.profile"

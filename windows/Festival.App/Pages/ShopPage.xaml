@@ -67,7 +67,7 @@
                                             <StackPanel VerticalAlignment="Bottom" Padding="10" Spacing="2">
                                                 <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" Foreground="White"
                                                            TextTrimming="CharacterEllipsis" MaxLines="2" TextWrapping="Wrap" />
-                                                <TextBlock Text="{x:Bind Offer.Artist}" Foreground="#FFD7DEE8" TextTrimming="CharacterEllipsis" />
+                                                <controls:MarqueeText Text="{x:Bind Offer.Artist}" TextStyle="{StaticResource FSTMarqueeSecondaryStyle}" />
                                             </StackPanel>
                                             <Border x:Name="BadgePill" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8" Padding="8,3"
                                                     CornerRadius="10" Visibility="{x:Bind HasBadge}">
@@ -112,7 +112,7 @@
                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                 <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis"
                                            TextWrapping="Wrap" MaxLines="2" />
-                                <TextBlock Text="{x:Bind Subtitle}" Style="{StaticResource FSTSecondaryTextStyle}" />
+                                <controls:MarqueeText Text="{x:Bind Subtitle}" TextStyle="{StaticResource FSTMarqueeSecondaryStyle}" />
                                 <Border x:Name="BadgePill" HorizontalAlignment="Left" Padding="8,2" CornerRadius="10" Margin="0,2,0,0"
                                         Visibility="{x:Bind HasBadge}">
                                     <TextBlock x:Name="BadgeLabel" Text="{x:Bind BadgeText}" FontSize="12" FontWeight="Bold" />

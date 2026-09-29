@@ -37,7 +37,7 @@ public sealed partial class SuggestionSongRow : Button
     private readonly Grid root = new() { ColumnSpacing = 12, RowSpacing = 6, MinHeight = 64, Padding = new Thickness(24, 10, 24, 10) };
     private readonly Image art = new() { Stretch = Stretch.UniformToFill };
     private readonly MarqueeText title = new();
-    private readonly TextBlock subtitle = new() { TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap, FontSize = 12 };
+    private readonly MarqueeText subtitle = new();
     private readonly StackPanel metadata = new() { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
     private CancellationTokenSource? artLoad;
     private bool narrow;
@@ -52,7 +52,7 @@ public sealed partial class SuggestionSongRow : Button
         Background = new SolidColorBrush(Colors.Transparent);
         BorderThickness = new Thickness(0, 1, 0, 0);
         BorderBrush = (Brush)Application.Current.Resources["FSTCardStrokeBrush"];
-        subtitle.Foreground = (Brush)Application.Current.Resources["FSTSecondaryTextBrush"];
+        subtitle.TextStyle = SubtitleStyle;
 
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(ArtSize) });
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -74,12 +74,6 @@ public sealed partial class SuggestionSongRow : Button
 
         title.TextStyle = TitleStyle;
         Click += (_, _) => { if (Item is { } item) MainWindow.Instance?.Navigate(item.Route); };
-        // Long titles scroll while the row is hovered or keyboard-focused (web/Apple MarqueeText).
-        PointerEntered += (_, _) => SetMarquee(true);
-        PointerExited += (_, _) => SetMarquee(false);
-        PointerCanceled += (_, _) => SetMarquee(false);
-        GotFocus += (_, _) => SetMarquee(FocusState == FocusState.Keyboard);
-        LostFocus += (_, _) => SetMarquee(false);
         Loaded += (_, _) => LoadArt();
         // WinUI can raise a stale Unloaded after the re-parented row's next Loaded; only cancel when really gone.
         Unloaded += (_, _) => { if (!IsLoaded) CancelArt(); };
@@ -107,14 +101,20 @@ public sealed partial class SuggestionSongRow : Button
 
     private static Style? titleStyle;
 
-    /// <summary>Starts or stops the title marquee (motion permitting).</summary>
-    /// <param name="play">Whether to play.</param>
-    private void SetMarquee(bool play)
+    /// <summary>12 epx secondary style for the subtitle marquee copies.</summary>
+    private static Style SubtitleStyle
     {
-        MarqueeText.MotionAllowed = Motion.Allowed;
-        if (play) title.Play();
-        else title.Stop();
+        get
+        {
+            if (subtitleStyle is not null) return subtitleStyle;
+            subtitleStyle = new Style(typeof(TextBlock));
+            subtitleStyle.Setters.Add(new Setter(TextBlock.FontSizeProperty, 12.0));
+            subtitleStyle.Setters.Add(new Setter(TextBlock.ForegroundProperty, Application.Current.Resources["FSTSecondaryTextBrush"]));
+            return subtitleStyle;
+        }
     }
+
+    private static Style? subtitleStyle;
 
     #region Build
     /// <summary>Rebuilds text and metadata for the current item.</summary>

@@ -34,6 +34,8 @@ public sealed partial class StarRow : StackPanel
         Spacing = 2;
         VerticalAlignment = VerticalAlignment.Center;
         Visibility = Visibility.Collapsed;
+        // contracts/product.json star-rating control; a page may still set a more specific fst.star-rating.* ID.
+        AutomationProperties.SetAutomationId(this, "fst.stars");
     }
 
     /// <summary>Service star count.</summary>

@@ -59,9 +59,8 @@
                     </Grid.ColumnDefinitions>
                     <controls:BandsArtworkThumb Raw="{x:Bind AlbumArt}" />
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
-                        <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis"
-                                   TextWrapping="NoWrap" />
-                        <TextBlock Text="{x:Bind Subtitle}" Style="{StaticResource FSTSecondaryTextStyle}" />
+                        <controls:MarqueeText Text="{x:Bind Title}" TextStyle="{StaticResource FSTMarqueeTitleStyle}" />
+                        <controls:MarqueeText Text="{x:Bind Subtitle}" TextStyle="{StaticResource FSTMarqueeSecondaryStyle}" />
                     </StackPanel>
                     <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="2">
                         <Border CornerRadius="4" Padding="8,2" Background="{StaticResource FSTAccentPurpleBrush}" HorizontalAlignment="Right">
@@ -83,8 +82,7 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <controls:BandsArtworkThumb Raw="{x:Bind AlbumArt}" />
-                    <TextBlock Grid.Column="1" Text="{x:Bind Title}" VerticalAlignment="Center" Style="{StaticResource BodyStrongTextBlockStyle}"
-                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                    <controls:MarqueeText Grid.Column="1" Text="{x:Bind Title}" VerticalAlignment="Center" TextStyle="{StaticResource FSTMarqueeTitleStyle}" />
                     <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="2">
                         <Border CornerRadius="4" Padding="8,2" Background="{StaticResource FSTAccentPurpleBrush}" HorizontalAlignment="Right">
                             <TextBlock Text="{x:Bind PercentileText}" FontSize="12" FontWeight="SemiBold" />

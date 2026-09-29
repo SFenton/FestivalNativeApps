@@ -300,6 +300,12 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasTotalEntries))]
     private string totalEntriesText = "";
 
+    /// <summary>Header subtitle of a chart with no scores (web <c>songDetail.noScores</c>).</summary>
+    public const string NoScoresText = "No scores recorded yet";
+
+    /// <summary>Body of an empty card (web <c>songDetail.noScoresSubtitle</c>).</summary>
+    public string EmptyText => $"When scores are submitted for {Title}, they will show up here on the next leaderboard update.";
+
     /// <summary>Whether the header subtitle shows.</summary>
     public bool HasTotalEntries => TotalEntriesText.Length > 0;
 
@@ -388,7 +394,7 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
             {
                 IsSelectedPlayer = PlayerAccountId is { } id && string.Equals(e.AccountId, id, StringComparison.OrdinalIgnoreCase),
             }).ToList();
-            TotalEntriesText = board.ShowLeaderboardEntryTotals == true && board.TotalEntries > 0
+            TotalEntriesText = board.Entries.Count == 0 ? NoScoresText : board.ShowLeaderboardEntryTotals == true && board.TotalEntries > 0
                 ? string.Create(System.Globalization.CultureInfo.CurrentCulture, $"{board.TotalEntries:N0} total {(board.TotalEntries == 1 ? "entry" : "entries")}") : "";
             OnPropertyChanged(nameof(HeaderName));
             ComposeRows();

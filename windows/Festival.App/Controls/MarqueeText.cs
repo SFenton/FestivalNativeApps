@@ -13,10 +13,11 @@ namespace Festival.App.Controls;
 
 #region Marquee text
 /// <summary>
-/// Single-line text that ellipsizes when it overflows and, while its owner is hovered or focused, scrolls a
-/// two-copy track on the compositor thread (web <c>MarqueeText</c>: 8 s cycle, dwell at the start, 28 px gap).
-/// Nothing animates while idle, and system "Animation effects" off or in-app Reduce Motion keep it static.
-/// Screen readers always get the full text.
+/// Single-line text that, whenever it overflows its space, scrolls a two-copy track on the compositor thread like
+/// the web <c>MarqueeText</c> (8 s cycle, 5% dwell at each end, 28 px gap, phase-aligned across instances from one
+/// epoch so neighbouring rows move together). Text that fits is drawn plainly. Motion off (Windows Animation effects,
+/// in-app or launch Reduce Motion), a hidden/minimized window or an unloaded row stops it and shows the ellipsized
+/// text instead. Screen readers always get the full text.
 /// </summary>
 public sealed partial class MarqueeText : Panel
 {
@@ -40,6 +41,7 @@ public sealed partial class MarqueeText : Panel
     private static readonly UISettings SystemSettings = new();
     private readonly TextBlock primary = new() { TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock copy = new() { TextWrapping = TextWrapping.NoWrap, Visibility = Visibility.Collapsed };
+    private static readonly DateTimeOffset Epoch = DateTimeOffset.UnixEpoch;
     private double naturalWidth;
     private bool playing;
 
@@ -50,7 +52,26 @@ public sealed partial class MarqueeText : Panel
         Children.Add(copy);
         AutomationProperties.SetAccessibilityView(copy, AccessibilityView.Raw);
         IsHitTestVisible = false;
-        SizeChanged += (_, _) => UpdateClip();
+        SizeChanged += (_, _) => { UpdateClip(); QueueUpdate(); };
+        Loaded += (_, _) => { Services.Motion.Changed += OnMotionChanged; QueueUpdate(); };
+        Unloaded += (_, _) => { Services.Motion.Changed -= OnMotionChanged; Stop(); };
+    }
+
+    /// <summary>Re-evaluates when motion settings or window visibility change.</summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="e">Unused.</param>
+    private void OnMotionChanged(object? sender, EventArgs e) => QueueUpdate();
+
+    /// <summary>Plays or stops after layout settles (overflow is known only after measure).</summary>
+    private void QueueUpdate() => DispatcherQueue?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, UpdatePlayback);
+
+    /// <summary>Scrolls while loaded, overflowing and allowed to move; otherwise shows the static ellipsized text.</summary>
+    private void UpdatePlayback()
+    {
+        var animate = IsLoaded && Overflows && MotionAllowed && Services.Motion.Allowed && !Services.Motion.Paused;
+        if (animate == playing) return;
+        if (animate) Play();
+        else Stop();
     }
 
     /// <summary>Displayed text.</summary>
@@ -70,7 +91,7 @@ public sealed partial class MarqueeText : Panel
     /// <summary>Whether the text is wider than the space it has.</summary>
     public bool Overflows => naturalWidth > ActualWidth + 1;
 
-    /// <summary>Starts scrolling if the text overflows and motion is allowed.</summary>
+    /// <summary>Starts scrolling if the text overflows and motion is allowed (normally driven automatically).</summary>
     public void Play()
     {
         if (playing || !Overflows || !MotionAllowed || !SystemSettings.AnimationsEnabled) return;
@@ -95,10 +116,13 @@ public sealed partial class MarqueeText : Panel
             visual.Properties.InsertVector3("Translation", Vector3.Zero);
             ElementCompositionPreview.SetIsTranslationEnabled(element, true);
             visual.StartAnimation("Translation.X", animation);
+            // Web epoch-based negative animation-delay: every marquee sits at the same point of the shared cycle.
+            if (visual.TryGetAnimationController("Translation.X") is { } controller)
+                controller.Progress = (float)((DateTimeOffset.UtcNow - Epoch).TotalSeconds % CycleSeconds / CycleSeconds);
         }
     }
 
-    /// <summary>Stops scrolling and restores the ellipsized text.</summary>
+    /// <summary>Stops scrolling and restores the ellipsized text (normally driven automatically).</summary>
     public void Stop()
     {
         if (!playing) return;
@@ -148,6 +172,7 @@ public sealed partial class MarqueeText : Panel
         primary.Text = copy.Text = Text ?? "";
         ToolTipService.SetToolTip(this, null);
         InvalidateMeasure();
+        QueueUpdate();
     }
 
     /// <summary>Applies a new style to both copies.</summary>
@@ -156,6 +181,7 @@ public sealed partial class MarqueeText : Panel
         primary.Style = copy.Style = TextStyle;
         primary.TextTrimming = playing ? TextTrimming.None : TextTrimming.CharacterEllipsis;
         InvalidateMeasure();
+        QueueUpdate();
     }
 
     /// <summary>Exposes the full text as one static-text element.</summary>

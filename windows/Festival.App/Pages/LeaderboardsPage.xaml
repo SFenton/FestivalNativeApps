@@ -11,30 +11,32 @@
     </Page.KeyboardAccelerators>
 
     <Grid x:Name="Root">
+    <!-- Adaptive states live on the page root: an AdaptiveTrigger inside the ScrollViewer never fired, so the actions
+         stayed beside the title and truncated it at compact widths. -->
+    <VisualStateManager.VisualStateGroups>
+        <VisualStateGroup>
+            <VisualState x:Name="Wide">
+                <VisualState.StateTriggers>
+                    <AdaptiveTrigger MinWindowWidth="760" />
+                </VisualState.StateTriggers>
+            </VisualState>
+            <VisualState x:Name="Compact">
+                <VisualState.StateTriggers>
+                    <AdaptiveTrigger MinWindowWidth="0" />
+                </VisualState.StateTriggers>
+                <VisualState.Setters>
+                    <Setter Target="PageContent.Padding" Value="12,8,12,24" />
+                    <Setter Target="HeaderActions.(Grid.Row)" Value="1" />
+                    <Setter Target="HeaderActions.(Grid.Column)" Value="0" />
+                </VisualState.Setters>
+            </VisualState>
+        </VisualStateGroup>
+    </VisualStateManager.VisualStateGroups>
     <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="Auto" />
     </Grid.ColumnDefinitions>
     <ScrollViewer x:Name="Scroller" AutomationProperties.AutomationId="fst.leaderboards">
-        <VisualStateManager.VisualStateGroups>
-            <VisualStateGroup>
-                <VisualState x:Name="Wide">
-                    <VisualState.StateTriggers>
-                        <AdaptiveTrigger MinWindowWidth="760" />
-                    </VisualState.StateTriggers>
-                </VisualState>
-                <VisualState x:Name="Compact">
-                    <VisualState.StateTriggers>
-                        <AdaptiveTrigger MinWindowWidth="0" />
-                    </VisualState.StateTriggers>
-                    <VisualState.Setters>
-                        <Setter Target="PageContent.Padding" Value="12,8,12,24" />
-                        <Setter Target="HeaderActions.(Grid.Row)" Value="1" />
-                        <Setter Target="HeaderActions.(Grid.Column)" Value="0" />
-                    </VisualState.Setters>
-                </VisualState>
-            </VisualStateGroup>
-        </VisualStateManager.VisualStateGroups>
         <StackPanel x:Name="PageContent" Padding="24,12,24,32" Spacing="12" MaxWidth="1800">
             <!-- Title and the page action (Rank By). -->
             <Grid ColumnSpacing="12" RowSpacing="8">

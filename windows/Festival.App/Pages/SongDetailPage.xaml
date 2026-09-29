@@ -118,8 +118,8 @@
                                                        Foreground="{ThemeResource FSTGoldBrush}" />
                                             <ProgressRing IsActive="{x:Bind IsLoading, Mode=OneWay}" HorizontalAlignment="Left" Width="24" Height="24"
                                                           Visibility="{x:Bind IsLoading, Mode=OneWay}" />
-                                            <TextBlock Text="No scores yet." Visibility="{x:Bind ShowEmpty, Mode=OneWay}"
-                                                       Style="{StaticResource FSTSecondaryTextStyle}" />
+                                            <TextBlock Text="{x:Bind EmptyText}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}" TextWrapping="Wrap"
+                                                       Style="{StaticResource BodyTextBlockStyle}" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
                                             <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8"
                                                         AutomationProperties.AutomationId="fst.service-status.inline">
                                                 <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />

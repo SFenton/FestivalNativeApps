@@ -36,8 +36,8 @@ public sealed partial class CardHeader : Grid
         new PropertyMetadata(AutomationHeadingLevel.Level2, (d, _) => ((CardHeader)d).Update()));
 
     private readonly InstrumentIcon icon = new() { Width = 36, Height = 36, VerticalAlignment = VerticalAlignment.Center };
-    private readonly TextBlock title = new();
-    private readonly TextBlock subtitle = new();
+    private readonly MarqueeText title = new();
+    private readonly MarqueeText subtitle = new();
 
     /// <summary>Creates the header.</summary>
     public CardHeader()
@@ -47,8 +47,9 @@ public sealed partial class CardHeader : Grid
         ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         AutomationProperties.SetAccessibilityView(icon, AccessibilityView.Raw);
-        title.Style = (Style)Application.Current.Resources["FSTCardHeaderTitleStyle"];
-        subtitle.Style = (Style)Application.Current.Resources["FSTCardHeaderSubtitleStyle"];
+        // Long titles scroll like the web's marquee headers (MarqueeText: only when they overflow and motion is on).
+        title.TextStyle = (Style)Application.Current.Resources["FSTCardHeaderTitleStyle"];
+        subtitle.TextStyle = (Style)Application.Current.Resources["FSTCardHeaderSubtitleStyle"];
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         text.Children.Add(title);
         text.Children.Add(subtitle);
