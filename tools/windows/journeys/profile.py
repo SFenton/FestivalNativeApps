@@ -100,6 +100,16 @@ JOURNEYS = [
         relaunch_args=["--tab", "statistics"],
     ),
     Journey(
+        name="links",
+        launch=["--route", "/player/fixture-player-1", *ANONYMOUS],
+        steps=[
+            ["waitfor:id=fst.player.stat.overview.songs-played@15", "waitfor:id=fst.player.stat.overview.best-rank@5"],
+            ["invoke:id=fst.player.stat.overview.songs-played", "waitfor:id=fst.songs.filter@10", "wait:2"],
+        ],
+        expect=[["fst.player.stat.overview.full-combos", "fst.player.select"], ["fst.songs.filter", "fst.nav.statistics"]],
+        forbid=[[], ["fst.player.select"]],
+    ),
+    Journey(
         name="history",
         launch=["--route", "/songs/fixture-pulse/Solo_Guitar/history", *_profile("fixture-player-1:Fixture Player 1")],
         steps=[
