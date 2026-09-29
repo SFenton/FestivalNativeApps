@@ -124,7 +124,7 @@ fun SongBandLeaderboardScreen(
                         if (response.entries.isEmpty()) {
                             item(key = "empty") {
                                 BandEmptyState(
-                                    "No band scores found",
+                                    "No Band Scores Found",
                                     "No ${type.label} scores have been recorded for this song yet.",
                                     "fst.song-band-leaderboard.empty",
                                 )

@@ -73,7 +73,7 @@ internal fun TopSongsCard(top: PlayerTopSongs, displayName: String, state: Playe
             Column(Modifier.padding(16.dp)) {
                 if (top.isEmpty) {
                     Text(
-                        "No scores yet",
+                        "No Scores Yet",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         color = BrandTokens.textPrimary,

@@ -16,6 +16,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.festivalscoretracker.android.ui.leaderboards.LocalRankingColumns
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
@@ -112,12 +114,12 @@ fun BandRankingsScreen(viewModel: BandRankingsViewModel, selectedAccountId: Stri
                         when {
                             current == null -> RankingsSkeletonRows(10)
                             entries.isEmpty() -> Text("No ranked bands yet.", color = BrandTokens.textPrimary, modifier = Modifier.padding(8.dp))
-                            else -> entries.forEachIndexed { index, entry ->
+                            else -> CompositionLocalProvider(LocalRankingColumns provides rememberBandColumns(entries, metric)) { entries.forEachIndexed { index, entry ->
                                 Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
                                     if (index > 0) RowSeparator(Modifier.align(Alignment.TopCenter))
                                     BandRankingRow(entry, metric, entry.includes(selectedAccountId), RankingNavigation.bandRoute(entry, bandType), navigate)
                                 }
-                            }
+                            } }
                         }
                     }
                 }

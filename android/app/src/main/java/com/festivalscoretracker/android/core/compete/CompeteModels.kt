@@ -145,10 +145,10 @@ object CompeteText {
     const val TITLE = "Compete"
     const val LEADERBOARDS = "Leaderboards"
     const val RIVALS = "Rivals"
-    const val NO_RIVALS_TITLE = "No rivals yet"
-    const val NO_RANKINGS_TITLE = "No scores yet"
-    const val VIEW_FULL_LEADERBOARDS = "View full leaderboards"
-    const val VIEW_ALL_RIVALS = "View all rivals"
+    const val NO_RIVALS_TITLE = "No Rivals Yet"
+    const val NO_RANKINGS_TITLE = "No Scores Yet"
+    const val VIEW_FULL_LEADERBOARDS = "View Full Leaderboards"
+    const val VIEW_ALL_RIVALS = "View All Rivals"
 
     /**
      * `compete.noRivalsSubtitle`.

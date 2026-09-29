@@ -127,7 +127,7 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         assertEquals("fcrate", store.current[LeaderboardPreferences.KEY_RANK_BY])
 
         scrollTo("fst.leaderboards", "$lead.view-all")
-        waitForText("View all rankings (60)")
+        waitForText("View All Rankings (60)")
         click("$lead.view-all")
         waitForText("Lead Leaderboards")
         waitForTag("fst.full-rankings.population")
@@ -162,10 +162,10 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
     }
 
     @Test
-    fun fullRankingsPinsTheSelectedRowAndJumpsToItsPage() {
+    fun fullRankingsPinsTheSelectedRowUntilItsPageIsShown() {
         launch("fullRankings:Solo_Guitar", selected)
-        waitForTag("fst.full-rankings.spotlight-jump")
-        click("fst.full-rankings.spotlight-jump")
+        waitForTag("fst.full-rankings.spotlight-footer")
+        click("fst.full-rankings.page-next")
         waitForDescription("Page 2 of 3")
         waitForTag("fst.rankings.row.${RankingsFixtures.SELECTED}")
         rule.waitUntil(5_000) { settle(100); !exists("fst.full-rankings.spotlight-footer") }

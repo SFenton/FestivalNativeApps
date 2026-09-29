@@ -181,7 +181,8 @@ fun AnchoredRowCard(modifier: Modifier = Modifier, content: @Composable ColumnSc
         shadowElevation = 4.dp,
         modifier = modifier.fillMaxWidth(),
     ) {
-        Column(Modifier.padding(4.dp), content = content)
+        // Same inset as the rows' card, so the pinned row's columns line up with the list.
+        Column(Modifier.padding(8.dp), content = content)
     }
 }
 

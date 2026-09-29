@@ -318,7 +318,7 @@ private fun SuggestionsGrid(
                     ) {
                         Text("You've reached 1,000 suggestions in this mix.", color = BrandTokens.textSecondary, textAlign = TextAlign.Center)
                         FilledTonalButton(onClick = actions.startNewMix, modifier = Modifier.heightIn(min = 48.dp).testTag("fst.suggestions.start-new-mix")) {
-                            Text("Start a new mix")
+                            Text("Start a New Mix")
                         }
                     }
                 }

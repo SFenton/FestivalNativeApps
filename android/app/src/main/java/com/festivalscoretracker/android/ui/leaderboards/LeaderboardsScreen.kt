@@ -29,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.heading
@@ -306,12 +307,12 @@ private fun ViewAllButton(label: String, tag: String, onClick: () -> Unit) {
 /**
  * View-all label with the population when known.
  *
- * @param noun "rankings" or "band rankings".
+ * @param noun "Rankings" or "Band Rankings" (Title Case labels).
  * @param total Population, 0 when unknown.
  * @return Label.
  */
 internal fun viewAllLabel(noun: String, total: Int): String =
-    if (total > 0) "View all $noun (${NumberFormat.getIntegerInstance().format(total)})" else "View all $noun"
+    if (total > 0) "View All $noun (${NumberFormat.getIntegerInstance().format(total)})" else "View All $noun"
 
 /**
  * One instrument's top-ten card with the selected player's spotlight.
@@ -334,7 +335,7 @@ private fun InstrumentCard(instrument: Instrument, viewModel: LeaderboardsViewMo
             when (val current = state) {
                 LoadState.Loading -> RankingsSkeletonRows(5)
                 is LoadState.Failed -> ServiceStatusInline(current.issue, "${instrument.label} rankings unavailable", current.countdown, { viewModel.retryCard(instrument) }, Modifier.padding(horizontal = 8.dp))
-                is LoadState.Loaded -> {
+                is LoadState.Loaded -> CompositionLocalProvider(LocalRankingColumns provides rememberAccountColumns(current.value.rankings.entries + pinnedEntry(viewModel, instrument, selected), metric)) {
                     val entries = current.value.rankings.entries
                     if (entries.isEmpty()) {
                         Text("No ranked ${instrument.label} players yet.", style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textPrimary, modifier = Modifier.padding(8.dp))
@@ -354,7 +355,7 @@ private fun InstrumentCard(instrument: Instrument, viewModel: LeaderboardsViewMo
                     Column(Modifier.festivalFadeIn(revealed, fadeInStagger(entries.size))) {
                         CardSpotlight(instrument, viewModel, metric, selected, entries, navigate, tag)
                         if (entries.isNotEmpty()) {
-                            ViewAllButton(viewAllLabel("rankings", current.value.rankings.totalAccounts), "$tag.view-all") {
+                            ViewAllButton(viewAllLabel("Rankings", current.value.rankings.totalAccounts), "$tag.view-all") {
                                 navigate(FullRankingsRoute(instrument.wireId, metric.wireId))
                             }
                         }
@@ -364,6 +365,22 @@ private fun InstrumentCard(instrument: Instrument, viewModel: LeaderboardsViewMo
         }
         }
     }
+}
+
+/**
+ * The selected player's own row when it is loaded (it may be pinned below the top ten),
+ * so the card's columns fit it too.
+ *
+ * @param viewModel Overview logic.
+ * @param instrument Chart.
+ * @param selected Selected player.
+ * @return The row, or none.
+ */
+@Composable
+private fun pinnedEntry(viewModel: LeaderboardsViewModel, instrument: Instrument, selected: String?): List<AccountRankingEntry> {
+    if (selected == null) return emptyList()
+    val state by viewModel.spotlight(instrument).collectAsStateWithLifecycle()
+    return listOfNotNull(((state as? LoadState.Loaded)?.value as? PlayerRankingResult.Ranked)?.ranking?.entry)
 }
 
 @Composable
@@ -425,7 +442,7 @@ private fun BandCard(bandType: BandType, viewModel: LeaderboardsViewModel, metri
             when (val current = state) {
                 LoadState.Loading -> RankingsSkeletonRows(5)
                 is LoadState.Failed -> ServiceStatusInline(current.issue, "${bandType.label} rankings unavailable", current.countdown, { viewModel.retryBand(bandType) }, Modifier.padding(horizontal = 8.dp))
-                is LoadState.Loaded -> {
+                is LoadState.Loaded -> CompositionLocalProvider(LocalRankingColumns provides rememberBandColumns(current.value.rankings.entries, bandMetric)) {
                     val entries = current.value.rankings.entries
                     if (entries.isEmpty()) {
                         Text("No ranked ${bandType.label.lowercase()} yet.", style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textPrimary, modifier = Modifier.padding(8.dp))
@@ -438,7 +455,7 @@ private fun BandCard(bandType: BandType, viewModel: LeaderboardsViewModel, metri
                     }
                     if (entries.isNotEmpty()) {
                         Box(Modifier.festivalFadeIn(revealed, fadeInStagger(entries.size))) {
-                            ViewAllButton(viewAllLabel("band rankings", current.value.rankings.totalTeams), "$tag.view-all") {
+                            ViewAllButton(viewAllLabel("Band Rankings", current.value.rankings.totalTeams), "$tag.view-all") {
                                 navigate(BandRankingsRoute(bandType.wireId))
                             }
                         }

@@ -62,14 +62,14 @@ internal fun ProfileBandsSection(state: PlayerProfileUiState, bands: BandsLoad?,
                     color = BrandTokens.textPrimary,
                     modifier = Modifier.weight(1f).semantics { heading() },
                 )
-                SeeAllButton(onClick = { onNavigate(all) }, modifier = Modifier.testTag("fst.player.bands-link"), label = "See all", spokenLabel = "See all ${state.displayName}'s bands")
+                SeeAllButton(onClick = { onNavigate(all) }, modifier = Modifier.testTag("fst.player.bands-link"), label = "See All", spokenLabel = "See All ${state.displayName}'s Bands")
             }
             when (bands) {
                 null, BandsLoad.Loading -> FestivalLoading("Loading bands", Modifier.testTag("fst.player.bands.loading"), size = 24.dp)
                 is BandsLoad.Failed -> ServiceStatusInline(bands.issue, "Bands unavailable", null, onRetry)
                 is BandsLoad.Loaded -> if (bands.bands.entries.isEmpty()) {
                     Column(Modifier.testTag("fst.player.bands.empty")) {
-                        Text("No bands yet", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)
+                        Text("No Bands Yet", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)
                         Text("Band lineups will appear here once this player posts band scores.", style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textPrimary)
                     }
                 } else {
@@ -79,7 +79,7 @@ internal fun ProfileBandsSection(state: PlayerProfileUiState, bands: BandsLoad?,
                     if (bands.bands.totalCount > bands.bands.entries.size) {
                         ViewFullLeaderboardButton(
                             onClick = { onNavigate(all) },
-                            label = "View all bands (${ProfileFormatting.count(bands.bands.totalCount.toLong())})",
+                            label = "View All Bands (${ProfileFormatting.count(bands.bands.totalCount.toLong())})",
                             testTag = "fst.player.bands.view-all",
                         )
                     }

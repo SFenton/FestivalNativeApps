@@ -233,7 +233,7 @@ class ProfileParityUiTest {
         journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
         journey.scrollTo("fst.player.bands")
         journey.waitForTag("fst.player.bands.view-all")
-        rule.onNodeWithText("View all bands (6)").assertIsDisplayed()
+        rule.onNodeWithText("View All Bands (6)").assertIsDisplayed()
         listOf(BandFixtures.DUO_ID, "band-1", "band-2", "band-3").forEach { journey.waitForTag("fst.player-bands.row.$it") }
         assertTrue(rule.onAllNodesWithTag("fst.player-bands.row.band-4").fetchSemanticsNodes().isEmpty())
         val sent = journey.transport.sent("/api/player/${Fixtures.ACCOUNT_A}/bands").single()
@@ -249,7 +249,7 @@ class ProfileParityUiTest {
         journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
         journey.scrollTo("fst.player.bands")
         journey.waitForTag("fst.player.bands.empty")
-        rule.onNodeWithText("No bands yet").assertIsDisplayed()
+        rule.onNodeWithText("No Bands Yet").assertIsDisplayed()
     }
 
     @Test

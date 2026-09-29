@@ -58,6 +58,13 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.Immutable
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.rankings.AccountRankingEntry
@@ -78,6 +85,75 @@ private val SelectedFill = BrandTokens.accentPurple.copy(alpha = 0.18f)
 
 /** Rating text (web `Colors.accentBlueBright` #4C7DFF). */
 private val RatingBlue = Color(0xFF4C7DFF)
+
+/**
+ * Fixed column widths shared by every row of one board or card, so the selected
+ * player's row (inline or pinned below) lines up with the rest (web `RankingEntry`
+ * `rankWidth` / reserved score width; operator batch 7, 7.9).
+ *
+ * @property rank Rank column.
+ * @property songs "X / Y" column.
+ * @property rating Rating column.
+ */
+@Immutable
+data class RankingColumns(val rank: Dp, val songs: Dp, val rating: Dp)
+
+/** Column widths for the rows below, or null for intrinsic widths. */
+val LocalRankingColumns = compositionLocalOf<RankingColumns?> { null }
+
+/**
+ * Measure the widest rank, songs and rating text (bold, as the selected row draws them).
+ *
+ * @param ranks Rank labels.
+ * @param songs Songs labels.
+ * @param ratings Rating labels.
+ * @return Column widths.
+ */
+@Composable
+fun rememberRankingColumns(ranks: List<String>, songs: List<String>, ratings: List<String>): RankingColumns {
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val typography = MaterialTheme.typography
+    return remember(ranks, songs, ratings, density, typography) {
+        fun widest(texts: List<String>, style: TextStyle, minimum: Dp): Dp = with(density) {
+            val px = texts.maxOfOrNull { measurer.measure(it, style.copy(fontWeight = FontWeight.Bold), maxLines = 1).size.width } ?: 0
+            maxOf(px.toDp() + 2.dp, minimum)
+        }
+        RankingColumns(
+            rank = widest(ranks, typography.bodyMedium, 44.dp),
+            songs = widest(songs, typography.bodyMedium, 0.dp),
+            rating = widest(ratings, typography.bodyLarge, 0.dp),
+        )
+    }
+}
+
+/**
+ * [rememberRankingColumns] for account rows.
+ *
+ * @param entries Rows sharing the columns (page rows plus the selected player's pinned row).
+ * @param metric Rank By metric.
+ * @return Column widths.
+ */
+@Composable
+fun rememberAccountColumns(entries: List<AccountRankingEntry>, metric: RankingMetric): RankingColumns = rememberRankingColumns(
+    entries.map { RankingFormatting.rankLabel(it.rank(metric)) },
+    entries.map { it.songsLabel(metric) },
+    entries.map { RankingFormatting.rating(it.ratingValue(metric), metric) },
+)
+
+/**
+ * [rememberRankingColumns] for band rows.
+ *
+ * @param entries Rows sharing the columns.
+ * @param metric Band metric.
+ * @return Column widths.
+ */
+@Composable
+fun rememberBandColumns(entries: List<BandRankingEntry>, metric: BandRankingMetric): RankingColumns = rememberRankingColumns(
+    entries.map { RankingFormatting.rankLabel(it.rank(metric)) },
+    entries.map { it.songsLabel(metric) },
+    entries.map { RankingFormatting.rating(it.ratingValue(metric), metric.asRankingMetric) },
+)
 
 /**
  * The one-line rank · name · "X / Y" · rating layout shared by account and band rows
@@ -128,17 +204,26 @@ private fun RankingRowLayout(
     ) {
         // Web `RankingEntry` `isPlayer`: every text in the selected player's row is bold.
         val weight = if (isSelected) FontWeight.Bold else null
+        val columns = LocalRankingColumns.current
         Text(
             RankingFormatting.rankLabel(rank),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = weight,
             color = BrandTokens.textPrimary,
             maxLines = 1,
-            modifier = Modifier.widthIn(min = 44.dp),
+            modifier = columns?.let { Modifier.width(it.rank) } ?: Modifier.widthIn(min = 44.dp),
         )
         Text(name, style = MaterialTheme.typography.bodyLarge, fontWeight = weight, color = BrandTokens.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        Text(songs, style = MaterialTheme.typography.bodyMedium, fontWeight = weight, color = BrandTokens.textSecondary, maxLines = 1)
-        Column(horizontalAlignment = Alignment.End) {
+        Text(
+            songs,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = weight,
+            color = BrandTokens.textSecondary,
+            maxLines = 1,
+            textAlign = TextAlign.End,
+            modifier = columns?.let { Modifier.width(it.songs) } ?: Modifier,
+        )
+        Column(horizontalAlignment = Alignment.End, modifier = columns?.let { Modifier.widthIn(min = it.rating) } ?: Modifier) {
             Text(rating, style = MaterialTheme.typography.bodyLarge, fontWeight = weight ?: FontWeight.SemiBold, color = RatingBlue, maxLines = 1)
             if (bayesian != null) {
                 Text(bayesian, style = MaterialTheme.typography.labelSmall, fontWeight = weight, color = BrandTokens.textSecondary, maxLines = 1)

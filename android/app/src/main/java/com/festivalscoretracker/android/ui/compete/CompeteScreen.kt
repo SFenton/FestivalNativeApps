@@ -30,6 +30,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.festivalscoretracker.android.ui.leaderboards.rememberAccountColumns
+import com.festivalscoretracker.android.ui.leaderboards.RowSeparator
+import com.festivalscoretracker.android.ui.leaderboards.LocalRankingColumns
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -202,9 +206,11 @@ private fun BoardCard(section: CompeteSection, selected: String?, viewModel: Com
                     EmptyCard(CompeteText.NO_RANKINGS_TITLE, CompeteText.noRankings(scope.label))
                 } else {
                     GlassCard(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(vertical = 6.dp)) {
+                        CompositionLocalProvider(LocalRankingColumns provides rememberAccountColumns(value.entries + listOfNotNull(value.spotlight), RankingMetric.TotalScore)) {
+                        Column(Modifier.padding(8.dp)) {
                             value.entries.forEachIndexed { index, entry ->
                                 Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index + 1))) {
+                                    if (index > 0) RowSeparator(Modifier.align(Alignment.TopCenter))
                                     AccountRankingRow(
                                         entry = entry,
                                         metric = RankingMetric.TotalScore,
@@ -226,6 +232,7 @@ private fun BoardCard(section: CompeteSection, selected: String?, viewModel: Com
                                     tag = "fst.compete.spotlight.${scope.key}",
                                 )
                             }
+                        }
                         }
                     }
                     if (fullBoard != null) {

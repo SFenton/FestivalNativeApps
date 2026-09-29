@@ -19,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
@@ -95,6 +96,8 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
             ServiceStatusView(failed.issue, "Rankings unavailable", failed.countdown, viewModel::retry, contentPadding = padding)
             return@FestivalScreen
         }
+        val pinned = ((spotlight as? LoadState.Loaded)?.value as? PlayerRankingResult.Ranked)?.ranking?.entry
+        CompositionLocalProvider(LocalRankingColumns provides rememberAccountColumns(entries + listOfNotNull(pinned), metric)) {
         RankingsBoardScaffold(
             padding = padding,
             listState = listState,
@@ -108,6 +111,7 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
             pager = { RankingsPager(page, totalPages, "fst.full-rankings", viewModel::goTo) },
         ) {
             rankingRows(current == null, revealed, entries, metric, selected, navigate)
+        }
         }
     }
 }
@@ -197,24 +201,18 @@ private fun ColumnScope.FullRankingsFooter(
         RankingSpotlightPlacement.None, RankingSpotlightPlacement.Inline -> Unit
         RankingSpotlightPlacement.Pending -> AnchoredRowCard { SpotlightLoadingRow("fst.full-rankings.spotlight-footer.loading") }
         RankingSpotlightPlacement.Unranked -> AnchoredRowCard { SpotlightUnrankedRow("Not yet ranked on ${instrument.label}.", "fst.full-rankings.spotlight-footer.unranked") }
-        is RankingSpotlightPlacement.Footer -> AnchoredRowCard { Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.weight(1f)) {
-                AccountRankingRow(
-                    entry = placement.entry,
-                    metric = metric,
-                    isSelected = true,
-                    route = RankingNavigation.playerRoute(placement.entry.accountId, placement.entry.displayName, selected),
-                    onOpen = navigate,
-                    tag = "fst.full-rankings.spotlight-footer",
-                )
-            }
-            if (viewModel.selectedPage() != null) {
-                FilledTonalButton(
-                    onClick = viewModel::jumpToSelected,
-                    modifier = Modifier.padding(start = 8.dp).heightIn(min = 48.dp).testTag("fst.full-rankings.spotlight-jump"),
-                ) { Text("Your Page") }
-            }
-        } }
+        // Web fixed player footer: the full-width row (opening the profile) in the page's
+        // columns, so it lines up with the rows above (operator batch 7, 7.9).
+        is RankingSpotlightPlacement.Footer -> AnchoredRowCard {
+            AccountRankingRow(
+                entry = placement.entry,
+                metric = metric,
+                isSelected = true,
+                route = RankingNavigation.playerRoute(placement.entry.accountId, placement.entry.displayName, selected),
+                onOpen = navigate,
+                tag = "fst.full-rankings.spotlight-footer",
+            )
+        }
     }
 }
 

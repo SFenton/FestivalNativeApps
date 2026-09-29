@@ -112,7 +112,7 @@ fun BandDetailScreen(viewModel: BandDetailViewModel, routeName: String?, artwork
             detailState is LoadState.Loading -> LoadingView("Loading band", Modifier.padding(padding))
             detailState is LoadState.Failed -> {
                 val failed = detailState as LoadState.Failed
-                ServiceStatusView(failed.issue, "Band not found", failed.countdown, viewModel::retry, Modifier.testTag("fst.band.error"), padding)
+                ServiceStatusView(failed.issue, "Band Not Found", failed.countdown, viewModel::retry, Modifier.testTag("fst.band.error"), padding)
             }
             detail != null -> BandDetailContent(viewModel, detail, type, title, padding, revealed, artworkUrl, onNavigate)
         }

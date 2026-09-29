@@ -105,7 +105,7 @@ private fun LazyGridScope.fullRow(key: String, content: @Composable () -> Unit) 
 fun BandNotFoundScreen() {
     FestivalScreen(title = "Band", isRoot = false, modifier = Modifier.testTag("fst.bands.screen")) { padding ->
         Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-            BandEmptyState("Band not found", "This band link is missing an ID and cannot be resolved.", "fst.bands.not-found")
+            BandEmptyState("Band Not Found", "This band link is missing an ID and cannot be resolved.", "fst.bands.not-found")
         }
     }
 }

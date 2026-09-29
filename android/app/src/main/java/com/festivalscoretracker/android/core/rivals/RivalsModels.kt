@@ -313,7 +313,7 @@ object RivalText {
     const val LEADERBOARD_TAB = "Leaderboard Rivals"
     const val FIND_RIVAL = "Find Rival"
     const val SEE_ALL = "See All"
-    const val VIEW_ALL_RIVALS = "View all rivals"
+    const val VIEW_ALL_RIVALS = "View All Rivals"
 
     /**
      * `rivals.instrumentRivalsShort`.
