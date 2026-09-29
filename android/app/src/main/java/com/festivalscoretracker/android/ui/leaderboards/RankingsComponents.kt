@@ -23,8 +23,8 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.FirstPage
-import androidx.compose.material.icons.filled.LastPage
+import androidx.compose.material.icons.filled.KeyboardDoubleArrowLeft
+import androidx.compose.material.icons.filled.KeyboardDoubleArrowRight
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -45,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -74,8 +75,12 @@ import java.text.NumberFormat
 /** Accent fill for the selected player's row (web `playerEntryRow`, `Colors.purpleHighlight`). */
 private val SelectedFill = BrandTokens.accentPurple.copy(alpha = 0.18f)
 
+/** Rating text (web `Colors.accentBlueBright` #4C7DFF). */
+private val RatingBlue = Color(0xFF4C7DFF)
+
 /**
- * The rank / name + songs / rating layout shared by account and band rows.
+ * The one-line rank · name · "X / Y" · rating layout shared by account and band rows
+ * (web `RankingEntry`: accent-blue rating, songs as a bare fraction).
  *
  * @param rank One-based rank.
  * @param name Display name or roster.
@@ -127,12 +132,10 @@ private fun RankingRowLayout(
             maxLines = 1,
             modifier = Modifier.widthIn(min = 44.dp),
         )
-        Column(Modifier.weight(1f)) {
-            Text(name, style = MaterialTheme.typography.bodyLarge, color = BrandTokens.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("$songs songs", style = MaterialTheme.typography.bodySmall, color = BrandTokens.textPrimary, maxLines = 1)
-        }
+        Text(name, style = MaterialTheme.typography.bodyLarge, color = BrandTokens.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Text(songs, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary, maxLines = 1)
         Column(horizontalAlignment = Alignment.End) {
-            Text(rating, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = BrandTokens.textPrimary, maxLines = 1)
+            Text(rating, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = RatingBlue, maxLines = 1)
             if (bayesian != null) {
                 Text(bayesian, style = MaterialTheme.typography.labelSmall, color = BrandTokens.textSecondary, maxLines = 1)
             }
@@ -286,7 +289,7 @@ fun SpotlightUnrankedRow(message: String, tag: String) {
 // region Pager
 
 /**
- * First / Previous / "page / total" / Next / Last, shared by every paginated board,
+ * « ‹ page / total › » (First, Previous, Next, Last), shared by every paginated board,
  * drawn as a floating pill (the web's floating paginator; Material 3 floating
  * toolbar shape) that the board anchors above the bottom chrome. The page text is a
  * polite live region ("Page 2 of 34,760"); First/Last collapse on very narrow
@@ -312,7 +315,7 @@ fun RankingsPager(page: Int, totalPages: Int, idPrefix: String, onChange: (Int) 
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 4.dp)) {
             if (showEnds) {
                 IconButton(onClick = { onChange(1) }, enabled = page > 1, modifier = Modifier.testTag("$idPrefix.page-first")) {
-                    Icon(Icons.Filled.FirstPage, contentDescription = "First page")
+                    Icon(Icons.Filled.KeyboardDoubleArrowLeft, contentDescription = "First page")
                 }
             }
             IconButton(onClick = { onChange(page - 1) }, enabled = page > 1, modifier = Modifier.testTag("$idPrefix.page-previous")) {
@@ -335,7 +338,7 @@ fun RankingsPager(page: Int, totalPages: Int, idPrefix: String, onChange: (Int) 
             }
             if (showEnds) {
                 IconButton(onClick = { onChange(totalPages) }, enabled = page < totalPages, modifier = Modifier.testTag("$idPrefix.page-last")) {
-                    Icon(Icons.Filled.LastPage, contentDescription = "Last page")
+                    Icon(Icons.Filled.KeyboardDoubleArrowRight, contentDescription = "Last page")
                 }
             }
         }
@@ -446,7 +449,8 @@ fun InstrumentAction(selected: Instrument, options: List<Instrument>, onSelect: 
         optionLabel = Instrument::label,
         onSelect = onSelect,
         tag = tag,
-        icon = { InstrumentIcon(selected, size = 26.dp, decorative = true) },
+        // Same 24 dp as the Rank By glyph beside it (operator 2026-09-28).
+        icon = { InstrumentIcon(selected, size = 24.dp, decorative = true) },
         leading = { PickerInstrumentIcon(it) },
     )
 }

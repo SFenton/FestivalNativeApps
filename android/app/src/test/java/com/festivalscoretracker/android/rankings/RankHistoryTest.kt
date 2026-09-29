@@ -2,7 +2,10 @@ package com.festivalscoretracker.android.rankings
 
 import com.festivalscoretracker.android.core.model.FestivalApiException
 import com.festivalscoretracker.android.core.model.Instrument
+import com.festivalscoretracker.android.core.profile.RankHistoryPlot
+import com.festivalscoretracker.android.core.profile.RankHistoryWindow
 import com.festivalscoretracker.android.core.rankings.RankHistoryChart
+import com.festivalscoretracker.android.core.rankings.RankHistoryRow
 import com.festivalscoretracker.android.core.rankings.RankHistoryResponse
 import com.festivalscoretracker.android.core.rankings.RankHistorySnapshot
 import com.festivalscoretracker.android.core.rankings.RankingMetric
@@ -68,16 +71,6 @@ class RankHistoryTest {
     }
 
     @Test
-    fun rankDomainPadsAndNeverShowsRankZero() {
-        assertEquals(1 to 100, RankHistoryChart.rankDomain(emptyList()))
-        assertEquals(1 to 100, RankHistoryChart.rankDomain(listOf(0, -1)))
-        assertEquals(1 to 22, RankHistoryChart.rankDomain(listOf(2, 20)))
-        assertEquals(88 to 112, RankHistoryChart.rankDomain(listOf(90, 100, 110)))
-        // A flat line still gets a non-empty axis.
-        assertEquals(40 to 41, RankHistoryChart.rankDomain(listOf(40, 40)))
-    }
-
-    @Test
     fun valueTextFollowsTheWeb() {
         assertEquals("43%", RankHistoryChart.valueText(0.43, RankingMetric.FcRate, Locale.US))
         assertEquals("42.5%", RankHistoryChart.valueText(0.425, RankingMetric.MaxScore, Locale.US))
@@ -86,32 +79,44 @@ class RankHistoryTest {
     }
 
     @Test
-    fun chartBuildsBarsLineRowsAndSummary() {
+    fun chartFeedsTheSharedWindowAndPlot() {
         val chart = RankHistoryChart.build(listOf(snapshot("2026-09-23", 12, 2_000), snapshot("2026-09-25", 8, 4_000)), RankingMetric.TotalScore, today, Locale.US)!!
-        assertEquals(5, chart.bars.size)
-        assertEquals(1f, chart.bars.last().height, 0f)
-        assertEquals(0.5f, chart.bars.first().height, 0f)
-        assertEquals(5, chart.rankLine.size)
-        assertTrue(chart.rankLine.last().highlight)
-        assertFalse(chart.rankLine.first().highlight)
-        // Better rank (8) sits higher (smaller y) than the older 12.
-        assertTrue(chart.rankLine.last().y < chart.rankLine.first().y)
-        assertEquals("#7", chart.rankTicks.first().label)
-        assertEquals("9/23/26", chart.startLabel)
-        assertEquals("9/27/26", chart.endLabel)
+        assertEquals(5, chart.points.size)
+        assertEquals(listOf(12, 12, 8, 8, 8), chart.snapshots.map { it.totalScoreRank })
+        assertEquals(listOf(2_000L, 2_000L, 4_000L, 4_000L, 4_000L), chart.snapshots.map { it.totalScore })
         assertEquals(RankHistoryChart.RECENT_ROWS, chart.rows.size)
-        assertEquals("Sep 27, 2026", chart.rows.first().date)
-        assertTrue(chart.rows.first().latest)
-        assertEquals("#8", chart.rows.first().rank)
-        assertEquals("4,000", chart.rows.first().value)
+        assertEquals(RankHistoryRow("Sep 27, 2026", "#8", "4,000", latest = true), chart.rows.first())
         assertEquals("Total Score rank over 5 days. Latest #8, up 4 places.", chart.summary)
+        assertEquals(0, chart.totalAccounts)
+        // A narrow window of three bars ending at the newest day, then paged back.
+        val window = RankHistoryWindow(chart.snapshots, maxBars = 3)
+        assertEquals(listOf("4K", "2K", "0"), chart.valueTicks(window, Locale.US).map { it.label })
+        assertTrue(chart.windowDescription(window, Locale.US).startsWith("Rank history chart, Sep 25, 2026 to Sep 27, 2026. Sep 25, 2026: #8."))
+        val plot = RankHistoryPlot.build(window, chart.totalAccounts)
+        assertEquals(3, plot.bars.size)
+        assertNull(chart.detail(window, Locale.US))
+        val tapped = window.toggle(0)
+        assertEquals(RankHistoryRow("Sep 25, 2026", "#8", "4,000", latest = false), chart.detail(tapped, Locale.US))
+        assertEquals("#12", chart.detail(tapped.backPage(), Locale.US)!!.rank)
         val down = RankHistoryChart.build(listOf(snapshot("2026-09-26", 3), snapshot("2026-09-27", 9)), RankingMetric.TotalScore, today, Locale.US)!!
         assertTrue(down.summary.endsWith("down 6 places."))
         val flat = RankHistoryChart.build(listOf(snapshot("2026-09-27", 3, score = null)), RankingMetric.TotalScore, today, Locale.US)!!
         assertTrue(flat.summary.endsWith("unchanged."))
-        assertTrue(flat.bars.isEmpty())
-        assertEquals(0.5f, flat.rankLine.single().x, 0f)
+        assertTrue(flat.valueTicks(RankHistoryWindow(flat.snapshots, 5)).isEmpty())
         assertEquals(1, flat.rows.size)
+    }
+
+    @Test
+    fun fractionalMetricsAreScaledForThePlotAndLabelledAsPercents() {
+        val fc = RankHistoryChart.build(listOf(snapshot("2026-09-27", 3)), RankingMetric.FcRate, today, Locale.US)!!
+        assertEquals(6, fc.snapshots.single().totalScoreRank)
+        assertEquals(425_000L, fc.snapshots.single().totalScore)
+        assertEquals("43%", fc.valueTicks(RankHistoryWindow(fc.snapshots, 5), Locale.US).first().label)
+        assertEquals("42.5%", fc.rows.single().value)
+        assertEquals("0.02", RankHistoryChart.axisText(0.02, RankingMetric.Adjusted, Locale.US))
+        assertEquals("1.2M", RankHistoryChart.axisText(1_234_567.0, RankingMetric.TotalScore, Locale.US))
+        val counted = RankHistoryChart.build(listOf(snapshot("2026-09-27", 3).copy(rankedAccountCount = 500)), RankingMetric.TotalScore, today, Locale.US)!!
+        assertEquals(500, counted.totalAccounts)
     }
 
     @Test

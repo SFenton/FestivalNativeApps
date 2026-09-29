@@ -189,7 +189,7 @@ class ProfileParityUiTest {
             journey.settle(100)
             rule.onAllNodesWithTag("fst.player.available").fetchSemanticsNodes().isEmpty()
         }
-        rule.onNodeWithText("Lead Rankings").assertIsDisplayed()
+        rule.onNodeWithText("Lead Leaderboards").assertIsDisplayed()
     }
 
     @Test

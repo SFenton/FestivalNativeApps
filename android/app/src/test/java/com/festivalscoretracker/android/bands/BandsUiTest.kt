@@ -90,7 +90,7 @@ class BandsUiTest {
         rule.onNodeWithText("Band search isn't available", substring = true).assertIsDisplayed()
         scrollTo("fst.bands.list", "fst.bands.rankings.Band_Trios")
         click("fst.bands.rankings.Band_Trios")
-        rule.waitUntil(10_000) { rule.onAllNodesWithText("Trios Rankings").fetchSemanticsNodes().isNotEmpty() }
+        rule.waitUntil(10_000) { rule.onAllNodesWithText("Trios Leaderboards").fetchSemanticsNodes().isNotEmpty() }
         assertTrue(transport.requests.none { it.url.contains("/api/player/") })
     }
 

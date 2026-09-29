@@ -82,7 +82,7 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
     }
 
     FestivalScreen(
-        title = "${instrument.label} Rankings",
+        title = "${instrument.label} Leaderboards",
         isRoot = false,
         modifier = Modifier.semantics { testTagsAsResourceId = true },
         actions = {
@@ -101,7 +101,7 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
             idPrefix = "fst.full-rankings",
             loadingOverlay = board is LoadState.Loading && current != null,
             controls = {
-                FullRankingsControls(metric, current)
+                FullRankingsControls(current)
                 if (failed != null) ServiceStatusInline(failed.issue, "Rankings unavailable", failed.countdown, viewModel::retry)
             },
             footer = { FullRankingsFooter(instrument, metric, selected, entries, spotlight, current != null, viewModel, navigate) },
@@ -113,17 +113,16 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
 }
 
 /**
- * Page information above the rows: population and the active metric (the pickers
- * themselves are top-bar actions).
+ * Page information above the rows: the population (web "868,901 ranked players"; the
+ * pickers themselves are screen actions).
  *
- * @param metric Rank By metric.
  * @param current Shown page, or null while the first page loads.
  */
 @Composable
-private fun FullRankingsControls(metric: RankingMetric, current: RankingsPayload?) {
+private fun FullRankingsControls(current: RankingsPayload?) {
     if (current == null) return
     Text(
-        "${RankingFormatting.population(current.rankings.totalAccounts, "player")} · ${metric.label}",
+        RankingFormatting.population(current.rankings.totalAccounts, "player"),
         style = MaterialTheme.typography.bodyMedium,
         color = BrandTokens.textPrimary,
         modifier = Modifier.testTag("fst.full-rankings.population"),

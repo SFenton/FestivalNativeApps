@@ -2,15 +2,16 @@ package com.festivalscoretracker.android.core.rankings
 
 import com.festivalscoretracker.android.core.model.FestivalApiException
 import com.festivalscoretracker.android.core.model.Instrument
-import com.festivalscoretracker.android.core.profile.ChartBar
-import com.festivalscoretracker.android.core.profile.ChartPoint
 import com.festivalscoretracker.android.core.profile.ChartTick
+import com.festivalscoretracker.android.core.profile.PlayerRankHistorySnapshot
+import com.festivalscoretracker.android.core.profile.ProfileFormatting
+import com.festivalscoretracker.android.core.profile.RankHistoryPlot
+import com.festivalscoretracker.android.core.profile.RankHistoryWindow
 import java.text.NumberFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import java.util.Locale
-import kotlin.math.ceil
 import kotlinx.serialization.Serializable
 
 // region Wire
@@ -117,11 +118,12 @@ data class RankHistoryResponse(
  * @property rank Rank for the metric.
  * @property value Value for the metric.
  * @property synthetic Carried forward over a missing day.
+ * @property rankedAccountCount Field size that day (bar colour), or null.
  */
-data class RankHistoryPoint(val date: LocalDate, val rank: Int, val value: Double, val synthetic: Boolean)
+data class RankHistoryPoint(val date: LocalDate, val rank: Int, val value: Double, val synthetic: Boolean, val rankedAccountCount: Int? = null)
 
 /**
- * One row of the "latest snapshots" list under the chart.
+ * One row of the "latest snapshots" list under the chart, or the selected bar's detail.
  *
  * @property date "Sep 27, 2026".
  * @property rank "#1,234".
@@ -131,34 +133,79 @@ data class RankHistoryPoint(val date: LocalDate, val rank: Int, val value: Doubl
 data class RankHistoryRow(val date: String, val rank: String, val value: String, val latest: Boolean)
 
 /**
- * Geometry and text for the Leaderboards rank-history card (web
- * `pages/leaderboards/components/RankHistoryChart.tsx`): metric value bars under a
- * rank line (#1 on top) on one date axis, and the five newest days as rows. Pure
- * data, so Compose draws it without per-frame work.
+ * Data for the Leaderboards rank-history card (web
+ * `pages/leaderboards/components/RankHistoryChart.tsx`): every day's rank and value
+ * for the Rank By metric, windowed, swiped, paged and tapped exactly like the
+ * profile chart by reusing its [RankHistoryWindow] / [RankHistoryPlot] on [snapshots]
+ * (the metric's rank and scaled value in the Total Score slots), plus the five
+ * newest days as rows. Pure data, so Compose draws it without per-frame work.
  *
- * @property bars Value bars, oldest first.
- * @property rankLine Rank points (y 0 = best rank on the axis).
- * @property rankTicks Rank grid lines, best first.
- * @property startLabel First day on the axis.
- * @property endLabel Last day on the axis.
+ * @property metric Rank By metric.
+ * @property points Daily points, oldest first.
+ * @property snapshots [points] shaped for the shared window and plot.
  * @property rows Newest five days, newest first.
  * @property summary Screen-reader sentence.
  */
 data class RankHistoryChart(
-    val bars: List<ChartBar>,
-    val rankLine: List<ChartPoint>,
-    val rankTicks: List<ChartTick>,
-    val startLabel: String,
-    val endLabel: String,
+    val metric: RankingMetric,
+    val points: List<RankHistoryPoint>,
+    val snapshots: List<PlayerRankHistorySnapshot>,
     val rows: List<RankHistoryRow>,
     val summary: String,
 ) {
+    /** Field size for bar colours (latest known). */
+    val totalAccounts: Int get() = points.lastOrNull { it.rankedAccountCount != null }?.rankedAccountCount ?: 0
+
+    /**
+     * Value-axis labels for a window: the visible maximum, half and zero (the bars are
+     * scaled to the visible maximum, like [RankHistoryPlot.build]).
+     *
+     * @param window Visible window over [snapshots].
+     * @param locale Locale.
+     * @return Ticks, highest first (empty when every visible value is zero).
+     */
+    fun valueTicks(window: RankHistoryWindow, locale: Locale = Locale.getDefault()): List<ChartTick> {
+        val visible = points.subList(window.pageStart, window.pageEnd)
+        val max = visible.maxOfOrNull { it.value } ?: 0.0
+        if (max <= 0) return emptyList()
+        return listOf(max, max / 2, 0.0).map { ChartTick((1 - it / max).toFloat(), axisText(it, metric, locale)) }
+    }
+
+    /**
+     * The selected bar's detail line.
+     *
+     * @param window Window with a selection.
+     * @param locale Locale.
+     * @return Detail, or null without a selection.
+     */
+    fun detail(window: RankHistoryWindow, locale: Locale = Locale.getDefault()): RankHistoryRow? =
+        window.selected?.let(points::getOrNull)?.let { row(it, metric, latest = false, locale = locale) }
+
+    /**
+     * Accessible description of a window ("Sep 21, 2026: #14. …").
+     *
+     * @param window Visible window.
+     * @param locale Locale.
+     * @return Text.
+     */
+    fun windowDescription(window: RankHistoryWindow, locale: Locale = Locale.getDefault()): String {
+        val visible = points.subList(window.pageStart, window.pageEnd)
+        if (visible.isEmpty()) return "Rank history chart. $summary"
+        return buildString {
+            append("Rank history chart, ").append(day(visible.first().date, locale)).append(" to ").append(day(visible.last().date, locale)).append(". ")
+            visible.forEach { append(day(it.date, locale)).append(": ").append(RankingFormatting.rankLabel(it.rank, locale)).append(". ") }
+        }
+    }
+
     companion object {
         /** Days requested (web default). */
         const val DAYS = 30
 
         /** Rows under the chart (web `getRecentRankHistoryPoints`). */
         const val RECENT_ROWS = 5
+
+        /** Fractional metrics are scaled to whole numbers for the shared plot's Long values. */
+        private const val VALUE_SCALE = 1_000_000.0
 
         /**
          * Carry-forward gap filling (web `fillRankHistoryGaps`): every missing day,
@@ -176,28 +223,11 @@ data class RankHistoryChart(
                 val end = dated.getOrNull(index + 1)?.first ?: today.plusDays(1)
                 var day = date
                 while (day == date || day < end) {
-                    result += RankHistoryPoint(day, snapshot.rank(metric), snapshot.value(metric), synthetic = day != date)
+                    result += RankHistoryPoint(day, snapshot.rank(metric), snapshot.value(metric), synthetic = day != date, snapshot.rankedAccountCount)
                     day = day.plusDays(1)
                 }
             }
             return result
-        }
-
-        /**
-         * Rank axis padded by 10 % either side, never above #1 (web `getRankHistoryDomain`).
-         *
-         * @param ranks Ranks (non-positive ignored).
-         * @return Best and worst axis ranks.
-         */
-        fun rankDomain(ranks: List<Int>): Pair<Int, Int> {
-            val ranked = ranks.filter { it > 0 }
-            if (ranked.isEmpty()) return 1 to 100
-            val low = ranked.min()
-            val high = ranked.max()
-            val pad = ceil((high - low) * 0.1).toInt()
-            val best = maxOf(1, low - pad)
-            // A flat line still needs a non-empty axis.
-            return best to maxOf(high + pad, best + 1)
         }
 
         /**
@@ -218,6 +248,20 @@ data class RankHistoryChart(
         }
 
         /**
+         * Short value-axis label (web `formatValueTick`): compact totals, whole percents.
+         *
+         * @param value Metric value.
+         * @param metric Rank By metric.
+         * @param locale Locale.
+         * @return Text.
+         */
+        fun axisText(value: Double, metric: RankingMetric, locale: Locale = Locale.getDefault()): String = when (metric) {
+            RankingMetric.TotalScore -> ProfileFormatting.compact(value.toLong(), locale)
+            RankingMetric.FcRate, RankingMetric.MaxScore -> "${String.format(Locale.US, "%.0f", value * 100)}%"
+            RankingMetric.Adjusted, RankingMetric.Weighted -> String.format(Locale.US, "%.2f", value)
+        }
+
+        /**
          * Build the card from a response.
          *
          * @param history Snapshots.
@@ -227,33 +271,32 @@ data class RankHistoryChart(
          * @return Chart, or null when no day has a rank for the metric.
          */
         fun build(history: List<RankHistorySnapshot>, metric: RankingMetric, today: LocalDate, locale: Locale = Locale.getDefault()): RankHistoryChart? {
-            val points = points(history, metric, today)
-            if (points.none { it.rank > 0 }) return null
-            val (best, worst) = rankDomain(points.map { it.rank })
-            val span = (worst - best).toFloat()
-            fun x(i: Int) = if (points.size == 1) 0.5f else i.toFloat() / (points.size - 1)
-            val maxValue = points.maxOf { it.value }
-            val bars = if (maxValue <= 0) emptyList() else points.mapIndexed { i, p -> ChartBar(x(i), (p.value / maxValue).toFloat().coerceIn(0f, 1f)) }
-            val line = points.mapIndexedNotNull { i, p ->
-                if (p.rank <= 0) null else ChartPoint(x(i), ((p.rank - best) / span).coerceIn(0f, 1f), highlight = i == points.lastIndex)
+            val points = points(history, metric, today).filter { it.rank > 0 }
+            if (points.isEmpty()) return null
+            val scale = if (metric == RankingMetric.TotalScore) 1.0 else VALUE_SCALE
+            val snapshots = points.map {
+                PlayerRankHistorySnapshot(
+                    snapshotDate = it.date.toString(),
+                    totalScoreRank = it.rank,
+                    totalScore = (it.value * scale).toLong().coerceAtLeast(0L),
+                    rankedAccountCount = it.rankedAccountCount,
+                )
             }
-            val step = maxOf(1, ceil((worst - best) / 3.0).toInt())
-            val ticks = (best..worst step step).map { ChartTick((it - best) / span, RankingFormatting.rankLabel(it, locale)) }
-            val axis = DateTimeFormatter.ofPattern("M/d/yy", locale)
-            val long = DateTimeFormatter.ofPattern("MMM d, yyyy", locale)
-            val rows = points.asReversed().take(RECENT_ROWS).mapIndexed { i, p ->
-                RankHistoryRow(p.date.format(long), RankingFormatting.rankLabel(p.rank, locale), valueText(p.value, metric, locale), latest = i == 0)
-            }
-            val ranked = points.filter { it.rank > 0 }
-            val delta = ranked.first().rank - ranked.last().rank
+            val rows = points.asReversed().take(RECENT_ROWS).mapIndexed { i, p -> row(p, metric, latest = i == 0, locale = locale) }
+            val delta = points.first().rank - points.last().rank
             val trend = when {
                 delta > 0 -> "up ${NumberFormat.getIntegerInstance(locale).format(delta)} places"
                 delta < 0 -> "down ${NumberFormat.getIntegerInstance(locale).format(-delta)} places"
                 else -> "unchanged"
             }
-            val summary = "${metric.label} rank over ${points.size} days. Latest ${RankingFormatting.rankLabel(ranked.last().rank, locale)}, $trend."
-            return RankHistoryChart(bars, line, ticks, points.first().date.format(axis), points.last().date.format(axis), rows, summary)
+            val summary = "${metric.label} rank over ${points.size} days. Latest ${RankingFormatting.rankLabel(points.last().rank, locale)}, $trend."
+            return RankHistoryChart(metric, points, snapshots, rows, summary)
         }
+
+        private fun day(date: LocalDate, locale: Locale): String = date.format(DateTimeFormatter.ofPattern("MMM d, yyyy", locale))
+
+        private fun row(point: RankHistoryPoint, metric: RankingMetric, latest: Boolean, locale: Locale): RankHistoryRow =
+            RankHistoryRow(day(point.date, locale), RankingFormatting.rankLabel(point.rank, locale), valueText(point.value, metric, locale), latest)
     }
 }
 

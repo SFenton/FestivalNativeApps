@@ -21,7 +21,10 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.SavedStateHandle
@@ -131,6 +134,15 @@ class LeaderboardsComponentsUiTest {
         rule.waitUntil(5_000) { settle(); text("Rank History") && exists("fst.leaderboards.rank-history.picker") }
         rule.waitUntil(5_000) { settle(); rule.onAllNodesWithContentDescription("Rank history chart", substring = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
         assertTrue(text("Total Score"))
+        // The window pages and swipes like the profile chart; tapping a bar shows its detail.
+        rule.onNodeWithTag("fst.leaderboards.rank-history.back-page").performSemanticsAction(SemanticsActions.OnClick)
+        settle()
+        rule.onNodeWithTag("fst.leaderboards.rank-history.forward-entry").performSemanticsAction(SemanticsActions.OnClick)
+        rule.onNodeWithTag("fst.leaderboards.rank-history.plot").performTouchInput { click(centerLeft.copy(x = 4f)) }
+        settle()
+        assertTrue(exists("fst.leaderboards.rank-history.detail"))
+        rule.onNodeWithTag("fst.leaderboards.rank-history.plot").performTouchInput { swipeRight() }
+        settle()
         rule.onNodeWithTag("fst.leaderboards.rank-history.picker.Solo_Bass").performSemanticsAction(SemanticsActions.OnClick)
         rule.waitUntil(5_000) { settle(); fake.count("history:Solo_Bass:") == 1 }
         // The header sits above (outside) its card.

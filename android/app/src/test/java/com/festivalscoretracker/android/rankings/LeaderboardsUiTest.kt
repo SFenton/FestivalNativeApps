@@ -129,7 +129,7 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         scrollTo("fst.leaderboards", "$lead.view-all")
         waitForText("View all rankings (60)")
         click("$lead.view-all")
-        waitForText("Lead Rankings")
+        waitForText("Lead Leaderboards")
         waitForTag("fst.full-rankings.population")
         waitForDescription("Page 1 of 3")
         assertTrue(transport.requests.last { it.url.contains("/api/rankings/Solo_Guitar") }.url.contains("rankBy=fcrate&page=1&pageSize=25"))
@@ -141,7 +141,7 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         waitForDescription("Page 1 of 3")
         click("fst.full-rankings.instrument-menu")
         click("fst.full-rankings.instrument-menu.1")
-        waitForText("Bass Rankings")
+        waitForText("Bass Leaderboards")
         click("fst.nav.back")
         waitForTag(lead)
     }
@@ -202,7 +202,7 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         click("fst.rankings.rank-by-menu")
         click("fst.rankings.rank-by.fcrate")
         waitForDescription("Page 1 of 3")
-        waitForText("60 ranked players · FC Rate")
+        waitForText("60 ranked players")
     }
 
     @Test
@@ -231,7 +231,7 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
     @Test
     fun bandRankingsPagesSwitchSizeAndOpenBands() {
         launch("bandRankings:Band_Trios", selected)
-        waitForText("Trios Rankings")
+        waitForText("Trios Leaderboards")
         waitForTag("fst.band-rankings.population")
         waitForDescription("Page 1 of 2")
         val second = "fst.band-rankings.row.${RankingsFixtures.SELECTED}:${RankingsFixtures.accountId(2002)}"
@@ -240,7 +240,7 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         waitForDescription("Page 2 of 2")
         click("fst.band-rankings.band-type-menu")
         click("fst.band-rankings.band-type-menu.2")
-        waitForText("Quads Rankings")
+        waitForText("Quads Leaderboards")
         waitForDescription("Page 1 of 2")
         click("fst.band-rankings.rank-by-menu")
         click("fst.band-rankings.rank-by-menu.2")

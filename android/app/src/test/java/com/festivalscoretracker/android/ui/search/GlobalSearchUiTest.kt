@@ -150,7 +150,7 @@ class GlobalSearchUiTest {
         assertTrue(h.bandSearches().isEmpty())
         rule.onNodeWithTag(GlobalSearchTags.BANDS_RANKINGS).performClick()
         h.waitForGone(GlobalSearchTags.SURFACE)
-        rule.waitUntil(10_000) { h.settle(100); rule.onAllNodesWithText("Duos Rankings").fetchSemanticsNodes().isNotEmpty() }
+        rule.waitUntil(10_000) { h.settle(100); rule.onAllNodesWithText("Duos Leaderboards").fetchSemanticsNodes().isNotEmpty() }
         assertTrue(h.bandSearches().isEmpty())
     }
 

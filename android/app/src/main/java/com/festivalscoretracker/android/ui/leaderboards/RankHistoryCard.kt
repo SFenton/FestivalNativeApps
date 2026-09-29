@@ -5,6 +5,37 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.KeyboardDoubleArrowLeft
+import androidx.compose.material.icons.filled.KeyboardDoubleArrowRight
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.text.style.TextAlign
+import com.festivalscoretracker.android.core.profile.ChartTick
+import com.festivalscoretracker.android.core.profile.RankHistoryColors
+import com.festivalscoretracker.android.core.profile.RankHistoryPlot
+import com.festivalscoretracker.android.core.profile.RankHistoryWindow
+import com.festivalscoretracker.android.core.rankings.RankHistoryPoint
+import java.time.format.DateTimeFormatter
+import kotlin.math.abs
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -106,7 +137,7 @@ fun RankHistoryCard(viewModel: LeaderboardsViewModel, instruments: List<Instrume
                                 modifier = Modifier.padding(vertical = 8.dp).testTag("fst.leaderboards.rank-history.empty"),
                             )
                         } else {
-                            HistoryChart(chart, metric)
+                            HistoryChart(chart)
                             chart.rows.forEach { HistoryRow(it) }
                         }
                     }
@@ -141,64 +172,163 @@ private fun HistoryInstrumentPicker(instruments: List<Instrument>, selected: Ins
     }
 }
 
+/**
+ * The windowed chart (web `GraphCard`, same interaction as the profile's
+ * `RankHistoryChart`): the bars that fit, swipe or « ‹ › » to move through the days,
+ * tap a bar for its detail. Bars are the metric value coloured by rank (web
+ * `rankColor`); the line is the rank (#1 on top).
+ *
+ * @param chart Card data.
+ */
 @Composable
-private fun HistoryChart(chart: RankHistoryChart, metric: RankingMetric) {
-    Column(Modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = "Rank history chart. ${chart.summary}" }) {
-        Row(Modifier.fillMaxWidth()) {
-            Canvas(Modifier.weight(1f).height(CHART_HEIGHT_DP.dp)) {
-                chart.rankTicks.forEach { tick ->
-                    val y = tick.y * size.height
-                    drawLine(BrandTokens.glassBorder.copy(alpha = 0.5f), Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
-                }
-                val pad = 8.dp.toPx()
-                val barWidth = ChartGeometry.barWidth(chart.bars.size, size.width, 18.dp.toPx())
-                chart.bars.forEach { bar ->
-                    val rect = ChartGeometry.bar(bar, size.width, size.height, barWidth, pad)
-                    drawRoundRect(
-                        BrandTokens.accentPurple.copy(alpha = 0.45f),
-                        topLeft = Offset(rect.left, rect.top),
-                        size = Size(rect.width, rect.height),
-                        cornerRadius = CornerRadius(3.dp.toPx()),
-                    )
-                }
-                if (chart.rankLine.isNotEmpty()) {
-                    val pixels = chart.rankLine.map { ChartGeometry.point(it, size.width, size.height, pad) }
-                    val path = Path()
-                    pixels.forEachIndexed { i, p -> if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y) }
-                    drawPath(path, BrandTokens.accentBlue, style = Stroke(width = 2.dp.toPx()))
-                    chart.rankLine.forEachIndexed { i, point ->
-                        drawCircle(
-                            if (point.highlight) BrandTokens.gold else BrandTokens.accentBlue,
-                            radius = (if (point.highlight) 4.5f else 2.5f).dp.toPx(),
-                            center = Offset(pixels[i].x, pixels[i].y),
-                        )
-                    }
+private fun HistoryChart(chart: RankHistoryChart) {
+    var offset by rememberSaveable(chart.snapshots) { mutableIntStateOf(0) }
+    var selected by rememberSaveable(chart.snapshots) { mutableStateOf<Int?>(null) }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clearAndSetSemantics { }) {
+            LegendSwatch(chart.metric.label) {
+                Box(
+                    Modifier.size(width = 20.dp, height = 12.dp).background(
+                        Brush.horizontalGradient(listOf(rgb(RankHistoryColors.accuracy(0.0)), rgb(RankHistoryColors.accuracy(100.0)))),
+                        RoundedCornerShape(2.dp),
+                    ),
+                )
+            }
+            LegendSwatch("Rank") { Box(Modifier.width(18.dp).height(2.dp).background(rgb(RankHistoryColors.RANK_LINE))) }
+        }
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val plotWidthDp = (maxWidth.value - 2 * AXIS_WIDTH_DP).coerceAtLeast(1f)
+            val window = RankHistoryWindow(chart.snapshots, RankHistoryWindow.barsFor(plotWidthDp), offset, selected)
+            val update: (RankHistoryWindow) -> Unit = { next -> offset = next.offset; selected = next.selected }
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                HistoryPlot(chart, window, update)
+                if (window.needsPagination) HistoryPager(window, update)
+                chart.detail(window)?.let { detail ->
+                    Surface(
+                        color = BrandTokens.accentPurple.copy(alpha = 0.25f),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth().testTag("fst.leaderboards.rank-history.detail").semantics { liveRegion = LiveRegionMode.Polite },
+                    ) { HistoryRow(detail, Modifier) }
                 }
             }
-            Box(Modifier.width(56.dp).height(CHART_HEIGHT_DP.dp)) {
-                chart.rankTicks.forEach { tick ->
-                    Text(
-                        tick.label,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = BrandTokens.textPrimary,
-                        maxLines = 1,
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(top = ChartGeometry.labelTop(tick, CHART_HEIGHT_DP.toFloat(), AXIS_LABEL_HEIGHT).dp),
-                    )
-                }
-            }
-        }
-        Row(Modifier.fillMaxWidth().padding(top = 4.dp, end = 56.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(chart.startLabel, style = MaterialTheme.typography.labelSmall, color = BrandTokens.textPrimary)
-            Text(chart.endLabel, style = MaterialTheme.typography.labelSmall, color = BrandTokens.textPrimary)
-        }
-        Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            LegendSwatch(metric.label) { Box(Modifier.size(12.dp).clip(RoundedCornerShape(3.dp)).background(BrandTokens.accentPurple.copy(alpha = 0.6f))) }
-            LegendSwatch("Rank") { Box(Modifier.width(18.dp).height(2.dp).background(BrandTokens.accentBlue)) }
         }
     }
 }
+
+@Composable
+private fun HistoryPlot(chart: RankHistoryChart, window: RankHistoryWindow, onChange: (RankHistoryWindow) -> Unit) {
+    val plot = remember(window, chart) { RankHistoryPlot.build(window, chart.totalAccounts) }
+    val valueTicks = remember(window, chart) { chart.valueTicks(window) }
+    val description = remember(window, chart) { chart.windowDescription(window) }
+    val current by rememberUpdatedState(window)
+    val change by rememberUpdatedState(onChange)
+    var dragged by remember { mutableFloatStateOf(0f) }
+    val visible = chart.points.subList(window.pageStart, window.pageEnd)
+    Column {
+        Row(Modifier.fillMaxWidth()) {
+            AxisLabels(valueTicks, TextAlign.End)
+            Canvas(
+                Modifier
+                    .weight(1f)
+                    .height(CHART_HEIGHT_DP.dp)
+                    .testTag("fst.leaderboards.rank-history.plot")
+                    .semantics { contentDescription = description }
+                    .pointerInput(Unit) {
+                        detectTapGestures { tap ->
+                            ChartGeometry.bandAt(tap.x, current.visible.size, size.width.toFloat())?.let { change(current.toggle(it)) }
+                        }
+                    }
+                    .pointerInput(Unit) {
+                        // Drag the history like a strip: finger right reveals older days, one bar per slot.
+                        detectHorizontalDragGestures(onDragEnd = { dragged = 0f }, onDragCancel = { dragged = 0f }) { _, dx ->
+                            dragged += dx
+                            val slot = size.width.toFloat() / current.visible.size.coerceAtLeast(1)
+                            val bars = (dragged / slot).toInt()
+                            if (bars != 0 && abs(dragged) >= slot) {
+                                dragged -= bars * slot
+                                change(current.swiped(bars))
+                            }
+                        }
+                    },
+            ) {
+                plot.rankTicks.forEach { tick ->
+                    val y = tick.y * size.height
+                    drawLine(BrandTokens.glassBorder.copy(alpha = 0.5f), Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
+                }
+                plot.bars.forEach { bar ->
+                    val rect = ChartGeometry.bandBar(bar.bar, plot.bars.size, size.width, size.height, 72.dp.toPx())
+                    drawRoundRect(
+                        rgb(bar.color, RankHistoryColors.BAR_ALPHA),
+                        topLeft = Offset(rect.left, rect.top),
+                        size = Size(rect.width, rect.height),
+                        cornerRadius = CornerRadius(4.dp.toPx()),
+                    )
+                    if (bar.selected) {
+                        drawRoundRect(
+                            BrandTokens.accentPurple,
+                            topLeft = Offset(rect.left, rect.top),
+                            size = Size(rect.width, rect.height),
+                            cornerRadius = CornerRadius(4.dp.toPx()),
+                            style = Stroke(width = 3.dp.toPx()),
+                        )
+                    }
+                }
+                val points = plot.line.map { ChartGeometry.point(it, size.width, size.height, 0f).let { p -> Offset(p.x, p.y) } }
+                val path = Path()
+                points.forEachIndexed { i, p -> if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y) }
+                val blue = rgb(RankHistoryColors.RANK_LINE)
+                drawPath(path, blue, style = Stroke(width = 2.dp.toPx()))
+                points.forEachIndexed { i, p -> drawCircle(blue, radius = (if (plot.line[i].highlight) 6 else 4).dp.toPx(), center = p) }
+            }
+            AxisLabels(plot.rankTicks, TextAlign.Start)
+        }
+        Row(Modifier.fillMaxWidth().padding(horizontal = AXIS_WIDTH_DP.dp, vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(shortDate(visible.first()), style = MaterialTheme.typography.labelSmall, color = BrandTokens.textPrimary)
+            if (visible.size > 1) Text(shortDate(visible.last()), style = MaterialTheme.typography.labelSmall, color = BrandTokens.textPrimary)
+        }
+    }
+}
+
+@Composable
+private fun AxisLabels(ticks: List<ChartTick>, align: TextAlign) {
+    Box(Modifier.width(AXIS_WIDTH_DP.dp).height(CHART_HEIGHT_DP.dp).clearAndSetSemantics { }) {
+        ticks.forEach { tick ->
+            Text(
+                tick.label,
+                style = MaterialTheme.typography.labelSmall,
+                color = BrandTokens.textPrimary,
+                maxLines = 1,
+                textAlign = align,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp)
+                    .padding(top = ChartGeometry.labelTop(tick, CHART_HEIGHT_DP.toFloat(), AXIS_LABEL_HEIGHT).dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun HistoryPager(window: RankHistoryWindow, onChange: (RankHistoryWindow) -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
+        HistoryPagerButton(Icons.Filled.KeyboardDoubleArrowLeft, "Back one page", "back-page", !window.backDisabled) { onChange(window.backPage()) }
+        HistoryPagerButton(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Back one entry", "back-entry", !window.backDisabled) { onChange(window.backEntry()) }
+        HistoryPagerButton(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Forward one entry", "forward-entry", !window.forwardDisabled) { onChange(window.forwardEntry()) }
+        HistoryPagerButton(Icons.Filled.KeyboardDoubleArrowRight, "Forward one page", "forward-page", !window.forwardDisabled) { onChange(window.forwardPage()) }
+    }
+}
+
+@Composable
+private fun HistoryPagerButton(icon: ImageVector, label: String, id: String, enabled: Boolean, onClick: () -> Unit) {
+    FilledTonalIconButton(onClick = onClick, enabled = enabled, modifier = Modifier.size(48.dp).testTag("fst.leaderboards.rank-history.$id")) {
+        Icon(icon, contentDescription = label)
+    }
+}
+
+private fun shortDate(point: RankHistoryPoint): String = point.date.format(DateTimeFormatter.ofPattern("M/d/yy"))
+
+/** `0xRRGGBB` to an opaque colour with [alpha]. */
+private fun rgb(value: Int, alpha: Float = 1f): Color = Color(0xFF000000 or value.toLong()).copy(alpha = alpha)
 
 @Composable
 private fun LegendSwatch(label: String, swatch: @Composable () -> Unit) {
@@ -209,13 +339,13 @@ private fun LegendSwatch(label: String, swatch: @Composable () -> Unit) {
 }
 
 @Composable
-private fun HistoryRow(row: RankHistoryRow) {
+private fun HistoryRow(row: RankHistoryRow, background: Modifier? = null) {
     val shape = RoundedCornerShape(10.dp)
     var modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(shape)
-    modifier = if (row.latest) {
-        modifier.background(BrandTokens.accentPurple.copy(alpha = 0.18f)).border(BorderStroke(1.dp, BrandTokens.accentPurple), shape)
-    } else {
-        modifier.background(BrandTokens.surfaceSubtle.copy(alpha = 0.5f))
+    modifier = when {
+        background != null -> modifier.then(background)
+        row.latest -> modifier.background(BrandTokens.accentPurple.copy(alpha = 0.18f)).border(BorderStroke(1.dp, BrandTokens.accentPurple), shape)
+        else -> modifier.background(BrandTokens.surfaceSubtle.copy(alpha = 0.5f))
     }
     val weight = if (row.latest) FontWeight.Bold else FontWeight.Normal
     Row(
@@ -231,8 +361,11 @@ private fun HistoryRow(row: RankHistoryRow) {
     }
 }
 
-/** Chart height in dp (web `ChartSize.height` is taller; phones need the list visible). */
-private const val CHART_HEIGHT_DP = 160
+/** Chart height in dp (the profile chart's plot height). */
+private const val CHART_HEIGHT_DP = 180
+
+/** Width of each axis label column in dp. */
+private const val AXIS_WIDTH_DP = 44
 
 /** Axis label line height in dp. */
 private const val AXIS_LABEL_HEIGHT = 14f

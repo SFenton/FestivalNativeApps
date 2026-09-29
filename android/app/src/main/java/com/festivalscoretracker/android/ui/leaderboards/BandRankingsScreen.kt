@@ -65,7 +65,7 @@ fun BandRankingsScreen(viewModel: BandRankingsViewModel, selectedAccountId: Stri
     LaunchedEffect(current) { listState.scrollToItem(0) }
 
     FestivalScreen(
-        title = "${bandType.label} Rankings",
+        title = "${bandType.label} Leaderboards",
         isRoot = false,
         modifier = Modifier.semantics { testTagsAsResourceId = true },
         actions = {
@@ -94,7 +94,7 @@ fun BandRankingsScreen(viewModel: BandRankingsViewModel, selectedAccountId: Stri
             controls = {
                 current?.let {
                     Text(
-                        "${RankingFormatting.population(it.rankings.totalTeams, "band")} · ${metric.label}",
+                        RankingFormatting.population(it.rankings.totalTeams, "band"),
                         style = MaterialTheme.typography.bodyMedium,
                         color = BrandTokens.textPrimary,
                         modifier = Modifier.testTag("fst.band-rankings.population"),
