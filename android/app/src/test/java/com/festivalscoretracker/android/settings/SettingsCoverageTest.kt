@@ -15,13 +15,11 @@ import com.festivalscoretracker.android.core.licenses.BundledAssets
 import com.festivalscoretracker.android.core.licenses.LicenseManifest
 import com.festivalscoretracker.android.core.licenses.LicensedPackage
 import com.festivalscoretracker.android.core.model.FestivalApiException
-import com.festivalscoretracker.android.core.model.Publication
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.core.nav.FestivalSection
-import com.festivalscoretracker.android.core.service.ServiceIssue
 import com.festivalscoretracker.android.data.SettingsRepository
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
-import com.festivalscoretracker.android.presentation.settings.ServiceCheckState
+import com.festivalscoretracker.android.presentation.settings.ServiceVersionState
 import com.festivalscoretracker.android.presentation.settings.SettingsViewModel
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
@@ -51,22 +49,26 @@ import org.robolectric.annotation.Config
 @OptIn(ExperimentalCoroutinesApi::class)
 class SettingsLogicCoverageTest {
     @Test
-    fun serviceCheckReportsSuccessAndFailure() = runTest {
+    fun serviceVersionLoadsOnceAndRetriesAfterFailure() = runTest {
         val scope = CoroutineScope(StandardTestDispatcher(testScheduler) + Job())
         var fail = true
-        val vm = SettingsViewModel(SettingsRepository(InMemoryPreferences()), checkService = {
-            if (fail) throw FestivalApiException.Unavailable("30") else Publication(1, 9, 3) to 4
+        var reads = 0
+        val vm = SettingsViewModel(SettingsRepository(InMemoryPreferences()), readServiceInfo = { error("unused") }, readServiceVersion = {
+            reads++
+            if (fail) throw FestivalApiException.Unavailable("30") else "1.2.3"
         }, scope = scope)
-        assertEquals(ServiceCheckState.Idle, vm.service.value)
-        vm.checkForUpdates()
-        assertEquals(ServiceCheckState.Checking, vm.service.value)
-        vm.checkForUpdates() // ignored while checking
+        assertEquals(ServiceVersionState.Loading, vm.serviceVersion.value)
+        vm.loadServiceVersion()
+        vm.loadServiceVersion() // ignored while loading
         advanceUntilIdle()
-        assertEquals(ServiceIssue.Unavailable(30), (vm.service.value as ServiceCheckState.Failed).issue)
+        assertEquals(ServiceVersionState.Unavailable, vm.serviceVersion.value)
         fail = false
-        vm.checkForUpdates()
+        vm.loadServiceVersion()
         advanceUntilIdle()
-        assertEquals(4, (vm.service.value as ServiceCheckState.Current).songCount)
+        assertEquals(ServiceVersionState.Loaded("1.2.3"), vm.serviceVersion.value)
+        vm.loadServiceVersion() // already loaded
+        advanceUntilIdle()
+        assertEquals(2, reads)
         vm.setVisualOrder(emptyList())
         vm.setPathColumnOrder(emptyList())
         vm.moveVisualOrder(0, 1)

@@ -3,44 +3,36 @@ package com.festivalscoretracker.android.presentation.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.festivalscoretracker.android.core.model.Instrument
-import com.festivalscoretracker.android.core.model.Publication
-import com.festivalscoretracker.android.core.service.ServiceIssue
+import com.festivalscoretracker.android.core.serviceinfo.ServiceInfoSnapshot
 import com.festivalscoretracker.android.core.settings.AppSettings
 import com.festivalscoretracker.android.core.settings.MetadataField
 import com.festivalscoretracker.android.core.settings.PathColumnKey
 import com.festivalscoretracker.android.core.settings.PathDisplayMode
 import com.festivalscoretracker.android.core.settings.SettingsOrder
 import com.festivalscoretracker.android.data.SettingsRepository
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-// region Service check
+// region Service version
 
-/** Settings "Service" section state (a keyless publication + catalogue re-read). */
-sealed interface ServiceCheckState {
-    /** Not checked yet this session. */
-    data object Idle : ServiceCheckState
-
-    /** Re-reading. */
-    data object Checking : ServiceCheckState
+/** Settings → Version "Service Version" (`GET /api/version`, read once per view model). */
+sealed interface ServiceVersionState {
+    /** Reading. */
+    data object Loading : ServiceVersionState
 
     /**
-     * Up to date.
+     * Read.
      *
-     * @property publication Current publication.
-     * @property songCount Songs in the refreshed catalogue.
+     * @property version Printable service version.
      */
-    data class Current(val publication: Publication, val songCount: Int) : ServiceCheckState
+    data class Loaded(val version: String) : ServiceVersionState
 
-    /**
-     * The check failed.
-     *
-     * @property issue Shared service issue.
-     */
-    data class Failed(val issue: ServiceIssue) : ServiceCheckState
+    /** The read failed. */
+    data object Unavailable : ServiceVersionState
 }
 
 // endregion
@@ -53,19 +45,41 @@ sealed interface ServiceCheckState {
  * change through the shared settings flow.
  *
  * @property repository Persisted settings.
- * @param checkService Forced publication + catalogue refresh returning the publication and song count.
+ * @param readServiceInfo One keyless `/api/service-info` read (Service Info card).
+ * @param readServiceVersion One keyless `/api/version` read (Version section).
  * @param scope Scope for writes (the view model scope by default).
  */
 class SettingsViewModel(
     private val repository: SettingsRepository,
-    private val checkService: suspend () -> Pair<Publication, Int>,
+    readServiceInfo: suspend () -> ServiceInfoSnapshot,
+    private val readServiceVersion: suspend () -> String,
     scope: CoroutineScope? = null,
 ) : ViewModel() {
     private val work: CoroutineScope = scope ?: viewModelScope
-    private val serviceFlow = MutableStateFlow<ServiceCheckState>(ServiceCheckState.Idle)
+    private val versionFlow = MutableStateFlow<ServiceVersionState>(ServiceVersionState.Loading)
+    private var versionRequested = false
 
-    /** Service section state. */
-    val service: StateFlow<ServiceCheckState> = serviceFlow.asStateFlow()
+    /** Live Service Info card; the screen runs [ServiceInfoPoller.poll] only while visible. */
+    val serviceInfo = ServiceInfoPoller(readServiceInfo)
+
+    /** Service version for Settings → Version. */
+    val serviceVersion: StateFlow<ServiceVersionState> = versionFlow.asStateFlow()
+
+    /** Read the service version once (later calls are no-ops unless the read failed). */
+    fun loadServiceVersion() {
+        if (versionRequested && versionFlow.value != ServiceVersionState.Unavailable) return
+        versionRequested = true
+        versionFlow.value = ServiceVersionState.Loading
+        work.launch {
+            versionFlow.value = try {
+                ServiceVersionState.Loaded(readServiceVersion())
+            } catch (cancel: CancellationException) {
+                throw cancel
+            } catch (error: Exception) {
+                ServiceVersionState.Unavailable
+            }
+        }
+    }
 
     private fun update(transform: (AppSettings) -> AppSettings) {
         work.launch { repository.update(transform) }
@@ -211,20 +225,6 @@ class SettingsViewModel(
     /** Confirmed Reset: app settings only. */
     fun resetAppSettings() {
         work.launch { repository.resetAppSettings() }
-    }
-
-    /** Re-read the publication and catalogue (keyless public GETs). */
-    fun checkForUpdates() {
-        if (serviceFlow.value == ServiceCheckState.Checking) return
-        serviceFlow.value = ServiceCheckState.Checking
-        work.launch {
-            serviceFlow.value = try {
-                val (publication, count) = checkService()
-                ServiceCheckState.Current(publication, count)
-            } catch (error: Throwable) {
-                ServiceCheckState.Failed(ServiceIssue.from(error))
-            }
-        }
     }
 }
 

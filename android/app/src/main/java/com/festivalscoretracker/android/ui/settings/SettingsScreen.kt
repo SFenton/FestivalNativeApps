@@ -31,7 +31,6 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -45,6 +44,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.adaptive.currentWindowSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
@@ -85,9 +85,8 @@ import com.festivalscoretracker.android.core.settings.AppSettings
 import com.festivalscoretracker.android.core.settings.MetadataField
 import com.festivalscoretracker.android.core.settings.PathDisplayMode
 import com.festivalscoretracker.android.core.settings.ScoreLeeway
-import com.festivalscoretracker.android.presentation.settings.ServiceCheckState
+import com.festivalscoretracker.android.presentation.settings.ServiceVersionState
 import com.festivalscoretracker.android.presentation.settings.SettingsViewModel
-import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.design.GlassCard
@@ -151,7 +150,7 @@ fun SettingsScreen(
     val density = LocalDensity.current
     val windowWidthDp = with(density) { currentWindowSize().width.toDp().value.toInt() }
     var confirmReset by rememberSaveable { mutableStateOf(false) }
-    val service by viewModel.service.collectAsStateWithLifecycle()
+    val serviceVersion by viewModel.serviceVersion.collectAsStateWithLifecycle()
 
     val scrolled by remember(listState) { derivedStateOf { listState.canScrollBackward } }
     val split = rememberHingeSplit()
@@ -175,8 +174,8 @@ fun SettingsScreen(
                                     "show-instruments" -> InstrumentsSection(settings, viewModel)
                                     "show-metadata" -> MetadataSection(settings, viewModel)
                                     "accessibility" -> AccessibilitySection(settings, viewModel)
-                                    "version" -> VersionSection(serviceOrigin, debug)
-                                    "service-info" -> ServiceSection(service, viewModel::checkForUpdates)
+                                    "version" -> VersionSection(serviceOrigin, debug, serviceVersion, viewModel::loadServiceVersion)
+                                    "service-info" -> ServiceInfoSection(viewModel.serviceInfo)
                                     "first-run" -> FirstRunSection(onReplayFirstRun)
                                     "licenses" -> NavigationRow("Licenses", "Open source package license details.", "fst.settings.licenses") {
                                         shell.navigate(LicensesRoute)
@@ -410,38 +409,25 @@ private fun AccessibilitySection(settings: AppSettings, vm: SettingsViewModel) {
 }
 
 @Composable
-private fun VersionSection(serviceOrigin: String, debug: Boolean) {
+private fun VersionSection(serviceOrigin: String, debug: Boolean, serviceVersion: ServiceVersionState, loadServiceVersion: () -> Unit) {
+    LaunchedEffect(Unit) { loadServiceVersion() }
     Header("Festival Score Tracker Version", "Festival Score Tracker information to help with debugging.")
     GlassCard(Modifier.fillMaxWidth()) {
         ValueRow("App Version", "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})", "fst.settings.app-version")
         Divider()
         ValueRow("Build", if (debug) "Debug" else "Release", "fst.settings.build")
         Divider()
-        ValueRow("Service Version", "Not available", "fst.settings.service-version")
+        ValueRow(
+            "Service Version",
+            when (serviceVersion) {
+                ServiceVersionState.Loading -> "Loading"
+                is ServiceVersionState.Loaded -> serviceVersion.version
+                ServiceVersionState.Unavailable -> "Unavailable"
+            },
+            "fst.settings.service-version",
+        )
         Divider()
         ValueRow("Service", serviceOrigin, "fst.settings.service-origin")
-    }
-}
-
-@Composable
-private fun ServiceSection(state: ServiceCheckState, onCheck: () -> Unit) {
-    Header("Service Info", "Publication status of the leaderboard data this app reads.")
-    GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp).testTag("fst.settings.publication-status"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            val text = when (state) {
-                ServiceCheckState.Idle -> "Check whether a newer leaderboard publication is available."
-                ServiceCheckState.Checking -> "Checking…"
-                is ServiceCheckState.Current -> "Up to date: publication ${state.publication.publicationId} (scrape ${state.publication.publishedScrapeId}), ${state.songCount} songs."
-                is ServiceCheckState.Failed -> (state.issue.title?.let { "$it. " } ?: "") + state.issue.message
-            }
-            Text(text, color = if (state is ServiceCheckState.Failed) BrandTokens.textPrimary else BrandTokens.textSecondary, style = MaterialTheme.typography.bodyMedium)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                FilledTonalButton(onClick = onCheck, enabled = state != ServiceCheckState.Checking, modifier = Modifier.testTag("fst.settings.check-publication")) {
-                    Text("Check for Updates")
-                }
-                if (state == ServiceCheckState.Checking) FestivalLoading(null, Modifier.padding(start = 12.dp), size = 24.dp)
-            }
-        }
     }
 }
 

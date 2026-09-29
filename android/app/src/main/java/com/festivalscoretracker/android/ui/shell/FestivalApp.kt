@@ -110,6 +110,8 @@ import com.festivalscoretracker.android.core.search.ShellShortcut
 import com.festivalscoretracker.android.core.settings.AppSettings
 import com.festivalscoretracker.android.core.shell.ProfileRoutePolicy
 import com.festivalscoretracker.android.data.notifications.playerNotifications
+import com.festivalscoretracker.android.data.serviceinfo.serviceInfo
+import com.festivalscoretracker.android.data.serviceinfo.serviceVersion
 import com.festivalscoretracker.android.data.songs.watchDeselection
 import com.festivalscoretracker.android.presentation.ProfileSearchViewModel
 import com.festivalscoretracker.android.presentation.ShellViewModel
@@ -613,10 +615,7 @@ private fun FestivalNavHost(
         leaderboardsGraph(container, shellViewModel, container.leaderboardPreferences)
         composable<SettingsTab> {
             val settingsViewModel: SettingsViewModel = viewModel {
-                SettingsViewModel(container.settings, checkService = {
-                    val songs = api.catalog(refresh = true).catalog.songs.size
-                    api.publication() to songs
-                })
+                SettingsViewModel(container.settings, readServiceInfo = api::serviceInfo, readServiceVersion = api::serviceVersion)
             }
             val replayScope = rememberCoroutineScope()
             val compact = !AdaptiveLayoutPolicy.isRegularWidth(with(LocalDensity.current) { currentWindowSize().width.toDp().value.toInt() })

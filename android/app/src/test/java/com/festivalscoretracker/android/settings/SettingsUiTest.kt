@@ -64,6 +64,19 @@ class SettingsUiTest {
         }
     }
 
+    init {
+        transport.on("/api/service-info") {
+            """{"contractVersion":2,"postgresConnectionTarget":"secret-host","serviceInstance":"node-1",
+              "workerStatus":{"status":"online"},
+              "lastCompletedUpdate":{"publishedAt":"2026-09-28T10:00:00.1234567Z"},
+              "currentUpdate":{"status":"updating","scrapeId":11,"operationId":"op","phaseId":"scrape_leaderboards",
+                "subphaseId":"fetching_leaderboards","phaseAttempt":1,"phaseOrdinal":1,
+                "subphaseProgress":{"schemaVersion":1,"id":"fetching_leaderboards","epoch":1,"sequence":3,"kind":"exact",
+                  "unitsKind":"leaderboards","unitsCompleted":425,"unitsTotal":1000,"unitsTotalFinal":true,"percent":42.5}}}"""
+        }
+        transport.on("/api/version") { """{"version":"9.9.9"}""" }
+    }
+
     private fun launch(debug: DebugLaunch) {
         val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = store)
         rule.setContent { FestivalApp(container, debug) }
@@ -147,17 +160,24 @@ class SettingsUiTest {
     }
 
     @Test
-    fun quickLinksSheetJumpsAndServiceCheckReportsPublication() {
+    fun quickLinksSheetJumpsToLiveServiceInfo() {
         launch(settingsTab)
         waitForTag("fst.quick-links.open")
         rule.onNodeWithTag("fst.quick-links.open").performClick()
         waitForTag("fst.quick-links.sheet")
         rule.onNodeWithTag("fst.quick-links.item.service-info").performSemanticsAction(SemanticsActions.OnClick)
         waitGone("fst.quick-links.sheet")
-        waitForTag("fst.settings.check-publication")
-        rule.onNodeWithTag("fst.settings.check-publication").performClick()
-        rule.waitUntil(10_000) { settle(100); rule.onAllNodesWithTag("fst.settings.publication-status").fetchSemanticsNodes().isNotEmpty() }
-        rule.waitUntil(10_000) { settle(100); runCatching { rule.onNodeWithText("Up to date: publication 7 (scrape 11), 3 songs.").assertExists() }.isSuccess }
+        waitForTag("fst.settings.service-info")
+        rule.waitUntil(10_000) { settle(100); rule.onAllNodesWithTag("fst.settings.service-info.phase").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("Scraping Leaderboard Scores · Fetching Leaderboards", useUnmergedTree = true).assertExists()
+        rule.onNodeWithText("42.5%", useUnmergedTree = true).assertExists()
+        rule.onNodeWithText("Updating").assertExists()
+        rule.onNodeWithTag("fst.settings.service-info.last-published").assertExists()
+        // Keyless, and the version row filled from /api/version.
+        assertTrue(transport.sent("/api/service-info").isNotEmpty())
+        assertTrue(transport.sent("/api/service-info").all { request -> request.headers.keys.none { it.lowercase().startsWith("x-fst-selected") || it.lowercase() == "x-api-key" } })
+        rule.onNodeWithTag("fst.settings.list").performScrollToNode(hasTestTag("fst.settings.service-version"))
+        rule.waitUntil(10_000) { settle(100); rule.onAllNodesWithText("9.9.9").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("fst.quick-links.open").performClick()
         waitForTag("fst.quick-links.item.reset")
         rule.onNodeWithTag("fst.quick-links.item.reset").performSemanticsAction(SemanticsActions.OnClick)

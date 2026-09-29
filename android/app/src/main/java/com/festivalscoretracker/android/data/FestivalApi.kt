@@ -394,10 +394,19 @@ class FestivalApi(origin: String, transport: HttpTransport) {
      * @return Body bytes of a 2xx response.
      * @throws FestivalApiException for an unsafe segment or any mapped status (404 → `HttpStatus(404)`).
      */
-    internal suspend fun readUnpinned(endpoint: ServiceEndpoint): ByteArray {
+    internal suspend fun readUnpinned(endpoint: ServiceEndpoint): ByteArray = readUnpinnedResult(endpoint).body
+
+    /**
+     * [readUnpinned] keeping the response headers (e.g. the public-read freeze reason).
+     *
+     * @param endpoint Allowlisted endpoint.
+     * @return The 2xx response.
+     * @throws FestivalApiException for an unsafe segment or any mapped status.
+     */
+    internal suspend fun readUnpinnedResult(endpoint: ServiceEndpoint): HttpResult {
         val response = gate.send(RequestGate.makeRequest(endpoint.url(base)))
         RequestGate.mapStatus(response, endpoint.acceptsSyncing)
-        return response.body
+        return response
     }
 
     // endregion

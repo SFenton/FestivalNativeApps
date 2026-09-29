@@ -10,7 +10,8 @@
 | Codecs | `core/settings/SettingsModels.kt`: `MetadataField` (web `DEFAULT_METADATA_ORDER`, web keys `seasonachieved`/`lastplayed`), `PathColumnKey`, `PathDisplayMode`, `SettingsOrder` (normalize/decode/encode/move), `ScoreLeeway` (clamp half-away-from-zero to 0.1, `+1.0%` format, web `maxScoreLeewayDesc`) |
 | Registry | `core/settings/SettingsRegistry.kt`: every DataStore key with `ResetPolicy.AppSetting` (Reset removes it) or `Kept` |
 | Store | `data/SettingsRepository.kt`: `update { }` (atomic decode → transform → sanitize → write), `resetAppSettings()`, `readBlob`/`writeBlob` for registered string blobs (first-run and notification seen-state) |
-| Page model | `presentation/settings/SettingsViewModel.kt` (setters, Reset, Service check) |
+| Page model | `presentation/settings/SettingsViewModel.kt` (setters, Reset, service version), `presentation/settings/ServiceInfoPoller.kt` (5 s Service Info poll + progress memory) |
+| Service Info | `core/serviceinfo/ServiceInfo.kt` (wire model without infrastructure fields, `ServiceProgressReducer`, `ServiceInfoText`, `ServiceInfoRows`), `data/serviceinfo/FestivalApiServiceInfo.kt` (`serviceInfo()`, `serviceVersion()`), `ui/settings/ServiceInfoSection.kt` |
 | Page | `ui/settings/SettingsScreen.kt`; Licenses: [licenses/android.md](../licenses/android.md) |
 
 **Adding a persisted key anywhere in the app:** declare it in `SettingsRegistry.entries` with its reset policy. `SettingsModelTest` fails when a key written through the repository is unregistered.
@@ -25,8 +26,8 @@
 | Show Instruments (`show-instruments`) | `instrument.<wireId>` | The last visible chart is disabled with a reason |
 | Show Instrument Metadata (`show-metadata`) | `metadata.<field.tag>` (web toggle order) | All may be off (web); not disabled for anonymous users (web does not either) |
 | Accessibility (`accessibility`, native) | `motion`, `still-artwork`, `contrast`, `transparency` | Additive only. Still artwork holds the backdrop; Reduce Transparency makes `GlassCard` opaque (`FestivalAccessibility.reduceTransparency`) |
-| Version (`version`) | `app-version` (`versionName (versionCode)`), `build`, `service-version`, `service-origin` | Service Version is a disclosed "Not available": `/api/version` is not allowlisted |
-| Service Info (`service-info`) | `check-publication`, `publication-status` | Forced `/api/songs` + `/api/publication` re-read (keyless public GETs). The web's live Service Progress uses `/api/service-info`, which is not allowlisted |
+| Version (`version`) | `app-version` (`versionName (versionCode)`), `build`, `service-version`, `service-origin` | Service Version reads `GET /api/version` once per view model: Loading → value, or Unavailable (retried on the next visit) |
+| Service Info (`service-info`) | `service-info`, `service-info.state` (+ `.process`), `service-info.phase` (+ `.bar`), `service-info.freeze`, `service-info.last-published` | Live card like the web `SettingsServiceProgressCard` (batch 6, 6.15; no "Check for Updates", the web has none): polls keyless `GET /api/service-info` every 5 s only while the section is composed and the app is STARTED (`repeatOnLifecycle`). Loading/failure show only the state row (web); a failed poll after a success shows the failure. Phase title "Phase · Subphase", purple capsule bar (determinate `LinearProgressIndicator`; unknown total = M3 indeterminate sweep, still empty track under Reduce Motion), percent + units captions (Apple), freeze notice from the header or body, last publication as "Sep 28, 2026, 10:00 AM PDT" |
 | First Run Guides (`first-run`) | `first-run.<pageKey>` | Replay: [first-run/android.md](../../controls/first-run/android.md) |
 | Licenses (`licenses`) | `licenses` | Pushes `LicensesRoute` on the Settings stack |
 | Reset (`reset`) | `reset`, dialog `reset.dialog/confirm/cancel` | M3 `AlertDialog`; removes `AppSetting` keys only (profile, Songs sort, seen-state survive) |
@@ -35,13 +36,14 @@
 
 - Rows: whole-row `toggleable(role = Switch)` with title + description; a disabled row appends its reason so TalkBack reads why.
 - Reorder uses numbered rows with Move up/Move down buttons plus TalkBack custom actions, not drag-only lists (keyboard/switch-access friendly, as on Windows).
-- Not ported: Service Progress (not allowlisted), profile-name refresh (POST), ZIP export (not allowlisted), light trails / mobile header buttons (no cursor or FAB chrome on Android), default search target (global search has no tabs to default).
+- Service Info: labels, units and the monotonic reducer port the web/Apple tables verbatim; the body's `postgresConnectionTarget`/`serviceInstance` have no model fields, so they are never decoded or logged. The live summary is a polite live region; the phase row speaks its title with the percent/units as state and exposes `ProgressBarRangeInfo` when determinate.
+- Not ported: profile-name refresh (POST), ZIP export (not allowlisted), light trails / mobile header buttons (no cursor or FAB chrome on Android), default search target (global search has no tabs to default).
 - Book posture (separating vertical hinge): list on the start side, Quick Links pane beyond the hinge.
 - Quick Links: see [quick-links/android.md](../../controls/quick-links/android.md).
 
 ## Tests and evidence
 
-- `settings/SettingsModelTest.kt` (defaults vs web, guards, codecs, leeway, every-field round trip, registry, Reset), `settings/SettingsUiTest.kt` (every control persists, Reset cancel/confirm, Quick Links sheet jumps, Service check, expanded pane).
+- `settings/SettingsModelTest.kt` (defaults vs web, guards, codecs, leeway, every-field round trip, registry, Reset), `settings/SettingsUiTest.kt` (every control persists, Reset cancel/confirm, Quick Links sheet jumps to the live Service Info card and the service version, expanded pane), `settings/ServiceInfoTest.kt` (keyless unpinned read + freeze header, malformed bodies/versions, reducer monotonicity/stale/restart/indeterminate rules, labels, rows, 5 s poll/stop).
 - Screenshots: `android/reports/screenshots/settings-*.png` (fixture mode).
 
 ## Open
