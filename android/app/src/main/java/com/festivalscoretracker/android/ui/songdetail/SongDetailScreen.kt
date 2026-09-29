@@ -127,6 +127,7 @@ import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import com.festivalscoretracker.android.ui.shop.ShopDetailAction
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import java.text.NumberFormat
+import com.festivalscoretracker.android.ui.common.oneLineUnlessLarge
 
 // region Extras
 
@@ -496,7 +497,7 @@ private fun IntensityCard(song: Song, charted: List<Instrument>) {
                             ) {
                                 InstrumentIcon(instrument, keyboard = song.usesKeyboardIcon, size = 28.dp, decorative = true)
                                 if (labelled) {
-                                    Text(instrument.label, color = BrandTokens.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 10.dp))
+                                    Text(instrument.label, color = BrandTokens.textPrimary, maxLines = oneLineUnlessLarge(), overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 10.dp))
                                     DifficultyMeter(raw)
                                 } else {
                                     // Web cell: icon, 12 px gap, meter, left-aligned in its column.

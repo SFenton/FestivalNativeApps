@@ -88,6 +88,7 @@ import com.festivalscoretracker.android.ui.quicklinks.ScrollQuickLinkSections
 import com.festivalscoretracker.android.ui.quicklinks.rememberScrollQuickLinks
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.common.rememberSingleColumn
+import com.festivalscoretracker.android.ui.common.oneLineUnlessLarge
 
 // region Screen
 
@@ -284,7 +285,7 @@ private fun StatGrid(stats: List<BandStat>, onNavigate: (AppRoute) -> Unit) {
                             onClick = stat.route?.let { { onNavigate(it) } },
                         ) {
                             Column(Modifier.padding(12.dp).clearAndSetSemantics { }) {
-                                Text(stat.label, style = MaterialTheme.typography.labelMedium, color = BrandTokens.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(stat.label, style = MaterialTheme.typography.labelMedium, color = BrandTokens.textSecondary, maxLines = oneLineUnlessLarge(), overflow = TextOverflow.Ellipsis)
                                 Text(
                                     stat.value,
                                     style = MaterialTheme.typography.titleMedium,
