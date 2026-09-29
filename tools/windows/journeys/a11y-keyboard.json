@@ -121,7 +121,9 @@
     "after_ready": [
       "focus:id=fst.song-detail.paths",
       "key:enter",
-      "waitfor:id=fst.paths.instrument@10",
+      "waitfor:id=fst.paths.warning@10",
+      "key:enter",
+      "waitfor:id=fst.paths@10",
       "key:esc",
       "wait:1",
       "assertfocus:id=fst.song-detail.paths@3"
