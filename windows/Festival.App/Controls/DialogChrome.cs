@@ -14,15 +14,24 @@ public static class DialogChrome
 {
     /// <summary>Closes the dialog when the smoke layer outside it is pressed (result <see cref="ContentDialogResult.None"/>).</summary>
     /// <param name="dialog">Dialog, before it is shown.</param>
-    public static void LightDismiss(ContentDialog dialog) => dialog.Opened += (_, _) =>
+    public static void LightDismiss(ContentDialog dialog)
     {
-        if (Find(dialog, "SmokeLayerBackground") is not UIElement smoke) return;
-        smoke.PointerPressed += (_, e) =>
+        // Hooked as soon as the template exists (Loaded), not on Opened: on a slow cold start a click could land during
+        // the opening transition and find no handler yet.
+        var hooked = false;
+        void Hook()
         {
-            e.Handled = true;
-            dialog.Hide();
-        };
-    };
+            if (hooked || Find(dialog, "SmokeLayerBackground") is not UIElement smoke) return;
+            hooked = true;
+            smoke.PointerPressed += (_, e) =>
+            {
+                e.Handled = true;
+                dialog.Hide();
+            };
+        }
+        dialog.Loaded += (_, _) => Hook();
+        dialog.Opened += (_, _) => Hook();
+    }
 
     /// <summary>
     /// Lets the one visible command button span the whole command row: the template's two-column row otherwise leaves a
