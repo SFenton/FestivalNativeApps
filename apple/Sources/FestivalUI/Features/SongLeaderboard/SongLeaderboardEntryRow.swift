@@ -130,7 +130,7 @@ struct SongLeaderboardEntryRow: View {
     ///
     /// - Parameter height: Rendered pill height, so the skew pivots on its middle.
     /// - Returns: Affine shear leaning the top edge right, like CSS `skewX(-8deg)`.
-    static func goldSkew(height: CGFloat) -> CGAffineTransform {
+    nonisolated static func goldSkew(height: CGFloat) -> CGAffineTransform {
         let shear = tan(8 * CGFloat.pi / 180)
         return CGAffineTransform(a: 1, b: 0, c: -shear, d: 1, tx: shear * height / 2, ty: 0)
     }
