@@ -9,6 +9,8 @@ import com.festivalscoretracker.android.core.songs.SongPlayerScoreFilter
 import com.festivalscoretracker.android.core.songs.SongScoreFilterKind
 import com.festivalscoretracker.android.core.songs.SongShopFilter
 import com.festivalscoretracker.android.core.songs.SongSortMode
+import com.festivalscoretracker.android.core.songs.SongPercentileBucket
+import com.festivalscoretracker.android.core.songs.SongStarsBucket
 import com.festivalscoretracker.android.data.FestivalApi
 import com.festivalscoretracker.android.testing.ProfileFixtures
 import org.junit.Assert.assertEquals
@@ -113,6 +115,39 @@ class ProfileParityCoreTest {
         val fcs = SongsPreset.ForInstrument(SongScoreFilterKind.HasFCs, Instrument.Drums).apply(current)
         assertEquals(setOf(Instrument.Lead, Instrument.Drums), fcs.playerFilter.hasFCs)
         assertEquals(emptySet<Instrument>(), fcs.playerFilter.missingFCs - Instrument.Lead)
+    }
+
+    @Test
+    fun starPercentileAndBucketPresetsMatchTheWebUpdaters() {
+        val current = SongsFilterState(
+            filter = SongFilter(Instrument.Bass),
+            playerFilter = SongPlayerScoreFilter(hasScores = setOf(Instrument.Lead, Instrument.Drums), excludedSeasons = setOf(3)),
+            sort = SongSortMode.Year,
+            ascending = false,
+        )
+        // instStarsUpdater: only that star bucket, sorted by Stars ascending, buckets cleaned.
+        val stars = SongsPreset.Stars(Instrument.Lead, 6).apply(current)
+        assertEquals(SongFilter(Instrument.Lead), stars.filter)
+        assertEquals(SongStarsBucket.KEYS.toSet() - 6, stars.playerFilter.excludedStars)
+        assertEquals(emptySet<Int>(), stars.playerFilter.excludedSeasons)
+        assertEquals(setOf(Instrument.Drums), stars.playerFilter.hasScores)
+        assertEquals(SongSortMode.Stars, stars.sort)
+        assertTrue(stars.ascending)
+        // instPercentileBucketUpdater: only that bucket, sort mode kept, ascending.
+        val bucket = SongsPreset.PercentileBucket(Instrument.Lead, 5).apply(current)
+        assertEquals(SongPercentileBucket.KEYS.toSet() - 5, bucket.playerFilter.excludedPercentiles)
+        assertEquals(SongSortMode.Year, bucket.sort)
+        assertTrue(bucket.ascending)
+        // instPercentileUpdater / instPercentileWithScoresUpdater.
+        val percentile = SongsPreset.Percentile(Instrument.Lead, scoredOnly = false).apply(current)
+        assertEquals(SongSortMode.Percentile, percentile.sort)
+        assertFalse(Instrument.Lead in percentile.playerFilter.hasScores)
+        val scored = SongsPreset.Percentile(Instrument.Lead, scoredOnly = true).apply(current)
+        assertTrue(Instrument.Lead in scored.playerFilter.hasScores)
+        // Rank tile opens the page holding the rank (25 rows a page).
+        assertEquals(1, PlayerTileAction.OpenRankings(Instrument.Lead, rank = 25).page)
+        assertEquals(2, PlayerTileAction.OpenRankings(Instrument.Lead, rank = 26).page)
+        assertEquals(1, PlayerTileAction.OpenRankings(Instrument.Lead).page)
     }
 
     @Test

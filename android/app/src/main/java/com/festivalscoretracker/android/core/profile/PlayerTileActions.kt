@@ -31,9 +31,8 @@ data class SongsFilterState(
 /**
  * A stat tile's Songs filter (web `playerFilterHelpers.ts` and the `*Updater`s in
  * `OverallSummarySection.tsx`/`InstrumentStatsSection.tsx`). Only the presets whose
- * filters the Android Songs page supports exist; star, percentile-bucket and
- * CHOpt-threshold presets need Songs filters that are not ported yet, so those tiles
- * and percentile rows stay flat.
+ * filters the Android Songs page supports exist; the CHOpt-threshold preset waits for
+ * the Filter Invalid Scores tile (its count needs the invalid-score thresholds).
  */
 sealed interface SongsPreset {
     /**
@@ -96,17 +95,47 @@ sealed interface SongsPreset {
         }
     }
 
+    /**
+     * An instrument's Gold / 5…1 Stars tile: only that star bucket shown (6 is gold),
+     * sorted by Stars ascending (web `instStarsUpdater`).
+     *
+     * @property instrument Chart.
+     * @property stars Star bucket key (`SongStarsBucket.KEYS`).
+     */
+    data class Stars(val instrument: Instrument, val stars: Int) : SongsPreset {
+        override fun apply(current: SongsFilterState): SongsFilterState = current.copy(
+            filter = SongFilter(instrument = instrument),
+            playerFilter = cleaned(current.playerFilter, instrument).onlyStars(stars),
+            sort = SongSortMode.Stars,
+            ascending = true,
+        )
+    }
+
+    /**
+     * A percentile-table row: only that bucket shown; the saved sort mode is kept and the
+     * direction becomes ascending (web `instPercentileBucketUpdater`).
+     *
+     * @property instrument Chart.
+     * @property topPercent Bucket key (`SongPercentileBucket.KEYS`).
+     */
+    data class PercentileBucket(val instrument: Instrument, val topPercent: Int) : SongsPreset {
+        override fun apply(current: SongsFilterState): SongsFilterState = current.copy(
+            filter = SongFilter(instrument = instrument),
+            playerFilter = cleaned(current.playerFilter, instrument).onlyPercentile(topPercent),
+            ascending = true,
+        )
+    }
+
     companion object {
         /**
-         * Web `cleanFilters` for the checks Android models: the chart's own
-         * has/missing/over-threshold checks off, other charts' checks kept.
+         * Web `cleanFilters`: the chart's own has/missing/over-threshold checks and every
+         * season/percentile/stars bucket cleared; other charts' checks kept.
          *
          * @param filter Saved checks.
          * @param instrument Chart.
          * @return Cleaned checks.
          */
-        fun cleaned(filter: SongPlayerScoreFilter, instrument: Instrument): SongPlayerScoreFilter =
-            SongScoreFilterKind.entries.fold(filter) { next, check -> next.with(check, instrument, false) }
+        fun cleaned(filter: SongPlayerScoreFilter, instrument: Instrument): SongPlayerScoreFilter = filter.cleanedFor(instrument)
     }
 }
 

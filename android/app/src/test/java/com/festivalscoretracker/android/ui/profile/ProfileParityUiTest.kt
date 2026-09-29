@@ -33,6 +33,8 @@ import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.core.nav.PlayerRoute
 import com.festivalscoretracker.android.core.songs.SongFilter
 import com.festivalscoretracker.android.core.songs.SongPlayerScoreFilter
+import com.festivalscoretracker.android.core.songs.SongPercentileBucket
+import com.festivalscoretracker.android.core.songs.SongStarsBucket
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
@@ -157,6 +159,32 @@ class ProfileParityUiTest {
         journey.waitForTag("fst.songs.row.s-alpha")
         journey.waitGone("fst.songs.row.s-beta")
         journey.waitForTag("fst.nav.tab.statistics")
+    }
+
+    @Test
+    fun percentileRowFiltersSongsToItsBucket() {
+        // Operator 6.35: Lead placements 0.5% (Top 1%), 15% (Top 15%) and 75% (Top 80%).
+        journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
+        journey.scrollTo("fst.player.percentile-row.15")
+        journey.tap("fst.player.percentile-row.15")
+        journey.waitForTag("fst.songs.list")
+        val saved = runBlocking { journey.container.songsPreferences.state.first() }
+        assertEquals(Instrument.Lead, saved.filter.instrument)
+        assertEquals(SongPercentileBucket.KEYS.toSet() - 15, saved.playerFilter?.excludedPercentiles)
+        journey.waitForTag("fst.songs.row.s-beta")
+        journey.waitGone("fst.songs.row.s-alpha")
+    }
+
+    @Test
+    fun starTileFiltersSongsToItsBucket() {
+        journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
+        journey.scrollTo("fst.player.tile.Solo_Guitar.stars-6")
+        journey.tap("fst.player.tile.Solo_Guitar.stars-6")
+        journey.waitForTag("fst.songs.list")
+        val saved = runBlocking { journey.container.songsPreferences.state.first() }
+        assertEquals(SongStarsBucket.KEYS.toSet() - 6, saved.playerFilter?.excludedStars)
+        journey.waitForTag("fst.songs.row.s-alpha")
+        journey.waitGone("fst.songs.row.s-beta")
     }
 
     @Test

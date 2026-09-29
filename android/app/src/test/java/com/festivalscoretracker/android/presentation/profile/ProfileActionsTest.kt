@@ -135,7 +135,11 @@ class ProfileActionsTest {
         assertEquals("Songs Played percentile: ${trailing[1].value}", trailing[1].announcement)
         // Bass has no full combo, so its FC tile is flat (the web omits the card).
         val bassTiles = state.instruments.first { it.instrument == Instrument.Bass }.stats
-        assertNull(bassTiles[1].action)
+        assertTrue(bassTiles.none { it.id == "full-combos" })
+        assertEquals(PlayerTileAction.FilterSongs(SongsPreset.Stars(Instrument.Bass, 3)), bassTiles.first { it.id == "stars-3" }.action)
+        // Percentile rows filter Songs to their bucket (6.35).
+        val leadRows = state.instruments.first { it.instrument == Instrument.Lead }.percentiles
+        assertEquals(PlayerTileAction.FilterSongs(SongsPreset.PercentileBucket(Instrument.Lead, 1)), leadRows.first().action)
         vm.ensureInstrument(Instrument.Lead)
         advanceUntilIdle()
         val rank = vm.ranks.value[Instrument.Lead] as RankLoad.Available

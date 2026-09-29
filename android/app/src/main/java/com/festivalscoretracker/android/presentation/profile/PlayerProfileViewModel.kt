@@ -147,7 +147,7 @@ data class PlayerStatTile(
  * One percentile table row (web `PlayerPercentileRow`).
  *
  * @property bucket Band.
- * @property action Songs filtered to the band (web `instPercentileBucketUpdater`), or null while Songs lacks a percentile filter.
+ * @property action Songs filtered to the band (web `instPercentileBucketUpdater`).
  */
 data class PercentileRow(val bucket: PlayerPercentileBucket, val action: PlayerTileAction? = null) {
     /** Screen-reader text. */
@@ -730,7 +730,9 @@ class PlayerProfileViewModel(
                 instrument = instrument,
                 hasScores = chart.songsPlayed > 0,
                 stats = instrumentTiles(chart, instrument, totalSongs),
-                percentiles = PlayerStatistics.percentileBuckets(profile, instrument).map { PercentileRow(it) },
+                percentiles = PlayerStatistics.percentileBuckets(profile, instrument).map { bucket ->
+                    PercentileRow(bucket, PlayerTileAction.FilterSongs(SongsPreset.PercentileBucket(instrument, bucket.topPercent)))
+                },
                 trailing = percentileTiles(chart, instrument, totalSongs),
             )
         }
@@ -762,9 +764,16 @@ class PlayerProfileViewModel(
                 ),
             )
         }
-        // Star cards stay flat until Songs has a stars filter (web `instStarsUpdater`).
         chart.starCounts.forEach { (stars, count) ->
-            add(PlayerStatTile("stars-$stars", starLabel(stars), ProfileFormatting.count(count.toLong()), tint = StatTints.GOLD.takeIf { stars == 6 }))
+            add(
+                PlayerStatTile(
+                    "stars-$stars",
+                    starLabel(stars),
+                    ProfileFormatting.count(count.toLong()),
+                    tint = StatTints.GOLD.takeIf { stars == 6 },
+                    action = PlayerTileAction.FilterSongs(SongsPreset.Stars(instrument, stars)),
+                ),
+            )
         }
         add(accuracyTile(chart))
         add(averageStarsTile(chart))
