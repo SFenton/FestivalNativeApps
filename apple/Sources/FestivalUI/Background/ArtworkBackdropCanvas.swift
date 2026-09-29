@@ -3,68 +3,110 @@ import Foundation
 import SwiftUI
 import FestivalDesign
 
-// MARK: - Song overlay model
+// MARK: - Song cover model
 
 /// One song's still album art layered above the carousel.
+///
+/// Mirrors the web's `BackgroundImage` (`FortniteFestivalWeb/src/components/page/BackgroundImage.tsx`):
+/// the song cover fades in over the shared animated background with
+/// `opacity 300ms ease` once its image is ready, and fades back out when a
+/// carousel page returns. It never grows out of the tapped list tile.
 struct SongOverlay: Equatable, Identifiable {
-    /// How the cover enters.
-    enum Style: Equatable {
-        /// Grows out of the song's list tile into the full background.
-        case zoom
-        /// Dissolves in with a slight settle and soft focus.
-        case dissolve
-        /// Opacity only (Reduce Motion).
-        case plain
-    }
-
     let id = UUID()
     /// Artwork path, or empty for a song without art (brand surface).
     let raw: String
     /// Decoded, bounded cover; nil shows the opaque brand surface.
     let image: CGImage?
-    /// Global tile frame the art zooms out of (`.zoom` only).
-    let origin: CGRect?
-    /// Entrance start instant.
+    /// Fade-in start instant.
     let start: Date
-    let style: Style
 
-    /// Entrance length for a style.
-    ///
-    /// - Parameter style: Entrance style.
-    /// - Returns: Seconds.
-    static func duration(_ style: Style) -> TimeInterval {
-        switch style {
-        case .zoom: 0.55
-        case .dissolve: 0.5
-        case .plain: 0.3
-        }
-    }
+    /// Web `TRANSITION_MS` (300 ms) for the background image opacity.
+    static let fadeDuration: TimeInterval = 0.3
 
-    /// Eased entrance progress at a render instant.
+    /// Fade-in opacity at a render instant.
     ///
     /// - Parameter date: Render time.
-    /// - Returns: Progress in 0...1.
-    func progress(at date: Date) -> Double {
-        BackdropEasing.inOut(date.timeIntervalSince(start) / Self.duration(style))
+    /// - Returns: Opacity in 0...1 on the CSS `ease` curve.
+    func opacity(at date: Date) -> Double {
+        BackdropEasing.cssEase(date.timeIntervalSince(start) / Self.fadeDuration)
     }
 
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
 }
 
-/// A cover dissolving away (back to the carousel, or replaced by another song).
+/// A cover fading away (back to the carousel, or replaced by another song).
 struct ExitingOverlay: Equatable {
     let overlay: SongOverlay
     let start: Date
+    /// Opacity the cover had when its exit began (an interrupted fade-in exits from there).
+    let from: Double
 
-    /// Exit length in seconds.
-    static let duration: TimeInterval = 0.45
+    /// Exit length in seconds (same 300 ms `ease` as the entrance).
+    static let duration: TimeInterval = SongOverlay.fadeDuration
 
-    /// Eased exit progress at a render instant.
+    /// Begin fading a cover out from wherever its entrance had reached.
+    ///
+    /// - Parameters:
+    ///   - overlay: Cover leaving the screen.
+    ///   - start: Exit start instant.
+    init(overlay: SongOverlay, start: Date) {
+        self.overlay = overlay
+        self.start = start
+        from = overlay.opacity(at: start)
+    }
+
+    /// Fade-out opacity at a render instant.
     ///
     /// - Parameter date: Render time.
-    /// - Returns: Progress in 0...1.
-    func progress(at date: Date) -> Double {
-        BackdropEasing.inOut(date.timeIntervalSince(start) / Self.duration)
+    /// - Returns: Opacity in 0...`from`.
+    func opacity(at date: Date) -> Double {
+        from * (1 - BackdropEasing.cssEase(date.timeIntervalSince(start) / Self.duration))
+    }
+}
+
+/// One cover layer as drawn: entering/held, or exiting.
+///
+/// Keyed by the cover's id, so a cover that starts exiting keeps its view
+/// identity and animates on from its current opacity instead of restarting.
+struct CoverLayer: Identifiable, Equatable {
+    let overlay: SongOverlay
+    let exit: ExitingOverlay?
+
+    var id: UUID { overlay.id }
+
+    /// Opacity at a render instant.
+    ///
+    /// - Parameter date: Render time.
+    /// - Returns: Opacity in 0...1.
+    func opacity(at date: Date) -> Double {
+        exit?.opacity(at: date) ?? overlay.opacity(at: date)
+    }
+
+    /// Opacity this layer settles at.
+    var target: Double { exit == nil ? 1 : 0 }
+
+    /// Seconds of the running fade left at an instant (0 when settled).
+    ///
+    /// - Parameter date: Render time.
+    /// - Returns: Remaining seconds.
+    func remaining(at date: Date) -> TimeInterval {
+        let start = exit?.start ?? overlay.start
+        return max(0, SongOverlay.fadeDuration - date.timeIntervalSince(start))
+    }
+
+    /// Layers to draw, exiting beneath entering.
+    ///
+    /// - Parameters:
+    ///   - overlay: Entering or held cover.
+    ///   - exiting: Cover fading away.
+    /// - Returns: Bottom-to-top layers.
+    static func layers(overlay: SongOverlay?, exiting: ExitingOverlay?) -> [CoverLayer] {
+        var result: [CoverLayer] = []
+        if let exiting, exiting.overlay.id != overlay?.id {
+            result.append(CoverLayer(overlay: exiting.overlay, exit: exiting))
+        }
+        if let overlay { result.append(CoverLayer(overlay: overlay, exit: nil)) }
+        return result
     }
 }
 
@@ -72,18 +114,16 @@ struct ExitingOverlay: Equatable {
 
 /// Renders a backdrop state; every copy (one per on-screen page) draws the same pixels.
 ///
-/// Carousel slots animate with implicit animations whose start points are
-/// derived from the shared timestamps (see `CarouselLayerView`), so no body is
-/// re-evaluated per frame. Song-cover entrances/exits are short and drawn by a
-/// `TimelineView` that exists only while one is running.
+/// Carousel slots and song covers animate with implicit animations whose start
+/// points are derived from the shared timestamps (see `CarouselLayerView` and
+/// `CoverLayerView`), so no body is re-evaluated per frame and a page that
+/// appears mid-transition joins it in step.
 struct ArtworkBackdropCanvas: View {
     let carousel: ArtworkBackdropState
     let overlay: SongOverlay?
     let exiting: ExitingOverlay?
     /// Whether the owning page is on screen and may run animations.
     let animate: Bool
-    /// Whether a cover transition is running (per-frame rendering needed).
-    let ticking: Bool
     /// False for data saving or opaque accessibility presentation: brand only.
     let showsArt: Bool
     /// Black-overlay equivalent (0.7, or 0.82 with increased contrast).
@@ -91,7 +131,6 @@ struct ArtworkBackdropCanvas: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let bounds = geometry.frame(in: .global)
             let size = geometry.size
             ZStack {
                 BrandTokens.appBackground
@@ -106,15 +145,12 @@ struct ArtworkBackdropCanvas: View {
                             .zIndex(layer.id == carousel.active ? 1 : 0)
                         }
                     }
-                    if overlay != nil || exiting != nil {
-                        TimelineView(.animation(minimumInterval: nil, paused: !ticking)) { context in
-                            covers(
-                                at: ticking ? context.date : .distantFuture,
-                                size: size, bounds: bounds
-                            )
-                        }
-                        .zIndex(2)
+                    ForEach(CoverLayer.layers(overlay: overlay, exiting: exiting)) { layer in
+                        CoverLayerView(
+                            layer: layer, size: size, lightness: 1 - dimming, animate: animate
+                        )
                     }
+                    .zIndex(2)
                 }
             }
             .frame(width: size.width, height: size.height)
@@ -124,108 +160,12 @@ struct ArtworkBackdropCanvas: View {
         .accessibilityHidden(true)
     }
 
-    /// Song covers (exiting beneath entering) for one instant.
-    ///
-    /// - Parameters:
-    ///   - date: Render time (`.distantFuture` when settled).
-    ///   - size: Canvas size.
-    ///   - bounds: Canvas frame in global coordinates (for tile origins).
-    /// - Returns: The cover layers.
-    private func covers(at date: Date, size: CGSize, bounds: CGRect) -> some View {
-        ZStack {
-            if let exiting, exiting.progress(at: date) < 1 {
-                let q = exiting.progress(at: date)
-                cover(exiting.overlay, size: size)
-                    .modifier(SongBackdropPlacement(
-                        progress: 1, opacity: 1 - q,
-                        scale: exiting.overlay.style == .plain ? 1 : 1 + 0.04 * q,
-                        blur: 0, origin: nil, size: size,
-                        dimming: exiting.overlay.image == nil ? 0 : dimming
-                    ))
-                    .id(exiting.overlay.id)
-            }
-            if let overlay {
-                cover(overlay, size: size)
-                    .modifier(placement(
-                        for: overlay, progress: overlay.progress(at: date),
-                        size: size, bounds: bounds
-                    ))
-                    .id(overlay.id)
-            }
-        }
-        .frame(width: size.width, height: size.height)
-    }
-
-    /// Undimmed, flexible cover or brand surface; placement frames and dims it.
-    ///
-    /// - Parameters:
-    ///   - overlay: Song cover model.
-    ///   - size: Canvas size.
-    /// - Returns: Flexible cover view.
-    @ViewBuilder
-    private func cover(_ overlay: SongOverlay, size: CGSize) -> some View {
-        if let image = overlay.image {
-            Image(decorative: image, scale: 1)
-                .resizable()
-                .scaledToFill()
-        } else {
-            BrandTokens.appBackground
-        }
-    }
-
-    /// Placement for an entering cover.
-    ///
-    /// - Parameters:
-    ///   - overlay: Song cover model.
-    ///   - progress: Eased entrance progress.
-    ///   - size: Canvas size.
-    ///   - bounds: Canvas frame in global coordinates.
-    /// - Returns: Frame, dimming and fade for this instant.
-    private func placement(
-        for overlay: SongOverlay, progress p: Double, size: CGSize, bounds: CGRect
-    ) -> SongBackdropPlacement {
-        let dim = overlay.image == nil ? 0 : dimming
-        switch overlay.style {
-        case .zoom:
-            let origin = overlay.origin.flatMap {
-                Self.localOrigin($0, in: bounds)
-            }
-            return SongBackdropPlacement(
-                progress: origin == nil ? 1 : p, opacity: origin == nil ? p : 1,
-                scale: 1, blur: 0, origin: origin, size: size, dimming: dim
-            )
-        case .dissolve:
-            return SongBackdropPlacement(
-                progress: 1, opacity: p, scale: 1.06 - 0.06 * p, blur: 10 * (1 - p),
-                origin: nil, size: size, dimming: dim
-            )
-        case .plain:
-            return SongBackdropPlacement(
-                progress: 1, opacity: p, scale: 1, blur: 0,
-                origin: nil, size: size, dimming: dim
-            )
-        }
-    }
-
     /// Opaque gray used to multiply (dim) opaque artwork without a translucent layer.
     ///
     /// - Parameter lightness: Remaining brightness in 0...1.
     /// - Returns: Gray multiplier color.
     static func gray(_ lightness: Double) -> Color {
         Color(.sRGB, red: lightness, green: lightness, blue: lightness, opacity: 1)
-    }
-
-    /// Convert a global tile frame into canvas coordinates, if on screen.
-    ///
-    /// - Parameters:
-    ///   - frame: Tile frame in global coordinates.
-    ///   - bounds: Canvas frame in global coordinates.
-    /// - Returns: Local frame, or nil when the tile is empty or off screen.
-    static func localOrigin(_ frame: CGRect, in bounds: CGRect) -> CGRect? {
-        guard frame.width > 1, frame.height > 1, bounds.intersects(frame) else {
-            return nil
-        }
-        return frame.offsetBy(dx: -bounds.minX, dy: -bounds.minY)
     }
 
     /// Longest decoded edge for a full-screen cover.
@@ -240,54 +180,76 @@ struct ArtworkBackdropCanvas: View {
     }
 }
 
-// MARK: - Placement
+// MARK: - Cover layer
 
-/// Frame, dimming and fade for a song cover.
+/// One song cover, faded by the render loop from shared timestamps.
 ///
-/// `progress` 0 draws the undimmed cover inside its list tile's rounded frame;
-/// 1 fills the canvas with the dimmed cover.
-struct SongBackdropPlacement: ViewModifier {
-    let progress: Double
-    let opacity: Double
-    let scale: Double
-    let blur: Double
-    let origin: CGRect?
+/// Like `CarouselLayerView`: on appear and whenever the fade changes direction
+/// it jumps (without animation) to the timestamp value for "now", then animates
+/// the remainder on the web's `ease` curve. Only opacity animates, so a fade is
+/// composited without re-running bodies, layout or a blur per frame.
+struct CoverLayerView: View {
+    let layer: CoverLayer
     let size: CGSize
-    let dimming: Double
+    let lightness: Double
+    let animate: Bool
 
-    /// Place the cover between its tile frame and the full canvas.
-    ///
-    /// - Parameter content: Flexible, undimmed cover.
-    /// - Returns: Framed, dimmed and faded cover.
-    func body(content: Content) -> some View {
-        let frame = Self.frame(progress: progress, origin: origin, size: size)
-        return content
-            .frame(width: frame.width, height: frame.height)
-            .clipShape(RoundedRectangle(cornerRadius: 10 * (1 - progress)))
-            .colorMultiply(ArtworkBackdropCanvas.gray(1 - dimming * progress))
-            .scaleEffect(scale)
-            .blur(radius: blur, opaque: true)
-            .opacity(opacity)
-            .position(x: frame.midX, y: frame.midY)
-    }
+    @State private var opacity: Double
 
-    /// Interpolate from the tile frame to the full canvas bounds.
+    /// Start at the timestamp-derived opacity for the current instant.
     ///
     /// - Parameters:
-    ///   - progress: 0 at the tile, 1 at full size.
-    ///   - origin: Tile frame in canvas coordinates, if any.
+    ///   - layer: Cover and fade timing.
     ///   - size: Canvas size.
-    /// - Returns: Frame for this progress.
-    static func frame(progress: Double, origin: CGRect?, size: CGSize) -> CGRect {
-        let full = CGRect(origin: .zero, size: size)
-        guard let origin else { return full }
-        let t = CGFloat(min(max(progress, 0), 1))
-        return CGRect(
-            x: origin.minX + (full.minX - origin.minX) * t,
-            y: origin.minY + (full.minY - origin.minY) * t,
-            width: origin.width + (full.width - origin.width) * t,
-            height: origin.height + (full.height - origin.height) * t
-        )
+    ///   - lightness: Dimming multiplier for art (brand surface is never dimmed).
+    ///   - animate: Whether the owning page is on screen.
+    init(layer: CoverLayer, size: CGSize, lightness: Double, animate: Bool) {
+        self.layer = layer
+        self.size = size
+        self.lightness = lightness
+        self.animate = animate
+        _opacity = State(initialValue: layer.opacity(at: Date()))
+    }
+
+    /// Inputs that require re-synchronising with the shared clock.
+    private struct Timing: Equatable {
+        let exitStart: Date?
+        let animate: Bool
+    }
+
+    var body: some View {
+        Group {
+            if let image = layer.overlay.image {
+                Image(decorative: image, scale: 1)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: size.width, height: size.height)
+                    .colorMultiply(ArtworkBackdropCanvas.gray(lightness))
+            } else {
+                BrandTokens.appBackground
+                    .frame(width: size.width, height: size.height)
+            }
+        }
+        .opacity(opacity)
+        .onAppear { sync() }
+        .onChange(of: Timing(exitStart: layer.exit?.start, animate: animate)) { _, _ in sync() }
+    }
+
+    /// Jump to the shared clock's current opacity, then animate the remainder.
+    private func sync() {
+        let now = Date()
+        var jump = Transaction()
+        jump.disablesAnimations = true
+        withTransaction(jump) { opacity = layer.opacity(at: now) }
+        let left = layer.remaining(at: now)
+        guard animate, left > 0 else { return }
+        let target = layer.target
+        // Start on the next turn so the jump above is committed first.
+        Task { @MainActor in
+            withAnimation(.timingCurve(0.25, 0.1, 0.25, 1, duration: left)) {
+                opacity = target
+            }
+        }
     }
 }
 

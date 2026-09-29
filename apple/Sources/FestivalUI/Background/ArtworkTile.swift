@@ -58,7 +58,6 @@ struct ArtworkTile: View {
     @State private var image: PlatformImage?
     @State private var failure: String?
     @State private var fromMemory = false
-    @Environment(\.festivalBackgroundPage) private var page
 
     /// Render only requested art, or inject a thumbnail for hosted visual tests.
     ///
@@ -103,7 +102,6 @@ struct ArtworkTile: View {
         .frame(width: size, height: size)
         .background(BrandTokens.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 10))
-        .modifier(TileFrameReporter(raw: raw, page: page, session: session))
         .task(id: raw) { await load() }
         .onChange(of: raw) { _, _ in
             image = nil
@@ -161,35 +159,6 @@ struct ArtworkTile: View {
             guard !Task.isCancelled else { return }
             image = nil
             failure = error.localizedDescription
-        }
-    }
-}
-
-// MARK: - Zoom source geometry
-
-/// Reports a carousel page's album tile frame so the shared background can
-/// zoom that song's art out of the tile when its detail page opens.
-///
-/// Frames are written to a non-observed store, so scrolling never re-renders
-/// the background host.
-private struct TileFrameReporter: ViewModifier {
-    let raw: String?
-    let page: FestivalBackgroundPage?
-    let session: FestivalSession
-
-    func body(content: Content) -> some View {
-        if let raw, !raw.isEmpty,
-           let page, page.mode == .carousel {
-            let coordinator = session.backgroundCoordinator
-            content
-                .onGeometryChange(for: CGRect.self) { proxy in
-                    proxy.frame(in: .global)
-                } action: { frame in
-                    coordinator.noteTile(raw, frame: frame, owner: page.token)
-                }
-                .onDisappear { coordinator.forgetTile(raw, owner: page.token) }
-        } else {
-            content
         }
     }
 }

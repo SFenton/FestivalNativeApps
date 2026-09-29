@@ -41,8 +41,6 @@ final class FestivalBackgroundCoordinator {
     private(set) var overlay: SongOverlay?
     /// Cover dissolving away.
     private(set) var exiting: ExitingOverlay?
-    /// True while a cover enters or exits, so mirrors render every frame.
-    private(set) var overlayAnimating = false
     /// False once a cover fully hides the carousel, pausing its motion and loads.
     private(set) var carouselVisible = true
 
@@ -53,20 +51,12 @@ final class FestivalBackgroundCoordinator {
     private var registrations: [UUID: FestivalBackgroundRegistration] = [:]
     @ObservationIgnored
     private var nextStamp = 0
-    @ObservationIgnored
-    private var tileFrames: [String: TileFrame] = [:]
 
     /// Create the coordinator for one session.
     ///
     /// - Parameter session: Artwork cache owner for the shared carousel.
     init(session: FestivalSession) {
         carousel = ArtworkCarouselEngine(session: session)
-    }
-
-    /// Last known on-screen frame of a carousel page's album tile.
-    struct TileFrame: Equatable {
-        let frame: CGRect
-        let owner: UUID
     }
 
     // MARK: - Page lifecycle
@@ -109,7 +99,6 @@ final class FestivalBackgroundCoordinator {
     /// - Parameter token: Stable identity of the page's modifier.
     func disappear(_ token: UUID) {
         registrations[token] = nil
-        tileFrames = tileFrames.filter { $0.value.owner != token }
         resolve()
     }
 
@@ -146,21 +135,19 @@ final class FestivalBackgroundCoordinator {
 
     // MARK: - Song cover
 
-    /// Show a song's cover above the carousel (replacing any current cover).
+    /// Fade a song's cover in above the carousel (replacing any current cover,
+    /// which fades out beneath it).
     ///
-    /// - Parameter cover: Entering cover with its start instant and style.
+    /// - Parameter cover: Entering cover with its start instant.
     func showOverlay(_ cover: SongOverlay) {
         if let overlay {
             exiting = ExitingOverlay(overlay: overlay, start: cover.start)
         }
         overlay = cover
-        overlayAnimating = true
-        scheduleSettle(
-            at: cover.start.addingTimeInterval(SongOverlay.duration(cover.style))
-        )
+        scheduleSettle(at: cover.start.addingTimeInterval(SongOverlay.fadeDuration))
     }
 
-    /// Dissolve the current cover back to the carousel.
+    /// Fade the current cover back out to the carousel.
     ///
     /// - Parameter now: Exit start instant.
     func dismissOverlay(now: Date = .now) {
@@ -168,15 +155,13 @@ final class FestivalBackgroundCoordinator {
         guard let overlay else { return }
         exiting = ExitingOverlay(overlay: overlay, start: now)
         self.overlay = nil
-        overlayAnimating = true
         scheduleSettle(at: now.addingTimeInterval(ExitingOverlay.duration))
     }
 
-    /// Finish transitions: drop the exited cover, stop per-frame rendering and
-    /// pause the carousel if a cover now hides it.
+    /// Finish transitions: drop the exited cover and pause the carousel if a
+    /// cover now hides it.
     func settle() {
         exiting = nil
-        overlayAnimating = false
         carouselVisible = overlay == nil
     }
 
@@ -196,40 +181,6 @@ final class FestivalBackgroundCoordinator {
         }
     }
 
-    // MARK: - Album tile geometry
-
-    /// Remember where an album tile is drawn on a carousel page.
-    ///
-    /// Stored without observation so scrolling never re-renders the host.
-    ///
-    /// - Parameters:
-    ///   - raw: Artwork path the tile displays.
-    ///   - frame: Tile frame in global (window) coordinates.
-    ///   - owner: Token of the page drawing the tile.
-    func noteTile(_ raw: String, frame: CGRect, owner: UUID) {
-        tileFrames[raw] = TileFrame(frame: frame, owner: owner)
-    }
-
-    /// Forget a tile that scrolled away or was removed.
-    ///
-    /// - Parameters:
-    ///   - raw: Artwork path the tile displays.
-    ///   - owner: Token of the page drawing the tile.
-    func forgetTile(_ raw: String, owner: UUID) {
-        if tileFrames[raw]?.owner == owner { tileFrames[raw] = nil }
-    }
-
-    /// Frame to zoom a song's album art from, if a carousel page shows its tile.
-    ///
-    /// - Parameter raw: Artwork path of the song being opened.
-    /// - Returns: Global tile frame, or nil when no matching tile is on screen.
-    func sourceFrame(for raw: String) -> CGRect? {
-        guard let tile = tileFrames[raw], registrations[tile.owner] != nil else {
-            return nil
-        }
-        return tile.frame
-    }
-
     #if DEBUG
     /// Force a background for debug screenshots, bypassing page registrations.
     ///
@@ -238,29 +189,5 @@ final class FestivalBackgroundCoordinator {
         resolvedMode = mode
     }
 
-    /// An album tile currently on screen on a registered carousel page.
-    ///
-    /// - Returns: Artwork path of the top-most such tile, if any.
-    func debugVisibleTileRaw() -> String? {
-        tileFrames
-            .filter { registrations[$0.value.owner] != nil && $0.value.frame.minY > 150 }
-            .min { $0.value.frame.minY < $1.value.frame.minY }?
-            .key
-    }
     #endif
-}
-
-// MARK: - Environment
-
-extension EnvironmentValues {
-    /// Registration token and mode of the page a view is drawn on.
-    ///
-    /// Album tiles use it to report their frame only from carousel pages.
-    @Entry var festivalBackgroundPage: FestivalBackgroundPage?
-}
-
-/// The enclosing page's background registration, visible to descendants.
-struct FestivalBackgroundPage: Equatable {
-    let token: UUID
-    let mode: ArtworkBackgroundMode
 }

@@ -65,26 +65,6 @@ import Testing
     #expect(coordinator.resolvedMode == .song("b.png"))
 }
 
-// MARK: - Tile origins
-
-/// Tile frames are only offered while their carousel page is registered.
-@MainActor
-@Test func tileOriginsRequireALivePage() {
-    let coordinator = FestivalBackgroundCoordinator(session: FestivalSession(
-        factory: { throw FestivalAPIError.invalidResource }
-    ))
-    let songs = UUID()
-    let frame = CGRect(x: 16, y: 300, width: 44, height: 44)
-    coordinator.noteTile("a.png", frame: frame, owner: songs)
-    #expect(coordinator.sourceFrame(for: "a.png") == nil)
-    coordinator.appear(songs, mode: .carousel, visible: true)
-    #expect(coordinator.sourceFrame(for: "a.png") == frame)
-    coordinator.forgetTile("a.png", owner: UUID())
-    #expect(coordinator.sourceFrame(for: "a.png") == frame)
-    coordinator.disappear(songs)
-    #expect(coordinator.sourceFrame(for: "a.png") == nil)
-}
-
 // MARK: - Cover transitions
 
 /// Showing a cover keeps the carousel running until settled; dismissing resumes it.
@@ -93,52 +73,69 @@ import Testing
     let coordinator = FestivalBackgroundCoordinator(session: FestivalSession(
         factory: { throw FestivalAPIError.invalidResource }
     ))
-    let first = SongOverlay(raw: "a", image: nil, origin: nil, start: .now, style: .dissolve)
+    let first = SongOverlay(raw: "a", image: nil, start: .now)
     coordinator.showOverlay(first)
-    #expect(coordinator.overlay == first && coordinator.overlayAnimating)
-    #expect(coordinator.carouselVisible)
+    #expect(coordinator.overlay == first && coordinator.carouselVisible)
     coordinator.settle()
-    #expect(!coordinator.carouselVisible && !coordinator.overlayAnimating)
-    let second = SongOverlay(raw: "b", image: nil, origin: nil, start: .now, style: .plain)
+    #expect(!coordinator.carouselVisible)
+    let second = SongOverlay(raw: "b", image: nil, start: .now)
     coordinator.showOverlay(second)
     #expect(coordinator.exiting?.overlay == first && coordinator.overlay == second)
     #expect(!coordinator.carouselVisible)
     coordinator.dismissOverlay()
     #expect(coordinator.overlay == nil && coordinator.exiting?.overlay == second)
-    #expect(coordinator.carouselVisible && coordinator.overlayAnimating)
+    #expect(coordinator.carouselVisible)
     coordinator.settle()
     #expect(coordinator.exiting == nil && coordinator.carouselVisible)
 }
 
-/// Entrance and exit progress are eased, clamped functions of time.
-@Test func overlayProgressIsClampedAndEased() {
+/// The cover fades like the web's `BackgroundImage`: opacity over 300 ms on CSS `ease`.
+@Test func coverFadeMatchesWebTiming() {
     let start = Date(timeIntervalSinceReferenceDate: 1_000)
-    let cover = SongOverlay(raw: "a", image: nil, origin: nil, start: start, style: .zoom)
-    #expect(cover.progress(at: start.addingTimeInterval(-1)) == 0)
-    #expect(abs(cover.progress(at: start.addingTimeInterval(0.275)) - 0.5) < 1e-9)
-    #expect(cover.progress(at: start.addingTimeInterval(5)) == 1)
-    #expect(cover.progress(at: .distantFuture) == 1)
-    let exit = ExitingOverlay(overlay: cover, start: start)
-    #expect(exit.progress(at: start.addingTimeInterval(ExitingOverlay.duration)) == 1)
+    let cover = SongOverlay(raw: "a", image: nil, start: start)
+    #expect(SongOverlay.fadeDuration == 0.3)
+    #expect(cover.opacity(at: start.addingTimeInterval(-1)) == 0)
+    #expect(cover.opacity(at: start.addingTimeInterval(0.3)) == 1)
+    #expect(cover.opacity(at: .distantFuture) == 1)
+    // CSS `ease` at half time is ~0.8024 (front-loaded, unlike ease-in-out).
+    #expect(abs(cover.opacity(at: start.addingTimeInterval(0.15)) - 0.8024) < 0.001)
+    let exit = ExitingOverlay(overlay: cover, start: start.addingTimeInterval(1))
+    #expect(exit.from == 1)
+    #expect(exit.opacity(at: start.addingTimeInterval(1)) == 1)
+    #expect(exit.opacity(at: start.addingTimeInterval(1.3)) == 0)
     #expect(BackdropEasing.inOut(0.25) < 0.25 && BackdropEasing.inOut(0.75) > 0.75)
 }
 
-/// The cover interpolates from its tile frame to the full canvas.
-@Test func placementInterpolatesFromTileToFullScreen() {
-    let size = CGSize(width: 400, height: 800)
-    let tile = CGRect(x: 20, y: 100, width: 40, height: 40)
-    #expect(SongBackdropPlacement.frame(progress: 0, origin: tile, size: size) == tile)
-    #expect(SongBackdropPlacement.frame(progress: 1, origin: tile, size: size)
-        == CGRect(origin: .zero, size: size))
-    #expect(SongBackdropPlacement.frame(progress: 0.5, origin: tile, size: size)
-        == CGRect(x: 10, y: 50, width: 220, height: 420))
-    #expect(SongBackdropPlacement.frame(progress: 0.3, origin: nil, size: size)
-        == CGRect(origin: .zero, size: size))
-    let bounds = CGRect(x: 0, y: 0, width: 400, height: 800)
-    #expect(ArtworkBackdropCanvas.localOrigin(tile, in: bounds) == tile)
-    #expect(ArtworkBackdropCanvas.localOrigin(
-        CGRect(x: 500, y: 0, width: 40, height: 40), in: bounds
-    ) == nil)
+/// An exit that interrupts an entrance fades out from the entrance's opacity, and
+/// the leaving cover keeps its layer identity (no restart, no jump).
+@Test func interruptedFadeExitsFromCurrentOpacity() {
+    let start = Date(timeIntervalSinceReferenceDate: 1_000)
+    let cover = SongOverlay(raw: "a", image: nil, start: start)
+    let exitAt = start.addingTimeInterval(0.1)
+    let exit = ExitingOverlay(overlay: cover, start: exitAt)
+    #expect(exit.from > 0 && exit.from < 1)
+    #expect(abs(exit.opacity(at: exitAt) - cover.opacity(at: exitAt)) < 1e-12)
+    let entering = CoverLayer.layers(overlay: cover, exiting: nil)
+    let leaving = CoverLayer.layers(overlay: nil, exiting: exit)
+    #expect(entering.map(\.id) == leaving.map(\.id))
+    #expect(entering.first?.target == 1 && leaving.first?.target == 0)
+    #expect(abs((leaving.first?.remaining(at: exitAt) ?? 0) - 0.3) < 1e-9)
+    #expect(leaving.first?.remaining(at: exitAt.addingTimeInterval(1)) == 0)
+    // Replacing one song with another stacks the leaving cover beneath.
+    let next = SongOverlay(raw: "b", image: nil, start: exitAt)
+    #expect(CoverLayer.layers(overlay: next, exiting: exit).map(\.id) == [cover.id, next.id])
+}
+
+/// CSS `cubic-bezier` evaluation is clamped, monotonic and hits its endpoints.
+@Test func cubicBezierIsClampedAndMonotonic() {
+    #expect(BackdropEasing.cssEase(-1) == 0 && BackdropEasing.cssEase(2) == 1)
+    var previous = 0.0
+    for step in 1...20 {
+        let value = BackdropEasing.cssEase(Double(step) / 20)
+        #expect(value >= previous)
+        previous = value
+    }
+    #expect(abs(BackdropEasing.cubicBezier(0.5, x1: 0, y1: 0, x2: 1, y2: 1) - 0.5) < 1e-6)
     #expect(ArtworkBackdropCanvas.maxPixels(
         for: CGSize(width: 402, height: 874), displayScale: 3
     ) == 1024)

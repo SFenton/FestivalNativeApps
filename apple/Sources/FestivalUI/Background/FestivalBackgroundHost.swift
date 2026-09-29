@@ -16,9 +16,9 @@ import FestivalDesign
 /// - runs the one `ArtworkCarouselEngine` under the full artwork policy
 ///   (Reduce Motion, Low Data/Power, inactive scene, in-app toggles),
 /// - turns the coordinator's resolved page mode into song-cover transitions:
-///   the cover zooms out of the tapped list tile (or dissolves in), holds
-///   still while the carousel pauses beneath it, and dissolves back when an
-///   animated page returns.
+///   like the web's `BackgroundImage`, the cover fades in over the animated
+///   background (300 ms CSS `ease`) once decoded, holds still while the
+///   carousel pauses beneath it, and fades back out when a carousel page returns.
 ///
 /// Pages draw the backdrop themselves by mirroring this shared, timestamped
 /// state (`FestivalBackdropView`), because `TabView` keeps an opaque container
@@ -52,7 +52,6 @@ struct FestivalBackgroundHost: View {
         let mode: ArtworkBackgroundMode
         let policy: ArtworkPlaybackPolicy
         let maxPixels: Int
-        let screen: CGRect
     }
 
     var body: some View {
@@ -61,7 +60,6 @@ struct FestivalBackgroundHost: View {
             let maxPixels = ArtworkBackdropCanvas.maxPixels(
                 for: geometry.size, displayScale: displayScale
             )
-            let screen = geometry.frame(in: .global)
             let carouselPolicy = policy(
                 visible: coordinator.carouselVisible,
                 artCount: session.artworkPaths.count
@@ -78,11 +76,11 @@ struct FestivalBackgroundHost: View {
                 }
                 .task(id: CoverKey(
                     mode: coordinator.resolvedMode, policy: coverPolicy,
-                    maxPixels: maxPixels, screen: screen
+                    maxPixels: maxPixels
                 )) {
                     await present(
                         coordinator.resolvedMode, coordinator: coordinator,
-                        policy: coverPolicy, maxPixels: maxPixels, screen: screen
+                        policy: coverPolicy, maxPixels: maxPixels
                     )
                 }
         }
@@ -132,10 +130,9 @@ struct FestivalBackgroundHost: View {
     ///   - coordinator: Shared backdrop state.
     ///   - policy: Artwork policy for a single still cover.
     ///   - maxPixels: Decode bound for a full-screen cover.
-    ///   - screen: Host frame in global coordinates (tile origins must intersect it).
     private func present(
         _ mode: ArtworkBackgroundMode, coordinator: FestivalBackgroundCoordinator,
-        policy: ArtworkPlaybackPolicy, maxPixels: Int, screen: CGRect
+        policy: ArtworkPlaybackPolicy, maxPixels: Int
     ) async {
         switch mode {
         case .carousel:
@@ -147,10 +144,6 @@ struct FestivalBackgroundHost: View {
                current.image != nil || opaque || raw.isEmpty {
                 return
             }
-            let motion = !policy.reduceMotion
-            let origin = motion ? coordinator.sourceFrame(for: raw).flatMap {
-                screen.intersects($0) ? $0 : nil
-            } : nil
             var image: CGImage?
             if !raw.isEmpty && !opaque {
                 // Keep the carousel until the scene and network allow a fetch.
@@ -169,11 +162,7 @@ struct FestivalBackgroundHost: View {
                 }
             }
             guard !Task.isCancelled else { return }
-            let style: SongOverlay.Style = !motion
-                ? .plain : origin != nil && image != nil ? .zoom : .dissolve
-            coordinator.showOverlay(SongOverlay(
-                raw: raw, image: image, origin: origin, start: .now, style: style
-            ))
+            coordinator.showOverlay(SongOverlay(raw: raw, image: image, start: .now))
         }
     }
 
@@ -181,7 +170,7 @@ struct FestivalBackgroundHost: View {
 
     #if DEBUG
     /// `FST_DEBUG_BACKGROUND_CYCLE=<seconds>` alternates carousel and a song cover
-    /// (from a visible list tile when possible) so screenshots can show transitions.
+    /// so screenshots can show transitions.
     ///
     /// - Parameter coordinator: Coordinator to override.
     private func debugCycle(_ coordinator: FestivalBackgroundCoordinator) async {
@@ -194,7 +183,7 @@ struct FestivalBackgroundHost: View {
             } catch {
                 return
             }
-            guard let art = coordinator.debugVisibleTileRaw() ?? session.artworkPaths.first
+            guard let art = session.artworkPaths.first
             else { continue }
             coordinator.debugOverride(showSong ? .song(art) : .carousel)
             showSong.toggle()
@@ -217,13 +206,20 @@ struct FestivalBackdropView: View {
     @Environment(\.colorSchemeContrast) private var systemContrast
 
     var body: some View {
+        if DebugAnimationOverride.noBackdrop {
+            BrandTokens.appBackground.ignoresSafeArea()
+        } else {
+            canvas
+        }
+    }
+
+    private var canvas: some View {
         let carousel = coordinator.carousel.state
-        ArtworkBackdropCanvas(
+        return ArtworkBackdropCanvas(
             carousel: carousel,
             overlay: coordinator.overlay,
             exiting: coordinator.exiting,
             animate: appeared,
-            ticking: appeared && coordinator.overlayAnimating,
             showsArt: !(lessTransparency || systemReduceTransparency
                 || ArtworkNetworkStatus.shared.isConstrained),
             dimming: moreContrast || systemContrast == .increased ? 0.82 : 0.7

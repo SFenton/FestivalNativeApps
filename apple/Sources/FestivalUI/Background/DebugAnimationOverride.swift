@@ -17,4 +17,14 @@ enum DebugAnimationOverride {
         false
         #endif
     }()
+
+    /// True when `FST_DEBUG_NO_BACKDROP=1` (Debug only): pages draw the plain brand
+    /// surface instead of mirroring the shared backdrop, to bisect frame-pacing costs.
+    static let noBackdrop: Bool = {
+        #if DEBUG
+        ProcessInfo.processInfo.environment["FST_DEBUG_NO_BACKDROP"] == "1"
+        #else
+        false
+        #endif
+    }()
 }

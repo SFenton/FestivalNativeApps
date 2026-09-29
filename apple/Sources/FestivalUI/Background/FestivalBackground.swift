@@ -41,9 +41,6 @@ struct FestivalBackgroundModifier: ViewModifier {
         let coordinator = session.backgroundCoordinator
         content
             .background(FestivalBackdropView(coordinator: coordinator, appeared: appeared))
-            .environment(
-                \.festivalBackgroundPage, FestivalBackgroundPage(token: token, mode: mode)
-            )
             .onAppear {
                 appeared = true
                 coordinator.appear(token, mode: mode, visible: visible)

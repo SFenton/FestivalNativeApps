@@ -224,6 +224,42 @@ enum BackdropEasing {
         let x = min(max(t, 0), 1)
         return x < 0.5 ? 4 * x * x * x : 1 - pow(-2 * x + 2, 3) / 2
     }
+
+    /// CSS `ease`, i.e. `cubic-bezier(0.25, 0.1, 0.25, 1)` (the web's default
+    /// `transition` timing, used by `BackgroundImage`'s opacity fade).
+    ///
+    /// - Parameter t: Linear progress (clamped to 0...1).
+    /// - Returns: Eased progress.
+    static func cssEase(_ t: Double) -> Double {
+        cubicBezier(t, x1: 0.25, y1: 0.1, x2: 0.25, y2: 1)
+    }
+
+    /// Evaluate a CSS `cubic-bezier(x1, y1, x2, y2)` timing function.
+    ///
+    /// - Parameters:
+    ///   - t: Linear progress (clamped to 0...1).
+    ///   - x1: First control point x.
+    ///   - y1: First control point y.
+    ///   - x2: Second control point x.
+    ///   - y2: Second control point y.
+    /// - Returns: Eased progress.
+    static func cubicBezier(
+        _ t: Double, x1: Double, y1: Double, x2: Double, y2: Double
+    ) -> Double {
+        let x = min(max(t, 0), 1)
+        if x == 0 || x == 1 { return x }
+        func bezier(_ s: Double, _ p1: Double, _ p2: Double) -> Double {
+            let u = 1 - s
+            return 3 * u * u * s * p1 + 3 * u * s * s * p2 + s * s * s
+        }
+        // Bisection on the monotonic x(s): 30 halvings is below 1e-9.
+        var low = 0.0, high = 1.0, s = x
+        for _ in 0..<30 {
+            s = (low + high) / 2
+            if bezier(s, x1, x2) < x { low = s } else { high = s }
+        }
+        return bezier((low + high) / 2, y1, y2)
+    }
 }
 
 // MARK: - Modes and schedule
@@ -625,7 +661,7 @@ struct ArtworkBackground: View {
             )
             ArtworkBackdropCanvas(
                 carousel: engine.state, overlay: nil, exiting: nil,
-                animate: presentation.mayAnimate, ticking: false,
+                animate: presentation.mayAnimate,
                 showsArt: !presentation.saveData && !presentation.reduceTransparency,
                 dimming: moreContrast || systemContrast == .increased ? 0.82 : 0.7
             )
