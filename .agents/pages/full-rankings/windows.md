@@ -36,3 +36,7 @@ Fixture: `windows/reports/screenshots/full-rankings-{medium,compact,selected-wid
 
 - Paging does not update the back-stack route (a restored page comes from the kept view model, not the route).
 - No band-combo filter; no percentile/rank-history extras.
+
+## Pager (operator batch 6.30)
+
+`Controls/LeaderboardsPager` follows the web `Paginator` + `LeaderboardPaginationFooter`: round 40 epx card-surface buttons (double chevrons for first/last, single for previous/next) either side of a small "page / total" badge, no plate behind them. The selected player's row sits in its own rows card directly above it. Shared by Full Rankings, Band Rankings and song leaderboards.
