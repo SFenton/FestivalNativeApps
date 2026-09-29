@@ -94,7 +94,8 @@ class SongsUiTest {
         waitForTag("fst.songs.row.s-alpha")
         waitForTag("fst.songs.instrument-status.s-alpha", unmerged = true)
         waitForTag("fst.songs.shop-badge.s-alpha", unmerged = true)
-        rule.onNodeWithTag("fst.songs.chip.Solo_Guitar.FullCombo", useUnmergedTree = true).assertExists()
+        val chips = rule.onNodeWithTag("fst.songs.instrument-status.s-alpha", useUnmergedTree = true).fetchSemanticsNode().config[SongChipStatuses]
+        assertTrue(chips.toString(), "Solo_Guitar.FullCombo" in chips)
 
         click("fst.songs.filter.open")
         settle()

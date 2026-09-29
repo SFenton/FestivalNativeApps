@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -70,6 +69,16 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import kotlin.math.ceil
 import kotlin.math.max
+import com.festivalscoretracker.android.ui.design.instrumentIconRes
+import com.festivalscoretracker.android.ui.design.BundledBitmaps
+import androidx.compose.runtime.remember
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.foundation.layout.Spacer
 
 // region Tokens
 
@@ -348,45 +357,98 @@ private fun ScoreState(text: String, songId: String) {
 /**
  * Balanced wrapping chip rows (nine chips wrap 5+4 on a phone, one row on wide cards).
  *
+ * Performance: one layout node measured and drawn directly (circle fill, 2 dp ring, the
+ * shared decoded icon from [BundledBitmaps]) instead of a `BoxWithConstraints`
+ * subcomposition plus a Box and an Image per chip (about twenty nodes composed for every
+ * Songs row that scrolls in). The row's description speaks the statuses; the chips carry
+ * [SongChipStatuses] for tests.
+ *
  * @param badges Chips in service order.
  * @param songId Song (test tag).
  * @param keyboard Keys icon variant for Lead/Pro Lead.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun StatusChips(badges: List<SongInstrumentBadge>, songId: String, keyboard: Boolean) {
-    BoxWithConstraints(Modifier.fillMaxWidth().testTag("fst.songs.instrument-status.$songId")) {
-        val side = CHIP_SIDE
-        val spacing = 4.dp
-        val fit = max(1, ((maxWidth + spacing) / (side + spacing)).toInt())
-        val rows = ceil(badges.size / fit.toDouble()).toInt().coerceAtLeast(1)
-        val perRow = ceil(badges.size / rows.toDouble()).toInt()
-        FlowRow(
-            maxItemsInEachRow = perRow,
-            horizontalArrangement = Arrangement.spacedBy(spacing, Alignment.CenterHorizontally),
-            verticalArrangement = Arrangement.spacedBy(spacing),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            badges.forEach { badge -> StatusChip(badge, keyboard, side) }
+    val resources = LocalContext.current.resources
+    val icons = remember(badges, keyboard) {
+        badges.map { badge ->
+            val keys = keyboard && (badge.instrument == Instrument.Lead || badge.instrument == Instrument.ProLead)
+            BundledBitmaps.get(resources, instrumentIconRes(badge.instrument, keys))
         }
+    }
+    val colors = remember(badges) { badges.map { SongsTokens.chip(it.status) } }
+    Spacer(
+        Modifier
+            .fillMaxWidth()
+            .testTag("fst.songs.instrument-status.$songId")
+            .semantics { this[SongChipStatuses] = badges.map { "${it.instrument.wireId}.${it.status.name}" } }
+            .layout { measurable, constraints ->
+                val grid = ChipGrid(badges.size, constraints.maxWidth.toFloat(), CHIP_SIDE.toPx(), CHIP_SPACING.toPx())
+                val placeable = measurable.measure(constraints.copy(minHeight = grid.height.toInt(), maxHeight = grid.height.toInt()))
+                layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+            }
+            .drawBehind {
+                val side = CHIP_SIDE.toPx()
+                val ring = 2.dp.toPx()
+                val iconSide = (side * 0.7f).toInt()
+                val grid = ChipGrid(badges.size, size.width, side, CHIP_SPACING.toPx())
+                badges.indices.forEach { index ->
+                    val topLeft = grid.topLeft(index)
+                    val center = Offset(topLeft.x + side / 2, topLeft.y + side / 2)
+                    val (fill, stroke) = colors[index]
+                    drawCircle(fill, radius = side / 2, center = center)
+                    drawCircle(stroke, radius = side / 2 - ring / 2, center = center, style = Stroke(ring))
+                    val inset = ((side - iconSide) / 2).toInt()
+                    drawImage(
+                        icons[index],
+                        dstOffset = IntOffset(topLeft.x.toInt() + inset, topLeft.y.toInt() + inset),
+                        dstSize = IntSize(iconSide, iconSide),
+                        filterQuality = FilterQuality.Medium,
+                    )
+                }
+            },
+    )
+}
+
+/**
+ * Balanced chip rows: as many chips per row as fit, the rows evened out (9 → 5 + 4), each
+ * row centred (web `InstrumentStatusRow`).
+ *
+ * @param count Chips.
+ * @param width Available width in px.
+ * @param side Chip diameter in px.
+ * @param spacing Gap in px (both axes).
+ */
+internal class ChipGrid(count: Int, width: Float, private val side: Float, private val spacing: Float) {
+    private val fit = max(1, ((width + spacing) / (side + spacing)).toInt())
+    private val rows = ceil(count / fit.toDouble()).toInt().coerceAtLeast(1)
+    private val perRow = ceil(count / rows.toDouble()).toInt().coerceAtLeast(1)
+    private val count = count
+    private val width = width
+
+    /** Total height in px. */
+    val height: Float get() = rows * side + (rows - 1) * spacing
+
+    /**
+     * Top-left of chip [index].
+     *
+     * @param index Chip index.
+     * @return Offset in px.
+     */
+    fun topLeft(index: Int): Offset {
+        val row = index / perRow
+        val inRow = if (row == rows - 1) count - row * perRow else perRow
+        val rowWidth = inRow * side + (inRow - 1) * spacing
+        val x = (width - rowWidth) / 2 + (index % perRow) * (side + spacing)
+        return Offset(x, row * (side + spacing))
     }
 }
 
-@Composable
-private fun StatusChip(badge: SongInstrumentBadge, keyboard: Boolean, side: Dp) {
-    val (fill, stroke) = SongsTokens.chip(badge.status)
-    val keys = keyboard && (badge.instrument == Instrument.Lead || badge.instrument == Instrument.ProLead)
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .size(side)
-            .background(fill, CircleShape)
-            .border(2.dp, stroke, CircleShape)
-            .testTag("fst.songs.chip.${badge.instrument.wireId}.${badge.status.name}"),
-    ) {
-        InstrumentIcon(badge.instrument, keyboard = keys, size = side * 0.7f, decorative = true)
-    }
-}
+/** Test hook: the chips' `<wireId>.<status>` in order. */
+internal val SongChipStatuses = SemanticsPropertyKey<List<String>>("SongChipStatuses")
+
+/** Gap between chips (both axes). */
+private val CHIP_SPACING = 4.dp
 
 /** Chip diameter (web 34 px chip with a 24 px icon). */
 private val CHIP_SIDE = 34.dp
