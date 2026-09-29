@@ -20,6 +20,12 @@ public sealed class SongRowItem
     /// <summary>Same-publication Shop accent, if any.</summary>
     public ShopHighlight? Highlight { get; init; }
 
+    /// <summary>Same-publication Item Shop member with highlighting on (the row's pulsing border; web <c>shopHighlight</c>).</summary>
+    public bool InShop { get; init; }
+
+    /// <summary>Border pulse for this row, or <see langword="null"/> when it is not highlighted.</summary>
+    public SongRowShopPulse? Pulse => SongRowShopPulse.For(InShop, Highlight);
+
     /// <summary>Selected-player status chips (empty when chips don't apply).</summary>
     public IReadOnlyList<SongInstrumentBadge> Chips { get; init; } = [];
 

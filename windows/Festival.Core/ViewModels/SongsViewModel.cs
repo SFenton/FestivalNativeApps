@@ -106,6 +106,12 @@ public sealed partial class SongsViewModel : ObservableObject
     public bool IsFilterActive =>
         session.Settings.SongFilter.IsActive || session.Settings.ShopFilter.IsActive || session.Settings.PlayerScoreFilter.IsActive;
 
+    /// <summary>
+    /// Whether the Filter button shows: the web offers no Songs filter without a selected profile, but a filter saved
+    /// earlier still applies, so the button stays while one is active to let it be cleared.
+    /// </summary>
+    public bool ShowFilterButton => session.HasPlayer || IsFilterActive;
+
     /// <summary>Applied sort label, e.g. "Title ↑".</summary>
     public string SortSummary => session.Settings.SongSort.Label() + (session.Settings.SongSortAscending ? " ↑" : " ↓");
 
@@ -228,6 +234,7 @@ public sealed partial class SongsViewModel : ObservableObject
         var settings = session.Settings;
         OnPropertyChanged(nameof(IsSortChanged));
         OnPropertyChanged(nameof(IsFilterActive));
+        OnPropertyChanged(nameof(ShowFilterButton));
         OnPropertyChanged(nameof(SortSummary));
         OnPropertyChanged(nameof(EmptyMessage));
         if (InvalidSavedFilter)
@@ -298,16 +305,18 @@ public sealed class SongRowProjector(AppSettings settings, int? currentSeason, I
     /// <returns>Row item.</returns>
     public SongRowItem Project(Song song)
     {
-        var highlight = ShopPresentationPolicy.Highlight(offers?.GetValueOrDefault(song.SongId), settings.HideShop, settings.DisableShopHighlighting);
+        var offer = offers?.GetValueOrDefault(song.SongId);
+        var highlight = ShopPresentationPolicy.Highlight(offer, settings.HideShop, settings.DisableShopHighlighting);
+        var inShop = offer is not null && !settings.HideShop && !settings.DisableShopHighlighting;
         var filterChart = settings.SongFilter.Instrument;
         var filterRaw = filterChart is { } f ? song.Difficulty?.ChartedValue(f) : null;
         if (!scores.HasPlayer)
-            return new SongRowItem(song) { Highlight = highlight, Chart = filterRaw is null ? null : filterChart, ChartRaw = filterRaw };
+            return new SongRowItem(song) { Highlight = highlight, InShop = inShop, Chart = filterRaw is null ? null : filterChart, ChartRaw = filterRaw };
         if (chips)
         {
             return new SongRowItem(song)
             {
-                Highlight = highlight,
+                Highlight = highlight, InShop = inShop,
                 Chips = SongInstrumentStatusPolicy.Badges(song, settings.VisibleInstruments, chart => scores.Facts!(song.SongId, chart)),
             };
         }
@@ -315,7 +324,7 @@ public sealed class SongRowProjector(AppSettings settings, int? currentSeason, I
         {
             return new SongRowItem(song)
             {
-                Highlight = highlight, Chart = filterRaw is null ? null : filterChart, ChartRaw = filterRaw,
+                Highlight = highlight, InShop = inShop, Chart = filterRaw is null ? null : filterChart, ChartRaw = filterRaw,
                 ScoreState = settings.FilterInvalidScores && scores.Available ? "Scores paused while Filter Invalid Scores is on" : scores.RowState,
             };
         }
@@ -323,7 +332,7 @@ public sealed class SongRowProjector(AppSettings settings, int? currentSeason, I
         var fields = detail is null ? [] : SongMetadataPolicy.Fields(detail, chart, song, currentSeason, settings);
         return new SongRowItem(song)
         {
-            Highlight = highlight,
+            Highlight = highlight, InShop = inShop,
             Chart = chart,
             ChartRaw = fields.Count == 0 ? song.Difficulty?.ChartedValue(chart) : null,
             Metadata = fields,

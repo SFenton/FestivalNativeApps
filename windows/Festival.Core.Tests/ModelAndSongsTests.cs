@@ -143,7 +143,7 @@ public class ModelAndSongsTests
         Assert.Equal(["1", "2", "3"], Ids(SongCatalogQuery.Apply(songs, "", SongFilter.None, SongSortMode.Duration, true)));
         Assert.Equal(["3", "2", "1"], Ids(SongCatalogQuery.Apply(songs, "", SongFilter.None, SongSortMode.Duration, false)));
         Assert.Equal(["3"], Ids(SongCatalogQuery.Apply(songs, "bet", SongFilter.None, SongSortMode.Title, true)));
-        Assert.Equal(["Title", "Artist", "Year", "Duration", "Item Shop"], SongSortModeInfo.All.Select(m => m.Label()));
+        Assert.Equal(["Title", "Artist", "Year", "Duration", "Item Shop", "Has FC"], SongSortModeInfo.All.Select(m => m.Label()));
     }
 
     [Fact]

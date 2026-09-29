@@ -51,6 +51,7 @@ public sealed partial class SongsPage : Page
             () => ViewModel.ShowList || ViewModel.ShowEmpty ? ViewModel.CountText : null, "Loading songs");
         Loaded += (_, _) => UpdateButtonTints();
         SizeChanged += OnSizeChanged;
+        Zoom.PreviewKeyDown += OnZoomKeyDown;
     }
 
     /// <summary>Page model.</summary>
@@ -77,6 +78,8 @@ public sealed partial class SongsPage : Page
         switch (e.PropertyName)
         {
             case nameof(SongsViewModel.Sections):
+                // A new search, sort or filter closes the jump index: its letters described the old list.
+                if (!Zoom.IsZoomedInViewActive) Zoom.IsZoomedInViewActive = true;
                 GroupedSongs.Source = ViewModel.Sections.Select(s => new SongGroup(s.Label, s.Rows)).ToList();
                 if (ViewModel.Sections.Count > 0)
                 {
@@ -120,6 +123,7 @@ public sealed partial class SongsPage : Page
         if (args.InRecycleQueue)
         {
             CancelArt(container);
+            ((ShopPulseRing)root.FindName("ShopRing")).Apply(null);
             return;
         }
         if (args.Phase == 0)
@@ -132,30 +136,13 @@ public sealed partial class SongsPage : Page
             secondary.Visibility = Visibility.Collapsed;
             AutomationProperties.SetName(container, row.Announcement);
             AutomationProperties.SetAutomationId(container, $"fst.songs.row.{row.Song.SongId}");
-            ApplyHighlight(root, row.Highlight);
+            ((ShopPulseRing)root.FindName("ShopRing")).Apply(row.Pulse);
             // Not Handled: x:Bind template bindings run in this same event.
             args.RegisterUpdateCallback(1, OnContainerContentChanging);
             return;
         }
         BuildTrailing(root, row);
         _ = LoadArtAsync(container, (Image)root.FindName("Art"), row.Song);
-    }
-
-    /// <summary>Paints the Shop accent border (gold New, red Leaving Tomorrow).</summary>
-    /// <param name="card">Row card.</param>
-    /// <param name="highlight">Accent.</param>
-    private static void ApplyHighlight(Grid card, ShopHighlight? highlight)
-    {
-        if (highlight is { } h)
-        {
-            card.BorderBrush = Brush(h == ShopHighlight.LeavingTomorrow ? "FSTStatusRedBrush" : "FSTGoldBrush");
-            card.BorderThickness = new Thickness(2);
-        }
-        else
-        {
-            card.BorderBrush = Brush("FSTCardStrokeBrush");
-            card.BorderThickness = new Thickness(1);
-        }
     }
 
     /// <summary>Builds chips, metadata pills, the chart meter or the score-state text.</summary>
@@ -256,6 +243,17 @@ public sealed partial class SongsPage : Page
     /// <param name="args">Query.</param>
     private void OnSearchSubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args) =>
         ViewModel.SubmitSearchCommand.Execute(null);
+
+    /// <summary>Escape closes the jump index back to the list (gap 5b), like the web's Quick Links sheet.</summary>
+    /// <param name="sender">Semantic zoom.</param>
+    /// <param name="e">Key.</param>
+    private void OnZoomKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key != Windows.System.VirtualKey.Escape || Zoom.IsZoomedInViewActive) return;
+        Zoom.IsZoomedInViewActive = true;
+        JumpButton.Focus(FocusState.Keyboard);
+        e.Handled = true;
+    }
 
     /// <summary>Opens the jump index (semantic zoom out).</summary>
     /// <param name="sender">Button.</param>

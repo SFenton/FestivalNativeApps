@@ -17,6 +17,11 @@ public enum SongSortMode
     Duration,
     /// <summary>Item Shop membership (requires a validated same-publication feed; otherwise pauses to Title).</summary>
     Shop,
+    /// <summary>
+    /// Full combo on the filtered chart (web <c>hasfc</c>): needs a chart filter and a matching score index; otherwise
+    /// title order, as on the web (its per-chart score map is empty without an instrument).
+    /// </summary>
+    HasFC,
 }
 
 /// <summary>Labels for <see cref="SongSortMode"/>.</summary>
@@ -34,6 +39,7 @@ public static class SongSortModeInfo
         SongSortMode.Artist => "Artist",
         SongSortMode.Year => "Year",
         SongSortMode.Duration => "Duration",
+        SongSortMode.HasFC => "Has FC",
         _ => "Item Shop",
     };
 }

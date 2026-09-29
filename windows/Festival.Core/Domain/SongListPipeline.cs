@@ -56,6 +56,9 @@ public static class SongListPipeline
     /// <summary>Shop section labels in bucket order.</summary>
     public const string LeavingTomorrowLabel = "Leaving Tomorrow", InShopLabel = "In Shop", NotInShopLabel = "Not In Shop";
 
+    /// <summary>Has FC section labels (web <c>songs.quickLinks.fc</c>/<c>noFc</c>, <c>filter.noScore</c>).</summary>
+    public const string FcLabel = "FC", NoFcLabel = "No FC", NoScoreLabel = "No Score";
+
     /// <summary>Runs the pipeline.</summary>
     /// <param name="input">Captured inputs.</param>
     /// <returns>Rows, sections and notices.</returns>
@@ -74,17 +77,27 @@ public static class SongListPipeline
         var sortPaused = input.Sort == SongSortMode.Shop ? ShopPauseReason(input, "sort") : null;
         var effective = input.Sort == SongSortMode.Shop && sortPaused is not null ? SongSortMode.Title : input.Sort;
         var sorted = rows.ToList();
+        var fcFacts = effective == SongSortMode.HasFC ? FcFacts(input) : null;
         if (effective == SongSortMode.Shop)
         {
             var offers = input.Offers!;
             sorted.Sort((a, b) => CompareShop(a, b, offers, input.Ascending));
+        }
+        else if (effective == SongSortMode.HasFC)
+        {
+            sorted.Sort((a, b) => CompareHasFC(a, b, fcFacts, input.Ascending));
         }
         else
         {
             sorted.Sort((a, b) => SongCatalogQuery.Compare(a, b, effective, input.Ascending));
         }
 
-        var sections = effective == SongSortMode.Shop ? ShopSections(sorted, input.Offers!) : SongCatalogQuery.Sections(sorted, effective);
+        var sections = effective switch
+        {
+            SongSortMode.Shop => ShopSections(sorted, input.Offers!),
+            SongSortMode.HasFC => HasFCSections(sorted, fcFacts),
+            _ => SongCatalogQuery.Sections(sorted, effective),
+        };
         var applied = input.Filter.IsActive || (input.ShopFilter.IsActive && shopPaused is null) || (scoped.IsActive && scorePaused is null);
         return new SongListResult(sections, sorted.Count, effective, sortPaused, shopPaused, scorePaused, applied);
     }
@@ -106,19 +119,76 @@ public static class SongListPipeline
         return ascending ? primary : -primary;
     }
 
+    /// <summary>Score facts on the filtered chart, or <see langword="null"/> when Has FC falls back to title order.</summary>
+    /// <param name="input">Inputs.</param>
+    /// <returns>Lookup by song ID.</returns>
+    private static Func<string, ChartScoreFacts?>? FcFacts(SongListInputs input)
+    {
+        if (!input.HasPlayer || input.Scores is not { } scores || input.Filter.ScopedTo(input.Visible).Instrument is not { } chart) return null;
+        return songId => scores(songId, chart);
+    }
+
+    /// <summary>
+    /// Has FC ordering (web <c>compareByMode</c> for <c>hasfc</c>): scored rows before unscored, then non-FC before FC;
+    /// ties by title then ID; descending reverses all. Without facts every row ties, giving title order.
+    /// </summary>
+    /// <param name="left">First song.</param>
+    /// <param name="right">Second song.</param>
+    /// <param name="facts">Filtered-chart facts, or <see langword="null"/>.</param>
+    /// <param name="ascending">Direction.</param>
+    /// <returns>Sign of the ordering.</returns>
+    public static int CompareHasFC(Song left, Song right, Func<string, ChartScoreFacts?>? facts, bool ascending)
+    {
+        var primary = 0;
+        if (facts is not null)
+        {
+            var a = Scored(facts(left.SongId));
+            var b = Scored(facts(right.SongId));
+            primary = (a, b) switch
+            {
+                (null, null) => 0,
+                (null, _) => 1,
+                (_, null) => -1,
+                _ => (a.Value.IsFullCombo == true).CompareTo(b.Value.IsFullCombo == true),
+            };
+        }
+        if (primary == 0) primary = CultureInfo.CurrentCulture.CompareInfo.Compare(left.Title, right.Title, CompareOptions.IgnoreCase);
+        if (primary == 0) primary = string.CompareOrdinal(left.SongId, right.SongId);
+        return ascending ? primary : -primary;
+    }
+
+    /// <summary>First-seen FC / No FC / No Score buckets; headings only when two or more exist.</summary>
+    /// <param name="sorted">Rows sorted by Has FC.</param>
+    /// <param name="facts">Filtered-chart facts, or <see langword="null"/> (every row is No Score).</param>
+    /// <returns>Sections.</returns>
+    public static IReadOnlyList<SongSection> HasFCSections(IReadOnlyList<Song> sorted, Func<string, ChartScoreFacts?>? facts) =>
+        Buckets(sorted, song => Scored(facts?.Invoke(song.SongId)) is not { } f ? NoScoreLabel : f.IsFullCombo == true ? FcLabel : NoFcLabel);
+
+    /// <summary>Only a positive score counts as scored (web <c>getHasFcBucket</c>).</summary>
+    /// <param name="facts">Facts.</param>
+    /// <returns>The facts, or <see langword="null"/> when unscored.</returns>
+    private static ChartScoreFacts? Scored(ChartScoreFacts? facts) => facts is { Score: > 0 } ? facts : null;
+
     /// <summary>First-seen Leaving Tomorrow / In Shop / Not In Shop buckets; headings only when two or more exist.</summary>
     /// <param name="sorted">Rows sorted by Shop.</param>
     /// <param name="offers">Validated offers.</param>
     /// <returns>Sections (one unlabeled section when only one bucket is present).</returns>
-    public static IReadOnlyList<SongSection> ShopSections(IReadOnlyList<Song> sorted, IReadOnlyDictionary<string, ShopSong> offers)
+    public static IReadOnlyList<SongSection> ShopSections(IReadOnlyList<Song> sorted, IReadOnlyDictionary<string, ShopSong> offers) =>
+        Buckets(sorted, song => offers.TryGetValue(song.SongId, out var offer)
+            ? offer.LeavingTomorrow ? LeavingTomorrowLabel : InShopLabel
+            : NotInShopLabel);
+
+    /// <summary>Groups rows into first-seen labelled buckets; one unlabeled section when only one bucket is present.</summary>
+    /// <param name="sorted">Sorted rows.</param>
+    /// <param name="labelFor">Bucket label per row.</param>
+    /// <returns>Sections.</returns>
+    private static IReadOnlyList<SongSection> Buckets(IReadOnlyList<Song> sorted, Func<Song, string> labelFor)
     {
         var order = new List<string>();
         var buckets = new Dictionary<string, List<Song>>();
         foreach (var song in sorted)
         {
-            var label = offers.TryGetValue(song.SongId, out var offer)
-                ? offer.LeavingTomorrow ? LeavingTomorrowLabel : InShopLabel
-                : NotInShopLabel;
+            var label = labelFor(song);
             if (!buckets.TryGetValue(label, out var list))
             {
                 buckets[label] = list = [];
