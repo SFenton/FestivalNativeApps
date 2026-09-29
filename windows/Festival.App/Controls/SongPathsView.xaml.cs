@@ -109,7 +109,7 @@ public sealed partial class SongPathsView : UserControl
     private void OnWarningClosed(object sender, RoutedEventArgs e) => ViewModel.DismissWarning(false);
 
     /// <summary>Width below which the chart fills the sheet and the pickers share one bottom row.</summary>
-    private const double CompactWidth = 560;
+    private const double CompactWidth = 900;
 
     /// <summary>Switches between the wide selector panel and the compact bottom row.</summary>
     /// <param name="sender">Root grid.</param>
