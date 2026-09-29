@@ -605,7 +605,9 @@ public sealed partial class PlayerInstrumentViewModel : ObservableObject
                 link: new PlayerStatLink.Songs(new SongsStatPreset(instrument, SongScoreFilterKind.HasFCs))));
         foreach (var (stars, count) in PlayerStatistics.StarCounts(profile, instrument))
             if (count > 0)
-                tiles.Add(new(stars == 6 ? "gold-stars" : $"stars-{stars}", StarLabel(stars), N(count), stars == 6 ? PlayerStatTint.Gold : PlayerStatTint.Default));
+                tiles.Add(new(stars == 6 ? "gold-stars" : $"stars-{stars}", SongScoreBandFilter.StarsLabel(stars), N(count),
+                    stars == 6 ? PlayerStatTint.Gold : PlayerStatTint.Default,
+                    link: new PlayerStatLink.Songs(new SongsStatPreset(instrument, null, Stars: stars))));
         tiles.Add(new("avg-accuracy", "Avg Accuracy", stats.AverageAccuracyText));
         tiles.Add(new("avg-stars", "Avg Stars", stats.AverageStarsText, goldStars: stats.AverageStarsGold));
         tiles.Add(new("best-rank", "Best Rank", stats.BestRankText,
@@ -620,18 +622,11 @@ public sealed partial class PlayerInstrumentViewModel : ObservableObject
         if (HasScores) tiles.AddRange(RankTiles);
         foreach (var tile in tiles.Concat(RankTiles)) tile.Scope = instrument.ServiceId();
         Stats = tiles;
-        Percentiles = [.. PlayerStatistics.PercentileBuckets(profile, instrument).Select(b => new PlayerPercentileRow(b, instrument))];
+        Percentiles = [.. PlayerStatistics.PercentileBuckets(profile, instrument).Select(b => new PlayerPercentileRow(b, instrument)
+        {
+            Link = new PlayerStatLink.Songs(new SongsStatPreset(instrument, null, TopPercent: b.TopPercent)),
+        })];
     }
-
-    /// <summary>Web star-card labels.</summary>
-    /// <param name="stars">1-6.</param>
-    /// <returns>Label.</returns>
-    private static string StarLabel(int stars) => stars switch
-    {
-        6 => "Gold Stars",
-        1 => "1 Star",
-        _ => $"{stars} Stars",
-    };
 
     /// <summary>Pauses or resumes Songs links (selection paused on a viewed profile).</summary>
     /// <param name="enabled">Whether Songs presets may be followed.</param>

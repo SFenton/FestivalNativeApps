@@ -140,6 +140,9 @@ public sealed record AppSettings
     /// <summary>Applied selected-player score/FC filter (cleared on confirmed deselection).</summary>
     [JsonPropertyName("songPlayerScoreFilter")] public SongPlayerScoreFilter PlayerScoreFilter { get; set; } = SongPlayerScoreFilter.None;
 
+    /// <summary>Applied selected-player placement-band/star filter on one chart (cleared on confirmed deselection).</summary>
+    [JsonPropertyName("songScoreBandFilter")] public SongScoreBandFilter? ScoreBandFilter { get; set; }
+
     /// <summary>Item Shop grid/list preference.</summary>
     [JsonPropertyName("shopViewMode")] public ShopViewMode ShopViewMode { get; set; } = ShopViewMode.Grid;
     #endregion
@@ -243,6 +246,7 @@ public sealed record AppSettings
             LeaderboardRankBy = RankingMetrics.Contains(LeaderboardRankBy) ? LeaderboardRankBy : "totalscore",
             ShopFilter = ShopFilter ?? SongShopFilter.None,
             PlayerScoreFilter = PlayerScoreFilter ?? SongPlayerScoreFilter.None,
+            ScoreBandFilter = ScoreBandFilter is { IsValid: true, IsActive: true } band ? band : null,
             ShopViewMode = Enum.IsDefined(ShopViewMode) ? ShopViewMode : ShopViewMode.Grid,
         };
     }
@@ -268,7 +272,8 @@ public sealed record AppSettings
         MetadataStars == other.MetadataStars && MetadataLastPlayed == other.MetadataLastPlayed &&
         MoreContrast == other.MoreContrast && LessTransparency == other.LessTransparency &&
         LeaderboardRankBy == other.LeaderboardRankBy &&
-        ShopFilter == other.ShopFilter && Equals(PlayerScoreFilter, other.PlayerScoreFilter) && ShopViewMode == other.ShopViewMode;
+        ShopFilter == other.ShopFilter && Equals(PlayerScoreFilter, other.PlayerScoreFilter) && ShopViewMode == other.ShopViewMode &&
+        ScoreBandFilter == other.ScoreBandFilter;
 
     /// <summary>Hash consistent with <see cref="Equals(AppSettings?)"/>.</summary>
     /// <returns>Hash code.</returns>

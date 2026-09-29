@@ -8,8 +8,10 @@ namespace Festival.Core.Domain;
 /// checks first (web <c>cleanFilters</c>), keeping other charts' checks and the Shop filter.
 /// </summary>
 /// <param name="Instrument">Chart, or <see langword="null"/> for an overall preset.</param>
-/// <param name="Check">Score check to set.</param>
-public sealed record SongsStatPreset(Instrument? Instrument, SongScoreFilterKind Check)
+/// <param name="Check">Score check to set, or <see langword="null"/> for a band-only preset.</param>
+/// <param name="TopPercent">Placement band (web <c>instPercentileBucketUpdater</c>), instrument presets only.</param>
+/// <param name="Stars">Star level (web <c>instStarsUpdater</c>), instrument presets only.</param>
+public sealed record SongsStatPreset(Instrument? Instrument, SongScoreFilterKind? Check, int? TopPercent = null, int? Stars = null)
 {
     /// <summary>Applies the preset to saved settings.</summary>
     /// <param name="settings">Current settings.</param>
@@ -27,18 +29,22 @@ public sealed record SongsStatPreset(Instrument? Instrument, SongScoreFilterKind
             {
                 SongFilter = SongFilter.None,
                 ShopFilter = SongShopFilter.None,
-                PlayerScoreFilter = SongPlayerScoreFilter.None.WithAll(Check, visible, true),
+                PlayerScoreFilter = Check is { } all ? SongPlayerScoreFilter.None.WithAll(all, visible, true) : SongPlayerScoreFilter.None,
+                ScoreBandFilter = null,
                 SongSort = SongSortMode.Title,
                 SongSortAscending = true,
             };
         }
         var current = settings.PlayerScoreFilter.IsValid ? settings.PlayerScoreFilter : SongPlayerScoreFilter.None;
         var cleaned = SongScoreFilterKindInfo.All.Aggregate(current, (filter, kind) => filter.With(kind, chart, false));
+        var band = new SongScoreBandFilter(chart, TopPercent, Stars);
         return settings with
         {
             SongFilter = new SongFilter(chart),
-            PlayerScoreFilter = cleaned.With(Check, chart, true),
-            SongSort = SongSortMode.Title,
+            PlayerScoreFilter = Check is { } check ? cleaned.With(check, chart, true) : cleaned,
+            ScoreBandFilter = band.IsActive ? band : null,
+            // Web percentile rows keep the sort mode (ascending); every other preset sorts, which natively means Title.
+            SongSort = TopPercent is not null && Stars is null ? settings.SongSort : SongSortMode.Title,
             SongSortAscending = true,
         };
     }
@@ -67,7 +73,13 @@ public abstract record PlayerStatLink
         public override bool RequiresSelection => true;
 
         /// <inheritdoc />
-        public override string Hint => Preset.Instrument is { } chart ? $"Opens Songs filtered to {chart.Label()}" : "Opens Songs filtered";
+        public override string Hint => Preset switch
+        {
+            { Instrument: { } chart, TopPercent: { } top } => $"Opens {chart.Label()} songs in the {SongScoreBandFilter.BandLabel(top)}",
+            { Instrument: { } chart, Stars: { } stars } => $"Opens {chart.Label()} songs with {SongScoreBandFilter.StarsLabel(stars)}",
+            { Instrument: { } chart } => $"Opens Songs filtered to {chart.Label()}",
+            _ => "Opens Songs filtered",
+        };
     }
 
     /// <summary>A song's detail page (Best Rank).</summary>

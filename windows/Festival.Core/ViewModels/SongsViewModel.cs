@@ -104,7 +104,8 @@ public sealed partial class SongsViewModel : ObservableObject
 
     /// <summary>Whether any saved filter is set (gold tint).</summary>
     public bool IsFilterActive =>
-        session.Settings.SongFilter.IsActive || session.Settings.ShopFilter.IsActive || session.Settings.PlayerScoreFilter.IsActive;
+        session.Settings.SongFilter.IsActive || session.Settings.ShopFilter.IsActive || session.Settings.PlayerScoreFilter.IsActive ||
+        session.Settings.ScoreBandFilter is { IsActive: true };
 
     /// <summary>
     /// Whether the Filter button shows: the web offers no Songs filter without a selected profile, but a filter saved
@@ -165,6 +166,7 @@ public sealed partial class SongsViewModel : ObservableObject
     private void ClearFilter() => session.UpdateSettings(s => s with
     {
         SongFilter = SongFilter.None, ShopFilter = SongShopFilter.None, PlayerScoreFilter = SongPlayerScoreFilter.None,
+        ScoreBandFilter = null,
     });
 
     /// <summary>Debounces search input.</summary>
@@ -266,6 +268,8 @@ public sealed partial class SongsViewModel : ObservableObject
             HasPlayer = session.HasPlayer,
             FilterInvalidScores = settings.FilterInvalidScores,
             Scores = scores.Available ? scores.Facts : null,
+            ScoreBand = settings.ScoreBandFilter,
+            Details = scores.Available ? scores.Detail : null,
         });
 
         var projector = new SongRowProjector(settings, catalog.CurrentSeason, offers, scores);
@@ -453,6 +457,42 @@ public sealed partial class SongFilterDraft(FestivalSession session) : Observabl
     /// <summary>Per-chart check rows for the visible charts.</summary>
     public List<ScoreFilterChartRow> ScoreRows { get; private set; } = [];
 
+    /// <summary>Placement band picker index (0 = any band; then <see cref="PlayerStatistics.PercentileThresholds"/>).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanApply))]
+    private int percentileIndex;
+
+    /// <summary>Star picker index (0 = any; 1 = Gold Stars; 2…6 = 5…1 stars).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanApply))]
+    private int starsIndex;
+
+    /// <summary>Placement band choices.</summary>
+    public List<string> PercentileChoices { get; } =
+        ["Any Percentile", .. PlayerStatistics.PercentileThresholds.Select(SongScoreBandFilter.BandLabel)];
+
+    /// <summary>Star choices, gold first.</summary>
+    public List<string> StarsChoices { get; } = ["Any Stars", .. Enumerable.Range(1, 6).Reverse().Select(SongScoreBandFilter.StarsLabel)];
+
+    /// <summary>Whether the percentile/star pickers show (web: one instrument selected and a player).</summary>
+    public bool ShowScoreBand => session.HasPlayer && InstrumentIndex > 0;
+
+    /// <summary>The draft placement-band/star filter, or <see langword="null"/> when none (or no single chart).</summary>
+    /// <returns>Filter.</returns>
+    public SongScoreBandFilter? ToScoreBand()
+    {
+        if (ToFilter().Instrument is not { } chart) return null;
+        var thresholds = PlayerStatistics.PercentileThresholds;
+        int? top = PercentileIndex > 0 && PercentileIndex <= thresholds.Count ? thresholds[PercentileIndex - 1] : null;
+        int? stars = StarsIndex is > 0 and <= 6 ? 7 - StarsIndex : null;
+        var band = new SongScoreBandFilter(chart, top, stars);
+        return band.IsActive ? band : null;
+    }
+
+    /// <summary>Instrument change: the band pickers follow the chart.</summary>
+    /// <param name="value">New index.</param>
+    partial void OnInstrumentIndexChanged(int value) => OnPropertyChanged(nameof(ShowScoreBand));
+
     /// <summary>Whether Shop toggles can change (hidden Shop keeps them visible but disabled, still clearable by Reset).</summary>
     public bool ShopEnabled => !session.Settings.HideShop;
 
@@ -473,7 +513,7 @@ public sealed partial class SongFilterDraft(FestivalSession session) : Observabl
             if (!IsRangeValid) return false;
             var applied = session.Settings;
             return ToFilter() != applied.SongFilter || new SongShopFilter(InShop, LeavingTomorrow) != applied.ShopFilter ||
-                   !Equals(ScoreFilter, applied.PlayerScoreFilter);
+                   !Equals(ScoreFilter, applied.PlayerScoreFilter) || ToScoreBand() != applied.ScoreBandFilter;
         }
     }
 
@@ -501,6 +541,10 @@ public sealed partial class SongFilterDraft(FestivalSession session) : Observabl
         InShop = applied.ShopFilter.InShop;
         LeavingTomorrow = applied.ShopFilter.LeavingTomorrow;
         ScoreFilter = applied.PlayerScoreFilter.IsValid ? applied.PlayerScoreFilter : SongPlayerScoreFilter.None;
+        var band = applied.ScoreBandFilter is { } saved && saved.Instrument == applied.SongFilter.Instrument ? saved : null;
+        PercentileIndex = band?.TopPercent is { } top ? PlayerStatistics.PercentileThresholds.ToList().IndexOf(top) + 1 : 0;
+        StarsIndex = band?.Stars is { } stars ? 7 - stars : 0;
+        OnPropertyChanged(nameof(ShowScoreBand));
         ScoreRows = [.. applied.VisibleInstruments.Select(i => new ScoreFilterChartRow(this, i))];
         OnPropertyChanged(nameof(ScoreRows));
         OnPropertyChanged(nameof(ShopEnabled));
@@ -527,6 +571,7 @@ public sealed partial class SongFilterDraft(FestivalSession session) : Observabl
         SongFilter = ToFilter(),
         ShopFilter = new SongShopFilter(InShop, LeavingTomorrow),
         PlayerScoreFilter = ScoreFilter.ScopedTo(settings.VisibleInstruments),
+        ScoreBandFilter = ToScoreBand(),
     };
 
     /// <summary>Reads one draft check.</summary>
@@ -555,6 +600,8 @@ public sealed partial class SongFilterDraft(FestivalSession session) : Observabl
         InShop = false;
         LeavingTomorrow = false;
         ScoreFilter = SongPlayerScoreFilter.None;
+        PercentileIndex = 0;
+        StarsIndex = 0;
         foreach (var row in ScoreRows) row.Refresh();
         OnPropertyChanged(nameof(HasHiddenScoreChecks));
     }

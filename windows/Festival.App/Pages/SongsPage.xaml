@@ -185,6 +185,17 @@
                                         </ItemsRepeater>
                                     </StackPanel>
                                 </Expander>
+                                <!-- Web percentile/stars filters (one instrument selected): one band and one star level. -->
+                                <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.FilterDraft.ShowScoreBand, Mode=OneWay}">
+                                    <ComboBox Header="Percentile" HorizontalAlignment="Stretch"
+                                              ItemsSource="{x:Bind ViewModel.FilterDraft.PercentileChoices}"
+                                              SelectedIndex="{x:Bind ViewModel.FilterDraft.PercentileIndex, Mode=TwoWay}"
+                                              AutomationProperties.AutomationId="fst.songs.filter.percentile" />
+                                    <ComboBox Header="Stars" HorizontalAlignment="Stretch"
+                                              ItemsSource="{x:Bind ViewModel.FilterDraft.StarsChoices}"
+                                              SelectedIndex="{x:Bind ViewModel.FilterDraft.StarsIndex, Mode=TwoWay}"
+                                              AutomationProperties.AutomationId="fst.songs.filter.stars" />
+                                </StackPanel>
                                 <InfoBar IsOpen="{x:Bind ViewModel.FilterDraft.HasHiddenScoreChecks, Mode=OneWay}" IsClosable="False" Severity="Informational"
                                          Message="Some checks are on instruments hidden in Settings. They're saved but inactive, and Apply removes them."
                                          AutomationProperties.AutomationId="fst.songs.score-filter-hidden" />

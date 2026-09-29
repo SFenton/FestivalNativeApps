@@ -34,6 +34,10 @@ public sealed record SongListInputs
     public bool FilterInvalidScores { get; init; }
     /// <summary>Per-chart score facts for a matching, available index; <see langword="null"/> when unavailable.</summary>
     public Func<string, Instrument, ChartScoreFacts?>? Scores { get; init; }
+    /// <summary>Placement-band/star filter on the filtered chart (applies only with a matching single-chart filter).</summary>
+    public SongScoreBandFilter? ScoreBand { get; init; }
+    /// <summary>Score details for <see cref="ScoreBand"/>, only when the index matches (same rule as <see cref="Scores"/>).</summary>
+    public Func<string, Instrument, SongScoreDetail?>? Details { get; init; }
 }
 
 /// <summary>Grouped rows plus the pause notices that explain any saved choice not currently applied.</summary>
@@ -74,6 +78,13 @@ public static class SongListPipeline
         if (scorePaused is null && scoped.IsActive)
             rows = scoped.Filter(rows, input.Scores!, input.Visible, input.Filter.Instrument);
 
+        // Web checkPct/checkStars: only with the band's chart selected; paused like the other player filters.
+        var band = input.ScoreBand is { IsActive: true } b && input.Filter.ScopedTo(input.Visible).Instrument == b.Instrument ? b : null;
+        var bandPaused = band is null ? null : BandPauseReason(input);
+        if (band is not null && bandPaused is null)
+            rows = [.. rows.Where(s => band.Matches(input.Details!(s.SongId, band.Instrument)))];
+        scorePaused ??= bandPaused;
+
         var sortPaused = input.Sort == SongSortMode.Shop ? ShopPauseReason(input, "sort") : null;
         var effective = input.Sort == SongSortMode.Shop && sortPaused is not null ? SongSortMode.Title : input.Sort;
         var sorted = rows.ToList();
@@ -98,7 +109,8 @@ public static class SongListPipeline
             SongSortMode.HasFC => HasFCSections(sorted, fcFacts),
             _ => SongCatalogQuery.Sections(sorted, effective),
         };
-        var applied = input.Filter.IsActive || (input.ShopFilter.IsActive && shopPaused is null) || (scoped.IsActive && scorePaused is null);
+        var applied = input.Filter.IsActive || (input.ShopFilter.IsActive && shopPaused is null) || (scoped.IsActive && scorePaused is null) ||
+                      (band is not null && bandPaused is null);
         return new SongListResult(sections, sorted.Count, effective, sortPaused, shopPaused, scorePaused, applied);
     }
 
@@ -211,6 +223,19 @@ public static class SongListPipeline
         if (input.ShopPublicationMismatch)
             return $"Item Shop {what} paused until songs and Item Shop data update together. {fallback}; your choice is saved.";
         if (input.Offers is null) return $"Item Shop {what} paused until Item Shop data loads. {fallback}; your choice is saved.";
+        return null;
+    }
+
+    /// <summary>Why a saved placement-band/star filter cannot currently apply.</summary>
+    /// <param name="input">Inputs.</param>
+    /// <returns>Readable notice, or <see langword="null"/> when it applies.</returns>
+    private static string? BandPauseReason(SongListInputs input)
+    {
+        if (!input.HasPlayer) return "Percentile and star filters paused until a player is selected.";
+        if (input.FilterInvalidScores)
+            return "Percentile and star filters paused while Filter Invalid Scores is on. Published raw scores can't stand in for validated scores.";
+        if (input.Details is null)
+            return "Percentile and star filters paused until the player's scores and songs are from the same update.";
         return null;
     }
 
