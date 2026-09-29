@@ -28,10 +28,25 @@ android {
     buildTypes {
         getByName("debug") {
             enableUnitTestCoverage = true
+            buildConfigField("boolean", "DEBUG_LAUNCH", "true")
         }
         getByName("release") {
             isMinifyEnabled = false
+            buildConfigField("boolean", "DEBUG_LAUNCH", "false")
         }
+        // Frame-timing builds (tools/android/frame_stats.py): not debuggable, so ART and Compose
+        // run at release speed, but debug-signed and keeping the FST_* launch extras and the
+        // loopback-only cleartext config so fixture origins work. Never distributed.
+        create("benchmark") {
+            initWith(getByName("release"))
+            isDebuggable = false
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+            buildConfigField("boolean", "DEBUG_LAUNCH", "true")
+        }
+    }
+    sourceSets.getByName("benchmark") {
+        res.srcDirs("src/debug/res")
     }
     buildFeatures {
         compose = true

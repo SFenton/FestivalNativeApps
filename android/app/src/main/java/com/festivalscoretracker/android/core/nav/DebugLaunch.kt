@@ -10,7 +10,7 @@ import com.festivalscoretracker.android.core.search.SearchScope
 /**
  * Parsed debug launch extras so `tools/android/fst_android.py` can open any page
  * directly, mirroring Apple's `DebugLaunchRoute` (`FST_DEBUG_*`). Only debug
- * builds honour it (`MainActivity` checks `BuildConfig.DEBUG`).
+ * builds (and the non-distributed `benchmark` build) honour it (`MainActivity` checks `BuildConfig.DEBUG_LAUNCH`).
  *
  * Route syntax (`FST_DEBUG_ROUTE`): `song:<songId-or-title>`,
  * `songLeaderboard:<songId>:<Instrument wire ID>[:<page>]`,

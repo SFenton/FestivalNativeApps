@@ -83,14 +83,14 @@ class AppContainer(
     /** App-wide first-run arbiter (seen-state in the settings DataStore). */
     val firstRun = FirstRunCenter(
         FirstRunSeenStore(SettingsBlobStore(settings, SettingsRegistry.FIRST_RUN_SEEN)),
-        FirstRunMode.parse(launch.firstRun, BuildConfig.DEBUG),
+        FirstRunMode.parse(launch.firstRun, BuildConfig.DEBUG_LAUNCH),
     )
 
     /** "What's New" launch gate + Settings replay (dismissal in the settings DataStore). */
     val whatsNew = WhatsNewController(
         ChangelogSeenStore(SettingsBlobStore(settings, SettingsRegistry.CHANGELOG_SEEN)),
         firstRun,
-        WhatsNewMode.parse(launch.whatsNew, BuildConfig.DEBUG),
+        WhatsNewMode.parse(launch.whatsNew, BuildConfig.DEBUG_LAUNCH),
         BuildConfig.VERSION_NAME,
     )
 

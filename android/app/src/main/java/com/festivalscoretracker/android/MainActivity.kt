@@ -29,7 +29,7 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
-        val launch = if (BuildConfig.DEBUG) parseDebugLaunch() else DebugLaunch.NONE
+        val launch = if (BuildConfig.DEBUG_LAUNCH) parseDebugLaunch() else DebugLaunch.NONE
         val container = (application as FestivalApplication).container(launch)
         setContent {
             FestivalApp(
