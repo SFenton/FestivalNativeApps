@@ -154,8 +154,13 @@ public class SongPathsViewModelTests
         vm.DismissWarning(false);
         Assert.False(vm.ShowWarning);
         Assert.False(session.Settings.PathUnavailableWarningDismissed);
+        // Once per app session: the next opening doesn't repeat it; a new session does.
+        Assert.False(new SongPathsViewModel(session, Song(), [Instrument.Lead]).ShowWarning);
+        session.PathNoticeShown = false;
+        Assert.True(new SongPathsViewModel(session, Song(), [Instrument.Lead]).ShowWarning);
         vm.DismissWarning(true);
         Assert.True(session.Settings.PathUnavailableWarningDismissed);
+        session.PathNoticeShown = false;
         Assert.False(new SongPathsViewModel(session, Song(), [Instrument.Lead]).ShowWarning);
     }
 

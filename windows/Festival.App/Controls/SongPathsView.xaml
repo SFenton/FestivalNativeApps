@@ -5,14 +5,15 @@
     xmlns:controls="using:Festival.App.Controls"
     xmlns:data="using:Festival.Core.Data">
 
-    <Grid RowSpacing="12" AutomationProperties.AutomationId="fst.song-detail.paths-dialog">
+    <Grid x:Name="Root" RowSpacing="12" SizeChanged="OnRootSizeChanged" AutomationProperties.AutomationId="fst.song-detail.paths-dialog">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Selectors: instrument, difficulty, image/text. -->
+        <!-- Selectors (medium/wide): instrument, difficulty, image/text above the chart. -->
         <controls:FlowPanel x:Name="Selectors" Spacing="20">
             <ComboBox x:Name="InstrumentPicker" Header="Instrument" MinWidth="200"
                       ItemsSource="{x:Bind ViewModel.InstrumentLabels}" SelectedIndex="{x:Bind ViewModel.InstrumentIndex, Mode=TwoWay}"
@@ -28,15 +29,27 @@
             </RadioButtons>
         </controls:FlowPanel>
 
-        <InfoBar Grid.Row="1" IsOpen="{x:Bind ViewModel.ShowWarning, Mode=OneWay}" Severity="Informational" IsClosable="True"
-                 Title="Some Instruments Unavailable" Message="Karaoke is not available for path visualization yet."
-                 CloseButtonClick="OnWarningClosed" AutomationProperties.AutomationId="fst.paths.warning">
-            <InfoBar.ActionButton>
-                <Button Content="Don't Show Again" Click="OnWarningDismissForever" AutomationProperties.AutomationId="fst.paths.warning.dismiss" />
-            </InfoBar.ActionButton>
-        </InfoBar>
+        <!-- Selectors (compact): the chart fills the sheet and the three pickers share one row below it, like the web. -->
+        <Grid x:Name="CompactSelectors" Grid.Row="3" ColumnSpacing="8" Visibility="Collapsed">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <ComboBox HorizontalAlignment="Stretch" ItemsSource="{x:Bind ViewModel.InstrumentLabels}"
+                      SelectedIndex="{x:Bind ViewModel.InstrumentIndex, Mode=TwoWay}"
+                      AutomationProperties.Name="Instrument" AutomationProperties.AutomationId="fst.paths.instrument.compact" />
+            <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{x:Bind ViewModel.DifficultyLabels}"
+                      SelectedIndex="{x:Bind ViewModel.DifficultyIndex, Mode=TwoWay}"
+                      AutomationProperties.Name="Difficulty" AutomationProperties.AutomationId="fst.paths.difficulty.compact" />
+            <ComboBox Grid.Column="2" MinWidth="96" SelectedIndex="{x:Bind ViewModel.DisplayIndex, Mode=TwoWay}"
+                      AutomationProperties.Name="Display" AutomationProperties.AutomationId="fst.paths.display.compact">
+                <x:String>Image</x:String>
+                <x:String>Text</x:String>
+            </ComboBox>
+        </Grid>
 
-        <Grid Grid.Row="2" MinHeight="320">
+        <Grid x:Name="ChartArea" Grid.Row="2" MinHeight="240">
             <ProgressRing IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Width="40" Height="40"
                           AutomationProperties.Name="Loading path" />
 
@@ -101,6 +114,29 @@
                     </ItemsRepeater>
                 </StackPanel>
             </ScrollViewer>
+
+            <!-- Web alert over the chart: once per app session while Karaoke is a visible instrument. -->
+            <Border Visibility="{x:Bind ViewModel.ShowWarning, Mode=OneWay}" Background="#99000000">
+                <Border Style="{StaticResource FSTCardStyle}" Background="#FF1F2937" Padding="24" MaxWidth="420" Margin="16"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        AutomationProperties.AutomationId="fst.paths.warning">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="Some Instruments Unavailable" Style="{StaticResource SubtitleTextBlockStyle}" TextWrapping="Wrap"
+                                   AutomationProperties.HeadingLevel="Level2" />
+                        <TextBlock Text="Karaoke is not available for path visualization yet." TextWrapping="Wrap" />
+                        <Grid ColumnSpacing="12" Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Button x:Name="WarningOk" Content="OK" HorizontalAlignment="Stretch" Style="{StaticResource AccentButtonStyle}"
+                                    Click="OnWarningClosed" AutomationProperties.AutomationId="fst.paths.warning.ok" />
+                            <Button Grid.Column="1" Content="Don't show again" HorizontalAlignment="Stretch" Click="OnWarningDismissForever"
+                                    AutomationProperties.AutomationId="fst.paths.warning.dismiss" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+            </Border>
         </Grid>
     </Grid>
 </UserControl>

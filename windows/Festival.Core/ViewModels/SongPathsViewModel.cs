@@ -29,7 +29,9 @@ public sealed partial class SongPathsViewModel : ObservableObject
         InstrumentLabels = [.. instruments.Select(i => i.Label())];
         showText = session.Settings.PathDefaultView == PathDisplayMode.Text;
         Status = new ServiceStatusViewModel($"paths:{song.SongId}", "Path unavailable", LoadAsync, session.Time);
-        ShowWarning = session.Settings.VisibleInstruments.Contains(Instrument.Karaoke) && !session.Settings.PathUnavailableWarningDismissed;
+        ShowWarning = session.Settings.VisibleInstruments.Contains(Instrument.Karaoke) && !session.Settings.PathUnavailableWarningDismissed &&
+                      !session.PathNoticeShown;
+        if (ShowWarning) session.PathNoticeShown = true;
     }
 
     /// <summary>Song.</summary>
@@ -47,7 +49,7 @@ public sealed partial class SongPathsViewModel : ObservableObject
     /// <summary>Failed-read presentation.</summary>
     public ServiceStatusViewModel Status { get; }
 
-    /// <summary>Whether the Karaoke-unavailable warning shows on this opening.</summary>
+    /// <summary>Whether the Karaoke-unavailable notice shows (first opening per app session, until "Don't show again").</summary>
     [ObservableProperty]
     private bool showWarning;
 

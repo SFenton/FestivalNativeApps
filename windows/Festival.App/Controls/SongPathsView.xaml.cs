@@ -36,6 +36,8 @@ public sealed partial class SongPathsView : UserControl
         ViewModel = viewModel;
         InitializeComponent();
         viewModel.PropertyChanged += OnViewModelChanged;
+        // The notice is modal over the chart: start keyboard focus on OK.
+        Loaded += (_, _) => { if (ViewModel.ShowWarning) WarningOk.Focus(FocusState.Programmatic); };
     }
 
     /// <summary>Paths model.</summary>
@@ -101,10 +103,23 @@ public sealed partial class SongPathsView : UserControl
     /// <param name="e">Unused.</param>
     private void OnZoomOut(object sender, RoutedEventArgs e) => ViewModel.ZoomOutCommand.Execute(null);
 
-    /// <summary>Dismisses the warning for this opening.</summary>
-    /// <param name="sender">Info bar.</param>
-    /// <param name="args">Unused.</param>
-    private void OnWarningClosed(InfoBar sender, object args) => ViewModel.DismissWarning(false);
+    /// <summary>Dismisses the notice (it won't return this app session).</summary>
+    /// <param name="sender">OK button.</param>
+    /// <param name="e">Unused.</param>
+    private void OnWarningClosed(object sender, RoutedEventArgs e) => ViewModel.DismissWarning(false);
+
+    /// <summary>Width below which the chart fills the sheet and the pickers share one bottom row.</summary>
+    private const double CompactWidth = 560;
+
+    /// <summary>Switches between the wide selector panel and the compact bottom row.</summary>
+    /// <param name="sender">Root grid.</param>
+    /// <param name="e">Size change.</param>
+    private void OnRootSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var compact = e.NewSize.Width < CompactWidth;
+        Selectors.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+        CompactSelectors.Visibility = compact ? Visibility.Visible : Visibility.Collapsed;
+    }
 
     /// <summary>Dismisses the warning permanently.</summary>
     /// <param name="sender">Button.</param>

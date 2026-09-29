@@ -139,7 +139,10 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
             FullSizeDesired = true,
             Content = new SongPathsView(paths),
         };
-        dialog.Resources["ContentDialogMaxWidth"] = Math.Max(548, Math.Min(1200, XamlRoot.Size.Width - 48));
+        // Near full-window at compact sizes (the chart fills the sheet); never wider than the window.
+        var dialogWidth = Math.Max(320, Math.Min(1200, XamlRoot.Size.Width - 24));
+        dialog.Resources["ContentDialogMaxWidth"] = dialogWidth;
+        dialog.Resources["ContentDialogMinWidth"] = Math.Min(548, dialogWidth);
         dialog.Resources["ContentDialogMaxHeight"] = Math.Max(400, XamlRoot.Size.Height - 48);
         AutomationProperties.SetAutomationId(dialog, "fst.paths");
         _ = paths.LoadAsync();
