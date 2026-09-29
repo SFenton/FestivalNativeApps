@@ -6,6 +6,7 @@ import com.festivalscoretracker.android.core.model.FestivalApiException
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.LeaderboardPaging
 import com.festivalscoretracker.android.core.model.Song
+import com.festivalscoretracker.android.core.profile.PlayerHistoryPayload
 import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import com.festivalscoretracker.android.data.CatalogPayload
 import com.festivalscoretracker.android.data.LeaderboardPayload
@@ -36,9 +37,10 @@ object SongResolver {
 // region Song detail
 
 /**
- * Song Detail logic: the song resolved by ID against the current catalogue, and
- * lazily-started ten-row previews per chart (one GET per chart only when its card
- * is composed — never nine eager requests).
+ * Song Detail logic: the song resolved by ID against the current catalogue, a
+ * ten-row preview per visible chart (started together by [startPreviews] so the page
+ * can wait for all of them, web `allReady`) and the selected player's score history
+ * for this song (web `ScoreHistoryChart` on the song page).
  *
  * @param songKey Route song ID (or debug title).
  * @param loadCatalog Catalogue read.
@@ -46,6 +48,7 @@ object SongResolver {
  * @property backoff Shared retry backoff.
  * @param leeway Invalid-score leeway while Filter Invalid Scores is on, else null;
  *   previews are keyed by it so a change re-reads.
+ * @param loadHistory Song score-history read `(accountId, songId)`, or null when unavailable.
  */
 class SongDetailViewModel(
     songKey: String,
@@ -53,6 +56,7 @@ class SongDetailViewModel(
     private val loadLeaderboard: suspend (String, Instrument, Int, Int, Double?) -> LeaderboardPayload,
     private val backoff: ServiceRetryBackoff,
     private val leeway: () -> Double? = { null },
+    private val loadHistory: (suspend (String, String) -> PlayerHistoryPayload)? = null,
 ) : ViewModel() {
     private val catalogPublicationFlow = MutableStateFlow<Int?>(null)
     private val songLoader = RetryingLoader(viewModelScope, "song:$songKey", backoff) { refresh ->
@@ -61,6 +65,7 @@ class SongDetailViewModel(
         SongResolver.resolve(payload.catalog.songs, songKey)
     }
     private val previews = mutableMapOf<Pair<Instrument, Double?>, RetryingLoader<LeaderboardPayload>>()
+    private val histories = mutableMapOf<String, RetryingLoader<PlayerHistoryPayload>>()
 
     /** The resolved song. */
     val song: StateFlow<LoadState<Song>> = songLoader.state
@@ -85,6 +90,31 @@ class SongDetailViewModel(
             RetryingLoader(viewModelScope, "preview:${song.songId}:${instrument.wireId}", backoff) {
                 loadLeaderboard(song.songId, instrument, 1, LeaderboardPaging.PREVIEW_SIZE, current)
             }
+        }
+        loader.ensureStarted()
+        return loader.state
+    }
+
+    /**
+     * Start every chart's preview at once (the page reveals when all have settled).
+     *
+     * @param song Resolved song.
+     * @param charts Visible charted instruments.
+     * @return Each chart's preview state, in [charts] order.
+     */
+    fun startPreviews(song: Song, charts: List<Instrument>): List<StateFlow<LoadState<LeaderboardPayload>>> = charts.map { preview(song, it) }
+
+    /**
+     * The selected player's score history for this song (every chart), started on first access.
+     *
+     * @param song Resolved song.
+     * @param accountId Selected player.
+     * @return History state, or null when no history reader is configured.
+     */
+    fun history(song: Song, accountId: String): StateFlow<LoadState<PlayerHistoryPayload>>? {
+        val read = loadHistory ?: return null
+        val loader = histories.getOrPut(accountId) {
+            RetryingLoader(viewModelScope, "song-history:${song.songId}:$accountId", backoff) { read(accountId, song.songId) }
         }
         loader.ensureStarted()
         return loader.state

@@ -193,7 +193,8 @@ class ShellUiTest {
     fun songOpenedByDebugTitleAndMissingSongShowsNotFound() {
         launch(DebugLaunch(songQuery = "Beta Song", stillBackground = true))
         waitForTag("fst.song-detail.intensity")
-        assertEquals(2, rule.onAllNodes(hasText("Beta Song")).fetchSemanticsNodes().size)
+        // The song header names it; the top bar takes the title once the header scrolls away.
+        assertEquals(1, rule.onAllNodes(hasText("Beta Song")).fetchSemanticsNodes().size)
     }
 }
 

@@ -46,6 +46,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -180,15 +181,20 @@ fun SongLeaderboardScreen(
                         when {
                             loaded == null -> RankingsSkeletonRows(10)
                             loaded.entries.isEmpty() -> Text("No scores yet", color = BrandTokens.textPrimary, modifier = Modifier.padding(16.dp))
-                            else -> loaded.entries.forEachIndexed { index, entry ->
-                                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
-                                    SongLeaderboardRow(
-                                        entry = entry,
-                                        isSelected = RankingSpotlight.isSelected(selectedAccountId, entry.accountId),
-                                        route = RankingNavigation.playerRoute(entry.accountId, entry.displayName, selectedAccountId),
-                                        onOpen = navigate,
-                                        showStars = showStars,
-                                    )
+                            else -> {
+                                val rankWidth = rememberRankWidth(loaded.entries.map { it.rank })
+                                loaded.entries.forEachIndexed { index, entry ->
+                                    Column(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
+                                        if (index > 0) RowSeparator()
+                                        SongLeaderboardRow(
+                                            entry = entry,
+                                            isSelected = RankingSpotlight.isSelected(selectedAccountId, entry.accountId),
+                                            route = RankingNavigation.playerRoute(entry.accountId, entry.displayName, selectedAccountId),
+                                            onOpen = navigate,
+                                            showStars = showStars,
+                                            rankWidth = rankWidth,
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -232,19 +238,25 @@ private fun SelectedScoreFooter(entry: LeaderboardEntry, page: Int, navigate: (A
  * @param route Destination or null.
  * @param onOpen Navigation callback.
  * @param showStars Show star images (wide windows, web `QUERY_SHOW_STARS`).
+ * @param rankWidth Rank column width shared by the card.
  */
 @Composable
-private fun SongLeaderboardRow(entry: LeaderboardEntry, isSelected: Boolean, route: AppRoute?, onOpen: (AppRoute) -> Unit, showStars: Boolean = false) {
-    val shape = RoundedCornerShape(10.dp)
-    var modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp).clip(shape)
-    if (isSelected) modifier = modifier.background(BrandTokens.accentPurple.copy(alpha = 0.18f)).border(BorderStroke(1.dp, BrandTokens.accentPurple), shape)
+private fun SongLeaderboardRow(
+    entry: LeaderboardEntry,
+    isSelected: Boolean,
+    route: AppRoute?,
+    onOpen: (AppRoute) -> Unit,
+    showStars: Boolean = false,
+    rankWidth: Dp = rememberRankWidth(listOf(entry.rank)),
+) {
+    var modifier = Modifier.fillMaxWidth().selectedRowHighlight(isSelected)
     modifier = if (route != null) {
         modifier.clickable(role = Role.Button, onClickLabel = "Open profile") { onOpen(route) }
     } else {
         modifier.semantics { stateDescription = "Profile unavailable" }
     }
     Box(modifier.testTag("fst.song-leaderboard.row.${entry.accountId.ifEmpty { "rank-${entry.rank}" }}")) {
-        ScoreRow(entry, showStars)
+        ScoreRow(entry, showStars, isSelected = isSelected, rankWidth = rankWidth)
     }
 }
 

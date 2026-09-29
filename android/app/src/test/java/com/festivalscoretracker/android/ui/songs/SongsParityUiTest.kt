@@ -4,6 +4,8 @@ import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -29,6 +31,7 @@ import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.time.Duration
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -190,13 +193,9 @@ class SongsParityUiTest {
     }
 
     @Test
-    fun songDetailFallbackSummaryMarksTheNextValidScore() {
+    fun songDetailSpotlightUsesTheNextValidScore() {
         launch(DebugLaunch(profile = player, songQuery = "s-alpha", stillBackground = true), prefs(booleanPreferencesKey(SettingsRegistry.FILTER_INVALID_SCORES) to true))
         waitForTag("fst.song-detail.list")
-        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.your-score.Solo_Guitar"))
-        waitForTag("fst.song-detail.your-score.Solo_Guitar", unmerged = true)
-        rule.onNodeWithText("Your score: 80,000", substring = true, useUnmergedTree = true).assertExists()
-        rule.onNodeWithText("next valid score", substring = true, useUnmergedTree = true).assertExists()
         assertEquals(1, rule.onAllNodesWithTag("fst.song-detail.shop-breathe.LeavingTomorrow", useUnmergedTree = true).fetchSemanticsNodes().size)
     }
 
@@ -235,13 +234,15 @@ class SongsParityUiTest {
     }
 
     @Test
-    fun songDetailPinsACompactHeaderAndGridsIntensity() {
+    fun songDetailHeaderScrollsAwayAndTheBarTakesTheTitle() {
         launch(DebugLaunch(songQuery = "s-alpha", stillBackground = true))
         waitForTag("fst.song-detail.header")
         waitForTag("fst.song-detail.intensity.Solo_Guitar", unmerged = true)
         waitForTag("fst.song-detail.paths.open")
         rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.bands"))
-        assertTrue(exists("fst.song-detail.header"))
+        settle()
+        assertFalse(exists("fst.song-detail.header"))
+        assertEquals(1, rule.onAllNodes(hasText("Alpha Tune") and hasAnyAncestor(hasTestTag("fst.nav.top-bar"))).fetchSemanticsNodes().size)
     }
 
     private fun androidx.compose.ui.test.SemanticsNodeInteraction.assertExistsWithText(fragment: String) {

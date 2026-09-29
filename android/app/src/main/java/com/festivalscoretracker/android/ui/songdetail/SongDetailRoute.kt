@@ -24,12 +24,12 @@ import com.festivalscoretracker.android.core.shop.SongRelatedPublicationPolicy
 import com.festivalscoretracker.android.data.paths.pathData
 import com.festivalscoretracker.android.data.paths.pathImage
 import com.festivalscoretracker.android.data.songs.leaderboardPage
+import com.festivalscoretracker.android.data.songs.songScoreHistory
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.SongDetailViewModel
 import com.festivalscoretracker.android.presentation.ShellViewModel
 import com.festivalscoretracker.android.presentation.profile.SelectedProfileState
 import com.festivalscoretracker.android.presentation.songs.InvalidScoreContext
-import com.festivalscoretracker.android.presentation.songs.SongDetailSummary
 import com.festivalscoretracker.android.presentation.songs.SongPathsViewModel
 import com.festivalscoretracker.android.presentation.songs.songScoreSource
 import com.festivalscoretracker.android.presentation.valueOrNull
@@ -38,8 +38,9 @@ import kotlinx.coroutines.launch
 // region Route
 
 /**
- * Song Detail wiring: the detail view model plus same-publication Shop offer,
- * selected-player summaries, invalid-score leeway and the Paths sheet.
+ * Song Detail wiring: the detail view model (previews and the selected player's
+ * song score history) plus same-publication Shop offer, the selected player's
+ * spotlight rows, invalid-score leeway and the Paths sheet.
  *
  * @param container Process dependencies.
  * @param shellViewModel Shell (settings persistence).
@@ -58,6 +59,7 @@ fun SongDetailRouteScreen(container: AppContainer, shellViewModel: ShellViewMode
             loadLeaderboard = { id, chart, page, top, leeway -> api.leaderboardPage(id, chart, page, top, leeway) },
             backoff = container.backoff,
             leeway = { currentSettings.leeway.takeIf { currentSettings.filterInvalidScores } },
+            loadHistory = { account, id -> api.songScoreHistory(account, id) },
         )
     }
     LaunchedEffect(settings.hideShop) { if (!settings.hideShop) container.shop.ensureStarted() }
@@ -115,13 +117,6 @@ internal fun songDetailExtras(
     val player = settings.selectedPlayer
     val invalid = if (settings.filterInvalidScores) InvalidScoreContext(settings.leeway, mapOf(song.songId to song)) else null
     val source = if (player == null) null else profile.songScoreSource(catalogPublication, current, invalid)
-    val summaries = if (source == null || player == null) {
-        emptyMap()
-    } else {
-        Instrument.entries.filter { it in settings.visibleInstruments && song.supports(it) }
-            .mapNotNull { chart -> SongDetailSummary.summary(source, player.displayName, song, chart)?.let { chart to it } }
-            .toMap()
-    }
     val lookup = source?.detail
     val spotlight = if (lookup == null || player == null) {
         emptyMap()
@@ -147,13 +142,13 @@ internal fun songDetailExtras(
     return SongDetailExtras(
         visibleInstruments = settings.visibleInstruments,
         selectedAccountId = player?.accountId,
-        summaries = summaries,
         shopHighlight = if (settings.hideShop) null else ShopPresentationPolicy.highlight(offer, settings.hideShop, settings.disableShopHighlighting),
         shopPulse = ShopPresentationPolicy.pulse(offer, settings.hideShop, settings.disableShopHighlighting),
         spotlight = spotlight,
         shopUrl = if (settings.hideShop) null else offer?.shopUrl?.takeIf(ShopResponse::isOfficialShopUrl),
         shopError = !settings.hideShop && shop is LoadState.Failed,
         pathInstruments = PathCapability.menuInstruments(settings.visibleInstruments, song::supports),
+        historyLeeway = settings.leeway.takeIf { settings.filterInvalidScores },
     )
 }
 

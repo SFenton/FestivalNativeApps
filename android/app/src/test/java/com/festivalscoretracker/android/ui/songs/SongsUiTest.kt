@@ -7,6 +7,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -25,10 +26,12 @@ import com.festivalscoretracker.android.data.HttpResult
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
+import com.festivalscoretracker.android.testing.ProfileFixtures
 import com.festivalscoretracker.android.testing.SongsFixtures
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.time.Duration
 import okhttp3.OkHttpClient
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -57,6 +60,7 @@ class SongsUiTest {
         on("/api/player/${Fixtures.ACCOUNT_A}", headers = mapOf("X-FST-Publication-Id" to "7")) { profileJson }
         on("/api/paths/s-alpha/Solo_Guitar/expert/data", headers = mapOf("X-FST-Publication-Id" to "7")) { SongsFixtures.pathJson }
         onRaw("/api/paths/s-alpha/Solo_Guitar/expert") { HttpResult(200, SongsFixtures.png(), mapOf("X-FST-Publication-Id" to "7")) }
+        on("/api/player/${Fixtures.ACCOUNT_A}/history") { ProfileFixtures.history() }
     }
 
     private fun launch(debug: DebugLaunch, prefs: InMemoryPreferences = InMemoryPreferences(), transport: FakeTransport = transport()) {
@@ -133,15 +137,20 @@ class SongsUiTest {
     }
 
     @Test
-    fun songDetailShowsYourScoreShopPathsAndHistory() {
+    fun songDetailShowsSpotlightShopPathsAndHistory() {
         val prefs = InMemoryPreferences(mutablePreferencesOf(stringPreferencesKey(SettingsRegistry.VISIBLE_INSTRUMENTS) to "Solo_Guitar,Solo_PeripheralVocals"))
         launch(DebugLaunch(profile = player, songQuery = "s-alpha", stillBackground = true), prefs)
         waitForTag("fst.song-detail.list")
         waitForTag("fst.song-detail.shop", unmerged = true)
-        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.your-score.Solo_Guitar"))
-        waitForTag("fst.song-detail.your-score.Solo_Guitar", unmerged = true)
-        rule.onNodeWithText("Your score: 95,198 · 98.7% · FC · Top 5% · #42", substring = true, useUnmergedTree = true).assertExists()
-        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.history.Solo_Guitar"))
+        // Score history on the song page (6.39): chart plus the best scores, best first.
+        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.history"))
+        waitForTag("fst.song-detail.history.chart")
+        rule.onNodeWithTag("fst.song-detail.history.top.0").assertExists()
+        rule.onNodeWithTag("fst.song-detail.history.top.1").assertExists()
+        assertEquals(0, rule.onAllNodesWithTag("fst.song-detail.history.view-all").fetchSemanticsNodes().size)
+        // No "Your score" line (6.38): the selected player's row follows the top ten instead.
+        assertEquals(0, rule.onAllNodesWithText("Your score", substring = true, useUnmergedTree = true).fetchSemanticsNodes().size)
+        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.view-all.Solo_Guitar"))
         rule.onNodeWithTag("fst.song-detail.your-rank.Solo_Guitar").assertExists()
 
         click("fst.song-detail.paths.open")
@@ -164,8 +173,20 @@ class SongsUiTest {
         click("fst.paths.close")
         settle()
 
-        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.history.Solo_Guitar"))
-        click("fst.song-detail.history.Solo_Guitar")
+    }
+
+    @Test
+    fun songDetailHistoryViewAllOpensTheHistoryPage() {
+        val rows = (1..6).joinToString(",") { day ->
+            """{"songId":"s-alpha","instrument":"Solo_Guitar","newScore":${700000 + day},"newRank":9,"accuracy":990000,"isFullCombo":false,"season":40,"changedAt":"2024-01-0${day}T00:00:00Z"}"""
+        }
+        val transport = transport().apply {
+            on("/api/player/${Fixtures.ACCOUNT_A}/history") { """{"accountId":"${Fixtures.ACCOUNT_A}","count":6,"history":[$rows]}""" }
+        }
+        launch(DebugLaunch(profile = player, songQuery = "s-alpha", stillBackground = true), transport = transport)
+        waitForTag("fst.song-detail.list")
+        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.history.view-all"))
+        click("fst.song-detail.history.view-all")
         rule.waitUntil(10_000) { settle(100); rule.onAllNodesWithTag("fst.song-detail.list").fetchSemanticsNodes().isEmpty() }
     }
 
