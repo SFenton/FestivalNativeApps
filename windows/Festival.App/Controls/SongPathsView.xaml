@@ -110,7 +110,7 @@
                 <Grid x:Name="TableHeader" Padding="13,4,25,4" ColumnSpacing="10" AutomationProperties.AccessibilityView="Raw" />
                 <ScrollViewer Grid.Row="1" Padding="0,0,12,0">
                     <StackPanel Spacing="8">
-                        <TextBlock Text="Paths not available" Visibility="{x:Bind ViewModel.HasNoActivations, Mode=OneWay}"
+                        <TextBlock Text="Paths Not Available" Visibility="{x:Bind ViewModel.HasNoActivations, Mode=OneWay}"
                                    HorizontalAlignment="Center" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
                         <ItemsRepeater x:Name="Activations" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" ElementPrepared="OnActivationPrepared"
                                        controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="48"

@@ -57,6 +57,7 @@ public sealed partial class SuggestionSongRow : Button
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(ArtSize) });
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         var artFrame = new Border
@@ -70,6 +71,16 @@ public sealed partial class SuggestionSongRow : Button
         root.Children.Add(artFrame);
         root.Children.Add(text);
         root.Children.Add(metadata);
+        // In-card chevron: the row opens Song Detail (batch 7.3).
+        var chevron = new FontIcon
+        {
+            Glyph = "\uE76C", FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0),
+            Foreground = (Brush)Application.Current.Resources["FSTSecondaryTextBrush"],
+        };
+        AutomationProperties.SetAccessibilityView(chevron, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
+        Grid.SetColumn(chevron, 3);
+        Grid.SetRowSpan(chevron, 2);
+        root.Children.Add(chevron);
         Content = root;
 
         title.TextStyle = TitleStyle;

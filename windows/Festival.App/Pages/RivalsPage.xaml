@@ -83,9 +83,9 @@
                     </SelectorBarItem>
                 </SelectorBar>
                 <ComboBox ItemsSource="{x:Bind ViewModel.MetricLabels}" SelectedIndex="{x:Bind ViewModel.MetricIndex, Mode=TwoWay}"
-                          VerticalAlignment="Center" MinWidth="150" Header="{x:Null}" PlaceholderText="Rank by"
+                          VerticalAlignment="Center" MinWidth="150" Header="{x:Null}" PlaceholderText="Rank By"
                           Visibility="{x:Bind ViewModel.ShowMetricPicker, Mode=OneWay}"
-                          AutomationProperties.Name="Rank by" AutomationProperties.AutomationId="fst.rivals.rankBy" />
+                          AutomationProperties.Name="Rank By" AutomationProperties.AutomationId="fst.rivals.rankBy" />
                 <controls:QuickLinksMenuButton x:Name="QuickLinksMenu" />
             </controls:WrapPanel>
         </Grid>

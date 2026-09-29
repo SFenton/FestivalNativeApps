@@ -287,7 +287,7 @@ public sealed partial class AllRivalsViewModel : RivalPageViewModel
     /// <param name="session">Shared session.</param>
     /// <param name="route">Route with the scope.</param>
     public AllRivalsViewModel(FestivalSession session, AppRoute.AllRivals route)
-        : base(session, "all-rivals", "Rivals unavailable") => RouteScope = route.Scope;
+        : base(session, "all-rivals", "Rivals Unavailable") => RouteScope = route.Scope;
 
     /// <summary>Scope from the route (may be Settings-derived).</summary>
     public RivalScope RouteScope { get; }
@@ -389,7 +389,7 @@ public sealed record RivalCategoryItem(RivalCategory Category, List<RivalSongIte
     /// <summary>Web <c>rivals.detail.viewAll</c>.</summary>
     public string SeeAllText => Category.Songs.Count == 1
         ? "View 1 song"
-        : string.Create(CultureInfo.CurrentCulture, $"View all {Category.Songs.Count:N0} songs");
+        : string.Create(CultureInfo.CurrentCulture, $"View All {Category.Songs.Count:N0} Songs");
 
     /// <summary>UIA automation ID.</summary>
     public string AutomationId => "fst.rival-detail.category." + Category.Key;
@@ -408,7 +408,7 @@ public sealed partial class RivalDetailViewModel : RivalPageViewModel
     /// <param name="session">Shared session.</param>
     /// <param name="route">Route.</param>
     public RivalDetailViewModel(FestivalSession session, AppRoute.RivalDetail route)
-        : base(session, "rival-detail", "Rivals unavailable")
+        : base(session, "rival-detail", "Rivals Unavailable")
     {
         Route = route;
         rivalName = route.Name;
@@ -477,9 +477,9 @@ public static class RivalDetailText
     {
         RivalScope.Leaderboard l => $"{l.Instrument.Label()} · Leaderboard ({l.RankBy.Label()})",
         RivalScope.Combo c => $"{RivalCombo.Label(c.Token)}: {string.Join(", ", c.Instruments.Select(i => i.Label()))}",
-        RivalScope.Song s when s.IsCommon && s.Instruments.SequenceEqual(visible) => "Common Rivals · all visible instruments",
+        RivalScope.Song s when s.IsCommon && s.Instruments.SequenceEqual(visible) => "Common Rivals · All Visible Instruments",
         RivalScope.Song s => string.Join(", ", s.Instruments.Select(i => i.Label())),
-        _ => "All visible instruments",
+        _ => "All Visible Instruments",
     };
 }
 #endregion
@@ -494,7 +494,7 @@ public sealed partial class RivalryViewModel : RivalPageViewModel
     /// <param name="session">Shared session.</param>
     /// <param name="route">Route.</param>
     public RivalryViewModel(FestivalSession session, AppRoute.Rivalry route)
-        : base(session, "rivalry", "Rivals unavailable")
+        : base(session, "rivalry", "Rivals Unavailable")
     {
         Route = route;
         rivalName = route.Name;

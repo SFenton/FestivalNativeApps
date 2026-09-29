@@ -9,6 +9,7 @@
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="4" />
             <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
         <Border Width="4" CornerRadius="2" Margin="0,4" Background="{x:Bind local:RivalsUi.Accent(Item.IsWinning), Mode=OneWay}" />
         <Grid Grid.Column="1" RowSpacing="4" ColumnSpacing="8" VerticalAlignment="Center">
@@ -40,5 +41,8 @@
                 </Border>
             </local:WrapPanel>
         </Grid>
+        <!-- In-card chevron: the row opens a page (batch 7.3). -->
+        <FontIcon Grid.Column="2" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center" Margin="4,0,0,0"
+                  Foreground="{ThemeResource FSTSecondaryTextBrush}" AutomationProperties.AccessibilityView="Raw" />
     </Grid>
 </UserControl>

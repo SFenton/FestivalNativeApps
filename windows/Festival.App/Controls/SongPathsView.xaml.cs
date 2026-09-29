@@ -84,7 +84,7 @@ public sealed partial class SongPathsView : UserControl
                 Title = "Some Instruments Unavailable",
                 Content = "Karaoke is not available for path visualization yet.",
                 PrimaryButtonText = "OK",
-                SecondaryButtonText = "Don't show again",
+                SecondaryButtonText = "Don't Show Again",
                 DefaultButton = ContentDialogButton.Primary,
                 RequestedTheme = ElementTheme.Dark,
             };

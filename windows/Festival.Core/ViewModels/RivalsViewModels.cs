@@ -96,7 +96,7 @@ public sealed partial class RivalSectionViewModel : ObservableObject
         Icon = icon;
         ViewAllRoute = new AppRoute.AllRivals(scope);
         this.load = load;
-        Status = new ServiceStatusViewModel("rivals:" + id, title + " unavailable", () => LoadAsync(), time);
+        Status = new ServiceStatusViewModel("rivals:" + id, title + " Unavailable", () => LoadAsync(), time);
     }
 
     /// <summary>Stable section ID.</summary>
@@ -115,10 +115,10 @@ public sealed partial class RivalSectionViewModel : ObservableObject
     public string IconFile => Icon?.IconFile() ?? "";
 
     /// <summary>Accessible name of the See All link.</summary>
-    public string SeeAllName => "See all " + Title;
+    public string SeeAllName => "See All " + Title;
 
     /// <summary>Accessible name of the View All Rivals button below the rows (distinct from the header link).</summary>
-    public string ViewAllName => "View all " + Title;
+    public string ViewAllName => "View All " + Title;
 
     /// <summary>All Rivals route for this scope.</summary>
     public AppRoute.AllRivals ViewAllRoute { get; }

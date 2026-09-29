@@ -99,7 +99,7 @@ public sealed partial class SuggestionsViewModel : ObservableObject
         this.store = store;
         this.seeds = seeds ?? (() => (uint)Random.Shared.NextInt64(0, uint.MaxValue + 1L));
         filter = store.Load();
-        Status = new ServiceStatusViewModel("suggestions", "Suggestions unavailable", () => LoadAsync(force: true), session.Time);
+        Status = new ServiceStatusViewModel("suggestions", "Suggestions Unavailable", () => LoadAsync(force: true), session.Time);
         FilterDraft = new SuggestionsFilterDraft(this);
         session.PropertyChanged += OnSessionChanged;
         phase = session.HasPlayer ? SuggestionsPhase.Loading : SuggestionsPhase.NoPlayer;

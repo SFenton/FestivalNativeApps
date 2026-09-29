@@ -119,8 +119,25 @@
                             </ScrollViewer>
                             <!-- Switches apply live; Reset restores the defaults. Light dismiss / Esc closes. -->
                             <Grid Grid.Row="2" Padding="16,12,16,16" BorderThickness="0,1,0,0" BorderBrush="{ThemeResource FSTCardStrokeBrush}">
+                                <!-- Web Modal reset: a full-width red (btnDanger #C62828) button (batch 7.10). -->
                                 <Button Content="Reset" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.FilterDraft.ResetCommand}"
-                                        AutomationProperties.AutomationId="fst.suggestions.filter.reset" />
+                                        AutomationProperties.Name="Reset Suggestion Filters"
+                                        AutomationProperties.AutomationId="fst.suggestions.filter.reset">
+                                    <Button.Resources>
+                                        <SolidColorBrush x:Key="ButtonBackground" Color="#FFC62828" />
+                                        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#FFD84343" />
+                                        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#FFA82020" />
+                                        <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="#59C62828" />
+                                        <SolidColorBrush x:Key="ButtonForeground" Color="#FFFFFFFF" />
+                                        <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#FFFFFFFF" />
+                                        <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#E6FFFFFF" />
+                                        <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="#99FFFFFF" />
+                                        <SolidColorBrush x:Key="ButtonBorderBrush" Color="#FFC62828" />
+                                        <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#FFD84343" />
+                                        <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="#FFA82020" />
+                                        <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="Transparent" />
+                                    </Button.Resources>
+                                </Button>
                             </Grid>
                         </Grid>
                     </Flyout>
