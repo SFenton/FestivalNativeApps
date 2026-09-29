@@ -70,6 +70,90 @@ public enum SongPercentileBucket {
     }
 }
 
+/// The web Songs filter's season buckets (`SeasonToggles`): the seasons the selected
+/// player has scores in, plus 0 for "No Score".
+public enum SongSeasonBucket {
+    /// Largest season key accepted from saved preferences.
+    public static let maximumSeason = 999
+
+    /// The bucket a selected-player score falls in (web `score?.season ?? 0`).
+    ///
+    /// - Parameter score: The selected player's score on the Songs instrument, or nil.
+    /// - Returns: The season, 0 without a score or season.
+    public static func key(for score: PlayerScore?) -> Int {
+        score?.season ?? 0
+    }
+
+    /// Keys to offer: the seasons present in the player's scores, ascending, then 0.
+    ///
+    /// - Parameter scores: The selected player's score index.
+    /// - Returns: Distinct positive seasons followed by 0 (web `[...availableSeasons, 0]`).
+    public static func keys(in scores: [String: [Instrument: PlayerScore]]) -> [Int] {
+        let seasons = Set(scores.values.flatMap { $0.values.compactMap(\.season) }.filter { $0 > 0 })
+        return seasons.sorted() + [0]
+    }
+
+    /// Visible filter label.
+    ///
+    /// - Parameter key: A season or 0.
+    /// - Returns: "No Score" or "Season 5".
+    public static func label(_ key: Int) -> String {
+        key == 0 ? "No Score" : "Season \(key)"
+    }
+}
+
+/// The web Songs filter's intensity buckets (`DifficultyToggles`): the chart's 0–6
+/// intensity shown as 1–7 bars, and 0 for an uncharted instrument.
+public enum SongIntensityBucket {
+    /// Every key in the web's display order.
+    public static let keys: [Int] = [1, 2, 3, 4, 5, 6, 7, 0]
+
+    /// The bucket for a song on one chart (web `trunc(diff) + 1`, clamped to 1…7).
+    ///
+    /// - Parameters:
+    ///   - song: Catalogue song.
+    ///   - instrument: The Songs instrument.
+    /// - Returns: 1…7, or 0 when the chart has no intensity.
+    public static func key(for song: Song, instrument: Instrument) -> Int {
+        guard let value = song.difficulty?.chartedValue(for: instrument) else { return 0 }
+        return min(7, max(1, Int(value.rounded(.towardZero)) + 1))
+    }
+
+    /// Visible filter label.
+    ///
+    /// - Parameter key: One of ``keys``.
+    /// - Returns: "No Score" or "Intensity 3 of 7".
+    public static func label(_ key: Int) -> String {
+        key == 0 ? "No Score" : "Intensity \(key) of 7"
+    }
+}
+
+/// The four web bucket filters that read one Songs instrument.
+public enum SongBucketKind: String, CaseIterable, Sendable, Identifiable {
+    case season
+    case percentile
+    case stars
+    case intensity
+
+    public var id: String { rawValue }
+
+    /// Whether a key can be saved for this filter.
+    ///
+    /// - Parameter key: Candidate bucket key.
+    /// - Returns: True for a known star/percentile/intensity key or a season 0…999.
+    public func accepts(_ key: Int) -> Bool {
+        switch self {
+        case .season: (0...SongSeasonBucket.maximumSeason).contains(key)
+        case .percentile: SongPercentileBucket.keys.contains(key)
+        case .stars: SongStarsBucket.keys.contains(key)
+        case .intensity: SongIntensityBucket.keys.contains(key)
+        }
+    }
+
+    /// Whether the check reads the selected player's scores (intensity reads the song).
+    public var needsScores: Bool { self != .intensity }
+}
+
 // MARK: - Player-mode sorting
 
 /// The web's `compareByMode` for the ported selected-player sorts.

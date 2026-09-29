@@ -413,14 +413,8 @@ struct ProfileAvatar: View {
     }
 
     var body: some View {
-        // A text style (not a fixed point size) so the monogram follows Dynamic Type
-        // (the accessibility audit flagged the fixed size); it shrinks to fit the
-        // fixed circle rather than growing the toolbar.
         Text(Self.initial(for: name))
-            .font(.system(size < 40 ? .subheadline : .title3, design: .rounded, weight: .semibold))
-            .lineLimit(1)
-            .minimumScaleFactor(0.4)
-            .padding(size * 0.18)
+            .font(.system(size: size * 0.46, weight: .semibold, design: .rounded))
             .foregroundStyle(BrandTokens.textPrimary)
             .frame(width: size, height: size)
             .background(

@@ -24,9 +24,14 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
     /// Hidden percentile buckets (``SongPercentileBucket/keys``) on the Songs
     /// instrument (web `percentileFilter` entries set to `false`).
     public private(set) var excludedPercentiles: Set<Int>
+    /// Hidden season buckets (web `seasonFilter`; 0 is "No Score").
+    public private(set) var excludedSeasons: Set<Int>
+    /// Hidden intensity buckets (``SongIntensityBucket/keys``, web `difficultyFilter`).
+    public private(set) var excludedIntensities: Set<Int>
 
     private enum CodingKeys: String, CodingKey {
-        case missingScores, hasScores, missingFCs, hasFCs, excludedStars, excludedPercentiles
+        case missingScores, hasScores, missingFCs, hasFCs
+        case excludedStars, excludedPercentiles, excludedSeasons, excludedIntensities
     }
 
     /// Start with independent chart sets, including an inactive empty default.
@@ -42,14 +47,17 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
     public init(
         missingScores: Set<Instrument> = [], hasScores: Set<Instrument> = [],
         missingFCs: Set<Instrument> = [], hasFCs: Set<Instrument> = [],
-        excludedStars: Set<Int> = [], excludedPercentiles: Set<Int> = []
+        excludedStars: Set<Int> = [], excludedPercentiles: Set<Int> = [],
+        excludedSeasons: Set<Int> = [], excludedIntensities: Set<Int> = []
     ) {
         self.missingScores = missingScores
         self.hasScores = hasScores
         self.missingFCs = missingFCs
         self.hasFCs = hasFCs
-        self.excludedStars = excludedStars.intersection(SongStarsBucket.keys)
-        self.excludedPercentiles = excludedPercentiles.intersection(SongPercentileBucket.keys)
+        self.excludedStars = excludedStars.filter(SongBucketKind.stars.accepts)
+        self.excludedPercentiles = excludedPercentiles.filter(SongBucketKind.percentile.accepts)
+        self.excludedSeasons = excludedSeasons.filter(SongBucketKind.season.accepts)
+        self.excludedIntensities = excludedIntensities.filter(SongBucketKind.intensity.accepts)
     }
 
     public var isActive: Bool {
@@ -62,7 +70,62 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
     /// instrument's score only, so they apply only while Songs shows one instrument
     /// (the web skips them without one, keeping the saved choice).
     public var hasBucketChecks: Bool {
-        !excludedStars.isEmpty || !excludedPercentiles.isEmpty
+        SongBucketKind.allCases.contains { !excluded($0).isEmpty }
+    }
+
+    /// Hidden keys of one bucket filter.
+    ///
+    /// - Parameter kind: Season, percentile, stars or intensity.
+    /// - Returns: The excluded keys.
+    public func excluded(_ kind: SongBucketKind) -> Set<Int> {
+        switch kind {
+        case .season: excludedSeasons
+        case .percentile: excludedPercentiles
+        case .stars: excludedStars
+        case .intensity: excludedIntensities
+        }
+    }
+
+    /// Whether one bucket is shown.
+    ///
+    /// - Parameters:
+    ///   - kind: Bucket filter.
+    ///   - key: Bucket key.
+    /// - Returns: False once hidden.
+    public func includes(_ kind: SongBucketKind, _ key: Int) -> Bool {
+        !excluded(kind).contains(key)
+    }
+
+    /// Replace one bucket filter's hidden keys (unknown keys dropped).
+    ///
+    /// - Parameters:
+    ///   - kind: Bucket filter.
+    ///   - keys: New hidden keys.
+    /// - Returns: The updated filter.
+    public func settingExcluded(_ kind: SongBucketKind, _ keys: Set<Int>) -> Self {
+        var updated = self
+        let valid = keys.filter(kind.accepts)
+        switch kind {
+        case .season: updated.excludedSeasons = valid
+        case .percentile: updated.excludedPercentiles = valid
+        case .stars: updated.excludedStars = valid
+        case .intensity: updated.excludedIntensities = valid
+        }
+        return updated
+    }
+
+    /// Show or hide one bucket.
+    ///
+    /// - Parameters:
+    ///   - kind: Bucket filter.
+    ///   - key: Bucket key; unknown keys are ignored.
+    ///   - included: New value.
+    /// - Returns: The updated filter.
+    public func setting(_ kind: SongBucketKind, _ key: Int, included: Bool) -> Self {
+        guard kind.accepts(key) else { return self }
+        var keys = excluded(kind)
+        if included { keys.remove(key) } else { keys.insert(key) }
+        return settingExcluded(kind, keys)
     }
 
     // MARK: - Stars and percentile buckets
@@ -86,10 +149,7 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
     ///   - included: New value.
     /// - Returns: The updated filter.
     public func settingStars(_ key: Int, included: Bool) -> Self {
-        guard SongStarsBucket.keys.contains(key) else { return self }
-        var updated = self
-        if included { updated.excludedStars.remove(key) } else { updated.excludedStars.insert(key) }
-        return updated
+        setting(.stars, key, included: included)
     }
 
     /// Show or hide one percentile bucket.
@@ -99,10 +159,7 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
     ///   - included: New value.
     /// - Returns: The updated filter.
     public func settingPercentile(_ key: Int, included: Bool) -> Self {
-        guard SongPercentileBucket.keys.contains(key) else { return self }
-        var updated = self
-        if included { updated.excludedPercentiles.remove(key) } else { updated.excludedPercentiles.insert(key) }
-        return updated
+        setting(.percentile, key, included: included)
     }
 
     /// The web's Select All / Clear All for the star buckets.
@@ -147,10 +204,7 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
 
     /// The filter without any stars or percentile bucket choice (web `cleanFilters`).
     public var clearingBuckets: Self {
-        var updated = self
-        updated.excludedStars = []
-        updated.excludedPercentiles = []
-        return updated
+        SongBucketKind.allCases.reduce(self) { $0.settingExcluded($1, []) }
     }
 
     /// Check one source toggle without conflating scored with full combo.
@@ -236,7 +290,9 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
             missingFCs: missingFCs.intersection(visibleInstruments),
             hasFCs: hasFCs.intersection(visibleInstruments),
             excludedStars: excludedStars,
-            excludedPercentiles: excludedPercentiles
+            excludedPercentiles: excludedPercentiles,
+            excludedSeasons: excludedSeasons,
+            excludedIntensities: excludedIntensities
         )
     }
 
@@ -272,12 +328,18 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
         guard !charts.isEmpty || bucketChart != nil else { return songs }
         guard let scoresBySong else { throw FestivalAPIError.invalidPlayerProfile }
         let chartMatched = charts.isEmpty ? songs : scoped.chartFiltered(songs, charts: charts, scoresBySong: scoresBySong)
-        // The web also skips bucket checks for a player with no scores at all.
-        guard let bucketChart, !scoresBySong.isEmpty else { return chartMatched }
+        guard let bucketChart else { return chartMatched }
+        // The web skips score-based bucket checks for a player with no scores at all;
+        // intensity reads the song and always applies.
+        let scoreBuckets = !scoresBySong.isEmpty
         return chartMatched.filter { song in
             let score = scoresBySong[song.songId]?[bucketChart]
-            return includesStars(SongStarsBucket.key(for: score))
-                && includesPercentile(SongPercentileBucket.key(for: score))
+            if scoreBuckets {
+                guard includes(.season, SongSeasonBucket.key(for: score)),
+                      includesPercentile(SongPercentileBucket.key(for: score)),
+                      includesStars(SongStarsBucket.key(for: score)) else { return false }
+            }
+            return includes(.intensity, SongIntensityBucket.key(for: song, instrument: bucketChart))
         }
     }
 
@@ -352,22 +414,27 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
         let missingCombo = try fields.decode([Instrument].self, forKey: .missingFCs)
         let combos = try fields.decode([Instrument].self, forKey: .hasFCs)
         // Added later (stars/percentile filters): absent in older saved filters.
-        let stars = try fields.decodeIfPresent([Int].self, forKey: .excludedStars) ?? []
-        let percentiles = try fields.decodeIfPresent([Int].self, forKey: .excludedPercentiles) ?? []
+        var buckets: [SongBucketKind: [Int]] = [:]
+        for kind in SongBucketKind.allCases {
+            let keys = try fields.decodeIfPresent([Int].self, forKey: Self.codingKey(kind)) ?? []
+            guard Set(keys).count == keys.count, keys.allSatisfy(kind.accepts) else {
+                throw FestivalAPIError.invalidSongFilter
+            }
+            buckets[kind] = keys
+        }
         guard Set(missing).count == missing.count,
               Set(scored).count == scored.count,
               Set(missingCombo).count == missingCombo.count,
-              Set(combos).count == combos.count,
-              Set(stars).count == stars.count,
-              Set(percentiles).count == percentiles.count,
-              stars.allSatisfy(SongStarsBucket.keys.contains),
-              percentiles.allSatisfy(SongPercentileBucket.keys.contains) else {
+              Set(combos).count == combos.count else {
             throw FestivalAPIError.invalidSongFilter
         }
         self.init(
             missingScores: Set(missing), hasScores: Set(scored),
             missingFCs: Set(missingCombo), hasFCs: Set(combos),
-            excludedStars: Set(stars), excludedPercentiles: Set(percentiles)
+            excludedStars: Set(buckets[.stars] ?? []),
+            excludedPercentiles: Set(buckets[.percentile] ?? []),
+            excludedSeasons: Set(buckets[.season] ?? []),
+            excludedIntensities: Set(buckets[.intensity] ?? [])
         )
     }
 
@@ -382,11 +449,18 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
         try fields.encode(Instrument.allCases.filter(missingFCs.contains), forKey: .missingFCs)
         try fields.encode(Instrument.allCases.filter(hasFCs.contains), forKey: .hasFCs)
         // Omitted when empty so filters without bucket choices keep their older bytes.
-        if !excludedStars.isEmpty {
-            try fields.encode(excludedStars.sorted(), forKey: .excludedStars)
+        for kind in SongBucketKind.allCases where !excluded(kind).isEmpty {
+            try fields.encode(excluded(kind).sorted(), forKey: Self.codingKey(kind))
         }
-        if !excludedPercentiles.isEmpty {
-            try fields.encode(excludedPercentiles.sorted(), forKey: .excludedPercentiles)
+    }
+
+    /// Saved-preference key of one bucket filter.
+    private static func codingKey(_ kind: SongBucketKind) -> CodingKeys {
+        switch kind {
+        case .season: .excludedSeasons
+        case .percentile: .excludedPercentiles
+        case .stars: .excludedStars
+        case .intensity: .excludedIntensities
         }
     }
 }

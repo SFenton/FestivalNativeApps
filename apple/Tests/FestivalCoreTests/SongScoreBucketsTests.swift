@@ -222,3 +222,48 @@ private func leadScores(_ index: [String: [Instrument: PlayerScore]]) -> [String
             == .songs(.percentileBucket(.lead, percentile: 10)))
     #expect(PlayerStatLinks.instrumentStars(.lead, starKey: 4).requiresSelection)
 }
+
+// MARK: - Season and intensity
+
+/// Seasons: `gold`/`top1` in season 3, `mid` in season 5, `unranked` without one.
+private func seasonScores() throws -> [String: [Instrument: PlayerScore]] {
+    let player = try JSONDecoder().decode(PlayerProfileResponse.self, from: Data("""
+    {"accountId":"fixture-seasons","displayName":"Fixture Seasons","totalScores":4,
+     "scores":[
+       {"si":"gold","ins":"01","sc":100,"sn":3},
+       {"si":"top1","ins":"01","sc":90,"sn":3},
+       {"si":"mid","ins":"01","sc":80,"sn":5},
+       {"si":"unranked","ins":"01","sc":70}
+     ]}
+    """.utf8))
+    return try player.scoreIndex(requestedAccountId: "fixture-seasons")
+}
+
+@Test func seasonAndIntensityBucketsMatchTheWeb() throws {
+    let songs = try bucketSongs()
+    let scores = try seasonScores()
+    #expect(SongSeasonBucket.keys(in: scores) == [3, 5, 0])
+    #expect(SongSeasonBucket.label(0) == "No Score" && SongSeasonBucket.label(5) == "Season 5")
+    let noSeason3 = SongPlayerScoreFilter().setting(.season, 3, included: false)
+    #expect(try noSeason3.filtered(
+        songs, scoresBySong: scores, visibleInstruments: [.lead], selectedInstrument: .lead
+    ).map(\.songId) == ["mid", "unranked", "none"])
+    // Guitar intensities 4, 4, 3, 2, 2 → buckets 5, 5, 4, 3, 3.
+    #expect(songs.map { SongIntensityBucket.key(for: $0, instrument: .lead) } == [5, 5, 4, 3, 3])
+    #expect(SongIntensityBucket.key(for: songs[0], instrument: .bass) == 0)
+    let onlyFour = SongPlayerScoreFilter().settingExcluded(.intensity, Set(SongIntensityBucket.keys).subtracting([4]))
+    // Intensity reads the song, so it applies even for a player with no scores.
+    #expect(try onlyFour.filtered(
+        songs, scoresBySong: [:], visibleInstruments: [.lead], selectedInstrument: .lead
+    ).map(\.songId) == ["mid"])
+    #expect(onlyFour.clearingBuckets == SongPlayerScoreFilter())
+    #expect(SongBucketKind.season.accepts(999) && !SongBucketKind.season.accepts(1_000))
+    #expect(!SongBucketKind.intensity.accepts(8) && SongBucketKind.intensity.needsScores == false)
+    let saved = try noSeason3.settingExcluded(.intensity, [0]).encoded()
+    #expect(try SongPlayerScoreFilter.decodeSaved(saved) == noSeason3.settingExcluded(.intensity, [0]))
+    #expect(throws: FestivalAPIError.invalidSongFilter) {
+        try SongPlayerScoreFilter.decodeSaved(Data(
+            #"{"hasFCs":[],"hasScores":[],"missingFCs":[],"missingScores":[],"excludedIntensities":[9]}"#.utf8
+        ))
+    }
+}

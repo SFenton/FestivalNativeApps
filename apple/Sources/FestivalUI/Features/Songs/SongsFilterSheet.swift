@@ -16,8 +16,10 @@ struct SongsFilterSheet: View {
   @State private var draftPlayerFilter: SongPlayerScoreFilter
   @State private var draftInstrument: Instrument?
   @State private var scoreSectionsExpanded: Bool
+  @State private var seasonExpanded: Bool
   @State private var percentileExpanded: Bool
   @State private var starsExpanded: Bool
+  @State private var intensityExpanded: Bool
   @State private var applyError: String?
   let applied: SongShopFilter
   let appliedPlayerFilter: SongPlayerScoreFilter
@@ -29,6 +31,8 @@ struct SongsFilterSheet: View {
   let selectedPlayer: Bool
   let scoreAvailable: Bool
   let invalidScoreFilteringEnabled: Bool
+  /// Season keys to offer (seasons in the player's scores, then 0 for No Score).
+  let availableSeasons: [Int]
   let onApply: (SongShopFilter, SongPlayerScoreFilter, Instrument?) throws -> Void
 
   /// Start from the applied filters; every change is committed immediately.
@@ -45,6 +49,7 @@ struct SongsFilterSheet: View {
   ///   - selectedPlayer: Whether a player identity can show score sections.
   ///   - scoreAvailable: Whether validated scores match the current Songs catalogue.
   ///   - invalidScoreFilteringEnabled: Whether unsupported score substitution blocks raw filters.
+  ///   - availableSeasons: Season filter keys (``SongSeasonBucket/keys(in:)``).
   ///   - onApply: Commit all current choices together; called on every change and may
   ///     throw (shown in the sheet).
   init(
@@ -55,6 +60,7 @@ struct SongsFilterSheet: View {
     visibleInstruments: Set<Instrument> = Set(Instrument.allCases),
     selectedPlayer: Bool = false, scoreAvailable: Bool = false,
     invalidScoreFilteringEnabled: Bool = false,
+    availableSeasons: [Int] = [0],
     onApply: @escaping (SongShopFilter, SongPlayerScoreFilter, Instrument?) throws -> Void
   ) {
     self.applied = applied
@@ -67,6 +73,7 @@ struct SongsFilterSheet: View {
     self.selectedPlayer = selectedPlayer
     self.scoreAvailable = scoreAvailable
     self.invalidScoreFilteringEnabled = invalidScoreFilteringEnabled
+    self.availableSeasons = availableSeasons
     self.onApply = onApply
     _draftInShop = State(initialValue: applied.inShop)
     _draftLeavingTomorrow = State(initialValue: applied.leavingTomorrow)
@@ -75,8 +82,10 @@ struct SongsFilterSheet: View {
     _scoreSectionsExpanded = State(
       initialValue: appliedPlayerFilter.scoped(to: visibleInstruments).isActive
     )
-    _percentileExpanded = State(initialValue: !appliedPlayerFilter.excludedPercentiles.isEmpty)
-    _starsExpanded = State(initialValue: !appliedPlayerFilter.excludedStars.isEmpty)
+    _seasonExpanded = State(initialValue: !appliedPlayerFilter.excluded(.season).isEmpty)
+    _percentileExpanded = State(initialValue: !appliedPlayerFilter.excluded(.percentile).isEmpty)
+    _starsExpanded = State(initialValue: !appliedPlayerFilter.excluded(.stars).isEmpty)
+    _intensityExpanded = State(initialValue: !appliedPlayerFilter.excluded(.intensity).isEmpty)
   }
 
   private var draft: SongShopFilter {
@@ -112,18 +121,6 @@ struct SongsFilterSheet: View {
     NavigationStack {
       VStack(spacing: 0) {
         Form {
-          if selectedPlayer {
-            Section("Instrument") {
-              Picker("Instrument", selection: $draftInstrument) {
-                Text("All instruments").tag(Instrument?.none)
-                ForEach(Instrument.allCases.filter(visibleInstruments.contains)) { choice in
-                  Text(choice.label).tag(Instrument?.some(choice))
-                }
-              }
-              .pickerStyle(.inline)
-              .accessibilityIdentifier("fst.songs.filter.instrument")
-            }
-          }
           if selectedPlayer {
             Section {
               Button {
@@ -200,9 +197,6 @@ struct SongsFilterSheet: View {
               }
             }
           }
-          if selectedPlayer && draftInstrument != nil {
-            bucketSections
-          }
           Section("Item Shop") {
             Toggle("In Shop", isOn: $draftInShop)
               .disabled(!canEnableShop)
@@ -222,6 +216,29 @@ struct SongsFilterSheet: View {
               Text("Item Shop filters need matching public Songs and Shop data.")
                 .foregroundStyle(FestivalText.primary)
             }
+          }
+          // Web order: score checks, Item Shop, then the Instrument selector with its
+          // one-chart Season / Percentile / Stars / Intensity filters.
+          if selectedPlayer {
+            Section {
+              Picker("Instrument", selection: $draftInstrument) {
+                Text("All instruments").tag(Instrument?.none)
+                ForEach(Instrument.allCases.filter(visibleInstruments.contains)) { choice in
+                  Text(choice.label).tag(Instrument?.some(choice))
+                }
+              }
+              .pickerStyle(.inline)
+              .labelsHidden()
+              .accessibilityIdentifier("fst.songs.filter.instrument")
+            } header: {
+              Text("Instrument")
+            } footer: {
+              Text("Filtering to a single instrument enables more filters.")
+                .foregroundStyle(FestivalText.primary)
+            }
+          }
+          if selectedPlayer && draftInstrument != nil {
+            bucketSections
           }
           Section {
             Button(selectedPlayer ? "Reset filters" : "Reset Shop filters") {
@@ -264,55 +281,94 @@ struct SongsFilterSheet: View {
 
   // MARK: - Percentile and stars (one instrument)
 
-  /// The web's Percentile and Stars accordions, shown once Songs shows one instrument
-  /// (they read that chart's score). Each has Select All / Clear All.
+  /// The web's Season, Percentile, Stars and Intensity accordions, shown once Songs
+  /// shows one instrument (they read that chart). Each has Select All / Clear All.
   @ViewBuilder private var bucketSections: some View {
+    bucketSection(
+      .season, title: "Season",
+      hint: "Filter songs by the season your high score was achieved.",
+      keys: availableSeasons, expanded: $seasonExpanded
+    ) { Text(SongSeasonBucket.label($0)) }
+    bucketSection(
+      .percentile, title: "Percentile",
+      hint: "Show or hide songs based on their leaderboard ranking bracket.",
+      keys: SongPercentileBucket.keys, expanded: $percentileExpanded
+    ) { Text(SongPercentileBucket.label($0)) }
+    bucketSection(
+      .stars, title: "Stars",
+      hint: "Filter songs by the number of stars on your high score.",
+      keys: SongStarsBucket.keys, expanded: $starsExpanded
+    ) { key in
+      if key == 0 {
+        Text(SongStarsBucket.label(key))
+      } else {
+        StarRating(stars: key).accessibilityHidden(true)
+      }
+    }
+    bucketSection(
+      .intensity, title: "Intensity",
+      hint: "Filter songs by the chart's intensity.",
+      keys: SongIntensityBucket.keys, expanded: $intensityExpanded
+    ) { key in
+      if key == 0 {
+        Text(SongIntensityBucket.label(key))
+      } else {
+        DifficultyMeter(level: Double(key)).accessibilityHidden(true)
+      }
+    }
+  }
+
+  /// One bucket accordion: title and hint, Select All / Clear All, one toggle per key.
+  ///
+  /// - Parameters:
+  ///   - kind: Bucket filter.
+  ///   - title: Accordion title.
+  ///   - hint: The web's hint line.
+  ///   - keys: Keys in display order.
+  ///   - expanded: Disclosure state.
+  ///   - label: Visible label for a key (spoken label comes from the kind).
+  /// - Returns: A Form section.
+  private func bucketSection<Label: View>(
+    _ kind: SongBucketKind, title: String, hint: String, keys: [Int],
+    expanded: Binding<Bool>, @ViewBuilder label: @escaping (Int) -> Label
+  ) -> some View {
     Section {
-      DisclosureGroup(isExpanded: $percentileExpanded) {
+      DisclosureGroup(isExpanded: expanded) {
         bulkActions(
-          id: "percentile",
-          all: { draftPlayerFilter = draftPlayerFilter.settingAllPercentiles(included: true) },
-          none: { draftPlayerFilter = draftPlayerFilter.settingAllPercentiles(included: false) }
+          id: kind.rawValue,
+          all: { draftPlayerFilter = draftPlayerFilter.settingExcluded(kind, []) },
+          none: { draftPlayerFilter = draftPlayerFilter.settingExcluded(kind, Set(keys)) }
         )
-        ForEach(SongPercentileBucket.keys, id: \.self) { key in
-          Toggle(SongPercentileBucket.label(key), isOn: percentileBinding(key))
+        ForEach(keys, id: \.self) { key in
+          Toggle(isOn: bucketBinding(kind, key)) { label(key) }
+            .accessibilityLabel(Self.spokenLabel(kind, key))
             .disabled(!canEnableScores)
-            .accessibilityIdentifier("fst.songs.filter.percentile.\(key)")
+            .accessibilityIdentifier("fst.songs.filter.\(kind.rawValue).\(key)")
         }
       } label: {
         // ID on the label, not the group: on iOS 26 a DisclosureGroup identifier
         // replaces every nested toggle's own.
-        bucketLabel("Percentile", hint: "Show or hide songs based on their leaderboard ranking bracket.")
-          .accessibilityIdentifier("fst.songs.filter.percentile")
+        bucketLabel(title, hint: hint)
+          .accessibilityIdentifier("fst.songs.filter.\(kind.rawValue)")
       }
     }
-    Section {
-      DisclosureGroup(isExpanded: $starsExpanded) {
-        bulkActions(
-          id: "stars",
-          all: { draftPlayerFilter = draftPlayerFilter.settingAllStars(included: true) },
-          none: { draftPlayerFilter = draftPlayerFilter.settingAllStars(included: false) }
-        )
-        ForEach(SongStarsBucket.keys, id: \.self) { key in
-          Toggle(isOn: starsBinding(key)) {
-            if key == 0 {
-              Text(SongStarsBucket.label(key))
-            } else {
-              StarRating(stars: key)
-                .accessibilityHidden(true)
-            }
-          }
-          .accessibilityLabel(SongStarsBucket.label(key))
-          .disabled(!canEnableScores)
-          .accessibilityIdentifier("fst.songs.filter.stars.\(key)")
-        }
-      } label: {
-        // ID on the label, not the group: on iOS 26 a DisclosureGroup identifier
-        // replaces every nested toggle's own.
-        bucketLabel("Stars", hint: "Filter songs by the number of stars on your high score.")
-          .accessibilityIdentifier("fst.songs.filter.stars")
-      }
+  }
+
+  /// VoiceOver label for a bucket toggle.
+  private static func spokenLabel(_ kind: SongBucketKind, _ key: Int) -> String {
+    switch kind {
+    case .season: SongSeasonBucket.label(key)
+    case .percentile: SongPercentileBucket.label(key)
+    case .stars: SongStarsBucket.label(key)
+    case .intensity: SongIntensityBucket.label(key)
     }
+  }
+
+  private func bucketBinding(_ kind: SongBucketKind, _ key: Int) -> Binding<Bool> {
+    Binding(
+      get: { draftPlayerFilter.includes(kind, key) },
+      set: { draftPlayerFilter = draftPlayerFilter.setting(kind, key, included: $0) }
+    )
   }
 
   /// An accordion title with the web's hint line beneath.
@@ -338,20 +394,6 @@ struct SongsFilterSheet: View {
     .buttonStyle(.borderless)
     .tint(FestivalText.primary)
     .disabled(!canEnableScores)
-  }
-
-  private func percentileBinding(_ key: Int) -> Binding<Bool> {
-    Binding(
-      get: { draftPlayerFilter.includesPercentile(key) },
-      set: { draftPlayerFilter = draftPlayerFilter.settingPercentile(key, included: $0) }
-    )
-  }
-
-  private func starsBinding(_ key: Int) -> Binding<Bool> {
-    Binding(
-      get: { draftPlayerFilter.includesStars(key) },
-      set: { draftPlayerFilter = draftPlayerFilter.settingStars(key, included: $0) }
-    )
   }
 
   /// Apply the current choices immediately when the list can use them.

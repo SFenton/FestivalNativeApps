@@ -432,7 +432,8 @@ struct SongsScreen: View {
                     visibleInstruments: visibleInstruments,
                     selectedPlayer: session.selectedPlayer != nil,
                     scoreAvailable: scoreFilterAvailable,
-                    invalidScoreFilteringEnabled: filterInvalidScores
+                    invalidScoreFilteringEnabled: filterInvalidScores,
+                    availableSeasons: SongSeasonBucket.keys(in: session.selectedPlayerScores)
                 ) { shop, player, instrumentChoice in
                     playerScoreFilterData = try player.encoded()
                     filterInShop = shop.inShop
@@ -560,10 +561,10 @@ struct SongsScreen: View {
         let scoreLabel = scoreCount > 0
             ? "\(scoreCount) player score \(scoreCount == 1 ? "check" : "checks")"
             : nil
-        let bucketLabels = [
-            appliedPlayerScoreFilter?.excludedPercentiles.isEmpty == false ? "Percentile filter" : nil,
-            appliedPlayerScoreFilter?.excludedStars.isEmpty == false ? "Stars filter" : nil,
-        ].compactMap { $0 }
+        let bucketLabels = SongBucketKind.allCases.compactMap { kind in
+            appliedPlayerScoreFilter?.excluded(kind).isEmpty == false
+                ? "\(kind.rawValue.capitalized) filter" : nil
+        }
         let selected = (labels + [scoreLabel].compactMap { $0 } + bucketLabels)
             .joined(separator: ", ")
         let status = selected.isEmpty ? "No filters" : selected
