@@ -230,6 +230,8 @@ public class BandDetailViewModelTests
         Assert.Equal([1, 2], vm.HistoryPoints.Select(p => p.Rank).Reverse());
         Assert.Equal((0.0, 1.0), (vm.HistoryPoints[0].X, vm.HistoryPoints[0].Y));
         Assert.Equal((1.0, 0.0), (vm.HistoryPoints[1].X, vm.HistoryPoints[1].Y));
+        Assert.Equal(vm.HistoryPoints.Count, vm.HistoryChart!.Points.Count);
+        Assert.Equal(vm.HistoryPoints.Select(p => p.Rank), vm.HistoryChart.Points.Select(p => p.Rank));
         Assert.Equal(["Sep 27", "Sep 26"], vm.HistoryRows.Select(r => r.Date));
         Assert.Equal("222,222,222", vm.HistoryRows[0].Value);
         Assert.Equal("fst.band.history-row.2026-09-27", vm.HistoryRows[0].AutomationId);

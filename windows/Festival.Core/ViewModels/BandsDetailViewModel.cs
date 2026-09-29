@@ -119,6 +119,13 @@ public sealed partial class BandDetailViewModel : ObservableObject
     [ObservableProperty]
     private List<BandHistoryPoint> historyPoints = [];
 
+    /// <summary>
+    /// Combined chart for the selected metric (web <c>BandRankHistoryChart</c>): the metric's value as rank-coloured bars
+    /// with the rank line, paged; replaces the plain rank line (Windows backlog).
+    /// </summary>
+    [ObservableProperty]
+    private RankHistoryCombinedChart? historyChart;
+
     /// <summary>Most recent snapshots, newest first.</summary>
     [ObservableProperty]
     private List<BandHistoryRow> historyRows = [];
@@ -322,6 +329,7 @@ public sealed partial class BandDetailViewModel : ObservableObject
         var ranked = history.History.Where(h => h.Rank(Metric) > 0)
             .OrderBy(h => h.SnapshotDate, StringComparer.Ordinal).ToList();
         HistoryPoints = BandHistoryPoint.Normalize(ranked, Metric);
+        HistoryChart = RankHistoryCombinedChart.BuildBand(ranked, Metric, detail?.TotalRankedTeams);
         HistoryRows = [.. Enumerable.Reverse(ranked).Take(RecentHistoryRows).Select(h => new BandHistoryRow(h, Metric))];
         HistoryState = ranked.Count == 0 ? LoadState.Empty : LoadState.Loaded;
     }

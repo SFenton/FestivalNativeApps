@@ -31,6 +31,46 @@ public sealed class RankHistoryCombinedTests
         Assert.Equal(0, bad.Points[0].Value);
     }
 
+    [Fact]
+    public void BuildBand_ChartsTheMetricValueAndRank()
+    {
+        CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        Assert.Null(RankHistoryCombinedChart.BuildBand([], BandRankingMetric.Adjusted, 10));
+        var entries = new List<BandRankHistoryEntry>
+        {
+            new() { SnapshotDate = "2026-09-01", AdjustedSkillRank = 40, AdjustedSkillRating = 1.25, TotalRankedTeams = 200 },
+            new() { SnapshotDate = "2026-09-02", AdjustedSkillRank = 20, AdjustedSkillRating = 2.5, TotalRankedTeams = 200 },
+        };
+        var chart = RankHistoryCombinedChart.BuildBand(entries, BandRankingMetric.Adjusted, null)!;
+        Assert.Equal("Adjusted", chart.MetricLabel.Split(' ')[0]);
+        Assert.Equal([40, 20], chart.Points.Select(p => p.Rank));
+        Assert.Equal([1.25, 2.5], chart.Points.Select(p => p.Value));
+        Assert.Equal(RankHistoryCombinedChart.RankColor(20, 200), chart.Points[1].BarArgb);
+        var page = chart.Page(10, 0);
+        Assert.Equal(["2.50", "1.25", "0.00"], page.ValueTicks.Select(t => t.Label));
+        Assert.Equal(0.5, page.Bars[0].Height, 3);
+        Assert.Contains($"{chart.MetricLabel} 2.5", page.Summary, StringComparison.Ordinal);
+
+        // The ranking's field size wins over the snapshots'; a bad date stays as sent.
+        var fc = RankHistoryCombinedChart.BuildBand([new BandRankHistoryEntry { SnapshotDate = "x", FcRateRank = 5, FcRate = 0.5 }], BandRankingMetric.FcRate, 10)!;
+        Assert.Equal(("x", RankHistoryCombinedChart.RankColor(5, 10)), (fc.Points[0].AxisLabel, fc.Points[0].BarArgb));
+        Assert.Equal("50%", fc.Page(3, 0).ValueTicks[0].Label);
+        Assert.Contains("50%", fc.Page(3, 0).Summary, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(0.5, RankingMetric.FcRate, "50%", "50%")]
+    [InlineData(0.9875, RankingMetric.MaxScore, "99%", "98.8%")]
+    [InlineData(1.234, RankingMetric.Adjusted, "1.23", "1.2")]
+    [InlineData(3.0, RankingMetric.Weighted, "3.00", "3")]
+    [InlineData(2_500_000, RankingMetric.TotalScore, "2.5M", "2,500,000")]
+    public void MetricFormats_FollowTheWeb(double value, RankingMetric metric, string tick, string detail)
+    {
+        CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        Assert.Equal(tick, RankHistoryCombinedChart.MetricTick(value, metric));
+        Assert.Equal(detail, RankHistoryCombinedChart.MetricDetail(value, metric));
+    }
+
     [Theory]
     [InlineData(new[] { 10, 20 }, 9, 21)]
     [InlineData(new[] { 5 }, 4, 6)]

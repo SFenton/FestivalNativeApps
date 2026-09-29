@@ -18,7 +18,7 @@
 - Members: `UniformGridLayout` (min 260 epx) of member cards — name + 32 px instrument icons + chevron; the card opens `AppRoute.Player`.
 - Band Summary: Type, Appearances, Members.
 - Band Statistics: **Rank By** `ComboBox` (default Total Score, the web's non-experimental metric). Cards: `<Metric> Rank` (links to `AppRoute.BandRankings`), Songs Played, Full Combos, Total Score, FC Rate, Avg Accuracy (`avgAccuracy ÷ 10,000`, one decimal), Avg Stars, Best Song Rank (links to Song Detail once the best song resolves in the catalogue), Avg Rank. `—` for zero/absent values.
-- Band Rank History: static line chart (`BandRankHistoryChart`, best rank at the top, redrawn only on data/size change) plus the 10 most recent snapshots (date, rank, metric value).
+- Band Rank History (web `BandRankHistoryChart` + `GraphCard`): the shared combined chart (`Controls/RankHistoryGraph`, model `RankHistoryCombinedChart.BuildBand`) with the selected metric's value as bars coloured by rank against the band field size, the rank line on a reversed right axis, the metric named in the legend and 96 epx bars paged older/newer; then the 10 most recent snapshots (date, rank, metric value). Redrawn only on data, page or size change. Fixture journey: `band-detail-rank-history-chart` in `tools/windows/journeys/bands.json`.
 - Five Best / Five Worst Songs: 40 px art, title, `artist · year`, percentile pill (`Top N%`), `#rank of total`. Catalogue songs open Song Detail; unknown IDs show `Unknown Song`, not navigable.
 - Quick links: right rail at window width ≥ 1280 epx, pill bar under the title otherwise; `StartBringIntoView` to each section.
 - Sections fail independently: history and songs have their own inline status/Retry; the band row failure replaces the page.

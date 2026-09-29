@@ -40,6 +40,7 @@ public sealed partial class RankHistoryGraph : Grid
     private readonly Button older = NavButton("", "Show older rank history");
     private readonly Button newer = NavButton("", "Show newer rank history");
     private readonly TextBlock range = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, FontSize = 12 };
+    private readonly TextBlock metricLegend = new() { Text = "Total Score", FontSize = 14, VerticalAlignment = VerticalAlignment.Center };
     private int offset;
     private int maxBars = 1;
     private Point? swipeStart;
@@ -116,6 +117,7 @@ public sealed partial class RankHistoryGraph : Grid
     private void OnModelChanged()
     {
         offset = 0;
+        metricLegend.Text = Model?.MetricLabel ?? "Total Score";
         Redraw();
     }
 
@@ -248,9 +250,9 @@ public sealed partial class RankHistoryGraph : Grid
         AutomationProperties.SetHelpText(plot, paged ? "Use Left and Right to page through rank history." : "");
     }
 
-    /// <summary>The web legend: gradient swatch "Total Score" and a line-with-dot "Rank".</summary>
+    /// <summary>The web legend: gradient swatch named after the bar metric ("Total Score") and a line-with-dot "Rank".</summary>
     /// <returns>Legend row.</returns>
-    private static StackPanel Legend()
+    private StackPanel Legend()
     {
         var legend = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 16, HorizontalAlignment = HorizontalAlignment.Center };
         var gradient = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(1, 0) };
@@ -263,7 +265,7 @@ public sealed partial class RankHistoryGraph : Grid
         Canvas.SetLeft(dot, 15);
         Canvas.SetTop(dot, 3);
         rank.Children.Add(dot);
-        legend.Children.Add(Item(swatch, "Total Score"));
+        legend.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { swatch, metricLegend } });
         legend.Children.Add(Item(rank, "Rank"));
         AutomationProperties.SetAccessibilityView(legend, AccessibilityView.Raw);
         return legend;

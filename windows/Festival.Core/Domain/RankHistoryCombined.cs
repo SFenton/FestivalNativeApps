@@ -6,10 +6,10 @@ namespace Festival.Core.Domain;
 /// <summary>One snapshot of the combined chart.</summary>
 /// <param name="AxisLabel">X-axis date, web <c>formatRankHistoryAxisDate</c> ("9/21/26").</param>
 /// <param name="DisplayDate">Spoken/detail date ("Sep 21, 2026").</param>
-/// <param name="Rank">Total Score rank.</param>
-/// <param name="Value">Total Score (the bar), 0 when unknown.</param>
+/// <param name="Rank">Rank for the chart's metric.</param>
+/// <param name="Value">The metric's value (the bar): Total Score, a rating or a fraction; 0 when unknown.</param>
 /// <param name="BarArgb">Bar colour, web <c>rankColor(rank, rankedAccountCount)</c>.</param>
-public sealed record RankHistoryPoint(string AxisLabel, string DisplayDate, int Rank, long Value, uint BarArgb);
+public sealed record RankHistoryPoint(string AxisLabel, string DisplayDate, int Rank, double Value, uint BarArgb);
 
 /// <summary>The snapshots visible in one page of the chart, laid out in unit coordinates.</summary>
 /// <param name="Points">Visible snapshots, oldest first.</param>
@@ -33,10 +33,10 @@ public sealed record RankHistoryPage(
 }
 
 /// <summary>
-/// The player page's combined Rank History chart (web <c>RankHistoryChart</c> + <c>GraphCard</c>, metric Total Score):
-/// Total Score bars coloured by rank on the left axis and the rank line (<c>#4C7DFF</c>) on a reversed right axis whose
-/// domain spans all history, paged like the web's <c>useChartPagination</c> so one page holds as many 96 epx bars as fit,
-/// newest page first.
+/// The combined Rank History chart (web <c>RankHistoryChart</c> / <c>BandRankHistoryChart</c> + <c>GraphCard</c>): the
+/// metric's value as bars coloured by rank on the left axis and the rank line (<c>#4C7DFF</c>) on a reversed right axis
+/// whose domain spans all history, paged like the web's <c>useChartPagination</c> so one page holds as many 96 epx bars
+/// as fit, newest page first. The player page charts Total Score; Band Detail charts the selected band metric.
 /// </summary>
 public sealed class RankHistoryCombinedChart
 {
@@ -52,12 +52,22 @@ public sealed class RankHistoryCombinedChart
     /// <summary>Bar colour when the field size is unknown, web <c>rgb(127,140,141)</c>.</summary>
     public const uint UnknownArgb = 0xFF7F8C8D;
 
-    private RankHistoryCombinedChart(List<RankHistoryPoint> points, int best, int worst)
+    private RankHistoryCombinedChart(List<RankHistoryPoint> points, int best, int worst, string metricLabel,
+        Func<double, string> tick, Func<double, string> detail)
     {
         Points = points;
         Best = best;
         Worst = worst;
+        MetricLabel = metricLabel;
+        tickFormat = tick;
+        detailFormat = detail;
     }
+
+    private readonly Func<double, string> tickFormat;
+    private readonly Func<double, string> detailFormat;
+
+    /// <summary>Bar metric name for the legend and screen reader ("Total Score", "Adjusted", …).</summary>
+    public string MetricLabel { get; }
 
     /// <summary>Every snapshot, oldest first.</summary>
     public IReadOnlyList<RankHistoryPoint> Points { get; }
@@ -79,7 +89,62 @@ public sealed class RankHistoryCombinedChart
             r.Date?.ToString("MMM d, yyyy", CultureInfo.CurrentCulture) ?? r.SnapshotDate,
             r.TotalScoreRank, r.TotalScore ?? 0, RankColor(r.TotalScoreRank, r.RankedAccountCount))).ToList();
         var (best, worst) = Domain(points.Select(p => p.Rank).ToList());
-        return new RankHistoryCombinedChart(points, best, worst);
+        return new RankHistoryCombinedChart(points, best, worst, "Total Score", ValueTick, v => ScoreFormatting.Score((long)v));
+    }
+
+    /// <summary>
+    /// Band Detail's chart for one band metric (web <c>BandRankHistoryChart</c>): that metric's value as bars, its rank as
+    /// the line, bars coloured against the band field size.
+    /// </summary>
+    /// <param name="ranked">Chronological snapshots with a positive rank for <paramref name="metric"/>.</param>
+    /// <param name="metric">Band metric.</param>
+    /// <param name="totalRankedTeams">Field size from the ranking, if known (else each snapshot's own).</param>
+    /// <returns>Chart, or <see langword="null"/> when empty.</returns>
+    public static RankHistoryCombinedChart? BuildBand(IReadOnlyList<BandRankHistoryEntry> ranked, BandRankingMetric metric, int? totalRankedTeams)
+    {
+        if (ranked.Count == 0) return null;
+        var field = totalRankedTeams is > 0 ? totalRankedTeams : ranked.LastOrDefault(r => r.TotalRankedTeams is > 0)?.TotalRankedTeams;
+        var points = ranked.Select(r =>
+        {
+            DateOnly? day = DateOnly.TryParseExact(r.SnapshotDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : null;
+            return new RankHistoryPoint(
+                day is { } axis ? $"{axis.Month}/{axis.Day}/{axis:yy}" : r.SnapshotDate,
+                day?.ToString("MMM d, yyyy", CultureInfo.CurrentCulture) ?? r.SnapshotDate,
+                r.Rank(metric), r.Value(metric) ?? 0, RankColor(r.Rank(metric), field));
+        }).ToList();
+        var (best, worst) = Domain(points.Select(p => p.Rank).ToList());
+        var rankingMetric = metric.ToRankingMetric();
+        return new RankHistoryCombinedChart(points, best, worst, rankingMetric.Label(),
+            v => MetricTick(v, rankingMetric), v => MetricDetail(v, rankingMetric));
+    }
+
+    /// <summary>Web <c>formatValueTick</c>: percentages for FC Rate / Max Score, two decimals for ratings, K/M/B for scores.</summary>
+    /// <param name="value">Value.</param>
+    /// <param name="metric">Metric.</param>
+    /// <returns>Axis label.</returns>
+    public static string MetricTick(double value, RankingMetric metric) => metric switch
+    {
+        RankingMetric.FcRate or RankingMetric.MaxScore => (value * 100).ToString("0", CultureInfo.InvariantCulture) + "%",
+        RankingMetric.Adjusted or RankingMetric.Weighted => value.ToString("0.00", CultureInfo.InvariantCulture),
+        _ => ValueTick(value),
+    };
+
+    /// <summary>Web <c>formatDetailValue</c>: the spoken/detail value for one snapshot.</summary>
+    /// <param name="value">Value.</param>
+    /// <param name="metric">Metric.</param>
+    /// <returns>Formatted value.</returns>
+    public static string MetricDetail(double value, RankingMetric metric)
+    {
+        switch (metric)
+        {
+            case RankingMetric.FcRate or RankingMetric.MaxScore:
+                var percent = value * 100;
+                return (percent % 1 == 0 ? percent.ToString("0", CultureInfo.InvariantCulture) : percent.ToString("0.0", CultureInfo.InvariantCulture)) + "%";
+            case RankingMetric.Adjusted or RankingMetric.Weighted:
+                return value % 1 == 0 ? value.ToString("0", CultureInfo.InvariantCulture) : value.ToString("0.0", CultureInfo.InvariantCulture);
+            default:
+                return ScoreFormatting.Score((long)Math.Round(value));
+        }
     }
 
     /// <summary>Web <c>getRankHistoryDomain</c>: min/max rank padded by 10% (at least one rank each way here).</summary>
@@ -144,18 +209,19 @@ public sealed class RankHistoryCombinedChart
         var end = Points.Count - offset;
         var start = Math.Max(0, end - maxBars);
         var visible = Points.Skip(start).Take(end - start).ToList();
-        var top = Math.Max(1, visible.Max(p => p.Value));
+        var highest = visible.Max(p => p.Value);
+        var top = highest > 0 ? highest : 1;
         double span = Math.Max(1, Worst - Best);
         double X(int i) => (i + 0.5) / visible.Count;
-        var bars = visible.Select((p, i) => new ChartBar(X(i), (double)p.Value / top)).ToList();
+        var bars = visible.Select((p, i) => new ChartBar(X(i), Math.Max(0, p.Value) / top)).ToList();
         var line = visible.Select((p, i) => new ChartPoint(X(i), (p.Rank - Best) / span, start + i == Points.Count - 1)).ToList();
         var mid = (int)Math.Round((Best + Worst) / 2.0);
         var rankTicks = new[] { Best, mid, Worst }.Distinct()
             .Select(r => new ChartTick((r - Best) / span, ScoreFormatting.Rank(r))).ToList();
-        var valueTicks = new[] { top, top / 2.0, 0 }.Select(v => new ChartTick(1 - v / top, ValueTick(v))).ToList();
+        var valueTicks = new[] { top, top / 2.0, 0 }.Select(v => new ChartTick(1 - v / top, tickFormat(v))).ToList();
         var range = visible.Count == 1 ? visible[0].DisplayDate : $"{visible[0].DisplayDate} – {visible[^1].DisplayDate}";
         var summary = $"Rank history, {range}: " + string.Join("; ", visible.Select(p =>
-            $"{p.DisplayDate} rank {ScoreFormatting.Rank(p.Rank)}, Total Score {ScoreFormatting.Score(p.Value)}"));
+            $"{p.DisplayDate} rank {ScoreFormatting.Rank(p.Rank)}, {MetricLabel} {detailFormat(p.Value)}"));
         return new RankHistoryPage(visible, bars, line, rankTicks, valueTicks, offset, maxOffset, range, summary);
     }
 }

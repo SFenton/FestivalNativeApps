@@ -221,7 +221,9 @@
                                     <Button Content="{x:Bind ViewModel.HistoryStatus.RetryLabel, Mode=OneWay}" Command="{x:Bind ViewModel.HistoryStatus.RetryCommand}" />
                                 </StackPanel>
                                 <StackPanel Spacing="12" Visibility="{x:Bind ViewModel.ShowHistory, Mode=OneWay}">
-                                    <controls:BandRankHistoryChart Points="{x:Bind ViewModel.HistoryPoints, Mode=OneWay}" />
+                                    <!-- Web BandRankHistoryChart: metric bars coloured by rank + rank line, paged (RankHistoryGraph). -->
+                                    <controls:RankHistoryGraph Model="{x:Bind ViewModel.HistoryChart, Mode=OneWay}"
+                                                               AutomationProperties.AutomationId="fst.band.history-chart" />
                                     <ItemsRepeater ItemsSource="{x:Bind ViewModel.HistoryRows, Mode=OneWay}">
                                         <ItemsRepeater.Layout>
                                             <StackLayout Spacing="2" />

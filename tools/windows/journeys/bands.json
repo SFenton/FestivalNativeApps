@@ -36,6 +36,21 @@
     ]
   },
   {
+    "name": "band-detail-rank-history-chart",
+    "route": "/bands/player/fixture-player-1",
+    "preset": "medium",
+    "steps": [
+      "waitfor:id=fst.player-bands.row.fixture-band-1@15",
+      "invoke:id=fst.player-bands.row.fixture-band-1",
+      "waitfor:id=fst.band.title@10",
+      "invoke:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.rank-history@5",
+      "invoke:id=fst.quick-links.item.rank-history",
+      "waitfor:id=fst.band.history-chart@10",
+      "shot:{shots}\\band-history.png"
+    ]
+  },
+  {
     "name": "song-band-leaderboard-switch-and-detail",
     "route": "/songs/fixture-pulse/bands/Band_Duets",
     "preset": "wide",
@@ -72,7 +87,7 @@
     "steps": [
       "waitfor:id=fst.bands.title@15",
       "waitfor:name=Band not found@10",
-      "shot:{shots}\bands-not-found.png"
+      "shot:{shots}\\bands-not-found.png"
     ]
   }
 ]
