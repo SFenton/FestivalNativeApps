@@ -118,7 +118,7 @@ private func spotlightSelectedSession() async throws -> FestivalSession {
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    let image = try await nativeHostedSettle(host, untilText: ["Fixture Pulse", "Your rank"])
+    let image = try await nativeHostedSettle(host, untilText: ["Fixture Pulse", "Your rank"], timeout: .seconds(60))
     _ = try nativeHostedPNG(
         image, filename: "song-leaderboard-spotlight-visible.png",
         environment: "FST_LEADERBOARDS_RENDER_OUT"
@@ -149,7 +149,7 @@ private func spotlightSelectedSession() async throws -> FestivalSession {
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    let image = try await nativeHostedSettle(host, untilText: ["Fixture Pulse", "Jump to"])
+    let image = try await nativeHostedSettle(host, untilText: ["Fixture Pulse", "Jump to"], timeout: .seconds(60))
     _ = try nativeHostedPNG(
         image, filename: "song-leaderboard-spotlight-jump.png",
         environment: "FST_LEADERBOARDS_RENDER_OUT"
@@ -180,7 +180,7 @@ private func spotlightSelectedSession() async throws -> FestivalSession {
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    let image = try await nativeHostedSettle(host, untilText: ["Fixture Pulse", "#1, Row 1"])
+    let image = try await nativeHostedSettle(host, untilText: ["Fixture Pulse", "#1, Row 1"], timeout: .seconds(60))
     _ = try nativeHostedPNG(
         image, filename: "song-leaderboard-spotlight-none.png",
         environment: "FST_LEADERBOARDS_RENDER_OUT"

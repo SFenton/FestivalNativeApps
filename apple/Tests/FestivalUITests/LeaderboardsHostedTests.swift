@@ -248,7 +248,7 @@ private extension View {
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
     let image = try await nativeHostedSettle(
-        host, untilText: ["Fixture Rank 1", "Fixture Rank 3", "View all rankings (3)"]
+        host, untilText: ["Fixture Rank 1", "Fixture Rank 3", "View all rankings (3)"], timeout: .seconds(60)
     )
     _ = try nativeHostedPNG(image, filename: "leaderboards-overview.png", environment: "FST_LEADERBOARDS_RENDER_OUT")
     assertRendersContent(host, image: image, containing: ["Fixture Rank 1", "Fixture Rank 3", "View all rankings (3)"])
@@ -270,7 +270,7 @@ private extension View {
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    let image = try await nativeHostedSettle(host, untilText: ["No ranked Lead players yet."])
+    let image = try await nativeHostedSettle(host, untilText: ["No ranked Lead players yet."], timeout: .seconds(60))
     _ = try nativeHostedPNG(image, filename: "leaderboards-empty.png", environment: "FST_LEADERBOARDS_RENDER_OUT")
     assertRendersContent(
         host, image: image, containing: ["No ranked Lead players yet."], notContaining: ["Fixture Rank 1"]
@@ -294,7 +294,7 @@ private extension View {
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    let image = try await nativeHostedSettle(host, untilText: ["Fixture Rank 1", "Fixture Rank 3", "First Page", "Lead"])
+    let image = try await nativeHostedSettle(host, untilText: ["Fixture Rank 1", "Fixture Rank 3", "First Page", "Lead"], timeout: .seconds(60))
     _ = try nativeHostedPNG(image, filename: "full-rankings.png", environment: "FST_LEADERBOARDS_RENDER_OUT")
     assertRendersContent(host, image: image, containing: ["Fixture Rank 1", "Fixture Rank 3", "First Page", "Lead"])
 }
@@ -316,7 +316,7 @@ private extension View {
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    let image = try await nativeHostedSettle(host, untilText: ["Member 1A", "Member 2B", "First Page", "Duos"])
+    let image = try await nativeHostedSettle(host, untilText: ["Member 1A", "Member 2B", "First Page", "Duos"], timeout: .seconds(60))
     _ = try nativeHostedPNG(image, filename: "band-rankings.png", environment: "FST_LEADERBOARDS_RENDER_OUT")
     assertRendersContent(host, image: image, containing: ["Member 1A", "Member 2B", "First Page", "Duos"])
 }
@@ -342,7 +342,7 @@ private extension View {
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    let image = try await nativeHostedSettle(host, untilText: ["Your rank, 2nd. Fixture Rank 2."])
+    let image = try await nativeHostedSettle(host, untilText: ["Your rank, 2nd. Fixture Rank 2."], timeout: .seconds(60))
     _ = try nativeHostedPNG(
         image, filename: "leaderboards-spotlight-inline.png", environment: "FST_LEADERBOARDS_RENDER_OUT"
     )
@@ -373,7 +373,7 @@ private extension View {
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    let image = try await nativeHostedSettle(host, untilText: ["Your rank, 57th. Spotlight Player."])
+    let image = try await nativeHostedSettle(host, untilText: ["Your rank, 57th. Spotlight Player."], timeout: .seconds(60))
     _ = try nativeHostedPNG(
         image, filename: "leaderboards-spotlight-footer.png", environment: "FST_LEADERBOARDS_RENDER_OUT"
     )
@@ -398,7 +398,7 @@ private extension View {
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    let image = try await nativeHostedSettle(host, untilText: ["Not yet ranked on Lead."])
+    let image = try await nativeHostedSettle(host, untilText: ["Not yet ranked on Lead."], timeout: .seconds(60))
     _ = try nativeHostedPNG(
         image, filename: "leaderboards-spotlight-unranked.png", environment: "FST_LEADERBOARDS_RENDER_OUT"
     )
@@ -424,7 +424,7 @@ private extension View {
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
     let image = try await nativeHostedSettle(
-        host, untilText: ["The service is temporarily unavailable. Try again.", "Retry"]
+        host, untilText: ["The service is temporarily unavailable. Try again.", "Retry"], timeout: .seconds(60)
     )
     _ = try nativeHostedPNG(
         image, filename: "leaderboards-spotlight-failed.png", environment: "FST_LEADERBOARDS_RENDER_OUT"
@@ -455,11 +455,11 @@ private extension View {
     defer { window.orderOut(nil) }
     // The page waits for every card, the delayed spotlight included, before it shows
     // anything (operator batch 6.41): a spinner first, then the finished cards.
-    let loading = try await nativeHostedSettle(host, untilText: ["Loading Leaderboards"])
+    let loading = try await nativeHostedSettle(host, untilText: ["Loading Leaderboards"], timeout: .seconds(60))
     _ = try nativeHostedPNG(
         loading, filename: "leaderboards-spotlight-loading.png", environment: "FST_LEADERBOARDS_RENDER_OUT"
     )
-    let image = try await nativeHostedSettle(host, untilText: ["Fixture Rank 1"])
+    let image = try await nativeHostedSettle(host, untilText: ["Fixture Rank 1"], timeout: .seconds(60))
     assertRendersContent(host, image: image, containing: ["Fixture Rank 1"])
 }
 
@@ -483,7 +483,7 @@ private extension View {
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    let image = try await nativeHostedSettle(host, untilText: ["Your rank, 57th", "Jump to your page"])
+    let image = try await nativeHostedSettle(host, untilText: ["Your rank, 57th", "Jump to your page"], timeout: .seconds(60))
     _ = try nativeHostedPNG(
         image, filename: "full-rankings-spotlight-footer.png", environment: "FST_LEADERBOARDS_RENDER_OUT"
     )

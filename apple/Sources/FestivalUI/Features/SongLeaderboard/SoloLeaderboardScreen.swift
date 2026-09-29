@@ -245,18 +245,18 @@ struct SoloLeaderboardScreen: View {
                     NavigationLink(value: AppRoute.statistics) {
                         footerRow(entry)
                     }
+                    .accessibilityLabel("Your rank, \(RankingFormatting.ordinal(rank)).")
                 } else {
                     Button {
                         move(to: LeaderboardPaging.page(forRank: rank, pageSize: 25))
                     } label: {
                         footerRow(entry)
                     }
-                    .accessibilityHint("Jumps to your page")
+                    .accessibilityLabel("Your rank, \(RankingFormatting.ordinal(rank)). Jump to your page.")
                     .accessibilityIdentifier("fst.song-leaderboard.spotlight-jump")
                 }
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Your rank, \(RankingFormatting.ordinal(rank)).")
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
             .accessibilityElement(children: .contain)
