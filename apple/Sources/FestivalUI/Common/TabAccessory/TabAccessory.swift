@@ -24,6 +24,8 @@ final class TabAccessoryRegistry {
         /// Accessibility identifier re-applied by the host: the tab content's own
         /// `fst.nav.*` identifier otherwise overrides identifiers inside the inset.
         var accessibilityID: String?
+        /// The page (`FloatingPageControls` instance) that owns this control.
+        var scope: UUID?
     }
 
     private(set) var entries: [Entry] = []
@@ -47,17 +49,27 @@ final class TabAccessoryRegistry {
     ///     not rely on page-only environment values.
     func upsert(
         id: UUID, order: Int = DockOrder.pageAction, accessibilityID: String? = nil,
-        content: AnyView
+        scope: UUID? = nil, content: AnyView
     ) {
         if let index = entries.firstIndex(where: { $0.id == id }) {
             entries[index].content = content
             entries[index].order = order
             entries[index].accessibilityID = accessibilityID
+            entries[index].scope = scope
         } else {
             entries.append(Entry(
-                id: id, order: order, content: content, accessibilityID: accessibilityID
+                id: id, order: order, content: content, accessibilityID: accessibilityID,
+                scope: scope
             ))
         }
+    }
+
+    /// The controls one page registered, in dock order.
+    ///
+    /// - Parameter scope: The page's `FloatingPageControls` scope.
+    /// - Returns: Only that page's controls, so a push never shows two pages' buttons.
+    func items(in scope: UUID) -> [Entry] {
+        items.filter { $0.scope == scope }
     }
 
     /// Remove a control (its page disappeared or no longer offers it).
@@ -93,6 +105,9 @@ extension EnvironmentValues {
     /// Height the floating page tools take above the tab bar (0 when none), for trailing
     /// overlays such as the Songs A–Z scrubber that must end above them.
     @Entry var floatingControlsInset: CGFloat = 0
+
+    /// The enclosing page's floating-controls scope; registrations are tagged with it.
+    @Entry var floatingControlsScope: UUID? = nil
 }
 
 // MARK: - Host (root)
@@ -133,13 +148,16 @@ struct TabAccessoryHost: ViewModifier {
 /// the pages and let the tab's `fst.nav.*` identifier replace the buttons' own.)
 struct FloatingPageControls: ViewModifier {
     @Environment(\.tabAccessoryRegistry) private var registry
+    /// This page's scope: only controls registered from inside it are shown here.
+    @State private var scope = UUID()
 
     /// Button size plus its bottom margin.
     static let height: CGFloat = 50 + 8
 
     func body(content: Content) -> some View {
-        let items = registry?.items ?? []
+        let items = registry?.items(in: scope) ?? []
         content
+            .environment(\.floatingControlsScope, scope)
             .environment(\.floatingControlsInset, items.isEmpty ? 0 : Self.height)
             .safeAreaPadding(.bottom, items.isEmpty ? 0 : Self.height)
             .overlay(alignment: .bottomTrailing) {
@@ -200,6 +218,7 @@ struct TabAccessoryRegistration<Token: Hashable, Accessory: View>: ViewModifier 
     let isEnabled: Bool
     let accessory: () -> Accessory
     @Environment(\.tabAccessoryRegistry) private var registry
+    @Environment(\.floatingControlsScope) private var scope
     @State private var id = UUID()
     @State private var visible = false
 
@@ -223,7 +242,7 @@ struct TabAccessoryRegistration<Token: Hashable, Accessory: View>: ViewModifier 
         guard let registry else { return }
         if visible && isEnabled {
             registry.upsert(
-                id: id, order: order, accessibilityID: accessibilityID,
+                id: id, order: order, accessibilityID: accessibilityID, scope: scope,
                 content: AnyView(accessory())
             )
         } else {

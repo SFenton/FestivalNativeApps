@@ -36,6 +36,19 @@ struct TabAccessoryRegistryTests {
         #expect(registry.active?.id == player)
     }
 
+    /// During a push both pages have controls registered; each page shows only its own.
+    @Test func itemsAreScopedToTheirPage() {
+        let registry = TabAccessoryRegistry()
+        let songsPage = UUID()
+        let detailPage = UUID()
+        let sort = UUID()
+        let links = UUID()
+        registry.upsert(id: sort, order: DockOrder.sort, scope: songsPage, content: AnyView(EmptyView()))
+        registry.upsert(id: links, order: DockOrder.quickLinks, scope: detailPage, content: AnyView(EmptyView()))
+        #expect(registry.items(in: songsPage).map(\.id) == [sort])
+        #expect(registry.items(in: detailPage).map(\.id) == [links])
+    }
+
     @Test func removingUnknownIdIsHarmless() {
         let registry = TabAccessoryRegistry()
         let songs = UUID()

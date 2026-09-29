@@ -20,6 +20,8 @@ public struct FestivalRootView: View {
     @State private var rootProfilePresented = false
     /// Global search sheet (opened from the tab accessory, a toolbar button, ⌘K or ⌘F).
     @State private var globalSearchPresented = false
+    /// A search result to push after the search sheet has dismissed.
+    @State private var pendingSearchRoute: AppRoute?
     #if DEBUG && os(iOS)
     @State private var motionReport = DebugMotionReport()
     #endif
@@ -254,10 +256,16 @@ public struct FestivalRootView: View {
                 .frame(width: 0, height: 0)
                 .accessibilityHidden(true)
         }
-        .sheet(isPresented: $globalSearchPresented) {
+        .sheet(isPresented: $globalSearchPresented, onDismiss: {
+            // Push only once the sheet has finished closing.
+            if let route = pendingSearchRoute {
+                pendingSearchRoute = nil
+                paths[selected, default: []].append(route)
+            }
+        }) {
             // Closure passed directly, like the profile sheet (environment trap).
             GlobalSearchSheet(session: session) { route in
-                paths[selected, default: []].append(route)
+                pendingSearchRoute = route
             }
             .festivalSheet()
         }
