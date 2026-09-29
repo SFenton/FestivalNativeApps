@@ -214,12 +214,16 @@ def prepare_talkback(dev: device.Device, avd: str) -> tuple[str, str]:
     return keyboard, swipe_script(touchscreen, len(frames))
 
 
-def walk(dev: device.Device, keyboard: str, swipe: str, limit: int) -> list[str]:
+def walk(dev: device.Device, keyboard: str, swipe: str, limit: int, speech: list[str]) -> list[str]:
     """Press "next item" until focus stops moving or wraps; return what TalkBack said.
 
     From a text field it hides the IME (Back, only while the IME shows) and
-    swipes right instead, since the field keeps the key chord.
+    swipes right instead, since the field keeps the key chord. The log is read
+    and cleared after every press (verbose TalkBack fills the default ring
+    buffer within a few dozen items, which looked like focus had stopped);
+    every ``Speaking fragment`` line is appended to ``speech``.
     """
+    dev.adb("logcat", "-G", "16M", cap=30, check=False)
     dev.adb("logcat", "-c", cap=30)
     heard: list[str] = []
     stalls = 0
@@ -232,15 +236,18 @@ def walk(dev: device.Device, keyboard: str, swipe: str, limit: int) -> list[str]
         else:
             dev.shell(f"su 0 sh -c 'cat {REMOTE_CHORD} > {keyboard}'", check=False)
         time.sleep(0.8)
-        now = focus_utterances(dev.adb("logcat", "-d", "-v", "brief", cap=30).stdout)
-        if len(now) == len(heard):
+        log = dev.adb("logcat", "-d", "-v", "brief", cap=30).stdout
+        dev.adb("logcat", "-c", cap=30)
+        speech.extend(line for line in log.splitlines() if "Speaking fragment" in line)
+        new = focus_utterances(log)
+        if not new:
             stalls += 1
             # TalkBack may still be starting before the first utterance.
             if stalls >= (5 if heard else 12):
                 break
             continue
         stalls = 0
-        heard = now
+        heard.extend(new)
         print(f"{len(heard):3d} {heard[-1][:100]}", file=sys.stderr)
         repeated = wrapped(heard)
         if repeated:
@@ -293,10 +300,9 @@ def run(args: argparse.Namespace) -> int:
         device.run_step(dev, args.avd, "talkback", "on")
         time.sleep(3)
         try:
-            items = walk(dev, keyboard, swipe, args.max)
+            speech: list[str] = []
+            items = walk(dev, keyboard, swipe, args.max, speech)
             # Raw speech (every event type) for diagnosing a walk.
-            log = dev.adb("logcat", "-d", "-v", "brief", cap=30).stdout
-            speech = [line for line in log.splitlines() if "Speaking fragment" in line]
             (out / f"{args.name}.log").write_text("\n".join(speech) + "\n", encoding="utf-8")
             if args.shot:
                 dev.screenshot(out / f"{args.name}.png")
