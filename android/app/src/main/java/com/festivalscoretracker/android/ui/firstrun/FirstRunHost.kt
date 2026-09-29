@@ -80,7 +80,7 @@ fun FirstRunHost(center: FirstRunCenter, page: FirstRunPageKey?, settings: AppSe
         center.tryBegin(page, settings, compact)
     }
     active?.let { carousel ->
-        FirstRunCarouselDialog(carousel, compact) { scope.launch { center.complete(carousel) } }
+        FirstRunCarouselDialog(carousel, compact) { viewed -> scope.launch { center.complete(carousel, viewed) } }
     }
 }
 

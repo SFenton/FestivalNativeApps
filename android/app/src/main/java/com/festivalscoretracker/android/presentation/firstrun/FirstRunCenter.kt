@@ -124,14 +124,17 @@ class FirstRunCenter(
     }
 
     /**
-     * Close (close button, Skip, Done, back or swipe-down alike): mark every
-     * displayed slide seen once and free the slot. Completing a stale carousel is a no-op.
+     * Close (close button, Skip, Done, back or a tap outside alike): mark only the slides the
+     * user actually displayed as seen (operator batch 6.7 — unseen slides show on the next
+     * visit) and free the slot. Completing a stale carousel is a no-op.
      *
      * @param carousel Closing carousel.
+     * @param viewedCount Slides displayed, counted from the first (the pager only moves one
+     *   page at a time, so the seen slides are always a prefix); defaults to all of them.
      */
-    suspend fun complete(carousel: FirstRunCarousel) = mutex.withLock {
+    suspend fun complete(carousel: FirstRunCarousel, viewedCount: Int = carousel.slides.size) = mutex.withLock {
         if (activeFlow.value?.id != carousel.id) return
-        store.markSeen(carousel.slides, clock())
+        store.markSeen(carousel.slides.take(viewedCount.coerceIn(1, carousel.slides.size)), clock())
         activeFlow.value = null
     }
 }

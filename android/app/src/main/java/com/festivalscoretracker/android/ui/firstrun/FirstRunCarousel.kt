@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -28,7 +29,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -55,26 +60,30 @@ import kotlinx.coroutines.launch
 // region Carousel
 
 /**
- * First-run carousel: an M3 dialog with a horizontal pager, page dots, a close
- * button, Skip, Back and Next/Done. Close, Skip, Done, system back and a tap
- * outside all complete it (marking every displayed slide seen). Off-screen
- * pages are not composed beyond the pager's single-page beyond bound, so demo
- * animations cost nothing while hidden.
+ * First-run carousel: an M3 dialog with a horizontal pager, white page dots, a close
+ * button and the footer actions (operator batch 6.7): **Next/Done first, then Back**
+ * (Back only after the first slide, never shown disabled), and Skip only while there is
+ * more than one slide, so a one-slide guide shows only Done. Close, Skip, Done, system
+ * back and a tap outside all complete it, marking only the slides actually displayed as
+ * seen. Off-screen pages are not composed beyond the pager's single-page beyond bound,
+ * so demo animations cost nothing while hidden.
  *
  * @param carousel Presentation.
  * @param compact Compact window width (full-width card).
- * @param onComplete Close in any way.
+ * @param onComplete Close in any way, with how many slides (from the first) were displayed.
  */
 @Composable
-fun FirstRunCarouselDialog(carousel: FirstRunCarousel, compact: Boolean, onComplete: () -> Unit) {
+fun FirstRunCarouselDialog(carousel: FirstRunCarousel, compact: Boolean, onComplete: (viewedCount: Int) -> Unit) {
     val pager = rememberPagerState(pageCount = { carousel.slides.size })
     val scope = rememberCoroutineScope()
     val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
     val last = pager.currentPage == carousel.slides.lastIndex
     val titleFocus = androidx.compose.runtime.remember { FocusRequester() }
+    var viewed by rememberSaveable(carousel.id) { mutableIntStateOf(1) }
+    val close = { onComplete(maxOf(viewed, pager.currentPage + 1)) }
     fun go(page: Int) = scope.launch { if (reduceMotion) pager.scrollToPage(page) else pager.animateScrollToPage(page) }
 
-    Dialog(onDismissRequest = onComplete, properties = DialogProperties(usePlatformDefaultWidth = !compact)) {
+    Dialog(onDismissRequest = close, properties = DialogProperties(usePlatformDefaultWidth = !compact)) {
         Surface(
             shape = RoundedCornerShape(28.dp),
             color = BrandTokens.cardBackground,
@@ -91,10 +100,10 @@ fun FirstRunCarouselDialog(carousel: FirstRunCarousel, compact: Boolean, onCompl
                     Text(
                         carousel.page.label,
                         style = MaterialTheme.typography.labelLarge,
-                        color = BrandTokens.textSecondary,
+                        color = BrandTokens.textPrimary,
                         modifier = Modifier.weight(1f),
                     )
-                    IconButton(onClick = onComplete, modifier = Modifier.testTag("fst.first-run.close")) {
+                    IconButton(onClick = close, modifier = Modifier.testTag("fst.first-run.close")) {
                         Icon(Icons.Filled.Close, contentDescription = "Close")
                     }
                 }
@@ -143,20 +152,29 @@ fun FirstRunCarouselDialog(carousel: FirstRunCarousel, compact: Boolean, onCompl
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 24.dp, top = 8.dp),
                 ) {
-                    TextButton(onClick = onComplete, modifier = Modifier.testTag("fst.first-run.skip")) { Text("Skip") }
-                    Spacer(Modifier.weight(1f))
-                    if (pager.currentPage > 0) {
-                        TextButton(onClick = { go(pager.currentPage - 1) }, modifier = Modifier.testTag("fst.first-run.back")) { Text("Back") }
+                    if (carousel.slides.size > 1) {
+                        TextButton(onClick = close, colors = ButtonDefaults.textButtonColors(contentColor = BrandTokens.textPrimary), modifier = Modifier.testTag("fst.first-run.skip")) { Text("Skip") }
                     }
+                    Spacer(Modifier.weight(1f))
                     Button(
-                        onClick = { if (last) onComplete() else go(pager.currentPage + 1) },
+                        onClick = { if (last) close() else go(pager.currentPage + 1) },
                         modifier = Modifier.testTag(if (last) "fst.first-run.done" else "fst.first-run.next"),
                     ) { Text(if (last) "Done" else "Next") }
+                    if (pager.currentPage > 0) {
+                        TextButton(
+                            onClick = { go(pager.currentPage - 1) },
+                            colors = ButtonDefaults.textButtonColors(contentColor = BrandTokens.textPrimary),
+                            modifier = Modifier.testTag("fst.first-run.back"),
+                        ) { Text("Back") }
+                    }
                 }
             }
         }
     }
-    LaunchedEffect(pager.currentPage) { runCatching { titleFocus.requestFocus() } }
+    LaunchedEffect(pager.currentPage) {
+        viewed = maxOf(viewed, pager.currentPage + 1)
+        runCatching { titleFocus.requestFocus() }
+    }
 }
 
 @Composable
@@ -176,10 +194,14 @@ private fun Dots(current: Int, count: Int, position: String, modifier: Modifier)
             Box(
                 Modifier
                     .size(if (index == current) 10.dp else 8.dp)
-                    .background(if (index == current) BrandTokens.textPrimary else BrandTokens.surfaceMuted, CircleShape),
+                    // White dots (operator batch 6.7): the current one solid, the rest dimmed white.
+                    .background(if (index == current) BrandTokens.textPrimary else BrandTokens.textPrimary.copy(alpha = INACTIVE_DOT_ALPHA), CircleShape),
             )
         }
     }
 }
+
+/** Opacity of the non-current pager dots. */
+private const val INACTIVE_DOT_ALPHA = 0.35f
 
 // endregion

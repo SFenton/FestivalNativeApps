@@ -284,6 +284,24 @@ class FirstRunTest {
     }
 
     @Test
+    fun completeMarksOnlyTheDisplayedSlidesSeen() = runBlocking {
+        val store = store()
+        val center = FirstRunCenter(store, FirstRunMode.Normal) { now }
+        val first = center.tryBegin(FirstRunPageKey.Songs, AppSettings(), compact = true)!!
+        center.complete(first, viewedCount = 2)
+        assertEquals(setOf("songs-song-list", "songs-sort"), store.load().keys)
+        // The unseen four come back on the next visit, in order.
+        val next = center.tryBegin(FirstRunPageKey.Songs, AppSettings(), compact = true)!!
+        assertEquals(first.slides.drop(2).map { it.id }, next.slides.map { it.id })
+        // Out-of-range counts clamp: at least the first slide, at most all of them.
+        center.complete(next, viewedCount = 0)
+        assertEquals(3, store.load().size)
+        val last = center.tryBegin(FirstRunPageKey.Songs, AppSettings(), compact = true)!!
+        center.complete(last, viewedCount = 99)
+        assertEquals(6, store.load().size)
+    }
+
+    @Test
     fun offModeShowsNothingAndForceIgnoresSeenState() = runBlocking {
         val store = store()
         assertNull(FirstRunCenter(store, FirstRunMode.Off).tryBegin(FirstRunPageKey.Rivals, AppSettings(), true))
