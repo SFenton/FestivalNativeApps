@@ -34,3 +34,7 @@ Evidence: PWA `showcase\pwa\windows\<preset>\<page>.png`, native `showcase\pwa\w
 ## Top gaps to schedule
 
 1–4, 6–8, 11–14 and 18–19 above, in that order (2, 4 and 12 need an orchestrator decision first).
+
+## Status (FST-win-pwa, 2026-09-28)
+
+Fixed: **2/14** (player-only routes, including Player History and Rival Detail/Rivalry, redirect to Songs without a profile: `AppRouteParser.ForProfile`), **3** (`/bands` → Band not found), **4** (first-run carousels with live 6 s demos for all 42 slides; What's New once per changelog hash with Settings replay), **5/5a/5b** (Filter hidden without a profile, Has FC sort, jump index closes on Esc/new results), **6** (pulsing Shop rings), **7** (album-art tile grid, 2 per row at compact, cart as secondary action), **15** (Settings in web order, CHOpt default view as radio buttons), **17** (Paths notice once per session; compact chart-first layout), **22** ("Festival Score Tracker - <page>" window title). Also: section headers scroll away (audit 30), white spinners (audit 6). Evidence: `windows/reports/screenshots/pwa-*.png` (fixture); live captures in `showcase\win-pwa\live\`. Rows 8–13 belong to win-polish; 18–19 remain.
