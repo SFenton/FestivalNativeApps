@@ -177,20 +177,20 @@ public sealed partial class ShopPage : Page
     }
 
     /// <summary>Opens the validated official Item Shop page in the browser.</summary>
-    /// <param name="sender">Button with an offer context.</param>
+    /// <param name="sender">Button tagged with its offer.</param>
     /// <param name="e">Unused.</param>
     private async void OnExternalClick(object sender, RoutedEventArgs e)
     {
-        if (sender is FrameworkElement { DataContext: ShopOfferItem item } && item.Offer.ShopUri is { } uri)
+        if (sender is FrameworkElement { Tag: ShopOfferItem item } && item.Offer.ShopUri is { } uri)
             await Windows.System.Launcher.LaunchUriAsync(uri);
     }
 
     /// <summary>Tile: Song Detail for a catalogue song, otherwise the official Item Shop.</summary>
-    /// <param name="sender">Tile button with an offer context.</param>
+    /// <param name="sender">Tile button tagged with its offer.</param>
     /// <param name="e">Unused.</param>
     private void OnTileClick(object sender, RoutedEventArgs e)
     {
-        if (sender is not FrameworkElement { DataContext: ShopOfferItem item }) return;
+        if (sender is not FrameworkElement { Tag: ShopOfferItem item }) return;
         if (item.HasSongDetail) MainWindow.Instance?.Navigate(item.DetailRoute);
         else OnExternalClick(sender, e);
     }

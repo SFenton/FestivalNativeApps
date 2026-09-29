@@ -65,7 +65,7 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, dict, list[str]]] = {
         PLAYER, "/shop", {},
         [
             "waitfor:id=fst.shop.grid@20",
-            "waitfor:id=fst.shop.badge.new.fixture-pulse",
+            "waitfor:id=fst.shop.song.fixture-pulse",
             "waitfor:id=fst.shop.badge.leaving.fixture-orbit",
             "waitfor:id=fst.shop.external.fixture-pulse",
             "{shot:shop-grid}",
@@ -81,12 +81,12 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, dict, list[str]]] = {
     "shop-compact": (
         PLAYER, "/shop", {},
         [
-            "waitfor:id=fst.shop.list@20",
+            "waitfor:id=fst.shop.grid@20",
             "waitfor:id=fst.shop.badge.leaving.fixture-orbit",
             "waitfor:id=fst.shop.song.fixture-pulse",
-            "{shot:shop-list}",
+            "{shot:shop-grid}",
             "click:id=fst.shop.song.fixture-pulse",
-            "waitfor:name=Open in Item Shop, New@15",
+            "waitfor:id=fst.song-detail.shop@15",
         ],
     ),
     "detail-paths": (
@@ -137,7 +137,7 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, dict, list[str]]] = {
 }
 
 
-# Scenarios that only make sense at some window sizes (compact windows force the Shop list).
+# Scenarios that only make sense at some window sizes (compact windows force the Shop grid, without the toggle).
 SIZES = {"shop": {"medium", "wide"}, "shop-compact": {"compact"}}
 
 
