@@ -115,15 +115,15 @@ def is_text_field(utterance: str) -> bool:
 def wrapped(heard: list[str]) -> int:
     """How many trailing items repeat the walk (0 while it is still new).
 
-    Focus came back to the first item (1), or the last two items repeat an
-    earlier consecutive pair (2): the walk started mid-screen and wrapped past
-    where it began. A single repeated item is not a wrap (repeated per-card
-    controls such as "View All Rivals").
+    Focus came back to the first item (1), or the last three items repeat three
+    consecutive items from the first few (3): the walk started on a later item
+    (TalkBack's initial focus) and wrapped past the start. Repeats elsewhere are
+    not a wrap (per-section controls and the same rivals in several sections).
     """
     if len(heard) > 1 and heard[-1] == heard[0]:
         return 1
-    if len(heard) >= 4 and any(heard[i:i + 2] == heard[-2:] for i in range(len(heard) - 3)):
-        return 2
+    if len(heard) >= 6 and any(heard[i:i + 3] == heard[-3:] for i in range(min(3, len(heard) - 5))):
+        return 3
     return 0
 
 

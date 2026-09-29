@@ -54,8 +54,10 @@ class TalkBackWalkTests(unittest.TestCase):
     def test_wrapped(self):
         self.assertEqual(tw.wrapped(["A", "B"]), 0)
         self.assertEqual(tw.wrapped(["A", "B", "A"]), 1)
-        self.assertEqual(tw.wrapped(["H", "A", "B", "C", "A", "B"]), 2)
+        self.assertEqual(tw.wrapped(["H", "A", "B", "C", "D", "A", "B", "C"]), 3)
         self.assertEqual(tw.wrapped(["H", "More", "X", "More", "Y"]), 0)
+        # The same rows in a later section are not a wrap.
+        self.assertEqual(tw.wrapped(["T", "U", "V", "W", "A", "B", "C", "X", "A", "B", "C"]), 0)
 
     def test_input_device_by_name(self):
         out = ('add device 1: /dev/input/event13\n  name:     "qwerty2"\n'
