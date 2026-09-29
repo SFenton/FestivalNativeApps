@@ -12,6 +12,10 @@ extension EnvironmentValues {
     /// Shows a route in the detail column; set only inside a split's list column.
     /// ``ListDetailLink`` uses it instead of pushing, so the list never pushes.
     @Entry var listDetailSelect: ListDetailSelectAction?
+    /// Offered to list rows while a wide window's detail column has nothing to show:
+    /// every ``ListDetailLink`` reports its route on appear and the first one becomes
+    /// the detail (auto-select the first item).
+    @Entry var listDetailAutoSelect: ListDetailSelectAction?
 }
 
 /// Replaces the detail column with a route pushed directly from the list page.
@@ -54,6 +58,13 @@ struct ListDetailStack<Root: View>: View {
 
     @Environment(\.deviceLayout) private var layout
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    /// The last detail root shown, restored when a list page splits again unselected.
+    @State private var lastSelection: AppRoute?
+    /// The list pages (by list-column path) that produced no row to auto-select.
+    @State private var emptyLists: Set<[AppRoute]> = []
+
+    /// How long a split list may show no row before it collapses to full width.
+    private static var emptyListTimeout: Duration { .milliseconds(2500) }
 
     /// Create a section stack.
     ///
@@ -77,22 +88,65 @@ struct ListDetailStack<Root: View>: View {
     }
 
     var body: some View {
-        switch ListDetailPolicy.arrangement(section: section, path: path, layout: layout) {
-        case .stack:
-            FestivalTabStack(
-                session: session, visibleInstruments: visibleInstruments,
-                path: $path, isVisible: isVisible
-            ) {
-                root(path.isEmpty)
-                    // Full-width list awaiting its first selection: rows select (the
-                    // detail column opens) instead of pushing and then re-splitting.
-                    .transformEnvironment(\.listDetailSelect) { value in
-                        guard ListDetailPolicy.awaitsSelection(section: section, path: path, layout: layout) else { return }
-                        value = selectAction
-                    }
+        Group {
+            switch arrangement {
+            case .stack:
+                FestivalTabStack(
+                    session: session, visibleInstruments: visibleInstruments,
+                    path: $path, isVisible: isVisible
+                ) {
+                    root(path.isEmpty)
+                        // A wide window's list that collapsed while empty: a row that
+                        // appears later (or a tap) still opens the detail column.
+                        .transformEnvironment(\.listDetailSelect) { value in
+                            if awaiting { value = selectAction }
+                        }
+                        .transformEnvironment(\.listDetailAutoSelect) { value in
+                            if awaiting { value = autoSelectAction }
+                        }
+                }
+            case let .split(split):
+                splitView(split)
+                    .task(id: split.list) { await populate(split) }
             }
-        case let .split(split):
-            splitView(split)
+        }
+        .onChange(of: ListDetailPolicy.split(section: section, path: path)?.selection) { _, selection in
+            if let selection { lastSelection = selection }
+        }
+    }
+
+    private var arrangement: ListDetailPolicy.Arrangement {
+        let list = ListDetailPolicy.split(section: section, path: path)?.list ?? []
+        return ListDetailPolicy.arrangement(
+            section: section, path: path, layout: layout, emptyListCollapsed: emptyLists.contains(list)
+        )
+    }
+
+    private var awaiting: Bool {
+        ListDetailPolicy.awaitsSelection(section: section, path: path, layout: layout)
+    }
+
+    /// Keep the detail column populated: restore the last selection this list page
+    /// accepts, else wait for the first row to report itself (`listDetailAutoSelect`);
+    /// a list that shows no row within ``emptyListTimeout`` collapses to full width.
+    ///
+    /// - Parameter split: The unselected split just shown.
+    private func populate(_ split: ListDetailPolicy.Split) async {
+        guard split.selection == nil else { return }
+        if let lastSelection, split.page.accepts(lastSelection) {
+            selectAction(lastSelection)
+            return
+        }
+        try? await Task.sleep(for: Self.emptyListTimeout)
+        guard !Task.isCancelled, awaiting else { return }
+        emptyLists.insert(split.list)
+    }
+
+    /// Auto-select: the first row to appear while nothing is selected becomes the detail.
+    private var autoSelectAction: ListDetailSelectAction {
+        ListDetailSelectAction(section: section) { route in
+            guard ListDetailPolicy.awaitsSelection(section: section, path: path, layout: layout) else { return }
+            selectAction(route)
         }
     }
 
@@ -112,10 +166,15 @@ struct ListDetailStack<Root: View>: View {
             }
         } detail: {
             NavigationStack(path: detailTail) {
-                // `arrangement` only splits with a selection; nothing else to show.
+                // Populated by restore/auto-select within a frame of the first row
+                // appearing; a quiet spinner covers the moment before (never a
+                // "Select a …" prompt).
                 Group {
                     if let selection = split.selection {
                         destination(selection).id(selection)
+                    } else {
+                        FestivalLoadingView(accessibilityLabel: "Loading")
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
                 .navigationDestination(for: AppRoute.self, destination: destination)
@@ -147,6 +206,7 @@ struct ListDetailStack<Root: View>: View {
         page
             .environment(\.listDetailSelection, split.selection)
             .environment(\.listDetailSelect, selectAction)
+            .environment(\.listDetailAutoSelect, split.selection == nil ? autoSelectAction : nil)
     }
 
     /// One route's screen, with the section's full path for screens that pop or replace.
@@ -228,6 +288,7 @@ struct ListDetailLink<Label: View>: View {
     let value: AppRoute
     let label: Label
     @Environment(\.listDetailSelect) private var select
+    @Environment(\.listDetailAutoSelect) private var autoSelect
 
     /// Create a link.
     ///
@@ -248,5 +309,6 @@ struct ListDetailLink<Label: View>: View {
             }
         }
         .listDetailSelectable(value)
+        .onAppear { autoSelect?(value) }
     }
 }

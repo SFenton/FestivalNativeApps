@@ -85,7 +85,13 @@ enum ListDetailPolicy {
     /// - Returns: True when list/detail sections should split.
     static func usesSplit(_ layout: DeviceLayout) -> Bool {
         layout.contentArrangement == .listDetail && layout.pose != .standard
+            && layout.size.width >= minimumSplitWidth
     }
+
+    /// Narrowest window that fits two comfortable columns (operator, 2026-09-28: "two
+    /// columns if width allows"). The Duo inner display in landscape (951 pt) splits;
+    /// in portrait (669 pt, two ~330 pt columns) it keeps the full-width list.
+    static let minimumSplitWidth: CGFloat = 760
 
     // MARK: Path split
 
@@ -139,28 +145,28 @@ enum ListDetailPolicy {
 
     /// Decide stack or split for a section path in a window.
     ///
-    /// Only a selected detail opens the second column: with nothing selected the list
-    /// stays one full-width stack instead of reserving an empty "Select a …" pane
-    /// (operator, 2026-09-28). Rows still select rather than push (``awaitsSelection(section:path:layout:)``),
-    /// so the first selection opens the detail column without a push animation.
+    /// A list page on top of a wide enough window splits, and its detail column is
+    /// always populated (operator, 2026-09-28: never an empty "Select a …" pane):
+    /// `ListDetailStack` restores the last selection or auto-selects the first row
+    /// that appears. A list that shows no row at all (`emptyListCollapsed`) falls back
+    /// to one full-width stack instead of an empty column.
     ///
     /// - Parameters:
     ///   - section: Section owning the path.
     ///   - path: The section's navigation path.
     ///   - layout: Published window layout.
+    ///   - emptyListCollapsed: True once the list page produced no row to select.
     /// - Returns: The arrangement to render.
     static func arrangement(
-        section: FestivalSection, path: [AppRoute], layout: DeviceLayout
+        section: FestivalSection, path: [AppRoute], layout: DeviceLayout, emptyListCollapsed: Bool = false
     ) -> Arrangement {
-        guard usesSplit(layout), let split = split(section: section, path: path), split.selection != nil else {
-            return .stack
-        }
+        guard usesSplit(layout), let split = split(section: section, path: path) else { return .stack }
+        if split.selection == nil, emptyListCollapsed { return .stack }
         return .split(split)
     }
 
-    /// Whether a list page is on top of a split-capable window with nothing selected:
-    /// the list is shown full width, and its rows select into a detail column that
-    /// opens on the first selection.
+    /// Whether a list page is on top of a split-capable window with nothing selected
+    /// yet: the next row to appear (or a tap) becomes the detail.
     ///
     /// - Parameters:
     ///   - section: Section owning the path.

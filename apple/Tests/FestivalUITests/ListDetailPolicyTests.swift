@@ -68,7 +68,8 @@ private let allRivals = AppRoute.allRivals(scope: .song(instruments: ["Solo_Guit
     #expect(!ListDetailPolicy.usesSplit(ListDetailLayouts.duoFolded))
     #expect(!ListDetailPolicy.usesSplit(.standardPhone))
     #expect(ListDetailPolicy.usesSplit(ListDetailLayouts.duoUnfolded))
-    #expect(ListDetailPolicy.usesSplit(ListDetailLayouts.duoUnfoldedPortrait))
+    // Portrait inner display: too narrow for two comfortable columns.
+    #expect(!ListDetailPolicy.usesSplit(ListDetailLayouts.duoUnfoldedPortrait))
     #expect(ListDetailPolicy.usesSplit(ListDetailLayouts.duoPartiallyFolded))
 }
 
@@ -239,15 +240,25 @@ private let allRivals = AppRoute.allRivals(scope: .song(instruments: ["Solo_Guit
 
 // MARK: - Empty selection
 
-/// With nothing selected the list page is one full-width stack (no empty detail pane)
-/// that awaits a selection; a selection opens the split. Compact never awaits.
-@Test func unselectedListStaysFullWidth() throws {
+/// Operator 2026-09-28: a wide window always shows two populated columns. An
+/// unselected list page splits (the stack auto-selects), unless its list produced no
+/// row, which collapses to one full-width stack. Narrow windows never await.
+@Test func unselectedListSplitsUnlessEmpty() throws {
     for (section, path) in [(FestivalSection.songs, [AppRoute]()), (.rivals, []), (.leaderboards, [rankings])] {
-        #expect(ListDetailPolicy.arrangement(section: section, path: path, layout: ListDetailLayouts.duoUnfolded) == .stack)
+        let split = try #require(ListDetailPolicy.split(section: section, path: path))
+        #expect(ListDetailPolicy.arrangement(section: section, path: path, layout: ListDetailLayouts.duoUnfolded) == .split(split))
+        #expect(ListDetailPolicy.arrangement(
+            section: section, path: path, layout: ListDetailLayouts.duoUnfolded, emptyListCollapsed: true
+        ) == .stack)
         #expect(ListDetailPolicy.awaitsSelection(section: section, path: path, layout: ListDetailLayouts.duoUnfolded))
         #expect(!ListDetailPolicy.awaitsSelection(section: section, path: path, layout: ListDetailLayouts.duoFolded))
+        #expect(!ListDetailPolicy.awaitsSelection(section: section, path: path, layout: ListDetailLayouts.duoUnfoldedPortrait))
     }
     #expect(!ListDetailPolicy.awaitsSelection(section: .leaderboards, path: [], layout: ListDetailLayouts.duoUnfolded))
     let detail = try AppRoute.songDetail(song("a"))
     #expect(!ListDetailPolicy.awaitsSelection(section: .songs, path: [detail], layout: ListDetailLayouts.duoUnfolded))
+    // A selection is never collapsed away.
+    #expect(ListDetailPolicy.arrangement(
+        section: .songs, path: [detail], layout: ListDetailLayouts.duoUnfolded, emptyListCollapsed: true
+    ) == .split(.init(list: [], detail: [detail], page: .songs)))
 }

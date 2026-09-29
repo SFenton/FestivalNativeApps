@@ -119,6 +119,8 @@ struct DeviceLayout: Sendable, Equatable {
     let foldFrame: CGRect?
     /// Window safe-area insets (on iPhone Duo they already include the vertical bar).
     var safeAreaInsets = EdgeInsets()
+    /// Window size in points (zero before the first geometry pass).
+    var size: CGSize = .zero
 
     /// The part of ``overlayInsets`` that the safe area does not already cover: only
     /// hardware occlusions (the outer camera). Use it for controls laid out *inside*
@@ -174,7 +176,8 @@ struct DeviceLayout: Sendable, Equatable {
                 safeArea: signals.safeAreaInsets, occlusions: signals.occlusions, bounds: bounds
             ),
             foldFrame: fold,
-            safeAreaInsets: signals.safeAreaInsets
+            safeAreaInsets: signals.safeAreaInsets,
+            size: signals.size
         )
     }
 

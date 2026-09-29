@@ -29,30 +29,55 @@ private func offlineSession() -> FestivalSession {
     FestivalSession(factory: { throw FestivalAPIError.invalidResource })
 }
 
+/// Records the section path a hosted `ListDetailStack` writes.
+@MainActor
+private final class PathRecorder {
+    var path: [AppRoute] = []
+}
+
+/// Owns the path as real state so selection writes land (a `.constant` would drop them).
+private struct PathHost<Content: View>: View {
+    @State var path: [AppRoute]
+    let recorder: PathRecorder
+    @ViewBuilder let content: (Binding<[AppRoute]>) -> Content
+
+    var body: some View {
+        content($path).onChange(of: path, initial: true) { _, new in recorder.path = new }
+    }
+}
+
 /// Host one section's `ListDetailStack` under an injected layout.
 ///
-/// The root is a deliberately sparse synthetic list, so page assertions use lower
-/// ink thresholds than full-page snapshots.
+/// The root is a sparse synthetic list; when `row` is set it contains one
+/// `ListDetailLink` to that route (the row auto-select can pick).
 ///
 /// - Parameters:
 ///   - section: Section owning the path.
-///   - path: The section path.
+///   - path: The initial section path.
 ///   - layout: Injected `\.deviceLayout`.
 ///   - size: Host size in points.
+///   - row: Detail route of the fixture row, if any.
+///   - recorder: Receives the path as the stack writes it.
 /// - Returns: The host and its offscreen window (retain both while asserting).
 @MainActor
 private func hostListDetail(
-    section: FestivalSection, path: [AppRoute], layout: DeviceLayout, size: CGSize
+    section: FestivalSection, path: [AppRoute], layout: DeviceLayout, size: CGSize,
+    row: AppRoute? = nil, recorder: PathRecorder = PathRecorder()
 ) -> (NSHostingView<NativeHostedRoot<some View>>, NSWindow) {
     let session = offlineSession()
-    let view = ListDetailStack(
-        section: section, session: session, visibleInstruments: Set(Instrument.allCases),
-        path: .constant(path), isVisible: true
-    ) { rootIsTop in
-        List {
-            Text("Fixture List Root")
-            Text(rootIsTop ? "Root On Top" : "Root Covered")
-            SelectModeProbe()
+    let view = PathHost(path: path, recorder: recorder) { binding in
+        ListDetailStack(
+            section: section, session: session, visibleInstruments: Set(Instrument.allCases),
+            path: binding, isVisible: true
+        ) { rootIsTop in
+            List {
+                Text("Fixture List Root")
+                Text(rootIsTop ? "Root On Top" : "Root Covered")
+                SelectModeProbe()
+                if let row {
+                    ListDetailLink(value: row) { Text("Fixture Row") }
+                }
+            }
         }
     }
     .environment(\.deviceLayout, layout)
@@ -62,71 +87,82 @@ private func hostListDetail(
     return (host, nativeHostedWindow(host, size: size))
 }
 
-// MARK: - Split vs stack
+private let fixtureRival = AppRoute.rivalDetail(rivalId: "fixture-rival", name: "Fixture Rival", scope: nil)
 
-/// Unfolded with nothing selected, Songs is the list alone at full width (no empty
-/// "Select a Song" pane), and its rows select into the detail column.
+// MARK: - Two populated columns
+
+/// Unfolded landscape, Rivals splits and auto-selects the first row that appears:
+/// the detail column is populated (never an empty "Select a Rival" pane).
 @MainActor
-@Test func listDetailUnselectedShowsFullWidthList() async throws {
+@Test func listDetailAutoSelectsFirstRow() async throws {
     let size = CGSize(width: 951, height: 669)
-    let (host, window) = hostListDetail(section: .songs, path: [], layout: duoInner, size: size)
-    defer { window.orderOut(nil) }
-    let image = try await nativeHostedSettle(host, untilText: ["Fixture List Root", "Rows Select"])
-    _ = try nativeHostedPNG(image, filename: "list-detail-songs-unselected.png", environment: "FST_SHELL_RENDER_OUT")
-    assertRendersContent(
-        host, image: image, minimumNonBackgroundFraction: 0.002, minimumInkFraction: 0.0005,
-        containing: ["Fixture List Root", "Root On Top", "Rows Select"],
-        notContaining: ["Select a Song"]
+    let recorder = PathRecorder()
+    let (host, window) = hostListDetail(
+        section: .rivals, path: [], layout: duoInner, size: size, row: fixtureRival, recorder: recorder
     )
+    defer { window.orderOut(nil) }
+    let image = try await nativeHostedSettle(
+        host, untilText: ["Fixture List Root", "Rows Select", "No Player Selected"], excluding: ["Select a Rival"]
+    )
+    _ = try nativeHostedPNG(image, filename: "list-detail-rivals-autoselected.png", environment: "FST_SHELL_RENDER_OUT")
+    #expect(recorder.path == [fixtureRival])
 }
 
-/// Folded (and on iPhone), the same section is one stack whose rows push.
+/// A list page that shows no row collapses to one full-width stack instead of an
+/// empty detail column; its rows would still select once one appears.
 @MainActor
-@Test func listDetailStackOnCompactLayouts() async throws {
-    let size = CGSize(width: 466, height: 678)
-    for layout in [duoOuter, DeviceLayout.standardPhone] {
-        let (host, window) = hostListDetail(section: .songs, path: [], layout: layout, size: size)
-        defer { window.orderOut(nil) }
-        let image = try await nativeHostedSettle(host, untilText: ["Fixture List Root", "Rows Push"])
-        assertRendersContent(
-            host, image: image, minimumNonBackgroundFraction: 0.002, minimumInkFraction: 0.0005,
-            containing: ["Fixture List Root", "Root On Top"],
-            notContaining: ["Select a Song", "Rows Select"]
+@Test func listDetailEmptyListCollapsesToFullWidth() async throws {
+    let size = CGSize(width: 951, height: 669)
+    let recorder = PathRecorder()
+    let (host, window) = hostListDetail(section: .songs, path: [], layout: duoInner, size: size, recorder: recorder)
+    defer { window.orderOut(nil) }
+    try await nativeHostedSettle(host, untilText: ["Fixture List Root", "Root On Top", "Rows Select"], excluding: ["Loading"])
+    #expect(recorder.path.isEmpty)
+}
+
+/// Folded, iPhone and the inner display in portrait (too narrow for two columns):
+/// one stack whose rows push; nothing is auto-selected.
+@MainActor
+@Test func listDetailStackOnNarrowLayouts() async throws {
+    let innerPortrait = DeviceLayout.resolve(LayoutSignals(
+        size: CGSize(width: 669, height: 951), widthClass: .regular, hinge: .fullyOpen
+    ))
+    for (layout, size) in [
+        (duoOuter, CGSize(width: 466, height: 678)), (DeviceLayout.standardPhone, CGSize(width: 466, height: 678)),
+        (innerPortrait, CGSize(width: 669, height: 951)),
+    ] {
+        let recorder = PathRecorder()
+        let (host, window) = hostListDetail(
+            section: .rivals, path: [], layout: layout, size: size, row: fixtureRival, recorder: recorder
         )
+        defer { window.orderOut(nil) }
+        try await nativeHostedSettle(host, untilText: ["Fixture List Root", "Rows Push", "Fixture Row"])
+        #expect(recorder.path.isEmpty)
     }
 }
 
-/// Rivals unselected is also the list alone; the Leaderboards overview (a dashboard,
-/// not a list page) stays one stack whose cards push.
+/// The Leaderboards overview (a dashboard, not a list page) stays one stack whose
+/// cards push, even unfolded.
 @MainActor
-@Test func listDetailUnselectedPerListPage() async throws {
+@Test func listDetailOverviewNeverSplits() async throws {
     let size = CGSize(width: 951, height: 669)
-    let (rivalsHost, rivalsWindow) = hostListDetail(section: .rivals, path: [], layout: duoInner, size: size)
-    defer { rivalsWindow.orderOut(nil) }
-    try await nativeHostedSettle(rivalsHost, untilText: ["Fixture List Root", "Rows Select"], excluding: ["Select a Rival"])
-
-    let (overviewHost, overviewWindow) = hostListDetail(
-        section: .leaderboards, path: [], layout: duoInner, size: size
-    )
-    defer { overviewWindow.orderOut(nil) }
-    try await nativeHostedSettle(overviewHost, untilText: ["Fixture List Root", "Rows Push"])
+    let (host, window) = hostListDetail(section: .leaderboards, path: [], layout: duoInner, size: size)
+    defer { window.orderOut(nil) }
+    try await nativeHostedSettle(host, untilText: ["Fixture List Root", "Rows Push"])
 }
 
-/// A selected detail fills the detail column while the list root
-/// stays on top of its own column. Offline and anonymous, Rival Detail shows its own
-/// "No Player Selected" state, which is enough to prove the column hosts the route.
+/// A selected detail fills the detail column while the list root stays on top of its
+/// own column. Offline and anonymous, Rival Detail shows its own "No Player Selected"
+/// state, which is enough to prove the column hosts the route.
 @MainActor
-@Test func listDetailSelectedDetailReplacesPlaceholder() async throws {
+@Test func listDetailSelectedDetailFillsColumn() async throws {
     let size = CGSize(width: 951, height: 669)
-    let rival = AppRoute.rivalDetail(rivalId: "fixture-rival", name: "Fixture Rival", scope: nil)
-    let (host, window) = hostListDetail(section: .rivals, path: [rival], layout: duoInner, size: size)
+    let (host, window) = hostListDetail(section: .rivals, path: [fixtureRival], layout: duoInner, size: size)
     defer { window.orderOut(nil) }
     let image = try await nativeHostedSettle(
-        host, untilText: ["Fixture List Root", "Root On Top", "No Player Selected"],
-        excluding: ["Select a Rival"]
+        host, untilText: ["Fixture List Root", "Root On Top", "No Player Selected", "Rows Select"]
     )
     _ = try nativeHostedPNG(image, filename: "list-detail-rivals-selected.png", environment: "FST_SHELL_RENDER_OUT")
-    assertRendersContent(host, image: image, containing: ["Rows Select"], notContaining: ["Select a Rival"])
 }
 
 // MARK: - Selected row
