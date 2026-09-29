@@ -41,7 +41,6 @@ import com.festivalscoretracker.android.core.bands.BandType
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.nav.BandRankingsRoute
-import com.festivalscoretracker.android.core.nav.BandsRoute
 import com.festivalscoretracker.android.core.nav.FullRankingsRoute
 import com.festivalscoretracker.android.core.quicklinks.QuickLinkSection
 import com.festivalscoretracker.android.core.rankings.AccountRankingEntry
@@ -198,7 +197,8 @@ private fun OverviewList(
         instrumentCards.chunked(columns).forEachIndexed { index, row ->
             item(key = "instruments-$columns-$index") { CardGridRow(row, columns, rowHinge, gap) }
         }
-        item(key = "bands-header") { BandsHeader { navigate(BandsRoute) } }
+        // `/bands` without a band is "Band not found" (web parity), so the link opens Band Rankings.
+        item(key = "bands-header") { BandsHeader { navigate(BandRankingsRoute(BandType.entries.first().wireId)) } }
         bandCards.chunked(columns).forEachIndexed { index, row ->
             item(key = "bands-$columns-$index") { CardGridRow(row, columns, rowHinge, gap) }
         }
@@ -216,7 +216,7 @@ private fun BandsHeader(onBrowse: () -> Unit) {
             modifier = Modifier.weight(1f).semantics { heading() },
         )
         TextButton(onClick = onBrowse, modifier = Modifier.heightIn(min = 48.dp).testTag("fst.leaderboards.bands-link")) {
-            Text("Browse Bands", color = BrandTokens.accentBlue)
+            Text("Band Rankings", color = BrandTokens.accentBlue)
         }
     }
 }

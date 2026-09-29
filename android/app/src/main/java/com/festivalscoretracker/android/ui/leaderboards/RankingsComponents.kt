@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowLeft
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowRight
 import androidx.compose.material.icons.outlined.Groups
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -66,6 +65,7 @@ import com.festivalscoretracker.android.core.bands.BandRankingMetric
 import com.festivalscoretracker.android.core.rankings.RankingFormatting
 import com.festivalscoretracker.android.core.rankings.RankingMetric
 import com.festivalscoretracker.android.core.rankings.asRankingMetric
+import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import java.text.NumberFormat
@@ -264,7 +264,7 @@ fun SpotlightLoadingRow(tag: String) {
             .testTag(tag)
             .clearAndSetSemantics { contentDescription = "Loading your rank" },
     ) {
-        CircularProgressIndicator(Modifier.size(18.dp), color = BrandTokens.textPrimary, strokeWidth = 2.dp)
+        FestivalLoading(label = null, size = 24.dp)
     }
 }
 

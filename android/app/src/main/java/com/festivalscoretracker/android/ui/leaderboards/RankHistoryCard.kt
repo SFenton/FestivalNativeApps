@@ -50,7 +50,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -81,6 +80,7 @@ import com.festivalscoretracker.android.core.rankings.RankHistoryRow
 import com.festivalscoretracker.android.core.rankings.RankingMetric
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.leaderboards.LeaderboardsViewModel
+import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
@@ -120,12 +120,11 @@ fun RankHistoryCard(viewModel: LeaderboardsViewModel, instruments: List<Instrume
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (instruments.size > 1) HistoryInstrumentPicker(instruments, instrument, viewModel::selectHistoryInstrument)
                 when (val value = state) {
-                    LoadState.Loading -> Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.heightIn(min = 48.dp).testTag("fst.leaderboards.rank-history.loading"),
+                    LoadState.Loading -> Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 96.dp).testTag("fst.leaderboards.rank-history.loading"),
                     ) {
-                        CircularProgressIndicator(Modifier.size(18.dp), color = BrandTokens.textPrimary, strokeWidth = 2.dp)
-                        Text("Loading rank history…", color = BrandTokens.textPrimary, modifier = Modifier.padding(start = 12.dp))
+                        FestivalLoading("Loading rank history")
                     }
                     is LoadState.Failed -> ServiceStatusInline(value.issue, "Rank history unavailable", value.countdown, { viewModel.retryHistory(instrument) })
                     is LoadState.Loaded -> {

@@ -206,6 +206,15 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
     }
 
     @Test
+    fun bandsHeaderOpensBandRankings() {
+        launch("leaderboards")
+        waitForTag("fst.rankings.row.${RankingsFixtures.accountId(1)}")
+        scrollTo("fst.leaderboards", "fst.leaderboards.bands-link")
+        click("fst.leaderboards.bands-link")
+        waitForText("Duos Leaderboards")
+    }
+
+    @Test
     fun bandBoardsRestoreTheRoutedPage() {
         launch("bandRankings:Band_Duets:2")
         waitForDescription("Page 2 of 2")
