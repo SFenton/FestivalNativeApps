@@ -15,10 +15,7 @@ import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridS
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.PersonSearch
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -32,7 +29,6 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -46,6 +42,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.ui.common.festivalSheetTop
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.AppRoute
+import com.festivalscoretracker.android.core.rivals.RivalQuickLinks
 import com.festivalscoretracker.android.core.rivals.RivalRoutes
 import com.festivalscoretracker.android.core.rivals.RivalScope
 import com.festivalscoretracker.android.core.rivals.RivalSettingsScope
@@ -57,6 +54,7 @@ import com.festivalscoretracker.android.presentation.rivals.RivalsHubContent
 import com.festivalscoretracker.android.presentation.rivals.RivalsHubTab
 import com.festivalscoretracker.android.presentation.rivals.RivalsHubViewModel
 import com.festivalscoretracker.android.ui.common.FestivalLoading
+import com.festivalscoretracker.android.ui.bands.windowWidthDp
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LoadingView
 import com.festivalscoretracker.android.ui.common.LocalShellActions
@@ -64,14 +62,16 @@ import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.design.SectionHeader
+import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
+import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import com.festivalscoretracker.android.ui.theme.BrandTokens
-import kotlinx.coroutines.launch
 
 // region Hub
 
 /**
  * Rivals hub (`/rivals`, web `RivalsPage`): Song Rivals (Common, combo, per chart)
- * and Leaderboard Rivals tabs, Find Rival and a Jump To menu.
+ * and Leaderboard Rivals tabs, Find Rival and Quick Links (web: one per card that has
+ * rivals, for the current tab, once the tab has settled).
  *
  * @param viewModel Hub logic, or null with no selected player.
  * @param isRoot Whether shown as a tab root.
@@ -83,14 +83,16 @@ import kotlinx.coroutines.launch
 fun RivalsScreen(viewModel: RivalsHubViewModel?, isRoot: Boolean, visibleCount: Int, searchViewModel: ProfileSearchViewModel) {
     val shell = LocalShellActions.current
     var findOpen by rememberSaveable { mutableStateOf(false) }
-    var jumpOpen by rememberSaveable { mutableStateOf(false) }
     val gridState = rememberLazyStaggeredGridState()
-    val scope = rememberCoroutineScope()
     val tab = viewModel?.tab?.collectAsStateWithLifecycle()?.value ?: RivalsHubTab.Song
     val content = viewModel?.let {
         (if (tab == RivalsHubTab.Song) it.songContent else it.leaderboardContent).collectAsStateWithLifecycle().value
     }
-    val jumpTargets = content?.takeIf { it.settled && it.fullPageIssue == null }?.sections.orEmpty()
+    val cards = content?.takeIf { it.settled && it.fullPageIssue == null }?.sections.orEmpty()
+    val sections = cards
+        .filter { (it.state as? LoadState.Loaded)?.value?.isNotEmpty() == true }
+        .map { RivalQuickLinks.hub(it.id, it.title, it.instrument) }
+    val quickLinks = rememberQuickLinks(gridState, "Quick Links", sections) { id -> cards.indexOfFirst { it.id == id }.takeIf { it >= 0 } }
     FestivalScreen(
         title = "Rivals",
         isRoot = isRoot,
@@ -99,25 +101,7 @@ fun RivalsScreen(viewModel: RivalsHubViewModel?, isRoot: Boolean, visibleCount: 
                 IconButton(onClick = { findOpen = true }, modifier = Modifier.testTag("fst.rivals.findRival")) {
                     Icon(Icons.Outlined.PersonSearch, contentDescription = RivalText.FIND_RIVAL)
                 }
-                if (jumpTargets.size >= 2) {
-                    Box {
-                        IconButton(onClick = { jumpOpen = true }, modifier = Modifier.testTag("fst.rivals.jump")) {
-                            Icon(Icons.Outlined.Explore, contentDescription = "Quick Links")
-                        }
-                        DropdownMenu(expanded = jumpOpen, onDismissRequest = { jumpOpen = false }) {
-                            jumpTargets.forEachIndexed { index, section ->
-                                DropdownMenuItem(
-                                    text = { Text(section.title) },
-                                    onClick = {
-                                        jumpOpen = false
-                                        scope.launch { gridState.animateScrollToItem(index) }
-                                    },
-                                    modifier = Modifier.testTag("fst.rivals.jump.${section.id}"),
-                                )
-                            }
-                        }
-                    }
-                }
+                QuickLinksAction(quickLinks, windowWidthDp().toInt())
             }
         },
     ) { padding ->

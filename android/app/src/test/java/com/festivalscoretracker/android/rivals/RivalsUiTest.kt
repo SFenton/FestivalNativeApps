@@ -4,6 +4,7 @@ import com.festivalscoretracker.android.testing.RivalsFixtures
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasTestTag
@@ -93,7 +94,7 @@ class RivalsUiTest {
         launch(DebugLaunch(route = RivalsRoute, profile = player, stillBackground = true))
         waitForTag("fst.rivals.section.common")
         rule.onNodeWithTag("fst.rivals.tab").assertIsDisplayed()
-        rule.onNodeWithTag("fst.rivals.jump").assertIsDisplayed()
+        waitForTag("fst.quick-links.open")
         scrollTo("fst.rivals.grid", "fst.rivals.section.Solo_Guitar")
         assertTrue(rule.onAllNodesWithTag("fst.rivals.row.anonymous").fetchSemanticsNodes().isNotEmpty())
         scrollTo("fst.rivals.grid", "fst.rivals.section.common")
@@ -199,19 +200,49 @@ class RivalsUiTest {
     @Test
     fun quickLinksJumpOnHubAndDetail() {
         launch(DebugLaunch(route = RivalsRoute, profile = player, stillBackground = true))
-        waitForTag("fst.rivals.jump")
-        rule.onNodeWithTag("fst.rivals.jump").performClick()
-        waitForTag("fst.rivals.jump.Solo_Bass")
-        rule.onNodeWithTag("fst.rivals.jump.Solo_Bass").performClick()
+        waitForTag("fst.quick-links.open")
+        rule.onNodeWithTag("fst.quick-links.open").performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.quick-links.item.common")
+        rule.onNodeWithTag("fst.quick-links.item.Solo_Bass").performSemanticsAction(SemanticsActions.OnClick)
         waitForTag("fst.rivals.section.Solo_Bass")
         rule.onNodeWithTag("fst.rivals.section.Solo_Bass").assertIsDisplayed()
         scrollTo("fst.rivals.grid", "fst.rivals.row.${ids[3]}")
         rule.onNodeWithTag("fst.rivals.row.${ids[3]}").performSemanticsAction(SemanticsActions.OnClick)
-        waitForTag("fst.rival-detail.jump")
-        rule.onNodeWithTag("fst.rival-detail.jump").performClick()
-        waitForTag("fst.rival-detail.jump.almost_passed")
-        rule.onNodeWithTag("fst.rival-detail.jump.almost_passed").performClick()
+        waitForTag("fst.rival-detail.title")
+        waitForTag("fst.quick-links.open")
+        rule.onNodeWithTag("fst.quick-links.open").performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.quick-links.item.rival-category:almost_passed")
+        rule.onNodeWithTag("fst.quick-links.item.rival-category:almost_passed").performSemanticsAction(SemanticsActions.OnClick)
         waitForTag("fst.rival-detail.category.almost_passed")
+        rule.onNodeWithTag("fst.rival-detail.category.almost_passed").assertIsDisplayed()
+    }
+
+    @Test
+    fun leaderboardTabQuickLinksListEachChart() {
+        launch(DebugLaunch(route = RivalsRoute, profile = player, stillBackground = true))
+        waitForTag("fst.rivals.tab.leaderboard")
+        rule.onNodeWithTag("fst.rivals.tab.leaderboard").performClick()
+        waitForTag("fst.rivals.section.leaderboard.Solo_Guitar")
+        waitForTag("fst.quick-links.open")
+        rule.onNodeWithTag("fst.quick-links.open").performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.quick-links.item.leaderboard.Solo_Guitar")
+        assertTrue(rule.onAllNodesWithTag("fst.quick-links.item.common").fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
+    fun rivalryQuickLinksListEachSong() {
+        launch(DebugLaunch(route = com.festivalscoretracker.android.core.nav.RivalryRoute(ids[3], "almost_passed"), profile = player, section = FestivalSection.Songs, stillBackground = true))
+        waitForTag("fst.rivalry.title")
+        waitForTag("fst.quick-links.open")
+        rule.onNodeWithTag("fst.quick-links.open").performSemanticsAction(SemanticsActions.OnClick)
+        rule.waitUntil(10_000) {
+            settle(100)
+            rule.onAllNodes(
+                androidx.compose.ui.test.SemanticsMatcher("quick link item") {
+                    it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag)?.startsWith("fst.quick-links.item.") == true
+                },
+            ).fetchSemanticsNodes().size >= 2
+        }
     }
 
     @Test

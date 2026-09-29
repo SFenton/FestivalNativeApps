@@ -18,7 +18,9 @@ import com.festivalscoretracker.android.core.rivals.RivalDetailResponse
 import com.festivalscoretracker.android.core.rivals.RivalDirection
 import com.festivalscoretracker.android.core.rivals.RivalHeadToHead
 import com.festivalscoretracker.android.core.rivals.RivalIdentity
+import com.festivalscoretracker.android.core.rivals.RivalQuickLinks
 import com.festivalscoretracker.android.core.rivals.RivalRankMetric
+import com.festivalscoretracker.android.core.rivals.RivalCategory
 import com.festivalscoretracker.android.core.rivals.RivalRoutes
 import com.festivalscoretracker.android.core.rivals.RivalScope
 import com.festivalscoretracker.android.core.rivals.RivalScopes
@@ -367,4 +369,27 @@ class RivalsCoreTest {
     }
 
     // endregion
+
+    @Test
+    fun quickLinksMatchTheWebItems() {
+        // Compete: the two groups, trophy then people.
+        assertEquals(listOf("leaderboards" to "trophy", "rivals" to "people"), RivalQuickLinks.compete().map { it.id to it.icon })
+        // Hub: Common → people, combo → notes, a chart → its icon.
+        assertEquals("people", RivalQuickLinks.hub("common", "Common Rivals", null).icon)
+        assertEquals("music", RivalQuickLinks.hub("combo", "Lead + Bass Rivals", null).icon)
+        val lead = RivalQuickLinks.hub("leaderboard.Solo_Guitar", "Lead Rivals", Instrument.Lead)
+        assertEquals(Instrument.Lead, lead.instrument)
+        assertNull(lead.icon)
+        // Rival Detail: web `rival-category:<key>` with the category title.
+        val categories = listOf(RivalCategory("almost_passed", "Almost Passed", "d", RivalSentiment.entries.first(), emptyList()))
+        assertEquals(listOf("rival-category:almost_passed" to "Almost Passed"), RivalQuickLinks.rivalDetail(categories).map { it.id to it.title })
+        // Rivalry: `<songId>:<instrument>:<index>`, title else ID, landmark adds the chart.
+        val songs = listOf(RivalSongComparison("s-1", "One", instrument = "Solo_Bass"), RivalSongComparison("s-2", null, instrument = "Unknown_Chart"))
+        val rivalry = RivalQuickLinks.rivalry(songs)
+        assertEquals(listOf("s-1:Solo_Bass:0", "s-2:Unknown_Chart:1"), rivalry.map { it.id })
+        assertEquals("One (Bass)", rivalry[0].accessibleTitle)
+        assertEquals(Instrument.Bass, rivalry[0].instrument)
+        assertEquals("s-2", rivalry[1].title)
+        assertEquals("s-2 (Unknown_Chart)", rivalry[1].accessibleTitle)
+    }
 }

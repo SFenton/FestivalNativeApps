@@ -11,23 +11,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridScope
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Explore
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.festivalscoretracker.android.ui.leaderboards.rememberAccountColumns
@@ -49,6 +39,7 @@ import com.festivalscoretracker.android.core.nav.FullRankingsRoute
 import com.festivalscoretracker.android.core.rankings.RankingMetric
 import com.festivalscoretracker.android.core.rankings.RankingNavigation
 import com.festivalscoretracker.android.core.rankings.RankingSpotlight
+import com.festivalscoretracker.android.core.rivals.RivalQuickLinks
 import com.festivalscoretracker.android.core.rivals.RivalRoutes
 import com.festivalscoretracker.android.core.rivals.RivalText
 import com.festivalscoretracker.android.presentation.LoadState
@@ -61,6 +52,7 @@ import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.common.rememberRevealed
+import com.festivalscoretracker.android.ui.bands.windowWidthDp
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.leaderboards.AccountRankingRow
@@ -68,16 +60,17 @@ import com.festivalscoretracker.android.ui.leaderboards.RankingsSkeletonRows
 import com.festivalscoretracker.android.ui.rivals.AdaptiveCardGrid
 import com.festivalscoretracker.android.ui.rivals.RivalCardFailure
 import com.festivalscoretracker.android.ui.rivals.RivalCardLoading
+import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
+import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import com.festivalscoretracker.android.ui.rivals.RivalPreviewRows
 import com.festivalscoretracker.android.ui.theme.BrandTokens
-import kotlinx.coroutines.launch
 
 // region Compete
 
 /**
  * Compete hub (`/compete`, web `CompetePage`): a Leaderboards group (Top 10 Total
  * Score per supported scope with the player's own row) and a Rivals group (3 above /
- * 3 below per scope), with a Quick Links menu for the two groups.
+ * 3 below per scope), with Quick Links for the two groups (shared `QuickLinksAction`).
  *
  * @param viewModel Page logic.
  * @param isRoot Whether shown as the phone tab root.
@@ -87,31 +80,20 @@ fun CompeteScreen(viewModel: CompeteViewModel, isRoot: Boolean) {
     val shell = LocalShellActions.current
     val content by viewModel.content.collectAsStateWithLifecycle()
     val gridState = rememberLazyStaggeredGridState()
-    val scope = rememberCoroutineScope()
-    var jumpOpen by rememberSaveable { mutableStateOf(false) }
     val rivalsIndex = 1 + content.sections.size
+    // Web: the two groups once the page has content (no full-page failure).
+    val sections = if (content.fullPageIssue == null) RivalQuickLinks.compete() else emptyList()
+    val quickLinks = rememberQuickLinks(gridState, "Quick Links", sections) { id ->
+        when (id) {
+            RivalQuickLinks.COMPETE_LEADERBOARDS -> 0
+            RivalQuickLinks.COMPETE_RIVALS -> rivalsIndex
+            else -> null
+        }
+    }
     FestivalScreen(
         title = CompeteText.TITLE,
         isRoot = isRoot,
-        actions = {
-            Box {
-                IconButton(onClick = { jumpOpen = true }, modifier = Modifier.testTag("fst.compete.jump")) {
-                    Icon(Icons.Outlined.Explore, contentDescription = "Quick Links")
-                }
-                DropdownMenu(expanded = jumpOpen, onDismissRequest = { jumpOpen = false }) {
-                    listOf(CompeteText.LEADERBOARDS to 0, CompeteText.RIVALS to rivalsIndex).forEach { (label, index) ->
-                        DropdownMenuItem(
-                            text = { Text(label) },
-                            onClick = {
-                                jumpOpen = false
-                                scope.launch { gridState.animateScrollToItem(index) }
-                            },
-                            modifier = Modifier.testTag("fst.compete.jump.${label.lowercase()}"),
-                        )
-                    }
-                }
-            }
-        },
+        actions = { QuickLinksAction(quickLinks, windowWidthDp().toInt()) },
     ) { padding ->
         val issue = content.fullPageIssue
         if (issue != null) {

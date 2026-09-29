@@ -12,7 +12,6 @@ import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -24,7 +23,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -39,6 +37,7 @@ import com.festivalscoretracker.android.core.nav.PlayerRoute
 import com.festivalscoretracker.android.core.nav.RivalDetailRoute
 import com.festivalscoretracker.android.core.nav.SongDetailRoute
 import com.festivalscoretracker.android.core.rivals.RivalCategorization
+import com.festivalscoretracker.android.core.rivals.RivalQuickLinks
 import com.festivalscoretracker.android.core.rivals.RivalRoutes
 import com.festivalscoretracker.android.core.rivals.RivalScopes
 import com.festivalscoretracker.android.core.rivals.RivalText
@@ -46,6 +45,7 @@ import com.festivalscoretracker.android.core.rivals.RivalrySort
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.rivals.AllRivalsViewModel
 import com.festivalscoretracker.android.presentation.rivals.RivalDetailViewModel
+import com.festivalscoretracker.android.ui.bands.windowWidthDp
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LoadingView
 import com.festivalscoretracker.android.ui.common.LocalShellActions
@@ -54,8 +54,9 @@ import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
+import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
+import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import com.festivalscoretracker.android.ui.theme.BrandTokens
-import kotlinx.coroutines.launch
 
 // region No player
 
@@ -156,33 +157,17 @@ fun RivalDetailScreen(viewModel: RivalDetailViewModel, route: RivalDetailRoute, 
     val state by viewModel.state.collectAsStateWithLifecycle()
     val name by viewModel.displayName.collectAsStateWithLifecycle()
     val catalog by viewModel.catalog.collectAsStateWithLifecycle()
-    var jumpOpen by rememberSaveable { mutableStateOf(false) }
     val gridState = rememberLazyStaggeredGridState()
-    val scope = rememberCoroutineScope()
     val categories = (state as? LoadState.Loaded)?.value?.categories.orEmpty()
+    // Web: one per category once loaded; the grid's first item is the "You vs. Rival" header.
+    val quickLinks = rememberQuickLinks(gridState, "Quick Links", RivalQuickLinks.rivalDetail(categories)) { id ->
+        categories.indexOfFirst { RivalQuickLinks.categoryId(it.key) == id }.takeIf { it >= 0 }?.plus(1)
+    }
     FestivalScreen(
         title = name ?: "Rival",
         isRoot = false,
         actions = {
-            if (categories.size >= 2) {
-                Box {
-                    IconButton(onClick = { jumpOpen = true }, modifier = Modifier.testTag("fst.rival-detail.jump")) {
-                        Icon(Icons.Outlined.Explore, contentDescription = "Quick Links")
-                    }
-                    DropdownMenu(expanded = jumpOpen, onDismissRequest = { jumpOpen = false }) {
-                        categories.forEachIndexed { index, category ->
-                            DropdownMenuItem(
-                                text = { Text(category.title) },
-                                onClick = {
-                                    jumpOpen = false
-                                    scope.launch { gridState.animateScrollToItem(index + 1) }
-                                },
-                                modifier = Modifier.testTag("fst.rival-detail.jump.${category.key}"),
-                            )
-                        }
-                    }
-                }
-            }
+            QuickLinksAction(quickLinks, windowWidthDp().toInt())
             ViewProfileButton(route.rivalId, name)
         },
     ) { padding ->
@@ -280,6 +265,12 @@ fun RivalryScreen(viewModel: RivalDetailViewModel, rivalId: String, mode: String
     val catalog by viewModel.catalog.collectAsStateWithLifecycle()
     val sort by viewModel.sort.collectAsStateWithLifecycle()
     var sortOpen by rememberSaveable { mutableStateOf(false) }
+    val gridState = rememberLazyStaggeredGridState()
+    val songs = (state as? LoadState.Loaded)?.value?.let { viewModel.category(it, mode, sort) }?.songs.orEmpty()
+    // Web: one per song in the shown order; the grid's first item is the "vs." header.
+    val quickLinks = rememberQuickLinks(gridState, "Quick Links", RivalQuickLinks.rivalry(songs)) { id ->
+        songs.indices.firstOrNull { RivalQuickLinks.songId(songs[it], it) == id }?.plus(1)
+    }
     FestivalScreen(
         title = RivalCategorization.title(mode),
         isRoot = false,
@@ -302,6 +293,7 @@ fun RivalryScreen(viewModel: RivalDetailViewModel, rivalId: String, mode: String
                     }
                 }
             }
+            QuickLinksAction(quickLinks, windowWidthDp().toInt())
             ViewProfileButton(rivalId, name)
         },
     ) { padding ->
@@ -320,6 +312,7 @@ fun RivalryScreen(viewModel: RivalDetailViewModel, rivalId: String, mode: String
                 AdaptiveCardGrid(
                     contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding() + 24.dp),
                     maxColumns = 2,
+                    state = gridState,
                     testTag = "fst.rivalry.list",
                 ) {
                     item(key = "header", span = StaggeredGridItemSpan.FullLine) {
