@@ -108,29 +108,26 @@ struct SongLeaderboardEntryRow: View {
         let shape = GoldSkewBadgeShape(skewed: fullCombo && compact)
         let width: CGFloat? = compact ? accuracyTextWidth + 16 : nil
         let height: CGFloat? = compact ? accuracyPillHeight : nil
-        // The outline/fill is a hidden sibling of the text, not a modifier on it: any
-        // shape attached to the Text (overlay or background) became its accessibility
-        // frame (94pt instead of the 96pt slot) and split the badge column.
         return ZStack {
-            ZStack {
-                shape.fill(fill)
-                if fullCombo {
-                    shape.strokeBorder(BrandTokens.gold, lineWidth: 2)
-                }
+            shape.fill(fill)
+            if fullCombo {
+                shape.strokeBorder(BrandTokens.gold, lineWidth: 2)
             }
-            .accessibilityHidden(true)
             Text(text)
                 .font(fullCombo ? .body.bold().italic() : .body)
                 .foregroundStyle(fullCombo ? BrandTokens.gold : FestivalText.primary)
                 .lineLimit(compact ? 1 : nil)
                 .minimumScaleFactor(0.8)
                 .fixedSize(horizontal: false, vertical: !compact)
-                .frame(width: width, height: height)
                 .padding(compact ? 0 : 4)
-                .accessibilityLabel(spoken)
-                .accessibilityIdentifier("fst.score.accuracy.\(entry.accountId)")
         }
         .frame(width: width, height: height)
+        // One element for the whole slot: its frame is exactly the fixed column (a
+        // shape or a short "FC" text inside must never define the reported frame).
+        .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isStaticText)
+        .accessibilityLabel(spoken)
+        .accessibilityIdentifier("fst.score.accuracy.\(entry.accountId)")
     }
 
     /// The web's `GOLD_SKEW` (`skewX(-8deg)`) about the badge's vertical centre.

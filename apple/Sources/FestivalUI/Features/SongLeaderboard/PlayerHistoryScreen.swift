@@ -171,6 +171,7 @@ struct PlayerHistoryScreen: View {
                     PlayerHistoryChart(entries: sorted, highScoreIndex: highScoreIndex)
                         .listRowInsets(EdgeInsets())
                         .listRowBackground(Color.clear)
+                        .accessibilityIdentifier("fst.history.chart")
                         .id(Self.topAnchor)
                     ForEach(Array(sorted.enumerated()), id: \.element.changedAt) { index, entry in
                         PlayerHistoryRow(entry: entry, isHighScore: index == highScoreIndex)

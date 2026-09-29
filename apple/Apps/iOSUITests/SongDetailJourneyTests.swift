@@ -567,9 +567,12 @@ final class SongDetailJourneyTests: XCTestCase {
         let firstRow = app.descendants(matching: .any)
             .matching(identifier: "fst.history.row.0").firstMatch
         XCTAssertTrue(firstRow.waitForExistence(timeout: 15))
-        for _ in 0..<4 { app.swipeUp() }
-        let scrolledAway = !firstRow.isHittable
-        XCTAssertTrue(scrolledAway, "Precondition: the first history row should scroll away")
+        // The chart is the list's first item: it leaves the screen when scrolled down.
+        let top = app.descendants(matching: .any)
+            .matching(identifier: "fst.history.chart").firstMatch
+        XCTAssertTrue(top.waitForExistence(timeout: 10))
+        for _ in 0..<6 where top.isHittable { app.swipeUp() }
+        XCTAssertFalse(top.isHittable, "Precondition: the chart should scroll away")
         let open = app.buttons["fst.history.sort.open"]
         XCTAssertTrue(open.waitForExistence(timeout: 10))
         open.tap()
@@ -579,10 +582,12 @@ final class SongDetailJourneyTests: XCTestCase {
         date.tap()
         app.buttons["fst.history.sort.done"].tap()
         XCTAssertTrue(open.waitForExistence(timeout: 10))
-        let atTop = NSPredicate(format: "hittable == true")
         XCTAssertEqual(
-            XCTWaiter.wait(for: [expectation(for: atTop, evaluatedWith: firstRow)], timeout: 10),
-            .completed, "Re-sorting did not scroll back to the top (scrolled away: \(scrolledAway))"
+            XCTWaiter.wait(
+                for: [expectation(for: NSPredicate(format: "hittable == true"), evaluatedWith: top)],
+                timeout: 10
+            ),
+            .completed, "Re-sorting did not scroll back to the top"
         )
         SongsUITestSupport.record(app, name: "history-sort-scrolled-to-top")
     }

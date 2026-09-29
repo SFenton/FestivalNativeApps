@@ -363,11 +363,15 @@ struct SongPathsSheet: View {
                             }
                             .accessibilityHidden(true)
                     }
+                }
+                // An open note is a purple bar across the fret row (the web table has
+                // no open pill; a decorative "Open" text tag failed the Dynamic Type
+                // audit). The spoken value below still says "open".
+                .background(alignment: .leading) {
                     if row.frets.contains("open") {
-                        Text("Open")
-                            .font(.caption2.bold())
-                            .padding(4)
-                            .background(BrandTokens.appBackground, in: Capsule())
+                        Capsule()
+                            .fill(BrandTokens.accentPurple)
+                            .frame(width: 116, height: 6)
                             .accessibilityHidden(true)
                     }
                 }
