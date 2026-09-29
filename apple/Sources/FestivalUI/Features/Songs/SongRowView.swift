@@ -207,7 +207,9 @@ struct SongRowView: View {
 
     private var trailingContent: some View {
         trailingLayout {
-            if metadata.intensity, let instrument, structuredScore == nil,
+            // Anonymous rows are "artist · year · length" only, like the web row.
+            if metadata.intensity, session.selectedPlayer != nil, let instrument,
+               structuredScore == nil,
                let difficulty = song.difficulty?.chartedValue(for: instrument) {
                 DifficultyMeter(level: difficulty, raw: true)
             }

@@ -15,8 +15,8 @@ public struct SongSection: Identifiable, Equatable, Sendable {
 }
 
 /// Compute a Contacts-style "drag to jump" index for sort modes where it reads
-/// naturally: alphabetical for Title/Artist, numeric for Year. Duration, Item
-/// Shop and score-based sorts have no meaningful section key, so callers should
+/// naturally: alphabetical for Title/Artist. Year (decades), Duration, Item
+/// Shop and score-based sorts use Quick Links instead, so callers should
 /// animate the scrubber away when `sections` returns at most one bucket.
 public enum SongSectionIndex {
     /// Group an already-sorted, already-filtered song list into jump sections.
@@ -41,8 +41,8 @@ public enum SongSectionIndex {
         switch mode {
         case .title: key = { firstLetter($0.title) }
         case .artist: key = { firstLetter($0.artist) }
-        case .year: key = { $0.year.map { String($0) } ?? "—" }
-        case .duration, .shop: return []
+        // Year uses decade sections and Quick Links instead (operator, 2026-09-28).
+        case .year, .duration, .shop: return []
         }
         var result: [SongSection] = []
         var currentLabel: String?

@@ -803,48 +803,29 @@ struct SongsScreen: View {
             : nil
         let durationSections = effectiveMode == .duration
             ? SongCatalogSort.durationSections(visible) : nil
+        let yearSections = effectiveMode == .year
+            ? SongCatalogSort.yearSections(visible) : nil
+        let groups = listGroups(
+            indexSections: showsIndex ? indexSections : nil, shopSections: shopSections,
+            durationSections: durationSections, yearSections: yearSections
+        )
         return ScrollViewReader { scrollProxy in
             ZStack(alignment: .trailing) {
                 List {
                     if hasDisclosure(for: payload) {
                         disclosures(for: payload)
                     }
-                    if let shopSections, shopSections.count > 1 {
-                        ForEach(shopSections) { section in
-                            Section {
-                                ForEach(section.songs) { song in
-                                    songLink(
-                                        for: song, catalogueObservation: payload.observedPublicationId
-                                    )
-                                }
-                            } header: {
-                                shopSectionHeader(section)
+                    if let groups {
+                        // Section labels are ordinary rows that scroll away with their
+                        // songs (operator, 2026-09-28: nothing passes under a pinned
+                        // header). They stay the scrubber's and Quick Links' targets.
+                        ForEach(groups) { group in
+                            groupHeaderRow(group)
+                            ForEach(group.songs) { song in
+                                songLink(
+                                    for: song, catalogueObservation: payload.observedPublicationId
+                                )
                             }
-                        }
-                    } else if let durationSections, durationSections.count > 1 {
-                        ForEach(durationSections) { section in
-                            Section {
-                                ForEach(section.songs) { song in
-                                    songLink(
-                                        for: song, catalogueObservation: payload.observedPublicationId
-                                    )
-                                }
-                            } header: {
-                                durationSectionHeader(section)
-                            }
-                        }
-                    } else if showsIndex {
-                        ForEach(indexSections) { section in
-                            Section {
-                                ForEach(section.songs) { song in
-                                    songLink(
-                                        for: song, catalogueObservation: payload.observedPublicationId
-                                    )
-                                }
-                            } header: {
-                                sectionIndexHeader(section)
-                            }
-                            .id(section.id)
                         }
                     } else {
                         ForEach(visible) { song in
@@ -868,9 +849,7 @@ struct SongsScreen: View {
                 .refreshable { await reload() }
                 .quickLinks(
                     quickLinks, title: "\(effectiveMode.label) Quick Links",
-                    sections: showsIndex ? [] : quickLinkSections(
-                        shopSections: shopSections, durationSections: durationSections
-                    )
+                    sections: showsIndex ? [] : (groups ?? []).compactMap(\.quickLink)
                 )
                 if showsIndex {
                     SongSectionIndexScrubber(sections: indexSections) { id in
@@ -893,65 +872,71 @@ struct SongsScreen: View {
         }
     }
 
-    /// Quick-link, the scrubber's counterpart for sorts it does not cover: Duration
-    /// and Item Shop (`.agents/controls/quick-links/ios.md`). Title/Artist/Year
-    /// return empty so the menu stays hidden while the scrubber is visible.
+    /// One labelled run of songs: an A–Z letter, a decade, a duration or Shop bucket.
+    private struct SongListGroup: Identifiable {
+        /// Scroll target: the scrubber's `Int` section id, or the quick-link id.
+        let id: AnyHashable
+        let label: String
+        let accessibilityID: String
+        /// Quick Links entry for sorts without the scrubber (Year, Duration, Shop).
+        let quickLink: QuickLinkSection?
+        let songs: [Song]
+    }
+
+    /// Group the sorted rows for the active sort (nil: an ungrouped list).
     ///
-    /// - Parameters:
-    ///   - shopSections: Grouped Shop buckets, when the current sort is `.shop`.
-    ///   - durationSections: Grouped Duration buckets, when the current sort is `.duration`.
-    /// - Returns: One quick-link section per visible, nonempty bucket.
-    private func quickLinkSections(
-        shopSections: [SongShopSection]?, durationSections: [SongDurationSection]?
-    ) -> [QuickLinkSection] {
-        if let shopSections, shopSections.count > 1 {
-            return shopSections.map {
-                QuickLinkSection(id: "shop:\($0.kind.rawValue)", title: $0.kind.label)
+    /// Title/Artist use the A–Z scrubber; Year (decades), Duration (one-minute buckets)
+    /// and Item Shop use Quick Links (`.agents/controls/quick-links/ios.md`).
+    private func listGroups(
+        indexSections: [SongSection]?, shopSections: [SongShopSection]?,
+        durationSections: [SongDurationSection]?, yearSections: [SongYearSection]?
+    ) -> [SongListGroup]? {
+        if let indexSections {
+            return indexSections.map {
+                SongListGroup(
+                    id: AnyHashable($0.id), label: $0.label,
+                    accessibilityID: "fst.songs.section.\($0.id)", quickLink: nil, songs: $0.songs
+                )
             }
+        }
+        func bucketed(_ kind: String, _ key: String, _ label: String, _ songs: [Song]) -> SongListGroup {
+            let link = QuickLinkSection(id: "\(kind):\(key)", title: label)
+            return SongListGroup(
+                id: AnyHashable(link.id), label: label,
+                accessibilityID: "fst.songs.\(kind)-section.\(key)", quickLink: link, songs: songs
+            )
+        }
+        if let shopSections, shopSections.count > 1 {
+            return shopSections.map { bucketed("shop", $0.kind.rawValue, $0.kind.label, $0.songs) }
         }
         if let durationSections, durationSections.count > 1 {
             return durationSections.map {
-                QuickLinkSection(id: "duration:\($0.bucket.rawValue)", title: $0.bucket.label)
+                bucketed("duration", $0.bucket.rawValue, $0.bucket.label, $0.songs)
             }
         }
-        return []
+        if let yearSections, yearSections.count > 1 {
+            return yearSections.map { bucketed("year", $0.id, $0.label, $0.songs) }
+        }
+        return nil
     }
 
-    /// Shop bucket header, also the quick-link jump target for its section.
-    ///
-    /// Plain text on the List's own pinned-header material — matching
-    /// ``sectionIndexHeader(_:)`` — rather than an opaque card `.background()`.
-    /// This used to be inserted as an ordinary **row** (a sibling of the song rows
-    /// in the same `ForEach`, not a real `Section` header), decorated with
-    /// `.listRowBackground`/`.listRowInsets`/`.listRowSeparator`: modifiers that
-    /// only mean something on a row. Once wrapped in a real `Section(header:)`
-    /// (now the caller in `populatedList`), that leftover opaque rounded-rect
-    /// background sat inside the List's own default pinned-header backing — which
-    /// is not fully transparent — producing a visibly different "card" floating
-    /// over a plain dark bar. Dropping the custom background and the row-only
-    /// modifiers lets the header blend like the A–Z/Year headers already do.
-    private func shopSectionHeader(_ section: SongShopSection) -> some View {
-        Text(section.kind.label.uppercased())
-            .font(.caption.bold())
+    /// A section label row that scrolls with its songs; the jump target for the scrubber
+    /// or Quick Links.
+    @ViewBuilder private func groupHeaderRow(_ group: SongListGroup) -> some View {
+        let label = Text(group.label)
+            .font(.subheadline.bold())
             .foregroundStyle(FestivalText.primary)
-            .accessibilityLabel(section.kind.label)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityAddTraits(.isHeader)
-            .accessibilityIdentifier("fst.songs.shop-section." + section.kind.rawValue)
-            .quickLinkSection(id: "shop:\(section.kind.rawValue)", title: section.kind.label)
-    }
-
-    /// Duration bucket header, also the quick-link jump target for its section.
-    ///
-    /// See ``shopSectionHeader(_:)`` for why this is now plain text rather than a
-    /// card-style `.background()`.
-    private func durationSectionHeader(_ section: SongDurationSection) -> some View {
-        Text(section.bucket.label.uppercased())
-            .font(.caption.bold())
-            .foregroundStyle(FestivalText.primary)
-            .accessibilityLabel(section.bucket.label)
-            .accessibilityAddTraits(.isHeader)
-            .accessibilityIdentifier("fst.songs.duration-section.\(section.bucket.rawValue)")
-            .quickLinkSection(id: "duration:\(section.bucket.rawValue)", title: section.bucket.label)
+            .accessibilityIdentifier(group.accessibilityID)
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 12, leading: 20, bottom: 2, trailing: 16))
+        if let link = group.quickLink {
+            label.quickLinkSection(link)
+        } else {
+            label.id(group.id)
+        }
     }
 
     /// Keep every grouped and ungrouped Song row on the same navigation path.
@@ -1004,18 +989,6 @@ struct SongsScreen: View {
         .listRowBackground(Color.clear)
         .listRowInsets(songRowInsets)
         .accessibilityIdentifier("fst.songs.row.\(song.songId)")
-    }
-
-    /// Compact, tappable jump letter/year header for section-indexed sorts.
-    ///
-    /// - Parameter section: One nonempty bucket from `SongSectionIndex`.
-    /// - Returns: A small, accessible List section header.
-    private func sectionIndexHeader(_ section: SongSection) -> some View {
-        Text(section.label)
-            .font(.caption.bold())
-            .foregroundStyle(FestivalText.primary)
-            .accessibilityAddTraits(.isHeader)
-            .accessibilityIdentifier("fst.songs.section.\(section.id)")
     }
 
     /// Rows primed before the very first reveal, and how long priming may block it.

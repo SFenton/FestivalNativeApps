@@ -38,13 +38,24 @@ private func fixtureSong(title: String, artist: String = "Artist", year: Int? = 
     #expect(sections.map(\.label) == ["Z", "A"])
 }
 
-@Test func sectionsGroupByExactYearIncludingMissing() throws {
+/// Year has no A–Z scrubber (operator, 2026-09-28); it uses decade sections instead.
+@Test func yearHasNoScrubberSections() throws {
     let songs = try [
-        fixtureSong(title: "A", year: 2023), fixtureSong(title: "B", year: 2023),
-        fixtureSong(title: "C", year: 2024), fixtureSong(title: "D", year: nil),
+        fixtureSong(title: "A", year: 2023), fixtureSong(title: "C", year: 2024),
     ]
-    let sections = SongSectionIndex.sections(songs, mode: .year)
-    #expect(sections.map(\.label) == ["2023", "2024", "—"])
+    #expect(SongSectionIndex.sections(songs, mode: .year).isEmpty)
+}
+
+/// Decades plus "Unknown Year", in sorted order (web `songQuickLinks.ts:184-190`).
+@Test func yearSectionsGroupByDecade() throws {
+    let songs = try [
+        fixtureSong(title: "A", year: 1976), fixtureSong(title: "B", year: 1979),
+        fixtureSong(title: "C", year: 2021), fixtureSong(title: "D", year: nil),
+    ]
+    let sections = SongCatalogSort.yearSections(songs)
+    #expect(sections.map(\.label) == ["1970s", "2020s", "Unknown Year"])
+    #expect(sections.map(\.id) == ["1970", "2020", "unknown"])
+    #expect(sections[0].songs.count == 2)
 }
 
 /// Native Contacts convention: only A–Z leads its own section; punctuation,

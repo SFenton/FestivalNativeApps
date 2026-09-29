@@ -44,6 +44,8 @@ Row content details: SongInfo appends a positive formatted duration after artist
 
 - 2026-09-28: **Year** sort sections are decades ("1970s"…, "Unknown Year"; web `songQuickLinks.ts:184-190`) and Year sort shows **no quick-scrub/section-index control**.
 - 2026-09-28: **Duration** buckets deviate from the web's `<2m…5m+`: "Under 1 Minute", "1–2 Minutes" … "9–10 Minutes", "Over 10 Minutes", plus "Unknown Duration" — for list sections and Quick Links.
+- **Section labels scroll with the list (2026-09-28):** not pinned, so no row ever passes under a header.
+- **Sort and Filter apply immediately (2026-09-28):** no Cancel/Apply or discard prompt; the sheet closes with Done.
 
 ## Accessibility order (target)
 

@@ -44,41 +44,68 @@ public struct SongShopSection: Identifiable, Sendable {
 /// Duration quick-link buckets, ported from web `songQuickLinks.ts:193-202`.
 public enum SongDurationBucket: String, Identifiable, CaseIterable, Sendable {
     case unknown
-    case lt2
+    case under1
+    case oneToTwo = "1to2"
     case twoToThree = "2to3"
     case threeToFour = "3to4"
     case fourToFive = "4to5"
-    case gte5
+    case fiveToSix = "5to6"
+    case sixToSeven = "6to7"
+    case sevenToEight = "7to8"
+    case eightToNine = "8to9"
+    case nineToTen = "9to10"
+    case over10
 
     public var id: String { rawValue }
 
-    /// Web's long bucket label, used as the quick-link title.
+    /// Section header and quick-link title. Operator decision (2026-09-28): one-minute
+    /// buckets from "Under 1 Minute" to "Over 10 Minutes", instead of the web's
+    /// `<2m`…`5m+` (`.agents/pages/songs/spec.md`, operator decisions).
     public var label: String {
         switch self {
         case .unknown: "Unknown Duration"
-        case .lt2: "<2m"
-        case .twoToThree: "2-3m"
-        case .threeToFour: "3-4m"
-        case .fourToFive: "4-5m"
-        case .gte5: "5m+"
+        case .under1: "Under 1 Minute"
+        case .over10: "Over 10 Minutes"
+        default:
+            "\(lowerMinute)–\(lowerMinute + 1) Minutes"
         }
+    }
+
+    /// Whole minutes at the bucket's lower bound (1 for `1to2`); 0 for the edge buckets.
+    private var lowerMinute: Int {
+        Self.allCases.firstIndex(of: self).map { max(0, $0 - 1) } ?? 0
     }
 
     /// Classify a catalogue duration into its bucket.
     ///
     /// - Parameter seconds: `Song.durationSeconds`, or nil.
-    /// - Returns: `.unknown` for a missing or nonpositive duration.
+    /// - Returns: `.unknown` for a missing or nonpositive duration; `.over10` from 600 s.
     public init(seconds: Int?) {
         guard let seconds, seconds > 0 else {
             self = .unknown
             return
         }
-        if seconds < 120 { self = .lt2 }
-        else if seconds < 180 { self = .twoToThree }
-        else if seconds < 240 { self = .threeToFour }
-        else if seconds < 300 { self = .fourToFive }
-        else { self = .gte5 }
+        let minutes = seconds / 60
+        if minutes >= 10 {
+            self = .over10
+        } else {
+            // allCases: unknown, under1, 1to2 … 9to10 → index minutes + 1.
+            self = Self.allCases[minutes + 1]
+        }
     }
+}
+
+/// A Year section: a decade ("1970s") or "Unknown Year" (web `songQuickLinks.ts:184-190`).
+public struct SongYearSection: Identifiable, Sendable {
+    /// Decade start (1970), or nil for a missing year.
+    public let decade: Int?
+    public internal(set) var songs: [Song]
+
+    /// Stable id ("1970" or "unknown"), also the quick-link id suffix.
+    public var id: String { decade.map(String.init) ?? "unknown" }
+
+    /// Header and quick-link title.
+    public var label: String { decade.map { "\($0)s" } ?? "Unknown Year" }
 }
 
 /// A nonempty Duration bucket whose songs preserve their relative sorted order.
@@ -182,6 +209,23 @@ public enum SongCatalogSort {
                 sections[index].songs.append(song)
             } else {
                 sections.append(SongDurationSection(bucket: bucket, songs: [song]))
+            }
+        }
+        return sections
+    }
+
+    /// Group sorted Year rows into decades plus "Unknown Year" (web quick-link buckets).
+    ///
+    /// - Parameter sortedSongs: Catalogue songs already ordered by `.year`.
+    /// - Returns: Nonempty decades in first-seen order.
+    public static func yearSections(_ sortedSongs: [Song]) -> [SongYearSection] {
+        var sections: [SongYearSection] = []
+        for song in sortedSongs {
+            let decade = song.year.flatMap { $0 > 0 ? ($0 / 10) * 10 : nil }
+            if let index = sections.firstIndex(where: { $0.decade == decade }) {
+                sections[index].songs.append(song)
+            } else {
+                sections.append(SongYearSection(decade: decade, songs: [song]))
             }
         }
         return sections

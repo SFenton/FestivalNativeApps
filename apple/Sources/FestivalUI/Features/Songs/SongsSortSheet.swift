@@ -45,8 +45,8 @@ struct SongsSortSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Sort by") {
-                    Picker("Sort by", selection: $draftMode) {
+                Section {
+                    Picker("Sort By", selection: $draftMode) {
                         ForEach(SongSortMode.allCases.filter {
                             showShop || $0 != .shop
                         }) { choice in
@@ -55,6 +55,8 @@ struct SongsSortSheet: View {
                         }
                     }
                     .pickerStyle(.inline)
+                    // The section header already says "Sort Mode": no extra label row.
+                    .labelsHidden()
                     .accessibilityIdentifier("fst.songs.sort.mode")
                     if showShop && !shopAvailable {
                         Text("Item Shop sorting requires matching public Songs and Shop data.")
@@ -66,14 +68,13 @@ struct SongsSortSheet: View {
                             .font(.footnote)
                             .foregroundStyle(FestivalText.primary)
                     }
+                } header: {
+                    FestivalSectionHeader("Sort Mode")
                 }
-                Section("Direction") {
-                    Picker("Direction", selection: $draftAscending) {
-                        Text("Ascending").tag(true)
-                        Text("Descending").tag(false)
-                    }
-                    .pickerStyle(.segmented)
-                    .accessibilityIdentifier("fst.songs.sort.direction")
+                Section {
+                    SortDirectionControl(ascending: $draftAscending)
+                } header: {
+                    FestivalSectionHeader("Sort Direction")
                 }
                 Section {
                     Button("Reset to Title A-Z") {
@@ -86,7 +87,7 @@ struct SongsSortSheet: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .navigationTitle("Sort Songs")
+            .navigationTitle("Sort By")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
@@ -100,7 +101,6 @@ struct SongsSortSheet: View {
             .onChange(of: draftMode) { _, _ in commit() }
             .onChange(of: draftAscending) { _, _ in commit() }
         }
-        // Simple, fixed-height picker: compact detent (medium, expandable to large).
         .festivalSheet(.compact)
     }
 
@@ -108,6 +108,48 @@ struct SongsSortSheet: View {
     private func commit() {
         guard isApplicable else { return }
         onApply(draftMode, draftAscending)
+    }
+}
+
+/// Web-style direction control: the current direction described on the left, inline
+/// ↑ / ↓ buttons on the right with a purple background behind the selected one
+/// (`SortModal.tsx` direction row).
+struct SortDirectionControl: View {
+    @Binding var ascending: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(ascending ? "Ascending (A–Z, low–high)" : "Descending (Z–A, high–low)")
+                .foregroundStyle(FestivalText.primary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            HStack(spacing: 4) {
+                button(up: true)
+                button(up: false)
+            }
+            .padding(3)
+            .background(BrandTokens.surfaceMuted, in: Capsule())
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("fst.songs.sort.direction")
+    }
+
+    private func button(up: Bool) -> some View {
+        let selected = ascending == up
+        return Button {
+            ascending = up
+        } label: {
+            Image(systemName: up ? "arrow.up" : "arrow.down")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(selected ? FestivalText.primary : FestivalText.deemphasized)
+                .frame(width: 44, height: 36)
+                .background(selected ? BrandTokens.accentPurple : .clear, in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(up ? "Ascending" : "Descending")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityIdentifier("fst.songs.sort.direction.\(up ? "ascending" : "descending")")
     }
 }
 

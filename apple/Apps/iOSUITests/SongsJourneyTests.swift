@@ -1162,9 +1162,8 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertTrue(inShop.waitForExistence(timeout: 10))
 
         sort.tap()
-        let direction = app.segmentedControls["fst.songs.sort.direction"]
-        XCTAssertTrue(direction.buttons["Ascending"].isSelected)
-        direction.buttons["Descending"].tap()
+        XCTAssertTrue(app.buttons["fst.songs.sort.direction.ascending"].isSelected)
+        app.buttons["fst.songs.sort.direction.descending"].tap()
         XCTAssertTrue(apply.isEnabled)
         apply.tap()
         for _ in 0..<30 {

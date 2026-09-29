@@ -130,12 +130,28 @@ private func sortingSongs() throws -> [Song] {
     #expect(SongCatalogSort.shopSections([], offersById: offers).isEmpty)
 }
 
-/// Duration buckets mirror the web thresholds and keep missing duration in "Unknown".
+/// One-minute buckets (operator decision) and missing duration in "Unknown".
 @Test func durationSectionsBucketBySourceThresholds() throws {
     let songs = try sortingSongs()
     let ascending = try SongCatalogSort.sorted(songs, mode: .duration, ascending: true)
     let sections = SongCatalogSort.durationSections(ascending)
-    #expect(sections.map(\.bucket) == [.unknown, .lt2, .twoToThree, .threeToFour])
+    #expect(sections.map(\.bucket) == [.unknown, .oneToTwo, .twoToThree, .threeToFour])
     #expect(sections.map { $0.songs.map(\.songId) } == [["gamma"], ["beta"], ["delta"], ["alpha"]])
     #expect(SongCatalogSort.durationSections([]).isEmpty)
+}
+
+/// Every one-minute boundary, the edges and the labels.
+@Test func durationBucketsAreOneMinuteWide() {
+    #expect(SongDurationBucket(seconds: nil) == .unknown)
+    #expect(SongDurationBucket(seconds: 0) == .unknown)
+    #expect(SongDurationBucket(seconds: 59) == .under1)
+    #expect(SongDurationBucket(seconds: 60) == .oneToTwo)
+    #expect(SongDurationBucket(seconds: 179) == .twoToThree)
+    #expect(SongDurationBucket(seconds: 599) == .nineToTen)
+    #expect(SongDurationBucket(seconds: 600) == .over10)
+    #expect(SongDurationBucket.under1.label == "Under 1 Minute")
+    #expect(SongDurationBucket.oneToTwo.label == "1–2 Minutes")
+    #expect(SongDurationBucket.nineToTen.label == "9–10 Minutes")
+    #expect(SongDurationBucket.over10.label == "Over 10 Minutes")
+    #expect(SongDurationBucket.unknown.label == "Unknown Duration")
 }
