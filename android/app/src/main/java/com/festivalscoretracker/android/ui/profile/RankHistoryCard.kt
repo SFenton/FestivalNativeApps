@@ -64,6 +64,7 @@ import com.festivalscoretracker.android.core.profile.RankHistoryWindow
 import com.festivalscoretracker.android.ui.leaderboards.FrostedPagerButton
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlin.math.abs
+import com.festivalscoretracker.android.ui.common.chartAxisTextStyle
 
 // region Rank history
 
@@ -215,7 +216,7 @@ private fun AxisColumn(ticks: List<ChartTick>, align: TextAlign) {
         ticks.forEach { tick ->
             Text(
                 tick.label,
-                style = MaterialTheme.typography.labelSmall,
+                style = chartAxisTextStyle(),
                 color = BrandTokens.textMuted,
                 maxLines = 1,
                 textAlign = align,

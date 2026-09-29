@@ -35,6 +35,7 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.festivalscoretracker.android.core.profile.PlayerTileAction
@@ -68,7 +69,7 @@ internal fun StatGrid(
     modifier: Modifier = Modifier,
 ) {
     BoxWithConstraints(modifier.fillMaxWidth()) {
-        val columns = StatGridColumns.count(maxWidth.value)
+        val columns = StatGridColumns.count(maxWidth.value, LocalDensity.current.fontScale)
         val spacing = StatGridColumns.SPACING_DP.dp
         Column(verticalArrangement = Arrangement.spacedBy(spacing)) {
             tiles.chunked(columns).forEach { row ->

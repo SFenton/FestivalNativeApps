@@ -64,6 +64,8 @@ import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 
 // region Sheet
 
@@ -129,6 +131,7 @@ fun ProfileSheet(
 
 // region Sections
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SelectedSummary(player: SelectedPlayer, onView: () -> Unit, onDeselect: () -> Unit) {
     Surface(color = BrandTokens.surfaceSubtle, shape = MaterialTheme.shapes.large, modifier = Modifier.fillMaxWidth().testTag("fst.profile.selected")) {
@@ -137,7 +140,8 @@ private fun SelectedSummary(player: SelectedPlayer, onView: () -> Unit, onDesele
                 Avatar(player.initials)
                 Text(player.displayName, style = MaterialTheme.typography.titleMedium, color = BrandTokens.textPrimary, modifier = Modifier.padding(start = 12.dp))
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 12.dp)) {
+            // Wraps at large font sizes instead of squeezing "Deselect" to a letter per line.
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 12.dp)) {
                 Button(onClick = onView, colors = festivalFilledButtonColors(), modifier = Modifier.heightIn(min = 48.dp).testTag("fst.profile.view-selected")) { Text("View Profile") }
                 OutlinedButton(onClick = onDeselect, modifier = Modifier.heightIn(min = 48.dp).testTag("fst.profile.deselect")) { Text("Deselect") }
             }

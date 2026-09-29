@@ -66,6 +66,8 @@ import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
 import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import com.festivalscoretracker.android.ui.common.isLargeText
+import androidx.compose.material3.PrimaryScrollableTabRow
 
 // region Hub
 
@@ -113,12 +115,7 @@ fun RivalsScreen(viewModel: RivalsHubViewModel?, isRoot: Boolean, visibleCount: 
             return@FestivalScreen
         }
         Column(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
-            PrimaryTabRow(
-                selectedTabIndex = tab.ordinal,
-                containerColor = Color.Transparent,
-                contentColor = BrandTokens.textPrimary,
-                modifier = Modifier.testTag("fst.rivals.tab"),
-            ) {
+            val tabs: @Composable () -> Unit = {
                 RivalsHubTab.entries.forEach { entry ->
                     Tab(
                         selected = entry == tab,
@@ -127,6 +124,26 @@ fun RivalsScreen(viewModel: RivalsHubViewModel?, isRoot: Boolean, visibleCount: 
                         modifier = Modifier.testTag("fst.rivals.tab.${entry.name.lowercase()}"),
                     )
                 }
+            }
+            if (isLargeText()) {
+                // Large text: "Leaderboard Rivals" no longer fits half the width (it broke
+                // mid-word), so the tabs size to their labels and scroll (Material scrollable tabs).
+                PrimaryScrollableTabRow(
+                    selectedTabIndex = tab.ordinal,
+                    containerColor = Color.Transparent,
+                    contentColor = BrandTokens.textPrimary,
+                    edgePadding = 16.dp,
+                    modifier = Modifier.testTag("fst.rivals.tab"),
+                    tabs = tabs,
+                )
+            } else {
+                PrimaryTabRow(
+                    selectedTabIndex = tab.ordinal,
+                    containerColor = Color.Transparent,
+                    contentColor = BrandTokens.textPrimary,
+                    modifier = Modifier.testTag("fst.rivals.tab"),
+                    tabs = tabs,
+                )
             }
             HubBody(
                 viewModel = viewModel,

@@ -42,6 +42,7 @@ import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.FestivalSection
 import com.festivalscoretracker.android.core.shell.DrawerPolicy
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import com.festivalscoretracker.android.ui.common.isLargeText
 
 // region Rail
 
@@ -116,11 +117,13 @@ fun FestivalRail(
 
 @Composable
 private fun RailItem(section: FestivalSection, selected: FestivalSection, onSection: (FestivalSection) -> Unit) {
+    // Large text: labels no longer fit the 96 dp rail, so icons carry the names (as on the bar).
+    val iconOnly = isLargeText()
     NavigationSuiteItem(
         selected = section == selected,
         onClick = { onSection(section) },
-        icon = { Icon(section.icon(), contentDescription = null) },
-        label = { Text(section.title, maxLines = 1) },
+        icon = { Icon(section.icon(), contentDescription = if (iconOnly) section.title else null) },
+        label = if (iconOnly) null else ({ Text(section.title, maxLines = 1) }),
         navigationSuiteType = NavigationSuiteType.WideNavigationRailCollapsed,
         modifier = Modifier.testTag("fst.nav.tab.${section.name.lowercase()}"),
     )

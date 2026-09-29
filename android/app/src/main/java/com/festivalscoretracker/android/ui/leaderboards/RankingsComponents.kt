@@ -79,6 +79,8 @@ import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import java.text.NumberFormat
+import androidx.compose.foundation.layout.RowScope
+import com.festivalscoretracker.android.ui.common.isLargeText
 
 // region Rows
 
@@ -204,6 +206,10 @@ private fun RankingRowLayout(
     ) {
         // Web `RankingEntry` `isPlayer`: every text in the selected player's row is bold.
         val weight = if (isSelected) FontWeight.Bold else null
+        if (isLargeText()) {
+            StackedRankingRow(rank, name, songs, rating, bayesian, weight, route != null)
+            return@Row
+        }
         val columns = LocalRankingColumns.current
         Text(
             RankingFormatting.rankLabel(rank),
@@ -232,6 +238,22 @@ private fun RankingRowLayout(
         // In-card chevron on navigable rows (7.3); anonymous rows keep the slot so columns align.
         if (route != null) RowChevron() else Spacer(Modifier.width(20.dp))
     }
+}
+
+/**
+ * [RankingRowLayout]'s content at large font scales: rank and the (wrapping) name on the
+ * first line, the songs count and rating on the next, so no column is squeezed or overlaps.
+ */
+@Composable
+private fun RowScope.StackedRankingRow(rank: Int, name: String, songs: String, rating: String, bayesian: String?, weight: FontWeight?, navigable: Boolean) {
+    Text(RankingFormatting.rankLabel(rank), style = MaterialTheme.typography.labelLarge, fontWeight = weight, color = BrandTokens.textPrimary)
+    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(name, style = MaterialTheme.typography.bodyLarge, fontWeight = weight, color = BrandTokens.textPrimary)
+        Text(rating, style = MaterialTheme.typography.bodyLarge, fontWeight = weight ?: FontWeight.SemiBold, color = RatingBlue)
+        if (bayesian != null) Text(bayesian, style = MaterialTheme.typography.labelSmall, fontWeight = weight, color = BrandTokens.textSecondary)
+        Text(songs, style = MaterialTheme.typography.bodyMedium, fontWeight = weight, color = BrandTokens.textSecondary)
+    }
+    if (navigable) RowChevron() else Spacer(Modifier.width(20.dp))
 }
 
 /**

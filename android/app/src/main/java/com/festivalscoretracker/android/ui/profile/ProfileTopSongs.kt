@@ -35,6 +35,7 @@ import com.festivalscoretracker.android.presentation.profile.PlayerProfileUiStat
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import com.festivalscoretracker.android.ui.common.oneLineUnlessLarge
 
 // region Top songs
 
@@ -135,9 +136,9 @@ private fun SongRow(row: PlayerSongPlacement, onClick: (() -> Unit)?, modifier: 
                 modifier = Modifier.size(44.dp).clip(RoundedCornerShape(8.dp)).background(BrandTokens.surfaceMuted),
             )
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Text(row.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = BrandTokens.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(row.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = BrandTokens.textPrimary, maxLines = oneLineUnlessLarge(), overflow = TextOverflow.Ellipsis)
                 if (row.subtitle.isNotEmpty()) {
-                    Text(row.subtitle, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(row.subtitle, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary, maxLines = oneLineUnlessLarge(), overflow = TextOverflow.Ellipsis)
                 }
             }
             Surface(color = BrandTokens.surfaceMuted, shape = RoundedCornerShape(50)) {

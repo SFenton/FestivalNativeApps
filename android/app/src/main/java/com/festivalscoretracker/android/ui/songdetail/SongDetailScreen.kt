@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -106,6 +107,7 @@ import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.fadeInStagger
+import com.festivalscoretracker.android.ui.common.isLargeText
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.common.rememberScreenReaderOn
@@ -774,6 +776,10 @@ internal fun rememberRankWidth(ranks: List<Int>): Dp {
 @Composable
 fun ScoreRow(entry: LeaderboardEntry, showStars: Boolean = false, isSelected: Boolean = false, rankWidth: Dp = DEFAULT_RANK_WIDTH, navigable: Boolean = false) {
     val weight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+    if (isLargeText()) {
+        StackedScoreRow(entry, showStars, weight, isSelected, rankWidth, navigable)
+        return
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -801,6 +807,40 @@ fun ScoreRow(entry: LeaderboardEntry, showStars: Boolean = false, isSelected: Bo
         if (showStars) {
             Box(Modifier.padding(start = 10.dp).width(STAR_COLUMN_DP.dp), contentAlignment = Alignment.CenterEnd) {
                 StarRating(entry.stars ?: 0, Modifier.testTag("fst.stars"), size = 20.dp)
+            }
+        }
+        if (navigable) RowChevron(Modifier.padding(start = 4.dp)) else Spacer(Modifier.width(24.dp))
+    }
+}
+
+/**
+ * [ScoreRow] at large font scales: rank and the (wrapping) name on the first line, the
+ * score, accuracy pill and stars on the next, indented under the name, so no column is
+ * squeezed to an ellipsis.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun StackedScoreRow(entry: LeaderboardEntry, showStars: Boolean, weight: FontWeight, isSelected: Boolean, rankWidth: Dp, navigable: Boolean) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 8.dp, vertical = 6.dp),
+    ) {
+        Text("#${NumberFormat.getIntegerInstance().format(entry.rank)}", style = MaterialTheme.typography.labelLarge, fontWeight = weight, color = BrandTokens.textPrimary, modifier = Modifier.widthIn(min = rankWidth).padding(end = 8.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                entry.displayName?.takeIf { it.isNotBlank() && entry.accountId.isNotEmpty() } ?: "Unknown User",
+                color = BrandTokens.textPrimary,
+                fontWeight = weight,
+            )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    ScoreFormatting.score(entry.score),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                    color = BrandTokens.textPrimary,
+                )
+                if (entry.accuracy != null) AccuracyPill(entry.accuracy, entry.isFullCombo == true)
+                if (showStars) StarRating(entry.stars ?: 0, Modifier.testTag("fst.stars"), size = 20.dp)
             }
         }
         if (navigable) RowChevron(Modifier.padding(start = 4.dp)) else Spacer(Modifier.width(24.dp))

@@ -163,6 +163,7 @@ import com.festivalscoretracker.android.ui.theme.FestivalTheme
 import com.festivalscoretracker.android.ui.whatsnew.WhatsNewHost
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import com.festivalscoretracker.android.ui.common.isLargeText
 
 // region Root
 
@@ -479,12 +480,15 @@ private fun FestivalShell(
                     if (layout == NavigationLayout.PermanentDrawer) {
                         drawer(true)
                     } else {
+                        // Large text: five labels cannot fit a phone's bar (they cut to "Sugg",
+                        // "Stati"), so the bar shows icons only and each icon carries its name.
+                        val iconOnly = isLargeText()
                         sections.forEach { section ->
                             NavigationSuiteItem(
                                 selected = section == selected,
                                 onClick = { navController.selectSection(section, selected) },
-                                icon = { Icon(section.icon(), contentDescription = null) },
-                                label = { Text(section.title, maxLines = 1) },
+                                icon = { Icon(section.icon(), contentDescription = if (iconOnly) section.title else null) },
+                                label = if (iconOnly) null else ({ Text(section.title, maxLines = 1) }),
                                 navigationSuiteType = navigationType,
                                 modifier = Modifier.testTag("fst.nav.tab.${section.name.lowercase()}"),
                             )

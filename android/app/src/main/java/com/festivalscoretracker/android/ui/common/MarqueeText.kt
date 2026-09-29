@@ -47,7 +47,8 @@ object FestivalMarquee {
 
 /**
  * Single-line text that scrolls like the web's `MarqueeText` when it overflows and stays still
- * when it fits. Under Remove animations / Reduce Motion it truncates with an ellipsis instead.
+ * when it fits. Under Remove animations / Reduce Motion it truncates with an ellipsis instead;
+ * at large font scales ([isLargeText]) it wraps.
  * `basicMarquee` animates in the draw phase, so scrolling never recomposes the row.
  *
  * @param text Text.
@@ -64,6 +65,12 @@ fun FestivalMarqueeText(
     color: Color = Color.Unspecified,
     fontWeight: FontWeight? = null,
 ) {
+    // Large text: wrap so the whole name stays readable without motion (a 200% title
+    // scrolling through a quarter of the row, or an ellipsis, hid most of it).
+    if (isLargeText()) {
+        Text(text, modifier, color = color, style = style, fontWeight = fontWeight)
+        return
+    }
     if (LocalFestivalAccessibility.current.reduceMotion) {
         Text(text, modifier, color = color, style = style, fontWeight = fontWeight, maxLines = 1, overflow = TextOverflow.Ellipsis)
         return

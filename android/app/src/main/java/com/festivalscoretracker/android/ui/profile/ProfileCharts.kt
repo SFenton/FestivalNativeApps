@@ -47,6 +47,7 @@ import com.festivalscoretracker.android.core.profile.ChartPoint
 import com.festivalscoretracker.android.core.profile.ChartTick
 import com.festivalscoretracker.android.core.profile.ScoreHistoryChartModel
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import com.festivalscoretracker.android.ui.common.chartAxisTextStyle
 
 // region Percentiles
 
@@ -184,7 +185,7 @@ private fun AxisLabels(ticks: List<ChartTick>, modifier: Modifier) {
         ticks.forEach { tick ->
             Text(
                 tick.label,
-                style = MaterialTheme.typography.labelSmall,
+                style = chartAxisTextStyle(),
                 color = BrandTokens.textMuted,
                 maxLines = 1,
                 modifier = Modifier

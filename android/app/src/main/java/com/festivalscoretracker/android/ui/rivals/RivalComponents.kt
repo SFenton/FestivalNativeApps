@@ -59,6 +59,7 @@ import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.isLargeText
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.SeeAllButton
@@ -154,19 +155,26 @@ fun RivalRow(entry: RivalEntry, onClick: () -> Unit, modifier: Modifier = Modifi
         Row(Modifier.height(IntrinsicSize.Min)) {
             Box(Modifier.width(4.dp).fillMaxHeight().background(if (winning) BrandTokens.statusGreen else BrandTokens.statusRed))
             Column(Modifier.weight(1f).padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    // Web `RivalRow` truncates names with an ellipsis (operator 7.14: never marquee
-                    // every name on Compete/Rivals).
-                    Text(
-                        rival.shownName,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (rival.isNavigable) BrandTokens.textPrimary else BrandTokens.textMuted,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                    Text(shared, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary, maxLines = 1)
+                val nameColor = if (rival.isNavigable) BrandTokens.textPrimary else BrandTokens.textMuted
+                if (isLargeText()) {
+                    // Large text: the name wraps above the shared count instead of being squeezed out.
+                    Text(rival.shownName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = nameColor)
+                    Text(shared, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary)
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        // Web `RivalRow` truncates names with an ellipsis (operator 7.14: never marquee
+                        // every name on Compete/Rivals).
+                        Text(
+                            rival.shownName,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = nameColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        Text(shared, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary, maxLines = 1)
+                    }
                 }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     RivalPill(ahead, win = true)

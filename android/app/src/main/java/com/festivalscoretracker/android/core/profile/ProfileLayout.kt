@@ -93,20 +93,29 @@ object StatGridColumns {
     /** Space between tiles in dp, both axes. */
     const val SPACING_DP = 8f
 
-    /** Phones always get two columns, even at large font scales. */
+    /** Phones get at least two columns (one only at large font scales, see [count]). */
     const val MIN_COLUMNS = 2
+
+    /** Font scale from which a phone may drop to one column (`LARGE_TEXT_SCALE`). */
+    const val LARGE_TEXT_SCALE = 1.3f
 
     /** Wide grids stop at four so tiles never shrink to a sliver of text. */
     const val MAX_COLUMNS = 4
 
     /**
-     * Columns for a grid width.
+     * Columns for a grid width. The minimum tile width grows with the font scale; at
+     * [LARGE_TEXT_SCALE] and above a narrow grid may drop to one column, so tile labels
+     * ("SONGS PLAYED" at 200%) are not broken mid-word.
      *
      * @param widthDp Grid width in dp.
-     * @return Between [MIN_COLUMNS] and [MAX_COLUMNS].
+     * @param fontScale User font scale.
+     * @return Between [MIN_COLUMNS] (1 at large text) and [MAX_COLUMNS].
      */
-    fun count(widthDp: Float): Int =
-        ((widthDp + SPACING_DP) / (MIN_TILE_DP + SPACING_DP)).toInt().coerceIn(MIN_COLUMNS, MAX_COLUMNS)
+    fun count(widthDp: Float, fontScale: Float = 1f): Int {
+        val tile = MIN_TILE_DP * fontScale.coerceAtLeast(1f)
+        val min = if (fontScale >= LARGE_TEXT_SCALE) 1 else MIN_COLUMNS
+        return ((widthDp + SPACING_DP) / (tile + SPACING_DP)).toInt().coerceIn(min, MAX_COLUMNS)
+    }
 }
 
 /** Stat-tile value colours (`0xRRGGBB`; web `StatBox` `color`). */

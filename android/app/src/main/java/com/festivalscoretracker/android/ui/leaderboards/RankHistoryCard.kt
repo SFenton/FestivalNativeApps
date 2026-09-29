@@ -85,6 +85,7 @@ import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import java.time.LocalDate
+import com.festivalscoretracker.android.ui.common.chartAxisTextStyle
 
 // region Rank history card
 
@@ -294,7 +295,7 @@ private fun AxisLabels(ticks: List<ChartTick>, align: TextAlign) {
         ticks.forEach { tick ->
             Text(
                 tick.label,
-                style = MaterialTheme.typography.labelSmall,
+                style = chartAxisTextStyle(),
                 color = BrandTokens.textPrimary,
                 maxLines = 1,
                 textAlign = align,

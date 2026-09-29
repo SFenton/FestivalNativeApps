@@ -57,6 +57,8 @@ import com.festivalscoretracker.android.presentation.firstrun.FirstRunCarousel
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 
 // region Carousel
 
@@ -111,11 +113,13 @@ fun FirstRunCarouselDialog(carousel: FirstRunCarousel, compact: Boolean, onCompl
                 HorizontalPager(
                     state = pager,
                     key = { carousel.slides[it].id },
-                    modifier = Modifier.fillMaxWidth().testTag("fst.first-run.pager"),
+                    // Takes what the header, dots and buttons leave, so the buttons stay on screen
+                    // at large font sizes; each slide then scrolls vertically.
+                    modifier = Modifier.fillMaxWidth().weight(1f, fill = false).testTag("fst.first-run.pager"),
                 ) { page ->
                     val slide = carousel.slides[page]
                     Column(
-                        Modifier.fillMaxWidth().padding(horizontal = 24.dp).testTag("fst.first-run.slide.${slide.id}"),
+                        Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).testTag("fst.first-run.slide.${slide.id}"),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Box(Modifier.fillMaxWidth().height(220.dp).clearAndSetSemantics { }, contentAlignment = Alignment.Center) {
