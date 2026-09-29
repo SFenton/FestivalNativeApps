@@ -156,7 +156,14 @@ private func deterministicGlassDefaults() -> UserDefaults {
     let suiteName = "fst-glass-fallback-\(UUID().uuidString)"
     let storage = UserDefaults(suiteName: suiteName)!
     storage.set(true, forKey: "fst.accessibility.moreContrast")
-    // Load-in fades (`festivalFadeIn`) would otherwise be captured mid-animation.
+    return storage
+}
+
+/// Glass fallback plus Reduce Motion, for Song Detail previews whose rows use the
+/// load-in fade (otherwise captured mid-animation).
+@MainActor
+private func deterministicPreviewDefaults() -> UserDefaults {
+    let storage = deterministicGlassDefaults()
     storage.set(true, forKey: "fst.accessibility.reduceMotion")
     return storage
 }
@@ -333,7 +340,7 @@ func detailVisualStates(_ songNumber: Int) throws {
                 )
                 .frame(width: 420, height: 510, alignment: .top)
             }
-            .defaultAppStorage(deterministicGlassDefaults()),
+            .defaultAppStorage(deterministicPreviewDefaults()),
             size: CGSize(width: 420, height: 510)
         )
         let image = try nativeHostedImage(host)
@@ -376,7 +383,7 @@ func scoreAccuracyBadgeRendersSourceStates(_ scenario: ScoreAccuracyScenario) th
             )
             .frame(width: 420, height: 280, alignment: .top)
         }
-        .defaultAppStorage(deterministicGlassDefaults()),
+        .defaultAppStorage(deterministicPreviewDefaults()),
         size: CGSize(width: 420, height: 280)
     )
     let image = try nativeHostedImage(host)
