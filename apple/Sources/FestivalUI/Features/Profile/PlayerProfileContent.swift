@@ -64,10 +64,13 @@ struct PlayerProfileContent: View {
     /// (or explicit Retry) tries again.
     @State private var loadedKey: LoadKey?
     @State private var switchPending = false
+    /// Stat link waiting on the Switch confirmation (web `withProfileSwitch`).
+    @State private var pendingLink: PlayerStatLink?
     @State private var deselectPending = false
     @State private var actionError: String?
     @State private var quickLinks = QuickLinksController()
     @Environment(\.deviceLayout) private var layout
+    @Environment(\.playerStatNavigator) private var navigator
     @AppStorage("fst.settings.showLead") private var showLead = true
     @AppStorage("fst.settings.showBass") private var showBass = true
     @AppStorage("fst.settings.showDrums") private var showDrums = true
@@ -136,6 +139,15 @@ struct PlayerProfileContent: View {
         return session.selectedPlayer == nil ? .select : .switchTo
     }
 
+    /// The identity action this page will offer, known from the session alone, so the
+    /// toolbar has its final shape from the first frame of a push. Until the read
+    /// proves it (``identity``), the button shows disabled: inserting it after the load
+    /// re-laid out the navigation bar mid-push (Liquid Glass morphs every item).
+    private var plannedIdentity: ProfileIdentityAction {
+        if isSelected { return .deselect }
+        return session.selectedPlayer == nil ? .select : .switchTo
+    }
+
 
     /// `phase`, never showing another account's payload (see `PlayerProfilePhase.shown(for:)`).
     private var shownPhase: PlayerProfilePhase { phase.shown(for: accountId) }
@@ -163,7 +175,12 @@ struct PlayerProfileContent: View {
                 "Switch selected profile?", isPresented: $switchPending,
                 titleVisibility: .visible
             ) {
-                Button("Switch Profile", role: .destructive) { select() }
+                Button("Switch Profile", role: .destructive) {
+                    let link = pendingLink
+                    pendingLink = nil
+                    if select(), let link { navigate(link) }
+                }
+                Button("Cancel", role: .cancel) { pendingLink = nil }
             } message: {
                 Text("Scores and profile-dependent pages will update to \(displayName).")
             }
@@ -190,6 +207,12 @@ struct PlayerProfileContent: View {
                             action: identity, onTabRoot: showsRootTrailingItems, perform: perform
                         )
                     }
+                } else if !layout.sectionChrome.isVerticalBar, showsIdentityPlaceholder {
+                    // Same button, disabled, while the read is in flight or paused.
+                    ProfileIdentityToolbarItem(
+                        action: plannedIdentity, onTabRoot: showsRootTrailingItems,
+                        isEnabled: false, perform: perform
+                    )
                 }
                 QuickLinksToolbarItem(quickLinks)
                 if showsRootTrailingItems {
@@ -197,6 +220,16 @@ struct PlayerProfileContent: View {
                 }
             }
             .preference(key: FestivalRootTrailingProvidedKey.self, value: showsRootTrailingItems)
+    }
+
+    /// Whether to hold the identity button's place (disabled) instead of hiding it:
+    /// while loading, and while selection is paused. A failed or syncing read offers no
+    /// action at all.
+    private var showsIdentityPlaceholder: Bool {
+        switch shownPhase {
+        case .loading, .available: true
+        case .syncing, .failed: false
+        }
     }
 
     @ViewBuilder private var content: some View {
@@ -324,14 +357,78 @@ struct PlayerProfileContent: View {
     }
 
     /// Promote the current viewed, response-proven read to the selected profile.
-    private func select() {
-        guard case let .available(payload) = shownPhase else { return }
+    ///
+    /// - Returns: Whether the player is now selected.
+    @discardableResult
+    private func select() -> Bool {
+        guard case let .available(payload) = shownPhase else { return false }
         let result = PlayerSearchResult(accountId: payload.profile.accountId, displayName: displayName)
         do {
             try session.selectPlayer(result, from: payload)
             actionError = nil
+            return true
         } catch {
             actionError = error.localizedDescription
+            return false
+        }
+    }
+
+    // MARK: Stat links
+
+    /// A tile's link as drawn: nil (a plain tile) without the root navigator, or for a
+    /// Songs filter while selection is paused (it would filter someone else's scores).
+    ///
+    /// - Parameter link: The web's target for the tile.
+    /// - Returns: The link to attach, or nil.
+    private func tileLink(_ link: PlayerStatLink?) -> PlayerStatLink? {
+        guard let link, navigator != nil else { return nil }
+        if link.requiresSelection, !isSelected, identity == nil { return nil }
+        return link
+    }
+
+    /// Follow a tapped tile, selecting a viewed player first (web `withProfileSwitch`):
+    /// Select immediately, Switch after confirmation, and while selection is paused
+    /// open only links that do not need it.
+    ///
+    /// - Parameter link: The tapped tile's link.
+    private func open(_ link: PlayerStatLink) {
+        if isSelected {
+            navigate(link)
+            return
+        }
+        switch identity {
+        case .select:
+            if select() { navigate(link) }
+        case .switchTo:
+            pendingLink = link
+            switchPending = true
+        case .deselect:
+            navigate(link)
+        case nil:
+            if !link.requiresSelection { navigate(link) }
+        }
+    }
+
+    /// Carry out a link through the root navigator.
+    ///
+    /// - Parameter link: Link to follow.
+    private func navigate(_ link: PlayerStatLink) {
+        guard let navigator else { return }
+        switch link {
+        case let .songs(preset):
+            navigator.showSongs(preset)
+        case let .fullRankings(instrument, rankBy):
+            navigator.push(.fullRankings(instrument: instrument, rankBy: rankBy))
+        case let .songDetail(songId, _):
+            // `AppRoute.songDetail` carries a full `Song`; the profile only has its id, so
+            // resolve it from the (cached) catalogue first. A catalogue failure leaves
+            // the page where it is rather than opening an empty detail.
+            Task { @MainActor in
+                guard let payload = try? await session.catalog(),
+                      let song = payload.catalog.songs.first(where: { $0.songId == songId })
+                else { return }
+                navigator.push(.songDetail(song))
+            }
         }
     }
 
@@ -339,19 +436,32 @@ struct PlayerProfileContent: View {
 
     @ViewBuilder
     private func overallSection(_ payload: PlayerProfilePayload) -> some View {
-        let stats = payload.profile.overallStats(visibleInstruments: Set(visibleInstruments))
+        let visible = Set(visibleInstruments)
+        let stats = payload.profile.overallStats(visibleInstruments: visible)
         FestivalGlassSection("Overview") {
-            statGrid(items: [
-                ("Songs Played", "\(stats.songsPlayed)", nil),
-                (
-                    "Full Combos",
-                    stats.fullComboCount == 0 ? "0" : "\(stats.fullComboCount) (\(percentText(stats.fullComboPercent))%)",
-                    nil
+            // Web `buildOverallSummaryItems`: Songs Played and Full Combos filter Songs,
+            // Best Rank opens its song; Gold Stars and Avg Accuracy are plain.
+            PlayerStatGrid(tiles: [
+                StatTile(
+                    id: "songs-played", label: "Songs Played", value: stats.songsPlayed.formatted(),
+                    link: tileLink(PlayerStatLinks.overallSongsPlayed(visible: visible))
                 ),
-                ("Gold Stars", "\(stats.goldStarCount)", BrandTokens.gold),
-                ("Avg Accuracy", accuracyText(stats.averageAccuracy), nil),
-                ("Best Rank", stats.bestRank.map { "#\($0)" } ?? "—", nil),
-            ])
+                StatTile(
+                    id: "full-combos", label: "Full Combos",
+                    value: fullComboText(count: stats.fullComboCount, percent: stats.fullComboPercent),
+                    tint: stats.fullComboPercent >= 100 ? BrandTokens.gold : nil,
+                    link: tileLink(PlayerStatLinks.overallFullCombos(visible: visible))
+                ),
+                StatTile(
+                    id: "gold-stars", label: "Gold Stars", value: stats.goldStarCount.formatted(),
+                    tint: BrandTokens.gold
+                ),
+                StatTile(id: "avg-accuracy", label: "Avg Accuracy", value: accuracyText(stats.averageAccuracy)),
+                StatTile(
+                    id: "best-rank", label: "Best Rank", value: rankText(stats.bestRank),
+                    link: tileLink(PlayerStatLinks.overallBestRank(stats))
+                ),
+            ], scope: "overview", onSelect: open)
         }
         .accessibilityIdentifier("fst.player.overview")
         .quickLinkSection(id: "global", title: "Global Statistics", symbol: "chart.bar.fill")
@@ -362,42 +472,68 @@ struct PlayerProfileContent: View {
     @ViewBuilder
     private func instrumentSection(_ payload: PlayerProfilePayload, instrument: Instrument) -> some View {
         let stats = payload.profile.instrumentStats(instrument)
-        let stars = payload.profile.starBreakdown(instrument)
         // Instrument header above its card, never inside it (web `InstrumentHeader` MD).
         VStack(alignment: .leading, spacing: 8) {
-        InstrumentSectionHeader(instrument, size: .medium)
-        FestivalGlassSection {
+            InstrumentSectionHeader(instrument, size: .medium)
             if stats.songsPlayed == 0 {
-                FestivalFootnote("No \(instrument.label) scores recorded yet.")
-                    .accessibilityIdentifier("fst.player.instrument-empty.\(instrument.rawValue)")
+                FestivalGlassSection {
+                    FestivalFootnote("No \(instrument.label) scores recorded yet.")
+                        .accessibilityIdentifier("fst.player.instrument-empty.\(instrument.rawValue)")
+                }
             } else {
-                // Web `InstrumentStatsSection` order: star counts (non-zero only), then
-                // Avg Accuracy, Avg Stars (five gold stars at a 6.0 average), Best Rank.
-                statGrid(tiles: [
-                    StatTile(label: "Songs Played", value: "\(stats.songsPlayed)"),
-                    StatTile(
-                        label: "Full Combos",
-                        value: stats.fullComboCount == 0 ? "0" : "\(stats.fullComboCount) (\(percentText(stats.fullComboPercent))%)",
-                        tint: stats.fullComboCount > 0 ? BrandTokens.gold : nil
-                    ),
-                ] + stars.countCards.map { card in
-                    StatTile(
-                        label: card.label, value: card.count.formatted(),
-                        tint: card.stars == 6 ? BrandTokens.gold : nil
-                    )
-                } + [
-                    StatTile(label: "Avg Accuracy", value: accuracyText(stats.averageAccuracy)),
-                    StatTile(label: "Avg Stars", value: stars.averageText, goldStars: stars.isAllGold),
-                    StatTile(label: "Best Rank", value: stats.bestRank.map { "#\($0)" } ?? "—"),
-                ])
-                InstrumentGlobalRankView(session: session, accountId: accountId, instrument: instrument)
+                InstrumentStatsCard(
+                    session: session, accountId: accountId, instrument: instrument,
+                    tiles: instrumentTiles(payload, stats: stats),
+                    linkFilter: tileLink, onSelect: open
+                )
             }
-        }
         }
         .accessibilityIdentifier("fst.player.instrument.\(instrument.rawValue)")
         .quickLinkSection(QuickLinkSection(
             id: "instrument:\(instrument.rawValue)", title: instrument.label, icon: .instrument(instrument)
         ))
+    }
+
+    /// The web `buildInstrumentStatsItems` tiles before its rank cards, in its order:
+    /// Songs Played and FCs (filter Songs), star counts (non-zero only; plain, since
+    /// native Songs has no stars filter yet), Avg Accuracy, Avg Stars, Best Rank (song).
+    ///
+    /// - Parameters:
+    ///   - payload: Current validated profile read.
+    ///   - stats: That instrument's aggregate.
+    /// - Returns: Tiles; the card appends its global-rank tiles.
+    private func instrumentTiles(_ payload: PlayerProfilePayload, stats: PlayerInstrumentStats) -> [StatTile] {
+        let instrument = stats.instrument
+        let stars = payload.profile.starBreakdown(instrument)
+        var tiles = [
+            StatTile(
+                id: "songs-played", label: "Songs Played", value: stats.songsPlayed.formatted(),
+                link: tileLink(PlayerStatLinks.instrumentSongsPlayed(instrument))
+            ),
+        ]
+        if stats.fullComboCount > 0 {
+            tiles.append(StatTile(
+                id: "full-combos", label: "Full Combos",
+                value: fullComboText(count: stats.fullComboCount, percent: stats.fullComboPercent),
+                tint: stats.fullComboPercent >= 100 ? BrandTokens.gold : nil,
+                link: tileLink(PlayerStatLinks.instrumentFullCombos(instrument))
+            ))
+        }
+        tiles += stars.countCards.map { card in
+            StatTile(
+                id: "stars-\(card.stars)", label: card.label, value: card.count.formatted(),
+                tint: card.stars == 6 ? BrandTokens.gold : nil
+            )
+        }
+        tiles += [
+            StatTile(id: "avg-accuracy", label: "Avg Accuracy", value: accuracyText(stats.averageAccuracy)),
+            StatTile(id: "avg-stars", label: "Avg Stars", value: stars.averageText, goldStars: stars.isAllGold),
+            StatTile(
+                id: "best-rank", label: "Best Rank", value: rankText(stats.bestRank),
+                link: tileLink(PlayerStatLinks.instrumentBestRank(stats))
+            ),
+        ]
+        return tiles
     }
 
     // MARK: Regular-width grid
@@ -471,6 +607,16 @@ struct PlayerProfileContent: View {
         return value.formatted(.number.precision(.fractionLength(fractionDigits)))
     }
 
+    /// Web FC value: the count alone at 0 or 100%, otherwise "count (pct%)".
+    private func fullComboText(count: Int, percent: Double) -> String {
+        count == 0 || percent >= 100 ? count.formatted() : "\(count.formatted()) (\(percentText(percent))%)"
+    }
+
+    /// "#rank", or an em dash with no ranked score.
+    private func rankText(_ rank: Int?) -> String {
+        rank.map { "#\($0.formatted())" } ?? "\u{2014}"
+    }
+
     /// `PlayerScore.accuracy` already decodes into the same ten-thousandths-of-a-percent
     /// scale `ScoreFormatting.accuracy(_:)` expects (compact wire `acc` multiplied by
     /// 1,000; e.g. wire `979` becomes `979_000`, i.e. 97.9%) — no further rescale needed.
@@ -499,185 +645,3 @@ struct PlayerProfileContent: View {
     }
 }
 
-// MARK: - InstrumentGlobalRankView
-
-/// One instrument's global-rankings-board read, independent of the profile load
-/// above it. Loading, unranked and error states; success shows Total Score Rank
-/// (the web's un-experimental `DEFAULT_METRICS`), its rating and a rank-derived
-/// percentile — see `.agents/pages/player-profile/ios.md` for why this reads
-/// `GET /api/rankings/{instrument}/{accountId}` and never player-stats.
-private enum InstrumentRankPhase {
-    case loading
-    case unranked
-    case available(PlayerInstrumentRanking)
-    case failed(String)
-}
-
-private struct InstrumentGlobalRankView: View {
-    let session: FestivalSession
-    let accountId: String
-    let instrument: Instrument
-
-    @State private var phase = InstrumentRankPhase.loading
-    @State private var retryRevision = 0
-    /// See `PlayerProfileContent.loadedKey`: this per-instrument card sits inside the
-    /// same reappearing `NavigationStack` root, so it needs the same reappear guard.
-    @State private var loadedKey: LoadKey?
-
-    private struct LoadKey: Hashable {
-        let accountId: String
-        let instrument: Instrument
-        let retry: Int
-        let publicationRevision: Int
-    }
-
-    private var loadKey: LoadKey {
-        LoadKey(
-            accountId: accountId, instrument: instrument, retry: retryRevision,
-            publicationRevision: session.publicationRevision
-        )
-    }
-
-    private var loadFinished: Bool {
-        switch phase {
-        case .unranked, .available: true
-        case .loading, .failed: false
-        }
-    }
-
-    var body: some View {
-        content
-            .task(id: loadKey) {
-                guard loadedKey != loadKey else { return }
-                let key = loadKey
-                await load()
-                if !Task.isCancelled && loadFinished { loadedKey = key }
-            }
-    }
-
-    @ViewBuilder private var content: some View {
-        switch phase {
-        case .loading:
-            FestivalLoadingView(accessibilityLabel: "Loading \(instrument.label) global rank")
-                .controlSize(.small)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityIdentifier("fst.player.global-rank.\(instrument.rawValue).loading")
-        case .unranked:
-            FestivalFootnote("Not yet ranked globally on \(instrument.label).")
-                .accessibilityIdentifier("fst.player.global-rank.\(instrument.rawValue).unranked")
-        case let .failed(message):
-            HStack(spacing: 8) {
-                Text("Global rank unavailable: \(message)")
-                    .font(.caption)
-                    .foregroundStyle(FestivalText.primary)
-                Button("Retry") { retryRevision += 1 }
-                    .font(.caption.weight(.semibold))
-            }
-            .accessibilityIdentifier("fst.player.global-rank.\(instrument.rawValue).error")
-        case let .available(ranking):
-            statGrid(items: [
-                ("Global Rank", "#\(ranking.entry.rank(for: .totalscore).formatted())", nil),
-                (
-                    "Total Score",
-                    RankingFormatting.wholeNumber(ranking.entry.ratingValue(for: .totalscore)), nil
-                ),
-                percentileTile(ranking),
-            ])
-            .festivalFadeIn(isLoaded: true)
-            .accessibilityIdentifier("fst.player.global-rank.\(instrument.rawValue).available")
-        }
-    }
-
-    /// "Top N%" derived from rank/field-size, since Total Score has no native
-    /// Bayesian percentile on the wire (only Adjusted/Weighted do).
-    ///
-    /// - Parameter ranking: Current validated single-account ranking row.
-    /// - Returns: A stat-grid item; gold-tinted for a top-5% placement.
-    private func percentileTile(_ ranking: PlayerInstrumentRanking) -> (label: String, value: String, tint: Color?) {
-        guard let fraction = ranking.percentile(for: .totalscore) else {
-            return ("Percentile", "—", nil)
-        }
-        let isTopFive = fraction * 100 <= 5
-        return ("Percentile", RankingFormatting.percentile(fraction), isTopFive ? BrandTokens.gold : nil)
-    }
-
-    /// Read the pure per-instrument rankings-board fallback, never player-stats.
-    private func load() async {
-        phase = .loading
-        do {
-            let payload = try await session.playerInstrumentRanking(
-                instrument: instrument, accountId: accountId
-            )
-            try Task.checkCancellation()
-            switch payload.state {
-            case .available:
-                guard let ranking = payload.ranking else {
-                    phase = .unranked
-                    return
-                }
-                phase = .available(ranking)
-            case .unranked:
-                phase = .unranked
-            }
-        } catch is CancellationError {
-            return
-        } catch let error as URLError where error.code == .cancelled {
-            return
-        } catch {
-            guard !Task.isCancelled else { return }
-            phase = .failed(error.localizedDescription)
-        }
-    }
-}
-
-/// A row of small, flat (non-glass) value/label tiles inside one glass section.
-///
-/// Kept flat per `.agents/design/apple/liquid-glass.md` ("never glass-on-glass").
-struct StatTile: Identifiable {
-    let id = UUID()
-    let label: String
-    let value: String
-    var tint: Color?
-    /// Draw five gold stars (`StarRating`, web `GoldStars`) instead of `value`.
-    var goldStars = false
-}
-
-/// Lay out stat tiles as an adaptive grid, matching the web's `StatBox` grid.
-private func statGrid(items: [(label: String, value: String, tint: Color?)]) -> some View {
-    statGrid(tiles: items.map { StatTile(label: $0.label, value: $0.value, tint: $0.tint) })
-}
-
-/// Lay out prepared stat tiles as an adaptive grid.
-///
-/// - Parameter tiles: Tiles in display order.
-private func statGrid(tiles: [StatTile]) -> some View {
-    LazyVGrid(
-        columns: [GridItem(.adaptive(minimum: 96), spacing: 8)], spacing: 8
-    ) {
-        ForEach(tiles) { tile in
-            VStack(spacing: 2) {
-                Group {
-                    if tile.goldStars {
-                        StarRating(stars: 6, gold: true, size: 16)
-                            .frame(minHeight: 28)
-                            .accessibilityElement(children: .ignore)
-                            .accessibilityLabel("5 gold stars")
-                    } else {
-                        Text(tile.value)
-                            .font(.title3.bold())
-                            .foregroundStyle(tile.tint ?? BrandTokens.accentBlue)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                    }
-                }
-                Text(tile.label)
-                    .font(.caption2)
-                    .foregroundStyle(FestivalText.primary)
-                    .textCase(.uppercase)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
-        }
-    }
-}

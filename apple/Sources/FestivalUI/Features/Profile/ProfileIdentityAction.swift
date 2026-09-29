@@ -64,6 +64,9 @@ struct ProfileIdentityToolbarItem: ToolbarContent {
     let action: ProfileIdentityAction
     /// True on a tab root, where page actions must precede Search, the bell and avatar.
     let onTabRoot: Bool
+    /// False while the page's read has not proven the action yet (or selection is
+    /// paused): the button keeps its place, disabled, so the toolbar never re-lays out.
+    var isEnabled = true
     let perform: (ProfileIdentityAction) -> Void
 
     var body: some ToolbarContent {
@@ -81,7 +84,10 @@ struct ProfileIdentityToolbarItem: ToolbarContent {
                 .font(.body.weight(.semibold))
         }
         .accessibilityLabel(action.title)
-        .accessibilityIdentifier(action.accessibilityIdentifier)
+        // A distinct identifier while disabled, so journeys waiting for the action
+        // never tap the placeholder.
+        .accessibilityIdentifier(isEnabled ? action.accessibilityIdentifier : action.accessibilityIdentifier + ".pending")
+        .disabled(!isEnabled)
         if action.isProminent {
             base.buttonStyle(.borderedProminent).tint(BrandTokens.accentBlue)
         } else {

@@ -35,8 +35,11 @@ struct ChartMotion {
 
 /// One instrument's 30-day Total Score rank history for the viewed account.
 ///
-/// Appears only once snapshots exist (like the web, which shows the chart only for
-/// ranked instruments); a failed read shows an inline retry card instead.
+/// Shown like the web, only once ranked snapshots exist; a failed read shows an inline
+/// retry card instead. While the read is in flight the card already holds the loaded
+/// chart's place (``RankHistoryPlaceholder``), so the chart's arrival does not push
+/// every card below it down, and it measures its own width so the chart opens on its
+/// final page size instead of resizing (and animating) on its first frame.
 struct PlayerRankHistoryCard: View {
     let session: FestivalSession
     let accountId: String
@@ -57,16 +60,31 @@ struct PlayerRankHistoryCard: View {
 
     @State private var phase = Phase.loading
     @State private var retryRevision = 0
+    /// `LoadKey` whose read succeeded. `.task(id:)` restarts on every reappearance (Back
+    /// from a pushed page), which used to reset to loading and collapse the card.
+    @State private var loadedKey: LoadKey?
+    /// This card's width, known from the placeholder before the chart exists.
+    @State private var cardWidth: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
 
     private var title: String { "\(instrument.label) Rank History" }
 
+    private var loadKey: LoadKey {
+        LoadKey(
+            accountId: accountId, instrument: instrument, retry: retryRevision,
+            publicationRevision: session.publicationRevision
+        )
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             switch phase {
             case .loading:
-                EmptyView()
+                FestivalGlassSection("Rank History", subtitle: "Ranking progression over the past 30 days.") {
+                    RankHistoryPlaceholder(label: "Loading \(title)")
+                }
+                .accessibilityIdentifier("fst.player.rank-history.\(instrument.rawValue).loading")
             case let .failed(issue):
                 FestivalGlassSection(title) {
                     ServiceStatusInline(issue, scope: "player.rank-history.\(instrument.rawValue)") {
@@ -80,7 +98,8 @@ struct PlayerRankHistoryCard: View {
                 FestivalGlassSection("Rank History", subtitle: "Ranking progression over the past 30 days.") {
                     RankHistoryCharts(
                         points: points, instrument: instrument,
-                        motion: ChartMotion(system: systemReduceMotion, app: appReduceMotion)
+                        motion: ChartMotion(system: systemReduceMotion, app: appReduceMotion),
+                        initialChartWidth: RankHistoryCharts.chartWidth(forCardWidth: cardWidth)
                     )
                 }
                 .festivalFadeIn(isLoaded: true)
@@ -91,30 +110,60 @@ struct PlayerRankHistoryCard: View {
                 ))
             }
         }
-        .task(id: LoadKey(
-            accountId: accountId, instrument: instrument, retry: retryRevision,
-            publicationRevision: session.publicationRevision
-        )) {
-            await load()
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.width.rounded() }) { cardWidth = $0 }
+        .task(id: loadKey) {
+            guard loadedKey != loadKey else { return }
+            let key = loadKey
+            if await load(resetting: loadedKey?.accountId != key.accountId), !Task.isCancelled {
+                loadedKey = key
+            }
         }
     }
 
     /// Read the pure rank-history GET, never player-stats.
-    private func load() async {
-        phase = .loading
+    ///
+    /// - Parameter resetting: Show the placeholder first (a different account); a
+    ///   reload for the same account keeps the shown chart until the new one arrives.
+    /// - Returns: Whether the read succeeded.
+    private func load(resetting: Bool) async -> Bool {
+        if resetting { phase = .loading }
         do {
             let history = try await session.playerRankHistory(
                 instrument: instrument, accountId: accountId
             )
             try Task.checkCancellation()
             phase = .loaded(history.rankedChronological)
+            return true
         } catch is CancellationError {
-            return
+            return false
         } catch let error as URLError where error.code == .cancelled {
-            return
+            return false
         } catch {
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled else { return false }
             phase = .failed(ServiceIssue(error))
+            return false
+        }
+    }
+}
+
+/// The loaded Rank History chart's footprint with a spinner in the plot: the same
+/// summary, plot, legend and pager heights as ``RankHistoryCharts`` (a paged series, the
+/// common case), drawn invisibly.
+struct RankHistoryPlaceholder: View {
+    let label: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("#0 of 0").font(.title3.bold())
+                Text("Total Score 0").font(.footnote)
+            }
+            .hidden()
+            FestivalLoadingView(accessibilityLabel: label)
+                .frame(maxWidth: .infinity)
+                .frame(height: RankHistoryCharts.plotHeight)
+            Text("Total Score").font(.subheadline).hidden()
+            Color.clear.frame(height: RankHistoryCharts.pagerHeight)
         }
     }
 }
@@ -136,6 +185,21 @@ struct RankHistoryCharts: View {
     static let rankLineColor = Color(.sRGB, red: 76 / 255, green: 125 / 255, blue: 1, opacity: 1)
     /// Width reserved for the two y-axis label columns when sizing the page.
     private static let axisOverhead: CGFloat = 96
+    /// Plot height.
+    static let plotHeight: CGFloat = 220
+    /// Pager row height (44 pt buttons).
+    static let pagerHeight: CGFloat = 44
+    /// Width beside the plot inside the card: glass row insets (16 + 16) and the two
+    /// rotated axis titles with their spacing (16 + 2 + 2 + 16).
+    static let cardChrome: CGFloat = 68
+
+    /// The plot's width inside a card of `cardWidth`, or 0 when not yet measured.
+    ///
+    /// - Parameter cardWidth: Rank History card width.
+    /// - Returns: The chart's expected width.
+    static func chartWidth(forCardWidth cardWidth: CGFloat) -> CGFloat {
+        cardWidth > cardChrome ? cardWidth - cardChrome : 0
+    }
 
     struct Point: Identifiable, Equatable {
         let id: String
@@ -145,9 +209,29 @@ struct RankHistoryCharts: View {
         let rankedAccountCount: Int?
     }
 
-    @State private var chartWidth: CGFloat = 0
+    /// Chart width: seeded from the card's measured width, then kept exact by the
+    /// chart's own geometry (without animating that first correction).
+    @State private var chartWidth: CGFloat
     /// Snapshot date of the oldest visible bar; nil shows the newest page.
     @State private var startID: String?
+
+    /// Create the chart.
+    ///
+    /// - Parameters:
+    ///   - points: Ranked snapshots, oldest first.
+    ///   - instrument: Chart instrument.
+    ///   - motion: Reduce Motion state.
+    ///   - initialChartWidth: Expected plot width (``chartWidth(forCardWidth:)``), so the
+    ///     first frame already pages correctly; 0 shows every point until measured.
+    init(
+        points: [PlayerRankHistorySnapshot], instrument: Instrument, motion: ChartMotion,
+        initialChartWidth: CGFloat = 0
+    ) {
+        self.points = points
+        self.instrument = instrument
+        self.motion = motion
+        _chartWidth = State(initialValue: initialChartWidth)
+    }
 
     private var chartPoints: [Point] {
         points.map {
@@ -184,11 +268,14 @@ struct RankHistoryCharts: View {
             HStack(spacing: 2) {
                 axisTitle("Total Score", degrees: -90)
                 chart(visible)
-                    .background(GeometryReader { proxy in
-                        Color.clear
-                            .onAppear { chartWidth = proxy.size.width }
-                            .onChange(of: proxy.size.width) { _, width in chartWidth = width }
-                    })
+                    .onGeometryChange(for: CGFloat.self, of: { $0.size.width.rounded() }) { width in
+                        guard width != chartWidth else { return }
+                        // A width change re-pages without animating: the data-change
+                        // animation is for paging, not for a measurement.
+                        var transaction = Transaction()
+                        transaction.disablesAnimations = true
+                        withTransaction(transaction) { chartWidth = width }
+                    }
                 axisTitle("Rank", degrees: 90)
             }
             legend
@@ -259,7 +346,7 @@ struct RankHistoryCharts: View {
                 }
             }
         }
-        .frame(height: 220)
+        .frame(height: Self.plotHeight)
         .accessibilityChartDescriptor(RankHistoryDescriptor(points: points, instrument: instrument))
         .accessibilityAdjustableAction { direction in
             switch direction {

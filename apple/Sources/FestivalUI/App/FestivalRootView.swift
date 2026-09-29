@@ -220,6 +220,11 @@ public struct FestivalRootView: View {
         .environment(\.openProfile, OpenProfileAction { rootProfilePresented = true })
         .environment(\.openDrawer, usesDrawer ? OpenDrawerAction { openDrawer() } : nil)
         .environment(\.openGlobalSearch, OpenGlobalSearchAction { globalSearchPresented = true })
+        // Player-page stat tiles (Lane AP3): push on this tab, or show Songs filtered.
+        .environment(\.playerStatNavigator, PlayerStatNavigator(
+            push: { route in paths[selected, default: []].append(route) },
+            showSongs: { preset in showSongs(preset) }
+        ))
         .preferredColorScheme(.dark)
         .transaction { transaction in
             if reduceMotion || systemReduceMotion {
@@ -376,6 +381,23 @@ public struct FestivalRootView: View {
         withAnimation(reduceMotion || systemReduceMotion ? nil : .smooth(duration: 0.25)) {
             drawerPresented = false
         }
+    }
+
+    /// Show the Songs tab with a player-page stat tile's filter preset: save the Songs
+    /// filters, set its instrument, clear its search and pop it to the list (web
+    /// `navigateToSongs`: `saveSongSettings`, `setQuery('')`, `navigate('/songs')`).
+    ///
+    /// - Parameter preset: The tapped tile's preset.
+    private func showSongs(_ preset: SongsFilterPreset) {
+        let saved = SongsPresetStore.apply(
+            preset, visibleInstruments: visibleInstruments, instrument: songsInstrument
+        )
+        songsInstrument = saved.instrument
+        songsSearchText = ""
+        songsSettledSearch = ""
+        songsNotice = nil
+        paths[.songs] = []
+        if selected != .songs { select(.songs) }
     }
 
     /// Carry out a drawer intent on the root-owned navigation state.

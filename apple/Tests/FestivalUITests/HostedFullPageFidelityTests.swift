@@ -60,12 +60,14 @@ import Testing
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
     let image = try await nativeHostedSettle(
-        host, untilText: ["Fixture Player 1", "Overview", "SONGS PLAYED", "AVG ACCURACY"]
+        // Stat tiles are single accessibility elements labelled in Title Case (their
+        // caption is only drawn uppercase).
+        host, untilText: ["Fixture Player 1", "Overview", "Songs Played", "Avg Accuracy"]
     )
     _ = try nativeHostedPNG(image, filename: "player-profile.png", environment: "FST_PROFILE_RENDER_OUT")
     assertRendersContent(
         host, image: image, minimumNonBackgroundFraction: 0.1,
-        containing: ["Fixture Player 1", "SONGS PLAYED", "BEST RANK"],
+        containing: ["Fixture Player 1", "Songs Played", "Best Rank"],
         // No native "Public Profile"/"This Is Me" subtitle: the web has none (operator, 2026-09-28).
         notContaining: ["Public Profile", "This Is Me"]
     )
