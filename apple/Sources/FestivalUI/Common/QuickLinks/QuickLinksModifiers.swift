@@ -128,7 +128,7 @@ struct QuickLinksContainerModifier: ViewModifier {
         // `QuickLinksToolbarItem` steps aside there (`.agents/design/apple/nav-accessories.md`).
         .festivalTabAccessory(
             token: controller.isAvailable, order: DockOrder.quickLinks,
-            isEnabled: controller.isAvailable
+            accessibilityID: "fst.quick-links.open", isEnabled: controller.isAvailable
         ) {
             QuickLinksMenu(controller: controller)
                 .frame(minWidth: 44, minHeight: 44)

@@ -40,7 +40,6 @@ struct SongsScreen: View {
     @Environment(\.deviceLayout) private var deviceLayout
     /// True where Filter/Sort live in the iPhone bottom dock instead of the toolbar.
     @Environment(\.isTabAccessoryAvailable) private var actionsInDock
-    @Environment(\.floatingControlsInset) private var floatingControlsInset
     @AppStorage("fst.songs.sortMode") private var sortMode = SongSortMode.title
     @AppStorage("fst.songs.sortAscending") private var sortAscending = true
     @AppStorage("fst.songs.filterInShop") private var filterInShop = false
@@ -382,10 +381,15 @@ struct SongsScreen: View {
         .searchable(text: $searchText, prompt: Text("Filter Songs"))
         // iPhone: Filter and Sort sit in the bottom dock beside Search, like the web's
         // FAB dock (operator, 2026-09-28); toolbar items elsewhere (Duo rail, iPad, Mac).
-        .festivalTabAccessory(token: filterDockToken, order: DockOrder.filter, isEnabled: canPresentFilter) {
+        .festivalTabAccessory(
+            token: filterDockToken, order: DockOrder.filter, accessibilityID: "fst.songs.filter",
+            isEnabled: canPresentFilter
+        ) {
             filterAction.frame(minWidth: 44, minHeight: 44)
         }
-        .festivalTabAccessory(token: sortDockToken, order: DockOrder.sort) {
+        .festivalTabAccessory(
+            token: sortDockToken, order: DockOrder.sort, accessibilityID: "fst.songs.sort"
+        ) {
             sortAction.frame(minWidth: 44, minHeight: 44)
         }
         .toolbar {
@@ -874,13 +878,14 @@ struct SongsScreen: View {
                             scrollProxy.scrollTo(id, anchor: .top)
                         }
                     }
-                    // Anchored to the bottom edge (above the tab bar and dock, which never
-                    // move) rather than centered: the top inset changes as the large
-                    // title and filter field collapse on scroll, which made a centered
-                    // strip jump.
-                    .frame(maxHeight: .infinity, alignment: .bottom)
-                    // …and above the floating Filter/Sort buttons at the same edge.
-                    .padding(.bottom, 8 + floatingControlsInset)
+                    // Centered between a *fixed* top (status bar + collapsed inline bar)
+                    // and the bottom safe area (tab bar + floating tools), so it neither
+                    // jumps when the large title and filter field collapse nor overlaps
+                    // the floating Filter/Sort buttons.
+                    .frame(maxHeight: .infinity)
+                    .padding(.top, deviceLayout.overlayInsets.top + 52)
+                    .padding(.bottom, 8)
+                    .ignoresSafeArea(.container, edges: .top)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
             }

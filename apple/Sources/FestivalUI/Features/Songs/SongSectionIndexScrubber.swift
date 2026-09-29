@@ -52,8 +52,8 @@ struct SongSectionIndexScrubber: View {
         }
         .padding(.vertical, 6)
         // Intrinsic size — as tall as its own letters, never the full list height.
-        // The caller bottom-aligns it: the bottom inset (tab bar, dock) is fixed while
-        // the top inset changes as the large title and search field collapse.
+        // The caller centers it in a region with a fixed top, so a collapsing large
+        // title does not move it.
         .frame(width: 22)
         .festivalGlassCapsule(.control)
         .contentShape(Rectangle())

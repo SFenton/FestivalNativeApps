@@ -135,16 +135,20 @@ struct FestivalTabStack<Root: View>: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            root.navigationDestination(for: AppRoute.self) { route in
+            root
+                // iPhone: the page's Filter/Sort and Quick Links float above the tab bar.
+                .modifier(FloatingPageControls())
+                .modifier(TopEdgeScrim())
+                .navigationDestination(for: AppRoute.self) { route in
                 AppRouteDestination(
                     route: route, session: session, visibleInstruments: visibleInstruments,
                     path: $path, isVisible: isVisible
                 )
-                // Search on every pushed page where the dock can't show it.
+                // Header Search on every pushed page.
                 .globalSearchToolbarItem()
+                .modifier(FloatingPageControls())
+                .modifier(TopEdgeScrim())
             }
         }
-        // iPhone: the page's Filter/Sort and Quick Links float above the tab bar.
-        .modifier(FloatingPageControls())
     }
 }

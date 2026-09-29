@@ -5,7 +5,8 @@ import FestivalDesign
 
 /// Detent presets shared by every Festival modal.
 public enum FestivalSheetSize: Sendable {
-    /// Short pickers and confirmations: medium, expandable to large.
+    /// Short pickers and confirmations: opens at large (operator, 2026-09-28: sheets
+    /// opened only halfway), and can still be dragged down to medium.
     case compact
     /// Search, filters and forms that need the full height.
     case large
@@ -47,11 +48,13 @@ struct FestivalSheetModifier: ViewModifier {
     @Environment(\.deviceLayout) private var deviceLayout
     @AppStorage("fst.accessibility.lessTransparency") private var lessTransparency = false
     @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
+    /// Every sheet opens at the large detent.
+    @State private var detent: PresentationDetent = .large
 
     func body(content: Content) -> some View {
         content
             .scrollContentBackground(.hidden)
-            .presentationDetents(size.detents)
+            .presentationDetents(size.detents, selection: $detent)
             .presentationDragIndicator(.visible)
             .modifier(SheetBackground(opaque: reduceTransparency || lessTransparency || moreContrast))
             .modifier(FestivalSheetSizingModifier(

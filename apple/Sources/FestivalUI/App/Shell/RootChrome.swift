@@ -198,7 +198,8 @@ struct FestivalRootTrailingItems: ToolbarContent {
         if #available(iOS 26.0, *) {
             ToolbarSpacer(.fixed, placement: .topBarTrailing)
         }
-        if showsNotifications {
+        // Bell only with a selected profile (operator, 2026-09-28): notifications are per player.
+        if showsNotifications && session.selectedPlayer != nil {
             if #available(iOS 27.0, *) {
                 ToolbarItem(placement: .topBarTrailing) { NotificationsButton(session: session) }
                     .railVisibilityPriority(.bell)

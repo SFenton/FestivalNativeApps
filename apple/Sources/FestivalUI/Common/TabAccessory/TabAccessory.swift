@@ -18,9 +18,12 @@ final class TabAccessoryRegistry {
     /// One registered dock control.
     struct Entry {
         let id: UUID
-        /// Position within the dock after Search (lower first); see ``DockOrder``.
+        /// Position among the floating tools (lower first); see ``DockOrder``.
         var order: Int
         var content: AnyView
+        /// Accessibility identifier re-applied by the host: the tab content's own
+        /// `fst.nav.*` identifier otherwise overrides identifiers inside the inset.
+        var accessibilityID: String?
     }
 
     private(set) var entries: [Entry] = []
@@ -42,12 +45,18 @@ final class TabAccessoryRegistry {
     ///   - order: Dock position after Search.
     ///   - content: Control content; it renders in the root's environment, so it must
     ///     not rely on page-only environment values.
-    func upsert(id: UUID, order: Int = DockOrder.pageAction, content: AnyView) {
+    func upsert(
+        id: UUID, order: Int = DockOrder.pageAction, accessibilityID: String? = nil,
+        content: AnyView
+    ) {
         if let index = entries.firstIndex(where: { $0.id == id }) {
             entries[index].content = content
             entries[index].order = order
+            entries[index].accessibilityID = accessibilityID
         } else {
-            entries.append(Entry(id: id, order: order, content: content))
+            entries.append(Entry(
+                id: id, order: order, content: content, accessibilityID: accessibilityID
+            ))
         }
     }
 
@@ -117,9 +126,11 @@ struct TabAccessoryHost: ViewModifier {
 // MARK: - Floating controls
 
 /// The visible page's controls as separate floating glass buttons, trailing-aligned
-/// just above the tab bar (like the web's FABs). Applied by `FestivalTabStack` as a
-/// bottom `safeAreaInset`, so lists scroll clear of them and page-owned bottom bars
-/// (e.g. the Full Rankings pager) stack above them instead of overlapping.
+/// just above the tab bar (like the web's FABs). `FestivalTabStack` applies it to each
+/// page inside the navigation stack: the page gets matching bottom safe-area padding
+/// (lists scroll clear, trailing overlays such as the A–Z rail end above the buttons)
+/// and the buttons are an overlay. (A `safeAreaInset` outside the stack was ignored by
+/// the pages and let the tab's `fst.nav.*` identifier replace the buttons' own.)
 struct FloatingPageControls: ViewModifier {
     @Environment(\.tabAccessoryRegistry) private var registry
 
@@ -127,29 +138,30 @@ struct FloatingPageControls: ViewModifier {
     static let height: CGFloat = 50 + 8
 
     func body(content: Content) -> some View {
-        let hasItems = !(registry?.items.isEmpty ?? true)
+        let items = registry?.items ?? []
         content
-            .environment(\.floatingControlsInset, hasItems ? Self.height : 0)
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-            if let registry, !registry.items.isEmpty {
-                FestivalGlassGroup(spacing: 12) {
-                    HStack(spacing: 12) {
-                        Spacer(minLength: 0)
-                        ForEach(registry.items, id: \.id) { item in
-                            item.content
-                                .labelStyle(.iconOnly)
-                                .font(.title3)
-                                .frame(width: 50, height: 50)
-                                .contentShape(Circle())
-                                .festivalGlassCapsule(.control, interactive: true)
+            .environment(\.floatingControlsInset, items.isEmpty ? 0 : Self.height)
+            .safeAreaPadding(.bottom, items.isEmpty ? 0 : Self.height)
+            .overlay(alignment: .bottomTrailing) {
+                if !items.isEmpty {
+                    FestivalGlassGroup(spacing: 12) {
+                        HStack(spacing: 12) {
+                            ForEach(items, id: \.id) { item in
+                                item.content
+                                    .labelStyle(.iconOnly)
+                                    .font(.title3)
+                                    .frame(width: 50, height: 50)
+                                    .contentShape(Circle())
+                                    .festivalGlassCapsule(.control, interactive: true)
+                                    .accessibilityIdentifier(item.accessibilityID ?? "")
+                            }
                         }
                     }
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 8)
+                    .transition(.opacity)
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
-                .transition(.opacity)
             }
-        }
     }
 }
 
@@ -170,11 +182,12 @@ extension View {
     ///   - accessory: Control content (rendered in the root's environment).
     /// - Returns: The view, registering its control while visible.
     func festivalTabAccessory<Token: Hashable, Accessory: View>(
-        token: Token, order: Int = DockOrder.pageAction, isEnabled: Bool = true,
-        @ViewBuilder accessory: @escaping () -> Accessory
+        token: Token, order: Int = DockOrder.pageAction, accessibilityID: String? = nil,
+        isEnabled: Bool = true, @ViewBuilder accessory: @escaping () -> Accessory
     ) -> some View {
         modifier(TabAccessoryRegistration(
-            token: token, order: order, isEnabled: isEnabled, accessory: accessory
+            token: token, order: order, accessibilityID: accessibilityID,
+            isEnabled: isEnabled, accessory: accessory
         ))
     }
 }
@@ -183,6 +196,7 @@ extension View {
 struct TabAccessoryRegistration<Token: Hashable, Accessory: View>: ViewModifier {
     let token: Token
     let order: Int
+    let accessibilityID: String?
     let isEnabled: Bool
     let accessory: () -> Accessory
     @Environment(\.tabAccessoryRegistry) private var registry
@@ -208,7 +222,10 @@ struct TabAccessoryRegistration<Token: Hashable, Accessory: View>: ViewModifier 
     private func sync() {
         guard let registry else { return }
         if visible && isEnabled {
-            registry.upsert(id: id, order: order, content: AnyView(accessory()))
+            registry.upsert(
+                id: id, order: order, accessibilityID: accessibilityID,
+                content: AnyView(accessory())
+            )
         } else {
             registry.remove(id: id)
         }

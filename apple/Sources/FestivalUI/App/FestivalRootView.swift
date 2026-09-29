@@ -37,6 +37,7 @@ public struct FestivalRootView: View {
 
     /// Create an adaptive root using native, platform-owned navigation controls.
     public init() {
+        NavigationTitleStyle.apply()
         var initialSection = FestivalSection.songs
         var selectionStorage: UserDefaults? = .standard
         var initialRoute: AppRoute?
