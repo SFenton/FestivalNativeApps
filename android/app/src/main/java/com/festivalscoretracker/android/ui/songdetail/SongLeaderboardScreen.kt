@@ -112,7 +112,7 @@ fun SongLeaderboardRouteScreen(container: AppContainer, settings: AppSettings, r
  * rankings pager. Rows open the player's profile (Statistics for the selected
  * player, web `LeaderboardPage.tsx`); rows without a usable account ID are shown
  * but not interactive. The selected player's row is highlighted in place, or pinned
- * above the pager from their score index (same publication only) with **Your Page**.
+ * above the pager from their score index (same publication only).
  *
  * @param viewModel Leaderboard logic.
  * @param selectedAccountId Selected player, or null.
@@ -172,7 +172,7 @@ fun SongLeaderboardScreen(
                     loadedSong?.let { navigate(SongLeaderboardRoute(it.songId, chart.wireId)) }
                 }
             },
-            footer = { footer?.let { AnchoredRowCard { SelectedScoreFooter(it, page, navigate, viewModel::goTo, showStars) } } },
+            footer = { footer?.let { AnchoredRowCard { SelectedScoreFooter(it, navigate, showStars) } } },
             pager = { RankingsPager(page, loaded?.pageCount() ?: page, "fst.song-leaderboard", viewModel::goTo) },
         ) {
             item(key = "rows") {
@@ -206,27 +206,17 @@ fun SongLeaderboardScreen(
 }
 
 /**
- * The selected player's pinned score row (opens Statistics) with a jump to their page.
+ * The selected player's pinned score row (web `LeaderboardPage` footer: just the row,
+ * which opens Statistics; no page-jump button, so its columns align with the board, 7.9).
  *
  * @param entry Footer row built from the score index.
- * @param page Current page.
  * @param navigate Push a route.
- * @param goTo Page change.
  * @param showStars Show star images.
  */
 @Composable
-private fun SelectedScoreFooter(entry: LeaderboardEntry, page: Int, navigate: (AppRoute) -> Unit, goTo: (Int) -> Unit, showStars: Boolean) {
-    val target = if (entry.rank > 0) LeaderboardPaging.pageForRank(entry.rank) else null
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().testTag("fst.song-leaderboard.spotlight-footer")) {
-        Box(Modifier.weight(1f)) {
-            SongLeaderboardRow(entry, isSelected = true, route = StatisticsRoute, onOpen = navigate, showStars = showStars)
-        }
-        if (target != null && target != page) {
-            FilledTonalButton(
-                onClick = { goTo(target) },
-                modifier = Modifier.padding(start = 8.dp).heightIn(min = 48.dp).testTag("fst.song-leaderboard.spotlight-jump"),
-            ) { Text("Your Page") }
-        }
+private fun SelectedScoreFooter(entry: LeaderboardEntry, navigate: (AppRoute) -> Unit, showStars: Boolean) {
+    Box(Modifier.fillMaxWidth().testTag("fst.song-leaderboard.spotlight-footer")) {
+        SongLeaderboardRow(entry, isSelected = true, route = StatisticsRoute, onOpen = navigate, showStars = showStars)
     }
 }
 
@@ -256,7 +246,7 @@ private fun SongLeaderboardRow(
         modifier.semantics { stateDescription = "Profile unavailable" }
     }
     Box(modifier.testTag("fst.song-leaderboard.row.${entry.accountId.ifEmpty { "rank-${entry.rank}" }}")) {
-        ScoreRow(entry, showStars, isSelected = isSelected, rankWidth = rankWidth)
+        ScoreRow(entry, showStars, isSelected = isSelected, rankWidth = rankWidth, navigable = route != null)
     }
 }
 

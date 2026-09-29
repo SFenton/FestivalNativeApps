@@ -99,7 +99,9 @@ import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.common.rememberRevealed
+import com.festivalscoretracker.android.ui.design.AccuracyPill
 import com.festivalscoretracker.android.ui.design.DifficultyMeter
+import com.festivalscoretracker.android.ui.design.RowChevron
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.SectionHeader
@@ -567,7 +569,7 @@ private fun PreviewRow(entry: LeaderboardEntry, isSelected: Boolean, route: AppR
         modifier.semantics { stateDescription = "Profile unavailable" }
     }
     Box(modifier.testTag("fst.song-detail.preview-row.${instrument.wireId}.${entry.accountId.ifEmpty { "rank-${entry.rank}" }}")) {
-        ScoreRow(entry, isSelected = isSelected, rankWidth = rankWidth)
+        ScoreRow(entry, isSelected = isSelected, rankWidth = rankWidth, navigable = route != null)
     }
 }
 
@@ -576,16 +578,17 @@ private fun PreviewRow(entry: LeaderboardEntry, isSelected: Boolean, route: AppR
 // region Score row
 
 /**
- * The selected player's row treatment (web `playerEntryRow`: purple highlight with a
- * purple border), inset 4 dp inside its card so separators stay visible.
+ * Row inset plus the selected player's treatment (web `playerEntryRow`: purple
+ * highlight with a purple border). Every row gets the same 4 dp inset so the selected
+ * row's columns line up with the others (7.9) and separators stay visible.
  *
  * @param selected Whether this is the selected player's row.
  * @return Modifier.
  */
 internal fun Modifier.selectedRowHighlight(selected: Boolean): Modifier {
-    if (!selected) return this
     val shape = RoundedCornerShape(10.dp)
-    return padding(horizontal = 4.dp).clip(shape).background(PurpleHighlight).border(1.dp, PurpleHighlightBorder, shape)
+    val inset = padding(horizontal = 4.dp).clip(shape)
+    return if (selected) inset.background(PurpleHighlight).border(1.dp, PurpleHighlightBorder, shape) else inset
 }
 
 /**
@@ -607,17 +610,20 @@ internal fun rememberRankWidth(ranks: List<Int>): Dp {
 }
 
 /**
- * One leaderboard row: rank, name, score and accuracy (or FC), read as one stop. The
- * selected player's rank and name are bold (web `LeaderboardEntry` `isPlayer`, 6.42).
- * Anonymous rows (no account) read "Unknown User".
+ * One leaderboard row, the unified design shared with the rankings boards (7.7): rank,
+ * name, score, the web accuracy pill (gold italic outline for an FC, 7.11) and an
+ * in-card chevron on navigable rows (7.3; other rows keep the slot so columns align).
+ * The selected player's texts are bold (web `LeaderboardEntry` `isPlayer`, 6.42).
+ * Anonymous rows (no account) read "Unknown User". Read as one stop.
  *
  * @param entry Wire row.
  * @param showStars Show the star images after the score (wide rows, web `QUERY_SHOW_STARS`).
- * @param isSelected The selected player's row (bold rank and name).
+ * @param isSelected The selected player's row (bold).
  * @param rankWidth Rank column width (defaults to a four-digit rank).
+ * @param navigable Draw the chevron.
  */
 @Composable
-fun ScoreRow(entry: LeaderboardEntry, showStars: Boolean = false, isSelected: Boolean = false, rankWidth: Dp = DEFAULT_RANK_WIDTH) {
+fun ScoreRow(entry: LeaderboardEntry, showStars: Boolean = false, isSelected: Boolean = false, rankWidth: Dp = DEFAULT_RANK_WIDTH, navigable: Boolean = false) {
     val weight = if (isSelected) FontWeight.Bold else FontWeight.Normal
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -639,16 +645,17 @@ fun ScoreRow(entry: LeaderboardEntry, showStars: Boolean = false, isSelected: Bo
         Text(
             ScoreFormatting.score(entry.score),
             style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
             color = BrandTokens.textPrimary,
             modifier = Modifier.padding(horizontal = 10.dp),
         )
-        AccuracyBadge(entry)
+        if (entry.accuracy != null) AccuracyPill(entry.accuracy, entry.isFullCombo == true) else Spacer(Modifier.width(56.dp))
         if (showStars) {
             Box(Modifier.padding(start = 10.dp).width(STAR_COLUMN_DP.dp), contentAlignment = Alignment.CenterEnd) {
                 StarRating(entry.stars ?: 0, Modifier.testTag("fst.stars"), size = 20.dp)
             }
         }
+        if (navigable) RowChevron(Modifier.padding(start = 4.dp)) else Spacer(Modifier.width(24.dp))
     }
 }
 
@@ -657,28 +664,5 @@ private val DEFAULT_RANK_WIDTH = 52.dp
 
 /** Width reserved for the stars column so scores stay aligned (web `StarSize.rowWidth`). */
 private const val STAR_COLUMN_DP = 116
-
-@Composable
-private fun AccuracyBadge(entry: LeaderboardEntry) {
-    val accuracy = entry.accuracy ?: return
-    val fullCombo = entry.isFullCombo == true
-    val tint = ScoreFormatting.accuracyTint(accuracy)
-    val background = when {
-        fullCombo -> BrandTokens.gold.copy(alpha = 0.25f)
-        tint != null -> Color(0xFF000000 or tint.toLong()).copy(alpha = 0.25f)
-        else -> Color.Transparent
-    }
-    val text = "${ScoreFormatting.accuracy(accuracy)}%"
-    Text(
-        text,
-        style = MaterialTheme.typography.labelMedium,
-        color = if (fullCombo) BrandTokens.gold else BrandTokens.textPrimary,
-        modifier = Modifier
-            .semantics { contentDescription = if (fullCombo) "Full combo, $text" else "Accuracy $text" }
-            .clip(RoundedCornerShape(6.dp))
-            .background(background)
-            .padding(horizontal = 6.dp, vertical = 2.dp),
-    )
-}
 
 // endregion
