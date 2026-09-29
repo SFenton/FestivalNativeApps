@@ -225,7 +225,7 @@ class SettingsUiTest {
         settle()
         rule.onNodeWithTag("fst.first-run.back").performClick()
         settle()
-        rule.onNodeWithTag("fst.first-run.skip").performClick()
+        rule.onNodeWithTag("fst.first-run.close").performClick()
         waitGone("fst.first-run.dialog")
         // Only the two displayed slides count as seen (batch 6.7): the next visit shows the other four.
         rule.onNodeWithTag("fst.nav.tab.settings").performClick()

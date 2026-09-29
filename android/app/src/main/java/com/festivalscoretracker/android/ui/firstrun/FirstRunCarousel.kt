@@ -62,8 +62,8 @@ import kotlinx.coroutines.launch
 /**
  * First-run carousel: an M3 dialog with a horizontal pager, white page dots, a close
  * button and the footer actions (operator batch 6.7): **Next/Done first, then Back**
- * (Back only after the first slide, never shown disabled), and Skip only while there is
- * more than one slide, so a one-slide guide shows only Done. Close, Skip, Done, system
+ * (Back only after the first slide, never shown disabled) and no Skip — the close button
+ * is the web's only early exit — so a one-slide guide shows only Done. Close, Done, system
  * back and a tap outside all complete it, marking only the slides actually displayed as
  * seen. Off-screen pages are not composed beyond the pager's single-page beyond bound,
  * so demo animations cost nothing while hidden.
@@ -152,9 +152,6 @@ fun FirstRunCarouselDialog(carousel: FirstRunCarousel, compact: Boolean, onCompl
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 24.dp, top = 8.dp),
                 ) {
-                    if (carousel.slides.size > 1) {
-                        TextButton(onClick = close, colors = ButtonDefaults.textButtonColors(contentColor = BrandTokens.textPrimary), modifier = Modifier.testTag("fst.first-run.skip")) { Text("Skip") }
-                    }
                     Spacer(Modifier.weight(1f))
                     Button(
                         onClick = { if (last) close() else go(pager.currentPage + 1) },

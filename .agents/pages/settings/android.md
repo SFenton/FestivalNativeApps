@@ -35,7 +35,9 @@
 ## Decisions
 
 - Rows: whole-row `toggleable(role = Switch)` with title + description; a disabled row appends its reason so TalkBack reads why.
-- Reorder uses numbered rows with Move up/Move down buttons plus TalkBack custom actions, not drag-only lists (keyboard/switch-access friendly, as on Windows).
+- Reorder (`ui/settings/ReorderList.kt`, batch 6.11) looks like the web's dnd-kit list: one bordered block of subtle rows with a ⋮⋮ handle and a semibold label, no numbers or arrow buttons. Drag the handle, or long-press anywhere on a row (the web's 150 ms touch activation) with a haptic tick; TalkBack/Switch Access use the rows' Move up / Move down custom actions. Song Row Visual Order shows directly under its toggle when enabled (no dropdown). Also used by the Songs sort sheet.
+- Labels follow the web: metadata "Difficulty" (not "Game Difficulty", batch 6.13); First Run Guides rows show only the page name and a blue "Show" button (no slide counts, batch 6.16).
+- Licenses entry (batch 6.17) is the web's navigation row: a section header (title + description) on the page with a trailing chevron, not a card. Settings and Licenses centre their column at 840 dp on wide windows.
 - Service Info: labels, units and the monotonic reducer port the web/Apple tables verbatim; the body's `postgresConnectionTarget`/`serviceInstance` have no model fields, so they are never decoded or logged. The live summary is a polite live region; the phase row speaks its title with the percent/units as state and exposes `ProgressBarRangeInfo` when determinate.
 - Not ported: profile-name refresh (POST), ZIP export (not allowlisted), light trails / mobile header buttons (no cursor or FAB chrome on Android), default search target (global search has no tabs to default).
 - Book posture (separating vertical hinge): list on the start side, Quick Links pane beyond the hinge.
@@ -49,4 +51,3 @@
 ## Open
 
 - Consumers still owed by other lanes: Songs (icons, metadata order/visibility, Shop hide/highlight, leeway on leaderboard reads), Paths (default view, column order, warning dismissal).
-- Drag-to-reorder (in addition to the buttons) is not built.

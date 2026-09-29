@@ -74,6 +74,7 @@ import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.festivalSheetTop
 import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.popupTestTags
@@ -165,7 +166,7 @@ fun NotificationsSheet(viewModel: NotificationsViewModel, onDismiss: () -> Unit,
         onDismissRequest = close,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = BrandTokens.cardBackground,
-        modifier = Modifier.popupTestTags().testTag("fst.notifications.sheet").semantics { paneTitle = "Notifications" },
+        modifier = Modifier.festivalSheetTop().popupTestTags().testTag("fst.notifications.sheet").semantics { paneTitle = "Notifications" },
     ) {
         Text(
             "Notifications",

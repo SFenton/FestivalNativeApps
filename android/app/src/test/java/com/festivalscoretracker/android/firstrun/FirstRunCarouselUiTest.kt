@@ -43,7 +43,7 @@ class FirstRunCarouselUiTest {
     fun nextSitsBeforeBackAndClosingReportsTheSlidesSeen() {
         var viewed = -1
         rule.setContent { FestivalTheme { FirstRunCarouselDialog(FirstRunCarousel(2, FirstRunPageKey.Songs, songs.take(3), isReplay = false), compact = true) { viewed = it } } }
-        assertTrue(exists("fst.first-run.skip") && !exists("fst.first-run.back"))
+        assertTrue(!exists("fst.first-run.skip") && !exists("fst.first-run.back"))
         rule.onNodeWithTag("fst.first-run.next").performClick()
         rule.waitForIdle()
         val next = rule.onNodeWithTag("fst.first-run.next").fetchSemanticsNode().boundsInRoot
