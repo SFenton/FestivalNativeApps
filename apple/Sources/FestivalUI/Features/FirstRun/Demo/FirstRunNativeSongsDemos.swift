@@ -14,7 +14,7 @@ extension EnvironmentValues {
 /// Supplies up to three real catalogue songs (the web demos switch to catalogue songs once
 /// loaded), falling back to offline stand-ins. The catalogue read is the app's cached,
 /// keyless `/api/songs`; nothing new is requested when Songs already loaded it.
-private struct FirstRunCatalogueSongs<Content: View>: View {
+struct FirstRunCatalogueSongs<Content: View>: View {
     @Environment(\.firstRunSession) private var session
     @State private var songs = Song.firstRunFallback
     @ViewBuilder let content: ([Song], FestivalSession?) -> Content

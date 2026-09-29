@@ -86,25 +86,27 @@ final class SettingsJourneyTests: XCTestCase {
             app.descendants(matching: .any)
                 .matching(identifier: "fst.settings.path-column-order.\(key)").firstMatch
         }
-        let note = row("note")
-        let score = row("score")
-        SongsUITestSupport.reveal(score, in: app, scrollingUp: true)
-        SongsUITestSupport.reveal(note, in: app, scrollingUp: false)
-        XCTAssertLessThan(note.frame.minY, score.frame.minY)
-        XCTAssertEqual(score.value as? String, "5 of 5")
+        // Earlier runs may have left a custom order: find the current first and last rows.
+        let keys = ["note", "beat", "time", "od", "score"]
+        SongsUITestSupport.reveal(row("score"), in: app, scrollingUp: true)
+        SongsUITestSupport.reveal(row("note"), in: app, scrollingUp: false)
+        let first = try XCTUnwrap(keys.map(row).first { $0.value as? String == "1 of 5" })
+        let last = try XCTUnwrap(keys.map(row).first { $0.value as? String == "5 of 5" })
+        XCTAssertLessThan(first.frame.minY, last.frame.minY)
         SongsUITestSupport.record(app, name: "settings-path-columns-before-drag")
 
-        // Drag by the leading grip handle.
-        score.coordinate(withNormalizedOffset: CGVector(dx: 0.06, dy: 0.5)).press(
+        // Drag the last row by its leading grip handle onto the first.
+        last.coordinate(withNormalizedOffset: CGVector(dx: 0.06, dy: 0.5)).press(
             forDuration: 0.3,
-            thenDragTo: note.coordinate(withNormalizedOffset: CGVector(dx: 0.06, dy: 0.3))
+            thenDragTo: first.coordinate(withNormalizedOffset: CGVector(dx: 0.06, dy: 0.3))
         )
         let moved = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "value == %@", "1 of 5"), object: score
+            predicate: NSPredicate(format: "value == %@", "1 of 5"), object: last
         )
-        XCTAssertEqual(XCTWaiter.wait(for: [moved], timeout: 10), .completed, "Score was not dragged to the top")
-        XCTAssertEqual(note.value as? String, "2 of 5")
+        XCTAssertEqual(XCTWaiter.wait(for: [moved], timeout: 10), .completed, "Row was not dragged to the top")
+        XCTAssertEqual(first.value as? String, "2 of 5")
         SongsUITestSupport.record(app, name: "settings-path-columns-after-drag")
+        let score = row("score")
 
         // A quick swipe that starts on the list still scrolls the page.
         let before = score.frame.minY
@@ -114,8 +116,15 @@ final class SettingsJourneyTests: XCTestCase {
         let resetButton = app.buttons["fst.settings.reset"]
         SongsUITestSupport.reveal(resetButton, in: app, scrollingUp: true)
         resetButton.tap()
-        let confirm = app.buttons["Reset App Settings"]
-        XCTAssertTrue(confirm.waitForExistence(timeout: 10))
+        // The page button shares the dialog button's label; tap the dialog's.
+        let confirmations = app.buttons.matching(NSPredicate(format: "label == %@", "Reset App Settings"))
+        let dialog = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "count > 1"), object: confirmations
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [dialog], timeout: 10), .completed)
+        let confirm = try XCTUnwrap(
+            confirmations.allElementsBoundByIndex.first { $0.isHittable && $0.identifier != "fst.settings.reset" }
+        )
         confirm.tap()
         SongsUITestSupport.reveal(score, in: app, scrollingUp: false)
         let restored = XCTNSPredicateExpectation(
@@ -156,8 +165,14 @@ final class SettingsJourneyTests: XCTestCase {
         let resetButton = app.buttons["fst.settings.reset"]
         SongsUITestSupport.reveal(resetButton, in: app, scrollingUp: false)
         resetButton.tap()
-        let confirm = app.buttons["Reset App Settings"]
-        XCTAssertTrue(confirm.waitForExistence(timeout: 10))
+        let confirmations = app.buttons.matching(NSPredicate(format: "label == %@", "Reset App Settings"))
+        let dialog = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "count > 1"), object: confirmations
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [dialog], timeout: 10), .completed)
+        let confirm = try XCTUnwrap(
+            confirmations.allElementsBoundByIndex.first { $0.isHittable && $0.identifier != "fst.settings.reset" }
+        )
         confirm.tap()
 
         let restoredHideShop = app.switches["fst.settings.hide-shop"]

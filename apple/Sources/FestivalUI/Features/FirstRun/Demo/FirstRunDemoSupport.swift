@@ -70,40 +70,18 @@ extension View {
 
 // MARK: - Shared row styles
 
-/// A flat leaderboard row (rank, name, rating), echoing `AccountRankingRow`'s layout without
-/// depending on a live `AccountRankingEntry`.
+/// A leaderboard row drawn with the app's real Leaderboards row (`RankingRowLayout` on a
+/// `RankingRowSurface` glass card, the selected player's purple accent), operator batch 7.
 struct FirstRunRankRow: View {
     let entry: FirstRunDemoPool.RankingEntry
 
     var body: some View {
-        HStack(spacing: 12) {
-            Text("#\(entry.rank)")
-                .font(.body)
-                .monospacedDigit()
-                .foregroundStyle(FestivalText.primary)
-                .frame(minWidth: 32, alignment: .trailing)
-            Text(entry.name)
-                .font(.body.weight(entry.isPlayer ? .semibold : .regular))
-                .foregroundStyle(FestivalText.primary)
-                .lineLimit(1)
-            Spacer(minLength: 8)
-            Text(entry.rating)
-                .font(.body.weight(.semibold))
-                .monospacedDigit()
-                .foregroundStyle(FestivalText.primary)
-        }
-        .padding(.horizontal, 14)
-        .frame(height: 44)
-        .background(
-            entry.isPlayer ? BrandTokens.accentPurple.opacity(0.22) : .clear,
-            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+        RankingRowLayout(
+            rank: entry.rank, name: entry.name, songs: entry.songs,
+            spokenSongs: "\(entry.songs) songs", rating: entry.rating, bayesian: nil,
+            emphasized: entry.isPlayer
         )
-        .overlay {
-            if entry.isPlayer {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(BrandTokens.accentPurple.opacity(0.5), lineWidth: 1)
-            }
-        }
+        .modifier(RankingRowSurface(isSelected: entry.isPlayer))
     }
 }
 
@@ -116,42 +94,11 @@ struct FirstRunRivalRow: View {
     let direction: Direction
 
     var body: some View {
-        HStack(spacing: 10) {
-            Circle()
-                .fill(direction == .below ? BrandTokens.statusGreen : BrandTokens.statusRed)
-                .frame(width: 8, height: 8)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(rival.name)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(FestivalText.primary)
-                    .lineLimit(1)
-                HStack(spacing: 6) {
-                    pill("\(rival.ahead) ahead", BrandTokens.statusGreen)
-                    pill("\(rival.behind) behind", BrandTokens.statusRed)
-                }
-            }
-            Spacer(minLength: 8)
-            VStack(alignment: .trailing, spacing: 0) {
-                Text("\(rival.shared)")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(FestivalText.primary)
-                Text("shared")
-                    .font(.caption2)
-                    .foregroundStyle(FestivalText.deemphasized)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .festivalGlass(.card, cornerRadius: 12)
-    }
-
-    private func pill(_ text: String, _ tint: Color) -> some View {
-        Text(text)
-            .font(.caption2.weight(.semibold))
-            .padding(.horizontal, 7)
-            .padding(.vertical, 2)
-            .foregroundStyle(tint)
-            .background(tint.opacity(0.16), in: Capsule())
+        // The app's real rival row (`RivalRowContent`) on a glass card (operator batch 7).
+        RivalRowContent(rival: rival, direction: direction == .above ? .above : .below)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .festivalGlass(.card, cornerRadius: 12)
     }
 }
 
@@ -160,27 +107,55 @@ struct FirstRunViewAllRow: View {
     let title: String
 
     var body: some View {
+        // The app's purple "View all" button surface, pulsing as the web demo's
+        // call-to-action does.
         Text(title)
-            .font(.subheadline.weight(.semibold))
+            .font(.body.weight(.semibold))
             .foregroundStyle(FestivalText.primary)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .festivalGlass(.card, cornerRadius: 12)
-            .firstRunPulse(BrandTokens.accentBlue)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .padding(.vertical, 4)
+            .modifier(FirstRunPurpleButtonSurface())
+            .firstRunPulse(BrandTokens.accentPurple)
     }
 }
 
-/// A small instrument header (icon + label), standing in for the web's `InstrumentHeader`.
+/// Same surface as the Leaderboards / Song Detail "View all" buttons (their
+/// `PurpleGlassButtonSurface` is file-private in each screen): accent-purple interactive
+/// glass on 26, solid purple under Reduce Transparency or the app's contrast overrides.
+struct FirstRunPurpleButtonSurface: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
+    @AppStorage("fst.accessibility.lessTransparency") private var lessTransparency = false
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+        if reduceTransparency || lessTransparency || moreContrast {
+            content.background(BrandTokens.accentPurple, in: shape)
+        } else if #available(iOS 26.0, macOS 26.0, *) {
+            content.glassEffect(.regular.tint(BrandTokens.accentPurple).interactive(), in: shape)
+        } else {
+            content
+                .background(BrandTokens.accentPurple.opacity(0.85), in: shape)
+                .overlay(shape.stroke(BrandTokens.glassBorder, lineWidth: 1))
+        }
+    }
+}
+
+/// The Leaderboards/Song Detail instrument header: 36 pt icon and a bold title outside the
+/// card (web `InstrumentHeader` MD), as the real pages draw it.
 struct FirstRunInstrumentHeader: View {
     let instrument: Instrument
 
     var body: some View {
-        HStack(spacing: 8) {
-            InstrumentIcon(instrument, size: 22)
+        HStack(spacing: 10) {
+            InstrumentIcon(instrument, size: 36)
             Text(instrument.label)
-                .font(.subheadline.weight(.semibold))
+                .font(.title3.weight(.bold))
                 .foregroundStyle(FestivalText.primary)
+            Spacer(minLength: 0)
         }
+        .frame(minHeight: 36)
     }
 }
 

@@ -12,10 +12,9 @@ struct FirstRunCompeteHubDemo: View {
         VStack(spacing: 10) {
             VStack(spacing: 4) {
                 ForEach(FirstRunDemoPool.rankings.prefix(2)) { entry in
-                    FirstRunRankRow(entry: entry).festivalGlass(.card, cornerRadius: 10)
+                    FirstRunRankRow(entry: entry)
                 }
                 FirstRunRankRow(entry: FirstRunDemoPool.rankingNeighborhood[3])
-                    .festivalGlass(.card, cornerRadius: 10)
             }
             if let above = FirstRunDemoPool.rivalsAbove.first,
                let below = FirstRunDemoPool.rivalsBelow.first {

@@ -22,55 +22,42 @@ struct FirstRunStatsSelectProfileDemo: View {
     }
 }
 
-// MARK: - Stat card primitive (shared by drill-down / overview / instrument breakdown)
+// MARK: - Real stat tiles (operator batch 7)
 
-private struct FirstRunStatCard: View {
-    let label: String
-    let value: String
-    var tint: Color = FestivalText.primary
-    var chevron = false
+/// The Statistics page's real `PlayerStatGrid` over sample tiles; a tile with a link shows
+/// the in-tile chevron exactly as the page does. Taps are ignored (demos are inert).
+private struct FirstRunStatTiles: View {
+    let tiles: [StatTile]
+    var pulsing: Set<String> = []
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(label)
-                    .font(.caption)
-                    .foregroundStyle(FestivalText.primary)
-                Spacer(minLength: 0)
-                if chevron {
-                    Image(systemName: "chevron.right")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(FestivalText.deemphasized)
-                }
-            }
-            Text(value)
-                .font(.title3.weight(.semibold))
-                .monospacedDigit()
-                .foregroundStyle(tint)
+    @ViewBuilder var body: some View {
+        let grid = PlayerStatGrid(tiles: tiles, scope: "first-run") { _ in }
+            .allowsHitTesting(false)
+        if pulsing.isEmpty {
+            grid
+        } else {
+            grid.firstRunPulse(BrandTokens.accentBlue)
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 78)
-        .festivalGlass(.card, cornerRadius: 12)
+    }
+
+    /// A drillable tile (chevron), like Songs Played / Full Combos / Best Rank.
+    static func linked(_ id: String, _ label: String, _ value: String) -> StatTile {
+        StatTile(id: id, label: label, value: value, link: .fullRankings(.lead, rankBy: "totalscore"))
     }
 }
 
-private let twoColumns = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
-
 // MARK: - statistics-drill-down
 
-/// Ported from `pages/player/firstRun/demo/DrillDownDemo.tsx`: a 2-column stat grid where the
-/// drillable cards (Songs Played, Full Combos) pulse to hint they're tappable.
+/// Ported from `pages/player/firstRun/demo/DrillDownDemo.tsx`: the real stat grid where the
+/// drillable tiles carry chevrons; the grid pulses to hint they're tappable.
 struct FirstRunStatsDrillDownDemo: View {
     var body: some View {
-        LazyVGrid(columns: twoColumns, spacing: 10) {
-            FirstRunStatCard(label: "Songs Played", value: "142", chevron: true)
-                .firstRunPulse(BrandTokens.accentBlue)
-            FirstRunStatCard(label: "Gold Stars", value: "12", tint: BrandTokens.gold)
-            FirstRunStatCard(label: "Avg Accuracy", value: "96.2%")
-            FirstRunStatCard(label: "Full Combos", value: "38 (26.8%)", chevron: true)
-                .firstRunPulse(BrandTokens.accentBlue)
-        }
+        FirstRunStatTiles(tiles: [
+            FirstRunStatTiles.linked("played", "Songs Played", "142"),
+            StatTile(id: "gold", label: "Gold Stars", value: "12", tint: BrandTokens.gold),
+            StatTile(id: "accuracy", label: "Avg Accuracy", value: "96.2%"),
+            FirstRunStatTiles.linked("fc", "Full Combos", "38 (26.8%)"),
+        ], pulsing: ["played", "fc"])
         .accessibilityHidden(true)
     }
 }
@@ -80,31 +67,32 @@ struct FirstRunStatsDrillDownDemo: View {
 /// Ported from `pages/player/firstRun/demo/OverviewDemo.tsx`: the global summary stat grid.
 struct FirstRunStatsOverviewDemo: View {
     var body: some View {
-        LazyVGrid(columns: twoColumns, spacing: 10) {
-            FirstRunStatCard(label: "Songs Played", value: "142 / 206", chevron: true)
-            FirstRunStatCard(label: "Full Combos", value: "38 (26.8%)", chevron: true)
-            FirstRunStatCard(label: "Gold Stars", value: "12", tint: BrandTokens.gold)
-            FirstRunStatCard(label: "Avg Accuracy", value: "96.2%")
-            FirstRunStatCard(label: "Best Rank", value: "#4", chevron: true)
-        }
+        FirstRunStatTiles(tiles: [
+            FirstRunStatTiles.linked("played", "Songs Played", "142 / 206"),
+            FirstRunStatTiles.linked("fc", "Full Combos", "38 (26.8%)"),
+            StatTile(id: "gold", label: "Gold Stars", value: "12", tint: BrandTokens.gold),
+            StatTile(id: "accuracy", label: "Avg Accuracy", value: "96.2%"),
+            FirstRunStatTiles.linked("best", "Best Rank", "#4"),
+            StatTile(id: "avg-stars", label: "Avg Stars", value: "5.2"),
+        ])
         .accessibilityHidden(true)
     }
 }
 
 // MARK: - statistics-instrument-breakdown
 
-/// Ported from `pages/player/firstRun/demo/InstrumentBreakdownDemo.tsx`: one instrument's stat
-/// cards, headed by its instrument icon.
+/// Ported from `pages/player/firstRun/demo/InstrumentBreakdownDemo.tsx`: one instrument's real
+/// stat tiles under its header.
 struct FirstRunStatsInstrumentBreakdownDemo: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             FirstRunInstrumentHeader(instrument: .lead)
-            LazyVGrid(columns: twoColumns, spacing: 10) {
-                FirstRunStatCard(label: "Played", value: "98 / 206", chevron: true)
-                FirstRunStatCard(label: "Full Combos", value: "24 (24.5%)", chevron: true)
-                FirstRunStatCard(label: "Gold Stars", value: "8", tint: BrandTokens.gold)
-                FirstRunStatCard(label: "Avg Accuracy", value: "94.4%")
-            }
+            FirstRunStatTiles(tiles: [
+                FirstRunStatTiles.linked("played", "Played", "98 / 206"),
+                FirstRunStatTiles.linked("fc", "Full Combos", "24 (24.5%)"),
+                StatTile(id: "gold", label: "Gold Stars", value: "8", tint: BrandTokens.gold),
+                StatTile(id: "accuracy", label: "Avg Accuracy", value: "94.4%"),
+            ])
         }
         .accessibilityHidden(true)
     }

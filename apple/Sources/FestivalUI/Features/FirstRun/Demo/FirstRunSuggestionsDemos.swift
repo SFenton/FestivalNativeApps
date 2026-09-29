@@ -8,7 +8,36 @@ import FestivalDesign
 /// card. The web rotates through several category templates on a timer; this static port shows
 /// the first ("Almost Full Combo"), matching the carousel's "no timers while off-screen" rule.
 struct FirstRunSuggestionsCategoryCardDemo: View {
+    @Environment(\.firstRunSession) private var session
+
     var body: some View {
+        if let session {
+            // The page's real category card (operator batch 7) over live catalogue songs.
+            FirstRunCatalogueSongs { songs, _ in
+                SuggestionCategoryCardView(
+                    category: SuggestionCategory(
+                        key: "unfc_guitar", title: "Almost Full Combo",
+                        description: "Songs where you're just a few notes from a full combo.",
+                        type: .nearFC, instrument: .lead,
+                        songs: songs.prefix(2).enumerated().map { index, song in
+                            SuggestionSongItem(
+                                song: song, instrument: .lead, stars: 5,
+                                percent: 98.6 - Double(index) * 1.3, fullCombo: false
+                            )
+                        }
+                    ),
+                    session: session
+                )
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        } else {
+            approximation
+        }
+    }
+
+    /// Offline stand-in for hosted tests (no session to drive the real card).
+    private var approximation: some View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Almost Full Combo")

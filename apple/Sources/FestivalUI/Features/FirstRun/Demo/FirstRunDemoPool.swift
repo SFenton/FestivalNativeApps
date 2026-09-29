@@ -35,6 +35,8 @@ enum FirstRunDemoPool {
         let rating: String
         var isPlayer: Bool = false
         var id: Int { rank }
+        /// Songs column ("played/total"), like the real rankings row.
+        var songs: String { "\(max(120, 512 - rank * 3))/512" }
     }
 
     static let rankings: [RankingEntry] = [
@@ -62,12 +64,20 @@ enum FirstRunDemoPool {
     // MARK: Rivals
 
     /// One rival summary row, matching the web's `RivalSummary` shape.
-    struct RivalEntry: Identifiable, Hashable {
+    struct RivalEntry: Identifiable, Hashable, RivalRowDisplayable {
         let id = UUID()
         let name: String
         let shared: Int
         let ahead: Int
         let behind: Int
+
+        // `RivalRowDisplayable`, so demos render the real `RivalRowContent`. That row's
+        // "ahead" pill reads `behindCount` (songs the rival is behind the player on).
+        var accountId: String { "fre-\(name)" }
+        var displayName: String? { name }
+        var sharedSongCount: Int { shared }
+        var behindCount: Int { ahead }
+        var aheadCount: Int { behind }
     }
 
     static let rivalsAbove: [RivalEntry] = [

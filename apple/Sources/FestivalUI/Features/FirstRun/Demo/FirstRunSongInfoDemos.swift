@@ -146,29 +146,23 @@ struct FirstRunSongInfoTopScoresDemo: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             FirstRunInstrumentHeader(instrument: .lead)
-            ForEach(Array(FirstRunDemoPool.topScores.enumerated()), id: \.element.id) { index, entry in
-                HStack(spacing: 14) {
-                    Text("#\(entry.rank)")
-                        .font(.subheadline).monospacedDigit()
-                        .foregroundStyle(FestivalText.primary)
-                        .frame(minWidth: 24, alignment: .trailing)
-                    Text(entry.name)
-                        .font(.subheadline)
-                        .foregroundStyle(FestivalText.primary)
-                    Spacer(minLength: 0)
-                    Text(entry.score.formatted())
-                        .font(.subheadline.weight(.semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(FestivalText.primary)
-                    if entry.isFullCombo {
-                        FirstRunStar(gold: true, size: 13)
-                    }
+            // The Song Detail card's real rows (`SongLeaderboardEntryRow`, operator batch 7).
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(FirstRunDemoPool.topScores.enumerated()), id: \.element.id) { index, entry in
+                    SongLeaderboardEntryRow(entry: LeaderboardEntry(
+                        accountId: "fre-\(entry.rank)", displayName: entry.name,
+                        score: entry.score, rank: entry.rank,
+                        accuracy: Double(entry.accuracyPercent) * 10_000,
+                        isFullCombo: entry.isFullCombo, stars: entry.isFullCombo ? 6 : 5,
+                        season: nil, difficulty: nil
+                    ))
+                    .padding(.vertical, 11)
+                    .firstRunStagger(index)
+                    if index < FirstRunDemoPool.topScores.count - 1 { Divider() }
                 }
-                .padding(.horizontal, 14)
-                .frame(height: 40)
-                .festivalGlass(.card, cornerRadius: 12)
-                .firstRunStagger(index)
             }
+            .padding(.horizontal, 14)
+            .festivalGlass(.card, cornerRadius: 16)
             FirstRunViewAllRow(title: "View full leaderboard")
         }
         .accessibilityHidden(true)

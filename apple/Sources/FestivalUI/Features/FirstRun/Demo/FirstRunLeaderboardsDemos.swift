@@ -13,10 +13,10 @@ struct FirstRunLeaderboardsOverviewDemo: View {
             VStack(spacing: 6) {
                 ForEach(Array(FirstRunDemoPool.rankings.prefix(5).enumerated()), id: \.element.id) { index, entry in
                     FirstRunRankRow(entry: entry)
-                        .festivalGlass(.card, cornerRadius: 10)
                         .firstRunStagger(index)
                 }
             }
+            FirstRunViewAllRow(title: "View all rankings (12,480)")
         }
         .accessibilityHidden(true)
     }
@@ -66,10 +66,9 @@ struct FirstRunLeaderboardsYourRankDemo: View {
         VStack(spacing: 6) {
             ForEach(Array(FirstRunDemoPool.rankingNeighborhood.enumerated()), id: \.element.id) { index, entry in
                 FirstRunRankRow(entry: entry)
-                    .festivalGlass(.card, cornerRadius: 10)
                     .firstRunStagger(index)
             }
-            FirstRunViewAllRow(title: "View all rankings")
+            FirstRunViewAllRow(title: "View all rankings (12,480)")
         }
         .accessibilityHidden(true)
     }

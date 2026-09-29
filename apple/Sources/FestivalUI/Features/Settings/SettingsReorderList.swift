@@ -20,8 +20,9 @@ struct SettingsReorderList<Item: Hashable>: View {
     let identifier: String
     let onMove: ([Item]) -> Void
 
-    @State private var dragging: Item?
-    @State private var translation: CGFloat = 0
+    /// The lifted row and its vertical drag distance. `@GestureState` resets itself when the
+    /// system cancels a drag (no stuck lifted row or disabled page scrolling).
+    @GestureState private var drag: DragState?
     @State private var rowHeight: CGFloat = 48
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -44,6 +45,14 @@ struct SettingsReorderList<Item: Hashable>: View {
         self.key = key
         self.onMove = onMove
     }
+
+    private struct DragState: Equatable {
+        let item: Item
+        var translation: CGFloat
+    }
+
+    private var dragging: Item? { drag?.item }
+    private var translation: CGFloat { drag?.translation ?? 0 }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -150,24 +159,20 @@ struct SettingsReorderList<Item: Hashable>: View {
         // Global space: the row (and its handle) moves with the finger, so a local
         // translation would feed back into itself.
         DragGesture(minimumDistance: 0, coordinateSpace: .global)
-            .onChanged { drag in
-                if dragging == nil {
-                    withAnimation(animation) { dragging = item }
-                }
-                withAnimation(reduceMotion ? nil : .interactiveSpring) {
-                    translation = drag.translation.height
-                }
+            .updating($drag) { value, state, transaction in
+                transaction.animation = reduceMotion ? nil : .interactiveSpring
+                state = DragState(item: item, translation: value.translation.height)
             }
-            .onEnded { _ in
-                guard dragging == item else { return }
-                let to = destination(from: index)
-                let reordered = SettingsReorder.moved(items, from: index, to: to)
+            .onEnded { value in
+                let to = SettingsReorder.destination(
+                    from: index, translation: value.translation.height,
+                    rowHeight: rowHeight, count: items.count
+                )
+                guard to != index else { return }
                 var transaction = Transaction()
                 transaction.disablesAnimations = true
                 withTransaction(transaction) {
-                    dragging = nil
-                    translation = 0
-                    if to != index { onMove(reordered) }
+                    onMove(SettingsReorder.moved(items, from: index, to: to))
                 }
             }
     }
