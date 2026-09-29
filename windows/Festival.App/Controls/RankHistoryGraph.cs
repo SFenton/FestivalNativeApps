@@ -251,6 +251,15 @@ public sealed partial class RankHistoryGraph : Grid
         AutomationProperties.SetHelpText(plot, paged ? "Use Left and Right to page through rank history." : "");
     }
 
+    /// <summary>Hides a decorative element from UIA.</summary>
+    /// <param name="element">Element.</param>
+    /// <returns>The same element.</returns>
+    private static TextBlock Hidden(TextBlock element)
+    {
+        AutomationProperties.SetAccessibilityView(element, AccessibilityView.Raw);
+        return element;
+    }
+
     /// <summary>The web legend: gradient swatch named after the bar metric ("Total Score") and a line-with-dot "Rank".</summary>
     /// <returns>Legend row.</returns>
     private StackPanel Legend()
@@ -268,13 +277,15 @@ public sealed partial class RankHistoryGraph : Grid
         rank.Children.Add(dot);
         legend.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { swatch, metricLegend } });
         legend.Children.Add(Item(rank, "Rank"));
+        // Raw on the panel does not hide its children in WinUI: hide each label too (the bars' names carry the values).
         AutomationProperties.SetAccessibilityView(legend, AccessibilityView.Raw);
+        AutomationProperties.SetAccessibilityView(metricLegend, AccessibilityView.Raw);
         return legend;
 
         static StackPanel Item(FrameworkElement glyph, string label) => new()
         {
             Orientation = Orientation.Horizontal, Spacing = 6,
-            Children = { glyph, new TextBlock { Text = label, FontSize = 14, VerticalAlignment = VerticalAlignment.Center } },
+            Children = { glyph, Hidden(new TextBlock { Text = label, FontSize = 14, VerticalAlignment = VerticalAlignment.Center }) },
         };
     }
 

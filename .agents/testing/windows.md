@@ -83,6 +83,16 @@ Added after win-a11y (win-shell2, win-detail2, win-next; run these too):
 11. **Paths** on a song with Karaoke: the "Some Instruments Unavailable" dialog reads first (OK / Don't Show Again), then the Paths dialog; Esc returns focus to Paths.
 12. **Song Detail Score History** (with a player): "Score History" heading, "Select a bar to see more score details."; each bar reads its date, season, score and accuracy.
 
+Added after win-unify (2026-09-29; run these too — fixture launch with a selected player, `tools/windows/journeys/boards.json` pages):
+
+13. **Leaderboard rows (one design)**: on Song Detail, a song leaderboard, Leaderboards, Full Rankings and Band Rankings, Tab to a row and arrow Down/Up. Each row is **one** stop that reads the whole row ("Rank #2, Fixture Player 2, 99,800 points, 98% accuracy, full combo, 5 stars, button"); the selected player's row starts "Your rank, 1st." Caps+Right (scan mode) across a row must not read its rank, name, score or pill a second time. Enter opens the player (Full Rankings ≥ 1100 epx: the detail column changes and focus stays in the list).
+14. **Pager**: on the song leaderboard (26 entries → 2 pages) Tab to the pager: "First page", "Previous page" (with its Ctrl+Left shortcut), then the badge ("Page 1 of 2"), "Next page" (Ctrl+Right), "Last page". With focus on a pager button, Right/Left/Home/End change page and Narrator announces "Page 2 of 2" (polite); when Next becomes unavailable focus moves to an enabled button instead of being lost. From a row, Ctrl+Right/Ctrl+Left page too. Full Rankings with one page shows no pager (nothing to read).
+15. **Pinned "your rank" row**: when the selected player is on another page, the pinned row reads after the list and before the pager; "Jump to your page, button" precedes it.
+16. **Over CHOpt Threshold** (Settings → Filter Invalid Scores on): Songs → Filter → expand "Global Score & FC Toggles": the fifth switch reads "Over CHOpt Threshold, toggle switch, off" with its description; each chart group adds "<Lead> Over CHOpt Threshold". Turn Filter Invalid Scores off: the switches are gone. With the switch on, the list count is announced ("0 songs" on the fixture).
+17. **Score history rows** (Song Detail, with a player): each row is read once (date, "score …", "accuracy …", "full combo" when set, "season …", then "personal best" on the best row); Caps+Right does not re-read its parts.
+18. **Contrast theme** (Settings → Accessibility → Contrast themes → Desert, then Night sky): Songs chips read the same as before; visually FC chips are Highlight-filled, scored chips have a thick ring and missing ones a thin gray ring; pills, Shop borders and Reset buttons use the theme's button/highlight colours. Narrator output must not change between themes.
+19. **Settings headings**: H / Shift+H stops at "CHOpt Path Default View" and "CHOpt Text Path Column Order" (heading level 3).
+
 Record anything Narrator skips or misreads in [windows-accessibility.md](windows-accessibility.md) under Open issues.
 
 ## Performance

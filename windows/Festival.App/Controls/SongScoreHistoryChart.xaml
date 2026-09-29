@@ -33,18 +33,18 @@
                         </LinearGradientBrush>
                     </Rectangle.Fill>
                 </Rectangle>
-                <TextBlock Text="Accuracy" VerticalAlignment="Center" />
+                <TextBlock Text="Accuracy" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
             </StackPanel>
             <StackPanel x:Name="LegendFc" Orientation="Horizontal" Spacing="8">
                 <Rectangle Width="20" Height="12" RadiusX="2" RadiusY="2" Fill="#FFFFD700" VerticalAlignment="Center" />
-                <TextBlock Text="Accuracy (FC)" VerticalAlignment="Center" />
+                <TextBlock Text="Accuracy (FC)" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
             </StackPanel>
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <Canvas Width="24" Height="12" VerticalAlignment="Center">
                     <Line X1="0" Y1="6" X2="18" Y2="6" Stroke="#FF4C7DFF" StrokeThickness="2" />
                     <Ellipse Canvas.Left="15" Canvas.Top="3" Width="6" Height="6" Fill="#FF4C7DFF" />
                 </Canvas>
-                <TextBlock Text="Score" VerticalAlignment="Center" />
+                <TextBlock Text="Score" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
             </StackPanel>
         </StackPanel>
     </StackPanel>

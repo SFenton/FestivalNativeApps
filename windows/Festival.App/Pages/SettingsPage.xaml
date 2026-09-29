@@ -167,7 +167,7 @@
                             </StackPanel>
                             <!-- Web: title, description, then Image/Text radio buttons (not a dropdown). -->
                             <StackPanel Spacing="4" Padding="0,8">
-                                <TextBlock Text="CHOpt Path Default View" Style="{StaticResource SettingTitleStyle}" />
+                                <TextBlock Text="CHOpt Path Default View" Style="{StaticResource SettingTitleStyle}" AutomationProperties.HeadingLevel="Level3" />
                                 <TextBlock Text="Choose whether CHOpt paths open as an image or text table by default." Style="{StaticResource SettingDescriptionStyle}" />
                                 <RadioButtons SelectedIndex="{x:Bind ViewModel.PathDefaultViewIndex, Mode=TwoWay}" Margin="0,4,0,0"
                                               AutomationProperties.Name="CHOpt Path Default View"
@@ -177,7 +177,7 @@
                                 </RadioButtons>
                             </StackPanel>
                             <StackPanel Padding="0,8" Spacing="4">
-                                <TextBlock Text="CHOpt Text Path Column Order" Style="{StaticResource SettingTitleStyle}" />
+                                <TextBlock Text="CHOpt Text Path Column Order" Style="{StaticResource SettingTitleStyle}" AutomationProperties.HeadingLevel="Level3" />
                                 <TextBlock Text="Choose the order columns appear in the CHOpt text path view."
                                            Style="{StaticResource SettingDescriptionStyle}" />
                                 <ListView Style="{StaticResource ReorderListStyle}" ItemsSource="{x:Bind ViewModel.PathColumnOrder, Mode=OneWay}"
