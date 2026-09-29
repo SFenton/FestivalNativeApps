@@ -90,7 +90,8 @@ class RankHistoryTest {
         assertEquals(0, chart.totalAccounts)
         // A narrow window of three bars ending at the newest day, then paged back.
         val window = RankHistoryWindow(chart.snapshots, maxBars = 3)
-        assertEquals(listOf("4K", "2K", "0"), chart.valueTicks(window, Locale.US).map { it.label })
+        // Recharts nice ticks from zero (tickCount 5).
+        assertEquals(listOf("4K", "3K", "2K", "1K", "0"), chart.valueTicks(window, Locale.US).map { it.label })
         assertTrue(chart.windowDescription(window, Locale.US).startsWith("Rank history chart, Sep 25, 2026 to Sep 27, 2026. Sep 25, 2026: #8."))
         val plot = RankHistoryPlot.build(window, chart.totalAccounts)
         assertEquals(3, plot.bars.size)
@@ -111,7 +112,8 @@ class RankHistoryTest {
         val fc = RankHistoryChart.build(listOf(snapshot("2026-09-27", 3)), RankingMetric.FcRate, today, Locale.US)!!
         assertEquals(6, fc.snapshots.single().totalScoreRank)
         assertEquals(425_000L, fc.snapshots.single().totalScore)
-        assertEquals("43%", fc.valueTicks(RankHistoryWindow(fc.snapshots, 5), Locale.US).first().label)
+        // 0.43 rounds up to a 0.6 axis in 0.15 steps (web getNiceTickValues).
+        assertEquals("60%", fc.valueTicks(RankHistoryWindow(fc.snapshots, 5), Locale.US).first().label)
         assertEquals("42.5%", fc.rows.single().value)
         assertEquals("0.02", RankHistoryChart.axisText(0.02, RankingMetric.Adjusted, Locale.US))
         assertEquals("1.2M", RankHistoryChart.axisText(1_234_567.0, RankingMetric.TotalScore, Locale.US))

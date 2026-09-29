@@ -182,7 +182,7 @@ class PlayerProfileCoreTest {
         assertEquals(0f, chart.rankLine.first().x)
         assertTrue(chart.rankLine.last().highlight)
         assertTrue(chart.rankLine.last().y < chart.rankLine.first().y)
-        assertEquals("#7", chart.rankTicks.first().label)
+        assertEquals("#6", chart.rankTicks.first().label)
         assertEquals(3, chart.scoreBars.size)
         assertEquals(1f, chart.scoreBars.last().height)
         assertNull(RankHistoryChartModel.build(emptyList()))
@@ -195,10 +195,9 @@ class PlayerProfileCoreTest {
         assertEquals("1 daily snapshot. Latest rank 3, unchanged.", single.summary)
         assertEquals("down 5 places", RankHistoryChartModel.rankTrend(listOf(PlayerRankHistorySnapshot(totalScoreRank = 1), PlayerRankHistorySnapshot(totalScoreRank = 6)), Locale.US).substringAfter(", ").trimEnd('.'))
         assertEquals("No snapshots", RankHistoryChartModel.rankTrend(emptyList()))
-        val (best, worst, ticks) = RankHistoryChartModel.rankAxis(emptyList())
-        assertEquals(1, best)
-        assertEquals(2, worst)
-        assertEquals(listOf(1, 2), ticks)
+        // A constant rank is a single-valued web domain: one tick, the line through the middle.
+        assertEquals(0.5f, single.rankLine.single().y)
+        assertEquals(listOf("#3"), single.rankTicks.map { it.label })
     }
 
     // endregion

@@ -53,6 +53,26 @@ object ProfileFormatting {
     }
 
     /**
+     * Web `formatValueTick` (Total Score): `120M`, `2.5M`, `104.8M`, `950` — whole units
+     * without a decimal, else one decimal, always with a `.` separator like the web.
+     *
+     * @param value Axis value.
+     * @return Text.
+     */
+    fun valueTick(value: Double): String {
+        val absolute = kotlin.math.abs(value)
+        val sign = if (value < 0) "-" else ""
+        val (scaled, suffix) = when {
+            absolute >= 1_000_000_000 -> absolute / 1e9 to "B"
+            absolute >= 1_000_000 -> absolute / 1e6 to "M"
+            absolute >= 1_000 -> absolute / 1e3 to "K"
+            else -> return Math.round(value).toString()
+        }
+        val digits = if (scaled % 1.0 == 0.0) "%.0f" else "%.1f"
+        return sign + String.format(Locale.US, digits, scaled) + suffix
+    }
+
+    /**
      * Up to two decimals with trailing zeros dropped (`4.5`, `4.25`, `5`; web `formatClamped2`).
      *
      * @param value Number.

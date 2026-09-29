@@ -63,7 +63,9 @@ class RankHistoryWindowTest {
     @Test
     fun barsFitTheWidth() {
         assertEquals(1, RankHistoryWindow.barsFor(10f))
-        assertEquals(6, RankHistoryWindow.barsFor(280f))
+        // Web MIN_BAR_WIDTH 96 + BAR_GAP 8: a phone-width plot fits two bars, a wide one many.
+        assertEquals(2, RankHistoryWindow.barsFor(280f))
+        assertEquals(9, RankHistoryWindow.barsFor(936f))
     }
 
     @Test
@@ -88,12 +90,27 @@ class RankHistoryWindowTest {
         assertEquals(0.7f, plot.bars[0].bar.height, 1e-6f)
         assertTrue(plot.bars[3].selected && plot.line[3].highlight)
         assertEquals(RankHistoryColors.rank(17, 100), plot.bars[0].color)
-        assertEquals(listOf("10K", "5K", "0"), plot.scoreTicks.map { it.label })
+        // Recharts nice ticks from zero (tickCount 5), highest first.
+        assertEquals(listOf("10K", "7.5K", "5K", "2.5K", "0"), plot.scoreTicks.map { it.label })
         assertEquals("#10", plot.rankTicks.first().label)
         val single = RankHistoryPlot.build(RankHistoryWindow(listOf(day(1, score = null, field = null)), 4), 0, Locale.US)
         assertEquals(0.5f, single.bars.single().bar.x)
         assertTrue(single.scoreTicks.isEmpty())
         assertEquals(RankHistoryColors.UNKNOWN, single.bars.single().color)
+    }
+
+    @Test
+    fun constantRankSitsMidPlotLikeTheWeb() {
+        // Operator 6.25: a player ranked #4 on every day (SFentonX Lead, live 2026-09-28) drew
+        // "#4" as the top edge. The web's domain is [4, 4]: one tick, line through the middle.
+        val flat = (1..27).map { day(it, rank = 4, score = 102_000_000L + it * 100_000L, field = 851_144) }
+        val plot = RankHistoryPlot.build(RankHistoryWindow(flat, maxBars = 9), totalAccounts = 851_144, locale = Locale.US)
+        assertEquals(listOf("#4"), plot.rankTicks.map { it.label })
+        assertEquals(0.5f, plot.rankTicks.single().y)
+        assertTrue(plot.line.all { it.y == 0.5f })
+        // Value axis from zero with nice ticks (0, 30M … 120M), so ~104.8M bars stand at ~87%.
+        assertEquals(listOf("120M", "90M", "60M", "30M", "0"), plot.scoreTicks.map { it.label })
+        assertEquals(104_700_000.0 / 120_000_000, plot.bars.last().bar.height.toDouble(), 1e-4)
     }
 
     @Test

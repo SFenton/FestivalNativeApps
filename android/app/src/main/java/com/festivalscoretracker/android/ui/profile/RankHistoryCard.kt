@@ -66,9 +66,11 @@ import kotlin.math.abs
 
 // region Rank history
 
-private const val PLOT_HEIGHT = 180
+private const val PLOT_HEIGHT = 220
 private const val AXIS_WIDTH = 44
-private const val DAYS = 30
+
+/** Widest bar (web bars fill 80% of a slot of at least 96 px). */
+private const val MAX_BAR_WIDTH = 120
 
 /** `0xRRGGBB` → opaque [Color]. */
 internal fun rgb(value: Int, alpha: Float = 1f): Color = Color(0xFF000000 or value.toLong()).copy(alpha = alpha)
@@ -87,11 +89,6 @@ fun RankHistoryChart(chart: RankHistoryChartModel, modifier: Modifier = Modifier
     var offset by rememberSaveable(chart.snapshots) { mutableStateOf(0) }
     var selected by rememberSaveable(chart.snapshots) { mutableStateOf<Int?>(null) }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(
-            "Your ranking progression over the past $DAYS days.",
-            style = MaterialTheme.typography.bodySmall,
-            color = BrandTokens.textSecondary,
-        )
         Legend()
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val plotWidthDp = (maxWidth.value - 2 * AXIS_WIDTH).coerceAtLeast(1f)
@@ -103,13 +100,7 @@ fun RankHistoryChart(chart: RankHistoryChartModel, modifier: Modifier = Modifier
                 window.selectedPoint?.let { point -> Detail(point, chart.totalAccounts) }
             }
         }
-        Text(
-            "Recent Snapshots",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            color = BrandTokens.textPrimary,
-            modifier = Modifier.padding(top = 4.dp),
-        )
+        // Web `GraphCard` lists the newest snapshots under the chart without a heading.
         RankHistoryPlot.recent(chart.snapshots).forEachIndexed { index, point ->
             SnapshotRow(point, chart.totalAccounts, best = index == 0, modifier = Modifier.testTag("fst.player.rank-history.row.${point.snapshotDate}"))
         }
@@ -183,7 +174,7 @@ private fun Plot(window: RankHistoryWindow, totalAccounts: Int, onChange: (RankH
                     drawLine(BrandTokens.glassBorder.copy(alpha = 0.3f), Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
                 }
                 plot.bars.forEach { bar ->
-                    val rect = ChartGeometry.bandBar(bar.bar, plot.bars.size, size.width, size.height, 72.dp.toPx())
+                    val rect = ChartGeometry.bandBar(bar.bar, plot.bars.size, size.width, size.height, MAX_BAR_WIDTH.dp.toPx())
                     drawRoundRect(
                         rgb(bar.color, RankHistoryColors.BAR_ALPHA),
                         topLeft = Offset(rect.left, rect.top),

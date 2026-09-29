@@ -31,7 +31,6 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.text.style.TextAlign
 import com.festivalscoretracker.android.core.profile.ChartTick
 import com.festivalscoretracker.android.core.profile.RankHistoryColors
-import com.festivalscoretracker.android.core.profile.RankHistoryPlot
 import com.festivalscoretracker.android.core.profile.RankHistoryWindow
 import com.festivalscoretracker.android.core.rankings.RankHistoryPoint
 import java.time.format.DateTimeFormatter
@@ -216,8 +215,8 @@ private fun HistoryChart(chart: RankHistoryChart) {
 
 @Composable
 private fun HistoryPlot(chart: RankHistoryChart, window: RankHistoryWindow, onChange: (RankHistoryWindow) -> Unit) {
-    val plot = remember(window, chart) { RankHistoryPlot.build(window, chart.totalAccounts) }
-    val valueTicks = remember(window, chart) { chart.valueTicks(window) }
+    val plot = remember(window, chart) { chart.plot(window) }
+    val valueTicks = plot.scoreTicks
     val description = remember(window, chart) { chart.windowDescription(window) }
     val current by rememberUpdatedState(window)
     val change by rememberUpdatedState(onChange)

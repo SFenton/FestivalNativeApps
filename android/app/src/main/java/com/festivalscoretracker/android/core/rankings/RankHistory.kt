@@ -156,20 +156,29 @@ data class RankHistoryChart(
     /** Field size for bar colours (latest known). */
     val totalAccounts: Int get() = points.lastOrNull { it.rankedAccountCount != null }?.rankedAccountCount ?: 0
 
+    /** Divisor from the plot's stored bar values back to the metric's units. */
+    val valueScale: Double get() = if (metric == RankingMetric.TotalScore) 1.0 else VALUE_SCALE
+
     /**
-     * Value-axis labels for a window: the visible maximum, half and zero (the bars are
-     * scaled to the visible maximum, like [RankHistoryPlot.build]).
+     * The plot for a window: web rank and value axes, bars on the value axis, value
+     * labels in the metric's format (web `formatValueTick`).
+     *
+     * @param window Visible window over [snapshots].
+     * @param locale Locale.
+     * @return Geometry.
+     */
+    fun plot(window: RankHistoryWindow, locale: Locale = Locale.getDefault()): RankHistoryPlot =
+        RankHistoryPlot.build(window, totalAccounts, locale, valueScale) { axisText(it, metric, locale) }
+
+    /**
+     * Value-axis labels for a window: Recharts' nice ticks from zero over the visible
+     * values (the same axis [plot] scales the bars to).
      *
      * @param window Visible window over [snapshots].
      * @param locale Locale.
      * @return Ticks, highest first (empty when every visible value is zero).
      */
-    fun valueTicks(window: RankHistoryWindow, locale: Locale = Locale.getDefault()): List<ChartTick> {
-        val visible = points.subList(window.pageStart, window.pageEnd)
-        val max = visible.maxOfOrNull { it.value } ?: 0.0
-        if (max <= 0) return emptyList()
-        return listOf(max, max / 2, 0.0).map { ChartTick((1 - it / max).toFloat(), axisText(it, metric, locale)) }
-    }
+    fun valueTicks(window: RankHistoryWindow, locale: Locale = Locale.getDefault()): List<ChartTick> = plot(window, locale).scoreTicks
 
     /**
      * The selected bar's detail line.
@@ -256,7 +265,7 @@ data class RankHistoryChart(
          * @return Text.
          */
         fun axisText(value: Double, metric: RankingMetric, locale: Locale = Locale.getDefault()): String = when (metric) {
-            RankingMetric.TotalScore -> ProfileFormatting.compact(value.toLong(), locale)
+            RankingMetric.TotalScore -> ProfileFormatting.valueTick(value)
             RankingMetric.FcRate, RankingMetric.MaxScore -> "${String.format(Locale.US, "%.0f", value * 100)}%"
             RankingMetric.Adjusted, RankingMetric.Weighted -> String.format(Locale.US, "%.2f", value)
         }

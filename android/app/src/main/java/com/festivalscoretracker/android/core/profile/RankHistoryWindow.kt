@@ -149,8 +149,8 @@ data class RankHistoryWindow(
     }
 
     companion object {
-        /** Narrowest bar slot in dp (web uses 96 px beside two axes; phones show a readable handful). */
-        const val MIN_BAR_DP = 40f
+        /** Narrowest bar slot in dp (web `MIN_BAR_WIDTH` 96 px). */
+        const val MIN_BAR_DP = 96f
 
         /** Gap between bars in dp (web `BAR_GAP`). */
         const val BAR_GAP_DP = 8f
@@ -210,30 +210,63 @@ data class RankHistoryPlot(
         }
 
         /**
+         * The web's rank axis (`YAxis yAxisId="rank"`): the explicit [rankDomain] over every
+         * snapshot, reversed so #1 is on top, whole-number ticks (Recharts
+         * `getTickValuesFixedDomain`). A constant rank is a single-valued domain: one tick,
+         * with the line through the middle of the plot, never pinned to the top edge.
+         *
+         * @param ranks Every snapshot's rank.
+         * @return Axis in rank units.
+         */
+        fun rankAxis(ranks: List<Int>): ChartScale.Axis {
+            val (best, worst) = rankDomain(ranks)
+            return ChartScale.fixed(best.toDouble(), worst.toDouble(), allowDecimals = false)
+        }
+
+        /**
+         * The web's value axis (`YAxis yAxisId="value"`, automatic `[0, auto]` domain):
+         * nice ticks from zero over the visible values (Recharts `getNiceTickValues`).
+         *
+         * @param visible Visible snapshots.
+         * @param valueScale Divisor from [PlayerRankHistorySnapshot.totalScore] to the metric's real units.
+         * @return Axis in real units, or null when every visible value is zero.
+         */
+        fun valueAxis(visible: List<PlayerRankHistorySnapshot>, valueScale: Double = 1.0): ChartScale.Axis? {
+            val max = (visible.maxOfOrNull { it.totalScore ?: 0L } ?: 0L) / valueScale
+            return if (max <= 0) null else ChartScale.nice(0.0, max)
+        }
+
+        /**
          * Build the plot for a window.
          *
          * @param window Window.
          * @param totalAccounts Field size for bar colours (latest known).
          * @param locale Locale for tick labels.
+         * @param valueScale Divisor from the stored bar value to the metric's real units
+         *   (the Leaderboards chart stores fractional metrics scaled up).
+         * @param valueLabel Value-axis label for a real-unit value.
          * @return Geometry.
          */
-        fun build(window: RankHistoryWindow, totalAccounts: Int, locale: Locale = Locale.getDefault()): RankHistoryPlot {
+        fun build(
+            window: RankHistoryWindow,
+            totalAccounts: Int,
+            locale: Locale = Locale.getDefault(),
+            valueScale: Double = 1.0,
+            valueLabel: (Double) -> String = ProfileFormatting::valueTick,
+        ): RankHistoryPlot {
             val visible = window.visible
-            val (best, worst) = rankDomain(window.points.map { it.totalScoreRank })
-            val span = maxOf(1, worst - best).toFloat()
+            val rankAxis = rankAxis(window.points.map { it.totalScoreRank })
+            fun rankY(rank: Double) = rankAxis.fraction(rank).toFloat()
             fun x(i: Int) = if (visible.size == 1) 0.5f else (i + 0.5f) / visible.size
-            val maxScore = visible.maxOfOrNull { it.totalScore ?: 0L } ?: 0L
+            val valueAxis = valueAxis(visible, valueScale)
             val bars = visible.mapIndexed { i, s ->
-                val height = if (maxScore <= 0) 0f else (s.totalScore ?: 0L).toFloat() / maxScore
+                val height = valueAxis?.let { ((s.totalScore ?: 0L) / valueScale / it.max).toFloat() } ?: 0f
                 val field = s.rankedAccountCount ?: totalAccounts
                 Bar(ChartBar(x(i), height), RankHistoryColors.rank(s.totalScoreRank, field), window.selected == window.pageStart + i)
             }
-            val line = visible.mapIndexed { i, s -> ChartPoint(x(i), (s.totalScoreRank - best) / span, window.selected == window.pageStart + i) }
-            val step = maxOf(1, ceil((worst - best) / 3.0).toInt())
-            val rankTicks = (best..worst step step).map { ChartTick((it - best) / span, ProfileFormatting.rank(it, locale)) }
-            val scoreTicks = if (maxScore <= 0) emptyList() else listOf(maxScore, maxScore / 2, 0L).map {
-                ChartTick(1f - it.toFloat() / maxScore, ProfileFormatting.compact(it, locale))
-            }
+            val line = visible.mapIndexed { i, s -> ChartPoint(x(i), rankY(s.totalScoreRank.toDouble()), window.selected == window.pageStart + i) }
+            val rankTicks = rankAxis.ticks.map { ChartTick(rankY(it), ProfileFormatting.rank(it.roundToInt(), locale)) }
+            val scoreTicks = valueAxis?.ticks?.asReversed()?.map { ChartTick(1f - (it / valueAxis.max).toFloat(), valueLabel(it)) } ?: emptyList()
             return RankHistoryPlot(bars, line, rankTicks, scoreTicks)
         }
 

@@ -5,7 +5,6 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.Locale
-import kotlin.math.ceil
 
 // region Chart primitives
 
@@ -201,22 +200,6 @@ data class RankHistoryChartModel(
 ) {
     companion object {
         /**
-         * Padded rank axis (best ≥ 1) with up to four whole-number ticks, best first.
-         *
-         * @param ranks Charted ranks (all ≥ 1).
-         * @return Best, worst and ticks.
-         */
-        fun rankAxis(ranks: Collection<Int>): Triple<Int, Int, List<Int>> {
-            val low = ranks.minOrNull() ?: 1
-            val high = ranks.maxOrNull() ?: 1
-            val pad = maxOf(1, (high - low) / 8)
-            val best = maxOf(1, low - pad)
-            val worst = maxOf(best + 1, high + pad)
-            val step = maxOf(1, ceil((worst - best) / 3.0).toInt())
-            return Triple(best, worst, (best..worst step step).toList())
-        }
-
-        /**
          * First-to-latest movement summary for screen readers (lower rank is better).
          *
          * @param points Chronological ranked snapshots.
@@ -244,10 +227,10 @@ data class RankHistoryChartModel(
          */
         fun build(ranked: List<PlayerRankHistorySnapshot>, locale: Locale = Locale.getDefault()): RankHistoryChartModel? {
             if (ranked.isEmpty()) return null
-            val (best, worst, ticks) = rankAxis(ranked.map { it.totalScoreRank })
-            val span = (worst - best).toFloat()
+            val axis = RankHistoryPlot.rankAxis(ranked.map { it.totalScoreRank })
+            fun y(rank: Double) = axis.fraction(rank).toFloat()
             fun x(i: Int) = if (ranked.size == 1) 0.5f else i.toFloat() / (ranked.size - 1)
-            val line = ranked.mapIndexed { i, r -> ChartPoint(x(i), (r.totalScoreRank - best) / span, i == ranked.lastIndex) }
+            val line = ranked.mapIndexed { i, r -> ChartPoint(x(i), y(r.totalScoreRank.toDouble()), i == ranked.lastIndex) }
             val maxScore = ranked.maxOf { it.totalScore ?: 0L }
             val bars = if (maxScore <= 0) emptyList() else ranked.mapIndexed { i, r -> ChartBar(x(i), (r.totalScore ?: 0L).toFloat() / maxScore) }
             val latest = ranked.last()
@@ -256,7 +239,7 @@ data class RankHistoryChartModel(
             fun label(s: PlayerRankHistorySnapshot) = s.date?.format(day) ?: s.snapshotDate
             return RankHistoryChartModel(
                 rankLine = line,
-                rankTicks = ticks.map { ChartTick((it - best) / span, ProfileFormatting.rank(it, locale)) },
+                rankTicks = axis.ticks.map { ChartTick(y(it), ProfileFormatting.rank(it.toInt(), locale)) },
                 scoreBars = bars,
                 headline = ProfileFormatting.rank(latest.totalScoreRank, locale) + field,
                 totalScoreLine = latest.totalScore?.let { "Total Score " + ProfileFormatting.count(it, locale) },
