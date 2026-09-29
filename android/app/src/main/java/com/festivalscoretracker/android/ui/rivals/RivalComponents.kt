@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.festivalscoretracker.android.ui.design.ViewFullLeaderboardButton
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.Song
 import com.festivalscoretracker.android.core.rivals.RivalDirection
@@ -244,10 +245,12 @@ fun RivalPreviewRows(
             }
         }
         if (onViewAll != null) {
-            OutlinedButton(
+            ViewFullLeaderboardButton(
                 onClick = onViewAll,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).festivalFadeIn(revealed, fadeInStagger(rows.size + 1)),
-            ) { Text(viewAllLabel) }
+                modifier = Modifier.festivalFadeIn(revealed, fadeInStagger(rows.size + 1)),
+                label = viewAllLabel,
+                testTag = "fst.rivals.view-all",
+            )
         }
     }
 }

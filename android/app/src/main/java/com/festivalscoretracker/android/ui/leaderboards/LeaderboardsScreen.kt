@@ -37,6 +37,7 @@ import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.festivalscoretracker.android.ui.design.ViewFullLeaderboardButton
 import com.festivalscoretracker.android.core.bands.BandType
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.nav.AppRoute
@@ -56,6 +57,7 @@ import com.festivalscoretracker.android.presentation.leaderboards.LeaderboardsVi
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.fadeInStagger
+import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
@@ -96,8 +98,8 @@ fun LeaderboardsScreen(viewModel: LeaderboardsViewModel, isRoot: Boolean) {
     val scrolled by remember(listState) { derivedStateOf { listState.canScrollBackward } }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val columns = LeaderboardsLayoutPolicy.columns(maxWidth.value.toInt(), folded)
-        val layout = remember(ready, instruments, selected, columns) {
-            if (ready) OverviewLayout(instruments, showHistory = selected != null && instruments.isNotEmpty(), columns) else null
+        val layout = remember(ready, instruments, selected, columns, folded) {
+            if (ready) OverviewLayout(instruments, showHistory = selected != null && instruments.isNotEmpty(), columns, pairHistory = folded) else null
         }
         val quickLinks = rememberQuickLinks(listState, QUICK_LINKS_TITLE, layout?.sections.orEmpty()) { id -> layout?.indexOf(id) }
         FestivalScreen(
@@ -114,7 +116,20 @@ fun LeaderboardsScreen(viewModel: LeaderboardsViewModel, isRoot: Boolean) {
                 // Until settings arrive the instrument list is empty; composing the band cards
                 // first would anchor the list on them once instrument rows are inserted above.
                 if (layout == null) return@PullToRefreshBox
-                OverviewList(viewModel, layout, metric, selected, listState, padding, shell.navigate)
+                // Web load phase (operator batch 6, 6.41): a spinner until the first card has
+                // data, then the page fades in and its rows stagger. The list stays composed
+                // underneath so its cards load meanwhile.
+                val lead = layout.instruments.firstOrNull()?.let { viewModel.card(it) }?.collectAsStateWithLifecycle()
+                val contentReady = lead == null || lead.value !is LoadState.Loading
+                val pageRevealed = rememberRevealed(contentReady)
+                Box(Modifier.fillMaxSize().festivalFadeIn(pageRevealed)) {
+                    OverviewList(viewModel, layout, metric, selected, listState, padding, shell.navigate)
+                }
+                if (!contentReady) {
+                    Box(Modifier.fillMaxSize().testTag("fst.leaderboards.loading"), contentAlignment = Alignment.Center) {
+                        FestivalLoading("Loading leaderboards")
+                    }
+                }
             }
         }
     }
@@ -130,10 +145,18 @@ private const val QUICK_LINKS_TITLE = "Leaderboards Quick Links"
  * @property instruments Visible charts.
  * @property showHistory Whether the rank-history card leads the list.
  * @property columns Grid columns.
+ * @property pairHistory Around a separating hinge the chart takes the leading panel and the
+ *   first instrument card the trailing one, so neither panel is left empty.
  */
-private class OverviewLayout(val instruments: List<Instrument>, val showHistory: Boolean, val columns: Int) {
+internal class OverviewLayout(val instruments: List<Instrument>, val showHistory: Boolean, val columns: Int, pairHistory: Boolean = false) {
+    /** Whether the first instrument card shares the Rank History row. */
+    val historyPaired: Boolean = pairHistory && showHistory && instruments.isNotEmpty()
     private val historyItems = if (showHistory) 1 else 0
-    private val instrumentRows = (instruments.size + columns - 1) / columns
+    private val pairedInstruments = if (historyPaired) 1 else 0
+    private val instrumentRows = (instruments.size - pairedInstruments + columns - 1) / columns
+
+    /** Instruments laid out in grid rows after the Rank History row. */
+    val gridInstruments: List<Instrument> get() = instruments.drop(pairedInstruments)
 
     /** Quick Links sections in page order. */
     val sections: List<QuickLinkSection> =
@@ -150,7 +173,8 @@ private class OverviewLayout(val instruments: List<Instrument>, val showHistory:
     fun indexOf(id: String): Int? {
         if (id == HISTORY_ID) return if (showHistory) 0 else null
         val instrument = instruments.indexOfFirst { "instrument:${it.wireId}" == id }
-        if (instrument >= 0) return historyItems + instrument / columns
+        if (instrument >= 0 && instrument < pairedInstruments) return 0
+        if (instrument >= 0) return historyItems + (instrument - pairedInstruments) / columns
         val band = BandType.entries.indexOfFirst { "band:${it.wireId}" == id }
         if (band >= 0) return historyItems + instrumentRows + 1 + band / columns
         return null
@@ -175,7 +199,7 @@ private fun OverviewList(
     val columns = layout.columns
     val gap = LeaderboardsLayoutPolicy.GAP_DP.dp
     val rowHinge = hinge?.let { HingeSplit(it.start - gap, it.end - gap) }
-    val instrumentCards: List<@Composable () -> Unit> = layout.instruments.map { instrument ->
+    val instrumentCards: List<@Composable () -> Unit> = layout.gridInstruments.map { instrument ->
         { InstrumentCard(instrument, viewModel, metric, selected, navigate) }
     }
     val bandCards: List<@Composable () -> Unit> = BandType.entries.map { bandType ->
@@ -190,8 +214,16 @@ private fun OverviewList(
         if (layout.showHistory && selected != null) {
             item(key = OverviewLayout.HISTORY_ID) {
                 val history: List<@Composable () -> Unit> = listOf({ RankHistoryCard(viewModel, layout.instruments, metric, selected) })
-                // The chart takes the leading side of a hinge; elsewhere it spans the row.
-                if (rowHinge != null) CardGridRow(history, 2, rowHinge, gap) else history[0]()
+                // Around a hinge the chart takes the leading panel and the first instrument card
+                // the trailing one; elsewhere the chart spans the row.
+                if (layout.historyPaired) {
+                    val first = layout.instruments.first()
+                    CardGridRow(history + { InstrumentCard(first, viewModel, metric, selected, navigate) }, 2, rowHinge, gap)
+                } else if (rowHinge != null) {
+                    CardGridRow(history, 2, rowHinge, gap)
+                } else {
+                    history[0]()
+                }
             }
         }
         instrumentCards.chunked(columns).forEachIndexed { index, row ->
@@ -267,13 +299,8 @@ private fun CardHeader(title: String, icon: (@Composable () -> Unit)? = null) {
  */
 @Composable
 private fun ViewAllButton(label: String, tag: String, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        colors = ButtonDefaults.buttonColors(containerColor = BrandTokens.accentPurple, contentColor = BrandTokens.textPrimary),
-        modifier = Modifier.fillMaxWidth().padding(top = 6.dp).heightIn(min = 48.dp).testTag(tag),
-    ) {
-        Text(label, fontWeight = FontWeight.SemiBold)
-    }
+    // The shared purple call to action (operator batch 6, 6.29).
+    ViewFullLeaderboardButton(onClick = onClick, modifier = Modifier.padding(top = 6.dp), label = label, testTag = tag)
 }
 
 /**

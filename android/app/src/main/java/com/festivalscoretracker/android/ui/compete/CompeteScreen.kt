@@ -37,6 +37,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.festivalscoretracker.android.ui.design.ViewFullLeaderboardButton
 import com.festivalscoretracker.android.core.compete.CompeteScope
 import com.festivalscoretracker.android.core.compete.CompeteText
 import com.festivalscoretracker.android.core.nav.AppRoute
@@ -228,10 +229,12 @@ private fun BoardCard(section: CompeteSection, selected: String?, viewModel: Com
                         }
                     }
                     if (fullBoard != null) {
-                        OutlinedButton(
+                        ViewFullLeaderboardButton(
                             onClick = fullBoard,
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).festivalFadeIn(revealed, fadeInStagger(value.entries.size + 1)),
-                        ) { Text(CompeteText.VIEW_FULL_LEADERBOARDS) }
+                            modifier = Modifier.festivalFadeIn(revealed, fadeInStagger(value.entries.size + 1)),
+                            label = CompeteText.VIEW_FULL_LEADERBOARDS,
+                            testTag = "fst.compete.view-full-leaderboards",
+                        )
                     }
                 }
             }

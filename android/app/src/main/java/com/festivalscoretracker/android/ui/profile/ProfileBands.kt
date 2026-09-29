@@ -18,6 +18,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.festivalscoretracker.android.ui.design.ViewFullLeaderboardButton
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.nav.PlayerBandsRoute
 import com.festivalscoretracker.android.core.profile.ProfileFormatting
@@ -76,9 +77,11 @@ internal fun ProfileBandsSection(state: PlayerProfileUiState, bands: BandsLoad?,
                         PlayerBandCard(entry, onClick = { onNavigate(bandRouteFor(entry)) }, modifier = Modifier.festivalFadeIn(revealed, fadeInStagger(index)))
                     }
                     if (bands.bands.totalCount > bands.bands.entries.size) {
-                        TextButton(onClick = { onNavigate(all) }, modifier = Modifier.heightIn(min = 48.dp).testTag("fst.player.bands.view-all")) {
-                            Text("View all bands (${ProfileFormatting.count(bands.bands.totalCount.toLong())})")
-                        }
+                        ViewFullLeaderboardButton(
+                            onClick = { onNavigate(all) },
+                            label = "View all bands (${ProfileFormatting.count(bands.bands.totalCount.toLong())})",
+                            testTag = "fst.player.bands.view-all",
+                        )
                     }
                 }
             }
