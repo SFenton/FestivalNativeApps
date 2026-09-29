@@ -105,14 +105,17 @@ struct SoloLeaderboardScreen: View {
                                         }
                                     }
                             }
-                            .detailStaggeredFadeIn(index: index, settled: staggerSettled)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
+                            // Accessibility grouping first, fade outermost: wrapping the
+                            // link in the fade before `.contain` hid its score texts
+                            // from the row's descendants.
                             .accessibilityElement(children: .contain)
                             .accessibilityIdentifier(
                                 "fst.song-leaderboard.row.\(entry.accountId)"
                             )
+                            .detailStaggeredFadeIn(index: index, settled: staggerSettled)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
                         }
                     }
                     .listStyle(.plain)

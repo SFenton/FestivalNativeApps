@@ -182,12 +182,12 @@ struct PlayerHistoryScreen: View {
                                     : BrandTokens.cardBackground,
                                 in: RoundedRectangle(cornerRadius: 12)
                             )
+                            .accessibilityElement(children: .combine)
+                            .accessibilityIdentifier("fst.history.row.\(index)")
                             .detailStaggeredFadeIn(index: index, settled: staggerSettled)
                             .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
-                            .accessibilityElement(children: .combine)
-                            .accessibilityIdentifier("fst.history.row.\(index)")
                     }
                 }
                 .listStyle(.plain)
