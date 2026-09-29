@@ -181,7 +181,9 @@ fun SongRow(
             .then(if (outline != null) Modifier.pulseOutline(outline, pulse) else Modifier)
             .testTag("fst.songs.row.${song.songId}")
             .semantics {
-                this.selected = selected
+                // Only the highlighted row carries selection state; single-pane rows are not
+                // selectable, so TalkBack should not prefix every row with "Not selected".
+                if (selected) this.selected = true
                 contentDescription = row.announcement
             },
     ) {

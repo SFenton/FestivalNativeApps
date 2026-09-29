@@ -42,6 +42,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -244,7 +245,9 @@ fun ProfileAvatarButton(player: SelectedPlayer?, onClick: () -> Unit) {
             Box(
                 Modifier
                     .size(32.dp)
-                    .background(BrandTokens.accentPurple, CircleShape),
+                    .background(BrandTokens.accentPurple, CircleShape)
+                    // The button's description names the player; the initials are decoration.
+                    .clearAndSetSemantics {},
                 contentAlignment = Alignment.Center,
             ) {
                 Text(player.initials, style = MaterialTheme.typography.labelLarge, color = BrandTokens.textPrimary, fontWeight = FontWeight.Bold)

@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -92,7 +93,14 @@ fun FestivalRail(
                 selected = false,
                 onClick = onOpenProfile,
                 icon = { RailAvatar(player) },
-                label = { Text("Profile", maxLines = 1) },
+                // One stop that says "Profile: <name>" (the avatar itself is silent).
+                label = {
+                    Text(
+                        "Profile",
+                        maxLines = 1,
+                        modifier = Modifier.semantics { contentDescription = player?.let { "Profile: ${it.displayName}" } ?: "Profile" },
+                    )
+                },
                 navigationSuiteType = NavigationSuiteType.WideNavigationRailCollapsed,
                 modifier = Modifier.testTag("fst.nav.rail.profile"),
             )
@@ -124,7 +132,7 @@ private fun RailAvatar(player: SelectedPlayer?) {
             Modifier
                 .size(24.dp)
                 .background(BrandTokens.accentPurple, CircleShape)
-                .semantics { contentDescription = "Profile: ${player.displayName}" },
+                .clearAndSetSemantics {},
             contentAlignment = Alignment.Center,
         ) {
             Text(player.initials, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)
