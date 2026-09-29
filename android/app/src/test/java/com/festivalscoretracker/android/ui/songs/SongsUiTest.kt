@@ -32,6 +32,7 @@ import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.time.Duration
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -164,16 +165,20 @@ class SongsUiTest {
         click("fst.paths.warning.never")
         waitForTag("fst.paths.image")
         click("fst.paths.zoom-in")
-        click("fst.paths.display")
+        click("fst.paths.display.open")
         waitForTag("fst.paths.display.text")
         click("fst.paths.display.text")
         waitForTag("fst.paths.table")
         waitForTag("fst.paths.row.1")
-        click("fst.paths.difficulty")
+        // Web table: fret pills and the Overdrive bar, no path summary or max score (6.27).
+        assertEquals(0, rule.onAllNodesWithText("Max score", substring = true, useUnmergedTree = true).fetchSemanticsNodes().size)
+        assertTrue(rule.onAllNodesWithTag("fst.paths.fret.green.on", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() ||
+            rule.onAllNodesWithTag("fst.paths.fret.green.off", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+        click("fst.paths.difficulty.open")
         waitForTag("fst.paths.difficulty.hard")
         click("fst.paths.difficulty.hard")
         waitForTag("fst.paths.not-generated")
-        click("fst.paths.instrument")
+        click("fst.paths.instrument.open")
         waitForTag("fst.paths.instrument.Solo_Guitar")
         click("fst.paths.instrument.Solo_Guitar")
         click("fst.paths.close")

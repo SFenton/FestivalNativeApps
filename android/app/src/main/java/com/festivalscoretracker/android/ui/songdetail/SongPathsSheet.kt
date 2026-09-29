@@ -1,6 +1,36 @@
 package com.festivalscoretracker.android.ui.songdetail
 
 import android.graphics.BitmapFactory
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.material.icons.automirrored.outlined.Article
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material3.AlertDialog
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextAlign
+import com.festivalscoretracker.android.ui.design.InstrumentSelector
+import kotlin.math.roundToInt
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -88,17 +118,20 @@ import kotlinx.coroutines.withContext
 // region Sheet
 
 /**
- * CHOpt Paths sheet (web Paths modal): a one-line header, the PNG (zoom 100–300%)
- * or activation table filling the sheet, and one compact bottom row of M3 exposed
- * dropdown menus for chart, difficulty and view. The sheet is modal, so the page
- * behind cannot be used and focus returns on close.
+ * CHOpt Paths sheet (web `PathsModal`, operator 6.27): a "Paths" header, the PNG
+ * (zoom 100–300%) or the activation table filling the sheet, and the web's bottom
+ * control row — instrument, difficulty and view buttons, each expanding its panel
+ * above the row (the shared Instrument Selector, a 2×2 difficulty grid, Image/Text).
+ * Karaoke's missing paths are announced once in a native alert (OK / Don't Show
+ * Again), not a banner. The sheet is modal and focus returns on close.
  *
  * @param viewModel Paths logic (one per opening).
- * @param songTitle Song title for the header.
+ * @param songTitle Song title (sheet description for TalkBack).
  * @param columns Saved text-table column order.
  * @param showKaraokeWarning Karaoke is visible and the warning wasn't dismissed permanently.
  * @param onDontShowAgain Persist the permanent dismissal.
  * @param onDismiss Close.
+ * @param keyboard Keys artwork for Lead/Pro Lead.
  */
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
@@ -109,121 +142,163 @@ fun SongPathsSheet(
     showKaraokeWarning: Boolean,
     onDontShowAgain: () -> Unit,
     onDismiss: () -> Unit,
+    keyboard: Boolean = false,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    var warning by remember { mutableStateOf(showKaraokeWarning) }
+    var warning by rememberSaveable { mutableStateOf(showKaraokeWarning) }
+    var panel by rememberSaveable { mutableStateOf<PathPanel?>(null) }
     val revealed = rememberRevealed(state.load is PathLoad.Image || state.load is PathLoad.Text)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = BrandTokens.cardBackground,
-        modifier = Modifier.testTag("fst.song-detail.paths"),
+        modifier = Modifier.testTag("fst.song-detail.paths").semantics { contentDescription = "Paths for $songTitle" },
     ) {
-        Column(Modifier.fillMaxHeight().semantics { testTagsAsResourceId = true }.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "Paths · $songTitle",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = BrandTokens.textPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f).semantics { heading() },
-                )
-                IconButton(onClick = onDismiss, modifier = Modifier.testTag("fst.paths.close")) { Icon(Icons.Filled.Close, contentDescription = "Close Paths") }
-            }
-            if (warning) {
-                GlassCard(Modifier.fillMaxWidth().padding(bottom = 8.dp).testTag("fst.paths.karaoke-warning")) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text("Karaoke doesn't have CHOpt paths, so it isn't listed here.", color = BrandTokens.textPrimary)
-                        Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                            TextButton(onClick = { warning = false; onDontShowAgain() }, modifier = Modifier.testTag("fst.paths.warning.never")) { Text("Don't Show Again") }
-                            TextButton(onClick = { warning = false }, modifier = Modifier.testTag("fst.paths.warning.ok")) { Text("OK") }
-                        }
-                    }
-                }
-            }
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-                when (val load = state.load) {
-                    PathLoad.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        FestivalLoading("Loading paths", Modifier.testTag("fst.paths.loading"), size = 32.dp)
-                    }
-                    PathLoad.NotGenerated -> Text(
-                        "No ${state.difficulty.label} path has been generated for ${state.instrument.label} yet.",
+        BoxWithConstraints(Modifier.fillMaxHeight()) {
+            val wide = maxWidth >= PATH_TABLE_WIDE
+            Column(Modifier.fillMaxHeight().semantics { testTagsAsResourceId = true }.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Paths",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
                         color = BrandTokens.textPrimary,
-                        modifier = Modifier.align(Alignment.Center).padding(24.dp).testTag("fst.paths.not-generated"),
+                        modifier = Modifier.weight(1f).semantics { heading() },
                     )
-                    is PathLoad.Failed -> ServiceStatusInline(load.issue, "Path unavailable", null, viewModel::retry, Modifier.testTag("fst.paths.error"))
-                    is PathLoad.Image -> Box(Modifier.festivalFadeIn(revealed)) { PathImage(load.image, "${state.instrument.label} ${state.difficulty.label} CHOpt path") }
-                    is PathLoad.Text -> Box(Modifier.fillMaxSize().festivalFadeIn(revealed).verticalScroll(rememberScrollState())) { PathTable(load.data, columns) }
+                    IconButton(onClick = onDismiss, modifier = Modifier.testTag("fst.paths.close")) { Icon(Icons.Filled.Close, contentDescription = "Close Paths") }
                 }
+                if (state.display == PathDisplayMode.Text && wide && state.load is PathLoad.Text) PathTableHeader(columns)
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    when (val load = state.load) {
+                        PathLoad.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            FestivalLoading("Loading paths", Modifier.testTag("fst.paths.loading"), size = 32.dp)
+                        }
+                        PathLoad.NotGenerated -> Text(
+                            "No ${state.difficulty.label} path has been generated for ${state.instrument.label} yet.",
+                            color = BrandTokens.textPrimary,
+                            modifier = Modifier.align(Alignment.Center).padding(24.dp).testTag("fst.paths.not-generated"),
+                        )
+                        is PathLoad.Failed -> ServiceStatusInline(load.issue, "Path unavailable", null, viewModel::retry, Modifier.testTag("fst.paths.error"))
+                        is PathLoad.Image -> Box(Modifier.festivalFadeIn(revealed)) { PathImage(load.image, "${state.instrument.label} ${state.difficulty.label} CHOpt path") }
+                        is PathLoad.Text -> Box(Modifier.fillMaxSize().festivalFadeIn(revealed).verticalScroll(rememberScrollState())) { PathTable(load.data, columns, wide) }
+                    }
+                }
+                PathControls(state.instrument, state.difficulty, state.display, viewModel, panel, keyboard) { panel = it }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(top = 8.dp).testTag("fst.paths.selectors")) {
-                Selector(
-                    label = "Instrument",
-                    options = viewModel.instruments,
-                    selected = state.instrument,
-                    text = { it.label },
-                    tag = "fst.paths.instrument",
-                    optionTag = { it.wireId },
-                    icon = { InstrumentIcon(it, size = 20.dp, decorative = true) },
-                    modifier = Modifier.weight(1.4f),
-                    onSelect = viewModel::selectInstrument,
-                )
-                Selector("Difficulty", PathDifficulty.entries, state.difficulty, { it.label }, "fst.paths.difficulty", { it.label.lowercase() }, null, Modifier.weight(1f), viewModel::selectDifficulty)
-                Selector("View", PathDisplayMode.entries, state.display, { it.label }, "fst.paths.display", { it.label.lowercase() }, null, Modifier.weight(1f), viewModel::selectDisplay)
+        }
+    }
+    if (warning) {
+        AlertDialog(
+            onDismissRequest = { warning = false },
+            title = { Text("Some Instruments Unavailable") },
+            text = { Text("Karaoke is not available for path visualization yet.", modifier = Modifier.testTag("fst.paths.karaoke-warning.message")) },
+            confirmButton = { TextButton(onClick = { warning = false }, modifier = Modifier.testTag("fst.paths.warning.ok")) { Text("OK") } },
+            dismissButton = {
+                TextButton(onClick = { warning = false; onDontShowAgain() }, modifier = Modifier.testTag("fst.paths.warning.never")) { Text("Don't Show Again") }
+            },
+            modifier = Modifier.testTag("fst.paths.karaoke-warning"),
+        )
+    }
+}
+
+/** Which bottom-row panel is open. */
+private enum class PathPanel { Instrument, Difficulty, Display }
+
+/** Pane widths from which the table uses the web's desktop grid with a column header. */
+private val PATH_TABLE_WIDE = 600.dp
+
+/**
+ * Web mobile controls: a row of three frosted buttons (instrument icon, difficulty,
+ * view icon) with chevrons; tapping one opens its panel above the row, tapping it
+ * (or the current choice) again closes it.
+ */
+@Composable
+private fun PathControls(
+    instrument: Instrument,
+    difficulty: PathDifficulty,
+    display: PathDisplayMode,
+    viewModel: SongPathsViewModel,
+    panel: PathPanel?,
+    keyboard: Boolean,
+    onPanel: (PathPanel?) -> Unit,
+) {
+    fun toggle(target: PathPanel) = onPanel(if (panel == target) null else target)
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp).testTag("fst.paths.selectors")) {
+        AnimatedVisibility(visible = panel == PathPanel.Instrument, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+            InstrumentSelector(
+                instruments = viewModel.instruments,
+                selected = instrument,
+                onSelect = { chosen -> if (chosen == null || chosen == instrument) onPanel(null) else viewModel.selectInstrument(chosen) },
+                required = true,
+                keyboard = keyboard,
+                tag = "fst.paths.instrument",
+                modifier = Modifier.padding(bottom = 12.dp),
+            )
+        }
+        AnimatedVisibility(visible = panel == PathPanel.Difficulty, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+            OptionGrid(PathDifficulty.entries, difficulty, { it.label }, "fst.paths.difficulty") { choice ->
+                if (choice == difficulty) onPanel(null) else viewModel.selectDifficulty(choice)
             }
+        }
+        AnimatedVisibility(visible = panel == PathPanel.Display, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+            OptionGrid(PathDisplayMode.entries, display, { it.label }, "fst.paths.display") { choice ->
+                if (choice == display) onPanel(null) else viewModel.selectDisplay(choice)
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+            ControlButton(panel == PathPanel.Instrument, "Instrument: ${instrument.label}", "fst.paths.instrument.open", Modifier, onClick = { toggle(PathPanel.Instrument) }) { InstrumentIcon(instrument, keyboard = keyboard, size = 28.dp, decorative = true) }
+            ControlButton(panel == PathPanel.Difficulty, "Difficulty: ${difficulty.label}", "fst.paths.difficulty.open", Modifier.weight(1f), onClick = { toggle(PathPanel.Difficulty) }) { Text(difficulty.label, color = BrandTokens.textPrimary, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f)) }
+            ControlButton(panel == PathPanel.Display, "View: ${display.label}", "fst.paths.display.open", Modifier, onClick = { toggle(PathPanel.Display) }) { Icon(if (display == PathDisplayMode.Image) Icons.Outlined.Image else Icons.AutoMirrored.Outlined.Article, contentDescription = null, tint = BrandTokens.textPrimary) }
         }
     }
 }
 
-/**
- * One compact M3 exposed dropdown (read-only field + menu). The anchor is tagged
- * [tag]; each option is `$tag.<optionTag>`.
- */
-@OptIn(ExperimentalMaterial3Api::class)
+/** One frosted control with a chevron that points down while its panel is open. */
 @Composable
-private fun <T> Selector(
-    label: String,
-    options: List<T>,
-    selected: T,
-    text: (T) -> String,
-    tag: String,
-    optionTag: (T) -> String,
-    icon: (@Composable (T) -> Unit)?,
-    modifier: Modifier,
-    onSelect: (T) -> Unit,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }, modifier = modifier) {
-        OutlinedTextField(
-            value = text(selected),
-            onValueChange = {},
-            readOnly = true,
-            singleLine = true,
-            label = { Text(label, maxLines = 1) },
-            leadingIcon = icon?.let { draw -> { draw(selected) } },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-            textStyle = MaterialTheme.typography.bodyMedium,
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = BrandTokens.textPrimary,
-                unfocusedTextColor = BrandTokens.textPrimary,
-                focusedLabelColor = BrandTokens.textPrimary,
-                unfocusedLabelColor = BrandTokens.textPrimary,
-            ),
-            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth().testTag(tag),
-        )
-        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, modifier = Modifier.popupTestTags()) {
-            options.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(text(option), fontWeight = if (option == selected) FontWeight.Bold else null) },
-                    leadingIcon = icon?.let { draw -> { draw(option) } },
-                    onClick = {
-                        expanded = false
-                        onSelect(option)
-                    },
-                    modifier = Modifier.testTag("$tag.${optionTag(option)}").semantics { this.selected = option == selected },
-                )
+private fun ControlButton(open: Boolean, label: String, tag: String, modifier: Modifier, onClick: () -> Unit, content: @Composable RowScope.() -> Unit) {
+    val rotation by animateFloatAsState(if (open) 0f else 180f, label = "pathsChevron")
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier
+            .heightIn(min = 52.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(BrandTokens.surfaceFrosted)
+            .border(1.dp, BrandTokens.glassBorder, RoundedCornerShape(12.dp))
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 16.dp)
+            .semantics(mergeDescendants = true) { contentDescription = label; stateDescription = if (open) "Expanded" else "Collapsed" }
+            .testTag(tag),
+    ) {
+        content()
+        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = BrandTokens.textMuted, modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = rotation })
+    }
+}
+
+/** Web option grid (2 columns): the choice is purple-highlighted. Tagged `$tag.<label lowercase>`. */
+@Composable
+private fun <T> OptionGrid(options: List<T>, selected: T, text: (T) -> String, tag: String, onSelect: (T) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 12.dp).selectableGroup()) {
+        options.chunked(2).forEach { pair ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                pair.forEach { option ->
+                    val chosen = option == selected
+                    val shape = RoundedCornerShape(12.dp)
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 48.dp)
+                            .clip(shape)
+                            .background(if (chosen) PurpleHighlight else BrandTokens.surfaceFrosted)
+                            .border(1.dp, if (chosen) PurpleHighlightBorder else BrandTokens.glassBorder, shape)
+                            .selectable(selected = chosen, role = Role.RadioButton) { onSelect(option) }
+                            .testTag("$tag.${text(option).lowercase()}"),
+                    ) {
+                        Text(text(option), color = if (chosen) BrandTokens.textPrimary else BrandTokens.textSecondary, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+                if (pair.size == 1) Spacer(Modifier.weight(1f))
             }
         }
     }
@@ -299,81 +374,187 @@ private fun PathImage(image: SongPathImagePayload, description: String) {
 
 // region Table
 
+/**
+ * The web `PathDataTable` (operator 6.27): no path summary or max-score line; one
+ * frosted card per activation. Phones use the web's mobile card (Activation fret
+ * pills, then Beat / Time / Score, then the Overdrive bar); wide panes use the
+ * desktop grid in the saved column order under [PathTableHeader].
+ */
 @Composable
-private fun PathTable(payload: SongPathDataPayload, columns: List<PathColumnKey>) {
-    val path = payload.path
-    Column(Modifier.testTag("fst.paths.table"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(path.pathSummary.ifBlank { "No path summary provided" }, color = BrandTokens.textPrimary, fontFamily = FontFamily.Monospace)
-        Text("Max score: ${ScoreFormatting.score(path.totalScore.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())}", color = BrandTokens.gold, fontWeight = FontWeight.SemiBold)
+private fun PathTable(payload: SongPathDataPayload, columns: List<PathColumnKey>, wide: Boolean) {
+    Column(Modifier.fillMaxWidth().testTag("fst.paths.table"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (payload.rows.isEmpty()) {
-            Text("This path has no activations.", color = BrandTokens.textSecondary)
+            Text("Paths not available", color = BrandTokens.textMuted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(24.dp))
             return@Column
         }
-        Row(Modifier.fillMaxWidth().padding(top = 8.dp).semantics { heading() }) {
-            columns.forEach { column ->
-                Text(column.label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = BrandTokens.textSecondary, modifier = Modifier.weight(weight(column)))
-            }
-        }
-        HorizontalDivider(color = BrandTokens.glassBorder)
-        payload.rows.forEach { row -> PathRow(row, columns) }
+        payload.rows.forEach { row -> if (wide) PathGridRow(row, columns) else PathCardRow(row) }
     }
 }
 
+/** Web column labels (`paths.col*`). */
+private val PathColumnKey.header: String
+    get() = when (this) {
+        PathColumnKey.Note -> "Activation"
+        PathColumnKey.Beat -> "Beat"
+        PathColumnKey.Time -> "Time"
+        PathColumnKey.Od -> "Overdrive %"
+        PathColumnKey.Score -> "Score"
+    }
+
 private fun weight(column: PathColumnKey): Float = when (column) {
-    PathColumnKey.Note -> 1.2f
-    PathColumnKey.Beat -> 0.9f
-    PathColumnKey.Time -> 1.5f
-    PathColumnKey.Od -> 0.8f
-    PathColumnKey.Score -> 1.1f
+    PathColumnKey.Note -> 1.9f
+    PathColumnKey.Beat -> 0.8f
+    PathColumnKey.Time -> 1.1f
+    PathColumnKey.Od -> 1.6f
+    PathColumnKey.Score -> 1f
+}
+
+/** Desktop column header (muted uppercase labels). */
+@Composable
+private fun PathTableHeader(columns: List<PathColumnKey>) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).semantics { heading() }.testTag("fst.paths.table.header")) {
+        columns.forEach { column ->
+            Text(column.header.uppercase(), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = BrandTokens.textMuted, textAlign = TextAlign.Center, modifier = Modifier.weight(weight(column)))
+        }
+    }
+}
+
+private fun spoken(row: PathActivationRow): String =
+    "Activation ${row.number}: frets ${row.fretsText}, beat ${row.beatText()}, time ${row.timeText}, overdrive ${row.odText}, score ${row.scoreText()}" +
+        (row.instruction?.let { ". $it" } ?: "")
+
+@Composable
+private fun PathCardRow(row: PathActivationRow) {
+    PathRowCard(row) {
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column {
+                MobileLabel("Activation")
+                Frets(row.frets, Arrangement.Start)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.weight(1f)) { MobileLabel("Beat"); Cell(row.beatText()) }
+                Column(Modifier.weight(1f)) { MobileLabel("Time"); Cell(row.timeText) }
+                Column(Modifier.weight(1f)) { MobileLabel("Score"); ScoreCell(row) }
+            }
+            Column {
+                MobileLabel("Overdrive %")
+                OdCell(row.odPercent)
+            }
+        }
+    }
 }
 
 @Composable
-private fun PathRow(row: PathActivationRow, columns: List<PathColumnKey>) {
-    val spoken = "Activation ${row.number}: frets ${row.fretsText}, beat ${row.beatText()}, time ${row.timeText}, OD ${row.odText}, score ${row.scoreText()}" +
-        (row.instruction?.let { ". $it" } ?: "")
-    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp).semantics(mergeDescendants = true) { contentDescription = spoken }.testTag("fst.paths.row.${row.number}")) {
+private fun PathGridRow(row: PathActivationRow, columns: List<PathColumnKey>) {
+    PathRowCard(row) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             columns.forEach { column ->
-                Box(Modifier.weight(weight(column))) {
+                Box(Modifier.weight(weight(column)).padding(horizontal = 6.dp), contentAlignment = Alignment.Center) {
                     when (column) {
-                        PathColumnKey.Note -> Frets(row.frets)
+                        PathColumnKey.Note -> Frets(row.frets, Arrangement.Center)
                         PathColumnKey.Beat -> Cell(row.beatText())
                         PathColumnKey.Time -> Cell(row.timeText)
-                        PathColumnKey.Od -> Cell(row.odText)
-                        PathColumnKey.Score -> Cell(row.scoreText())
+                        PathColumnKey.Od -> OdCell(row.odPercent)
+                        PathColumnKey.Score -> ScoreCell(row)
                     }
                 }
             }
         }
-        row.instruction?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary) }
     }
+}
+
+/** One frosted activation card (one TalkBack stop). */
+@Composable
+private fun PathRowCard(row: PathActivationRow, content: @Composable () -> Unit) {
+    val shape = RoundedCornerShape(12.dp)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(BrandTokens.surfaceFrosted)
+            .border(1.dp, BrandTokens.glassBorder, shape)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .clearAndSetSemantics { contentDescription = spoken(row) }
+            .testTag("fst.paths.row.${row.number}"),
+    ) {
+        // The web table shows no path instruction text; TalkBack still reads it.
+        content()
+    }
+}
+
+@Composable
+private fun MobileLabel(text: String) {
+    Text(
+        text.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = BrandTokens.textMuted,
+        modifier = Modifier.padding(bottom = 6.dp),
+    )
 }
 
 @Composable
 private fun Cell(text: String) {
-    Text(text, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textPrimary, fontFamily = FontFamily.Monospace, maxLines = 1)
+    Text(text, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = BrandTokens.textPrimary, maxLines = 1)
 }
 
 @Composable
-private fun Frets(frets: List<String>) {
-    if (frets.isEmpty()) {
-        Text("—", color = BrandTokens.textMuted)
-        return
-    }
-    Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-        frets.forEach { fret ->
-            Box(Modifier.size(14.dp).background(fretColor(fret), if (fret == "open") RoundedCornerShape(3.dp) else CircleShape))
+private fun ScoreCell(row: PathActivationRow) {
+    if (row.scoreBeforeActivation == null) Text("—", color = BrandTokens.textMuted) else Cell(row.scoreText())
+}
+
+/** The five fret pills (web `FretPill`: 22 dp, active in the fret colour, inactive muted with a border). */
+@Composable
+private fun Frets(frets: List<String>, arrangement: Arrangement.Horizontal) {
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp, if (arrangement == Arrangement.Center) Alignment.CenterHorizontally else Alignment.Start), modifier = Modifier.fillMaxWidth()) {
+        FRETS.forEach { (name, color) ->
+            val active = name in frets
+            Box(
+                Modifier
+                    .size(22.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(if (active) color else BrandTokens.surfaceMuted)
+                    .then(if (active) Modifier else Modifier.border(2.dp, BORDER_SUBTLE, RoundedCornerShape(4.dp)))
+                    .testTag("fst.paths.fret.$name.${if (active) "on" else "off"}"),
+            )
         }
     }
 }
 
-private fun fretColor(fret: String): Color = when (fret) {
-    "green" -> Color(0xFF2ECC71)
-    "red" -> Color(0xFFE53935)
-    "yellow" -> Color(0xFFFFD700)
-    "blue" -> Color(0xFF2D82E6)
-    "orange" -> Color(0xFFFF8C00)
-    else -> Color(0xFFB39DDB)
+/** Web `OdBar`: amber fill on a subtle 8 dp track, then the rounded percent. */
+@Composable
+private fun OdCell(percent: Double?) {
+    if (percent == null) {
+        Text("—", color = BrandTokens.textMuted)
+        return
+    }
+    val clamped = percent.coerceIn(0.0, 100.0).roundToInt()
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+        Box(
+            Modifier
+                .weight(1f)
+                .height(8.dp)
+                .clip(CircleShape)
+                .background(BrandTokens.surfaceSubtle)
+                .drawBehind { drawRoundRect(OD_AMBER, size = size.copy(width = size.width * clamped / 100f), cornerRadius = CornerRadius(size.height / 2)) },
+        )
+        Text("$clamped%", fontWeight = FontWeight.SemiBold, color = BrandTokens.textPrimary, textAlign = TextAlign.End, modifier = Modifier.widthIn(min = 40.dp))
+    }
 }
+
+/** Web `FRET_COLORS` in fret order. */
+private val FRETS = listOf(
+    "green" to Color(0xFF2ECC71),
+    "red" to Color(0xFFE74C3C),
+    "yellow" to Color(0xFFF1C40F),
+    "blue" to Color(0xFF3498DB),
+    "orange" to Color(0xFFE67E22),
+)
+
+/** Web `statusAmber`. */
+private val OD_AMBER = Color(0xFFF5A623)
+
+/** Web `borderSubtle`. */
+private val BORDER_SUBTLE = Color(0xFF1E2A3A)
 
 // endregion

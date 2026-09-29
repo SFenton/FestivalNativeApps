@@ -91,6 +91,7 @@ fun SongDetailRouteScreen(container: AppContainer, shellViewModel: ShellViewMode
             showKaraokeWarning = PathCapability.showsKaraokeWarning(settings.visibleInstruments, settings.pathUnavailableWarningDismissed),
             onDontShowAgain = { scope.launch { container.settings.update { it.copy(pathUnavailableWarningDismissed = true) } } },
             onDismiss = { pathsFor = null },
+            keyboard = song.usesKeyboardIcon,
         )
     }
 }
