@@ -59,49 +59,56 @@ final class SongDetailJourneyTests: XCTestCase {
         XCTAssertTrue(zoom.isEnabled)
 
         choose("Text", in: display, app: app)
-        let summary = app.staticTexts["fst.paths.text-summary"]
+        // Web mobile table: no path summary or max score above the activation cards.
+        func pathText(_ difficulty: String, _ instrument: String = "Solo_Guitar") -> XCUIElement {
+            app.descendants(matching: .any)
+                .matching(identifier: "fst.paths.text.\(instrument).\(difficulty)").firstMatch
+        }
+        let summary = pathText("expert")
         XCTAssertTrue(summary.waitForExistence(timeout: 15))
-        XCTAssertEqual(summary.label, "Two synthetic Expert activations")
+        XCTAssertFalse(app.staticTexts["fst.paths.text-summary"].exists)
         XCTAssertTrue(app.descendants(matching: .any).matching(
             identifier: "fst.paths.activation.1"
         ).firstMatch.exists)
         if UIDevice.current.userInterfaceIdiom == .phone {
             try app.performAccessibilityAudit(for: .all)
         } else {
-            try SongsUITestSupport.assertHeaderContrast(summary, in: app)
+            try SongsUITestSupport.assertHeaderContrast(app.staticTexts["Paths"], in: app)
         }
         SongsUITestSupport.record(app, name: "song-path-expert-text")
 
         let difficulty = pathsMenu("fst.paths.difficulty", in: app)
         XCTAssertTrue(menuShows("Expert", difficulty), "Difficulty: \(difficulty.label)")
         choose("Hard", in: difficulty, app: app)
-        for _ in 0..<40 {
-            if summary.label.contains("Hard") { break }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
-        }
-        XCTAssertEqual(summary.label, "Two synthetic Hard activations")
+        XCTAssertTrue(pathText("hard").waitForExistence(timeout: 15))
         choose("Medium", in: difficulty, app: app)
         XCTAssertTrue(app.staticTexts["Path unavailable"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["Retry"].exists)
         choose("Expert", in: difficulty, app: app)
         XCTAssertTrue(summary.waitForExistence(timeout: 15))
-        for _ in 0..<40 {
-            if summary.label.contains("Expert") { break }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
-        }
-        XCTAssertEqual(summary.label, "Two synthetic Expert activations")
         let instrument = app.descendants(matching: .any).matching(
             identifier: "fst.paths.instrument"
         ).firstMatch
         XCTAssertTrue(instrument.exists)
+        // The instrument toggle opens the shared InstrumentSelector accordion (web
+        // mobile Paths); it may be in compact mode, so pick by cycling if needed.
         instrument.tap()
-        let bass = app.buttons["Bass"]
-        XCTAssertTrue(bass.waitForExistence(timeout: 10))
-        bass.tap()
+        let bass = app.buttons["fst.paths.instrument-selector.Solo_Bass"]
+        if bass.waitForExistence(timeout: 5) {
+            bass.tap()
+        } else {
+            let next = app.buttons["fst.paths.instrument-selector.next"]
+            XCTAssertTrue(next.waitForExistence(timeout: 5))
+            next.tap()
+        }
         XCTAssertTrue(app.staticTexts["Path unavailable"].waitForExistence(timeout: 10))
         XCTAssertFalse(summary.exists, "Lead content remained visible for a missing Bass path")
-        instrument.tap()
-        app.buttons["Lead"].tap()
+        let lead = app.buttons["fst.paths.instrument-selector.Solo_Guitar"]
+        if lead.exists {
+            lead.tap()
+        } else {
+            app.buttons["fst.paths.instrument-selector.previous"].tap()
+        }
         XCTAssertTrue(summary.waitForExistence(timeout: 15))
         app.buttons["fst.paths.close"].tap()
         XCTAssertTrue(open.waitForExistence(timeout: 10))
@@ -151,8 +158,9 @@ final class SongDetailJourneyTests: XCTestCase {
         XCTAssertTrue(display.waitForExistence(timeout: 10))
         XCTAssertTrue(menuShows(changed, display), "View: \(display.label)")
         if changed == "Text" {
-            XCTAssertTrue(app.staticTexts["fst.paths.text-summary"]
-                .waitForExistence(timeout: 15))
+            XCTAssertTrue(app.descendants(matching: .any)
+                .matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.paths.text."))
+                .firstMatch.waitForExistence(timeout: 15))
         } else {
             XCTAssertTrue(app.images["fst.paths.image"].waitForExistence(timeout: 15))
         }

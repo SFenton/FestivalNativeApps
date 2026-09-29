@@ -8,8 +8,6 @@ struct SongPathsSheet: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @AppStorage("fst.settings.pathUnavailableWarningDismissed")
     private var warningDismissed = false
-    @AppStorage("fst.settings.pathColumnOrder")
-    private var pathColumnOrderRaw = SettingsOrder.encode(PathColumnKey.allCases)
     @State private var instrument: Instrument
     @State private var difficulty = PathDifficulty.expert
     @State private var display: PathDisplayMode
@@ -18,6 +16,9 @@ struct SongPathsSheet: View {
     @State private var zoom: CGFloat = 1
     @State private var pinchOrigin: CGFloat = 1
     @State private var warningPresented = false
+    /// The instrument accordion above the bottom row (web mobile `instOpen`).
+    @State private var instrumentPanelOpen = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let song: Song
     let session: FestivalSession
@@ -147,17 +148,53 @@ struct SongPathsSheet: View {
         }
     }
 
-    /// Instrument, difficulty and view menus in one compact bottom row (web's
-    /// bottom pickers).
+    /// The web's mobile controls: an instrument accordion (the shared
+    /// `InstrumentSelector`, required, Karaoke hidden) above one compact row of an
+    /// instrument icon toggle, the difficulty menu and the view menu.
     private var selectorRow: some View {
-        selectorLayout {
-            selectorMenu {
-                Picker("Instrument", selection: $instrument) {
-                    ForEach(instruments) { choice in
-                        Text(choice.label).tag(choice)
-                    }
-                }
+        VStack(spacing: 10) {
+            if instrumentPanelOpen {
+                InstrumentSelector(
+                    instruments: instruments,
+                    selected: Binding(get: { instrument }, set: { choice in
+                        guard let choice else { return }
+                        // Web: tapping the current instrument closes the accordion.
+                        if choice == instrument { instrumentPanelOpen = false } else { instrument = choice }
+                    }),
+                    hidden: [.karaoke], required: true, keyboardIcon: song.usesKeyboardIcon,
+                    labels: ("Previous Path Instrument", "Next Path Instrument"),
+                    identifier: "fst.paths.instrument-selector"
+                )
+                .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
             }
+            controlsRow
+        }
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: instrumentPanelOpen)
+    }
+
+    private var controlsRow: some View {
+        selectorLayout {
+            Button {
+                instrumentPanelOpen.toggle()
+            } label: {
+                HStack(spacing: 6) {
+                    InstrumentIcon(
+                        instrument, keyboard: song.usesKeyboardIcon && (instrument == .lead || instrument == .proLead),
+                        size: 28
+                    )
+                    .accessibilityHidden(true)
+                    Image(systemName: "chevron.down")
+                        .font(.footnote.weight(.semibold))
+                        .rotationEffect(.degrees(instrumentPanelOpen ? 0 : 180))
+                        .foregroundStyle(FestivalText.primary)
+                        .accessibilityHidden(true)
+                }
+                .frame(minWidth: 72, minHeight: 44)
+                .festivalGlassCapsule(.control, interactive: true)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Instrument, \(instrument.label)")
+            .accessibilityHint(instrumentPanelOpen ? "Hides the instrument choices" : "Shows the instrument choices")
             .accessibilityIdentifier("fst.paths.instrument")
             selectorMenu {
                 Picker("Difficulty", selection: $difficulty) {
@@ -213,18 +250,14 @@ struct SongPathsSheet: View {
             VStack(spacing: 8) {
                 freshness(publicationId: payload.publicationId)
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text(payload.path.pathSummary.isEmpty
-                            ? "No path summary provided" : payload.path.pathSummary)
-                            .font(.headline)
-                            .foregroundStyle(FestivalText.primary)
-                            .accessibilityIdentifier("fst.paths.text-summary")
-                        Text("Max score: \(payload.path.totalScore.formatted())")
-                            .foregroundStyle(FestivalText.primary)
+                    // Web mobile `PathDataTable`: one card per activation, no path text
+                    // or max score above them (operator batch 6.27).
+                    VStack(alignment: .leading, spacing: 8) {
                         let rows = payload.rows
                         if rows.isEmpty {
-                            Text("No path activations for this chart")
+                            Text("Path data not available for this chart.")
                                 .foregroundStyle(FestivalText.primary)
+                                .frame(maxWidth: .infinity)
                         }
                         ForEach(rows, id: \.number) { row in
                             activationCard(row)
@@ -233,6 +266,8 @@ struct SongPathsSheet: View {
                     .padding(.vertical, 12)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                // Names the chart and difficulty shown (journeys wait on it).
+                .accessibilityIdentifier("fst.paths.text.\(instrument.rawValue).\(difficulty.rawValue)")
             }
         }
     }
@@ -294,140 +329,91 @@ struct SongPathsSheet: View {
         }
     }
 
-    /// Make the source's activation table readable at native Dynamic Type sizes.
+    /// One activation as the web's mobile row card: a Note label over five fret pills;
+    /// Beat, Time and Score side by side; an Overdrive label over the amber OD bar.
     ///
     /// - Parameter row: Resolved beat, time, frets, OD and score for one activation.
-    /// - Returns: Accessible native activation card.
+    /// - Returns: Accessible activation card.
     private func activationCard(_ row: PathActivationRow) -> some View {
-        let metrics: AnyLayout = dynamicTypeSize.isAccessibilitySize
+        let values: AnyLayout = dynamicTypeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10))
             : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
-        return VStack(alignment: .leading, spacing: 12) {
-            Text("Activation \(row.number)")
-                .font(.headline)
-                .accessibilityAddTraits(.isHeader)
-            if let instruction = row.instruction, !instruction.isEmpty {
-                Text(instruction)
-                    .font(.body)
-                    .fixedSize(horizontal: false, vertical: true)
+        return VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
+                caption("Note")
+                HStack(spacing: 4) {
+                    ForEach(["green", "red", "yellow", "blue", "orange"], id: \.self) { fret in
+                        let active = row.frets.contains(fret)
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(active ? Self.fretColor(fret) : BrandTokens.surfaceMuted)
+                            .overlay {
+                                if !active {
+                                    RoundedRectangle(cornerRadius: 4).stroke(Self.borderSubtle, lineWidth: 2)
+                                }
+                            }
+                            .frame(width: 22, height: 22)
+                    }
+                }
+                .accessibilityHidden(true)
             }
-            // The five fret cells need ~116pt, more than a fifth of a phone card, so the
-            // Note column gets its own full-width line (it overflowed into an
-            // unreadable strip that failed the contrast audit); the other columns keep
-            // the saved Settings order.
-            let order = SettingsOrder.decode(pathColumnOrderRaw) as [PathColumnKey]
-            if order.contains(.note) {
-                column(.note, row: row)
+            values {
+                valueColumn("Beat", row.beat.formatted(.number.precision(.fractionLength(2))))
+                valueColumn("Time", Self.time(row.seconds))
+                valueColumn("Score", row.scoreBeforeActivation?.formatted())
             }
-            metrics {
-                ForEach(order.filter { $0 != .note }) { key in
-                    column(key, row: row)
+            VStack(alignment: .leading, spacing: 8) {
+                caption("Overdrive")
+                if let amount = row.odPercent {
+                    OverdriveBar(percent: amount)
+                } else {
+                    Text("\u{2014}").foregroundStyle(FestivalText.primary)
                 }
             }
         }
-        .font(.subheadline)
+        .font(.body.weight(.semibold))
         .foregroundStyle(FestivalText.primary)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(
-            BrandTokens.cardBackground,
-            in: RoundedRectangle(cornerRadius: 12)
-        )
-        .accessibilityElement(children: .combine)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .festivalGlass(.card, cornerRadius: 12)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Activation \(row.number)")
+        .accessibilityValue(spokenValue(row))
         .accessibilityIdentifier("fst.paths.activation.\(row.number)")
     }
 
-    /// One activation-table column, in Settings' saved `pathColumnOrder` position.
-    ///
-    /// - Parameters:
-    ///   - key: Which column to render.
-    ///   - row: Resolved beat, time, frets, OD and score for this activation.
-    /// - Returns: A labeled column matching the other four's compact style.
-    @ViewBuilder
-    private func column(_ key: PathColumnKey, row: PathActivationRow) -> some View {
-        switch key {
-        case .note:
-            VStack(alignment: .leading, spacing: 4) {
-                Text(key.label)
-                    .font(.caption)
-                    .foregroundStyle(FestivalText.primary)
-                HStack(spacing: 4) {
-                    ForEach(["green", "red", "yellow", "blue", "orange"], id: \.self) { fret in
-                        RoundedRectangle(cornerRadius: 5)
-                            .fill(row.frets.contains(fret)
-                                ? Self.fretColor(fret) : BrandTokens.appBackground)
-                            .frame(width: 20, height: 20)
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 5)
-                                    .stroke(BrandTokens.glassBorder, lineWidth: 1)
-                            }
-                            .accessibilityHidden(true)
-                    }
-                }
-                // An open note is a purple bar across the fret row (the web table has
-                // no open pill; a decorative "Open" text tag failed the Dynamic Type
-                // audit). The spoken value below still says "open".
-                .background(alignment: .leading) {
-                    if row.frets.contains("open") {
-                        Capsule()
-                            .fill(BrandTokens.accentPurple)
-                            .frame(width: 116, height: 6)
-                            .accessibilityHidden(true)
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Activation frets")
-            .accessibilityValue(row.frets.isEmpty ? "No anchor" : row.frets.joined(separator: ", "))
-        case .beat:
-            VStack(alignment: .leading, spacing: 4) {
-                Text(key.label)
-                    .font(.caption)
-                    .foregroundStyle(FestivalText.primary)
-                Text(row.beat.formatted(.number.precision(.fractionLength(2))))
-                    .monospacedDigit()
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        case .time:
-            VStack(alignment: .leading, spacing: 4) {
-                Text(key.label)
-                    .font(.caption)
-                    .foregroundStyle(FestivalText.primary)
-                Text(Self.time(row.seconds))
-                    .monospacedDigit()
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        case .od:
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Overdrive %")
-                    .font(.caption)
-                    .foregroundStyle(FestivalText.primary)
-                if let amount = row.odPercent {
-                    HStack(spacing: 6) {
-                        ProgressView(value: amount, total: 100)
-                            .tint(BrandTokens.gold)
-                            .accessibilityLabel("Overdrive")
-                            .accessibilityValue("\(Int(amount.rounded())) percent")
-                        Text("\(Int(amount.rounded()))%")
-                            .monospacedDigit()
-                    }
-                } else {
-                    Text("Unavailable")
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        case .score:
-            VStack(alignment: .leading, spacing: 4) {
-                Text(key.label)
-                    .font(.caption)
-                    .foregroundStyle(FestivalText.primary)
-                Text(row.scoreBeforeActivation.map { $0.formatted() } ?? "Unavailable")
-                    .monospacedDigit()
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
+    /// Web mobile column caption (uppercase, semibold, small).
+    private func caption(_ text: String) -> some View {
+        Text(text)
+            .font(.caption.weight(.semibold))
+            .textCase(.uppercase)
+            .foregroundStyle(FestivalText.primary)
     }
+
+    /// One labelled value; a missing value is an em dash (web `missingValue`).
+    private func valueColumn(_ label: String, _ value: String?) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            caption(label)
+            Text(value ?? "\u{2014}")
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Everything the card shows, for VoiceOver.
+    private func spokenValue(_ row: PathActivationRow) -> String {
+        var parts = [row.frets.isEmpty ? "No anchor note" : "Frets \(row.frets.joined(separator: ", "))"]
+        parts.append("beat \(row.beat.formatted(.number.precision(.fractionLength(2))))")
+        parts.append("time \(Self.time(row.seconds))")
+        if let score = row.scoreBeforeActivation { parts.append("score \(score.formatted())") }
+        if let od = row.odPercent { parts.append("overdrive \(Int(od.rounded())) percent") }
+        return parts.joined(separator: ", ")
+    }
+
+    /// Web `Colors.borderSubtle` (#1E2A3A), the inactive fret pill border.
+    private static let borderSubtle = Color(.sRGB, red: 30 / 255, green: 42 / 255, blue: 58 / 255)
 
     /// Match the source's five visible fret colors using original SwiftUI shapes.
     ///
@@ -515,5 +501,35 @@ struct SongPathsSheet: View {
             guard !Task.isCancelled, requestKey == requested else { return }
             state = .failed(ServiceIssue(error))
         }
+    }
+}
+
+// MARK: - Overdrive bar
+
+/// The web's `OdBar`: an 8 pt rounded track (`surfaceSubtle`) filled amber
+/// (`statusAmber` #F5A623) to the clamped percent, with a bold "NN%" label.
+struct OverdriveBar: View {
+    let percent: Double
+
+    private var clamped: Int { Int(min(max(percent, 0), 100).rounded()) }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(BrandTokens.surfaceSubtle)
+                    Capsule()
+                        .fill(Color(.sRGB, red: 245 / 255, green: 166 / 255, blue: 35 / 255))
+                        .frame(width: geometry.size.width * CGFloat(clamped) / 100)
+                }
+            }
+            .frame(minWidth: 80)
+            .frame(height: 8)
+            Text("\(clamped)%")
+                .font(.body.weight(.semibold))
+                .monospacedDigit()
+                .frame(minWidth: 40, alignment: .trailing)
+        }
+        .accessibilityHidden(true)
     }
 }
