@@ -187,7 +187,7 @@ class ProfileActionsTest {
         assertEquals(listOf<SongsPreset>(lead), presets)
         advanceUntilIdle()
         // Now selected: later actions navigate without selecting again.
-        assertEquals(ProfileActionResult.Navigate(SongDetailRoute("s-alpha")), vm.run(PlayerTileAction.OpenSong("s-alpha", Instrument.Lead)))
+        assertEquals(ProfileActionResult.Navigate(SongDetailRoute("s-alpha", "Solo_Guitar")), vm.run(PlayerTileAction.OpenSong("s-alpha", Instrument.Lead)))
         assertEquals(
             ProfileActionResult.Navigate(FullRankingsRoute("Solo_Bass", "totalscore")),
             vm.run(PlayerTileAction.OpenRankings(Instrument.Bass)),
@@ -203,7 +203,7 @@ class ProfileActionsTest {
         assertEquals(PlayerIdentityAction.Switch, vm.state.value.identity)
         assertEquals(ProfileActionResult.ConfirmSwitch, vm.run(PlayerTileAction.OpenSong("s-alpha", Instrument.Lead)))
         assertTrue(selected.isEmpty())
-        assertEquals(ProfileActionResult.Navigate(SongDetailRoute("s-alpha")), vm.run(PlayerTileAction.OpenSong("s-alpha", Instrument.Lead), confirmedSwitch = true))
+        assertEquals(ProfileActionResult.Navigate(SongDetailRoute("s-alpha", "Solo_Guitar")), vm.run(PlayerTileAction.OpenSong("s-alpha", Instrument.Lead), confirmedSwitch = true))
         assertEquals(Fixtures.ACCOUNT_A, selected.single()?.accountId)
     }
 
@@ -217,7 +217,7 @@ class ProfileActionsTest {
         assertFalse(state.canRun(PlayerTileAction.FilterSongs(lead)))
         assertTrue(state.canRun(PlayerTileAction.OpenSong("s-alpha", Instrument.Lead)))
         assertEquals(ProfileActionResult.Unavailable, vm.run(PlayerTileAction.FilterSongs(lead)))
-        assertEquals(ProfileActionResult.Navigate(SongDetailRoute("s-alpha")), vm.run(PlayerTileAction.OpenSong("s-alpha", Instrument.Lead)))
+        assertEquals(ProfileActionResult.Navigate(SongDetailRoute("s-alpha", "Solo_Guitar")), vm.run(PlayerTileAction.OpenSong("s-alpha", Instrument.Lead)))
         assertTrue(selected.isEmpty())
         assertTrue(presets.isEmpty())
     }

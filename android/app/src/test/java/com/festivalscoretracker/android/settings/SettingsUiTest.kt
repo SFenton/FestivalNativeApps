@@ -291,7 +291,8 @@ class SettingsUiTest {
         settle()
         rule.onNodeWithTag("fst.notifications.row.n-song").performSemanticsAction(SemanticsActions.OnClick)
         waitGone("fst.notifications.sheet")
-        waitForTag("fst.song-detail.intensity")
+        // A single-instrument notification opens Song Detail focused on that chart (web ?instrument=).
+        waitForTag("fst.song-detail.preview.Solo_Guitar")
         rule.waitUntil(10_000) {
             settle(100)
             rule.onAllNodesWithTag("fst.shell.notifications").fetchSemanticsNodes().any { node ->
