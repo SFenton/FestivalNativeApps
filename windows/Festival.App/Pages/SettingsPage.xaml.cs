@@ -66,5 +66,10 @@ public sealed partial class SettingsPage : Page
         };
         if (await MainWindow.ShowDialogAsync(dialog) == ContentDialogResult.Primary) ViewModel.ResetAppSettingsCommand.Execute(null);
     }
+
+    /// <summary>Replays What's New.</summary>
+    /// <param name="sender">Button.</param>
+    /// <param name="e">Unused.</param>
+    private void OnShowWhatsNew(object sender, RoutedEventArgs e) => MainWindow.Instance?.ShowWhatsNew();
 }
 #endregion

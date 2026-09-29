@@ -33,6 +33,9 @@ public static class AppStateFiles
     /// <summary>First-run slides already seen (the web keeps these through a settings reset).</summary>
     public static AppStateFile FirstRun { get; } = new("first-run.json", AppStateReset.Keep);
 
+    /// <summary>Last dismissed What's New changelog (web <c>fst:changelog</c>; kept through a settings reset).</summary>
+    public static AppStateFile WhatsNew { get; } = new("whats-new.json", AppStateReset.Keep);
+
     /// <summary>Notification IDs already seen.</summary>
     public static AppStateFile NotificationsSeen { get; } = new("notifications-seen.json", AppStateReset.Keep);
 
@@ -43,7 +46,7 @@ public static class AppStateFiles
     public static AppStateFile Diagnostics { get; } = new("diagnostics.log", AppStateReset.Keep);
 
     /// <summary>All registered files.</summary>
-    public static IReadOnlyList<AppStateFile> All { get; } = [Settings, FirstRun, NotificationsSeen, SuggestionsFilter, Diagnostics];
+    public static IReadOnlyList<AppStateFile> All { get; } = [Settings, FirstRun, WhatsNew, NotificationsSeen, SuggestionsFilter, Diagnostics];
 
     /// <summary>Files Settings Reset deletes.</summary>
     public static IReadOnlyList<AppStateFile> DeletedByReset { get; } = [.. All.Where(f => f.Reset == AppStateReset.Delete)];

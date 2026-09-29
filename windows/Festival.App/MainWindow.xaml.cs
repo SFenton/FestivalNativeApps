@@ -55,6 +55,7 @@ public sealed partial class MainWindow : Window
         InitializeAccessibility();
         InitializeTitleBarInset();
         InitializeRoutePolicy();
+        InitializeWhatsNew();
         Nav.Loaded += (_, _) =>
         {
             if (Nav.SettingsItem is NavigationViewItem settingsItem) Configure(settingsItem);

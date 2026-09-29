@@ -406,6 +406,7 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <TextBlock Text="App Version" />
                             <TextBlock Grid.Column="1" Text="{x:Bind ViewModel.AppVersion}" Foreground="{ThemeResource FSTSecondaryTextBrush}"
@@ -414,6 +415,11 @@
                             <TextBlock Grid.Row="1" Grid.Column="1" Text="{x:Bind ViewModel.BuildConfiguration}" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
                             <TextBlock Grid.Row="2" Text="Service Version" />
                             <TextBlock Grid.Row="2" Grid.Column="1" Text="{x:Bind ViewModel.ServiceVersion}" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                            <!-- Replays the launch What's New dialog (web: the changelog under Version). -->
+                            <TextBlock Grid.Row="3" Text="What's New" VerticalAlignment="Center" />
+                            <Button Grid.Row="3" Grid.Column="1" Content="Show" Click="OnShowWhatsNew"
+                                    AutomationProperties.Name="Show What's New"
+                                    AutomationProperties.AutomationId="fst.settings.whats-new" />
                         </Grid>
                     </Border>
                 </StackPanel>
