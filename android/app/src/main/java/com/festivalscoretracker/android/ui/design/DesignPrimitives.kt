@@ -25,6 +25,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -65,11 +66,11 @@ fun GlassCard(
         else -> BorderStroke(1.dp, BrandTokens.glassBorder)
     }
     if (onClick != null) {
-        Surface(onClick = onClick, modifier = modifier, shape = shape, color = color, border = border) {
+        Surface(onClick = onClick, modifier = modifier.readingGroup(), shape = shape, color = color, border = border) {
             Column(content = content)
         }
     } else {
-        Surface(modifier = modifier, shape = shape, color = color, border = border) {
+        Surface(modifier = modifier.readingGroup(), shape = shape, color = color, border = border) {
             Column(content = content)
         }
     }
@@ -201,5 +202,19 @@ fun DifficultyMeter(level: Double, modifier: Modifier = Modifier, raw: Boolean =
 @Composable
 fun festivalFilledButtonColors(): ButtonColors =
     ButtonDefaults.buttonColors(containerColor = BrandTokens.accentBlueFill, contentColor = BrandTokens.textPrimary)
+
+// endregion
+
+// region Reading groups
+
+/**
+ * Make this element one TalkBack traversal group: its content is read in full before
+ * anything beside it. Compose otherwise orders every non-grouped descendant of a list or
+ * grid geometrically, so two cards side by side (grid columns, either side of a hinge)
+ * were read row by row across both cards.
+ *
+ * @return Modifier.
+ */
+fun Modifier.readingGroup(): Modifier = semantics { isTraversalGroup = true }
 
 // endregion

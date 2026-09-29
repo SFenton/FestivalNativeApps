@@ -136,6 +136,7 @@ import com.festivalscoretracker.android.ui.common.FloatingToolbarScrollState
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.SearchChrome
 import com.festivalscoretracker.android.ui.common.ShellActions
+import com.festivalscoretracker.android.ui.common.rememberScreenReaderOn
 import com.festivalscoretracker.android.ui.compete.competeDestinations
 import com.festivalscoretracker.android.ui.firstrun.FirstRunHost
 import com.festivalscoretracker.android.ui.firstrun.firstRunPage
@@ -386,7 +387,7 @@ private fun FestivalShell(
     // M3 "exit always": the toolbar slides away while content scrolls toward its end and back
     // when it scrolls back; never hidden under TalkBack; shown again on every navigation.
     val toolbarScroll = remember { FloatingToolbarScrollState() }
-    val touchExploration = rememberTouchExplorationEnabled()
+    val touchExploration = rememberScreenReaderOn()
     toolbarScroll.hiddenOffsetPx = with(density) { (FLOATING_TOOLBAR_HEIGHT_DP + FLOATING_TOOLBAR_MARGIN_DP).dp.toPx() }
     toolbarScroll.enabled = !touchExploration
     LaunchedEffect(stack.lastOrNull()?.id, touchExploration) { toolbarScroll.reset() }
@@ -586,24 +587,6 @@ private fun FestivalShell(
         blocked = showProfile || showNotifications || firstRunActive != null,
         compact = !AdaptiveLayoutPolicy.isRegularWidth(widthDp),
     )
-}
-
-/**
- * Whether TalkBack-style explore-by-touch is on, updated live.
- *
- * @return True while touch exploration is enabled.
- */
-@Composable
-private fun rememberTouchExplorationEnabled(): Boolean {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val manager = remember(context) { context.getSystemService(android.view.accessibility.AccessibilityManager::class.java) }
-    var enabled by remember { mutableStateOf(manager?.isTouchExplorationEnabled == true) }
-    DisposableEffect(manager) {
-        val listener = android.view.accessibility.AccessibilityManager.TouchExplorationStateChangeListener { enabled = it }
-        manager?.addTouchExplorationStateChangeListener(listener)
-        onDispose { manager?.removeTouchExplorationStateChangeListener(listener) }
-    }
-    return enabled
 }
 
 /** Permanent drawer width on large windows. */

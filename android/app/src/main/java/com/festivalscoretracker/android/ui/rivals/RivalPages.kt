@@ -32,6 +32,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.festivalscoretracker.android.ui.design.readingGroup
 import com.festivalscoretracker.android.core.model.Song
 import com.festivalscoretracker.android.core.nav.PlayerRoute
 import com.festivalscoretracker.android.core.nav.RivalDetailRoute
@@ -204,7 +205,7 @@ fun RivalDetailScreen(viewModel: RivalDetailViewModel, route: RivalDetailRoute, 
                         item(key = category.key) {
                             Column(
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.testTag("fst.rival-detail.category.${category.key}").festivalFadeIn(revealed, fadeInStagger(categoryIndex + 1)),
+                                modifier = Modifier.testTag("fst.rival-detail.category.${category.key}").festivalFadeIn(revealed, fadeInStagger(categoryIndex + 1)).readingGroup(),
                             ) {
                                 val openRivalry = { shell.navigate(RivalRoutes.rivalry(route, category.key, content.rivalName)) }
                                 RivalSectionHeader(

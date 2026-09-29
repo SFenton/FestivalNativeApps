@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.rivals.ColumnSpec
 import com.festivalscoretracker.android.core.rivals.HingeColumns
+import com.festivalscoretracker.android.ui.common.rememberScreenReaderOn
 import kotlin.math.roundToInt
 
 // region Adaptive card grid
@@ -89,7 +90,9 @@ fun AdaptiveCardGrid(
             maxColumns = maxColumns,
         )
     } ?: ColumnSpec(listOf(0), gutter)
-    val cells = remember(spec) { if (bounds == null) StaggeredGridCells.Fixed(1) else SpecCells(spec) }
+    // One column under TalkBack (see rememberScreenReaderOn): no side-by-side cards to skip.
+    val screenReader = rememberScreenReaderOn()
+    val cells = remember(spec, screenReader) { if (bounds == null || screenReader) StaggeredGridCells.Fixed(1) else SpecCells(spec) }
     LazyVerticalStaggeredGrid(
         columns = cells,
         state = state,

@@ -20,6 +20,7 @@ import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.festivalscoretracker.android.ui.design.readingGroup
 
 // region Hinge
 
@@ -77,15 +78,15 @@ fun rememberHingeSplit(): Pair<HingeSplit?, Modifier> {
 fun CardGridRow(cards: List<@Composable () -> Unit>, columns: Int, hinge: HingeSplit?, gap: Dp = 16.dp) {
     if (hinge != null && columns == 2) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-            Box(Modifier.width((hinge.start - gap / 2).coerceAtLeast(0.dp))) { cards.getOrNull(0)?.invoke() }
+            Box(Modifier.width((hinge.start - gap / 2).coerceAtLeast(0.dp)).readingGroup()) { cards.getOrNull(0)?.invoke() }
             Spacer(Modifier.width(hinge.end - hinge.start + gap))
-            Box(Modifier.weight(1f)) { cards.getOrNull(1)?.invoke() }
+            Box(Modifier.weight(1f).readingGroup()) { cards.getOrNull(1)?.invoke() }
         }
         return
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(gap), verticalAlignment = Alignment.Top) {
         repeat(columns) { index ->
-            Box(Modifier.weight(1f)) { cards.getOrNull(index)?.invoke() }
+            Box(Modifier.weight(1f).readingGroup()) { cards.getOrNull(index)?.invoke() }
         }
     }
 }

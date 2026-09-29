@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.festivalscoretracker.android.ui.design.readingGroup
 import com.festivalscoretracker.android.core.service.ServiceIssue
 import com.festivalscoretracker.android.core.suggestions.SuggestionFilterSettings
 import com.festivalscoretracker.android.presentation.suggestions.SuggestionsPhase
@@ -294,13 +295,15 @@ private fun SuggestionsGrid(
             modifier = Modifier.fillMaxSize().testTag("fst.suggestions.list"),
         ) {
             itemsIndexed(state.cards, key = { _, card -> card.id }, contentType = { _, _ -> "card" }) { index, card ->
-                SuggestionCardView(
-                    card,
-                    columns.narrow,
-                    artworkUrl,
-                    onSong,
-                    Modifier.festivalFadeIn(index < revealedCount, fadeInStagger(index - batchStart)),
-                )
+                Box(Modifier.readingGroup()) {
+                    SuggestionCardView(
+                        card,
+                        columns.narrow,
+                        artworkUrl,
+                        onSong,
+                        Modifier.festivalFadeIn(index < revealedCount, fadeInStagger(index - batchStart)),
+                    )
+                }
             }
             if (state.hasMore) {
                 item(key = "more", contentType = "more", span = StaggeredGridItemSpan.FullLine) {

@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.festivalscoretracker.android.ui.design.readingGroup
 import com.festivalscoretracker.android.ui.leaderboards.rememberAccountColumns
 import com.festivalscoretracker.android.ui.leaderboards.RowSeparator
 import com.festivalscoretracker.android.ui.leaderboards.LocalRankingColumns
@@ -109,13 +110,13 @@ fun CompeteScreen(viewModel: CompeteViewModel, isRoot: Boolean) {
             groupHeader("leaderboards", CompeteText.LEADERBOARDS)
             content.sections.forEach { section ->
                 item(key = "board:${section.scope.key}") {
-                    BoardCard(section, selected, viewModel, shell.navigate)
+                    Box(Modifier.readingGroup()) { BoardCard(section, selected, viewModel, shell.navigate) }
                 }
             }
             groupHeader("rivals", CompeteText.RIVALS)
             content.sections.forEach { section ->
                 item(key = "rivals:${section.scope.key}") {
-                    RivalsCard(section, viewModel, shell.navigate)
+                    Box(Modifier.readingGroup()) { RivalsCard(section, viewModel, shell.navigate) }
                 }
             }
         }

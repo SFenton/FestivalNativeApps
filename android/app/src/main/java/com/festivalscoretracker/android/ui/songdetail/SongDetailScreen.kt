@@ -108,6 +108,7 @@ import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.common.rememberRevealed
+import com.festivalscoretracker.android.ui.common.rememberScreenReaderOn
 import com.festivalscoretracker.android.ui.design.AccuracyPill
 import com.festivalscoretracker.android.ui.design.DifficultyMeter
 import com.festivalscoretracker.android.ui.design.GlassCard
@@ -316,9 +317,11 @@ private fun SongDetailContent(
     val showHistory = SongHistoryChart.available(SongHistoryChart.counts(historyRows), extras.visibleInstruments).isNotEmpty()
     val bandTypes = viewModel.bandTypes
     val (hinge, hingeModifier) = rememberHingeSplit()
+    // One column under TalkBack (see rememberScreenReaderOn): no side-by-side cards to skip.
+    val screenReader = rememberScreenReaderOn()
     BoxWithConstraints(Modifier.fillMaxSize().then(hingeModifier)) {
-        val rowHinge = hinge?.let { HingeSplit(it.start - PAGE_GUTTER, it.end - PAGE_GUTTER) }
-        val columns = SongDetailLayout.columns((maxWidth - PAGE_GUTTER * 2).value, cards.size, rowHinge != null)
+        val rowHinge = if (screenReader) null else hinge?.let { HingeSplit(it.start - PAGE_GUTTER, it.end - PAGE_GUTTER) }
+        val columns = if (screenReader) 1 else SongDetailLayout.columns((maxWidth - PAGE_GUTTER * 2).value, cards.size, rowHinge != null)
         val items = remember(cards, columns, showHistory, rowHinge != null, bandTypes) {
             SongDetailLayout.items(cards, columns, showHistory, rowHinge != null, bandTypes)
         }

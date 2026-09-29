@@ -64,6 +64,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.festivalscoretracker.android.ui.design.readingGroup
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.PlayerBandsRoute
@@ -230,7 +231,7 @@ private fun LoadedProfile(
         rows.forEachIndexed { index, row ->
             val span = if (row.fullWidth && !split) StaggeredGridItemSpan.FullLine else StaggeredGridItemSpan.SingleLane
             item(key = row.key, span = span) {
-                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
+                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index)).readingGroup()) {
                 when (row) {
                     ProfileRow.Header -> Header(state, onSelect = {
                         if (state.identity == PlayerIdentityAction.Switch) confirm = PlayerIdentityAction.Switch else viewModel.select()

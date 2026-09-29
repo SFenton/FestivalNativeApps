@@ -491,7 +491,7 @@ private fun Header(title: String, hint: String) {
 
 @Composable
 private fun SubTitle(text: String) {
-    Text(text, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)
+    Text(text, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = Modifier.semantics { heading() })
 }
 
 @Composable

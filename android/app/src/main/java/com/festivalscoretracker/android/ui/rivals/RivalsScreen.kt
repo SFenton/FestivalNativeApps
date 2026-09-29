@@ -39,6 +39,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.festivalscoretracker.android.ui.design.readingGroup
 import com.festivalscoretracker.android.ui.common.festivalSheetTop
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.AppRoute
@@ -180,7 +181,7 @@ private fun HubBody(
         ) {
             content.sections.forEach { section ->
                 item(key = section.id) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("fst.rivals.section.${section.id}")) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("fst.rivals.section.${section.id}").readingGroup()) {
                         val seeAll = { navigate(RivalRoutes.allRivals(section.seeAll)) }
                         val loaded = section.state as? LoadState.Loaded
                         val sectionRevealed = rememberRevealed(loaded != null)
