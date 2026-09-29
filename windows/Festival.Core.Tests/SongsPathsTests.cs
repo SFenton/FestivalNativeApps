@@ -68,7 +68,13 @@ public class PathModelTests
         Assert.Equal(["orange"], rows[2].Frets); // sustained through the activation
         Assert.Equal(120, rows[2].Seconds);
         Assert.Empty(rows[3].Frets); // earlier note neither sustained nor coincident
-        Assert.Equal(("Unavailable", "Unavailable", "No anchor", "00:00:000"), (rows[3].OdText, rows[3].ScoreText, rows[3].FretsText, rows[3].TimeText));
+        Assert.Equal(("—", "—", "No anchor", "00:00:000"), (rows[3].OdText, rows[3].ScoreText, rows[3].FretsText, rows[3].TimeText));
+        Assert.Null(rows[3].OdFill);
+        Assert.Equal("Activation 4: No anchor; beat " + rows[3].BeatText + "; time 00:00:000; Overdrive unavailable; score unavailable", rows[3].AccessibleName);
+        Assert.Equal(50, rows[0].OdFill);
+        Assert.Equal("Activation 1: green, red, open; beat 10.00; time 01:01:235; Overdrive 50%; score 12,345", rows[0].AccessibleName);
+        Assert.Equal(100, (rows[0] with { OdPercent = 140 }).OdFill);
+        Assert.Equal(0, (rows[0] with { OdPercent = -3 }).OdFill);
         Assert.Equal("green, red, open", rows[0].FretsText);
     }
 
@@ -123,11 +129,15 @@ public class SongPathsViewModelTests
         vm.DisplayIndex = 1;
         await Async.Until(() => vm.ShowTable);
         Assert.Equal(1, vm.DisplayIndex);
-        Assert.Equal("2-1-1", vm.Summary);
-        Assert.Equal("Max score: 123,456", vm.MaxScoreText);
         Assert.True(vm.HasNoActivations);
         Assert.Equal(SettingsOrder.Normalize<PathColumnKey>(null), vm.Columns);
-        vm.InstrumentIndex = 1;
+        var changed = new List<string?>();
+        vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        vm.SelectInstrument(Instrument.Karaoke); // not offered: ignored
+        Assert.Equal(Instrument.Lead, vm.Instrument);
+        vm.SelectInstrument(Instrument.Bass);
+        Assert.Contains(nameof(SongPathsViewModel.Instrument), changed);
+        Assert.Equal("Instrument: Bass", vm.InstrumentButtonName);
         vm.DifficultyIndex = 0;
         await Async.Until(() => vm.ShowTable && vm.Instrument == Instrument.Bass && vm.Difficulty == PathDifficulty.Easy);
         Assert.Contains(service.Handler.Requests, r => r.Uri.AbsolutePath == "/api/paths/s1/Solo_Bass/easy/data");

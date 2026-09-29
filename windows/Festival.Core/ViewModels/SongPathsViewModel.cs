@@ -75,9 +75,8 @@ public sealed partial class SongPathsViewModel : ObservableObject
     [ObservableProperty]
     private PathImage? image;
 
-    /// <summary>Loaded text data.</summary>
+    /// <summary>Loaded text data (the web table shows only the activation rows: no path summary or max score).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Summary), nameof(MaxScoreText))]
     private SongPathData? data;
 
     /// <summary>Resolved activation rows.</summary>
@@ -118,12 +117,6 @@ public sealed partial class SongPathsViewModel : ObservableObject
     /// <summary>Whether the service has no path for this chart and difficulty (HTTP 404).</summary>
     public bool ShowNotGenerated => State == LoadState.Empty;
 
-    /// <summary>Path summary line.</summary>
-    public string Summary => Data is { } d ? (string.IsNullOrWhiteSpace(d.PathSummary) ? "No path summary provided" : d.PathSummary) : "";
-
-    /// <summary>"Max score: 123,456".</summary>
-    public string MaxScoreText => Data is { } d ? "Max score: " + ScoreFormatting.Score(d.TotalScore) : "";
-
     /// <summary>Whether a loaded table has no activations.</summary>
     public bool HasNoActivations => Rows.Count == 0;
 
@@ -138,6 +131,17 @@ public sealed partial class SongPathsViewModel : ObservableObject
 
     /// <summary>Whether zooming out is possible.</summary>
     public bool CanZoomOut => Zoom > MinZoom;
+
+    /// <summary>Compact instrument button name, e.g. "Instrument: Lead".</summary>
+    public string InstrumentButtonName => "Instrument: " + Instrument.Label();
+
+    /// <summary>Selects a chart from the Instrument Selector (ignored when it isn't offered).</summary>
+    /// <param name="instrument">Chart.</param>
+    public void SelectInstrument(Instrument instrument)
+    {
+        var index = Instruments.IndexOf(instrument);
+        if (index >= 0) InstrumentIndex = index;
+    }
 
     /// <summary>Spoken image description.</summary>
     public string ImageDescription => $"{Instrument.Label()} {Difficulty.Label()} CHOpt path";
@@ -212,7 +216,12 @@ public sealed partial class SongPathsViewModel : ObservableObject
     [RelayCommand]
     private void ZoomOut() => Zoom = Math.Max(MinZoom, Zoom / ZoomStep);
 
-    partial void OnInstrumentIndexChanged(int value) => Reload();
+    partial void OnInstrumentIndexChanged(int value)
+    {
+        OnPropertyChanged(nameof(Instrument));
+        OnPropertyChanged(nameof(InstrumentButtonName));
+        Reload();
+    }
 
     partial void OnDifficultyIndexChanged(int value) => Reload();
 

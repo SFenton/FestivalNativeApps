@@ -252,11 +252,22 @@ public sealed record PathActivationRow(
         }
     }
 
-    /// <summary>Rounded Overdrive, e.g. <c>75%</c>, or "Unavailable".</summary>
-    public string OdText => OdPercent is { } od ? string.Create(CultureInfo.CurrentCulture, $"{Math.Round(od):0}%") : "Unavailable";
+    /// <summary>Overdrive for the web's bar: rounded and clamped to 0–100, or <see langword="null"/> when unknown.</summary>
+    public int? OdFill => OdPercent is { } od ? (int)Math.Clamp(Math.Round(od, MidpointRounding.AwayFromZero), 0, 100) : null;
 
-    /// <summary>Grouped score, or "Unavailable".</summary>
-    public string ScoreText => ScoreBeforeActivation is { } s ? s.ToString("N0", CultureInfo.CurrentCulture) : "Unavailable";
+    /// <summary>Rounded Overdrive, e.g. <c>75%</c>, or the web's em dash when unknown.</summary>
+    public string OdText => OdFill is { } od ? string.Create(CultureInfo.CurrentCulture, $"{od}%") : Missing;
+
+    /// <summary>Grouped score, or the web's em dash when unknown.</summary>
+    public string ScoreText => ScoreBeforeActivation is { } s ? s.ToString("N0", CultureInfo.CurrentCulture) : Missing;
+
+    /// <summary>Placeholder for an unknown value (web <c>missingValue</c>).</summary>
+    public const string Missing = "—";
+
+    /// <summary>Narrator name for the whole row card, e.g. "Activation 1: green, red; beat 10.00; time 01:01:235; Overdrive 50%; score 12,345".</summary>
+    public string AccessibleName =>
+        $"Activation {Number}: {FretsText}; beat {BeatText}; time {TimeText}; Overdrive {(OdFill is { } od ? od + "%" : "unavailable")}; " +
+        $"score {(ScoreBeforeActivation is { } s ? s.ToString("N0", CultureInfo.CurrentCulture) : "unavailable")}";
 
     /// <summary>Spoken fret list.</summary>
     public string FretsText => Frets.Count == 0 ? "No anchor" : string.Join(", ", Frets);

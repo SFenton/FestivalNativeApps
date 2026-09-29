@@ -12,7 +12,8 @@ Journey file shape::
     [{"name": "player-bands", "route": "/bands/player/fixture-player-1",
       "preset": "medium", "steps": ["waitfor:id=fst.player-bands.title@10", "..."]}]
 
-``{shots}`` in a step expands to the ``--shots`` directory (Windows path).
+``{shots}`` in a step expands to the ``--shots`` directory (Windows path). An optional
+``"extra": {"FST_DEBUG_PROFILE": "fixture-player-1:Name"}`` passes launch environment hooks.
 
 Usage::
 
@@ -100,7 +101,8 @@ def run_journey(journey: dict, port: int, shots: Path) -> tuple[bool, str]:
     """
     launch = uiwin("launch", str(EXE), "--route", journey["route"],
                    "--arg=--base-url", f"--arg=http://127.0.0.1:{port}/",
-                   "--preset", journey.get("preset", "medium"))
+                   "--preset", journey.get("preset", "medium"),
+                   *(f"--extra={key}={value}" for key, value in journey.get("extra", {}).items()))
     if launch.returncode != 0:
         return False, "launch: " + launch.stderr.strip()
     steps = [s.replace("{shots}", str(shots)) for s in journey["steps"]]

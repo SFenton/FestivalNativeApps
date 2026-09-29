@@ -8,48 +8,60 @@
     <Grid x:Name="Root" RowSpacing="12" SizeChanged="OnRootSizeChanged" AutomationProperties.AutomationId="fst.song-detail.paths-dialog">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Selectors (medium/wide): instrument, difficulty, image/text above the chart. -->
-        <controls:FlowPanel x:Name="Selectors" Spacing="20">
-            <ComboBox x:Name="InstrumentPicker" Header="Instrument" MinWidth="200"
-                      ItemsSource="{x:Bind ViewModel.InstrumentLabels}" SelectedIndex="{x:Bind ViewModel.InstrumentIndex, Mode=TwoWay}"
-                      AutomationProperties.AutomationId="fst.paths.instrument" />
-            <RadioButtons x:Name="DifficultyPicker" Header="Difficulty" MaxColumns="4"
-                          ItemsSource="{x:Bind ViewModel.DifficultyLabels}" SelectedIndex="{x:Bind ViewModel.DifficultyIndex, Mode=TwoWay}"
-                          AutomationProperties.AutomationId="fst.paths.difficulty" />
-            <RadioButtons x:Name="DisplayPicker" Header="Display" MaxColumns="2"
-                          SelectedIndex="{x:Bind ViewModel.DisplayIndex, Mode=TwoWay}"
-                          AutomationProperties.AutomationId="fst.paths.display">
-                <x:String>Image</x:String>
-                <x:String>Text</x:String>
-            </RadioButtons>
-        </controls:FlowPanel>
+        <!-- Selectors (medium/wide): the web Instrument Selector (required, full row), then difficulty and image/text. -->
+        <StackPanel x:Name="Selectors" Spacing="12">
+            <controls:InstrumentSelector x:Name="InstrumentPicker" Required="True" CompactMode="Never" IdPrefix="fst.paths.instrument"
+                                         SelectionChanged="OnInstrumentPicked" HorizontalAlignment="Center"
+                                         AutomationProperties.Name="Instrument" />
+            <controls:FlowPanel Spacing="20" HorizontalAlignment="Center">
+                <RadioButtons x:Name="DifficultyPicker" Header="Difficulty" MaxColumns="4"
+                              ItemsSource="{x:Bind ViewModel.DifficultyLabels}" SelectedIndex="{x:Bind ViewModel.DifficultyIndex, Mode=TwoWay}"
+                              AutomationProperties.AutomationId="fst.paths.difficulty" />
+                <RadioButtons x:Name="DisplayPicker" Header="Display" MaxColumns="2"
+                              SelectedIndex="{x:Bind ViewModel.DisplayIndex, Mode=TwoWay}"
+                              AutomationProperties.AutomationId="fst.paths.display">
+                    <x:String>Image</x:String>
+                    <x:String>Text</x:String>
+                </RadioButtons>
+            </controls:FlowPanel>
+        </StackPanel>
 
-        <!-- Selectors (compact): the chart fills the sheet and the three pickers share one row below it, like the web. -->
-        <Grid x:Name="CompactSelectors" Grid.Row="3" ColumnSpacing="8" Visibility="Collapsed">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <ComboBox HorizontalAlignment="Stretch" ItemsSource="{x:Bind ViewModel.InstrumentLabels}"
-                      SelectedIndex="{x:Bind ViewModel.InstrumentIndex, Mode=TwoWay}"
-                      AutomationProperties.Name="Instrument" AutomationProperties.AutomationId="fst.paths.instrument.compact" />
-            <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{x:Bind ViewModel.DifficultyLabels}"
-                      SelectedIndex="{x:Bind ViewModel.DifficultyIndex, Mode=TwoWay}"
-                      AutomationProperties.Name="Difficulty" AutomationProperties.AutomationId="fst.paths.difficulty.compact" />
-            <ComboBox Grid.Column="2" MinWidth="96" SelectedIndex="{x:Bind ViewModel.DisplayIndex, Mode=TwoWay}"
-                      AutomationProperties.Name="Display" AutomationProperties.AutomationId="fst.paths.display.compact">
-                <x:String>Image</x:String>
-                <x:String>Text</x:String>
-            </ComboBox>
-        </Grid>
+        <!-- Selectors (compact): the chart fills the sheet; like the web, an instrument button opens the selector above
+             one bottom row shared with the difficulty and display pickers. -->
+        <StackPanel x:Name="CompactSelectors" Grid.Row="2" Spacing="8" Visibility="Collapsed">
+            <controls:InstrumentSelector x:Name="CompactInstrumentPicker" Required="True" IdPrefix="fst.paths.instrument.compact-picker"
+                                         SelectionChanged="OnInstrumentPicked" Visibility="Collapsed"
+                                         AutomationProperties.Name="Instrument" />
+            <Grid ColumnSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <ToggleButton x:Name="InstrumentToggle" MinHeight="36" Padding="10,4" Checked="OnInstrumentToggle" Unchecked="OnInstrumentToggle"
+                              AutomationProperties.Name="{x:Bind ViewModel.InstrumentButtonName, Mode=OneWay}"
+                              AutomationProperties.AutomationId="fst.paths.instrument.compact">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <controls:InstrumentIcon x:Name="InstrumentToggleIcon" Width="28" Height="28" AutomationProperties.AccessibilityView="Raw" />
+                        <FontIcon x:Name="InstrumentChevron" Glyph="&#xE70E;" FontSize="12" VerticalAlignment="Center" />
+                    </StackPanel>
+                </ToggleButton>
+                <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{x:Bind ViewModel.DifficultyLabels}"
+                          SelectedIndex="{x:Bind ViewModel.DifficultyIndex, Mode=TwoWay}"
+                          AutomationProperties.Name="Difficulty" AutomationProperties.AutomationId="fst.paths.difficulty.compact" />
+                <ComboBox Grid.Column="2" MinWidth="96" SelectedIndex="{x:Bind ViewModel.DisplayIndex, Mode=TwoWay}"
+                          AutomationProperties.Name="Display" AutomationProperties.AutomationId="fst.paths.display.compact">
+                    <x:String>Image</x:String>
+                    <x:String>Text</x:String>
+                </ComboBox>
+            </Grid>
+        </StackPanel>
 
-        <Grid x:Name="ChartArea" Grid.Row="2" MinHeight="240">
+        <Grid x:Name="ChartArea" Grid.Row="1" MinHeight="240">
             <ProgressRing IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Width="40" Height="40"
                           AutomationProperties.Name="Loading path" />
 
@@ -61,8 +73,8 @@
                        HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" MaxWidth="360"
                        Visibility="{x:Bind ViewModel.ShowNotGenerated, Mode=OneWay}" AutomationProperties.AutomationId="fst.paths.empty" />
 
-            <!-- Image: native pinch / Ctrl+wheel zoom plus explicit buttons. -->
-            <Grid RowSpacing="8" Visibility="{x:Bind ViewModel.ShowImage, Mode=OneWay}">
+            <!-- Image: native pinch / Ctrl+wheel zoom plus explicit buttons; fades in when ready (web fadeInImage). -->
+            <Grid RowSpacing="8" Visibility="{x:Bind ViewModel.ShowImage, Mode=OneWay}" controls:FadeIn.OnShow="True">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
@@ -88,55 +100,33 @@
                 </ScrollViewer>
             </Grid>
 
-            <!-- Text: summary and activation cards in the saved column order. -->
-            <ScrollViewer Visibility="{x:Bind ViewModel.ShowTable, Mode=OneWay}" Padding="0,0,12,0">
-                <StackPanel Spacing="12">
-                    <TextBlock Text="{x:Bind ViewModel.Summary, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" TextWrapping="Wrap"
-                               AutomationProperties.AutomationId="fst.paths.text-summary" />
-                    <TextBlock Text="{x:Bind ViewModel.MaxScoreText, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" />
-                    <TextBlock Text="No path activations for this chart." Visibility="{x:Bind ViewModel.HasNoActivations, Mode=OneWay}"
-                               Style="{StaticResource FSTSecondaryTextStyle}" />
-                    <ItemsRepeater x:Name="Activations" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" ElementPrepared="OnActivationPrepared">
-                        <ItemsRepeater.Layout>
-                            <StackLayout Spacing="8" />
-                        </ItemsRepeater.Layout>
-                        <ItemsRepeater.ItemTemplate>
-                            <DataTemplate x:DataType="data:PathActivationRow">
-                                <Border Style="{StaticResource FSTCardStyle}" Padding="12">
-                                    <StackPanel Spacing="8">
-                                        <TextBlock x:Name="Heading" Style="{StaticResource BodyStrongTextBlockStyle}" AutomationProperties.HeadingLevel="Level3" />
-                                        <TextBlock Text="{x:Bind Instruction}" TextWrapping="Wrap" />
-                                        <Grid x:Name="Columns" ColumnSpacing="12" />
-                                    </StackPanel>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsRepeater.ItemTemplate>
-                    </ItemsRepeater>
-                </StackPanel>
-            </ScrollViewer>
-
-            <!-- Web alert over the chart: once per app session while Karaoke is a visible instrument. -->
-            <Border Visibility="{x:Bind ViewModel.ShowWarning, Mode=OneWay}" Background="#99000000">
-                <Border Style="{StaticResource FSTCardStyle}" Background="#FF1F2937" Padding="24" MaxWidth="420" Margin="16"
-                        HorizontalAlignment="Center" VerticalAlignment="Center"
-                        AutomationProperties.AutomationId="fst.paths.warning">
-                    <StackPanel Spacing="12">
-                        <TextBlock Text="Some Instruments Unavailable" Style="{StaticResource SubtitleTextBlockStyle}" TextWrapping="Wrap"
-                                   AutomationProperties.HeadingLevel="Level2" />
-                        <TextBlock Text="Karaoke is not available for path visualization yet." TextWrapping="Wrap" />
-                        <Grid ColumnSpacing="12" Margin="0,8,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Button x:Name="WarningOk" Content="OK" HorizontalAlignment="Stretch" Style="{StaticResource AccentButtonStyle}"
-                                    Click="OnWarningClosed" AutomationProperties.AutomationId="fst.paths.warning.ok" />
-                            <Button Grid.Column="1" Content="Don't show again" HorizontalAlignment="Stretch" Click="OnWarningDismissForever"
-                                    AutomationProperties.AutomationId="fst.paths.warning.dismiss" />
-                        </Grid>
+            <!-- Text (web PathDataTable): a column header row, then one card per activation in the saved column order;
+                 no summary or max score. Narrow sheets stack each card like the web's mobile rows. -->
+            <Grid Visibility="{x:Bind ViewModel.ShowTable, Mode=OneWay}" RowSpacing="4" SizeChanged="OnTableSizeChanged">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <Grid x:Name="TableHeader" Padding="13,4,25,4" ColumnSpacing="10" AutomationProperties.AccessibilityView="Raw" />
+                <ScrollViewer Grid.Row="1" Padding="0,0,12,0">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Paths not available" Visibility="{x:Bind ViewModel.HasNoActivations, Mode=OneWay}"
+                                   HorizontalAlignment="Center" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                        <ItemsRepeater x:Name="Activations" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" ElementPrepared="OnActivationPrepared"
+                                       controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="48"
+                                       AutomationProperties.Name="Path activations">
+                            <ItemsRepeater.Layout>
+                                <StackLayout Spacing="4" />
+                            </ItemsRepeater.Layout>
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="data:PathActivationRow">
+                                    <Border Style="{StaticResource FSTCardStyle}" Padding="12,8" />
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
                     </StackPanel>
-                </Border>
-            </Border>
+                </ScrollViewer>
+            </Grid>
         </Grid>
     </Grid>
 </UserControl>

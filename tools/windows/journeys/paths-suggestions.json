@@ -1,0 +1,67 @@
+[
+  {
+    "name": "paths-text-wide",
+    "route": "/songs/fixture-pulse",
+    "preset": "wide",
+    "steps": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths.warning@10",
+      "shot:{shots}/paths-warning.png@screen",
+      "key:enter",
+      "waitfor:id=fst.paths@10",
+      "waitfor:id=fst.paths.instrument.Solo_Guitar@10",
+      "waitfor:id=fst.paths.image@15",
+      "shot:{shots}/paths-image-wide.png@screen",
+      "select:name=Text",
+      "waitfor:id=fst.paths.activation.1@15",
+      "wait:1",
+      "shot:{shots}/paths-wide.png@screen",
+      "click:id=fst.paths.instrument.Solo_Bass",
+      "waitfor:id=fst.paths.empty@15",
+      "key:esc"
+    ]
+  },
+  {
+    "name": "paths-text-compact",
+    "route": "/songs/fixture-pulse",
+    "preset": "compact",
+    "steps": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths.warning@10",
+      "key:enter",
+      "waitfor:id=fst.paths.instrument.compact@10",
+      "click:id=fst.paths.instrument.compact",
+      "waitfor:id=fst.paths.instrument.compact-picker.Solo_Bass@5",
+      "shot:{shots}/paths-compact-picker.png@screen",
+      "click:id=fst.paths.instrument.compact-picker.Solo_Bass",
+      "waitfor:id=fst.paths.empty@15",
+      "wait:1",
+      "shot:{shots}/paths-compact.png@screen",
+      "key:esc"
+    ]
+  },
+  {
+    "name": "suggestions-filter",
+    "route": "/suggestions",
+    "preset": "medium",
+    "extra": {"FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player", "FST_DEBUG_SUGGESTIONS_SEED": "7"},
+    "steps": [
+      "waitfor:id=fst.suggestions.list@20",
+      "wait:1.5",
+      "shot:{shots}/suggestions-medium.png",
+      "click:id=fst.suggestions.filter-button",
+      "waitfor:id=fst.suggestions.filter.title@5",
+      "wait:0.5",
+      "waitfor:id=fst.suggestions.filter.instrument-picker.compact@5",
+      "invoke:id=fst.suggestions.filter.instrument-picker.next",
+      "wait:0.3",
+      "invoke:id=fst.suggestions.filter.instrument-picker.compact",
+      "waitfor:id=fst.suggestions.filter.type.Solo_Bass.nearFC@5",
+      "wait:0.5",
+      "shot:{shots}/suggestions-filter.png",
+      "key:esc"
+    ]
+  }
+]

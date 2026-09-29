@@ -130,24 +130,7 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     private async void OnPathsClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel.CreatePaths() is not { } paths) return;
-        var dialog = new ContentDialog
-        {
-            XamlRoot = XamlRoot,
-            Title = $"Paths · {ViewModel.Song?.Title}",
-            CloseButtonText = "Close",
-            DefaultButton = ContentDialogButton.Close,
-            FullSizeDesired = true,
-            Content = new SongPathsView(paths),
-        };
-        // Near full-window at compact sizes (the chart fills the sheet); never wider than the window.
-        var dialogWidth = Math.Max(320, Math.Min(1200, XamlRoot.Size.Width - 24));
-        dialog.Resources["ContentDialogMaxWidth"] = dialogWidth;
-        dialog.Resources["ContentDialogMinWidth"] = Math.Min(548, dialogWidth);
-        dialog.Resources["ContentDialogMaxHeight"] = Math.Max(400, XamlRoot.Size.Height - 48);
-        AutomationProperties.SetAutomationId(dialog, "fst.paths");
-        _ = paths.LoadAsync();
-        await dialog.ShowAsync();
-        paths.Close();
+        await SongPathsView.ShowAsync(XamlRoot, paths, $"Paths · {ViewModel.Song?.Title}");
     }
 
     /// <summary>Opens the full 25-row leaderboard route.</summary>
