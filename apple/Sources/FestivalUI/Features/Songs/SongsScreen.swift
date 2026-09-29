@@ -869,7 +869,15 @@ struct SongsScreen: View {
     /// (`.agents/design/apple/duo.md`'s B4), and a small visual gap so a row's
     /// trailing content doesn't sit flush against the capsule's edge.
     private var scrubberTrailingReserve: CGFloat {
-        22 + max(2, deviceLayout.cutoutInsets.trailing) + 8
+        22 + max(2, deviceLayout.cutoutInsets.trailing) + 6
+    }
+
+    /// Extra trailing safe area while the rail shows: the rows already keep their
+    /// standard 16pt margin, so only the part of the reserve beyond it is added
+    /// (operator: recover the empty strip; card edge 48 → 30pt from the screen edge).
+    /// Nothing is reserved without the rail (Year, Duration, Shop and player sorts).
+    private var scrubberExtraInset: CGFloat {
+        max(0, scrubberTrailingReserve - songRowInsets.trailing)
     }
 
     private func populatedList(
@@ -942,7 +950,7 @@ struct SongsScreen: View {
                 // overlay in this ZStack, not part of the List's own layout, so
                 // without this a row's trailing edge sits directly underneath it.
                 .safeAreaInset(edge: .trailing, spacing: 0) {
-                    Color.clear.frame(width: showsIndex ? scrubberTrailingReserve : 0)
+                    Color.clear.frame(width: showsIndex ? scrubberExtraInset : 0)
                 }
                 .refreshable { await reload() }
                 .quickLinks(
