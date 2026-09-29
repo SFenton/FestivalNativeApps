@@ -43,4 +43,37 @@ struct MarqueeTimingTests {
         #expect(MarqueeTiming.phase(elapsed: 42, cycleDuration: 0) == 0)
         #expect(MarqueeTiming.phase(elapsed: 42, cycleDuration: -1) == 0)
     }
+
+    @Test("Overflow needs both measurements and more than one point of excess")
+    func overflowRule() {
+        #expect(!MarqueeTiming.overflows(textWidth: 200, available: 0))
+        #expect(!MarqueeTiming.overflows(textWidth: 100.5, available: 100))
+        #expect(!MarqueeTiming.overflows(textWidth: 101, available: 100))
+        #expect(MarqueeTiming.overflows(textWidth: 101.5, available: 100))
+    }
+
+    @Test("Distance is one copy plus the gap, widened by a longer sync distance")
+    func distanceRule() {
+        #expect(MarqueeTiming.distance(textWidth: 120.4, gap: 28, syncDistance: nil) == 148)
+        #expect(MarqueeTiming.distance(textWidth: 120, gap: 28, syncDistance: 200) == 200)
+        #expect(MarqueeTiming.distance(textWidth: 120, gap: 28, syncDistance: 100) == 148)
+    }
+
+    @Test("Sync groups share widest + gap only when two or more overflow")
+    func syncRule() {
+        #expect(MarqueeTiming.syncDistance(widths: [], gap: 28) == nil)
+        #expect(MarqueeTiming.syncDistance(widths: [300], gap: 28) == nil)
+        #expect(MarqueeTiming.syncDistance(widths: [300, 0], gap: 28) == nil)
+        #expect(MarqueeTiming.syncDistance(widths: [300, 250], gap: 28) == 328)
+    }
+
+    @Test("One loop is exactly the cycle: two dwells plus the scroll")
+    func loopLength() {
+        let cycle = 8.0
+        let dwell = MarqueeTiming.dwellDuration(cycleDuration: cycle)
+        let scroll = MarqueeTiming.scrollDuration(cycleDuration: cycle)
+        #expect(abs(dwell - 0.4) < 1e-9 && abs(scroll - 7.2) < 1e-9)
+        #expect(abs(2 * dwell + scroll - cycle) < 1e-9)
+        #expect(MarqueeTiming.scrollDuration(cycleDuration: -1) == 0)
+    }
 }

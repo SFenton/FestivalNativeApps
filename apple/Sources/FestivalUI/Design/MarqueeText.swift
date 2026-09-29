@@ -5,52 +5,60 @@ import SwiftUI
 /// Auto-scrolling single-line text, native port of the web app's
 /// `MarqueeText.tsx`/`MarqueeText.module.css`.
 ///
-/// Renders a plain, tail-truncated `Text` when the string fits its container.
-/// Once the container is measured narrower than the text, it instead scrolls a
-/// two-copy track left on a fixed cycle with a dwell pause at each end (mirroring
-/// the web `@keyframes marqueeScroll` 0–5% / 95–100% holds), looping forever while
-/// visible. `Reduce Motion` always keeps the static truncated form: the web
-/// equivalent turns its animation off under `prefers-reduced-motion: reduce` and
-/// falls back to `text-overflow: ellipsis`, which native `.truncationMode(.tail)`
-/// already reproduces.
+/// Renders a plain, tail-truncated `Text` when the string fits. Once the text is
+/// measured wider than its container, a two-copy track scrolls left by
+/// `textWidth + gap` on a fixed cycle (8 s by default) with a 5% dwell at each
+/// end (the web `@keyframes marqueeScroll` 0–5% / 95–100% holds), then jumps back
+/// seamlessly and repeats while visible.
 ///
-/// The scrolling copy is driven by a `TimelineView(.animation)`, which only ticks
-/// while this view is actually being drawn — combined with an explicit pause on
-/// `onDisappear` (e.g. a `List` row scrolled off-screen) and on the scene going
-/// inactive, this keeps no timer running for offscreen or backgrounded instances.
-/// VoiceOver reads the full, untruncated `text` as one element regardless of
-/// whether the visual form is scrolling or static.
+/// **Layout.** Sized like a plain one-line `Text` (never greedy), so swapping a
+/// `Text` for a `MarqueeText` keeps the row layout. The width comes from a hidden,
+/// truncating copy of the text, never from the scrolling track: the track is drawn
+/// in an overlay, so its full width can never widen the row or feed back into the
+/// overflow check. (The
+/// previous version measured the container around the track itself, so starting
+/// to scroll made the container "fit" again and the view fell back to the static,
+/// truncated form: it never visibly scrolled.)
 ///
-/// Also stops under `DebugAnimationOverride.stillBackground`
-/// (`FST_DEBUG_STILL_BACKGROUND=1`), the same override the shared artwork
-/// background and `FirstRunPulse` honor: a continuously-ticking
-/// `TimelineView(.animation)` never lets XCUITest's app-idle wait settle
-/// (`.agents/workflow/simulator-driver.md`'s "Simulator queue stall"), and any
-/// row whose title/artist/year overflows (e.g. Songs rows, ported 2026-09-28)
-/// would otherwise hang every subsequent synthetic action for the rest of the
-/// journey — found while investigating `SongsJourneyTests`/`SuggestionsJourneyTests`
-/// hangs against the shared simulator.
+/// **Cost.** The scroll is a `phaseAnimator` over an `offset`, so SwiftUI only
+/// interpolates one animatable value per frame; no `TimelineView` re-runs a body
+/// per frame, and nothing animates while the text fits, is off screen, the scene
+/// is inactive, or Reduce Motion (system or in-app) is on. Those fall back to
+/// tail truncation, like the web's `prefers-reduced-motion` ellipsis.
+///
+/// Also static under `DebugAnimationOverride.stillBackground`
+/// (`FST_DEBUG_STILL_BACKGROUND=1`): XCUITest waits for the app to idle before each
+/// action, and a forever-repeating animation never idles.
+///
+/// **Sync.** Inside a ``SwiftUI/View/marqueeSync(gap:)`` container, two or more
+/// overflowing marquees scroll the same distance (widest text + gap) so they move
+/// in lockstep, like the web's `useMarqueeSync` (song rows and the song header).
+///
+/// VoiceOver reads the full, untruncated `text` as one element in every form.
 public struct MarqueeText: View {
     private let text: String
-    private let font: Font
+    private let font: Font?
     private let gap: CGFloat
     private let cycleDuration: Double
 
     @State private var availableWidth: CGFloat = 0
     @State private var textWidth: CGFloat = 0
     @State private var isOnScreen = true
+    @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.marqueeSyncDistance) private var syncDistance
 
     /// Create a marquee text view.
     ///
     /// - Parameters:
     ///   - text: Full string to display; VoiceOver always speaks this in full.
-    ///   - font: Font applied to both the static and scrolling presentations.
+    ///   - font: Font for every presentation; nil inherits the environment font, so
+    ///     `Text(x).font(f)` call sites can swap to `MarqueeText(x).font(f)` unchanged.
     ///   - gap: Space between the looping copies, in points (web default 28px).
     ///   - cycleDuration: Seconds for one full scroll-and-reset cycle (web default 8s).
     public init(
-        _ text: String, font: Font = .body,
+        _ text: String, font: Font? = nil,
         gap: CGFloat = 28, cycleDuration: Double = 8
     ) {
         self.text = text
@@ -60,78 +68,100 @@ public struct MarqueeText: View {
     }
 
     private var overflows: Bool {
-        availableWidth > 0 && textWidth > availableWidth + 0.5
+        MarqueeTiming.overflows(textWidth: textWidth, available: availableWidth)
     }
 
     private var scrolls: Bool {
-        overflows && !reduceMotion && isOnScreen && scenePhase == .active
-            && !DebugAnimationOverride.stillBackground
+        overflows && !reduceMotion && !appReduceMotion && isOnScreen
+            && scenePhase == .active && !DebugAnimationOverride.stillBackground
     }
 
     public var body: some View {
-        Group {
-            if scrolls {
-                TimelineView(.animation(paused: false)) { context in
-                    let translate = textWidth + gap
-                    let phase = cyclePhase(at: context.date)
-                    let offset = -translate * dwellCurve(phase)
-                    HStack(spacing: gap) {
-                        Text(text).font(font).fixedSize()
-                        Text(text).font(font).fixedSize()
-                    }
-                    .offset(x: offset)
-                }
-            } else {
-                Text(text)
-                    .font(font)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+        // Sizing base: one line, truncating, sized exactly like a plain `Text`
+        // (its natural width, or the offered width when that is narrower). Hidden;
+        // the visible form is drawn in the overlay so it never changes this size.
+        Text(text)
+            .marqueeFont(font)
+            .lineLimit(1)
+            .hidden()
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.width
+            } action: { width in
+                availableWidth = width
             }
+            .overlay(alignment: .leading) { visibleText }
+            .clipped()
+            .background(alignment: .leading) {
+                // Natural (untruncated) width; `.background` never enlarges the view.
+                Text(text)
+                    .marqueeFont(font)
+                    .fixedSize()
+                    .hidden()
+                    .onGeometryChange(for: CGFloat.self) { proxy in
+                        proxy.size.width
+                    } action: { width in
+                        textWidth = width
+                    }
+            }
+            .preference(key: MarqueeOverflowWidthsKey.self, value: overflows ? [textWidth] : [])
+            .onDisappear { isOnScreen = false }
+            .onAppear { isOnScreen = true }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(text)
+    }
+
+    /// Static truncated text, or the scrolling two-copy track.
+    @ViewBuilder private var visibleText: some View {
+        if scrolls {
+            let distance = MarqueeTiming.distance(
+                textWidth: textWidth, gap: gap, syncDistance: syncDistance
+            )
+            HStack(spacing: distance - textWidth) {
+                Text(text).marqueeFont(font)
+                Text(text).marqueeFont(font)
+            }
+            .fixedSize()
+            .phaseAnimator(MarqueePhase.allCases) { track, phase in
+                track.offset(x: phase == .scrolled ? -distance : 0)
+            } animation: { phase in
+                MarqueeTiming.animation(to: phase, cycleDuration: cycleDuration)
+            }
+            // A new distance or cycle restarts the loop cleanly from the start.
+            .id(MarqueeLoopKey(distance: distance, cycleDuration: cycleDuration))
+        } else {
+            Text(text)
+                .marqueeFont(font)
+                .lineLimit(1)
+                .truncationMode(.tail)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .clipped()
-        // Both measurements ride in `.background`, never a `ZStack` sibling: a
-        // `ZStack` sizes itself to the *union* of its children, so a `fixedSize`
-        // hidden copy of the full, untruncated text would force this view (and
-        // its row) wide enough to fit the whole string — defeating truncation
-        // entirely. `.background` content is drawn behind the view above without
-        // ever enlarging its reported size, which is exactly what an invisible
-        // measuring copy needs.
-        .background(
-            Text(text).font(font)
-                .fixedSize(horizontal: true, vertical: false)
-                .hidden()
-                .background(WidthReader(width: $textWidth))
-        )
-        .background(WidthReader(width: $availableWidth))
-        .onDisappear { isOnScreen = false }
-        .onAppear { isOnScreen = true }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(text)
-    }
-
-    /// Elapsed fraction of one scroll cycle, anchored to a fixed epoch so every
-    /// marquee on screen stays in phase with each other (mirrors the web's shared
-    /// `MARQUEE_EPOCH`, which keeps multiple cards' marquees visually synchronized).
-    ///
-    /// - Parameter date: Current timeline tick.
-    /// - Returns: A value in `0..<1`.
-    private func cyclePhase(at date: Date) -> Double {
-        MarqueeTiming.phase(
-            elapsed: date.timeIntervalSinceReferenceDate, cycleDuration: cycleDuration
-        )
-    }
-
-    /// Reproduce the web keyframe's 5% dwell at each end with a linear scroll between.
-    ///
-    /// - Parameter phase: Position within the cycle, `0..<1`.
-    /// - Returns: Normalized scroll progress, `0...1`.
-    private func dwellCurve(_ phase: Double) -> Double {
-        MarqueeTiming.progress(atPhase: phase)
     }
 }
 
-// MARK: - Pure timing
+private extension View {
+    /// Apply an explicit font, or keep the inherited one when nil.
+    ///
+    /// - Parameter font: Explicit font, if any.
+    /// - Returns: The view with its font.
+    @ViewBuilder func marqueeFont(_ font: Font?) -> some View {
+        if let font { self.font(font) } else { self }
+    }
+}
+
+/// Restart identity for a marquee loop.
+private struct MarqueeLoopKey: Hashable {
+    let distance: CGFloat
+    let cycleDuration: Double
+}
+
+// MARK: - Phases and pure timing
+
+/// The two ends of one marquee cycle.
+enum MarqueePhase: CaseIterable {
+    /// First copy at the leading edge.
+    case rest
+    /// Track moved left by one copy (second copy now where the first started).
+    case scrolled
+}
 
 /// Cycle math factored out of ``MarqueeText`` so it can be unit tested without a
 /// hosted SwiftUI render.
@@ -139,12 +169,79 @@ enum MarqueeTiming {
     /// Web keyframe dwell fraction at each end of the cycle (`0%–5%`, `95%–100%`).
     static let dwellFraction = 0.05
 
+    /// Whether measured text is wider than its container (web: more than 1px wider).
+    ///
+    /// - Parameters:
+    ///   - textWidth: Natural single-line width of the text.
+    ///   - available: Container width.
+    /// - Returns: True only once both are measured and the text does not fit.
+    static func overflows(textWidth: CGFloat, available: CGFloat) -> Bool {
+        available > 0 && textWidth > available + 1
+    }
+
+    /// Scroll distance per cycle: one copy plus the gap, or the sync group's
+    /// shared distance when that is longer (web `syncDistance`).
+    ///
+    /// - Parameters:
+    ///   - textWidth: Natural width of this text.
+    ///   - gap: Minimum space between copies.
+    ///   - syncDistance: Shared distance from a ``SwiftUI/View/marqueeSync(gap:)`` group.
+    /// - Returns: Whole-point distance (the web rounds it too).
+    static func distance(textWidth: CGFloat, gap: CGFloat, syncDistance: CGFloat?) -> CGFloat {
+        max(textWidth + gap, syncDistance ?? 0).rounded()
+    }
+
+    /// Shared distance for a sync group: widest overflowing text plus the gap,
+    /// only when at least two members overflow (web `useMarqueeSync`).
+    ///
+    /// - Parameters:
+    ///   - widths: Natural widths of the overflowing members.
+    ///   - gap: Space between copies.
+    /// - Returns: Shared distance, or nil when fewer than two overflow.
+    static func syncDistance(widths: [CGFloat], gap: CGFloat) -> CGFloat? {
+        let overflowing = widths.filter { $0 > 0 }
+        guard overflowing.count >= 2, let widest = overflowing.max() else { return nil }
+        return widest + gap
+    }
+
+    /// Seconds of linear scrolling per cycle (the 90% between the two dwells).
+    ///
+    /// - Parameter cycleDuration: Full cycle length.
+    /// - Returns: Scroll seconds.
+    static func scrollDuration(cycleDuration: Double) -> Double {
+        max(0, cycleDuration) * (1 - 2 * dwellFraction)
+    }
+
+    /// Seconds held at each end of a cycle.
+    ///
+    /// - Parameter cycleDuration: Full cycle length.
+    /// - Returns: Dwell seconds.
+    static func dwellDuration(cycleDuration: Double) -> Double {
+        max(0, cycleDuration) * dwellFraction
+    }
+
+    /// Animation into a phase: hold, then scroll linearly (to `.scrolled`), or
+    /// hold, then jump back instantly (to `.rest`), so one loop is exactly
+    /// `cycleDuration` long.
+    ///
+    /// - Parameters:
+    ///   - phase: Phase being entered.
+    ///   - cycleDuration: Full cycle length.
+    /// - Returns: The phase animation.
+    static func animation(to phase: MarqueePhase, cycleDuration: Double) -> Animation {
+        let dwell = dwellDuration(cycleDuration: cycleDuration)
+        switch phase {
+        case .scrolled:
+            return .linear(duration: scrollDuration(cycleDuration: cycleDuration)).delay(dwell)
+        case .rest:
+            return .linear(duration: 0.0001).delay(dwell)
+        }
+    }
+
     /// Position within a repeating cycle, given elapsed absolute time.
     ///
     /// - Parameters:
-    ///   - elapsed: Seconds since any fixed epoch (the view uses
-    ///     `Date.timeIntervalSinceReferenceDate`, shared by every instance so
-    ///     concurrent marquees stay in phase with each other).
+    ///   - elapsed: Seconds since any fixed epoch.
     ///   - cycleDuration: Seconds for one full cycle; non-positive returns `0`.
     /// - Returns: A value in `0..<1`.
     static func phase(elapsed: TimeInterval, cycleDuration: Double) -> Double {
@@ -155,8 +252,7 @@ enum MarqueeTiming {
 
     /// Normalized scroll progress for a phase, holding at each end for
     /// ``dwellFraction`` and scrolling linearly in between (the web keyframe has
-    /// only two interior stops, so the browser's default interpolation between
-    /// them is already linear).
+    /// only two interior stops, so its interpolation between them is linear).
     ///
     /// - Parameter phase: Position within the cycle, `0..<1`.
     /// - Returns: Normalized scroll progress, `0...1`.
@@ -167,15 +263,47 @@ enum MarqueeTiming {
     }
 }
 
-/// Reports a view's rendered width without influencing layout.
-private struct WidthReader: View {
-    @Binding var width: CGFloat
+// MARK: - Sync groups
 
-    var body: some View {
-        GeometryReader { proxy in
-            Color.clear
-                .onAppear { width = proxy.size.width }
-                .onChange(of: proxy.size.width) { _, newValue in width = newValue }
-        }
+/// Natural widths of the overflowing marquees below a view.
+struct MarqueeOverflowWidthsKey: PreferenceKey {
+    static let defaultValue: [CGFloat] = []
+
+    static func reduce(value: inout [CGFloat], nextValue: () -> [CGFloat]) {
+        value.append(contentsOf: nextValue())
+    }
+}
+
+extension EnvironmentValues {
+    /// Shared scroll distance for marquees inside a ``SwiftUI/View/marqueeSync(gap:)`` group.
+    @Entry var marqueeSyncDistance: CGFloat?
+}
+
+public extension View {
+    /// Scroll every overflowing ``MarqueeText`` inside this view the same distance,
+    /// so two or more (e.g. a song's title and artist line) move in lockstep, like
+    /// the web's `useMarqueeSync`.
+    ///
+    /// - Parameter gap: Space between copies (web default 28).
+    /// - Returns: The view with a marquee sync group.
+    func marqueeSync(gap: CGFloat = 28) -> some View {
+        modifier(MarqueeSyncModifier(gap: gap))
+    }
+}
+
+/// Collects overflow widths and hands the shared distance back down.
+private struct MarqueeSyncModifier: ViewModifier {
+    let gap: CGFloat
+    @State private var distance: CGFloat?
+
+    func body(content: Content) -> some View {
+        content
+            .environment(\.marqueeSyncDistance, distance)
+            .onPreferenceChange(MarqueeOverflowWidthsKey.self) { widths in
+                let next = MarqueeTiming.syncDistance(widths: widths, gap: gap)
+                if next != distance { distance = next }
+            }
+            // A group is self-contained: its members never join an outer group.
+            .transformPreference(MarqueeOverflowWidthsKey.self) { $0 = [] }
     }
 }

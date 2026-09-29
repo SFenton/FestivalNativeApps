@@ -91,7 +91,7 @@ struct PlayerHistoryScreen: View {
                 HStack(spacing: 8) {
                     InstrumentIcon(instrument, size: 20)
                     VStack(alignment: .leading, spacing: 0) {
-                        Text(song.title).font(.headline).lineLimit(1)
+                        MarqueeText(song.title).font(.headline).lineLimit(1)
                         Text("Score History").font(.caption)
                             .foregroundStyle(BrandTokens.textSecondary)
                     }

@@ -41,7 +41,7 @@ now fixed:
 
 1. The two files' fixture launchers never set `FST_DEBUG_STILL_BACKGROUND=1`
    at all (see the shared helper above — now impossible to omit).
-2. `Design/MarqueeText.swift`'s `TimelineView(.animation(paused: false))`
+2. `Design/MarqueeText.swift`'s forever-repeating scroll (then a `TimelineView`, now a `phaseAnimator`)
    (used by every Songs row and, since this lane's work, Song Detail's header
    and Suggestion category rows) checked `reduceMotion`/`isOnScreen`/
    `scenePhase` but never the app's own `DebugAnimationOverride.stillBackground`

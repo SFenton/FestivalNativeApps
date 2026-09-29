@@ -103,10 +103,10 @@ struct GlobalSearchResults: View {
                         HStack(spacing: 12) {
                             ArtworkTile(raw: song.albumArt, session: session, size: 40)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(song.title)
+                                MarqueeText(song.title)
                                     .foregroundStyle(BrandTokens.textPrimary)
                                     .lineLimit(1)
-                                Text(song.artist)
+                                MarqueeText(song.artist)
                                     .font(.subheadline)
                                     .foregroundStyle(FestivalText.primary)
                                     .lineLimit(1)

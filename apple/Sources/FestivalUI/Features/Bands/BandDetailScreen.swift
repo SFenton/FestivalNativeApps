@@ -337,11 +337,11 @@ struct BandDetailScreen: View {
             if let song = songsById[entry.songId] {
                 ArtworkTile(raw: song.albumArt, session: session, size: 36)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(song.title)
+                    MarqueeText(song.title)
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(BrandTokens.textPrimary)
                         .lineLimit(1)
-                    Text(song.artist)
+                    MarqueeText(song.artist)
                         .font(.caption2)
                         .foregroundStyle(FestivalText.primary)
                         .lineLimit(1)

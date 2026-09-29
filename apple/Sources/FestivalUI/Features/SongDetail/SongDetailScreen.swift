@@ -109,6 +109,7 @@ struct SongDetailScreen: View {
                                 .foregroundStyle(FestivalText.primary)
                         }
                     }
+                    .marqueeSync()
                 }
                 .accessibilityElement(children: .combine)
 
@@ -259,7 +260,7 @@ extension SongDetailScreen {
         HStack(spacing: 8) {
             ArtworkTile(raw: song.albumArt, session: session, size: 28)
                 .accessibilityHidden(true)
-            Text(song.title)
+            MarqueeText(song.title)
                 .font(.headline)
                 .foregroundStyle(FestivalText.primary)
                 .lineLimit(1)

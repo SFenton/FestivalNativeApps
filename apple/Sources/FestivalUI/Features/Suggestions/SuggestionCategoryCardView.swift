@@ -117,6 +117,7 @@ struct SuggestionSongRowView: View {
                 MarqueeText(subtitle, font: .caption)
                     .foregroundStyle(FestivalText.primary)
             }
+            .marqueeSync()
             Spacer(minLength: 0)
         }
     }

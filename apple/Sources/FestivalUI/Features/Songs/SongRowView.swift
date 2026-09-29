@@ -134,6 +134,7 @@ struct SongRowView: View {
             MarqueeText(songSubtitle, font: .subheadline)
                 .foregroundStyle(FestivalText.primary)
         }
+        .marqueeSync()
     }
 
     private var selectedChartInfo: some View {

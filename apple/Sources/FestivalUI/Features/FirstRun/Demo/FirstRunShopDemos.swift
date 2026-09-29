@@ -35,10 +35,10 @@ private struct FirstRunShopRow: View {
         HStack(spacing: 12) {
             FirstRunAlbumArtPlaceholder()
             VStack(alignment: .leading, spacing: 2) {
-                Text(song.title).font(.subheadline.weight(.semibold))
+                MarqueeText(song.title).font(.subheadline.weight(.semibold))
                     .foregroundStyle(FestivalText.primary)
                     .lineLimit(1)
-                Text(song.artist).font(.caption)
+                MarqueeText(song.artist).font(.caption)
                     .foregroundStyle(FestivalText.primary)
                     .lineLimit(1)
             }

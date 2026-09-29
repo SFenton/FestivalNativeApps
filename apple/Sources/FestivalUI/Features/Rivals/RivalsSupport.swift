@@ -86,7 +86,7 @@ struct RivalRowContent<Rival: RivalRowDisplayable>: View {
                 .frame(width: 8, height: 8)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 6) {
-                Text(name)
+                MarqueeText(name)
                     .font(.body.weight(.semibold))
                     .foregroundStyle(BrandTokens.textPrimary)
                     .lineLimit(1)
@@ -162,12 +162,12 @@ struct RivalSongRowContent: View {
                 InstrumentIcon(instrument, size: 22)
             }
             VStack(alignment: .leading, spacing: 4) {
-                Text(song.title ?? song.songId)
+                MarqueeText(song.title ?? song.songId)
                     .font(.body.weight(.semibold))
                     .foregroundStyle(BrandTokens.textPrimary)
                     .lineLimit(1)
                 if let artist = song.artist {
-                    Text(artist)
+                    MarqueeText(artist)
                         .font(.caption)
                         .foregroundStyle(FestivalText.primary)
                         .lineLimit(1)

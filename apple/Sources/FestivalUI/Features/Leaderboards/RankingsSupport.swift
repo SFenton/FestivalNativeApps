@@ -143,7 +143,7 @@ struct RankingRowLayout: View {
     }
 
     private var nameText: some View {
-        Text(name)
+        MarqueeText(name)
             .font(.body)
             .fontWeight(emphasized ? .bold : .regular)
             .foregroundStyle(FestivalText.primary)

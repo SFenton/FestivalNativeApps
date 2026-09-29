@@ -160,7 +160,7 @@ struct NotificationRow: View {
                     .accessibilityHidden(true)
             }
             VStack(alignment: .leading, spacing: 4) {
-                Text(notification.title)
+                MarqueeText(notification.title)
                     .font(.headline)
                     .foregroundStyle(BrandTokens.textPrimary)
                     .lineLimit(1)

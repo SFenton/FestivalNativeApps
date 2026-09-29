@@ -344,7 +344,7 @@ struct FestivalDrawer: View {
                     HStack(spacing: 12) {
                         ProfileAvatar(name: player.displayName, size: 32)
                         VStack(alignment: .leading, spacing: 0) {
-                            Text(player.displayName)
+                            MarqueeText(player.displayName)
                                 .font(.headline)
                                 .foregroundStyle(FestivalText.primary)
                                 .lineLimit(1)

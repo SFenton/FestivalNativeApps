@@ -17,3 +17,9 @@
 - Sheets: full-height system sheet, pinned Cancel/Apply footer, Reset inside the scrolling Form, interactive dismissal disabled while a draft is changed.
 - Accessibility text sizes: wrap and stack (full-width title, then art, then content) rather than clip; scroll the nested scroller that owns the content. At AX5, a modal needs an opaque header and a separately clipped Form viewport so text never scrolls behind system glass.
 - Do not use device-name breakpoints; use size classes, safe areas and measured widths.
+
+## Motion
+
+- **Marquee, not ellipsis, for single-line content text.** Song titles/artist lines, player, rival and band names in rows, cards and compact headers use `MarqueeText` (`Design/MarqueeText.swift`, web `MarqueeText.tsx`): sized like a plain one-line `Text`; once it overflows by >1pt, a two-copy track scrolls one copy + 28pt every 8 s with a 5% hold at each end. Swap `Text(x)` for `MarqueeText(x)` and keep the `.font`/`.foregroundStyle` modifiers (font is inherited). Wrap a title + subtitle pair in `.marqueeSync()` so both move the same distance (web `useMarqueeSync`). It truncates under system or in-app Reduce Motion, off screen, in an inactive scene and under `FST_DEBUG_STILL_BACKGROUND`. Labels, pills, badges and text that intentionally wraps (Shop rows, Solo hero, profile header) keep their layout.
+- Never measure a marquee's container around its scrolling content: the track is wider than the container by definition, so the overflow check flips back to "fits" and it never scrolls (the pre-2026-09-28 bug). The track lives in an overlay of a hidden truncating base.
+- Song page backgrounds fade (300 ms CSS `ease`) to the song's art; see [artwork-background](../../controls/artwork-background/ios.md).
