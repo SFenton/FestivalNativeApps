@@ -51,7 +51,10 @@ final class ShellJourneyTests: XCTestCase {
         XCTAssertTrue(leaderboardsTab.waitForExistence(timeout: 15))
         leaderboardsTab.tap()
         XCTAssertTrue(app.navigationBars["Leaderboards"].waitForExistence(timeout: 15))
-        let viewAll = app.buttons.matching(NSPredicate(format: "label == 'View All'")).firstMatch
+        // Label is now "View all N rankings"; match the card's stable identifier.
+        let viewAll = app.buttons.matching(
+            NSPredicate(format: "identifier ENDSWITH '.view-all'")
+        ).firstMatch
         XCTAssertTrue(viewAll.waitForExistence(timeout: 15))
         viewAll.tap()
         let rankingsTitle = app.navigationBars.matching(

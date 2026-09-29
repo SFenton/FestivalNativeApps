@@ -120,6 +120,10 @@ struct GlobalSearchResults: View {
                     .accessibilityElement(children: .combine)
                     .accessibilityAddTraits(.isButton)
                     .accessibilityIdentifier("fst.global-search.result.song")
+                    // Each new result set fades in, staggered like the web list.
+                    .festivalFadeIn(
+                        isLoaded: true, index: model.songs.firstIndex(of: song) ?? Int.max
+                    )
                 }
             }
         }
@@ -178,6 +182,11 @@ struct GlobalSearchResults: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel(player.displayName)
                     .accessibilityIdentifier("fst.global-search.result.player")
+                    .festivalFadeIn(
+                        isLoaded: true,
+                        index: model.players.firstIndex(of: player).map { $0 + model.songs.count }
+                            ?? Int.max
+                    )
                 }
             }
         }

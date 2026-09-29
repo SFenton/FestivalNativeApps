@@ -308,6 +308,8 @@ struct FestivalDrawer: View {
         }
         .padding(.horizontal, 12)
         .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous))
+        // A container element, so the identifier does not replace the rows' own.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.shell.drawer")
     }
 

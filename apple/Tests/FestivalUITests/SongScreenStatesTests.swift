@@ -298,7 +298,8 @@ func catalogueVisualStates(_ scenario: CatalogScenario) throws {
     let originalBytes = try snapshot(instrument: nil, highContrast: false)
     let meteredBytes = try snapshot(instrument: .lead, highContrast: false)
     let outlinedBytes = try snapshot(instrument: nil, highContrast: true)
-    #expect(originalBytes != meteredBytes)
+    // Anonymous rows never show the difficulty meter (web row: artist · year · length).
+    #expect(originalBytes == meteredBytes)
     #expect(originalBytes != outlinedBytes)
 }
 

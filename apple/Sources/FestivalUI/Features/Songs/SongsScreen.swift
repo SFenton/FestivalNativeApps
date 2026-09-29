@@ -35,6 +35,8 @@ struct SongsScreen: View {
     @State private var sortPresented = false
     @State private var filterPresented = false
     @State private var debugPushedSong: Song?
+    /// When the catalogue first arrived; rows fade in only shortly after it.
+    @State private var fadeLoadedAt: Date?
     @State private var quickLinks = QuickLinksController()
     @Environment(\.openProfile) private var openProfile
     @Environment(\.deviceLayout) private var deviceLayout
@@ -805,6 +807,14 @@ struct SongsScreen: View {
             ? SongCatalogSort.durationSections(visible) : nil
         let yearSections = effectiveMode == .year
             ? SongCatalogSort.yearSections(visible) : nil
+        // Stagger only while the rows that just loaded first appear.
+        let fadeOrder: [String: Int] = fadeWindowOpen
+            ? Dictionary(
+                visible.prefix(FestivalFadeIn.maxStaggeredItems).enumerated()
+                    .map { ($1.songId, $0) },
+                uniquingKeysWith: { first, _ in first }
+            )
+            : [:]
         let groups = listGroups(
             indexSections: showsIndex ? indexSections : nil, shopSections: shopSections,
             durationSections: durationSections, yearSections: yearSections
@@ -816,21 +826,26 @@ struct SongsScreen: View {
                         disclosures(for: payload)
                     }
                     if let groups {
-                        // Section labels are ordinary rows that scroll away with their
-                        // songs (operator, 2026-09-28: nothing passes under a pinned
-                        // header). They stay the scrubber's and Quick Links' targets.
+                        // Sticky section titles (operator, 2026-09-28) on an opaque
+                        // backing so rows never show through beneath them. The titles
+                        // are the scrubber's and Quick Links' jump targets.
                         ForEach(groups) { group in
-                            groupHeaderRow(group)
-                            ForEach(group.songs) { song in
-                                songLink(
-                                    for: song, catalogueObservation: payload.observedPublicationId
-                                )
+                            Section {
+                                ForEach(group.songs) { song in
+                                    songLink(
+                                        for: song, catalogueObservation: payload.observedPublicationId,
+                                        fadeIndex: fadeOrder[song.songId]
+                                    )
+                                }
+                            } header: {
+                                groupHeader(group)
                             }
                         }
                     } else {
                         ForEach(visible) { song in
                             songLink(
-                                for: song, catalogueObservation: payload.observedPublicationId
+                                for: song, catalogueObservation: payload.observedPublicationId,
+                                fadeIndex: fadeOrder[song.songId]
                             )
                         }
                     }
@@ -869,7 +884,26 @@ struct SongsScreen: View {
                 }
             }
             .animation(.easeInOut(duration: 0.2), value: showsIndex)
+            // Any reordering (sort mode, direction, filters) starts at the top of the new
+            // order (operator, 2026-09-28).
+            .onChange(of: reorderKey) { _, _ in
+                let top: AnyHashable? = groups?.first?.id ?? visible.first.map { AnyHashable($0.id) }
+                if let top { scrollProxy.scrollTo(top, anchor: .top) }
+            }
         }
+    }
+
+    /// True for a moment after the catalogue loads, while its first rows are revealed.
+    private var fadeWindowOpen: Bool {
+        guard let fadeLoadedAt else { return false }
+        return Date.now.timeIntervalSince(fadeLoadedAt)
+            < FestivalFadeIn.completionDelay(itemCount: FestivalFadeIn.maxStaggeredItems)
+    }
+
+    /// Changes whenever the list is re-sorted or re-filtered.
+    private var reorderKey: [String] {
+        [sortMode.rawValue, String(sortAscending), filterAccessibilityValue,
+         instrument?.rawValue ?? ""]
     }
 
     /// One labelled run of songs: an A–Z letter, a decade, a duration or Shop bucket.
@@ -920,18 +954,23 @@ struct SongsScreen: View {
         return nil
     }
 
-    /// A section label row that scrolls with its songs; the jump target for the scrubber
-    /// or Quick Links.
-    @ViewBuilder private func groupHeaderRow(_ group: SongListGroup) -> some View {
+    /// A pinned section title: full-width, fully opaque backing (a flat surface with a
+    /// hairline, matching the glass cards' border) so scrolling rows never show through,
+    /// and the jump target for the scrubber or Quick Links.
+    @ViewBuilder private func groupHeader(_ group: SongListGroup) -> some View {
         let label = Text(group.label)
             .font(.subheadline.bold())
             .foregroundStyle(FestivalText.primary)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .background(BrandTokens.appBackground)
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(BrandTokens.glassBorder).frame(height: 1)
+            }
+            .listRowInsets(EdgeInsets())
             .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier(group.accessibilityID)
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-            .listRowInsets(EdgeInsets(top: 12, leading: 20, bottom: 2, trailing: 16))
         if let link = group.quickLink {
             label.quickLinkSection(link)
         } else {
@@ -946,7 +985,7 @@ struct SongsScreen: View {
     ///   - catalogueObservation: Observed generation of the retained catalogue.
     /// - Returns: One accessible Song Detail link with effective Shop highlighting.
     private func songLink(
-        for song: Song, catalogueObservation: Int
+        for song: Song, catalogueObservation: Int, fadeIndex: Int? = nil
     ) -> some View {
         let highlight = ShopPresentationPolicy.highlight(
             for: shopOffersForCurrentSongs?[song.songId],
@@ -977,6 +1016,9 @@ struct SongsScreen: View {
                 .opacity(0)
         }
         .contentShape(Rectangle())
+        // Rows arriving from a load fade in, staggered over the first screenful; rows
+        // rebuilt later by scrolling appear instantly (nil index → no animation).
+        .festivalFadeIn(isLoaded: true, index: fadeIndex ?? Int.max)
         .accessibilityElement(children: .combine)
         // `.combine` drops the invisible, `opacity(0)` `NavigationLink`'s own Button
         // trait (SwiftUI excludes fully transparent children from the merge), so the
@@ -1019,6 +1061,7 @@ struct SongsScreen: View {
                 await primeFirstArtwork(for: updated)
                 try Task.checkCancellation()
             }
+            if prior == nil { fadeLoadedAt = .now }
             withAnimation(.easeInOut(duration: 0.2)) {
                 state = .loaded(updated)
             }
