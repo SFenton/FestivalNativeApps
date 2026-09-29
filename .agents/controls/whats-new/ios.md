@@ -24,9 +24,9 @@
 ## Decisions
 
 - Gate on the content hash (web parity), not on the native app version; the title shows the native version because the card lives in the native app.
-- Launch presentation is `whatsNewPresentation(isPresented:)`: a full-height `fullScreenCover` on iPhone (operator, 2026-09-28: the large sheet's curved bottom corners exposed the page and content scrolled visibly under Dismiss), a sheet on macOS. Settings' replay (Settings-owned) still uses `.sheet`; it should adopt `whatsNewPresentation` (TODO(Settings owner)).
+- Launch and Settings replay both use `whatsNewPresentation(isPresented:)`: a full-height `fullScreenCover` on iPhone (operator, 2026-09-28: the large sheet's curved bottom corners exposed the page and content scrolled visibly under Dismiss), a sheet on macOS. A cover has no system swipe-down, so `PullDownToDismiss` (iOS 18+) closes it when the list is pulled ≥ 80 pt past its top and released (operator batch 6, 6.14). Dismiss is full width with centred text (web parity; 6.14's centring was a Windows repro).
 - The shipped web entries include web-only chrome items (FAB dock, search modal). They are kept verbatim for hash parity. TODO(orchestrator): decide whether natives should curate a separate changelog.
 
 ## Tests
 
-`FestivalCoreTests/ChangelogTests.swift` (hash parity, JSON escaping, Title Case, Manual filter, seen store); `FestivalUITests/WhatsNewAndServiceInfoTests.swift` (debug-mode parse, pending gate, slot exclusion, hosted render); `iOSUITests/WhatsNewJourneyTests.swift` (launch → Dismiss → relaunch not shown; Settings replay; needs `tools/mock_service.py --port 18791`).
+`FestivalCoreTests/ChangelogTests.swift` (hash parity, JSON escaping, Title Case, Manual filter, seen store); `FestivalUITests/WhatsNewAndServiceInfoTests.swift` (debug-mode parse, pending gate, slot exclusion, hosted render); `iOSUITests/WhatsNewJourneyTests.swift` (launch → Dismiss → relaunch not shown; Settings replay; pull-down dismissal + centred Dismiss; needs `tools/mock_service.py --port 18791`).

@@ -4,10 +4,11 @@
 
 ## Implementation
 
-- `Features/Settings/LicenseManifest.swift` — a hand-maintained `SoftwareLicense` array (`thirdPartySoftware`, `bundledAssets`), not a generated import of the web's `licenseManifest.ts`: none of that JS/NuGet tooling ships inside the iOS binary, so reusing it would misrepresent what this app bundles.
+- `Features/Settings/LicenseManifest.swift` — a hand-maintained `SoftwareLicense` array (`thirdPartySoftware` only), not a generated import of the web's `licenseManifest.ts`: none of that JS/NuGet tooling ships inside the iOS binary, so reusing it would misrepresent what this app bundles.
 - `thirdPartySoftware` is **empty** as of 2026-09-27: `apple/Package.swift` declares zero external SwiftPM packages (`FestivalCore`/`FestivalDesign`/`FestivalUI` are all first-party targets, no `Package.resolved` exists). The list renders an explanatory footnote instead of an empty card.
-- `bundledAssets` lists the Instruments.xcassets iconography as a first-party attribution entry (copied from the operator's own website, not a third-party asset — see `AGENTS.md`'s "never bundle third-party album art" rule, which this satisfies by construction).
-- `Features/Settings/LicensesScreen.swift` — one `FestivalGlassSection` per group; tapping a row presents `LicenseDetailSheet` (`festivalSheet(.large)`) with the full text in a monospaced, selectable `Text`. SwiftUI's `.sheet(item:)` returns focus/VoiceOver to the triggering row on dismiss, matching the web's modal.
+- No Bundled Assets section and no iconography entry (operator batch 6); the star images are never mentioned.
+- `Features/Settings/LicensesScreen.swift` — one "Third-Party Software" card in Settings' readable, centred column (`ReadableWidthContainer`), fading in; rows show a chevron and a pressed highlight (`LicenseRowButtonStyle`); tapping presents `LicenseDetailSheet` (`festivalSheet(.large)`) with monospaced selectable text and a centred full-width **Close** at the bottom. SwiftUI's `.sheet(item:)` returns focus to the triggering row. `entries:` is injectable for hosted tests (`LicensesHostedTests.swift`).
+- Settings links here with the web's standalone row (title + description + chevron, `fst.settings.licenses`).
 
 ## Decisions and gotchas
 

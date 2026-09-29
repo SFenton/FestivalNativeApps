@@ -261,7 +261,7 @@ history-and-catalog-linked-songs/loaded-with-empty-history-and-songs/failed-
 band-type-switch), `SettingsRenderTests.swift` (10: anonymous/selected-player
 defaults, expanded leeway+visual-order row, Item Shop hidden, single-visible-
 instrument disables its toggle, diagnostics on, accessibility overrides on,
-both `SettingsReorderSheet` item lists, `SettingsServiceSummary`'s four
+inline `SettingsReorderList` lists (sheet replaced 2026-09-28), `SettingsServiceSummary`'s four
 publication-message branches), `SuggestionsRenderTests.swift` (10: category
 card FC/stars/percent, rival badge ±delta, multi-instrument mix, filter sheet
 default/instrument-disabled-with-per-instrument-overrides/no-visible-

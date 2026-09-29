@@ -39,14 +39,18 @@
     every relevant setting/profile change, presents a `.sheet` when unseen gate-passing slides
     exist and the shared slot can be claimed, and marks them seen (releasing the slot) in the
     sheet's `onDismiss` — so a swipe-to-dismiss is handled identically to tapping Skip/Done.
-  - `FirstRunCarouselView.swift` — the paged carousel: `TabView(.page)` (iOS-only; macOS falls
-    back to the default style purely so `swift test` keeps compiling on the host Mac — this
-    carousel never actually presents on macOS since Apple's build order ports iPhone first),
-    close (✕) button, Skip/Next/Done controls, and a combined VoiceOver announcement per slide
-    (`accessibilityValue = "Slide x of y"`) with `@AccessibilityFocusState` moving focus to the
-    new slide's content on every index change (button-driven or swipe). `withAnimation` calls for
-    the Next/Done transition are skipped under `accessibilityReduceMotion` — there is no
-    web-style per-line stagger animation to gate in the first place.
+  - `FirstRunCarouselView.swift` — the paged carousel (operator batches 6–7): `TabView(.page)`
+    with the system dots hidden and white `FirstRunPageDots` (current solid, others 35 %; one
+    adjustable "Page, n of m" element); close ✕ top-right; a full-width glass-prominent
+    **Next/Done** first, then glass **Back** (only after page one) and **Skip** (until the last
+    page) beneath it — a one-page guide shows only Done, and there is never a disabled Back
+    (`FirstRunControls` in `FestivalCore/FirstRunViewing.swift`). Presented at an 86 % detent
+    (`FirstRunSheetStyle`) so tapping the dimmed page above it, or swiping down, dismisses.
+    `@AccessibilityFocusState` moves focus to each new slide; animations skip under Reduce
+    Motion.
+  - **Seen pages only**: the carousel records every page shown in a `FirstRunViewing` binding;
+    the presenter's `onDismiss` marks only those seen (however it closed), so unviewed pages
+    show next time (web new-info rule). Settings replays do the same after resetting the page.
   - `FirstRunDemoContent.swift` / `Demo/FirstRunSongsDemos.swift` — see the parity table below.
   - `FirstRunSettingsSection.swift` — the Settings "First Run Guides" section (web title): one
     "Show" row per `FirstRunPageKey` in the web's order (`settingsOrder`; Player History labelled
@@ -85,25 +89,27 @@
 - `Features/Settings/SettingsScreen.swift` — one line added to the section list:
   `FirstRunSettingsSection(session: session)`.
 
-## Songs slide parity (9/9 — all with live native demos)
+## Songs slide parity (9/9 — the app's real Songs UI, batch 7)
 
-| Slide id | Live demo | Notes |
+`Demo/FirstRunNativeSongsDemos.swift`. The presenter injects `\.firstRunSession`; demos show
+three live catalogue songs with art (the cached keyless `/api/songs`, as the web demos switch to
+catalogue songs once loaded) and fall back to `Song.firstRunFallback` (no art) without a
+session. Demos are inert (no hit testing, hidden from VoiceOver; the slide's title/description
+is the accessible content).
+
+| Slide id | Demo | Real UI used |
 |---|---|---|
-| `songs-song-list` | Yes (`FirstRunSongListDemo`) | 3 static demo rows on glass cards |
-| `songs-sort` | Yes (`FirstRunSortDemo`) | Sort-mode list + direction indicator |
-| `songs-navigation` | Yes (`FirstRunNavigationDemo`) | Compact tab-bar replica |
-| `songs-filter` | Yes (`FirstRunFilterDemo`) | Instrument row + two toggle rows |
-| `songs-icons` | Yes (`FirstRunSongIconsDemo`) | `InstrumentIcon` + FC/played/unplayed/not-charted badges |
-| `songs-metadata` | Yes (`FirstRunMetadataDemo`) | Song card + metadata pill row |
-| `songs-shop-highlight` | Yes (`FirstRunShopBadgeDemo(.highlight)`) | Gold glow + sparkles badge |
-| `songs-new-in-shop` | Yes (`FirstRunShopBadgeDemo(.new)`) | Same gold treatment as "new" |
-| `songs-leaving-tomorrow` | Yes (`FirstRunShopBadgeDemo(.leaving)`) | Red glow + clock badge |
+| `songs-song-list` | `FirstRunNativeSongListDemo` | `SongRowView` ×3 |
+| `songs-sort` | `FirstRunNativeSortDemo` | `SongsSortSheet` (top, clipped) |
+| `songs-navigation` | `FirstRunNativeNavigationDemo` | System `TabView` tab bar (Liquid Glass on 26) |
+| `songs-filter` | `FirstRunNativeFilterDemo` | `SongsFilterSheet` (top, clipped) |
+| `songs-icons` | `FirstRunNativeIconsDemo` | Row chrome + `SongInstrumentStatusChips` (`SongInstrumentBadge.demo`) |
+| `songs-metadata` | `FirstRunNativeMetadataDemo` | Row chrome + `SongMetadataFieldView` + `SongProfileMetadataPills` |
+| `songs-shop-highlight` / `-new-in-shop` / `-leaving-tomorrow` | `FirstRunNativeShopDemo` | `SongRowView` with its Shop outline/badge |
 
-These reuse real design primitives (`InstrumentIcon`, `festivalGlass`, `BrandTokens`) with a
-small static demo-song pool (no network/session dependency, matching the web's own hardcoded
-first-run demo data) rather than instantiating the full `SongRowView`/`FestivalSession` graph —
-a lighter-weight but faithful-looking equivalent. Reusing the literal `SongRowView` type is a
-possible future refinement, not required for a first pass.
+Other pages' demos below are still approximations built from design primitives — the batch-7
+deep port (real Song Info, Statistics, Suggestions, Leaderboards, Compete, Rivals and Shop
+views) is open.
 
 ## Other pages (31 slides) — live native demos (Lane D2, 2026-09-28)
 
@@ -188,9 +194,9 @@ representative state instead of cycling.
 - `ready` is always `true`: `FestivalSession` resolves the selected-player identity synchronously
   from storage at init, so there's no async gap where gates could evaluate against stale data on
   this platform. Revisit if a future async gate dependency is added.
-- No XCUITest coverage yet for the carousel or replay flow (Wave 1 is unit + visual smoke only,
-  per `PROGRESS.md` §3); `fst.first-run.close/skip/next/done` and
-  `fst.settings.first-run.<page>` accessibility identifiers are in place for when that lands.
+- XCUITest: `FirstRunJourneyTests.swift` (Next/Back/Skip order, swipe-down and tap-outside
+  dismissal, viewed-pages-only across a relaunch; needs `mock_service.py --port 8765`).
+  Tap-outside must land below the status bar (a status-bar tap is scroll-to-top).
 - `contracts/product.json` has no `first-run` control entry yet (orchestrator-owned file, not
   edited by this lane) — `check_docs.py` reports the same pending "topic not in contracts"
   warning that `songs-section-index` already has on `master`.
