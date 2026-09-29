@@ -36,7 +36,7 @@
                 <DropDownButton AutomationProperties.Name="{x:Bind ViewModel.BandTypeButtonName, Mode=OneWay}"
                                 AutomationProperties.AutomationId="fst.band-rankings.band-type-menu">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon Glyph="&#xE716;" FontSize="14" />
+                        <FontIcon Glyph="&#xE716;" FontSize="18" />
                         <TextBlock x:Name="BandSizeText" Text="Band Size" />
                     </StackPanel>
                     <DropDownButton.Flyout>
@@ -46,7 +46,7 @@
                 <DropDownButton AutomationProperties.Name="{x:Bind ViewModel.MetricButtonName, Mode=OneWay}"
                                 AutomationProperties.AutomationId="fst.band-rankings.rank-by-menu">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon Glyph="&#xE8CB;" FontSize="14" />
+                        <FontIcon Glyph="&#xE8CB;" FontSize="18" />
                         <TextBlock Text="{x:Bind ViewModel.MetricLabel, Mode=OneWay}" />
                     </StackPanel>
                     <DropDownButton.Flyout>

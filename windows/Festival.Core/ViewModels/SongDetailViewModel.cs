@@ -178,6 +178,20 @@ public sealed partial class SongDetailViewModel : ObservableObject
         Song is { } song && HasPaths ? new SongPathsViewModel(session, song, PathInstruments) : null;
 }
 
+/// <summary>Song Detail layout rules.</summary>
+public static class SongDetailLayout
+{
+    /// <summary>Width of one Intensity cell (web <c>minmax(106px, 1fr)</c>) plus its 16 epx gap.</summary>
+    public const double IntensityCell = 106 + 16;
+
+    /// <summary>Wide windows put every charted instrument on one row when it fits; otherwise three per row (3×3).</summary>
+    /// <param name="width">Repeater width.</param>
+    /// <param name="count">Charted instruments.</param>
+    /// <returns>Columns.</returns>
+    public static int IntensityColumns(double width, int count) =>
+        count > 3 && double.IsFinite(width) && width + 16 >= count * IntensityCell ? count : 3;
+}
+
 /// <summary>A link to one band size's leaderboard for the song.</summary>
 /// <param name="Label">"Duos".</param>
 /// <param name="Route">Band leaderboard route.</param>
@@ -424,6 +438,9 @@ public sealed record LeaderboardRow(LeaderboardEntry Entry)
 
     /// <summary>Accuracy text, <c>FC</c> suffix handled by the view.</summary>
     public string Accuracy => ScoreFormatting.Accuracy(Entry.Accuracy);
+
+    /// <summary>Expanded accuracy for the badge tint (0 when missing).</summary>
+    public double AccuracyValue => Entry.Accuracy ?? 0;
 
     /// <summary>Whether an accuracy value exists (hides the empty pill).</summary>
     public bool HasAccuracy => Accuracy.Length > 0;

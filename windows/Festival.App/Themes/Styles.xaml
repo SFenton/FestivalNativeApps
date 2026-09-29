@@ -13,6 +13,8 @@
             <SolidColorBrush x:Key="FSTCardSurfaceBrush" Color="#C7121826" />
             <SolidColorBrush x:Key="FSTCardStrokeBrush" Color="#14FFFFFF" />
             <SolidColorBrush x:Key="FSTSectionHeaderBrush" Color="#FFFFFFFF" />
+            <!-- Pinned page headers (Song Detail): the web headerFrosted tint, near-opaque instead of a per-frame blur. -->
+            <SolidColorBrush x:Key="FSTPinnedHeaderBrush" Color="#F70B0318" />
             <!-- Text is white by default over the dimmed artwork (operator 2026-09-28): "secondary" lines differ by size and
                  weight, not by a gray tint. Only true de-emphasis (timestamps) uses the web's textSecondary tint. -->
             <SolidColorBrush x:Key="FSTSecondaryTextBrush" Color="#FFFFFFFF" />
@@ -50,6 +52,7 @@
             <SolidColorBrush x:Key="FSTCardSurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="FSTCardStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTSectionHeaderBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTPinnedHeaderBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="FSTSecondaryTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTDeemphasisTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTMeterFilledBrush" Color="{ThemeResource SystemColorWindowTextColor}" />

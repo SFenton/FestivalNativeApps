@@ -56,7 +56,8 @@
                 <DropDownButton AutomationProperties.Name="{x:Bind ViewModel.MetricButtonName, Mode=OneWay}"
                                 AutomationProperties.AutomationId="fst.rankings.rank-by-menu">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon Glyph="&#xE8CB;" FontSize="14" />
+                        <!-- Same 18 epx height as the instrument icon beside it (operator 2026-09-28): the icon is never shrunk. -->
+                        <FontIcon Glyph="&#xE8CB;" FontSize="18" />
                         <TextBlock Text="{x:Bind ViewModel.MetricLabel, Mode=OneWay}" />
                     </StackPanel>
                     <DropDownButton.Flyout>

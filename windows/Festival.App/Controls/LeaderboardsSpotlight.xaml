@@ -5,11 +5,11 @@
     xmlns:controls="using:Festival.App.Controls">
     <!-- Selected player's rank below a board: loading, inline failure, unranked, or their row (+ Jump to your page). -->
     <StackPanel x:Name="Root" Spacing="6" Visibility="{x:Bind Spotlight.IsVisible, Mode=OneWay, FallbackValue=Collapsed}">
-        <StackPanel x:Name="LoadingRow" Orientation="Horizontal" Spacing="8" Padding="8,4"
-                    Visibility="{x:Bind Spotlight.ShowLoading, Mode=OneWay, FallbackValue=Collapsed}"
-                    AutomationProperties.Name="Loading your rank">
-            <ProgressRing IsActive="{x:Bind Spotlight.ShowLoading, Mode=OneWay, FallbackValue=False}" Width="16" Height="16" />
-            <TextBlock Text="Loading your rank…" Style="{StaticResource FSTSecondaryTextStyle}" />
+        <!-- A white ring only (audit 2026-09-28: no "Loading your rank…" subtitle); UIA keeps the name. -->
+        <StackPanel x:Name="LoadingRow" Orientation="Horizontal" Padding="8,4"
+                    Visibility="{x:Bind Spotlight.ShowLoading, Mode=OneWay, FallbackValue=Collapsed}">
+            <ProgressRing IsActive="{x:Bind Spotlight.ShowLoading, Mode=OneWay, FallbackValue=False}" Width="20" Height="20"
+                          Foreground="White" AutomationProperties.Name="Loading your rank" />
         </StackPanel>
         <StackPanel Spacing="6" Padding="8,4" Visibility="{x:Bind Spotlight.ShowFailed, Mode=OneWay, FallbackValue=Collapsed}"
                     AutomationProperties.AutomationId="fst.service-status.inline">

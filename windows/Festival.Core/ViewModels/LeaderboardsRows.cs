@@ -41,7 +41,7 @@ public sealed class RankingRowViewModel
     /// <summary>Display name.</summary>
     public string Name => Entry.Name;
 
-    /// <summary>"X / Y songs".</summary>
+    /// <summary>"X / Y" (songs, or full combos under FC Rate).</summary>
     public string SongsText => Entry.SongsLabel(Metric);
 
     /// <summary>Primary rating.</summary>
@@ -61,7 +61,7 @@ public sealed class RankingRowViewModel
 
     /// <summary>Screen-reader name; the selected row leads with "Your rank, 12th." like Apple's VoiceOver label.</summary>
     public string Announcement => (IsSelected ? $"Your rank, {RankingFormatting.Ordinal(Rank)}. {Name}." : $"Rank {RankText}, {Name}.") +
-                                  $" {Metric.Label()} {RatingText}{(HasBayesian ? $" ({BayesianText})" : "")}, {SongsText}";
+                                  $" {Metric.Label()} {RatingText}{(HasBayesian ? $" ({BayesianText})" : "")}, {SongsText} songs";
 }
 #endregion
 
@@ -97,7 +97,7 @@ public sealed class BandRankingRowViewModel
     /// <summary>Member roster.</summary>
     public string Name => Entry.MembersLabel;
 
-    /// <summary>"X / Y songs".</summary>
+    /// <summary>"X / Y" (songs, or full combos under FC Rate).</summary>
     public string SongsText => Entry.SongsLabel(Metric);
 
     /// <summary>Primary rating.</summary>
@@ -116,7 +116,7 @@ public sealed class BandRankingRowViewModel
     public string AutomationId => "fst.band-rankings.row." + Entry.TeamKey;
 
     /// <summary>Screen-reader name.</summary>
-    public string Announcement => $"Rank {RankText}, {Name}. {Metric.Label()} {RatingText}{(HasBayesian ? $" ({BayesianText})" : "")}, {SongsText}";
+    public string Announcement => $"Rank {RankText}, {Name}. {Metric.Label()} {RatingText}{(HasBayesian ? $" ({BayesianText})" : "")}, {SongsText} songs";
 }
 #endregion
 

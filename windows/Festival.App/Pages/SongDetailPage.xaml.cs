@@ -66,11 +66,31 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
         headerArt = new CancellationTokenSource();
         var pixels = (int)Math.Ceiling(128 * (XamlRoot?.RasterizationScale ?? 1));
         HeaderArt.Source = await ArtworkImages.LoadAsync(song.AlbumArt, pixels, headerArt.Token);
+        PinnedArt.Source = HeaderArt.Source;
         PerfLog.Mark("song-detail-rendered");
     }
 
     /// <summary>Applies the Item Shop button's status fill (gold New, red Leaving Tomorrow, green otherwise).</summary>
     private void ApplyShopPulse() => ShopFill.Apply(ViewModel.ShopHighlight, ViewModel.ShopPulses);
+
+    /// <summary>Pins the compact header once the full header has scrolled out of view.</summary>
+    /// <param name="sender">Scroller.</param>
+    /// <param name="e">Unused.</param>
+    private void OnScrollerViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
+    {
+        var pinned = Scroller.VerticalOffset > FullHeader.ActualHeight + 12;
+        var wanted = pinned ? Visibility.Visible : Visibility.Collapsed;
+        if (PinnedHeader.Visibility != wanted) PinnedHeader.Visibility = wanted;
+    }
+
+    /// <summary>Intensity: three cells per row (3×3) at compact/medium, all in one row when they fit at wide widths.</summary>
+    /// <param name="sender">Repeater.</param>
+    /// <param name="e">New size.</param>
+    private void OnIntensitySizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var columns = SongDetailLayout.IntensityColumns(e.NewSize.Width, ViewModel?.Intensity.Count ?? 0);
+        if (IntensityLayout.MaximumRowsOrColumns != columns) IntensityLayout.MaximumRowsOrColumns = columns;
+    }
 
     /// <summary>Starts a card's top-10 read when it is realized.</summary>
     /// <param name="sender">Repeater.</param>

@@ -69,5 +69,22 @@
       "invoke:id=fst.leaderboards.card.Solo_Guitar.view-all",
       "waitfor:id=fst.full-rankings.title@15"
     ]
+  },
+  {
+    "name": "song-detail-pinned-header",
+    "route": "/songs/fixture-pulse",
+    "preset": "compact",
+    "steps": [
+      "waitfor:id=fst.song-detail.title@20",
+      "shot:{shots}\\polish-song-detail-compact-top.png",
+      "scroll:id=fst.song-detail,down",
+      "scroll:id=fst.song-detail,down",
+      "scroll:id=fst.song-detail,down",
+      "waitfor:id=fst.song-detail.pinned-paths@10",
+      "shot:{shots}\\polish-song-detail-pinned.png",
+      "invoke:id=fst.song-detail.pinned-paths",
+      "waitfor:id=fst.paths@10",
+      "key:esc"
+    ]
   }
 ]

@@ -76,7 +76,7 @@ public class RoutingTests
         AppRouteParser.TryParse("/songs/s1/Solo_Bass?page=abc&junk&=x&instrument=%01", out var route, out _);
         Assert.Equal(new AppRoute.SongLeaderboard("s1", Instrument.Bass, 1), route);
         AppRouteParser.TryParse("/leaderboards/all", out var rankings, out _);
-        Assert.Equal(new AppRoute.FullRankings(Instrument.Lead, "adjusted"), rankings);
+        Assert.Equal(new AppRoute.FullRankings(Instrument.Lead, "totalscore"), rankings); // web DEFAULT_METRIC
         AppRouteParser.TryParse("/rivals/r1/rivalry", out var rivalry, out _);
         Assert.Equal(new AppRoute.Rivalry("r1", "closest_battles"), rivalry);
         AppRouteParser.TryParse("/rivals/r1?scope=bogus", out var unscoped, out _);

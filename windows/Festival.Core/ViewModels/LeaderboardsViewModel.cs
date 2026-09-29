@@ -221,6 +221,10 @@ public sealed partial class RankingCardViewModel : ObservableObject
     /// <summary>Accessible name of "View All".</summary>
     public string ViewAllName => $"View all {Instrument.Label()} rankings";
 
+    /// <summary>Button text, web <c>rankings.viewAllRankingsWithCount</c>: "View all rankings (868,901)".</summary>
+    [ObservableProperty]
+    private string viewAllText = RankingViewAll.Label(0);
+
     /// <summary>Full Rankings route for this board and metric.</summary>
     public AppRoute ViewAllRoute => new AppRoute.FullRankings(Instrument, Metric.ServiceId());
 
@@ -265,6 +269,7 @@ public sealed partial class RankingCardViewModel : ObservableObject
         {
             var board = await session.Api.GetRankingsAsync(Instrument, Metric, 1, LeaderboardPaging.CardSize, cancellationToken);
             entries = board.Entries;
+            ViewAllText = RankingViewAll.Label(board.TotalAccounts);
         }
         catch (OperationCanceledException)
         {
@@ -283,6 +288,19 @@ public sealed partial class RankingCardViewModel : ObservableObject
         Spotlight.Apply(selected, entries, Metric, 1, LeaderboardPaging.CardSize);
         await Spotlight.EnsureLoadedAsync(selected, !entries.Any(e => RankingSpotlight.SameAccount(e.AccountId, selected)), cancellationToken);
     }
+}
+#endregion
+
+#region View all
+/// <summary>The Leaderboards cards' "View all" label (web <c>RankingCard</c> <c>viewAllLabel</c>).</summary>
+public static class RankingViewAll
+{
+    /// <summary>"View all rankings (868,901)", or "View all rankings" when the total is unknown.</summary>
+    /// <param name="total">Ranked accounts or teams.</param>
+    /// <returns>Label.</returns>
+    public static string Label(int total) => total > 0
+        ? string.Create(System.Globalization.CultureInfo.CurrentCulture, $"View all rankings ({total:N0})")
+        : "View all rankings";
 }
 #endregion
 
@@ -329,6 +347,10 @@ public sealed partial class BandRankingCardViewModel : ObservableObject
     /// <summary>Accessible name of "View All".</summary>
     public string ViewAllName => $"View all {BandType.Label()} rankings";
 
+    /// <summary>Button text with the ranked-team count.</summary>
+    [ObservableProperty]
+    private string viewAllText = RankingViewAll.Label(0);
+
     /// <summary>Band Rankings route.</summary>
     public AppRoute ViewAllRoute => new AppRoute.BandRankings(BandType.ServiceId());
 
@@ -370,6 +392,7 @@ public sealed partial class BandRankingCardViewModel : ObservableObject
             var board = await session.Api.GetBandRankingsAsync(BandType, Metric, 1, LeaderboardPaging.CardSize, cancellationToken);
             Status.Clear();
             Rows = board.Entries.Select(e => new BandRankingRowViewModel(e, BandType, Metric)).ToList();
+            ViewAllText = RankingViewAll.Label(board.TotalTeams);
             State = Rows.Count == 0 ? LoadState.Empty : LoadState.Loaded;
         }
         catch (OperationCanceledException)

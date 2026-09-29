@@ -103,7 +103,7 @@ public sealed class RankingFormattingTests
     public void OrdinalsUseEnglishSuffixes(int rank, string expected) => Assert.Equal(expected, RankingFormatting.Ordinal(rank));
 
     [Fact]
-    public void SongsLabelGroups() => Assert.Equal("1,200 / 1,500 songs", RankingFormatting.Songs(1200, 1500));
+    public void SongsLabelGroups() => Assert.Equal("1,200 / 1,500", RankingFormatting.Songs(1200, 1500));
 }
 
 public sealed class LeaderboardPagingTests
@@ -190,8 +190,8 @@ public sealed class RankingsModelTests
         Assert.Equal(0.13, entry.BayesianValue(RankingMetric.Adjusted));
         Assert.Equal(0.23, entry.BayesianValue(RankingMetric.Weighted));
         Assert.Null(entry.BayesianValue(RankingMetric.TotalScore));
-        Assert.Equal("37 / 50 songs", entry.SongsLabel(RankingMetric.TotalScore));
-        Assert.Equal("17 / 50 songs", entry.SongsLabel(RankingMetric.FcRate));
+        Assert.Equal("37 / 50", entry.SongsLabel(RankingMetric.TotalScore));
+        Assert.Equal("17 / 50", entry.SongsLabel(RankingMetric.FcRate));
         Assert.Equal("Player 3", entry.Name);
         Assert.Equal("Unknown User", (entry with { DisplayName = " " }).Name);
         Assert.Equal(0, (entry with { TotalChartedSongs = 0 }).RatingValue(RankingMetric.FcRate));
@@ -216,8 +216,8 @@ public sealed class RankingsModelTests
         Assert.Equal(0.14, entry.BayesianValue(BandRankingMetric.Adjusted));
         Assert.Equal(0.05, entry.BayesianValue(BandRankingMetric.Weighted));
         Assert.Null(entry.BayesianValue(BandRankingMetric.FcRate));
-        Assert.Equal("28 / 50 songs", entry.SongsLabel(BandRankingMetric.TotalScore));
-        Assert.Equal("8 / 50 songs", entry.SongsLabel(BandRankingMetric.FcRate));
+        Assert.Equal("28 / 50", entry.SongsLabel(BandRankingMetric.TotalScore));
+        Assert.Equal("8 / 50", entry.SongsLabel(BandRankingMetric.FcRate));
         Assert.Equal("", (entry with { TeamMembers = null! }).MembersLabel);
     }
 

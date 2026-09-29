@@ -76,11 +76,11 @@ public static class RankingFormatting
         return rank.ToString("N0", CultureInfo.CurrentCulture) + suffix;
     }
 
-    /// <summary>Formats the "X / Y songs" subtitle.</summary>
+    /// <summary>Formats the "X / Y" row subtitle (web <c>getSongsLabel</c>; screen readers add "songs").</summary>
     /// <param name="count">Played (or full-combo) songs.</param>
     /// <param name="total">Charted songs.</param>
-    /// <returns>Text such as "40 / 50 songs".</returns>
+    /// <returns>Text such as "728 / 729".</returns>
     public static string Songs(int count, int total) =>
-        string.Create(CultureInfo.CurrentCulture, $"{count:N0} / {total:N0} songs");
+        string.Create(CultureInfo.CurrentCulture, $"{count:N0} / {total:N0}");
 }
 #endregion

@@ -4,8 +4,8 @@
 
 ## Implemented
 
-- Route `AppRoute.FullRankings(instrument, rankBy)` (unknown `rankBy` → Total Score). 25-row pages of `GET /api/rankings/{instrument}?rankBy=&page=&pageSize=25`; page count `ceil(totalAccounts / 25)` (≥1); an out-of-range page is clamped once totals arrive; a superseded response (older instrument/metric/page) is dropped.
-- Header: instrument icon, "<Instrument> Rankings" (heading 1), "N ranked players"; instrument switcher (Settings-visible charts plus the current one) and Rank By, both radio `MenuFlyout`s; switching either returns to page 1.
+- Route `AppRoute.FullRankings(instrument, rankBy)` (unknown or missing `rankBy`, including a bare `/leaderboards/all` deep link, → Total Score, web `DEFAULT_METRIC`). 25-row pages of `GET /api/rankings/{instrument}?rankBy=&page=&pageSize=25`; page count `ceil(totalAccounts / 25)` (≥1); an out-of-range page is clamped once totals arrive; a superseded response (older instrument/metric/page) is dropped.
+- Header: instrument icon, "<Instrument> Rankings" (heading 1), "N ranked players"; instrument switcher (Settings-visible charts plus the current one) and Rank By, both radio `MenuFlyout`s; switching either returns to page 1. The picker's instrument icon and the Rank By glyph render at the same 18 epx height (operator 2026-09-28; the icon is never shrunk). Rows read "X / Y" (web `getSongsLabel`). The selected player's spotlight loads behind a white ring with no subtitle.
 - Rows in a card (`ItemsRepeater` in a `ScrollViewer`); the selected player's row is highlighted. A page change scrolls to the top, or to the selected row when it is on the new page.
 - Pinned "your rank" row above the pager when the selected player is not on the page (own-row read is per instrument, independent of the page), with **Your page** (`LeaderboardPaging.PageForRank`): a native addition — the web footer only links to the profile. Loading / unranked / inline-failure states as on the overview.
 - Shared pager (`LeaderboardsPager`): First · Previous · "page / total" (polite live region, "Page 2 of 34,760") · Next · Last; First/Last collapse below 380 epx.

@@ -354,7 +354,7 @@ public sealed class RankingRowTests
         Assert.Equal("Top 2%", row.RatingText);
         Assert.True(row.HasBayesian);
         Assert.Equal("0.12", row.BayesianText);
-        Assert.Equal("38 / 50 songs", row.SongsText);
+        Assert.Equal("38 / 50", row.SongsText);
         Assert.Equal(new AppRoute.Player("abc", "Player 2"), row.Route);
         Assert.Equal("fst.rankings.row.abc", row.AutomationId);
         Assert.Equal("Rank #2, Player 2. Adjusted Top 2% (0.12), 38 / 50 songs", row.Announcement);
@@ -751,5 +751,17 @@ public sealed class SongLeaderboardViewModelTests
         Assert.Equal("", row.Season);
         Assert.Equal("", row.AccuracyPill);
         Assert.Null(new SongLeaderboardRowViewModel(new LeaderboardEntry { AccountId = "" }, false).Route);
+    }
+}
+
+/// <summary>Leaderboards card "View all rankings (N)" label (web <c>viewAllRankingsWithCount</c>).</summary>
+public sealed class RankingViewAllTests
+{
+    [Fact]
+    public void Label_CarriesTheGroupedCountWhenKnown()
+    {
+        System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
+        Assert.Equal("View all rankings (868,901)", RankingViewAll.Label(868_901));
+        Assert.Equal("View all rankings", RankingViewAll.Label(0));
     }
 }

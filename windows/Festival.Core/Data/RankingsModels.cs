@@ -99,7 +99,7 @@ public record AccountRankingEntry
 
     /// <summary>Songs subtitle; counts full combos under FC Rate (web <c>getSongsLabel</c>).</summary>
     /// <param name="metric">Selected metric.</param>
-    /// <returns>Text such as "40 / 50 songs".</returns>
+    /// <returns>Text such as "40 / 50 ".</returns>
     public string SongsLabel(RankingMetric metric) =>
         RankingFormatting.Songs(metric == RankingMetric.FcRate ? FullComboCount : SongsPlayed, TotalChartedSongs);
 }
@@ -242,7 +242,7 @@ public sealed record BandRankingEntry
 
     /// <summary>Songs subtitle; counts full combos under FC Rate.</summary>
     /// <param name="metric">Selected band metric.</param>
-    /// <returns>Text such as "30 / 50 songs".</returns>
+    /// <returns>Text such as "30 / 50 ".</returns>
     public string SongsLabel(BandRankingMetric metric) =>
         RankingFormatting.Songs(metric == BandRankingMetric.FcRate ? FullComboCount : SongsPlayed, TotalChartedSongs);
 }

@@ -75,3 +75,24 @@ public sealed class MotionPolicyTests
         Assert.Equal("Open in Item Shop", ShopPulse.ButtonName(null));
     }
 }
+
+/// <summary>Song Detail layout rules (Intensity columns) and the accuracy badge value.</summary>
+public sealed class SongDetailLayoutTests
+{
+    [Theory]
+    [InlineData(500, 9, 3)]
+    [InlineData(900, 9, 3)]
+    [InlineData(1100, 9, 9)]
+    [InlineData(1100, 3, 3)]
+    [InlineData(600, 4, 4)]
+    [InlineData(double.NaN, 9, 3)]
+    public void IntensityColumns_ThreePerRowUnlessAllFit(double width, int count, int columns) =>
+        Assert.Equal(columns, Festival.Core.ViewModels.SongDetailLayout.IntensityColumns(width, count));
+
+    [Fact]
+    public void AccuracyValue_ZeroWhenMissing()
+    {
+        Assert.Equal(0, new Festival.Core.ViewModels.LeaderboardRow(new LeaderboardEntry()).AccuracyValue);
+        Assert.Equal(990_000, new Festival.Core.ViewModels.LeaderboardRow(new LeaderboardEntry { Accuracy = 990_000 }).AccuracyValue);
+    }
+}
