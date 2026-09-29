@@ -19,6 +19,7 @@ public class RoutingTests
         { new AppRoute.Band("b1", "Band_Duets", "k"), "/bands/b1?bandType=Band_Duets&teamKey=k", AppSection.Leaderboards },
         { new AppRoute.Leaderboards(), "/leaderboards", AppSection.Leaderboards },
         { new AppRoute.FullRankings(Instrument.Drums, "adjusted"), "/leaderboards/all?instrument=Solo_Drums&rankBy=adjusted", AppSection.Leaderboards },
+        { new AppRoute.FullRankings(Instrument.Drums, "adjusted", 37), "/leaderboards/all?instrument=Solo_Drums&rankBy=adjusted&page=37", AppSection.Leaderboards },
         { new AppRoute.BandRankings("Band_Trios"), "/leaderboards/bands/Band_Trios", AppSection.Leaderboards },
         { new AppRoute.Rivals(), "/rivals", AppSection.Rivals },
         { new AppRoute.AllRivals(new RivalScope.FromSettings(RivalSettingsScope.Common)), "/rivals/all?category=common", AppSection.Rivals },

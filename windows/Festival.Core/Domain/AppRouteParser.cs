@@ -41,7 +41,9 @@ public static class AppRouteParser
             ["bands", var band] => new AppRoute.Band(band, query.GetValueOrDefault("bandType"), query.GetValueOrDefault("teamKey")),
             ["leaderboards"] => new AppRoute.Leaderboards(),
             ["leaderboards", "all"] => new AppRoute.FullRankings(
-                Chart(query.GetValueOrDefault("instrument")) ?? Instrument.Lead, query.GetValueOrDefault("rankBy") ?? RankingMetricInfo.Default.ServiceId()),
+                Chart(query.GetValueOrDefault("instrument")) ?? Instrument.Lead, query.GetValueOrDefault("rankBy") ?? RankingMetricInfo.Default.ServiceId(),
+                int.TryParse(query.GetValueOrDefault("page"), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var page)
+                    && page > 0 ? page : 1),
             ["leaderboards", "bands", var type] => new AppRoute.BandRankings(type),
             ["rivals"] => new AppRoute.Rivals(),
             ["rivals", "all"] => RivalScope.FromAllRivalsQuery(query.GetValueOrDefault("category"), query.GetValueOrDefault("mode"),

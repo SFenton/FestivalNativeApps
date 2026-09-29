@@ -489,6 +489,16 @@ public sealed class FullRankingsViewModelTests
     }
 
     [Fact]
+    public async Task RoutePageOpensThatPage()
+    {
+        var fake = new RankingsFake();
+        var vm = new FullRankingsViewModel(fake.Session(), new AppRoute.FullRankings(Instrument.Lead, "totalscore", 3), new FakeReader().Read);
+        Assert.Equal(3, vm.Page);
+        await vm.LoadAsync();
+        Assert.Contains(fake.Service.Handler.Requests, r => r.Uri.AbsolutePath == "/api/rankings/Solo_Guitar" && r.Uri.Query.Contains("page=3", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task FailureShowsStatusAndRetryRecovers()
     {
         var fake = new RankingsFake();

@@ -69,6 +69,8 @@ public class PlayerStatLinksTests
         var rankings = new PlayerStatLink.FullRankings(Instrument.Lead);
         Assert.False(rankings.RequiresSelection);
         Assert.Equal(new AppRoute.FullRankings(Instrument.Lead, "totalscore"), rankings.Route);
+        // With the player's rank the link opens their page (25 rows per page).
+        Assert.Equal(new AppRoute.FullRankings(Instrument.Lead, "totalscore", 5), new PlayerStatLink.FullRankings(Instrument.Lead, 101).Route);
     }
 
     [Theory]

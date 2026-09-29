@@ -178,15 +178,18 @@ public abstract record AppRoute
         public override string ToPath() => "/leaderboards";
     }
 
-    /// <summary><c>/leaderboards/all?instrument=&amp;rankBy=</c>.</summary>
+    /// <summary><c>/leaderboards/all?instrument=&amp;rankBy=[&amp;page=]</c>.</summary>
     /// <param name="Instrument">Chart.</param>
     /// <param name="RankBy">Ranking metric.</param>
-    public sealed record FullRankings(Instrument Instrument, string RankBy) : AppRoute
+    /// <param name="Page">Page to open (web <c>page</c>; the profile's Global Rank opens the player's own page).</param>
+    public sealed record FullRankings(Instrument Instrument, string RankBy, int Page = 1) : AppRoute
     {
         /// <inheritdoc />
         public override AppSection Section => AppSection.Leaderboards;
         /// <inheritdoc />
-        public override string ToPath() => "/leaderboards/all" + Query(("instrument", Instrument.ServiceId()), ("rankBy", RankBy));
+        public override string ToPath() => "/leaderboards/all" + (Page > 1
+            ? Query(("instrument", Instrument.ServiceId()), ("rankBy", RankBy), ("page", Page.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+            : Query(("instrument", Instrument.ServiceId()), ("rankBy", RankBy)));
     }
 
     /// <summary><c>/leaderboards/bands/:bandType</c>.</summary>

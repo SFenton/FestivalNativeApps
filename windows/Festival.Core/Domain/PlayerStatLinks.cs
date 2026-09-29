@@ -97,9 +97,10 @@ public abstract record PlayerStatLink
         public AppRoute Route => new AppRoute.SongDetail(SongId, Instrument);
     }
 
-    /// <summary>The chart's full Total Score rankings (Global Rank).</summary>
+    /// <summary>The chart's full Total Score rankings (Global Rank), on the page holding <paramref name="Rank"/> when known.</summary>
     /// <param name="Instrument">Chart.</param>
-    public sealed record FullRankings(Instrument Instrument) : PlayerStatLink
+    /// <param name="Rank">The player's Total Score rank, if known.</param>
+    public sealed record FullRankings(Instrument Instrument, int? Rank = null) : PlayerStatLink
     {
         /// <inheritdoc />
         public override bool RequiresSelection => false;
@@ -108,7 +109,7 @@ public abstract record PlayerStatLink
         public override string Hint => $"Opens {Instrument.Label()} rankings";
 
         /// <summary>Route (web <c>rankBy=totalscore</c>).</summary>
-        public AppRoute Route => new AppRoute.FullRankings(Instrument, "totalscore");
+        public AppRoute Route => new AppRoute.FullRankings(Instrument, "totalscore", LeaderboardPaging.PageForRank(Rank ?? 0));
     }
 }
 

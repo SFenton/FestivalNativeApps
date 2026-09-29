@@ -78,7 +78,8 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
     "no-player": (
         {"FST_DEBUG_ANONYMOUS": "1"},
         f"/rivals/{RIVAL}",
-        ["waitfor:id=fst.rivals.chooseProfile@20", "waitfor:id=fst.rivals.selectPlayer@10", "{shot:no-player}"],
+        # Player-only routes redirect to the Songs root without a profile (web RequirePlayer guards).
+        ["waitfor:id=fst.songs.search@20", "waitfor:id=fst.songs.list@20", "{shot:no-player}"],
     ),
     "quick-links": (
         {"FST_DEBUG_PROFILE": "fixture-player-1:Demo Player"},

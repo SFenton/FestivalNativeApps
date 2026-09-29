@@ -758,6 +758,8 @@ public sealed partial class PlayerInstrumentViewModel : ObservableObject
                 return;
             }
             SetRankTiles(ranking.RankText, ranking.TotalScoreText, ranking.PercentileText, ranking.IsTopFive, linked: true);
+            // Global Rank opens the rankings on the player's own page (orchestrator follow-up; web ?page=).
+            RankTiles[0].Link = new PlayerStatLink.FullRankings(Instrument, ranking.TotalScoreRank);
             RankState = PlayerRankLoad.Available;
         }
         catch (OperationCanceledException)

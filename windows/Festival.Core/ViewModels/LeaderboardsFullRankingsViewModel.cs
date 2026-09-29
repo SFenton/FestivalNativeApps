@@ -26,6 +26,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
         this.reader = reader ?? LeaderboardPreferences.DefaultReader(session);
         instrument = route.Instrument;
         metric = RankingMetricInfo.Coerce(route.RankBy);
+        page = Math.Max(1, route.Page);
         Pager = new RankingsPagerViewModel("fst.full-rankings", GoToPageAsync);
         Status = new ServiceStatusViewModel("full-rankings", "Rankings unavailable", LoadAsync, session.Time);
         spotlight = NewSpotlight();
