@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.rivals
 
+import com.festivalscoretracker.android.testing.RivalsFixtures
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions

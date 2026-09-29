@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.rankings
 
+import com.festivalscoretracker.android.testing.RankingsFixtures
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions

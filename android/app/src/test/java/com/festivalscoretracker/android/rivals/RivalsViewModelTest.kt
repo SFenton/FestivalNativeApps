@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.rivals
 
+import com.festivalscoretracker.android.testing.RivalsFixtures
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.rivals.RivalScope
 import com.festivalscoretracker.android.core.rivals.RivalScopes

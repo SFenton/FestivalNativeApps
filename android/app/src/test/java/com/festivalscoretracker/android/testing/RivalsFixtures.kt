@@ -1,7 +1,5 @@
-package com.festivalscoretracker.android.rivals
+package com.festivalscoretracker.android.testing
 
-import com.festivalscoretracker.android.testing.FakeTransport
-import com.festivalscoretracker.android.testing.Fixtures
 
 // region Synthetic rivals fixtures
 

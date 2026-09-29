@@ -1,7 +1,6 @@
-package com.festivalscoretracker.android.rankings
+package com.festivalscoretracker.android.testing
 
 import com.festivalscoretracker.android.data.HttpResult
-import com.festivalscoretracker.android.testing.FakeTransport
 
 // region Synthetic rankings
 

@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.rankings
 
+import com.festivalscoretracker.android.testing.RankingsFixtures
 import com.festivalscoretracker.android.core.model.FestivalApiException
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.profile.RankHistoryPlot

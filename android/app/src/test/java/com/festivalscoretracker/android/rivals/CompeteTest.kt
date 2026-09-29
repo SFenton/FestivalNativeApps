@@ -1,5 +1,7 @@
 package com.festivalscoretracker.android.rivals
 
+import com.festivalscoretracker.android.testing.RivalsFixtures
+import com.festivalscoretracker.android.testing.RankingsFixtures
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
@@ -38,7 +40,6 @@ import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.compete.CompeteReads
 import com.festivalscoretracker.android.presentation.compete.CompeteViewModel
 import com.festivalscoretracker.android.presentation.valueOrNull
-import com.festivalscoretracker.android.rankings.RankingsFixtures
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.MainDispatcherRule
