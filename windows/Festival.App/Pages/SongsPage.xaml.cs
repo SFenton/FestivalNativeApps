@@ -330,6 +330,9 @@ public sealed partial class SongsPage : Page, IPageBack
         DetailColumn.Width = on ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
         DetailFrame.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
         SongList.SelectionMode = on ? ListViewSelectionMode.Single : ListViewSelectionMode.None;
+        // The list column changed width: rebuild rows so chips wrap or sit inline for it, whatever the last breakpoint was.
+        wideLayout = ListWidth() >= InlineChipsWidth;
+        if (GroupedSongs.Source is not null) RebindGroups();
         ApplyLayout(ActualWidth);
         if (on)
         {
