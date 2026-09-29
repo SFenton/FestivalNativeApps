@@ -155,4 +155,23 @@ final class PlayerProfileLinksJourneyTests: XCTestCase {
         tapTile("fst.player.stat.Solo_Drums.best-rank", in: app)
         XCTAssertTrue(element("fst.song-detail.intensity", in: app).waitForExistence(timeout: 15))
     }
+
+    // MARK: Percentile table
+
+    /// A percentile table row opens Songs filtered to that band (web
+    /// `instPercentileBucketUpdater`); the row is a button with the band's identifier.
+    @MainActor
+    func testPercentileRowOpensSongsFilteredToItsBand() throws {
+        continueAfterFailure = false
+        let app = selectedApp()
+        let row = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "fst.player.percentile-row.Solo_Guitar.")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 20), "No Lead percentile row")
+        tapTile(row.identifier, in: app)
+        let songRow = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.row.")).firstMatch
+        XCTAssertTrue(songRow.waitForExistence(timeout: 15), "Songs did not open filtered")
+        XCTAssertTrue(SongsUITestSupport.rootControl("Songs", app: app).isSelected, "Songs is not the selected tab")
+    }
 }

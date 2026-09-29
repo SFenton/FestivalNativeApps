@@ -49,31 +49,27 @@ final class SuggestionsJourneyTests: XCTestCase {
         return list.exists ? list : empty
     }
 
-    /// A deselected profile must show the choose-profile guard, never a fabricated list.
+    /// Anonymous, Suggestions is not offered at all (profile-only routes are hidden and
+    /// redirect to Songs, web parity); selecting a player adds the tab, which settles
+    /// into a list (or an honest empty mix) instead of a stuck spinner.
     ///
-    /// - Throws: A stuck loading spinner or an unreachable profile action.
+    /// - Throws: A Suggestions tab while anonymous, or a stuck loading spinner.
     @MainActor
     func testSuggestionsRequiresProfileThenSettlesAfterSelection() throws {
         continueAfterFailure = false
         let app = fixtureApp()
         app.launch()
-        let choose = app.buttons["fst.suggestions.choose-profile"]
-        XCTAssertTrue(choose.waitForExistence(timeout: 15))
+        let suggestionsTab = SongsUITestSupport.rootControl("Suggestions", app: app)
+        XCTAssertTrue(app.buttons["fst.shell.profile"].waitForExistence(timeout: 15))
+        XCTAssertFalse(suggestionsTab.exists, "Suggestions must be hidden without a selected player")
         XCTAssertFalse(app.descendants(matching: .any)
             .matching(identifier: "fst.suggestions.list").firstMatch.exists)
-        record(app, name: "suggestions-choose-profile")
+        record(app, name: "suggestions-hidden-anonymous")
 
-        choose.tap()
-        let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch
-        XCTAssertTrue(search.waitForExistence(timeout: 10))
-        search.tap()
-        search.typeText("Fixture Player 1\n")
-        let result = app.buttons["fst.profile.result.fixture-player-1"]
-        XCTAssertTrue(result.waitForExistence(timeout: 15))
-        result.tap()
-        let select = app.buttons["fst.profile.select"]
-        XCTAssertTrue(select.waitForExistence(timeout: 10))
-        select.tap()
+        SongsUITestSupport.viewFixturePlayer("fixture-player-1", query: "Fixture Player 1", in: app)
+        SongsUITestSupport.selectViewedPlayer(in: app)
+        XCTAssertTrue(suggestionsTab.waitForExistence(timeout: 10))
+        suggestionsTab.tap()
 
         let settled = awaitSuggestionsSettled(in: app)
         XCTAssertTrue(
@@ -81,12 +77,7 @@ final class SuggestionsJourneyTests: XCTestCase {
             "Suggestions never left loading: \(app.debugDescription.prefix(1_600))"
         )
         record(app, name: "suggestions-settled-after-selection")
-        if settled.identifier == "fst.suggestions.list" {
-            XCTAssertTrue(app.buttons["fst.suggestions.filter-button"].exists)
-        } else {
-            // A genuinely empty mix still offers the Filter action once a player is loaded.
-            XCTAssertTrue(app.buttons["fst.suggestions.filter-button"].waitForExistence(timeout: 5))
-        }
+        XCTAssertTrue(app.buttons["fst.suggestions.filter-button"].waitForExistence(timeout: 5))
     }
 
     /// Filter changes apply live (no Cancel/Apply), persist across reopening, and Reset
@@ -130,12 +121,52 @@ final class SuggestionsJourneyTests: XCTestCase {
         XCTAssertTrue(nearFC.waitForExistence(timeout: 10))
         XCTAssertNotEqual(nearFC.value as? String, before, "A live change did not persist")
         let reset = app.buttons["fst.suggestions.filter.reset"]
+        // Reset sits after the instrument selector section at the end of the form.
+        for _ in 0..<8 where !reset.exists { app.swipeUp() }
         XCTAssertTrue(reset.waitForExistence(timeout: 10))
         reset.tap()
+        for _ in 0..<8 where !nearFC.isHittable { app.swipeDown() }
         XCTAssertEqual(nearFC.value as? String, before)
         app.buttons["fst.suggestions.filter.done"].tap()
         XCTAssertTrue(filterButton.waitForExistence(timeout: 10))
         record(app, name: "suggestions-filter-reset")
+    }
+
+    /// The Instrument-Specific section is the shared InstrumentSelector (deferred mode,
+    /// web): nothing selected on open and no per-instrument toggles; choosing an
+    /// instrument (a circle, or the compact centre after cycling) reveals its toggles.
+    ///
+    /// - Throws: A missing selector or toggles that never appear.
+    @MainActor
+    func testSuggestionsFilterInstrumentSelectorRevealsPerInstrumentToggles() throws {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launchEnvironment["FST_DEBUG_PROFILE"] = "fixture-player-1:Fixture Player 1"
+        app.launch()
+        awaitSuggestionsSettled(in: app)
+        let filterButton = app.buttons["fst.suggestions.filter-button"]
+        XCTAssertTrue(filterButton.waitForExistence(timeout: 15))
+        filterButton.tap()
+        XCTAssertTrue(app.navigationBars["Filter Suggestions"].waitForExistence(timeout: 10))
+
+        let prefix = "fst.suggestions.filter.instrument-picker"
+        let lead = app.buttons["\(prefix).Solo_Guitar"]
+        let centre = app.buttons["\(prefix).centre"]
+        for _ in 0..<8 where !(lead.exists || centre.exists) { app.swipeUp() }
+        XCTAssertTrue(lead.exists || centre.exists, "The instrument selector is missing")
+        let leadToggles = app.switches.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "fst.suggestions.filter.type.Solo_Guitar.")
+        )
+        XCTAssertEqual(leadToggles.count, 0, "Per-instrument toggles showed before a choice")
+        if lead.exists {
+            lead.tap()
+        } else {
+            // Compact: the centre previews Lead first; tapping it commits.
+            centre.tap()
+        }
+        XCTAssertTrue(leadToggles.firstMatch.waitForExistence(timeout: 5), "Choosing Lead did not reveal its toggles")
+        record(app, name: "suggestions-filter-instrument-selector")
+        app.buttons["fst.suggestions.filter.done"].tap()
     }
 
     /// Prove incremental loading when the fixture mix exceeds one page, otherwise skip
@@ -161,11 +192,14 @@ final class SuggestionsJourneyTests: XCTestCase {
             if startNewMix.exists { break }
             list.swipeUp()
         }
+        // One more drag lifts the footer clear of the floating tab bar.
+        if startNewMix.exists && !startNewMix.isHittable { list.swipeUp() }
         record(app, name: "suggestions-list-scrolled")
         if startNewMix.exists {
             XCTAssertTrue(startNewMix.isHittable)
             startNewMix.tap()
-            XCTAssertTrue(list.waitForExistence(timeout: 10))
+            // A new mix regenerates behind the page spinner before the list returns.
+            XCTAssertTrue(awaitSuggestionsSettled(in: app).exists)
             record(app, name: "suggestions-mix-restarted")
         } else {
             throw XCTSkip(

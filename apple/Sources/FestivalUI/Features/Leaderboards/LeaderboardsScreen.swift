@@ -115,13 +115,13 @@ struct LeaderboardsScreen: View {
 
     @ViewBuilder
     private var cards: some View {
+        // The fade sits inside each card, under its Quick Links section id, so the lazy
+        // stack can still scroll to a card it has not built yet.
         ForEach(Array(visibleInstruments.enumerated()), id: \.element) { index, instrument in
-            instrumentCard(instrument)
-                .festivalFadeIn(isLoaded: true, index: index)
+            instrumentCard(instrument, fadeIndex: index)
         }
         ForEach(Array(BandType.allCases.enumerated()), id: \.element) { index, bandType in
-            bandCard(bandType)
-                .festivalFadeIn(isLoaded: true, index: visibleInstruments.count + index)
+            bandCard(bandType, fadeIndex: visibleInstruments.count + index)
         }
     }
 
@@ -135,7 +135,6 @@ struct LeaderboardsScreen: View {
                     .accessibilityIdentifier("fst.leaderboards.loading")
             }
         }
-        .quickLinks(quickLinks, title: "Leaderboards Quick Links", sections: quickLinkSections)
         .festivalBackground(.carousel, session: session)
         .navigationTitle("Leaderboards")
         .toolbar {
@@ -175,6 +174,7 @@ struct LeaderboardsScreen: View {
             }
             .padding(16)
         }
+        .quickLinks(quickLinks, title: "Leaderboards Quick Links", sections: quickLinkSections)
         .refreshable { await loadAll() }
     }
 
@@ -184,7 +184,7 @@ struct LeaderboardsScreen: View {
     /// "View all rankings (N)" row — the web's `RankingCard.tsx` layout, where the
     /// rows themselves are the frosted cards and the section has no outer card.
     @ViewBuilder
-    private func instrumentCard(_ instrument: Instrument) -> some View {
+    private func instrumentCard(_ instrument: Instrument, fadeIndex: Int) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             cardHeader(instrument.label) {
                 InstrumentIcon(instrument, size: 36)
@@ -229,6 +229,7 @@ struct LeaderboardsScreen: View {
         // `AccountRankingRow`'s `fst.rankings.row.<accountId>` never reaches the
         // accessibility tree. `.contain` keeps each child its own element while
         // still letting the card itself carry an identifier.
+        .festivalFadeIn(isLoaded: true, index: fadeIndex)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.leaderboards.card.\(instrument.rawValue)")
         .quickLinkSection(Self.quickLink(for: instrument))
@@ -318,7 +319,7 @@ struct LeaderboardsScreen: View {
     // MARK: Band cards
 
     @ViewBuilder
-    private func bandCard(_ bandType: BandType) -> some View {
+    private func bandCard(_ bandType: BandType, fadeIndex: Int) -> some View {
         let metric = rankBy.bandMetric
         VStack(alignment: .leading, spacing: 6) {
             cardHeader(bandType.label) {
@@ -354,6 +355,7 @@ struct LeaderboardsScreen: View {
         }
         // See the matching comment in `instrumentCard`: `.contain` keeps
         // `BandRankingRow`'s own identifier from being shadowed by the card's.
+        .festivalFadeIn(isLoaded: true, index: fadeIndex)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.leaderboards.band-card.\(bandType.rawValue)")
         .quickLinkSection(Self.quickLink(for: bandType))

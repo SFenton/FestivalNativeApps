@@ -135,6 +135,9 @@ final class LeaderboardsJourneyTests: XCTestCase {
         let app = fixtureApp()
         app.launch()
         XCTAssertTrue(app.navigationBars["Leaderboards"].waitForExistence(timeout: 15))
+        // The page is a spinner until every card has loaded (operator batch 6.41).
+        XCTAssertTrue(app.descendants(matching: .any)
+            .matching(identifier: "fst.leaderboards.card.Solo_Guitar").firstMatch.waitForExistence(timeout: 20))
         let quickLinks = app.buttons["fst.quick-links.open"]
         XCTAssertTrue(quickLinks.waitForExistence(timeout: 15))
         quickLinks.tap()

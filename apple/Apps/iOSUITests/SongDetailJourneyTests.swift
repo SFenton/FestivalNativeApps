@@ -542,13 +542,14 @@ final class SongDetailJourneyTests: XCTestCase {
         SongsUITestSupport.record(app, name: "song-detail-empty-bass-header")
     }
 
-    /// Operator rule: changing the score-history sort scrolls back to the top, and the
-    /// sort applies live (no Apply button).
+    /// Score history lives on the song page (operator batch 6.39): with a selected
+    /// player the Score History section appears after Intensity with the shared
+    /// instrument selector, the chart and the best scores; there is no per-card history
+    /// link and no separate page.
     ///
-    /// - Throws: A missing history entry point, a sort that needs Apply, or a list that
-    ///   stays scrolled after re-sorting.
+    /// - Throws: A missing section, selector, chart or row, or a navigation away.
     @MainActor
-    func testHistorySortAppliesLiveAndScrollsToTop() throws {
+    func testScoreHistoryLivesOnTheSongPage() throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
         let app = FestivalApp.makeApp([
@@ -556,48 +557,25 @@ final class SongDetailJourneyTests: XCTestCase {
             "FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1",
             "FST_API_BASE_URL": "http://127.0.0.1:8765",
         ])
-        // Large text makes two history rows taller than the screen, so there is
-        // something to scroll away from.
-        app.launchArguments += [
-            "-UIPreferredContentSizeCategoryName",
-            UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
-        ]
         app.launch()
         let song = app.buttons["fst.songs.row.fixture-pulse"]
         XCTAssertTrue(song.waitForExistence(timeout: 15))
         song.tap()
-        let history = app.buttons["fst.song-detail.history.Solo_Guitar"]
-        XCTAssertTrue(history.waitForExistence(timeout: 15))
-        for _ in 0..<20 where !history.isHittable {
-            app.swipeUp()
+        func any(_ identifier: String) -> XCUIElement {
+            app.descendants(matching: .any).matching(identifier: identifier).firstMatch
         }
-        history.tap()
-        let firstRow = app.descendants(matching: .any)
-            .matching(identifier: "fst.history.row.0").firstMatch
-        XCTAssertTrue(firstRow.waitForExistence(timeout: 15))
-        // The chart is the list's first item: it leaves the screen when scrolled down.
-        let top = app.descendants(matching: .any)
-            .matching(identifier: "fst.history.chart").firstMatch
-        XCTAssertTrue(top.waitForExistence(timeout: 10))
-        for _ in 0..<6 where top.isHittable { app.swipeUp() }
-        XCTAssertFalse(top.isHittable, "Precondition: the chart should scroll away")
-        let open = app.buttons["fst.history.sort.open"]
-        XCTAssertTrue(open.waitForExistence(timeout: 10))
-        open.tap()
-        XCTAssertFalse(app.buttons["fst.history.sort.apply"].exists, "Sort must apply live")
-        let date = app.buttons.matching(NSPredicate(format: "label == %@", "Date")).firstMatch
-        XCTAssertTrue(date.waitForExistence(timeout: 10))
-        date.tap()
-        app.buttons["fst.history.sort.done"].tap()
-        XCTAssertTrue(open.waitForExistence(timeout: 10))
-        XCTAssertEqual(
-            XCTWaiter.wait(
-                for: [expectation(for: NSPredicate(format: "hittable == true"), evaluatedWith: top)],
-                timeout: 10
-            ),
-            .completed, "Re-sorting did not scroll back to the top"
-        )
-        SongsUITestSupport.record(app, name: "history-sort-scrolled-to-top")
+        XCTAssertTrue(any("fst.song-detail.intensity").waitForExistence(timeout: 20))
+        let chart = any("fst.song-detail.history.chart")
+        for _ in 0..<6 where !chart.exists { app.swipeUp() }
+        XCTAssertTrue(chart.waitForExistence(timeout: 10), "No Score History chart on the song page")
+        let selector = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "fst.song-detail.history.instrument.")
+        ).firstMatch
+        XCTAssertTrue(selector.exists, "The Score History instrument selector is missing")
+        XCTAssertTrue(any("fst.song-detail.history.row.0").exists, "No best-score row")
+        XCTAssertFalse(app.buttons["fst.song-detail.history.Solo_Guitar"].exists, "The old per-card history link is back")
+        XCTAssertTrue(any("fst.song-detail.intensity").exists, "Score history navigated away from the song page")
+        SongsUITestSupport.record(app, name: "song-detail-score-history")
     }
 
     /// Traverse Songs, Detail and page two, then verify landscape layout survives.

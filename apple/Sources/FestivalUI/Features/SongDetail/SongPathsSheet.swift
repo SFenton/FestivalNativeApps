@@ -506,7 +506,7 @@ struct SongPathsSheet: View {
 
 // MARK: - Overdrive bar
 
-/// The web's `OdBar`: an 8 pt rounded track (`surfaceSubtle`) filled amber
+/// The web's `OdBar`: an 8 pt rounded track (18% white; web `surfaceSubtle`) filled amber
 /// (`statusAmber` #F5A623) to the clamped percent, with a bold "NN%" label.
 struct OverdriveBar: View {
     let percent: Double
@@ -517,7 +517,9 @@ struct OverdriveBar: View {
         HStack(spacing: 12) {
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(BrandTokens.surfaceSubtle)
+                    // A lighter track than the web's `surfaceSubtle`: that near-black
+                    // track on the card failed the XCUITest contrast audit.
+                    Capsule().fill(Color.white.opacity(0.18))
                     Capsule()
                         .fill(Color(.sRGB, red: 245 / 255, green: 166 / 255, blue: 35 / 255))
                         .frame(width: geometry.size.width * CGFloat(clamped) / 100)

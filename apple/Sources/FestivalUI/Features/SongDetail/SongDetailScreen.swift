@@ -262,8 +262,8 @@ struct SongDetailScreen: View {
                     .festivalGlass(.card, cornerRadius: 16)
                 }
                 .accessibilityIdentifier("fst.song-detail.intensity")
-                .quickLinkSection(id: "intensity", title: "Intensity", symbol: "chart.bar.fill")
                 .festivalFadeIn(isLoaded: true, index: 1)
+                .quickLinkSection(id: "intensity", title: "Intensity", symbol: "chart.bar.fill")
 
                 if session.selectedPlayer != nil, !historyEntries.isEmpty {
                     SongScoreHistorySection(
@@ -271,11 +271,11 @@ struct SongDetailScreen: View {
                         keyboardIcon: song.usesKeyboardIcon,
                         instrument: $historyInstrument, expanded: $historyExpanded
                     )
+                    .festivalFadeIn(isLoaded: true, index: 2)
                     .id(SongScoreHistorySection.anchor)
                     .quickLinkSection(
                         id: "score-history", title: "Score History", symbol: "chart.line.uptrend.xyaxis"
                     )
-                    .festivalFadeIn(isLoaded: true, index: 2)
                 }
 
                 VStack(alignment: .leading, spacing: 12) {
@@ -288,11 +288,11 @@ struct SongDetailScreen: View {
                                 song: song, instrument: instrument, session: session,
                                 preloaded: previewPreloads[instrument]
                             )
+                            .festivalFadeIn(isLoaded: true, index: index + 3)
                             .quickLinkSection(QuickLinkSection(
                                 id: "instrument-\(instrument.rawValue)", title: instrument.label,
                                 icon: .instrument(instrument)
                             ))
-                            .festivalFadeIn(isLoaded: true, index: index + 3)
                         }
                     }
                 }
