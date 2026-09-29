@@ -42,18 +42,17 @@ public sealed class QuickLinksBinder
 
     private readonly ScrollViewer scroller;
     private readonly QuickLinksViewModel model;
-    private readonly Func<bool> reduceMotion;
     private readonly Dictionary<string, FrameworkElement> anchors = [];
 
     /// <summary>Attaches to a scroller.</summary>
     /// <param name="scroller">Page scroller.</param>
     /// <param name="model">Quick Links model.</param>
-    /// <param name="reduceMotion">Whether jumps skip the scroll animation (system or in-app).</param>
+    /// <param name="reduceMotion">Kept for callers; jumps are always instant now (operator batch 7.15).</param>
     public QuickLinksBinder(ScrollViewer scroller, QuickLinksViewModel model, Func<bool> reduceMotion)
     {
         this.scroller = scroller;
         this.model = model;
-        this.reduceMotion = reduceMotion;
+        _ = reduceMotion;
         scroller.ViewChanged += (_, e) => Report(!e.IsIntermediate);
         scroller.SizeChanged += (_, _) => Report(false);
         scroller.Loaded += (_, _) =>
@@ -117,7 +116,8 @@ public sealed class QuickLinksBinder
             {
                 VerticalAlignmentRatio = 0,
                 VerticalOffset = -LandingMargin,
-                AnimationDesired = !reduceMotion(),
+                // Operator batch 7.15: Quick Links teleport rather than animate the scroll.
+                AnimationDesired = false,
             });
             Land(realized, id);
             return;
@@ -132,7 +132,7 @@ public sealed class QuickLinksBinder
         }
         else
         {
-            scroller.ChangeView(null, target, null, reduceMotion());
+            scroller.ChangeView(null, target, null, disableAnimation: true);
         }
     }
 
