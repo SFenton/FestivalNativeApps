@@ -414,7 +414,7 @@ struct RankingsPagerView: View {
                     .minimumScaleFactor(0.7)
                     .padding(.horizontal, 14)
                     .frame(minHeight: 44)
-                    .festivalGlassCapsule(.card)
+                    .modifier(PagerPlate(cornerRadius: 12))
                     .accessibilityIdentifier("\(idPrefix).page-info")
                 arrow("chevron.right", "Next page", id: "page-next", enabled: page < totalPages) { onChange(page + 1) }
                 arrow("chevron.right.2", "Last page", id: "page-last", enabled: page < totalPages) { onChange(totalPages) }
@@ -442,13 +442,28 @@ struct RankingsPagerView: View {
                 .font(.body.weight(.semibold))
                 .foregroundStyle(enabled ? FestivalText.primary : FestivalText.disabled)
                 .frame(width: 44, height: 44)
-                .festivalGlassCapsule(.card, interactive: enabled)
+                .modifier(PagerPlate(cornerRadius: 22))
                 .contentShape(Circle())
         }
         .buttonStyle(HighContrastPagerStyle())
         .disabled(!enabled)
         .accessibilityLabel(label)
         .accessibilityIdentifier("\(idPrefix).\(id)")
+    }
+}
+
+/// Near-opaque frosted plate (web `frostedCard`) behind the pager's arrows and badge:
+/// rows scroll beneath them, and see-through glass there failed the contrast audit.
+private struct PagerPlate: ViewModifier {
+    /// 22 for the 44 pt arrow circles; the badge uses a rounded rectangle so its whole
+    /// accessibility frame is opaque (capsule corners showed rows through, audit).
+    let cornerRadius: CGFloat
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        content
+            .background(BrandTokens.cardBackground, in: shape)
+            .overlay(shape.stroke(BrandTokens.glassBorder, lineWidth: 1))
     }
 }
 

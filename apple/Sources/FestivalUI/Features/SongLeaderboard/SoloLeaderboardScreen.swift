@@ -93,9 +93,14 @@ struct SoloLeaderboardScreen: View {
                             .listRowSeparator(.hidden)
                         ForEach(Array(payload.leaderboard.entries.enumerated()), id: \.element.id) { index, entry in
                             let isSelectedRow = isSelectedAccount(entry.accountId)
-                            NavigationLink(value: playerRoute(for: entry)) {
-                                // One design with every leaderboard (web `entryRow`): each
-                                // row its own glass card, the player's purple.
+                            // One design with every leaderboard (web `entryRow`): each row
+                            // its own glass card, the player's purple, with the chevron
+                            // inside the card. A button that pushes onto the tab's path
+                            // rather than a NavigationLink, so the List draws no second
+                            // disclosure indicator outside the card.
+                            Button {
+                                path.append(playerRoute(for: entry))
+                            } label: {
                                 HStack(spacing: 8) {
                                     SongLeaderboardEntryRow(entry: entry, isPlayer: isSelectedRow)
                                     Image(systemName: "chevron.right")
@@ -103,10 +108,12 @@ struct SoloLeaderboardScreen: View {
                                         .foregroundStyle(FestivalText.deemphasized)
                                         .accessibilityHidden(true)
                                 }
-                                    .padding(.horizontal, 14)
-                                    .frame(minHeight: 48)
-                                    .modifier(RankingRowSurface(isSelected: isSelectedRow))
+                                .padding(.horizontal, 14)
+                                .frame(minHeight: 48)
+                                .modifier(RankingRowSurface(isSelected: isSelectedRow))
+                                .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
                             // Accessibility grouping first, fade outermost: wrapping the
                             // link in the fade before `.contain` hid its score texts
                             // from the row's descendants.
@@ -138,6 +145,9 @@ struct SoloLeaderboardScreen: View {
                                 move(to: destination)
                             }
                         }
+                        // Rows scrolling under a see-through footer failed the contrast
+                        // audit; the footer keeps an opaque band.
+                        .background(BrandTokens.appBackground)
                     }
                 }
             }
@@ -343,6 +353,18 @@ struct SoloLeaderboardScreen: View {
             Spacer()
         }
         .foregroundStyle(FestivalText.primary)
+        // No card behind the header (operator batch 7.2): only a soft dark fade behind
+        // the text, which keeps it readable over bright artwork (a shadow alone failed
+        // the contrast audit).
+        .padding(.vertical, 6)
+        .background(alignment: .leading) {
+            LinearGradient(
+                colors: [Color.black.opacity(0.6), Color.black.opacity(0.35), .clear],
+                startPoint: .leading, endPoint: .trailing
+            )
+            .padding(.horizontal, -16)
+            .accessibilityHidden(true)
+        }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
         .onGeometryChange(for: Bool.self) { proxy in
