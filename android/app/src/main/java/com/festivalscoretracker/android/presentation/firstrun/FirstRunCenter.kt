@@ -59,8 +59,16 @@ class FirstRunCenter(
     private val ids = AtomicLong()
     private val activeFlow = MutableStateFlow<FirstRunCarousel?>(null)
 
+    private val claimFlow = MutableStateFlow<String?>(null)
+
     /** The carousel currently shown, if any. */
     val active: StateFlow<FirstRunCarousel?> = activeFlow.asStateFlow()
+
+    /**
+     * Another one-at-a-time onboarding modal holding the slot (e.g. What's New), if any
+     * (web `activeCarouselKey` shared with the changelog; Apple `FirstRunCenter.claim`).
+     */
+    val claimed: StateFlow<String?> = claimFlow.asStateFlow()
 
     /**
      * Gate facts for a page. The web Shop page passes
@@ -102,7 +110,7 @@ class FirstRunCenter(
      * @return The carousel to present, or null when nothing is pending or another carousel is showing.
      */
     suspend fun tryBegin(page: FirstRunPageKey, settings: AppSettings, compact: Boolean): FirstRunCarousel? = mutex.withLock {
-        if (activeFlow.value != null) return null
+        if (activeFlow.value != null || claimFlow.value != null) return null
         val slides = pendingSlides(page, settings, compact)
         if (slides.isEmpty()) return null
         FirstRunCarousel(ids.incrementAndGet(), page, slides, isReplay = false).also { activeFlow.value = it }
@@ -117,10 +125,32 @@ class FirstRunCenter(
      * @return The replay carousel, or null while another carousel is showing.
      */
     suspend fun beginReplay(page: FirstRunPageKey, compact: Boolean): FirstRunCarousel? = mutex.withLock {
-        if (activeFlow.value != null) return null
+        if (activeFlow.value != null || claimFlow.value != null) return null
         val slides = FirstRunSlideEvaluator.allSlides(FirstRunCatalog.slides(page, compact))
         store.resetPage(slides.map { it.id })
         FirstRunCarousel(ids.incrementAndGet(), page, slides, isReplay = true).also { activeFlow.value = it }
+    }
+
+    /**
+     * Claim the single onboarding slot for a non-carousel modal (What's New).
+     *
+     * @param key Claimant key.
+     * @return True when claimed (or already held by [key]); false while a carousel or another claimant holds it.
+     */
+    suspend fun claim(key: String): Boolean = mutex.withLock {
+        val holder = claimFlow.value
+        if (activeFlow.value != null || (holder != null && holder != key)) return false
+        claimFlow.value = key
+        true
+    }
+
+    /**
+     * Free the slot claimed by [key]; a no-op for any other holder.
+     *
+     * @param key Claimant key.
+     */
+    suspend fun release(key: String) = mutex.withLock {
+        if (claimFlow.value == key) claimFlow.value = null
     }
 
     /**

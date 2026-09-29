@@ -152,6 +152,7 @@ import com.festivalscoretracker.android.ui.songs.SongsRoute
 import com.festivalscoretracker.android.ui.suggestions.suggestionsDestinations
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.FestivalTheme
+import com.festivalscoretracker.android.ui.whatsnew.WhatsNewHost
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -552,12 +553,20 @@ private fun FestivalShell(
             onChooseProfile = { showProfile = true },
         )
     }
+    val firstRunActive by container.firstRun.active.collectAsStateWithLifecycle()
+    val whatsNewShown by container.whatsNew.shown.collectAsStateWithLifecycle()
     FirstRunHost(
         center = container.firstRun,
         page = firstRunPage(stack.lastOrNull()),
         settings = settings,
         compact = !AdaptiveLayoutPolicy.isRegularWidth(widthDp),
-        blocked = showProfile || showNotifications,
+        blocked = showProfile || showNotifications || whatsNewShown != null,
+    )
+    // After the launch page's carousel (web order); Settings replays it.
+    WhatsNewHost(
+        controller = container.whatsNew,
+        blocked = showProfile || showNotifications || firstRunActive != null,
+        compact = !AdaptiveLayoutPolicy.isRegularWidth(widthDp),
     )
 }
 
@@ -648,7 +657,7 @@ private fun FestivalNavHost(
             val compact = !AdaptiveLayoutPolicy.isRegularWidth(with(LocalDensity.current) { currentWindowSize().width.toDp().value.toInt() })
             SettingsScreen(settings, settingsViewModel, api.origin, onReplayFirstRun = { page ->
                 replayScope.launch { container.firstRun.beginReplay(page, compact) }
-            })
+            }, onShowWhatsNew = { replayScope.launch { container.whatsNew.replay() } })
         }
         suggestionsDestinations(container, shellViewModel.settings)
         composable<LicensesRoute> { LicensesScreen() }

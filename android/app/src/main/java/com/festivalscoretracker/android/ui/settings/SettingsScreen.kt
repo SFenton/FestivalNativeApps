@@ -93,6 +93,7 @@ import com.festivalscoretracker.android.ui.design.popupTestTags
 import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
 import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import com.festivalscoretracker.android.ui.whatsnew.WhatsNewSettingsRow
 
 // region Sections
 
@@ -132,6 +133,7 @@ internal fun settingsSections(debug: Boolean): List<QuickLinkSection> = buildLis
  * @param serviceOrigin Active service origin (shown in Version).
  * @param onReplayFirstRun Settings "Show" for one page's first-run guide.
  * @param debug Whether this is a debug build (Diagnostics section).
+ * @param onShowWhatsNew Settings → Version "What's New" Show (replays the changelog sheet).
  */
 @Composable
 fun SettingsScreen(
@@ -140,6 +142,7 @@ fun SettingsScreen(
     serviceOrigin: String,
     onReplayFirstRun: (FirstRunPageKey) -> Unit,
     debug: Boolean = BuildConfig.DEBUG,
+    onShowWhatsNew: () -> Unit = {},
 ) {
     val shell = LocalShellActions.current
     val listState = rememberLazyListState()
@@ -174,7 +177,7 @@ fun SettingsScreen(
                                     "show-instruments" -> InstrumentsSection(settings, viewModel)
                                     "show-metadata" -> MetadataSection(settings, viewModel)
                                     "accessibility" -> AccessibilitySection(settings, viewModel)
-                                    "version" -> VersionSection(serviceOrigin, debug, serviceVersion, viewModel::loadServiceVersion)
+                                    "version" -> VersionSection(serviceOrigin, debug, serviceVersion, viewModel::loadServiceVersion) { WhatsNewSettingsRow(onShowWhatsNew) }
                                     "service-info" -> ServiceInfoSection(viewModel.serviceInfo)
                                     "first-run" -> FirstRunSection(onReplayFirstRun)
                                     "licenses" -> NavigationRow("Licenses", "Open source package license details.", "fst.settings.licenses") {
@@ -409,7 +412,13 @@ private fun AccessibilitySection(settings: AppSettings, vm: SettingsViewModel) {
 }
 
 @Composable
-private fun VersionSection(serviceOrigin: String, debug: Boolean, serviceVersion: ServiceVersionState, loadServiceVersion: () -> Unit) {
+private fun VersionSection(
+    serviceOrigin: String,
+    debug: Boolean,
+    serviceVersion: ServiceVersionState,
+    loadServiceVersion: () -> Unit,
+    whatsNew: @Composable () -> Unit = {},
+) {
     LaunchedEffect(Unit) { loadServiceVersion() }
     Header("Festival Score Tracker Version", "Festival Score Tracker information to help with debugging.")
     GlassCard(Modifier.fillMaxWidth()) {
@@ -428,6 +437,8 @@ private fun VersionSection(serviceOrigin: String, debug: Boolean, serviceVersion
         )
         Divider()
         ValueRow("Service", serviceOrigin, "fst.settings.service-origin")
+        Divider()
+        whatsNew()
     }
 }
 

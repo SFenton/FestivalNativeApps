@@ -26,6 +26,9 @@ import com.festivalscoretracker.android.data.rivals.RivalsRepository
 import com.festivalscoretracker.android.data.suggestions.SuggestionFilterStore
 import com.festivalscoretracker.android.presentation.BackgroundController
 import com.festivalscoretracker.android.presentation.profile.SelectedProfileStore
+import com.festivalscoretracker.android.core.whatsnew.ChangelogSeenStore
+import com.festivalscoretracker.android.core.whatsnew.WhatsNewMode
+import com.festivalscoretracker.android.presentation.whatsnew.WhatsNewController
 import okhttp3.OkHttpClient
 
 // region Container
@@ -81,6 +84,14 @@ class AppContainer(
     val firstRun = FirstRunCenter(
         FirstRunSeenStore(SettingsBlobStore(settings, SettingsRegistry.FIRST_RUN_SEEN)),
         FirstRunMode.parse(launch.firstRun, BuildConfig.DEBUG),
+    )
+
+    /** "What's New" launch gate + Settings replay (dismissal in the settings DataStore). */
+    val whatsNew = WhatsNewController(
+        ChangelogSeenStore(SettingsBlobStore(settings, SettingsRegistry.CHANGELOG_SEEN)),
+        firstRun,
+        WhatsNewMode.parse(launch.whatsNew, BuildConfig.DEBUG),
+        BuildConfig.VERSION_NAME,
     )
 
     /** Per-account notification seen-state. */

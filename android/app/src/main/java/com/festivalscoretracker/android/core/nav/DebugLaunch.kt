@@ -35,6 +35,7 @@ import com.festivalscoretracker.android.core.search.SearchScope
  * @property suggestionsSeed `FST_DEBUG_SUGGESTIONS_SEED`: pins the Suggestions mix seed (0–4294967295) for screenshots.
  * @property opensNotifications `FST_DEBUG_SHEET=notifications` opens the notifications sheet.
  * @property firstRun `FST_DEBUG_FIRST_RUN=off|on|force` (debug default off so automation is never blocked).
+ * @property whatsNew `FST_DEBUG_WHATS_NEW=off|on|fresh|force` (debug default off, like [firstRun]).
  */
 data class DebugLaunch(
     val section: FestivalSection? = null,
@@ -52,6 +53,7 @@ data class DebugLaunch(
     val suggestionsSeed: Long? = null,
     val opensNotifications: Boolean = false,
     val firstRun: String? = null,
+    val whatsNew: String? = null,
 ) {
     companion object {
         /** An empty launch (release builds, or no extras). */
@@ -86,6 +88,7 @@ data class DebugLaunch(
                 suggestionsSeed = extras["FST_DEBUG_SUGGESTIONS_SEED"]?.toLongOrNull()?.takeIf { it in 0..0xFFFF_FFFFL },
                 opensNotifications = extras["FST_DEBUG_SHEET"] == "notifications",
                 firstRun = extras["FST_DEBUG_FIRST_RUN"],
+                whatsNew = extras["FST_DEBUG_WHATS_NEW"],
             )
         }
 

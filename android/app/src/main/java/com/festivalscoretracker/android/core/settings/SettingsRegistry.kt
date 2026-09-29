@@ -52,6 +52,7 @@ object SettingsRegistry {
     const val VISIBLE_METADATA = "fst.settings.visibleMetadata"
     const val FIRST_RUN_SEEN = "fst.firstRun.seen.v1"
     const val NOTIFICATIONS_SEEN = "fst.notifications.seen.v1"
+    const val CHANGELOG_SEEN = "fst.changelog.seen.v1"
     const val SUGGESTIONS_FILTER = "fst.suggestions.filter"
     const val SONG_FILTERS = "fst.songs.filters"
     const val SONG_PLAYER_SCORE_FILTERS = "fst.songs.playerScoreFilters"
@@ -85,6 +86,7 @@ object SettingsRegistry {
         RegisteredSetting(VISIBLE_METADATA, ResetPolicy.AppSetting, "settings"),
         RegisteredSetting(FIRST_RUN_SEEN, ResetPolicy.Kept, "first-run"),
         RegisteredSetting(NOTIFICATIONS_SEEN, ResetPolicy.Kept, "notifications"),
+        RegisteredSetting(CHANGELOG_SEEN, ResetPolicy.Kept, "whats-new"),
         RegisteredSetting(SUGGESTIONS_FILTER, ResetPolicy.AppSetting, "suggestions"),
         RegisteredSetting(SONG_FILTERS, ResetPolicy.Kept, "songs"),
         RegisteredSetting(SONG_PLAYER_SCORE_FILTERS, ResetPolicy.Kept, "songs"),
