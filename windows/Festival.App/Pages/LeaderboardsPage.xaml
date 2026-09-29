@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Festival.App.Controls"
     xmlns:vm="using:Festival.Core.ViewModels"
+    xmlns:pages="using:Festival.App.Pages"
     NavigationCacheMode="Required"
     Background="Transparent">
     <Page.KeyboardAccelerators>
@@ -66,7 +67,13 @@
                 </StackPanel>
             </Grid>
 
-            <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.InstrumentCards, Mode=OneWay}"
+            <!-- One ring until the first cards settle, then the cards stagger in (web page-ready gate, operator batch 6.41). -->
+            <ProgressRing x:Name="ReadyRing" Width="48" Height="48" Margin="0,96,0,0" HorizontalAlignment="Center"
+                          IsActive="{x:Bind pages:LeaderboardsPage.Not(ViewModel.IsReady), Mode=OneWay}"
+                          Visibility="{x:Bind pages:LeaderboardsPage.Collapsed(ViewModel.IsReady), Mode=OneWay}"
+                          AutomationProperties.Name="Loading leaderboards" />
+            <ItemsRepeater x:Name="InstrumentRepeater" TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.InstrumentCards, Mode=OneWay}"
+                           Visibility="{x:Bind ViewModel.IsReady, Mode=OneWay}"
                            controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="420">
                 <ItemsRepeater.Layout>
                     <controls:LeaderboardsCardGridLayout MinColumnWidth="360" MaxColumns="4" Spacing="16" />
@@ -116,10 +123,13 @@
                 </ItemsRepeater.ItemTemplate>
             </ItemsRepeater>
 
-            <Grid Margin="0,12,0,0">
-                <TextBlock Text="Bands" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
+            <!-- "Bands" heads the Duos/Trios/Quads cards, so it is a size up from their card headers (operator batch 6.8). -->
+            <Grid Margin="0,16,0,0" Visibility="{x:Bind ViewModel.IsReady, Mode=OneWay}">
+                <TextBlock Text="Bands" Style="{StaticResource FSTSectionHeaderStyle}" FontSize="26" AutomationProperties.HeadingLevel="Level2"
+                           AutomationProperties.AutomationId="fst.leaderboards.bands-header" />
             </Grid>
-            <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.BandCards, Mode=OneWay}"
+            <ItemsRepeater x:Name="BandRepeater" TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.BandCards, Mode=OneWay}"
+                           Visibility="{x:Bind ViewModel.IsReady, Mode=OneWay}"
                            controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="420">
                 <ItemsRepeater.Layout>
                     <controls:LeaderboardsCardGridLayout MinColumnWidth="360" MaxColumns="3" Spacing="16" />

@@ -40,7 +40,10 @@ public sealed partial class ShopPage : Page
         SizeChanged += (_, e) =>
         {
             ViewModel.IsCompact = e.NewSize.Width < CompactWidth;
-            Root.Padding = ViewModel.IsCompact ? new Thickness(12, 8, 4, 0) : new Thickness(24, 12, 12, 0);
+            // Compact: no right gutter for the overlaying scroll indicator (operator 7.24; right edge 16 → 12 epx).
+            Root.Padding = ViewModel.IsCompact ? new Thickness(12, 8, 12, 0) : new Thickness(24, 12, 12, 0);
+            GridScroller.Padding = OfferList.Padding = ViewModel.IsCompact ? new Thickness(0, 0, 0, 24) : new Thickness(0, 0, 12, 24);
+            Header.Margin = ViewModel.IsCompact ? new Thickness(0) : new Thickness(0, 0, 12, 0);
         };
         ViewModel.PropertyChanged += OnViewModelChanged;
         ScreenReader.Attach(this, [ViewModel], () => ViewModel.IsLoading,

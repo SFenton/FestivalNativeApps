@@ -40,6 +40,17 @@ public sealed partial class LeaderboardsViewModel : ObservableObject
     [ObservableProperty]
     private List<RankingCardViewModel> instrumentCards = [];
 
+    /// <summary>
+    /// Whether the page content may show: false while a load's first <see cref="RevealCardCount"/> instrument cards are
+    /// still loading, so the page shows one spinner and then fades its cards in (web page-ready gate, operator batch 6.41)
+    /// instead of appearing as a wall of skeletons.
+    /// </summary>
+    [ObservableProperty]
+    private bool isReady;
+
+    /// <summary>Instrument cards that settle (rows, empty or failed) before the page is revealed: the first screenful.</summary>
+    public const int RevealCardCount = 4;
+
     /// <summary>Band cards (Duos, Trios, Quads).</summary>
     [ObservableProperty]
     private List<BandRankingCardViewModel> bandCards = [];
@@ -91,8 +102,11 @@ public sealed partial class LeaderboardsViewModel : ObservableObject
     {
         if (value == Metric && loadedKey == Key) return Task.CompletedTask;
         Metric = value;
+        // Start the load first so the settings-change notification sees an up-to-date key (it used to start a second,
+        // cancelling load of every card).
+        var loading = LoadAsync();
         session.UpdateSettings(s => s with { LeaderboardRankBy = value.ServiceId() });
-        return LoadAsync();
+        return loading;
     }
 
     /// <summary>Rebuilds every card and loads them concurrently.</summary>
@@ -112,9 +126,15 @@ public sealed partial class LeaderboardsViewModel : ObservableObject
         BandCards = bands;
         QuickLinks.SetSections(cards.Select(c => new QuickLinkSection(c.QuickLinkId, c.Title, Instrument: c.Instrument))
             .Concat(bands.Select(b => new QuickLinkSection(b.QuickLinkId, b.Title, BandQuickLinkGlyph))));
+        IsReady = false;
         using var gate = new SemaphoreSlim(MaxConcurrentLoads);
-        await Task.WhenAll(cards.Select(c => Throttled(gate, () => c.LoadAsync(token)))
-            .Concat(bands.Select(b => Throttled(gate, () => b.LoadAsync(token)))));
+        var loads = cards.Select(c => Throttled(gate, () => c.LoadAsync(token)))
+            .Concat(bands.Select(b => Throttled(gate, () => b.LoadAsync(token)))).ToList();
+        // Instrument cards start first (the gate admits them in order), so the first screenful settles first.
+        await Task.WhenAll(loads.Take(Math.Min(RevealCardCount, cards.Count)));
+        if (!token.IsCancellationRequested) IsReady = true;
+        await Task.WhenAll(loads);
+        if (!token.IsCancellationRequested) IsReady = true;
     }
 
     /// <summary>People glyph for band sections (web <c>IoPeople</c>).</summary>

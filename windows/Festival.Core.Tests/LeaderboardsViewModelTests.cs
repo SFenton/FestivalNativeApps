@@ -111,6 +111,26 @@ public sealed class LeaderboardsOverviewTests
     }
 
     [Fact]
+    public async Task PageIsReadyOnlyAfterTheFirstCardsSettle()
+    {
+        var fake = new RankingsFake();
+        var session = fake.Session(new AppSettings { VisibleInstruments = [Instrument.Lead, Instrument.Bass] });
+        var vm = new LeaderboardsViewModel(session, new FakeReader().Read);
+        var readiness = new List<bool>();
+        vm.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(vm.IsReady)) readiness.Add(vm.IsReady); };
+        Assert.False(vm.IsReady);
+        await vm.ActivateAsync();
+        Assert.True(vm.IsReady);
+        Assert.All(vm.InstrumentCards, c => Assert.False(c.IsLoading));
+        Assert.Equal([true], readiness);
+
+        // A metric change hides the content again until the new cards settle.
+        await vm.SelectMetricCommand.ExecuteAsync(RankingMetric.FcRate);
+        Assert.Equal([true, false, true], readiness);
+        Assert.Equal(4, LeaderboardsViewModel.RevealCardCount);
+    }
+
+    [Fact]
     public async Task MetricSelectionPersistsNarrowsBandsAndReloads()
     {
         var fake = new RankingsFake();

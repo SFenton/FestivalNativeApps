@@ -17,7 +17,24 @@ public sealed partial class LeaderboardsPage : Page
         ViewModel = new LeaderboardsViewModel(App.Session);
         InitializeComponent();
         _ = new QuickLinksHost(Root, Scroller, ViewModel.QuickLinks, QuickLinksMenu, Pane);
+        ViewModel.PropertyChanged += (_, e) =>
+        {
+            // Cards realize when they turn visible: re-arm both repeaters so they stagger in then.
+            if (e.PropertyName != nameof(LeaderboardsViewModel.IsReady) || !ViewModel.IsReady) return;
+            FadeIn.Restagger(InstrumentRepeater);
+            FadeIn.Restagger(BandRepeater);
+        };
     }
+
+    /// <summary>Negation helper for x:Bind.</summary>
+    /// <param name="value">Value.</param>
+    /// <returns>Negated value.</returns>
+    public static bool Not(bool value) => !value;
+
+    /// <summary>Visible while <paramref name="ready"/> is false.</summary>
+    /// <param name="ready">Readiness.</param>
+    /// <returns>Visibility.</returns>
+    public static Visibility Collapsed(bool ready) => ready ? Visibility.Collapsed : Visibility.Visible;
 
     /// <summary>Page model.</summary>
     public LeaderboardsViewModel ViewModel { get; }

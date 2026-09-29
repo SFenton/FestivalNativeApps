@@ -223,7 +223,7 @@
         </Grid>
 
         <!-- Pause and status notices: saved choices that can't apply right now, and player-score state. -->
-        <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" Grid.Row="2" Margin="0,0,12,0" ItemsSource="{x:Bind ViewModel.Notices, Mode=OneWay}"
+        <ItemsRepeater x:Name="Notices" TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" Grid.Row="2" Margin="0,0,12,0" ItemsSource="{x:Bind ViewModel.Notices, Mode=OneWay}"
                        Visibility="{x:Bind ViewModel.HasNotices, Mode=OneWay}" AutomationProperties.AutomationId="fst.songs.notices">
             <ItemsRepeater.Layout>
                 <StackLayout Spacing="6" />
@@ -304,10 +304,18 @@
                     </ListView>
                 </SemanticZoom.ZoomedInView>
                 <SemanticZoom.ZoomedOutView>
-                    <GridView ItemsSource="{x:Bind GroupedSongs.View.CollectionGroups, Mode=OneWay}"
-                              HorizontalAlignment="Center" VerticalAlignment="Center" SelectionMode="None"
+                    <!-- Fills the page (transparent) so a click beside the letters closes the index (operator batch 6.1);
+                         the letters stay centred through the panel's alignment. -->
+                    <GridView ItemsSource="{x:Bind GroupedSongs.View.CollectionGroups, Mode=OneWay}" Background="Transparent"
+                              Tapped="OnJumpIndexTapped"
+                              HorizontalAlignment="Stretch" VerticalAlignment="Stretch" SelectionMode="None"
                               AutomationProperties.Name="Jump to section"
                               AutomationProperties.AutomationId="fst.songs.section-index">
+                        <GridView.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <ItemsWrapGrid Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </ItemsPanelTemplate>
+                        </GridView.ItemsPanel>
                         <GridView.ItemTemplate>
                             <DataTemplate x:DataType="data2:ICollectionViewGroup">
                                 <TextBlock Text="{x:Bind ((pages:SongGroup)Group).Label}" Style="{StaticResource SubtitleTextBlockStyle}"

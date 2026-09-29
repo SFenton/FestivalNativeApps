@@ -20,7 +20,7 @@ namespace Festival.App.Pages;
 /// Item Shop accents and the selected player's status chips or metadata pills. Rows realize in phases (text, then
 /// art and trailing content) and reveal once the first rows' art has decoded (bounded).
 /// </summary>
-public sealed partial class SongsPage : Page
+public sealed partial class SongsPage : Page, IPageBack
 {
     /// <summary>Rows whose art is decoded before the first reveal.</summary>
     private const int ArtworkPrimeCount = 12;
@@ -226,7 +226,11 @@ public sealed partial class SongsPage : Page
         Grid.SetRow(ActionButtons, compact ? 1 : 0);
         Grid.SetColumn(ActionButtons, compact ? 0 : 1);
         Grid.SetColumnSpan(ActionButtons, compact ? 5 : 1);
-        Root.Padding = compact ? new Thickness(12, 8, 4, 0) : new Thickness(24, 12, 12, 0);
+        // Compact: the list's scroll indicator overlays the rows, so no right gutter is reserved for it and rows end
+        // 12 epx from the edge like the left side (operator 7.24; was 16 epx).
+        Root.Padding = compact ? new Thickness(12, 8, 12, 0) : new Thickness(24, 12, 12, 0);
+        SongList.Padding = compact ? new Thickness(0, 0, 0, 24) : new Thickness(0, 0, 12, 24);
+        Actions.Margin = Notices.Margin = compact ? new Thickness(0) : new Thickness(0, 0, 12, 0);
         if (wide == wideLayout) return;
         wideLayout = wide;
         if (GroupedSongs.Source is not null) GroupedSongs.Source = ViewModel.Sections.Select(s => new SongGroup(s.Label, s.Rows)).ToList();
@@ -256,6 +260,33 @@ public sealed partial class SongsPage : Page
         Zoom.IsZoomedInViewActive = true;
         JumpButton.Focus(FocusState.Keyboard);
         e.Handled = true;
+    }
+
+    /// <inheritdoc />
+    /// <remarks>Back closes an open jump index before anything navigates (operator batch 6.1).</remarks>
+    public bool TryGoBack()
+    {
+        if (Zoom.IsZoomedInViewActive) return false;
+        CloseJumpIndex();
+        return true;
+    }
+
+    /// <summary>A click or tap outside the letters (not on an item) closes the jump index without picking.</summary>
+    /// <param name="sender">Zoomed-out grid.</param>
+    /// <param name="e">Tap.</param>
+    private void OnJumpIndexTapped(object sender, TappedRoutedEventArgs e)
+    {
+        for (var node = e.OriginalSource as DependencyObject; node is not null && !ReferenceEquals(node, sender); node = VisualTreeHelper.GetParent(node))
+            if (node is GridViewItem) return;
+        CloseJumpIndex();
+        e.Handled = true;
+    }
+
+    /// <summary>Returns to the list and puts focus back on the Jump button.</summary>
+    private void CloseJumpIndex()
+    {
+        Zoom.IsZoomedInViewActive = true;
+        JumpButton.Focus(FocusState.Programmatic);
     }
 
     /// <summary>Opens the jump index (semantic zoom out).</summary>

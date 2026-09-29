@@ -219,7 +219,10 @@ public sealed partial class MainWindow : Window
     /// <returns><see langword="true"/> when a page was popped.</returns>
     private bool GoBack()
     {
-        if (!frames.TryGetValue(current, out var frame) || !frame.CanGoBack) return false;
+        if (!frames.TryGetValue(current, out var frame)) return false;
+        // A page-level overlay (the Songs jump index) closes before the stack pops (operator batch 6.1).
+        if (frame.Content is IPageBack page && page.TryGoBack()) return true;
+        if (!frame.CanGoBack) return false;
         frame.GoBack();
         return true;
     }
@@ -488,7 +491,15 @@ public sealed partial class MainWindow : Window
 }
 #endregion
 
-#region Backdrop contract
+#region Page contracts
+/// <summary>A page with an overlay that Back (title-bar Back, Alt+Left, the Back key, XButton1) closes first.</summary>
+public interface IPageBack
+{
+    /// <summary>Closes a page-level overlay instead of navigating back.</summary>
+    /// <returns><see langword="true"/> when Back was consumed.</returns>
+    bool TryGoBack();
+}
+
 /// <summary>Pages that replace the carousel with a static song cover (Song Detail, leaderboards).</summary>
 public interface IBackdropPage
 {
