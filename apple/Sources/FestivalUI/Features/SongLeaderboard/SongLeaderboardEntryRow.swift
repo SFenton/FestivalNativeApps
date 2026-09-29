@@ -108,29 +108,26 @@ struct SongLeaderboardEntryRow: View {
         let shape = GoldSkewBadgeShape(skewed: fullCombo && compact)
         let width: CGFloat? = compact ? accuracyTextWidth + 16 : nil
         let height: CGFloat? = compact ? accuracyPillHeight : nil
-        return ZStack {
-            shape.fill(fill)
-            if fullCombo {
-                shape.strokeBorder(BrandTokens.gold, lineWidth: 2)
+        // A plain Text element (hittable inside the Solo row's link) whose decorations
+        // are drawn on the full, non-inset badge path: an inset `strokeBorder` became
+        // the reported frame (94pt) and split the column, and a container element with
+        // an accessibility content shape stopped being hittable inside the row link.
+        return Text(text)
+            .font(fullCombo ? .body.bold().italic() : .body)
+            .foregroundStyle(fullCombo ? BrandTokens.gold : FestivalText.primary)
+            .lineLimit(compact ? 1 : nil)
+            .minimumScaleFactor(0.8)
+            .fixedSize(horizontal: false, vertical: !compact)
+            .padding(compact ? 0 : 4)
+            .frame(width: width, height: height)
+            .background(fill, in: shape)
+            .overlay {
+                if fullCombo {
+                    shape.stroke(BrandTokens.gold, lineWidth: 2)
+                }
             }
-            Text(text)
-                .font(fullCombo ? .body.bold().italic() : .body)
-                .foregroundStyle(fullCombo ? BrandTokens.gold : FestivalText.primary)
-                .lineLimit(compact ? 1 : nil)
-                .minimumScaleFactor(0.8)
-                .fixedSize(horizontal: false, vertical: !compact)
-                .padding(compact ? 0 : 4)
-        }
-        .frame(width: width, height: height)
-        // The reported frame follows the drawn shapes (the 1pt-inset gold stroke gave
-        // 94pt); pin it to the full slot.
-        .contentShape(.accessibility, Rectangle())
-        // One element for the whole slot: its frame is exactly the fixed column (a
-        // shape or a short "FC" text inside must never define the reported frame).
-        .accessibilityElement(children: .ignore)
-        .accessibilityAddTraits(.isStaticText)
-        .accessibilityLabel(spoken)
-        .accessibilityIdentifier("fst.score.accuracy.\(entry.accountId)")
+            .accessibilityLabel(spoken)
+            .accessibilityIdentifier("fst.score.accuracy.\(entry.accountId)")
     }
 
     /// The web's `GOLD_SKEW` (`skewX(-8deg)`) about the badge's vertical centre.
