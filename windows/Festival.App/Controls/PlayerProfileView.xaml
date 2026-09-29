@@ -183,8 +183,17 @@
                     </ItemsRepeater.ItemTemplate>
                 </ItemsRepeater>
 
-                <HyperlinkButton Content="{x:Bind ViewModel.BandsLabel, Mode=OneWay}" Click="OnBandsClick" Margin="0,8,0,0"
-                                 AutomationProperties.AutomationId="fst.player.bands-link" controls:QuickLinkAnchor.Id="bands" />
+                <!-- Bands: a navigable card row with an in-card chevron (batch 7.3). -->
+                <Button Click="OnBandsClick" Margin="0,8,0,0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="16,14"
+                        Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}"
+                        CornerRadius="{StaticResource OverlayCornerRadius}"
+                        AutomationProperties.Name="{x:Bind ViewModel.BandsLabel, Mode=OneWay}"
+                        AutomationProperties.AutomationId="fst.player.bands-link" controls:QuickLinkAnchor.Id="bands">
+                    <Grid>
+                        <TextBlock Text="{x:Bind ViewModel.BandsLabel, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <FontIcon Glyph="&#xE76C;" FontSize="12" HorizontalAlignment="Right" AutomationProperties.AccessibilityView="Raw" />
+                    </Grid>
+                </Button>
             </StackPanel>
         </ScrollViewer>
 

@@ -185,6 +185,7 @@ public class PlayerModelTests
         Assert.Equal("—", bassOnly.AverageAccuracyText);
         Assert.Equal("—", bassOnly.BestRankText);
         Assert.Equal("0", bassOnly.FullComboText);
+        Assert.Equal("3", (bassOnly with { FullComboCount = 3, FullComboPercent = 100 }).FullComboText);
 
         var none = PlayerStatistics.Overall(profile, []);
         Assert.Equal(0, none.SongsPlayed);

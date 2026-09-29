@@ -263,10 +263,12 @@ public sealed record PlayerStats(
         ? StarRating.From(StarRating.GoldValue)!.Value.Announcement
         : AverageStars > 0 ? Math.Round(AverageStars, 2).ToString("0.##", CultureInfo.CurrentCulture) : "—";
 
-    /// <summary>"12 (40.5%)" or "0".</summary>
+    /// <summary>Web FC notation: "12 (40.5%)", the bare count at 100% (drawn gold), or "0".</summary>
     public string FullComboText => FullComboCount == 0
         ? "0"
-        : $"{FullComboCount.ToString("N0", CultureInfo.CurrentCulture)} ({PercentText(FullComboPercent)}%)";
+        : FullComboPercent >= 100
+            ? FullComboCount.ToString("N0", CultureInfo.CurrentCulture)
+            : $"{FullComboCount.ToString("N0", CultureInfo.CurrentCulture)} ({PercentText(FullComboPercent)}%)";
 
     /// <summary>Accuracy text or an em dash.</summary>
     public string AverageAccuracyText => AverageAccuracy is { } a ? ScoreFormatting.Accuracy(a) : "—";

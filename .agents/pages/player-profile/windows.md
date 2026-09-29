@@ -21,6 +21,7 @@ Never player-stats: overview/instrument stats and percentile buckets are compute
 - **Percentiles card** (`Controls/PlayerPercentileRowView`, web `PlayerPercentileTable`): PERCENTILE | SONGS header, one row per non-empty band with a "Top N%" pill (gold outline for the top 5%), the count and a chevron, hairline separators.
 - Charts are static XAML shapes redrawn only on data or size change. Sections live in a virtualizing repeater: rank/history reads start when a section is realized (near the viewport); unplayed charts read nothing.
 - Motion (web page load): spinner until the profile read lands, then the header card, Overview heading and Overview grid fade up 125 ms apart (`FadeIn.Play`) while instrument sections stagger through `FadeIn.Stagger`; nothing runs when motion is off.
+- Full Combos use the web notation: "N (x.x%)", or the bare count in gold at 100% (never "FC 100%"). The Bands link is a card row with an in-card chevron; confirmation dialog titles are Title Case ("Deselect Profile?", "Switch Selected Profile?").
 - Header: `PersonPicture`, name (H1) with no subtitle (operator 2026-09-28); **Select Profile** accent button, **Deselect Profile** solid `#C62828` (web `btnDanger`), Quick Links menu; the action row sits under the avatar row so it never clips.
 
 ## Stat links (web `StatBox.onClick`; Apple AP3 table)

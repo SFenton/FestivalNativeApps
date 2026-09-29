@@ -126,7 +126,7 @@ public sealed partial class PlayerProfileView : UserControl
         var step = ViewModel.PlanLink(link);
         if (step == PlayerLinkStep.Blocked) return;
         if (step == PlayerLinkStep.ConfirmSwitchThenGo &&
-            !await ConfirmAsync("Switch selected profile?", ViewModel.SwitchMessage, "Switch Profile"))
+            !await ConfirmAsync("Switch Selected Profile?", ViewModel.SwitchMessage, "Switch Profile"))
             return;
         var (followed, route) = ViewModel.FollowLink(link);
         if (!followed) return;
@@ -149,7 +149,7 @@ public sealed partial class PlayerProfileView : UserControl
     private async void OnSelectClick(object sender, RoutedEventArgs e)
     {
         if (ViewModel.SelectNeedsConfirmation &&
-            !await ConfirmAsync("Switch selected profile?", ViewModel.SwitchMessage, "Switch Profile"))
+            !await ConfirmAsync("Switch Selected Profile?", ViewModel.SwitchMessage, "Switch Profile"))
             return;
         ViewModel.SelectCommand.Execute(null);
     }
@@ -180,7 +180,7 @@ public sealed partial class PlayerProfileView : UserControl
     /// <summary>Shows the shared Deselect confirmation.</summary>
     /// <param name="root">Host root.</param>
     /// <returns><see langword="true"/> when confirmed.</returns>
-    public static Task<bool> ConfirmDeselectAsync(XamlRoot root) => ConfirmAsync(root, "Deselect profile?",
+    public static Task<bool> ConfirmDeselectAsync(XamlRoot root) => ConfirmAsync(root, "Deselect Profile?",
         "Scores and profile-only content will be hidden; app Settings stay saved.", "Deselect Profile");
 
     /// <summary>Shows a confirmation dialog.</summary>
