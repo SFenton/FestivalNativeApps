@@ -79,6 +79,8 @@ Drive steps (`;`- or newline-separated; `#` comments):
 | `posture:<p>`, `resize:<preset>` | Fold posture; resizable preset |
 | `talkback:on\|off`, `fontscale:<0.5–2>`, `dark:on\|off` | Accessibility state |
 | `record:<mp4>` … `record:stop` | `adb shell screenrecord` (≤180 s) in the background; `stop` pulls the clip. A recording still running when the drive ends is stopped and pulled |
+| `logcat:clear`, `logcat:<file>[@TAG]` | Clear the log, or dump it (optionally one tag, e.g. `FST_A11Y` reading orders from the accessibility journeys) |
+| `shell:<command>` | One device shell command on the FST emulator (e.g. `pm grant com.google.android.marvin.talkback android.permission.POST_NOTIFICATIONS` before a TalkBack walkthrough) |
 
 From Git Bash, pass Windows paths (`C:/…`) inside `--steps`: MSYS converts only whole arguments, so `/c/…` inside a step becomes `C:\c\…`.
 

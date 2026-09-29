@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.text.style.TextOverflow
+import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -465,7 +466,7 @@ fun ShopDetailAction(highlight: ShopHighlight?, url: String, songId: String, pul
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("fst.song-detail.shop")) {
         Button(
             onClick = { uri.openUri(url) },
-            colors = if (breathe != null) ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = BrandTokens.textPrimary) else ButtonDefaults.buttonColors(),
+            colors = if (breathe != null) ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = BrandTokens.textPrimary) else festivalFilledButtonColors(),
             modifier = Modifier
                 .semantics { contentDescription = listOfNotNull("Item Shop", highlight?.label, "opens the Fortnite Item Shop").joinToString(", ") }
                 .then(

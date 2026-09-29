@@ -106,6 +106,8 @@ dependencies {
 
     androidTestImplementation(composeBom)
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    // ATF-backed `enableAccessibilityChecks()` for the accessibility journeys.
+    androidTestImplementation("androidx.compose.ui:ui-test-accessibility")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")

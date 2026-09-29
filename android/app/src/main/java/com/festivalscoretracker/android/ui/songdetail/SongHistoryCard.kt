@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -233,7 +234,8 @@ private fun HistoryChart(points: List<SongHistoryPoint>, chart: Instrument) {
 private fun Legend(page: List<SongHistoryPoint>) {
     val hasGold = page.any { it.isGold }
     val hasOther = page.any { !it.isGold }
-    Row(horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+    // Decorative for TalkBack: the chart's own description already names accuracy and score.
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clearAndSetSemantics { }) {
         if (hasOther) LegendItem("Accuracy") { Box(Modifier.size(14.dp, 12.dp).clip(RoundedCornerShape(2.dp)).background(Brush.horizontalGradient(listOf(accuracyColor(0.0), accuracyColor(100.0))))) }
         if (hasGold) LegendItem("Accuracy (FC)") { Box(Modifier.size(14.dp, 12.dp).clip(RoundedCornerShape(2.dp)).background(BrandTokens.gold)) }
         LegendItem("Score") {
@@ -290,7 +292,8 @@ private fun HistoryRow(point: SongHistoryPoint, best: Boolean, tag: String) {
             .background(if (best) PurpleHighlight else BrandTokens.surfaceFrosted)
             .border(1.dp, if (best) PurpleHighlightBorder else BrandTokens.glassBorder, shape)
             .padding(horizontal = 12.dp)
-            .semantics(mergeDescendants = true) {
+            // One stop that reads the summary once (not the summary and then each child text).
+            .clearAndSetSemantics {
                 contentDescription = listOfNotNull(date, point.season?.let { "Season $it" }, "score ${NumberFormat.getIntegerInstance().format(point.score)}", "accuracy $accuracy", "full combo".takeIf { point.isFullCombo }, "best score".takeIf { best }).joinToString(", ")
             }
             .testTag(tag),

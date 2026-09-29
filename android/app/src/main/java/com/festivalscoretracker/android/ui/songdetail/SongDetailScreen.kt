@@ -672,7 +672,8 @@ private fun EmptyState(subtitle: String, tag: String) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp).testTag(tag),
+        // One TalkBack stop for the title and its explanation.
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp).semantics(mergeDescendants = true) { }.testTag(tag),
     ) {
         Text("No scores recorded yet.", color = BrandTokens.textPrimary, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
         Text(subtitle, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary, textAlign = TextAlign.Center)
@@ -772,7 +773,7 @@ fun ScoreRow(entry: LeaderboardEntry, showStars: Boolean = false, isSelected: Bo
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 44.dp)
+            .heightIn(min = 48.dp)
             .padding(horizontal = 8.dp)
             .semantics(mergeDescendants = true) { },
     ) {

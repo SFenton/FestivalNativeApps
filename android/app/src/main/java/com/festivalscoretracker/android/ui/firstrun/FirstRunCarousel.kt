@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.firstrun
 
+import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.design.popupTestTags
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -155,6 +156,7 @@ fun FirstRunCarouselDialog(carousel: FirstRunCarousel, compact: Boolean, onCompl
                     Spacer(Modifier.weight(1f))
                     Button(
                         onClick = { if (last) close() else go(pager.currentPage + 1) },
+                        colors = festivalFilledButtonColors(),
                         modifier = Modifier.testTag(if (last) "fst.first-run.done" else "fst.first-run.next"),
                     ) { Text(if (last) "Done" else "Next") }
                     if (pager.currentPage > 0) {

@@ -49,5 +49,5 @@ Native correction: the web sends the Settings combo for **every** Song Rivals ro
 
 - No Rank By picker (production sanitizes experimental metrics off); no pull to refresh.
 - Rivals first-run slides and TalkBack pass belong to the accessibility phase.
-- Book Fold half-open (`fold-[1038,…]`): the column gap covers the fold but sits ~17 px left of centre; TODO(orchestrator): check whether `HingeInfo.bounds` and `positionInWindow` disagree under the NavigationSuiteScaffold rail.
+- Book Fold half-open (`fold-[1038,…]`): re-measured 2026-09-29 (and-next): the card edges sit 27 px either side of the fold (1011 | 1038 | 1065), so the earlier ~17 px offset no longer reproduces.
 - Screenshots per form factor (fixture mode): `rivals-*-{phone,bookfold-unfolded,bookfold-half,bookfold-folded,tablet}.png`, `compete-{phone,bookfold-unfolded,tablet}.png`, quantized to 256 colours to stay under 300 KB.

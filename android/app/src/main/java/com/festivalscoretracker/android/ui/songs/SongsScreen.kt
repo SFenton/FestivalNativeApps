@@ -92,6 +92,7 @@ import com.festivalscoretracker.android.core.songs.SongSortDraft
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.SongsUiState
 import com.festivalscoretracker.android.presentation.SongsViewModel
+import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LoadingView
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
@@ -295,7 +296,7 @@ private fun InvalidFilterView(onReset: () -> Unit, padding: PaddingValues) {
             color = BrandTokens.textSecondary,
             textAlign = TextAlign.Center,
         )
-        Button(onClick = onReset, modifier = Modifier.testTag("fst.songs.filter-reset-invalid")) { Text("Reset Filters") }
+        Button(onClick = onReset, colors = festivalFilledButtonColors(), modifier = Modifier.testTag("fst.songs.filter-reset-invalid")) { Text("Reset Filters") }
     }
 }
 

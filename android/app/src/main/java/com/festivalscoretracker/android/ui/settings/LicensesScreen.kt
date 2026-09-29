@@ -62,6 +62,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.licenses.LicenseManifest
 import com.festivalscoretracker.android.core.licenses.LicensedPackage
+import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import com.festivalscoretracker.android.ui.common.FestivalLoadGate
 import com.festivalscoretracker.android.ui.common.FestivalScreen
@@ -251,7 +252,7 @@ private fun LicenseSheet(item: LicensedPackage, text: String, onDismiss: () -> U
             // Centred Close in an opaque footer, like What's New's Dismiss (operator batch 6.17).
             HorizontalDivider(color = BrandTokens.glassBorder)
             Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
-                Button(onClick = onDismiss, modifier = Modifier.widthIn(min = 160.dp).testTag("fst.licenses.close")) { Text("Close") }
+                Button(onClick = onDismiss, colors = festivalFilledButtonColors(), modifier = Modifier.widthIn(min = 160.dp).testTag("fst.licenses.close")) { Text("Close") }
             }
         }
     }

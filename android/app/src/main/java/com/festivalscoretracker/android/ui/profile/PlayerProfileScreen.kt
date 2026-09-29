@@ -80,6 +80,7 @@ import com.festivalscoretracker.android.presentation.profile.ProfileActionResult
 import com.festivalscoretracker.android.presentation.profile.ProfilePhase
 import com.festivalscoretracker.android.presentation.profile.RankHistoryLoad
 import com.festivalscoretracker.android.presentation.profile.RankLoad
+import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LocalShellActions
@@ -322,6 +323,7 @@ private fun Header(state: PlayerProfileUiState, onSelect: () -> Unit) {
             when (state.identity) {
                 PlayerIdentityAction.Select, PlayerIdentityAction.Switch -> Button(
                     onClick = onSelect,
+                    colors = festivalFilledButtonColors(),
                     modifier = Modifier.padding(top = 12.dp).heightIn(min = 48.dp).testTag("fst.player.select"),
                 ) { Text(state.selectLabel) }
                 else -> Unit
@@ -489,7 +491,7 @@ private fun Message(title: String, body: String, padding: PaddingValues, modifie
         Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = Modifier.semantics { heading() })
         Text(body, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
         if (onRetry != null) {
-            Button(onClick = onRetry, modifier = Modifier.padding(top = 16.dp).testTag("fst.player.retry")) { Text("Retry") }
+            Button(onClick = onRetry, colors = festivalFilledButtonColors(), modifier = Modifier.padding(top = 16.dp).testTag("fst.player.retry")) { Text("Retry") }
         }
     }
 }

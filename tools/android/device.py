@@ -472,7 +472,7 @@ STEP_VERBS = {
     "tap": True, "longpress": True, "waitfor": True, "swipe": True, "type": True,
     "key": True, "wait": True, "shot": True, "tree": True, "posture": True,
     "rotate": True, "resize": True, "talkback": True, "fontscale": True, "dark": True,
-    "record": True, "back": False, "home": False,
+    "record": True, "logcat": True, "shell": True, "back": False, "home": False,
 }
 
 #: Device path for ``record`` steps; ``screenrecord`` caps a clip at 180 s.
@@ -536,6 +536,22 @@ def record_command(remote: str = RECORD_REMOTE, limit: int = RECORD_LIMIT_S) -> 
         The shell command line.
     """
     return f"screenrecord --time-limit {max(1, min(limit, RECORD_LIMIT_S))} {remote_quote(remote)}"
+
+
+def logcat_args(arg: str) -> tuple[list[str], str | None]:
+    """Parse a ``logcat`` step: ``clear``, ``<file>`` or ``<file>@<TAG>``.
+
+    Args:
+        arg: Step argument.
+
+    Returns:
+        The ``adb logcat`` arguments and the output path (None for ``clear``).
+    """
+    if arg.strip().lower() == "clear":
+        return ["logcat", "-c"], None
+    path, _, tag = arg.rpartition("@") if "@" in arg else (arg, "", "")
+    filters = ["-s", f"{tag}:*"] if tag else []
+    return ["logcat", "-d", "-v", "brief", *filters], path
 
 
 def parse_selector(text: str) -> tuple[str, str]:
@@ -1471,6 +1487,14 @@ def run_step(device: Device, avd: str, verb: str, arg: str) -> None:
         time.sleep(1)
     elif verb == "resize":
         apply_resize(device, arg)
+    elif verb == "shell":
+        print(device.shell(arg, cap=60, check=False).strip(), file=sys.stderr)
+    elif verb == "logcat":
+        adb_args, out = logcat_args(arg)
+        text = device.adb(*adb_args, cap=60).stdout
+        if out:
+            Path(out).parent.mkdir(parents=True, exist_ok=True)
+            Path(out).write_text(text, encoding="utf-8")
     elif verb == "record":
         if arg.lower() == "stop":
             print(device.stop_recording() or "record: nothing recording", file=sys.stderr)

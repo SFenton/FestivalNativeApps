@@ -31,6 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -224,7 +225,8 @@ internal fun BandScoreRow(
     ) {
         // Narrow cards (phones, one side of a hinge) move the team score under the members
         // (web `scoreFooter`), so member names keep their width.
-        BoxWithConstraints(Modifier.background(if (selected) SelectedBandFill else Color.Transparent).padding(12.dp)) {
+        // The card's description is the whole announcement; the texts inside add nothing for TalkBack.
+        BoxWithConstraints(Modifier.background(if (selected) SelectedBandFill else Color.Transparent).padding(12.dp).clearAndSetSemantics { }) {
             val stacked = maxWidth < BAND_ROW_STACK_WIDTH
             val teamScore: @Composable () -> Unit = {
                 Text(BandFormatting.count(entry.score), fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)

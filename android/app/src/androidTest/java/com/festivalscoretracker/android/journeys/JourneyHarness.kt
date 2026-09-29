@@ -1,0 +1,289 @@
+package com.festivalscoretracker.android.journeys
+
+import android.util.Log
+import android.view.accessibility.AccessibilityNodeInfo
+import androidx.activity.ComponentActivity
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.ComposeAccessibilityValidator
+import androidx.compose.ui.test.ComposeTimeoutException
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.junit4.AndroidComposeTestRule
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.unit.dp
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.emptyPreferences
+import androidx.test.ext.junit.rules.ActivityScenarioRule
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.window.layout.FoldingFeature
+import androidx.window.layout.WindowInfoTracker
+import com.festivalscoretracker.android.AppContainer
+import com.festivalscoretracker.android.core.nav.DebugLaunch
+import com.festivalscoretracker.android.testing.FakeTransport
+import com.festivalscoretracker.android.ui.shell.FestivalApp
+import com.google.android.apps.common.testing.accessibility.framework.AccessibilityCheckResult.AccessibilityCheckResultType
+import com.google.android.apps.common.testing.accessibility.framework.integrations.espresso.AccessibilityValidator
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
+import java.util.Locale
+import okhttp3.OkHttpClient
+import org.junit.Assert.assertTrue
+
+// region Preferences
+
+/** Process-local preferences so device journeys never touch the app's saved settings. */
+class MemoryPreferences(initial: Preferences = emptyPreferences()) : DataStore<Preferences> {
+    private val state = MutableStateFlow(initial)
+    override val data: Flow<Preferences> = state
+    override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences =
+        transform(state.value).also { state.value = it }
+}
+
+// endregion
+
+// region Harness
+
+/** Rule type every journey uses. */
+typealias JourneyRule = AndroidComposeTestRule<ActivityScenarioRule<ComponentActivity>, ComponentActivity>
+
+/**
+ * Shared helpers for instrumented journeys on one FST AVD (run through `device.py test`):
+ * launching the whole shell against synthetic fixtures, waiting and tapping by test tag,
+ * separating-hinge checks, Accessibility Test Framework checks and a TalkBack reading-order
+ * dump (logcat tag [READING_ORDER_TAG]; `device.py drive --steps "logcat:<file>@FST_A11Y"`).
+ *
+ * @property rule The journey's compose rule.
+ */
+class JourneyHarness(private val rule: JourneyRule) {
+    /**
+     * Launch the full app shell.
+     *
+     * @param debug Debug launch (route, profile, …).
+     * @param transport Fixture transport.
+     * @param preferences Settings store.
+     */
+    fun launch(debug: DebugLaunch, transport: FakeTransport, preferences: DataStore<Preferences> = MemoryPreferences()) {
+        val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = preferences)
+        rule.setContent { FestivalApp(container, debug) }
+    }
+
+    /** Distinct ATF findings so far (`TYPE | Check | element | message`). */
+    val accessibilityFindings = linkedSetOf<String>()
+
+    /**
+     * Run the Accessibility Test Framework on the whole window before every interaction
+     * (touch target ≥ 48 dp, labels, contrast, duplicate clickable bounds, …). Findings are
+     * collected and logged under [ATF_TAG]; call [assertAccessible] at the end of the journey
+     * so one run lists every error at once.
+     */
+    fun enableAccessibilityChecks() {
+        val validator = AccessibilityValidator().setRunChecksFromRootView(true).setThrowExceptionForErrors(false)
+        val composeValidator = object : ComposeAccessibilityValidator {
+                override fun check(view: android.view.View) {
+                    validator.checkAndReturnResults(view).forEach { result ->
+                        val type = result.type
+                        if (type != AccessibilityCheckResultType.ERROR && type != AccessibilityCheckResultType.WARNING) return@forEach
+                        val element = result.element?.let { e ->
+                            (e.resourceName ?: e.contentDescription ?: e.text)?.toString()
+                                ?: "${e.className?.toString()?.substringAfterLast('.')} ${e.boundsInScreen}"
+                        } ?: "?"
+                        val line = "$type | ${result.sourceCheckClass.simpleName} | $element | ${result.getMessage(Locale.US)}"
+                        if (accessibilityFindings.add(line)) Log.w(ATF_TAG, line)
+                    }
+                }
+            }
+        checkNow = { rule.runOnUiThread { composeValidator.check(rule.activity.window.decorView) } }
+        rule.setComposeAccessibilityValidator(composeValidator)
+    }
+
+    /**
+     * ATF measures a row cut off by its scrolling container at its visible height; a
+     * touch-target finding whose tagged node is really at least 48 dp tall is that artifact.
+     *
+     * @param finding Collected finding line.
+     * @return True for a clipping artifact.
+     */
+    private fun clippedTouchTarget(finding: String): Boolean {
+        val parts = finding.split(" | ")
+        if (parts.getOrNull(1) != "TouchTargetSizeCheck") return false
+        val tag = parts.getOrNull(2)?.takeIf { it.startsWith("fst.") } ?: return false
+        val min = with(rule.density) { 48.dp.toPx() } - 1
+        val nodes = rule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes()
+        return nodes.isNotEmpty() && nodes.all { it.size.height >= min && it.size.width >= min }
+    }
+
+    /** Checks the current window when accessibility checks are on. */
+    private var checkNow: () -> Unit = {}
+
+    /** Fail with every ATF error collected during the journey (warnings only log). */
+    fun assertAccessible() {
+        val errors = accessibilityFindings.filter { it.startsWith("ERROR") && !clippedTouchTarget(it) }
+        assertTrue("Accessibility errors:\n" + errors.joinToString("\n"), errors.isEmpty())
+    }
+
+    /**
+     * Whether a node with [tag] exists (unmerged tree).
+     *
+     * @param tag Test tag.
+     * @return True when present.
+     */
+    fun exists(tag: String): Boolean = rule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+
+    /**
+     * Wait for a node.
+     *
+     * @param tag Test tag.
+     * @param timeoutMs Timeout.
+     */
+    fun waitForTag(tag: String, timeoutMs: Long = 15_000) {
+        try {
+            rule.waitUntil(timeoutMs) { exists(tag) }
+        } catch (timeout: ComposeTimeoutException) {
+            throw AssertionError("Timed out waiting for $tag", timeout)
+        }
+    }
+
+    /**
+     * Wait for a node to leave.
+     *
+     * @param tag Test tag.
+     */
+    fun waitGone(tag: String) = rule.waitUntil(15_000) { !exists(tag) }
+
+    /**
+     * Wait for, then activate, the first node with [tag] (semantics click: no touch slop).
+     *
+     * @param tag Test tag.
+     */
+    fun tap(tag: String) {
+        waitForTag(tag)
+        rule.onAllNodesWithTag(tag, useUnmergedTree = true)[0].performSemanticsAction(SemanticsActions.OnClick)
+        rule.waitForIdle()
+    }
+
+    /**
+     * Scroll a lazy list until a node is composed.
+     *
+     * @param list List test tag.
+     * @param tag Target test tag.
+     */
+    fun scrollTo(list: String, tag: String) {
+        waitForTag(list)
+        rule.onNodeWithTag(list).performScrollToNode(hasTestTag(tag))
+        rule.waitForIdle()
+    }
+
+    /** Separating vertical hinges in window pixels (empty on phones and flat folds). */
+    fun hinges(): List<Rect> = runBlocking {
+        val info = withTimeoutOrNull(5_000) { WindowInfoTracker.getOrCreate(rule.activity).windowLayoutInfo(rule.activity).first() }
+        info?.displayFeatures.orEmpty().filterIsInstance<FoldingFeature>()
+            .filter { it.isSeparating && it.orientation == FoldingFeature.Orientation.VERTICAL }
+            .map { Rect(it.bounds.left.toFloat(), it.bounds.top.toFloat(), it.bounds.right.toFloat(), it.bounds.bottom.toFloat()) }
+    }
+
+    /**
+     * Assert that no node with any of [tags] crosses a separating hinge.
+     *
+     * @param tags Test tags.
+     */
+    fun assertNothingStraddles(vararg tags: String) {
+        val folds = hinges()
+        tags.forEach { tag ->
+            rule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().forEach { node ->
+                val box = node.boundsInWindow
+                folds.forEach { fold -> assertTrue("$tag straddles the fold at ${fold.left}", box.right <= fold.left || box.left >= fold.right) }
+            }
+        }
+    }
+
+    /**
+     * The order TalkBack's linear navigation visits the current window's items. Compose
+     * publishes its traversal order as `traversalBefore` links between nodes (child order is
+     * semantic, not traversal), so the walk collects visible nodes depth-first, then follows
+     * each chain of `traversalBefore` links from its head. Kept: nodes TalkBack focuses
+     * (screen-reader focusable, clickable, or labelled outside such a node); a focusable
+     * node's label falls back to its descendants' text, as TalkBack composes it. Logged under
+     * [READING_ORDER_TAG] as `<screen> | <index> | <role> | <label> | <w>x<h>`.
+     *
+     * @param screen Name for the log.
+     * @return Labels in reading order.
+     */
+    fun readingOrder(screen: String): List<String> {
+        rule.waitForIdle()
+        checkNow()
+        val root = InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow ?: return emptyList()
+        val nodes = mutableListOf<AccessibilityNodeInfo>()
+        val insideFocusable = mutableListOf<Boolean>()
+        fun ownLabel(node: AccessibilityNodeInfo) = listOfNotNull(node.contentDescription, node.text, node.stateDescription)
+            .map { it.toString().trim() }.filter { it.isNotEmpty() }.distinct().joinToString(", ")
+        fun isFocusable(node: AccessibilityNodeInfo) = node.isScreenReaderFocusable || node.isClickable || node.isLongClickable
+        fun collect(node: AccessibilityNodeInfo, inside: Boolean) {
+            if (!node.isVisibleToUser) return
+            nodes += node
+            insideFocusable += inside
+            for (i in 0 until node.childCount) node.getChild(i)?.let { collect(it, inside || isFocusable(node)) }
+        }
+        collect(root, false)
+        // Chains from both hints: A.traversalBefore = B means A → B; A.traversalAfter = B means B → A.
+        val next = mutableMapOf<Int, Int>()
+        nodes.indices.forEach { i ->
+            nodes[i].traversalBefore?.let { nodes.indexOf(it) }?.takeIf { it >= 0 }?.let { next.putIfAbsent(i, it) }
+            nodes[i].traversalAfter?.let { nodes.indexOf(it) }?.takeIf { it >= 0 }?.let { next.putIfAbsent(it, i) }
+        }
+        Log.i(READING_ORDER_TAG, "$screen | links ${next.size} of ${nodes.size} nodes")
+        val targets = next.values.toSet()
+        val order = mutableListOf<Int>()
+        val seen = BooleanArray(nodes.size)
+        nodes.indices.filter { it !in targets }.forEach { head ->
+            var current: Int? = head
+            while (current != null && !seen[current]) {
+                seen[current] = true
+                order += current
+                current = next[current]
+            }
+        }
+        nodes.indices.filter { !seen[it] }.forEach { order += it }
+        fun descendantsLabel(node: AccessibilityNodeInfo): String = buildList {
+            for (i in 0 until node.childCount) {
+                val child = node.getChild(i) ?: continue
+                if (!child.isVisibleToUser || isFocusable(child)) continue
+                ownLabel(child).takeIf { it.isNotEmpty() }?.let(::add) ?: descendantsLabel(child).takeIf { it.isNotEmpty() }?.let(::add)
+            }
+        }.joinToString(", ")
+        val labels = mutableListOf<String>()
+        order.forEach { i ->
+            val node = nodes[i]
+            val own = ownLabel(node)
+            val focusable = isFocusable(node) || (node.isFocusable && own.isNotEmpty())
+            if (!focusable && (own.isEmpty() || insideFocusable[i])) return@forEach
+            val label = own.ifEmpty { descendantsLabel(node) }
+            val role = buildList {
+                if (node.isHeading) add("heading")
+                if (node.isClickable) add("button")
+                if (node.isCheckable) add(if (node.isChecked) "checked" else "unchecked")
+                node.className?.toString()?.substringAfterLast('.')?.takeIf { it != "View" && it != "ViewGroup" }?.let(::add)
+            }.joinToString(" ")
+            val bounds = android.graphics.Rect().also(node::getBoundsInScreen)
+            labels += label.ifEmpty { "<unlabelled>" }
+            Log.i(READING_ORDER_TAG, "$screen | ${labels.size} | $role | ${labels.last()} | ${bounds.width()}x${bounds.height()}")
+        }
+        return labels
+    }
+
+    companion object {
+        /** Logcat tag of the reading-order dump. */
+        const val READING_ORDER_TAG = "FST_A11Y"
+
+        /** Logcat tag of Accessibility Test Framework findings. */
+        const val ATF_TAG = "FST_ATF"
+    }
+}
+
+// endregion

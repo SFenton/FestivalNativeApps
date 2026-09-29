@@ -174,6 +174,13 @@ class StepTests(unittest.TestCase):
         self.assertIn("--time-limit 180 ", d.record_command(limit=900))
         self.assertIsNone(d.Device(None).stop_recording())
 
+    def test_logcat_step(self):
+        self.assertEqual(d.logcat_args("clear"), (["logcat", "-c"], None))
+        self.assertEqual(d.logcat_args("out/a.txt@FST_A11Y"),
+                         (["logcat", "-d", "-v", "brief", "-s", "FST_A11Y:*"], "out/a.txt"))
+        self.assertEqual(d.logcat_args("C:/x/a.txt"), (["logcat", "-d", "-v", "brief"], "C:/x/a.txt"))
+        self.assertEqual(d.parse_step("logcat:clear"), ("logcat", "clear"))
+
     def test_parse_selector(self):
         self.assertEqual(d.parse_selector("id=fst.nav.songs"), ("id", "fst.nav.songs"))
         self.assertEqual(d.parse_selector(" 10 , 20 "), ("xy", "10,20"))

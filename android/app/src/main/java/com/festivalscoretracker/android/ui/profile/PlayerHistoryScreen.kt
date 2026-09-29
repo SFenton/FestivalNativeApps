@@ -53,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.design.AccuracyPill
 import com.festivalscoretracker.android.ui.common.festivalSheetTop
 import com.festivalscoretracker.android.core.format.ScoreFormatting
@@ -209,7 +210,7 @@ private fun HistoryMessage(title: String, body: String, padding: PaddingValues, 
     ) {
         Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = Modifier.semantics { heading() })
         Text(body, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
-        if (onRetry != null) Button(onClick = onRetry, modifier = Modifier.padding(top = 16.dp).testTag("fst.history.retry")) { Text("Retry") }
+        if (onRetry != null) Button(onClick = onRetry, colors = festivalFilledButtonColors(), modifier = Modifier.padding(top = 16.dp).testTag("fst.history.retry")) { Text("Retry") }
     }
 }
 

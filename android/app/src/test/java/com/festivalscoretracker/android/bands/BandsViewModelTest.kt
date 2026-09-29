@@ -19,6 +19,7 @@ import com.festivalscoretracker.android.presentation.bands.PlayerBandsViewModel
 import com.festivalscoretracker.android.presentation.bands.SongBandLeaderboardViewModel
 import com.festivalscoretracker.android.presentation.bands.loadClampedPage
 import com.festivalscoretracker.android.presentation.valueOrNull
+import com.festivalscoretracker.android.testing.BandFixtures
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.MainDispatcherRule
 import kotlinx.coroutines.CompletableDeferred

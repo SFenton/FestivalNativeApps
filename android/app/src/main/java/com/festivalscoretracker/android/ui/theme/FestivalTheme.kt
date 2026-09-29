@@ -19,6 +19,13 @@ import androidx.compose.ui.platform.LocalContext
 /** Brand colors shared with Apple's `BrandTokens` (web design tokens). */
 object BrandTokens {
     val accentBlue = Color(0xFF2D82E6)
+
+    /**
+     * Filled-button blue behind white labels: 4.9:1 (WCAG AA for 14 sp text). The web's
+     * [accentBlue] fill is 3.9:1; [accentBlue] stays for blue text on dark surfaces, where it
+     * passes and this darker blue would not.
+     */
+    val accentBlueFill = Color(0xFF1A6FD8)
     val accentPurple = Color(0xFF7C3AED)
     val appBackground = Color(0xFF1A0830)
     val cardBackground = Color(0xFF0B1220)

@@ -1,7 +1,4 @@
-package com.festivalscoretracker.android.bands
-
-import com.festivalscoretracker.android.testing.FakeTransport
-import com.festivalscoretracker.android.testing.Fixtures
+package com.festivalscoretracker.android.testing
 
 // region Synthetic band fixtures
 

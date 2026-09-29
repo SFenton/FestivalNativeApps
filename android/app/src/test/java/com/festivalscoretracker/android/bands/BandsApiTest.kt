@@ -11,6 +11,7 @@ import com.festivalscoretracker.android.data.bands.bandRankHistory
 import com.festivalscoretracker.android.data.bands.bandSongExtremes
 import com.festivalscoretracker.android.data.bands.playerBands
 import com.festivalscoretracker.android.data.bands.songBandLeaderboard
+import com.festivalscoretracker.android.testing.BandFixtures
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
 import kotlinx.coroutines.test.runTest

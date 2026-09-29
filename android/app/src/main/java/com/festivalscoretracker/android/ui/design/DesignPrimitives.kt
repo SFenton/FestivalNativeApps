@@ -1,5 +1,7 @@
 package com.festivalscoretracker.android.ui.design
 
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ButtonColors
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -185,5 +187,19 @@ fun DifficultyMeter(level: Double, modifier: Modifier = Modifier, raw: Boolean =
         }
     }
 }
+
+// endregion
+
+// region Filled buttons
+
+/**
+ * Colours for a filled (primary) button: [BrandTokens.accentBlueFill] behind white text,
+ * so labels meet WCAG AA contrast (the theme primary is tuned for blue text on dark).
+ *
+ * @return Button colours.
+ */
+@Composable
+fun festivalFilledButtonColors(): ButtonColors =
+    ButtonDefaults.buttonColors(containerColor = BrandTokens.accentBlueFill, contentColor = BrandTokens.textPrimary)
 
 // endregion

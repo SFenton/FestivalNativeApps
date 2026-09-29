@@ -85,6 +85,7 @@ import com.festivalscoretracker.android.core.settings.PathDisplayMode
 import com.festivalscoretracker.android.core.settings.ScoreLeeway
 import com.festivalscoretracker.android.presentation.settings.ServiceVersionState
 import com.festivalscoretracker.android.presentation.settings.SettingsViewModel
+import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.design.GlassCard
@@ -455,6 +456,7 @@ private fun FirstRunSection(onShow: (FirstRunPageKey) -> Unit) {
                 Text(page.label, color = BrandTokens.textPrimary, modifier = Modifier.weight(1f))
                 Button(
                     onClick = { onShow(page) },
+                    colors = festivalFilledButtonColors(),
                     modifier = Modifier.testTag("fst.settings.first-run.${page.key}").semantics { contentDescription = "Show ${page.label} guide" },
                 ) { Text("Show") }
             }

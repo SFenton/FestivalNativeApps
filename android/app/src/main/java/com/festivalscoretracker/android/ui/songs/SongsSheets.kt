@@ -23,6 +23,7 @@ import com.festivalscoretracker.android.core.songs.SongIntensityBucket
 import com.festivalscoretracker.android.core.songs.SongPercentileBucket
 import com.festivalscoretracker.android.core.songs.SongSeasonBucket
 import com.festivalscoretracker.android.core.songs.SongStarsBucket
+import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.common.festivalSheetTop
 import com.festivalscoretracker.android.ui.design.DifficultyMeter
 import com.festivalscoretracker.android.ui.design.InstrumentSelector
@@ -119,7 +120,7 @@ private fun LiveSheet(
                     modifier = Modifier.testTag("$tag.reset"),
                 ) { Text("Reset", fontWeight = FontWeight.SemiBold) }
                 Spacer(Modifier.weight(1f))
-                Button(onClick = onDismiss, modifier = Modifier.testTag("$tag.done")) { Text("Done") }
+                Button(onClick = onDismiss, colors = festivalFilledButtonColors(), modifier = Modifier.testTag("$tag.done")) { Text("Done") }
             }
         }
     }

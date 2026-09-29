@@ -27,6 +27,9 @@
 | TalkBack 17.0 | Preinstalled on the API 37 Google APIs image, along with Switch Access, Voice Access and the Accessibility Menu. Toggle it with the `talkback:on\|off` drive step (secure settings) |
 | Accessibility Scanner | Play Store only; not installable on the Google APIs image without a signed-in Play account. Use ATF checks instead |
 | Text size, dark theme | `fontscale:<x>` and `dark:on\|off` drive steps |
+
+- **ATF journeys** (`androidTest/.../journeys/`, shared `JourneyHarness`): `BandsSettingsJourneyTest`, `SongsAccessibilityJourneyTest`, `PlayerAccessibilityJourneyTest`, `ShellAccessibilityJourneyTest`. The rule's `setComposeAccessibilityValidator` runs ATF (`ui-test-accessibility`'s `AccessibilityValidator`) on the whole window before every interaction and at each `readingOrder` call; findings go to logcat `FST_ATF`, and `assertAccessible()` fails once with every error. Touch-target findings on rows cut off by their scrolling list (the node itself ≥ 48 dp) are ignored as clipping artifacts. Run `device.py test package:com.festivalscoretracker.android.journeys --avd …`, then `drive --steps "logcat:<file>@FST_ATF"`.
+- **TalkBack walks** (`tools/android/talkback_walk.py`): real TalkBack, driven by kernel key events (Meta + →, TalkBack's "next item") written as root to the emulator's `AT Translated Set 2 keyboard`, with TalkBack's log level raised to verbose so each focus utterance is read back from logcat. Writes `<name>.md`/`.json` with what TalkBack says, in order. Injected `input` gestures/keys do not drive TalkBack, the `qwerty2` keyboard has no Meta mapping, and UIAutomator dumps suspend TalkBack (they reset its focus), so none of those are used during a walk. Results: [android-accessibility.md](android-accessibility.md).
 > **What:** Android coverage, test layout and device-test rules. **Read when:** writing or running Android tests. Architecture: [platforms/android.md](../platforms/android.md).
 
 ## Layout

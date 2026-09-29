@@ -69,6 +69,7 @@ import com.festivalscoretracker.android.core.notifications.NotificationMessagePa
 import com.festivalscoretracker.android.presentation.notifications.NotificationRow
 import com.festivalscoretracker.android.presentation.notifications.NotificationsState
 import com.festivalscoretracker.android.presentation.notifications.NotificationsViewModel
+import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
@@ -178,7 +179,7 @@ fun NotificationsSheet(viewModel: NotificationsViewModel, onDismiss: () -> Unit,
         when (val current = state) {
             NotificationsState.NoPlayer -> Message(
                 "Select a player profile to see notifications about new high scores and rank changes.", "fst.notifications.no-player",
-            ) { Button(onClick = { onDismiss(); onChooseProfile() }) { Text("Select Player Profile") } }
+            ) { Button(onClick = { onDismiss(); onChooseProfile() }, colors = festivalFilledButtonColors()) { Text("Select Player Profile") } }
             NotificationsState.Loading -> Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) {
                 FestivalLoading("Loading notifications", Modifier.testTag("fst.notifications.loading"))
             }

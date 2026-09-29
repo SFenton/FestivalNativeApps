@@ -182,7 +182,7 @@ private fun ColumnScope.DismissBar(onDismiss: () -> Unit) {
     HorizontalDivider(color = BrandTokens.glassBorder)
     Button(
         onClick = onDismiss,
-        colors = ButtonDefaults.buttonColors(containerColor = BrandTokens.accentBlue, contentColor = BrandTokens.textPrimary),
+        colors = ButtonDefaults.buttonColors(containerColor = BrandTokens.accentBlueFill, contentColor = BrandTokens.textPrimary),
         modifier = Modifier
             .align(Alignment.CenterHorizontally)
             .padding(vertical = 12.dp)
@@ -213,7 +213,7 @@ fun WhatsNewSettingsRow(onShow: () -> Unit) {
         }
         Button(
             onClick = onShow,
-            colors = ButtonDefaults.buttonColors(containerColor = BrandTokens.accentBlue, contentColor = BrandTokens.textPrimary),
+            colors = ButtonDefaults.buttonColors(containerColor = BrandTokens.accentBlueFill, contentColor = BrandTokens.textPrimary),
             modifier = Modifier.padding(start = 12.dp).testTag("fst.settings.whats-new").semantics { contentDescription = "Show What's New" },
         ) { Text("Show") }
     }

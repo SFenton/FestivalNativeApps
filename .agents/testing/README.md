@@ -10,5 +10,6 @@
 | [pwa-reference/](pwa-reference/README.md) | How the installed PWA really looks and moves per platform; native gap tables |
 | [apple/](apple/README.md) | SwiftPM, hosted snapshots, XCUITest, coverage, accessibility, VoiceOver |
 | [android.md](android.md) | Android coverage and emulator rules |
+| [android-accessibility.md](android-accessibility.md) | Android ATF/TalkBack results, fixes and open gaps |
 | [windows.md](windows.md) | Windows coverage and UI-automation rules |
 | [windows-accessibility.md](windows-accessibility.md) | Windows per-page accessibility results and open gaps |

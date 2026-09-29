@@ -52,6 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.common.festivalSheetTop
 import com.festivalscoretracker.android.core.model.PlayerSearchResult
 import com.festivalscoretracker.android.core.model.SelectedPlayer
@@ -136,7 +137,7 @@ private fun SelectedSummary(player: SelectedPlayer, onView: () -> Unit, onDesele
                 Text(player.displayName, style = MaterialTheme.typography.titleMedium, color = BrandTokens.textPrimary, modifier = Modifier.padding(start = 12.dp))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 12.dp)) {
-                Button(onClick = onView, modifier = Modifier.heightIn(min = 48.dp).testTag("fst.profile.view-selected")) { Text("View Profile") }
+                Button(onClick = onView, colors = festivalFilledButtonColors(), modifier = Modifier.heightIn(min = 48.dp).testTag("fst.profile.view-selected")) { Text("View Profile") }
                 OutlinedButton(onClick = onDeselect, modifier = Modifier.heightIn(min = 48.dp).testTag("fst.profile.deselect")) { Text("Deselect") }
             }
         }
