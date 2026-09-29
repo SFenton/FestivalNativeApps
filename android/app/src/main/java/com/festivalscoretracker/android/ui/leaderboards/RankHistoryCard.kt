@@ -280,7 +280,8 @@ private fun HistoryPlot(chart: RankHistoryChart, window: RankHistoryWindow, onCh
             }
             AxisLabels(plot.rankTicks, TextAlign.Start)
         }
-        Row(Modifier.fillMaxWidth().padding(horizontal = AXIS_WIDTH_DP.dp, vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        // Axis dates are in the chart's own description; TalkBack skips them.
+        Row(Modifier.fillMaxWidth().padding(horizontal = AXIS_WIDTH_DP.dp, vertical = 4.dp).clearAndSetSemantics { }, horizontalArrangement = Arrangement.SpaceBetween) {
             Text(shortDate(visible.first()), style = MaterialTheme.typography.labelSmall, color = BrandTokens.textPrimary)
             if (visible.size > 1) Text(shortDate(visible.last()), style = MaterialTheme.typography.labelSmall, color = BrandTokens.textPrimary)
         }

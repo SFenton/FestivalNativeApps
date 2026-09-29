@@ -11,6 +11,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -36,7 +37,8 @@ fun SeeAllButton(onClick: () -> Unit, modifier: Modifier = Modifier, label: Stri
         colors = ButtonDefaults.textButtonColors(contentColor = BrandTokens.textPrimary),
         modifier = modifier.heightIn(min = 48.dp).semantics { contentDescription = spokenLabel },
     ) {
-        Text(label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        // The button's description ("See All: <section>") is what TalkBack reads; the visible text would repeat it.
+        Text(label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, modifier = Modifier.clearAndSetSemantics { })
         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, modifier = Modifier.padding(start = 2.dp).size(20.dp))
     }
 }

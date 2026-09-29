@@ -201,7 +201,8 @@ private fun Plot(window: RankHistoryWindow, totalAccounts: Int, onChange: (RankH
             }
             AxisColumn(plot.rankTicks, TextAlign.Start)
         }
-        Row(Modifier.fillMaxWidth().padding(horizontal = AXIS_WIDTH.dp, vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        // Axis dates are in the chart's own description; TalkBack skips them.
+        Row(Modifier.fillMaxWidth().padding(horizontal = AXIS_WIDTH.dp, vertical = 4.dp).clearAndSetSemantics { }, horizontalArrangement = Arrangement.SpaceBetween) {
             Text(RankHistoryPlot.displayDate(visible.first()), style = MaterialTheme.typography.labelSmall, color = BrandTokens.textMuted)
             if (visible.size > 1) Text(RankHistoryPlot.displayDate(visible.last()), style = MaterialTheme.typography.labelSmall, color = BrandTokens.textMuted)
         }

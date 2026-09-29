@@ -41,6 +41,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
@@ -110,7 +111,8 @@ internal fun ReorderList(labels: List<String>, tag: String, onMove: (Int, Int) -
                         }
                         .padding(end = 16.dp)
                         .testTag("$tag.$index")
-                        .semantics {
+                        // One TalkBack stop: label and position, with Move up/down actions.
+                        .semantics(mergeDescendants = true) {
                             contentDescription = "$label, position ${index + 1} of ${labels.size}"
                             customActions = buildList {
                                 if (index > 0) add(CustomAccessibilityAction("Move up") { onMove(index, -1); true })
@@ -140,7 +142,7 @@ internal fun ReorderList(labels: List<String>, tag: String, onMove: (Int, Int) -
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.SemiBold,
                         color = BrandTokens.textPrimary,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).clearAndSetSemantics { },
                     )
                 }
             }

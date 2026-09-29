@@ -314,7 +314,8 @@ internal fun BandPageHeader(title: String?, subtitle: String?, tag: String) {
 @Composable
 internal fun BandEmptyState(title: String, message: String, tag: String) {
     Column(
-        Modifier.fillMaxWidth().padding(vertical = 32.dp, horizontal = 16.dp).testTag(tag),
+        // One TalkBack stop for the title and its explanation.
+        Modifier.fillMaxWidth().padding(vertical = 32.dp, horizontal = 16.dp).semantics(mergeDescendants = true) { }.testTag(tag),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {

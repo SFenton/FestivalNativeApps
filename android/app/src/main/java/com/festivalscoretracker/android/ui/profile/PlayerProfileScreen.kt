@@ -297,8 +297,9 @@ private fun Header(state: PlayerProfileUiState, onSelect: () -> Unit) {
     GlassCard(Modifier.fillMaxWidth().testTag("fst.player.header")) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                // Decorative initials: the name heading beside it is what TalkBack reads.
                 Box(
-                    Modifier.size(56.dp).background(BrandTokens.accentPurple, CircleShape),
+                    Modifier.size(56.dp).background(BrandTokens.accentPurple, CircleShape).clearAndSetSemantics { },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(

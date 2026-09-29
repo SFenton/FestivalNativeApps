@@ -255,7 +255,7 @@ private fun SongLeaderboardRow(
     modifier = if (route != null) {
         modifier.clickable(role = Role.Button, onClickLabel = "Open profile") { onOpen(route) }
     } else {
-        modifier.semantics { stateDescription = "Profile unavailable" }
+        modifier.semantics(mergeDescendants = true) { stateDescription = "Profile unavailable" }
     }
     Box(modifier.testTag("fst.song-leaderboard.row.${entry.accountId.ifEmpty { "rank-${entry.rank}" }}")) {
         ScoreRow(entry, showStars, isSelected = isSelected, rankWidth = rankWidth, navigable = route != null)

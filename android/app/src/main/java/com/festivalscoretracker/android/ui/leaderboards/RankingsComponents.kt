@@ -48,6 +48,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -472,7 +473,7 @@ internal fun FrostedPagerButton(icon: androidx.compose.ui.graphics.vector.ImageV
         color = PagerSurface,
         border = BorderStroke(1.dp, BrandTokens.glassBorder),
         shadowElevation = 4.dp,
-        modifier = Modifier.size(48.dp).testTag(tag).semantics { contentDescription = label },
+        modifier = Modifier.size(48.dp).testTag(tag).semantics { contentDescription = label; role = Role.Button },
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(icon, contentDescription = null, tint = if (enabled) BrandTokens.textPrimary else BrandTokens.textDisabled)

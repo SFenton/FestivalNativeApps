@@ -78,7 +78,8 @@ class PlayerAccessibilityJourneyTest {
     fun compete() {
         h.enableAccessibilityChecks()
         val transport = RivalsFixtures.transport().apply(songs).also { RankingsFixtures.install(it) }
-        h.launch(DebugLaunch(section = FestivalSection.Compete, profile = SelectedPlayer(RivalsFixtures.PLAYER, "Synthetic Player"), stillBackground = true), transport)
+        // Compete is a tab only on compact widths; the route works everywhere.
+        h.launch(DebugLaunch(route = DebugLaunch.parseRoute("compete"), profile = SelectedPlayer(RivalsFixtures.PLAYER, "Synthetic Player"), stillBackground = true), transport)
         h.waitForTag("fst.compete.grid")
         h.readingOrder("compete")
         h.assertAccessible()

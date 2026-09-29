@@ -160,7 +160,8 @@ private fun ScopeHeader(scope: CompeteScope, onSeeAll: (() -> Unit)?, tag: Strin
 @Composable
 private fun EmptyCard(title: String, subtitle: String) {
     GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        // One TalkBack stop for the title and its explanation.
+        Column(Modifier.padding(16.dp).semantics(mergeDescendants = true) { }, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = BrandTokens.textPrimary)
             Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary)
         }

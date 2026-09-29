@@ -710,7 +710,7 @@ private fun PreviewRow(entry: LeaderboardEntry, isSelected: Boolean, route: AppR
     modifier = if (route != null) {
         modifier.clickable(role = Role.Button, onClickLabel = "Open profile") { onOpen(route) }
     } else {
-        modifier.semantics { stateDescription = "Profile unavailable" }
+        modifier.semantics(mergeDescendants = true) { stateDescription = "Profile unavailable" }
     }
     Box(modifier.testTag("fst.song-detail.preview-row.${instrument.wireId}.${entry.accountId.ifEmpty { "rank-${entry.rank}" }}")) {
         ScoreRow(entry, isSelected = isSelected, rankWidth = rankWidth, navigable = route != null)
@@ -758,7 +758,9 @@ internal fun rememberRankWidth(ranks: List<Int>): Dp {
  * name, score, the web accuracy pill (gold italic outline for an FC, 7.11) and an
  * in-card chevron on navigable rows (7.3; other rows keep the slot so columns align).
  * The selected player's texts are bold (web `LeaderboardEntry` `isPlayer`, 6.42).
- * Anonymous rows (no account) read "Unknown User". Read as one stop.
+ * Anonymous rows (no account) read "Unknown User". The caller's row wrapper merges it into
+ * one TalkBack stop (clickable, or `mergeDescendants` when it can't open a profile), so the
+ * row itself doesn't merge: a merge here made a second, unlabelled stop for the click.
  *
  * @param entry Wire row.
  * @param showStars Show the star images after the score (wide rows, web `QUERY_SHOW_STARS`).
@@ -774,8 +776,7 @@ fun ScoreRow(entry: LeaderboardEntry, showStars: Boolean = false, isSelected: Bo
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 48.dp)
-            .padding(horizontal = 8.dp)
-            .semantics(mergeDescendants = true) { },
+            .padding(horizontal = 8.dp),
     ) {
         Text("#${NumberFormat.getIntegerInstance().format(entry.rank)}", style = MaterialTheme.typography.labelLarge, fontWeight = weight, color = BrandTokens.textPrimary, modifier = Modifier.width(rankWidth))
         Text(

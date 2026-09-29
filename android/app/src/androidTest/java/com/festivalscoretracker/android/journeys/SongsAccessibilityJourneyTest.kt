@@ -89,7 +89,7 @@ class SongsAccessibilityJourneyTest {
     fun itemShop() {
         h.enableAccessibilityChecks()
         h.launch(DebugLaunch(route = DebugLaunch.parseRoute("shop"), profile = player, stillBackground = true), transport)
-        h.waitForTag("fst.shop.list")
+        rule.waitUntil(15_000) { h.exists("fst.shop.list") || h.exists("fst.shop.grid") }
         h.readingOrder("shop")
         // Grid/List only switches on wide panes (compact phones always list).
         if (h.exists("fst.shop.view-toggle")) {
