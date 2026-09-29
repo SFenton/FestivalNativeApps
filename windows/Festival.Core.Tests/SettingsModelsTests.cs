@@ -38,7 +38,7 @@ public class SettingsModelsTests
     [Fact]
     public void Labels_CoverEveryCase()
     {
-        Assert.Equal(["Score", "Percentage", "Percentile", "Season Achieved", "Intensity", "Game Difficulty", "Stars", "Last Played"],
+        Assert.Equal(["Score", "Percentage", "Percentile", "Season Achieved", "Intensity", "Difficulty", "Stars", "Last Played"],
             Enum.GetValues<MetadataField>().Select(f => f.Label()));
         Assert.Equal(["Note", "Beat", "Time", "OD", "Score"], Enum.GetValues<PathColumnKey>().Select(c => c.Label()));
         Assert.Equal("last-played", MetadataField.LastPlayed.Token());

@@ -1,4 +1,5 @@
 using Festival.App.Controls;
+using Festival.App.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -21,10 +22,49 @@ public sealed partial class SettingsPage : Page
         QuickLinksMenu.Model = ViewModel.QuickLinks;
         _ = new QuickLinksBinder(Scroller, ViewModel.QuickLinks, () => QuickLinksBinder.ReducedMotion(App.Session.Settings.ReduceMotion));
         ViewModel.ReplayRequested += (_, page) => MainWindow.Instance?.ShowFirstRunReplay(page);
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
     }
 
     /// <summary>Page model.</summary>
     public SettingsViewModel ViewModel { get; }
+
+    /// <summary>
+    /// In the tree (section shown, or popped back to): start Service Info polling, slower while the window is hidden.
+    /// Section switches swap frames without navigation events, so Loaded/Unloaded is the visibility signal.
+    /// </summary>
+    /// <param name="sender">Page.</param>
+    /// <param name="e">Unused.</param>
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        Motion.Changed -= OnMotionChanged;
+        Motion.Changed += OnMotionChanged;
+        ViewModel.ServiceInfo.Background = Motion.Paused;
+        ViewModel.Activate();
+    }
+
+    /// <summary>Out of the tree (another section, or Licenses pushed): stop polling.</summary>
+    /// <param name="sender">Page.</param>
+    /// <param name="e">Unused.</param>
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        Motion.Changed -= OnMotionChanged;
+        ViewModel.Deactivate();
+    }
+
+    /// <summary>Window hidden/shown: switch the Service Info cadence.</summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="e">Unused.</param>
+    private void OnMotionChanged(object? sender, EventArgs e) => ViewModel.ServiceInfo.Background = Motion.Paused;
+
+    /// <summary>A drag reorder finished: the list moved its rows in place, so save their new order.</summary>
+    /// <param name="sender">Song-row or path-column list.</param>
+    /// <param name="args">Drag result.</param>
+    private void OnReorderCompleted(ListViewBase sender, DragItemsCompletedEventArgs args)
+    {
+        if (args.DropResult == Windows.ApplicationModel.DataTransfer.DataPackageOperation.None) return;
+        if (sender.ItemsSource is IEnumerable<ReorderItemViewModel> rows) ViewModel.CommitDrag(rows);
+    }
 
     /// <summary>Wide page area: persistent Quick Links pane; otherwise the header menu.</summary>
     /// <param name="sender">Root grid.</param>

@@ -59,7 +59,7 @@ public static class SettingsLabels
         MetadataField.Percentile => "Percentile",
         MetadataField.Season => "Season Achieved",
         MetadataField.Intensity => "Intensity",
-        MetadataField.Difficulty => "Game Difficulty",
+        MetadataField.Difficulty => "Difficulty",
         MetadataField.Stars => "Stars",
         _ => "Last Played",
     };

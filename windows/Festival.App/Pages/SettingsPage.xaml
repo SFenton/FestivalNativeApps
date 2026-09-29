@@ -31,18 +31,37 @@
             <Setter Property="HorizontalAlignment" Value="Right" />
             <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
+        <!-- Web ReorderList row: grip dots + semibold label on a subtle surface; drag anywhere on the row to reorder.
+             Move Up/Down stay for keyboard and Narrator users (the web's keyboard sensor). -->
         <DataTemplate x:Key="ReorderRowTemplate" x:DataType="vm:ReorderItemViewModel">
-            <Grid ColumnSpacing="8" MinHeight="40" AutomationProperties.Name="{x:Bind AccessibleName}"
+            <Grid ColumnSpacing="16" MinHeight="48" Padding="16,0,8,0" Background="#0DFFFFFF"
+                  BorderBrush="#1AFFFFFF" BorderThickness="0,0,0,1"
+                  AutomationProperties.Name="{x:Bind AccessibleName}"
                   AutomationProperties.AutomationId="{x:Bind AutomationId}">
+                <Grid.Resources>
+                    <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="Transparent" />
+                    <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="Transparent" />
+                </Grid.Resources>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="28" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{x:Bind Position}" VerticalAlignment="Center" Foreground="{ThemeResource FSTSecondaryTextBrush}"
-                           AutomationProperties.AccessibilityView="Raw" />
-                <TextBlock Grid.Column="1" Text="{x:Bind Label}" VerticalAlignment="Center" />
+                <Path Width="12" Height="18" VerticalAlignment="Center" Fill="{ThemeResource FSTDeemphasisTextBrush}"
+                      AutomationProperties.AccessibilityView="Raw">
+                    <Path.Data>
+                        <GeometryGroup>
+                            <EllipseGeometry Center="3,3" RadiusX="1.5" RadiusY="1.5" />
+                            <EllipseGeometry Center="9,3" RadiusX="1.5" RadiusY="1.5" />
+                            <EllipseGeometry Center="3,9" RadiusX="1.5" RadiusY="1.5" />
+                            <EllipseGeometry Center="9,9" RadiusX="1.5" RadiusY="1.5" />
+                            <EllipseGeometry Center="3,15" RadiusX="1.5" RadiusY="1.5" />
+                            <EllipseGeometry Center="9,15" RadiusX="1.5" RadiusY="1.5" />
+                        </GeometryGroup>
+                    </Path.Data>
+                </Path>
+                <TextBlock Grid.Column="1" Text="{x:Bind Label}" VerticalAlignment="Center" FontWeight="SemiBold" />
                 <Button Grid.Column="2" Command="{x:Bind MoveUpCommand}" Padding="8,4" Background="Transparent" BorderThickness="0"
                         AutomationProperties.Name="{x:Bind MoveUpName}"
                         ToolTipService.ToolTip="Move up">
@@ -55,6 +74,30 @@
                 </Button>
             </Grid>
         </DataTemplate>
+        <Style x:Key="ReorderItemStyle" TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+        <Style x:Key="ReorderListStyle" TargetType="ListView">
+            <Setter Property="SelectionMode" Value="None" />
+            <Setter Property="CanDragItems" Value="True" />
+            <Setter Property="CanReorderItems" Value="True" />
+            <Setter Property="AllowDrop" Value="True" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="#1AFFFFFF" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Margin" Value="0,8,0,0" />
+            <Setter Property="ScrollViewer.VerticalScrollMode" Value="Disabled" />
+            <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="ItemTemplate" Value="{StaticResource ReorderRowTemplate}" />
+            <Setter Property="ItemContainerStyle" Value="{StaticResource ReorderItemStyle}" />
+        </Style>
+        <Style x:Key="SubsettingTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyStrongTextBlockStyle}">
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
     </Page.Resources>
 
     <Grid x:Name="Root" SizeChanged="OnRootSizeChanged">
@@ -110,22 +153,18 @@
                                               AutomationProperties.Name="Enable Independent Song Row Visual Order"
                                               AutomationProperties.AutomationId="fst.settings.enable-visual-order" />
                             </Grid>
-                            <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
-                                      Visibility="{x:Bind ViewModel.EnableVisualOrder, Mode=OneWay}"
-                                      AutomationProperties.Name="Song Row Visual Order"
-                                      AutomationProperties.AutomationId="fst.settings.song-row-order">
-                                <Expander.Header>
-                                    <StackPanel Padding="0,8" Spacing="4">
-                                        <TextBlock Text="Song Row Visual Order" Style="{StaticResource SettingTitleStyle}" />
-                                        <TextBlock Text="{x:Bind ViewModel.VisualOrderSummary, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}" />
-                                    </StackPanel>
-                                </Expander.Header>
-                                <StackPanel>
-                                    <TextBlock Text="When filtering to a single instrument in the song list, extra metadata is displayed. Choose the order it appears in on the bottom row."
-                                               Style="{StaticResource SettingDescriptionStyle}" Margin="0,0,0,8" />
-                                    <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.SongRowOrder, Mode=OneWay}" ItemTemplate="{StaticResource ReorderRowTemplate}" />
-                                </StackPanel>
-                            </Expander>
+                            <!-- Web: the order list appears directly under the switch while it is on (no expander). -->
+                            <StackPanel Visibility="{x:Bind ViewModel.EnableVisualOrder, Mode=OneWay}" Padding="0,0,0,8" Spacing="4">
+                                <TextBlock Text="Song Row Visual Order" Style="{StaticResource SubsettingTitleStyle}" AutomationProperties.HeadingLevel="Level3" />
+                                <TextBlock Text="When filtering to a single instrument in the song list, extra metadata is displayed. Choose the order it appears in on the bottom row."
+                                           Style="{StaticResource SettingDescriptionStyle}" />
+                                <TextBlock Text="{x:Bind ViewModel.VisualOrderSummary, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}"
+                                           Visibility="{x:Bind ViewModel.HasVisibleMetadata, Mode=OneWay, Converter={StaticResource FSTInverseVisibility}}" />
+                                <ListView Style="{StaticResource ReorderListStyle}" ItemsSource="{x:Bind ViewModel.SongRowOrder, Mode=OneWay}"
+                                          Visibility="{x:Bind ViewModel.HasVisibleMetadata, Mode=OneWay}" DragItemsCompleted="OnReorderCompleted"
+                                          AutomationProperties.Name="Song Row Visual Order"
+                                          AutomationProperties.AutomationId="fst.settings.song-row-order" />
+                            </StackPanel>
                             <!-- Web: title, description, then Image/Text radio buttons (not a dropdown). -->
                             <StackPanel Spacing="4" Padding="0,8">
                                 <TextBlock Text="CHOpt Path Default View" Style="{StaticResource SettingTitleStyle}" />
@@ -137,21 +176,15 @@
                                     <RadioButton Content="Text" AutomationProperties.AutomationId="fst.settings.path-default-view.text" />
                                 </RadioButtons>
                             </StackPanel>
-                            <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
-                                      AutomationProperties.Name="CHOpt Text Path Column Order"
-                                      AutomationProperties.AutomationId="fst.settings.path-column-order">
-                                <Expander.Header>
-                                    <StackPanel Padding="0,8" Spacing="4">
-                                        <TextBlock Text="CHOpt Text Path Column Order" Style="{StaticResource SettingTitleStyle}" />
-                                        <TextBlock Text="{x:Bind ViewModel.PathColumnSummary, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}" />
-                                    </StackPanel>
-                                </Expander.Header>
-                                <StackPanel>
-                                    <TextBlock Text="Choose the order columns appear in the CHOpt text path view."
-                                               Style="{StaticResource SettingDescriptionStyle}" Margin="0,0,0,8" />
-                                    <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.PathColumnOrder, Mode=OneWay}" ItemTemplate="{StaticResource ReorderRowTemplate}" />
-                                </StackPanel>
-                            </Expander>
+                            <StackPanel Padding="0,8" Spacing="4">
+                                <TextBlock Text="CHOpt Text Path Column Order" Style="{StaticResource SettingTitleStyle}" />
+                                <TextBlock Text="Choose the order columns appear in the CHOpt text path view."
+                                           Style="{StaticResource SettingDescriptionStyle}" />
+                                <ListView Style="{StaticResource ReorderListStyle}" ItemsSource="{x:Bind ViewModel.PathColumnOrder, Mode=OneWay}"
+                                          DragItemsCompleted="OnReorderCompleted"
+                                          AutomationProperties.Name="CHOpt Text Path Column Order"
+                                          AutomationProperties.AutomationId="fst.settings.path-column-order" />
+                            </StackPanel>
                             <Grid ColumnSpacing="12" MinHeight="56">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -159,7 +192,7 @@
                                 </Grid.ColumnDefinitions>
                                 <StackPanel VerticalAlignment="Center" Spacing="4">
                                     <TextBlock Text="Filter Invalid Scores" Style="{StaticResource SettingTitleStyle}" />
-                                    <TextBlock Text="Hide song scores that exceed the mathematical maximum by more than the leeway percentage." Style="{StaticResource SettingDescriptionStyle}" />
+                                    <TextBlock Text="When enabled, the app will attempt to filter out invalid leaderboard values based on the maximum score derived from the CHOpt path." Style="{StaticResource SettingDescriptionStyle}" />
                                 </StackPanel>
                                 <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" MinWidth="0" Width="52" IsOn="{x:Bind ViewModel.FilterInvalidScores, Mode=TwoWay}"
                                               AutomationProperties.Name="Filter Invalid Scores"
@@ -414,7 +447,8 @@
                             <TextBlock Grid.Row="1" Text="Build Configuration" />
                             <TextBlock Grid.Row="1" Grid.Column="1" Text="{x:Bind ViewModel.BuildConfiguration}" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
                             <TextBlock Grid.Row="2" Text="Service Version" />
-                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{x:Bind ViewModel.ServiceVersion}" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{x:Bind ViewModel.ServiceVersion, Mode=OneWay}" Foreground="{ThemeResource FSTSecondaryTextBrush}"
+                                       IsTextSelectionEnabled="True" AutomationProperties.AutomationId="fst.settings.service-version" />
                             <!-- Replays the launch What's New dialog (web: the changelog under Version). -->
                             <TextBlock Grid.Row="3" Text="What's New" VerticalAlignment="Center" />
                             <Button Grid.Row="3" Grid.Column="1" Content="Show" Click="OnShowWhatsNew"
@@ -424,21 +458,56 @@
                     </Border>
                 </StackPanel>
 
-                <!-- Service -->
+                <!-- Service Info (web SettingsServiceProgressCard): live update state, phase progress, last publication. -->
                 <StackPanel controls:QuickLinkAnchor.Id="service-info">
-                    <TextBlock Text="Service" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
-                    <TextBlock Text="Check the live score publication." Style="{StaticResource SectionSubtitleStyle}" />
-                    <Border Style="{StaticResource FSTCardStyle}">
-                        <StackPanel Spacing="8">
-                            <StackPanel Orientation="Horizontal" Spacing="12">
-                                <Button Content="Check Publication" Command="{x:Bind ViewModel.CheckPublicationCommand}"
-                                        AutomationProperties.AutomationId="fst.settings.check-publication" />
-                                <ProgressRing IsActive="{x:Bind ViewModel.IsCheckingPublication, Mode=OneWay}" Width="20" Height="20" />
+                    <TextBlock Text="Service Info" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
+                    <TextBlock Text="Live leaderboard update status, exact phase progress when available, and publication timing." Style="{StaticResource SectionSubtitleStyle}" />
+                    <Border Style="{StaticResource FSTCardStyle}" Padding="16,8" AutomationProperties.AutomationId="fst.settings.service-info">
+                        <StackPanel Spacing="4">
+                            <Grid ColumnSpacing="12" MinHeight="56" AutomationProperties.AutomationId="fst.settings.service-info.state">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Spacing="4">
+                                    <TextBlock Text="Leaderboard Service State" Style="{StaticResource SettingTitleStyle}" />
+                                    <TextBlock Text="{x:Bind ViewModel.ServiceInfo.StateDescription, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}"
+                                               AutomationProperties.LiveSetting="Polite" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <TextBlock Text="{x:Bind ViewModel.ServiceInfo.ProcessStateText, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}"
+                                               VerticalAlignment="Center" AutomationProperties.AutomationId="fst.settings.service-info.process" />
+                                    <ProgressRing Width="16" Height="16" IsActive="{x:Bind ViewModel.ServiceInfo.ShowsSpinner, Mode=OneWay}"
+                                                  Visibility="{x:Bind ViewModel.ServiceInfo.ShowsSpinner, Mode=OneWay}"
+                                                  AutomationProperties.AccessibilityView="Raw" />
+                                </StackPanel>
+                            </Grid>
+                            <StackPanel Spacing="6" Padding="0,4,0,8" Visibility="{x:Bind ViewModel.ServiceInfo.HasPhase, Mode=OneWay}"
+                                        AutomationProperties.Name="{x:Bind ViewModel.ServiceInfo.PhaseAccessibleName, Mode=OneWay}"
+                                        AutomationProperties.AutomationId="fst.settings.service-info.phase">
+                                <StackPanel.Resources>
+                                    <x:Double x:Key="ProgressBarTrackHeight">8</x:Double>
+                                    <CornerRadius x:Key="ProgressBarTrackCornerRadius">4</CornerRadius>
+                                </StackPanel.Resources>
+                                <TextBlock Text="{x:Bind ViewModel.ServiceInfo.PhaseTitle, Mode=OneWay}" Style="{StaticResource SettingTitleStyle}" />
+                                <!-- Unknown totals show an empty track and the caption rather than a looping shimmer (no idle animation). -->
+                                <ProgressBar Height="8" MinHeight="8" CornerRadius="4" Maximum="100" Value="{x:Bind ViewModel.ServiceInfo.BarPercent, Mode=OneWay}"
+                                             Foreground="#FF7C3AED" Background="#FF223047"
+                                             Visibility="{x:Bind ViewModel.ServiceInfo.HasBar, Mode=OneWay}" AutomationProperties.AccessibilityView="Raw" />
+                                <TextBlock Text="{x:Bind ViewModel.ServiceInfo.ProgressText, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
+                                           Visibility="{x:Bind ViewModel.ServiceInfo.HasBar, Mode=OneWay}" />
+                                <TextBlock Text="{x:Bind ViewModel.ServiceInfo.UnitsText, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
+                                           Visibility="{x:Bind ViewModel.ServiceInfo.HasUnits, Mode=OneWay}" />
                             </StackPanel>
-                            <TextBlock Text="{x:Bind ViewModel.PublicationStatus, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}"
-                                       AutomationProperties.LiveSetting="Polite"
-                                       AutomationProperties.AutomationId="fst.settings.publication-status" />
-                            <TextBlock Text="{x:Bind ViewModel.ServiceOrigin}" Style="{StaticResource SettingDescriptionStyle}" />
+                            <StackPanel Spacing="4" MinHeight="48" Visibility="{x:Bind ViewModel.ServiceInfo.HasFreezeNotice, Mode=OneWay}"
+                                        AutomationProperties.AutomationId="fst.settings.service-info.freeze">
+                                <TextBlock Text="Public Reads" Style="{StaticResource SettingTitleStyle}" />
+                                <TextBlock Text="{x:Bind ViewModel.ServiceInfo.FreezeNotice, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}" />
+                            </StackPanel>
+                            <StackPanel Spacing="4" MinHeight="56" Padding="0,8" AutomationProperties.AutomationId="fst.settings.service-info.last-published">
+                                <TextBlock Text="Last Successful Publication" Style="{StaticResource SettingTitleStyle}" />
+                                <TextBlock Text="{x:Bind ViewModel.ServiceInfo.LastPublished, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}" />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
                 </StackPanel>
@@ -446,21 +515,31 @@
                 <!-- First Run Guides -->
                 <StackPanel controls:QuickLinkAnchor.Id="first-run">
                     <TextBlock Text="First Run Guides" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
-                    <TextBlock Text="Show a page's introduction again, including every slide." Style="{StaticResource SectionSubtitleStyle}" />
+                    <TextBlock Text="Re-visit the first run experience for each page." Style="{StaticResource SectionSubtitleStyle}" />
                     <Border Style="{StaticResource FSTCardStyle}" Padding="16,8">
+                        <!-- Web btnPrimary: translucent blue chip with a blue outline (lightweight styling scoped to this card). -->
+                        <Border.Resources>
+                            <SolidColorBrush x:Key="ButtonBackground" Color="#662D82E6" />
+                            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#8C2D82E6" />
+                            <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#4D2D82E6" />
+                            <SolidColorBrush x:Key="ButtonForeground" Color="#FFFFFFFF" />
+                            <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#FFFFFFFF" />
+                            <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#E6FFFFFF" />
+                            <SolidColorBrush x:Key="ButtonBorderBrush" Color="#FF2D82E6" />
+                            <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#FF4A95EC" />
+                            <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="#FF2D82E6" />
+                        </Border.Resources>
                         <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.FirstRunPages}">
                             <ItemsRepeater.ItemTemplate>
                                 <DataTemplate x:DataType="vm:FirstRunReplayItem">
-                                    <Grid ColumnSpacing="12" MinHeight="48">
+                                    <Grid ColumnSpacing="12" MinHeight="52">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <StackPanel VerticalAlignment="Center" Spacing="4">
-                                            <TextBlock Text="{x:Bind Label}" />
-                                            <TextBlock Text="{x:Bind Detail}" Style="{StaticResource SettingDescriptionStyle}" />
-                                        </StackPanel>
+                                        <TextBlock Text="{x:Bind Label}" VerticalAlignment="Center" FontWeight="SemiBold" />
                                         <Button Grid.Column="1" Content="Show" Click="OnReplayClick" Tag="{x:Bind Page}" MinWidth="80"
+                                                FontWeight="SemiBold" BorderThickness="1" CornerRadius="4" Padding="20,6"
                                                 AutomationProperties.Name="{x:Bind ButtonName}"
                                                 AutomationProperties.AutomationId="{x:Bind AutomationId}" />
                                     </Grid>
@@ -470,31 +549,59 @@
                     </Border>
                 </StackPanel>
 
-                <!-- Licenses -->
-                <StackPanel controls:QuickLinkAnchor.Id="licenses">
-                    <TextBlock Text="Licenses" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
-                    <TextBlock Text="Open source package license details." Style="{StaticResource SectionSubtitleStyle}" />
-                    <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="16,12" Click="OnLicensesClick"
-                            Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}"
-                            CornerRadius="{StaticResource OverlayCornerRadius}"
-                            AutomationProperties.Name="View Licenses" AutomationProperties.AutomationId="fst.settings.licenses">
-                        <Grid>
-                            <TextBlock Text="View Licenses" />
-                            <FontIcon Glyph="&#xE76C;" FontSize="12" HorizontalAlignment="Right" AutomationProperties.AccessibilityView="Raw" />
+                <!-- Licenses: web navigation row — the section header itself is the link, with a trailing chevron (no card). -->
+                <StackPanel controls:QuickLinkAnchor.Id="licenses" Margin="0,8,0,0">
+                    <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Padding="0,4,4,4" Click="OnLicensesClick"
+                            Background="Transparent" BorderThickness="0" CornerRadius="{StaticResource ControlCornerRadius}"
+                            AutomationProperties.Name="Licenses" AutomationProperties.HelpText="Open source package license details."
+                            AutomationProperties.AutomationId="fst.settings.licenses">
+                        <Button.Resources>
+                            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#14FFFFFF" />
+                            <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#0AFFFFFF" />
+                            <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#FFFFFFFF" />
+                            <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#E6FFFFFF" />
+                        </Button.Resources>
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Licenses" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0,0,0,8" />
+                                <TextBlock Text="Open source package license details." Style="{StaticResource SettingDescriptionStyle}" />
+                            </StackPanel>
+                            <FontIcon Grid.Column="1" Glyph="&#xE76C;" FontSize="18" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
                         </Grid>
                     </Button>
                 </StackPanel>
 
-                <!-- Reset -->
-                <StackPanel controls:QuickLinkAnchor.Id="reset">
-                    <TextBlock Text="Reset Settings" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
-                    <TextBlock Text="Restore all settings to their default values. Your profile, song filters and navigation stay."
-                               Style="{StaticResource SectionSubtitleStyle}" />
-                    <Border Style="{StaticResource FSTCardStyle}">
-                        <Button Content="Reset All Settings" Click="OnResetClick"
-                                AutomationProperties.AutomationId="fst.settings.reset" />
-                    </Border>
-                </StackPanel>
+                <!-- Reset: web resetRow — header and description, red "Reset All Settings" beside them. -->
+                <Grid controls:QuickLinkAnchor.Id="reset" ColumnSpacing="24" Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="Reset Settings" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
+                        <TextBlock Text="Restore all settings to their default values. Your profile, song filters and navigation stay."
+                                   Style="{StaticResource SettingDescriptionStyle}" />
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="Reset All Settings" Click="OnResetClick" VerticalAlignment="Center"
+                            FontWeight="SemiBold" CornerRadius="4" Padding="16,8" MinWidth="180"
+                            AutomationProperties.AutomationId="fst.settings.reset">
+                        <Button.Resources>
+                            <SolidColorBrush x:Key="ButtonBackground" Color="#FFC62828" />
+                            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#FFD84343" />
+                            <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#FFA82020" />
+                            <SolidColorBrush x:Key="ButtonForeground" Color="#FFFFFFFF" />
+                            <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#FFFFFFFF" />
+                            <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#E6FFFFFF" />
+                            <SolidColorBrush x:Key="ButtonBorderBrush" Color="#FFC62828" />
+                            <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#FFD84343" />
+                            <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="#FFA82020" />
+                        </Button.Resources>
+                    </Button>
+                </Grid>
             </StackPanel>
         </ScrollViewer>
 

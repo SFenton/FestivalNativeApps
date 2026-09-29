@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -8,13 +9,13 @@ namespace Festival.Core.ViewModels;
 #region Settings
 /// <summary>
 /// Settings page (web <c>SettingsPage.tsx</c>): App Settings, Debug-only Diagnostics, Item Shop, Show Instruments,
-/// Show Instrument Metadata, the native additive Accessibility section, Version, Service, First Run Guides, Licenses
-/// and an app-only Reset. Every value persists through <see cref="FestivalSession.UpdateSettings"/>.
+/// Show Instrument Metadata, the native additive Accessibility section, Version, live Service Info, First Run Guides,
+/// Licenses and an app-only Reset. Every value persists through <see cref="FestivalSession.UpdateSettings"/>.
 /// </summary>
 public sealed partial class SettingsViewModel : ObservableObject
 {
     private readonly FestivalSession session;
-    private CancellationTokenSource? publicationCheck;
+    private bool serviceVersionRequested;
 
     /// <summary>Creates the page model.</summary>
     /// <param name="session">Shared session.</param>
@@ -30,6 +31,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         FirstRunPages = Enum.GetValues<FirstRunPageKey>().Select(p => new FirstRunReplayItem(p)).ToList();
         QuickLinks = new QuickLinksViewModel("Quick Links", 32);
         QuickLinks.SetSections(QuickLinkSections());
+        ServiceInfo = new SettingsServiceInfoViewModel(session.Api, session.Time);
         RebuildOrders();
         session.PropertyChanged += OnSessionChanged;
     }
@@ -52,13 +54,17 @@ public sealed partial class SettingsViewModel : ObservableObject
         set => session.UpdateSettings(s => s with { EnableVisualOrder = value });
     }
 
-    /// <summary>Song-row metadata order rows (Move Up/Down reorder).</summary>
+    /// <summary>Visible song-row metadata fields in their saved order (drag or Move Up/Down to reorder, as on the web).</summary>
     [ObservableProperty]
-    private List<ReorderItemViewModel> songRowOrder = [];
+    [NotifyPropertyChangedFor(nameof(HasVisibleMetadata))]
+    private ObservableCollection<ReorderItemViewModel> songRowOrder = [];
+
+    /// <summary>Whether any metadata field is visible (else the list is replaced by the "none visible" sentence).</summary>
+    public bool HasVisibleMetadata => SongRowOrder.Count > 0;
 
     /// <summary>CHOpt text-path column order rows.</summary>
     [ObservableProperty]
-    private List<ReorderItemViewModel> pathColumnOrder = [];
+    private ObservableCollection<ReorderItemViewModel> pathColumnOrder = [];
 
     /// <summary>Visible metadata fields in the saved order.</summary>
     public string VisualOrderSummary
@@ -242,60 +248,42 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Build configuration.</summary>
     public string BuildConfiguration => IsDebugBuild ? "Debug" : "Release";
 
-    /// <summary>Service version: <c>/api/version</c> is not on the verified-read allowlist, so this is disclosed.</summary>
-    public string ServiceVersion => "Not yet available";
+    /// <summary>Service build version from <c>/api/version</c> ("Loading" until read, "Unavailable" on failure).</summary>
+    [ObservableProperty]
+    private string serviceVersion = "Loading";
 
     /// <summary>Service origin.</summary>
     public string ServiceOrigin => session.Api.BaseUri.GetLeftPart(UriPartial.Authority);
 
-    /// <summary>Result of the last publication check.</summary>
-    [ObservableProperty]
-    private string? publicationStatus;
+    /// <summary>Live Service Info card.</summary>
+    public SettingsServiceInfoViewModel ServiceInfo { get; }
 
-    /// <summary>Whether a check is running.</summary>
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(CheckPublicationCommand))]
-    private bool isCheckingPublication;
-
-    /// <summary>Re-reads the publication and catalogue (keyless public GETs) and reports the outcome.</summary>
-    /// <returns>Task.</returns>
-    [RelayCommand(CanExecute = nameof(CanCheckPublication))]
-    private async Task CheckPublicationAsync()
+    /// <summary>Settings became visible: start Service Info polling and read the service version once.</summary>
+    public void Activate()
     {
-        publicationCheck?.Cancel();
-        var cts = publicationCheck = new CancellationTokenSource();
-        IsCheckingPublication = true;
-        PublicationStatus = "Checking…";
-        try
-        {
-            var publication = await session.Api.GetPublicationAsync(force: true, cts.Token);
-            try
-            {
-                var songs = await session.LoadCatalogAsync(force: true, cts.Token);
-                PublicationStatus = $"Publication {publication.PublicationId}; {songs.Songs.Count} songs";
-            }
-            catch (FestivalApiException error)
-            {
-                PublicationStatus = $"Publication {publication.PublicationId}; songs update failed: {ServiceIssue.From(error).Message}";
-            }
-        }
-        catch (FestivalApiException error)
-        {
-            PublicationStatus = "Publication unavailable: " + ServiceIssue.From(error).Message;
-        }
-        catch (OperationCanceledException)
-        {
-            // Superseded.
-        }
-        finally
-        {
-            if (ReferenceEquals(cts, publicationCheck)) IsCheckingPublication = false;
-        }
+        ServiceInfo.Start();
+        if (serviceVersionRequested) return;
+        serviceVersionRequested = true;
+        _ = LoadServiceVersionAsync();
     }
 
-    /// <summary>Whether a check can start.</summary>
-    /// <returns><see langword="true"/> when idle.</returns>
-    private bool CanCheckPublication() => !IsCheckingPublication;
+    /// <summary>Settings hidden: stop polling.</summary>
+    public void Deactivate() => ServiceInfo.Stop();
+
+    /// <summary>Reads <c>/api/version</c> (a pure, keyless read); a failure allows a later retry.</summary>
+    /// <returns>Task.</returns>
+    internal async Task LoadServiceVersionAsync()
+    {
+        try
+        {
+            ServiceVersion = await session.Api.GetServiceVersionAsync();
+        }
+        catch (FestivalApiException)
+        {
+            ServiceVersion = "Unavailable";
+            serviceVersionRequested = false;
+        }
+    }
     #endregion
 
     #region First run, quick links and reset
@@ -334,7 +322,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             new("show-metadata", "Show Instrument Metadata", ""),
             new("accessibility", "Accessibility", ""),
             new("version", "Version", ""),
-            new("service-info", "Service", ""),
+            new("service-info", "Service Info", ""),
             new("first-run", "First Run Guides", ""),
             new("licenses", "Licenses", ""),
             new("reset", "Reset Settings", ""),
@@ -344,28 +332,69 @@ public sealed partial class SettingsViewModel : ObservableObject
     #endregion
 
     #region Orders
-    /// <summary>Moves a song-row field.</summary>
-    /// <param name="index">Index.</param>
+    /// <summary>
+    /// Saves a new visible song-row order (after a drag or a move); fields hidden in Show Instrument Metadata keep their
+    /// relative order after the visible ones, as on the web.
+    /// </summary>
+    /// <param name="visible">Visible fields in their new order.</param>
+    public void ApplySongRowOrder(IEnumerable<MetadataField> visible)
+    {
+        var order = visible.ToList();
+        session.UpdateSettings(s => s with
+        {
+            SongRowVisualOrder = SettingsOrder.Normalize([.. order, .. s.SongRowVisualOrder.Where(f => !order.Contains(f))]),
+        });
+        RebuildOrders();
+    }
+
+    /// <summary>Saves a new CHOpt text-path column order.</summary>
+    /// <param name="columns">Columns in their new order.</param>
+    public void ApplyPathColumnOrder(IEnumerable<PathColumnKey> columns)
+    {
+        var order = columns.ToList();
+        session.UpdateSettings(s => s with { PathColumnOrder = SettingsOrder.Normalize(order) });
+        RebuildOrders();
+    }
+
+    /// <summary>Persists a list's row order after a drag (the ListView moved its items in place).</summary>
+    /// <param name="rows">Rows in their dropped order.</param>
+    public void CommitDrag(IEnumerable<ReorderItemViewModel> rows)
+    {
+        var list = rows.ToList();
+        if (list.Count == 0) return;
+        if (list.All(r => r.Key is MetadataField)) ApplySongRowOrder(list.Select(r => (MetadataField)r.Key));
+        else if (list.All(r => r.Key is PathColumnKey)) ApplyPathColumnOrder(list.Select(r => (PathColumnKey)r.Key));
+    }
+
+    /// <summary>Moves a visible song-row field.</summary>
+    /// <param name="index">Index among visible fields.</param>
     /// <param name="offset">-1 or +1.</param>
     internal void MoveSongRowField(int index, int offset) =>
-        session.UpdateSettings(s => s with { SongRowVisualOrder = SettingsOrder.Move(s.SongRowVisualOrder, index, offset) });
+        ApplySongRowOrder(SettingsOrder.Move([.. SongRowOrder.Select(r => (MetadataField)r.Key)], index, offset));
 
     /// <summary>Moves a path column.</summary>
     /// <param name="index">Index.</param>
     /// <param name="offset">-1 or +1.</param>
     internal void MovePathColumn(int index, int offset) =>
-        session.UpdateSettings(s => s with { PathColumnOrder = SettingsOrder.Move(s.PathColumnOrder, index, offset) });
+        ApplyPathColumnOrder(SettingsOrder.Move([.. PathColumnOrder.Select(r => (PathColumnKey)r.Key)], index, offset));
 
-    /// <summary>Rebuilds reorder rows when the saved orders change.</summary>
+    /// <summary>Rebuilds reorder rows when the saved orders, visibility or row indices change.</summary>
     private void RebuildOrders()
     {
-        var rows = session.Settings.SongRowVisualOrder;
-        if (!rows.Select(r => r.Label()).SequenceEqual(SongRowOrder.Select(r => r.Label)))
-            SongRowOrder = rows.Select((f, i) => new ReorderItemViewModel(f.Label(), "fst.settings.song-row-order." + f.Token(), i, rows.Count, MoveSongRowField)).ToList();
+        var rows = session.Settings.SongRowVisualOrder.Where(session.Settings.IsMetadataVisible).ToList();
+        if (!IsCurrent(SongRowOrder, [.. rows.Cast<object>()]))
+            SongRowOrder = [.. rows.Select((f, i) => new ReorderItemViewModel(f, f.Label(), "fst.settings.song-row-order." + f.Token(), i, rows.Count, MoveSongRowField))];
         var columns = session.Settings.PathColumnOrder;
-        if (!columns.Select(c => c.Label()).SequenceEqual(PathColumnOrder.Select(r => r.Label)))
-            PathColumnOrder = columns.Select((c, i) => new ReorderItemViewModel(c.Label(), "fst.settings.path-column-order." + c.ToString().ToLowerInvariant(), i, columns.Count, MovePathColumn)).ToList();
+        if (!IsCurrent(PathColumnOrder, [.. columns.Cast<object>()]))
+            PathColumnOrder = [.. columns.Select((c, i) => new ReorderItemViewModel(c, c.Label(), "fst.settings.path-column-order." + c.ToString().ToLowerInvariant(), i, columns.Count, MovePathColumn))];
     }
+
+    /// <summary>Whether rows already show these keys with matching indices.</summary>
+    /// <param name="rows">Current rows.</param>
+    /// <param name="keys">Saved keys.</param>
+    /// <returns><see langword="true"/> when no rebuild is needed.</returns>
+    private static bool IsCurrent(IList<ReorderItemViewModel> rows, List<object> keys) =>
+        rows.Count == keys.Count && rows.Select((r, i) => r.Key.Equals(keys[i]) && r.Index == i && r.Count == keys.Count).All(ok => ok);
     #endregion
 
     /// <summary>Re-raises derived properties on settings changes.</summary>
@@ -482,25 +511,30 @@ public sealed partial class MetadataToggle : ObservableObject
     }
 }
 
-/// <summary>One row of a reorderable list with Move Up/Move Down (keyboard and Narrator friendly).</summary>
+/// <summary>One row of a drag-to-reorder list, with Move Up/Move Down for keyboard and Narrator users.</summary>
 public sealed partial class ReorderItemViewModel
 {
     private readonly Action<int, int> move;
 
     /// <summary>Creates a row.</summary>
+    /// <param name="key">Field or column this row stands for.</param>
     /// <param name="label">Label.</param>
     /// <param name="automationId">Automation ID.</param>
     /// <param name="index">Index.</param>
     /// <param name="count">Row count.</param>
     /// <param name="move">Move callback (index, offset).</param>
-    internal ReorderItemViewModel(string label, string automationId, int index, int count, Action<int, int> move)
+    internal ReorderItemViewModel(object key, string label, string automationId, int index, int count, Action<int, int> move)
     {
+        Key = key;
         Label = label;
         AutomationId = automationId;
         Index = index;
         Count = count;
         this.move = move;
     }
+
+    /// <summary>Field (<see cref="MetadataField"/>) or column (<see cref="PathColumnKey"/>).</summary>
+    public object Key { get; }
 
     /// <summary>Label.</summary>
     public string Label { get; }
@@ -550,9 +584,6 @@ public sealed class FirstRunReplayItem(FirstRunPageKey page)
 
     /// <summary>Label.</summary>
     public string Label => Page.Label();
-
-    /// <summary>Slide count.</summary>
-    public string Detail => $"{FirstRunCatalog.Slides(Page).Count} slides";
 
     /// <summary>Automation ID.</summary>
     public string AutomationId => "fst.settings.first-run." + Page.Key();

@@ -120,7 +120,7 @@ public sealed record AppSettings
     [JsonPropertyName("metadataSeason")] public bool MetadataSeason { get; set; } = true;
     /// <summary>Show the Intensity metadata field.</summary>
     [JsonPropertyName("metadataIntensity")] public bool MetadataIntensity { get; set; } = true;
-    /// <summary>Show the Game Difficulty metadata field.</summary>
+    /// <summary>Show the Difficulty metadata field.</summary>
     [JsonPropertyName("metadataDifficulty")] public bool MetadataDifficulty { get; set; } = true;
     /// <summary>Show the Stars metadata field.</summary>
     [JsonPropertyName("metadataStars")] public bool MetadataStars { get; set; } = true;

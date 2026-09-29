@@ -46,7 +46,7 @@ public class SettingsPageTests
     {
         var (vm, store, _) = Create();
         Assert.Equal(8, vm.SongRowOrder.Count);
-        Assert.Equal("Score · Percentage · Percentile · Season Achieved · Intensity · Game Difficulty · Stars · Last Played", vm.VisualOrderSummary);
+        Assert.Equal("Score · Percentage · Percentile · Season Achieved · Intensity · Difficulty · Stars · Last Played", vm.VisualOrderSummary);
         Assert.Equal("Note · Beat · Time · OD · Score", vm.PathColumnSummary);
         var first = vm.SongRowOrder[0];
         Assert.Equal(("Score", "1", "Score, position 1 of 8", "fst.settings.song-row-order.score"), (first.Label, first.Position, first.AccessibleName, first.AutomationId));
@@ -146,12 +146,12 @@ public class SettingsPageTests
     public void Version_AndReplayAndReset()
     {
         var (vm, store, _) = Create(new AppSettings { SelectedPlayer = Player, SongSort = SongSortMode.Artist, HideShop = true, Leeway = 3 });
-        Assert.Equal(("0.1.0", "Not yet available"), (vm.AppVersion, vm.ServiceVersion));
+        Assert.Equal(("0.1.0", "Loading"), (vm.AppVersion, vm.ServiceVersion));
         Assert.Equal("Unknown", new SettingsViewModel(new FakeService().Session(), "").AppVersion);
 
         Assert.Equal(9, vm.FirstRunPages.Count);
         var songs = vm.FirstRunPages[0];
-        Assert.Equal(("Songs", "9 slides", "fst.settings.first-run.songs", "Show Songs guide"), (songs.Label, songs.Detail, songs.AutomationId, songs.ButtonName));
+        Assert.Equal(("Songs", "fst.settings.first-run.songs", "Show Songs guide"), (songs.Label, songs.AutomationId, songs.ButtonName));
         FirstRunPageKey? requested = null;
         vm.ReplayRequested += (_, page) => requested = page;
         vm.ReplayFirstRunCommand.Execute(FirstRunPageKey.Shop);
@@ -162,55 +162,6 @@ public class SettingsPageTests
         Assert.Equal(SongSortMode.Artist, store.Current.SongSort);
         Assert.False(store.Current.HideShop);
         Assert.Equal(1, store.Current.Leeway);
-    }
-
-    [Fact]
-    public async Task CheckPublication_ReportsSuccessAndFailures()
-    {
-        var (vm, _, _) = Create();
-        await vm.CheckPublicationCommand.ExecuteAsync(null);
-        Assert.Equal("Publication 7; 3 songs", vm.PublicationStatus);
-        Assert.False(vm.IsCheckingPublication);
-
-        var songsDown = new FakeService();
-        songsDown.Override = r => r.RequestUri!.AbsolutePath == "/api/songs" ? Wire.Response(HttpStatusCode.ServiceUnavailable) : null;
-        var (failing, _, _) = Create(service: songsDown);
-        await failing.CheckPublicationCommand.ExecuteAsync(null);
-        Assert.StartsWith("Publication 7; songs update failed: ", failing.PublicationStatus);
-
-        var down = new FakeService { Override = _ => Wire.Response(HttpStatusCode.ServiceUnavailable) };
-        var (offline, _, _) = Create(service: down);
-        await offline.CheckPublicationCommand.ExecuteAsync(null);
-        Assert.StartsWith("Publication unavailable: ", offline.PublicationStatus);
-    }
-
-    [Fact]
-    public async Task CheckPublication_NewerCheckSupersedesOlder()
-    {
-        var gate = new TaskCompletionSource();
-        var service = new FakeService();
-        var calls = 0;
-        service.Handler.Responder = async (request, token) =>
-        {
-            if (request.RequestUri!.AbsolutePath == "/api/publication" && Interlocked.Increment(ref calls) == 1)
-                await gate.Task.WaitAsync(token);
-            return request.RequestUri!.AbsolutePath == "/api/publication"
-                ? Wire.Ok(Wire.Publication())
-                : Wire.Ok(Wire.DefaultSongs(), ("X-FST-Publication-Id", "7"));
-        };
-        var (vm, _, _) = Create(service: service);
-        var first = vm.CheckPublicationCommand.ExecuteAsync(null);
-        Assert.True(vm.IsCheckingPublication);
-        Assert.False(vm.CheckPublicationCommand.CanExecute(null));
-        Assert.Equal("Checking…", vm.PublicationStatus);
-        // CanExecute is false while running, so call the method directly to supersede the first check.
-        var method = typeof(SettingsViewModel).GetMethod("CheckPublicationAsync", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-        var second = (Task)method.Invoke(vm, null)!;
-        await second;
-        gate.SetResult();
-        await first;
-        Assert.Equal("Publication 7; 3 songs", vm.PublicationStatus);
-        Assert.False(vm.IsCheckingPublication);
     }
 
     [Fact]
@@ -236,7 +187,7 @@ public class SettingsPageTests
         Assert.True(zeta.HasUrl);
         Assert.Equal(new Uri("https://example.com/z"), zeta.Url);
         Assert.False(vm.Packages[0].HasUrl);
-        Assert.Equal("Instrument Iconography", Assert.Single(vm.Assets).Name);
+        Assert.DoesNotContain(vm.Packages, p => p.Name.Contains("Iconography", StringComparison.Ordinal));
 
         Assert.Empty(LicenseManifest.Parse(null).Packages);
         Assert.Empty(LicenseManifest.Parse("broken"u8.ToArray()).Packages);
