@@ -85,7 +85,7 @@ Not shown. The web adds Adjusted/Weighted/FC Rate/Max Score rank tiles only when
 - Robolectric: `ui/profile/ProfileUiTest` (search → view → select → Statistics → deselect, switch, cold start, history), `ProfileParityUiTest` (Quick Links sheet, top songs, Bands preview/empty, tile → Songs filter, confirmed switch before a tile, paused selection, Global Rank → Full Rankings), `ProfileChartsDrawTest` (`@GraphicsMode(NATIVE)`, draws the window so the Canvas code runs), `ProfileParityExpandedUiTest` (pane at 1280 dp).
 - Device: `androidTest/.../profile/ProfileDeviceJourneyTest` (select/deselect and switch stay on the page, tile → Songs filter, top song → Song Detail, history sort; asserts no card crosses a separating hinge). Run `python tools/android/device.py test com.festivalscoretracker.android.profile.ProfileDeviceJourneyTest --avd FST_Phone` and `--avd FST_Book_Fold --posture half`. `androidTest` shares the JVM tests' synthetic `testing/` fixtures.
 - JVM also: `core/profile/ChartScaleTest` (recharts-scale values), `RankHistoryWindowTest` (6.25 constant-rank regression).
-- Fixture screenshots (mock service, synthetic data): `android/reports/screenshots/profile3-*.png` (current cards) and `profile2-*.png` (earlier layout, Quick Links, tri-fold).
+- Fixture screenshots (mock service, synthetic data): `android/reports/screenshots/profile3-*.png` (current cards: phone overview, instrument, empty charts, Leaderboards, Full Rankings; book fold half-open profile and Leaderboards) and `profile2-*.png` (earlier layout, Quick Links, tri-fold).
 
 ## Gaps
 
