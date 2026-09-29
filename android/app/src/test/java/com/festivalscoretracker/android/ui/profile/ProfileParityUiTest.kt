@@ -25,6 +25,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.festivalscoretracker.android.core.profile.ScoreHistoryChartModel
+import com.festivalscoretracker.android.core.profile.ScoreHistoryEntry
 import com.festivalscoretracker.android.AppContainer
 import com.festivalscoretracker.android.bands.BandFixtures
 import com.festivalscoretracker.android.core.model.Instrument
@@ -319,6 +321,17 @@ class ProfileChartsDrawTest {
         val bitmap = Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888)
         rule.runOnUiThread { root.draw(Canvas(bitmap)) }
         return (0 until bitmap.height step 16).any { y -> (0 until bitmap.width step 16).any { x -> bitmap.getPixel(x, y) != 0 } }
+    }
+
+    @Test
+    fun scoreHistoryChartDraws() {
+        val entries = (1..4).map { day ->
+            ScoreHistoryEntry(songId = "s-alpha", instrument = "Solo_Guitar", newScore = 80_000L + day * 1_000, newRank = 10 - day, scoreAchievedAt = "2026-09-0${day}T12:00:00Z")
+        }
+        val chart = ScoreHistoryChartModel.build(entries)!!
+        rule.setContent { ScoreHistoryChart(chart) }
+        rule.waitForIdle()
+        assertTrue(draw())
     }
 
     @Test
