@@ -44,6 +44,10 @@ struct SongsScreen: View {
     @State private var toolsInBar = false
     /// In-list section titles (iOS 26) that have scrolled up to the section bar.
     @State private var passedSectionHeaders: Set<String> = []
+    /// The List has scrolled away from its top (the large title has collapsed).
+    @State private var listScrolled = false
+    /// Bottom edge of the section bar (global), for masking rows under it.
+    @State private var sectionBarBottom: CGFloat = 0
     @Environment(\.openProfile) private var openProfile
     @Environment(\.deviceLayout) private var deviceLayout
     /// True where Filter/Sort live in the iPhone bottom dock instead of the toolbar.
@@ -938,15 +942,15 @@ struct SongsScreen: View {
                         // scroll-edge effect, with no opaque backing (operator batch 7).
                         // The in-list titles are ordinary rows marking where each section
                         // starts; the first section's title is the bar itself.
+                        // Flat rows, no `Section`: iOS 26 plain Lists draw an opaque band
+                        // for a header-less section.
                         ForEach(groups) { group in
-                            Section {
-                                inlineGroupHeader(group, isFirst: group.id == groups.first?.id)
-                                ForEach(group.songs) { song in
-                                    songLink(
-                                        for: song, catalogueObservation: payload.observedPublicationId,
-                                        fadeIndex: fadeOrder[song.songId]
-                                    )
-                                }
+                            inlineGroupHeader(group)
+                            ForEach(group.songs) { song in
+                                songLink(
+                                    for: song, catalogueObservation: payload.observedPublicationId,
+                                    fadeIndex: fadeOrder[song.songId]
+                                )
                             }
                         }
                     } else if let groups {
@@ -975,11 +979,24 @@ struct SongsScreen: View {
                     }
                 }
                 .listStyle(.plain)
-                .modifier(SongsSectionBar(
-                    label: groups.flatMap { currentGroup(in: $0) }.map { $0.spokenLabel ?? $0.label },
-                    visibleLabel: groups.flatMap { currentGroup(in: $0) }?.label
+                .modifier(SectionBarRowMask(
+                    barBottom: sectionBarBottom,
+                    active: listScrolled && groups != nil && Self.usesSectionBar
                 ))
+                .overlay(alignment: .top) {
+                    // Once scrolled, the current section's title floats just below the
+                    // navigation bar and the rows are masked at its bottom edge. An
+                    // overlay, not a safeAreaBar: a top bar hid the iOS 26 large title.
+                    if Self.usesSectionBar, listScrolled, let groups,
+                       let current = currentGroup(in: groups) {
+                        SongsSectionBarLabel(
+                            label: current.label, spokenLabel: current.spokenLabel ?? current.label,
+                            barBottom: $sectionBarBottom
+                        )
+                    }
+                }
                 .modifier(ScrolledAwayTracker { scrolled in
+                    if listScrolled != scrolled { listScrolled = scrolled }
                     let moved = scrolled && actionsInDock && session.selectedPlayer != nil
                     guard moved != toolsInBar else { return }
                     withAnimation(.snappy(duration: 0.3)) {
@@ -1021,6 +1038,7 @@ struct SongsScreen: View {
                 }
             }
             .animation(.easeInOut(duration: 0.2), value: showsIndex)
+
             // Any reordering (sort mode, direction, filters) starts at the top of the new
             // order (operator, 2026-09-28).
             .onChange(of: reorderKey) { _, _ in
@@ -1122,10 +1140,9 @@ struct SongsScreen: View {
     /// Stable key for a group's in-list title.
     private static func headerKey(_ group: SongListGroup) -> String { "\(group.id)" }
 
-    /// A section's in-list title (iOS 26): a plain row, no backing. The first section's
-    /// is a zero-height anchor (the bar shows its title) that still carries the jump
+    /// A section's in-list title (iOS 26): a plain row, no backing, carrying the jump
     /// target and Quick Links tracking.
-    @ViewBuilder private func inlineGroupHeader(_ group: SongListGroup, isFirst: Bool) -> some View {
+    @ViewBuilder private func inlineGroupHeader(_ group: SongListGroup) -> some View {
         let key = Self.headerKey(group)
         let label = Text(group.label)
             .font(.subheadline.bold())
@@ -1134,12 +1151,6 @@ struct SongsScreen: View {
             .padding(.top, 8)
             .padding(.bottom, 2)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(height: isFirst ? 0 : nil)
-            .opacity(isFirst ? 0 : 1)
-            .accessibilityHidden(isFirst)
-            .listRowInsets(EdgeInsets())
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
             .accessibilityLabel(group.spokenLabel ?? group.label)
             .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier(group.accessibilityID)
@@ -1148,6 +1159,9 @@ struct SongsScreen: View {
             } action: { passed in
                 if passed { passedSectionHeaders.insert(key) } else { passedSectionHeaders.remove(key) }
             }
+            .listRowInsets(EdgeInsets())
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
         if let link = group.quickLink {
             label.quickLinkSection(link)
         } else {
@@ -1165,10 +1179,7 @@ struct SongsScreen: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(BrandTokens.appBackground)
-            .overlay(alignment: .bottom) {
-                Rectangle().fill(BrandTokens.glassBorder).frame(height: 1)
-            }
+            .modifier(PinnedHeaderBacking())
             .listRowInsets(EdgeInsets())
             .accessibilityLabel(group.spokenLabel ?? group.label)
             .accessibilityAddTraits(.isHeader)
@@ -1374,48 +1385,63 @@ private struct ScrolledAwayTracker: ViewModifier {
     }
 }
 
-/// iOS 26: the current Songs section title in a bar above the List (`safeAreaBar`, so it
-/// stays out of the scrolling content). The List is masked at the bar's bottom edge, so
-/// rows end exactly there with no backing behind the title (operator batch 7); a hard
-/// scroll-edge effect was tried and dimmed the large title and drew a dark band.
-/// Earlier systems keep the List's pinned headers.
-private struct SongsSectionBar: ViewModifier {
-    /// Spoken title, nil without groups.
-    let label: String?
-    /// Visible title.
-    let visibleLabel: String?
-    /// The List's top edge and the bar's bottom edge, in global coordinates.
-    @State private var listTop: CGFloat = 0
-    @State private var barBottom: CGFloat = 0
+/// iOS 26: the current Songs section title, floating just below the navigation bar once
+/// the List has scrolled. With ``SectionBarRowMask`` rows end exactly at its bottom edge,
+/// with no backing behind the title (operator batch 7).
+private struct SongsSectionBarLabel: View {
+    let label: String
+    let spokenLabel: String
+    /// Reports the label's bottom edge (global).
+    @Binding var barBottom: CGFloat
+
+    var body: some View {
+        Text(label)
+            .font(.subheadline.bold())
+            .foregroundStyle(FestivalText.primary)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: {
+                barBottom = $0
+            }
+            .accessibilityLabel(spokenLabel)
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityIdentifier("fst.songs.section-bar")
+    }
+}
+
+/// Masks the List above the section bar's bottom edge while scrolled, so rows end at the
+/// bar. Inactive at the top, where no row is under the bar and the large title shows.
+///
+/// The mask is a shape whose path may extend past its frame: inactive it covers far
+/// beyond every edge (a mask laid out inside the safe area hid the iOS 26 large title,
+/// and `ignoresSafeArea` on the mask stalled the scroll view), active it starts at the
+/// bar's bottom edge, measured against the mask's own global top.
+private struct SectionBarRowMask: ViewModifier {
+    let barBottom: CGFloat
+    let active: Bool
+    @State private var maskTop: CGFloat = 0
 
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, macOS 26.0, *), let label, let visibleLabel {
-            content
-                .environment(\.defaultMinListRowHeight, 0)
-                .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { listTop = $0 }
-                .mask(alignment: .top) {
-                    VStack(spacing: 0) {
-                        Color.clear.frame(height: max(0, barBottom - listTop))
-                        Color.black
+        content
+            .environment(\.defaultMinListRowHeight, 0)
+            .mask {
+                RowMaskShape(cut: active ? barBottom - maskTop : nil)
+                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: {
+                        maskTop = $0
                     }
-                }
-                .safeAreaBar(edge: .top, spacing: 0) {
-                    Text(visibleLabel)
-                        .font(.subheadline.bold())
-                        .foregroundStyle(FestivalText.primary)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 6)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: {
-                            barBottom = $0
-                        }
-                        .accessibilityLabel(label)
-                        .accessibilityAddTraits(.isHeader)
-                        .accessibilityIdentifier("fst.songs.section-bar")
-                }
-        } else {
-            content
-        }
+            }
+    }
+}
+
+/// Everything below `cut` (local points), or everything when `cut` is nil.
+private struct RowMaskShape: Shape {
+    let cut: CGFloat?
+
+    func path(in rect: CGRect) -> Path {
+        let far: CGFloat = 10_000
+        let top = cut.map { rect.minY + max(0, $0) } ?? (rect.minY - far)
+        return Path(CGRect(x: rect.minX - far, y: top, width: rect.width + 2 * far, height: rect.maxY + far - top))
     }
 }
 
@@ -1430,6 +1456,22 @@ private struct InlineTitleRemoval: ViewModifier {
             content.toolbar(removing: removed ? .title : nil)
         } else {
             content
+        }
+    }
+}
+
+/// Pinned Songs section title backing: none on iOS 26, where the system draws the plain
+/// List's pinned header treatment (EXPERIMENT); the opaque band with a hairline before.
+private struct PinnedHeaderBacking: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, macOS 26.0, *) {
+            content
+        } else {
+            content
+                .background(BrandTokens.appBackground)
+                .overlay(alignment: .bottom) {
+                    Rectangle().fill(BrandTokens.glassBorder).frame(height: 1)
+                }
         }
     }
 }
