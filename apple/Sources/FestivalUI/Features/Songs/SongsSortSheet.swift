@@ -85,6 +85,7 @@ struct SongsSortSheet: View {
                     .accessibilityIdentifier("fst.songs.sort.reset")
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .navigationTitle("Sort Songs")
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)

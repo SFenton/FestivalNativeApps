@@ -236,6 +236,7 @@ struct SongsFilterSheet: View {
         }
         .accessibilityIdentifier("fst.songs.filter.form")
       }
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
       .navigationTitle("Filter Songs")
       #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)

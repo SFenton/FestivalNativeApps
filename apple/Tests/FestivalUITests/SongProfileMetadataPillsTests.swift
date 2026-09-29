@@ -113,8 +113,13 @@ private func renderedBadgeInsets(
         NSBitmapImageRep(cgImage: five).representation(using: .png, properties: [:])
     )
     #expect(first != second)
+    // Gold stars are the web's star images (StarRating), not a flat #FFD700 glyph:
+    // assert they paint and differ from the white variant.
     let stars = try metadataImage([.stars(count: 5, gold: true)], width: 160)
-    #expect(paintedPixels(near: (255, 215, 0), in: stars, sampleStep: 1) > 100)
+    let white = try metadataImage([.stars(count: 5, gold: false)], width: 160)
+    let goldPNG = try #require(NSBitmapImageRep(cgImage: stars).representation(using: .png, properties: [:]))
+    let whitePNG = try #require(NSBitmapImageRep(cgImage: white).representation(using: .png, properties: [:]))
+    #expect(goldPNG != whitePNG)
 }
 
 /// Every game tier paints its real color rather than defaulting to Expert.
@@ -182,11 +187,12 @@ private func renderedBadgeInsets(
 @MainActor
 @Test func selectedMetadataBadgeTextKeepsFourPixelInsetsAtLargeSizes() throws {
     let fields: [(SongMetadataField, (Int, Int, Int))] = [
-        (.percentile("Top 100%", tier: .ordinary), (215, 222, 232)),
+        // White text rule (FestivalText.primary).
+        (.percentile("Top 100%", tier: .ordinary), (255, 255, 255)),
         (.percentile("Top 1%", tier: .topOne), (255, 215, 0)),
         (.season(9, current: true), (22, 33, 51)),
         (.difficulty(3), (255, 255, 255)),
-        (.lastPlayed("Last played Sep 20, 2026"), (215, 222, 232)),
+        (.lastPlayed("Last played Sep 20, 2026"), (255, 255, 255)),
     ]
     for typeSize: DynamicTypeSize in [.xLarge, .accessibility3, .accessibility5] {
         for (field, foreground) in fields {

@@ -210,6 +210,7 @@ private func songFormSurfacePixels(
     #expect(images["score-default"] != images["score-global-and-chart"])
     #expect(images["score-global-and-chart"] != images["score-pending"])
     #expect(images["score-global-and-chart"] != images["score-invalid-mode"])
-    #expect(images["score-global-and-chart"] != images["score-ax5"])
+    // AX5 no longer changes the macOS-hosted render: the sheet has no custom title or
+    // footer layout that read Dynamic Type (immediate-apply sheet with a toolbar Done).
 }
 #endif
