@@ -8,7 +8,7 @@ namespace Festival.Core.Tests;
 public sealed class RivalsFakeService
 {
     public const string Me = "fixture-me";
-    public const string Rival = "408abb67d81446f0ac714506950ce178";
+    public const string Rival = "f1c749eb07c32578cfa3e59ec38c03a8";
 
     public FakeService Service { get; } = new();
     public FakeTimeProvider Time { get; } = new();
@@ -26,7 +26,7 @@ public sealed class RivalsFakeService
             var depth = path.Count(c => c == '/');
             if (path.Contains("/leaderboard-rivals/", StringComparison.Ordinal))
                 return Wire.Ok(depth == 6
-                    ? RivalsCoreTests.Fixture("leaderboard-rival-detail-demo").Replace("75a76ce7304d49c0ab76ea7ff5c3288e", Rival)
+                    ? RivalsCoreTests.Fixture("leaderboard-rival-detail-demo").Replace("f1c71052e0052ae7143f3b3c750f2f49", Rival)
                     : RivalsCoreTests.Fixture("leaderboard-rivals-demo"));
             return Wire.Ok(RivalsCoreTests.Fixture(depth == 6 ? "rival-detail-demo" : "rivals-list-demo"));
         };
@@ -385,8 +385,8 @@ public class RivalsViewModelTests
         var fake = new RivalsFakeService();
         var scope = new RivalScope.Song([Instrument.Lead]);
         var detail = await Loaded(new RivalDetailViewModel(fake.Session(), new AppRoute.RivalDetail(Rival, null, scope)));
-        Assert.Equal("uwphe", detail.Title);
-        Assert.Equal("View uwphe's Profile", detail.ViewProfileLabel);
+        Assert.Equal("Fixture Rival Golf", detail.Title);
+        Assert.Equal("View Fixture Rival Golf's Profile", detail.ViewProfileLabel);
         Assert.Equal(new AppRoute.Player(Rival), detail.ProfileRoute);
         Assert.Equal("Lead", detail.ScopeLabel);
         Assert.Equal("4 shared songs · 2 ahead / 1 behind", detail.Summary);
@@ -397,7 +397,7 @@ public class RivalsViewModelTests
         var closest = detail.Categories[0];
         Assert.Equal("View All 4 Songs", closest.SeeAllText);
         Assert.Equal("View 1 song", detail.Categories[1].SeeAllText);
-        Assert.Equal(new AppRoute.Rivalry(Rival, "closest_battles", "uwphe", scope), closest.SeeAllRoute);
+        Assert.Equal(new AppRoute.Rivalry(Rival, "closest_battles", "Fixture Rival Golf", scope), closest.SeeAllRoute);
         Assert.Equal("fst.rival-detail.category.closest_battles", closest.AutomationId);
         Assert.Equal(RivalCategorySentiment.Neutral, closest.Sentiment);
         Assert.NotEmpty(closest.Title + closest.Subtitle);
@@ -498,8 +498,8 @@ public class RivalsViewModelTests
         rivalry.Activate();
         await Async.Until(() => rivalry.State == RivalPageState.Loaded);
         Assert.Equal("Closest Battles", rivalry.Title);
-        Assert.StartsWith("vs. uwphe · Songs where", rivalry.Subtitle);
-        Assert.Equal("View uwphe's Profile", rivalry.ViewProfileLabel);
+        Assert.StartsWith("vs. Fixture Rival Golf · Songs where", rivalry.Subtitle);
+        Assert.Equal("View Fixture Rival Golf's Profile", rivalry.ViewProfileLabel);
         Assert.Equal(new AppRoute.Player(Rival), rivalry.ProfileRoute);
         Assert.Equal(4, rivalry.Rows.Count);
         Assert.Equal(RivalHeadToHead.Label(RivalrySort.Category), rivalry.SortLabels[rivalry.SortIndex]);
@@ -527,7 +527,7 @@ public class RivalsViewModelTests
         await rivalry.LoadAsync();
         Assert.Equal(RivalPageState.Empty, rivalry.State);
         Assert.Equal("mystery", rivalry.Title);
-        Assert.Equal("vs. uwphe", rivalry.Subtitle);
+        Assert.Equal("vs. Fixture Rival Golf", rivalry.Subtitle);
         Assert.Equal("No song data for this rival.", rivalry.EmptyTitle);
         Assert.Equal("View Profile", new RivalryViewModel(fake.Session(), new AppRoute.Rivalry(Rival, "x")).ViewProfileLabel);
         Assert.Equal("View Profile", new RivalDetailViewModel(fake.Session(), new AppRoute.RivalDetail(Rival)).ViewProfileLabel);

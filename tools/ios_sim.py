@@ -23,7 +23,7 @@ Examples::
 
     # Install, launch on a debug route, and screenshot (takes the lock).
     python3 tools/ios_sim.py shot --out /tmp/lb.png --tab leaderboards
-    python3 tools/ios_sim.py shot --out /tmp/p.png --route player:e408c4613c8f4da5907090b390bda80c
+    python3 tools/ios_sim.py shot --out /tmp/p.png --route player:195e93ef108143b2975ee46662d4d0e1
 
     # Several screenshots in one lock hold, e.g. per tab.
     python3 tools/ios_sim.py shot --out /tmp/songs.png --out /tmp/songs2.png --wait 4

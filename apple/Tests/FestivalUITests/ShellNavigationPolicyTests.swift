@@ -176,13 +176,13 @@ func selectionKeepsVisibleTabAndPaths(selected: FestivalSection) {
     }
     let debug = DebugLaunchRoute(environment: [
         "FST_DEBUG_DRAWER": "1", "FST_DEBUG_SHEET": "profile",
-        "FST_DEBUG_PROFILE": "e408c4613c8f4da5907090b390bda80c:Some Name",
+        "FST_DEBUG_PROFILE": "f1c7fea37bf9b1069250832ae4211461:Some Name",
         "FST_DEBUG_ANONYMOUS": "1",
     ])
     #expect(debug.opensDrawer)
     #expect(debug.opensProfileSheet)
     #expect(debug.anonymous)
-    #expect(debug.profile?.accountId == "e408c4613c8f4da5907090b390bda80c")
+    #expect(debug.profile?.accountId == "f1c7fea37bf9b1069250832ae4211461")
     #expect(debug.profile?.displayName == "Some Name")
 }
 
@@ -196,10 +196,10 @@ func selectionKeepsVisibleTabAndPaths(selected: FestivalSection) {
     let storage = try #require(UserDefaults(suiteName: suiteName))
     defer { storage.removePersistentDomain(forName: suiteName) }
     let debug = DebugLaunchRoute(environment: [
-        "FST_DEBUG_PROFILE": "e408c4613c8f4da5907090b390bda80c:Some Name",
+        "FST_DEBUG_PROFILE": "f1c7fea37bf9b1069250832ae4211461:Some Name",
     ])
     let identity = try #require(debug.debugSelectedPlayer())
-    #expect(identity.accountId == "e408c4613c8f4da5907090b390bda80c")
+    #expect(identity.accountId == "f1c7fea37bf9b1069250832ae4211461")
     #expect(identity.displayName == "Some Name")
     #expect(storage.data(forKey: SelectedPlayerIdentity.storageKey) == nil)
 

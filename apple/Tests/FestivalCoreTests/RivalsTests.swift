@@ -27,7 +27,7 @@ private func rivalsFixture(_ name: String) throws -> Data {
     #expect(response.above.count == 3)
     #expect(response.below.count == 3)
     let first = try #require(response.above.first)
-    #expect(first.accountId == "408abb67d81446f0ac714506950ce178")
+    #expect(first.accountId == "f1c749eb07c32578cfa3e59ec38c03a8")
     #expect(first.rivalScore == 863.541259765625)
     #expect(first.avgSignedDelta == -6.541779041290283)
     #expect(!response.isEmpty)
@@ -55,7 +55,7 @@ private func rivalsFixture(_ name: String) throws -> Data {
     let response = try JSONDecoder().decode(
         RivalsOverviewResponse.self, from: rivalsFixture("rivals-overview-demo")
     )
-    #expect(response.accountId == "e408c4613c8f4da5907090b390bda80c")
+    #expect(response.accountId == "f1c7fea37bf9b1069250832ae4211461")
     #expect(response.combos.count == 5)
     #expect(response.combos.first?.combo == "01")
     #expect(response.combos.first?.aboveCount == 10)
@@ -68,7 +68,7 @@ private func rivalsFixture(_ name: String) throws -> Data {
     let response = try JSONDecoder().decode(
         RivalDetailResponse.self, from: rivalsFixture("rival-detail-demo")
     )
-    #expect(response.rival.accountId == "408abb67d81446f0ac714506950ce178")
+    #expect(response.rival.accountId == "f1c749eb07c32578cfa3e59ec38c03a8")
     #expect(response.combo == "01")
     #expect(response.songs.count == 4)
     #expect(response.songsToCompete?.count == 1)

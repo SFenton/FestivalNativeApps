@@ -59,7 +59,7 @@ private let leadAndBass: Set<String> = ["fst.settings.showLead", "fst.settings.s
 /// A hyphenated id such as `fixture-player-1` never matches those routes, so the
 /// mock answers 404 and the client's documented 404-as-empty mapping renders
 /// "No Shared Songs" whatever scenario the test meant to exercise.
-private let routableRivalId = "408abb67d81446f0ac714506950ce178"
+private let routableRivalId = "f1c749eb07c32578cfa3e59ec38c03a8"
 
 // MARK: - RivalsScreen: no profile / loading / empty instruments
 
@@ -143,12 +143,12 @@ private let routableRivalId = "408abb67d81446f0ac714506950ce178"
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 1600))
     defer { window.orderOut(nil) }
     let image = try await nativeHostedSettle(
-        host, untilText: ["Common Rivals", "Combo Rivals", "uwphe"], excluding: ["Loading"]
+        host, untilText: ["Common Rivals", "Combo Rivals", "Fixture Rival Golf"], excluding: ["Loading"]
     )
     _ = try nativeHostedPNG(
         image, filename: "rivals-song-tab-common-combo.png", environment: "FST_RIVALS_RENDER_OUT"
     )
-    assertRendersContent(host, image: image, containing: ["Common Rivals", "Combo Rivals", "uwphe"])
+    assertRendersContent(host, image: image, containing: ["Common Rivals", "Combo Rivals", "Fixture Rival Golf"])
 }
 
 /// Switch to the Leaderboard tab via the real `NSSegmentedControl` (mirrors
@@ -174,10 +174,10 @@ private let routableRivalId = "408abb67d81446f0ac714506950ce178"
     picker.selectedSegment = 1
     picker.sendAction(picker.action, to: picker.target)
     let image = try await nativeHostedSettle(
-        host, untilText: ["GingerNINZIN_JPN", "View All Rivals"], excluding: ["Loading"]
+        host, untilText: ["Fixture Rival Bravo", "View All Rivals"], excluding: ["Loading"]
     )
     _ = try nativeHostedPNG(image, filename: "rivals-leaderboard-tab.png", environment: "FST_RIVALS_RENDER_OUT")
-    assertRendersContent(host, image: image, containing: ["GingerNINZIN_JPN", "View All Rivals"])
+    assertRendersContent(host, image: image, containing: ["Fixture Rival Bravo", "View All Rivals"])
 }
 
 /// A 503 (matching the live service's scrape-window freeze) shows each section's
@@ -281,9 +281,9 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 1000))
     defer { window.orderOut(nil) }
-    let image = try await nativeHostedSettle(host, untilText: ["Lead Rivals", "uwphe"])
+    let image = try await nativeHostedSettle(host, untilText: ["Lead Rivals", "Fixture Rival Golf"])
     _ = try nativeHostedPNG(image, filename: "all-rivals-loaded.png", environment: "FST_RIVALS_RENDER_OUT")
-    assertRendersContent(host, image: image, containing: ["Lead Rivals", "uwphe"])
+    assertRendersContent(host, image: image, containing: ["Lead Rivals", "Fixture Rival Golf"])
 }
 
 @MainActor
@@ -339,12 +339,12 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 1000))
     defer { window.orderOut(nil) }
     let image = try await nativeHostedSettle(
-        host, untilText: ["Common Rivals", "uwphe"], excluding: ["Loading"]
+        host, untilText: ["Common Rivals", "Fixture Rival Golf"], excluding: ["Loading"]
     )
     _ = try nativeHostedPNG(
         image, filename: "all-rivals-common.png", environment: "FST_RIVALS_RENDER_OUT"
     )
-    assertRendersContent(host, image: image, containing: ["Common Rivals", "uwphe"])
+    assertRendersContent(host, image: image, containing: ["Common Rivals", "Fixture Rival Golf"])
 }
 
 // MARK: - RivalDetailScreen: categorization
@@ -366,9 +366,9 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 1000))
     defer { window.orderOut(nil) }
-    let image = try await nativeHostedSettle(host, untilText: ["Combo Rivals", "uwphe"])
+    let image = try await nativeHostedSettle(host, untilText: ["Combo Rivals", "Fixture Rival Golf"])
     _ = try nativeHostedPNG(image, filename: "all-rivals-combo.png", environment: "FST_RIVALS_RENDER_OUT")
-    assertRendersContent(host, image: image, containing: ["Combo Rivals", "uwphe"])
+    assertRendersContent(host, image: image, containing: ["Combo Rivals", "Fixture Rival Golf"])
 }
 
 /// An unresolvable scope (every named instrument raw value is unknown) shows
@@ -401,7 +401,7 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     let host = nativeHostedView(
         NavigationStack {
             RivalDetailScreen(
-                session: session, rivalId: "408abb67d81446f0ac714506950ce178", name: "uwphe",
+                session: session, rivalId: "f1c749eb07c32578cfa3e59ec38c03a8", name: "Fixture Rival Golf",
                 scope: .song(instruments: ["Solo_Guitar"])
             )
         }
@@ -485,8 +485,8 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     let host = nativeHostedView(
         NavigationStack {
             RivalDetailScreen(
-                session: session, rivalId: "75a76ce7304d49c0ab76ea7ff5c3288e",
-                name: "GingerNINZIN_JPN", scope: .leaderboard(instrument: "Solo_Guitar", rankBy: .totalscore)
+                session: session, rivalId: "f1c71052e0052ae7143f3b3c750f2f49",
+                name: "Fixture Rival Bravo", scope: .leaderboard(instrument: "Solo_Guitar", rankBy: .totalscore)
             )
         }
         .defaultAppStorage(storage)
@@ -495,11 +495,11 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     )
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 1200))
     defer { window.orderOut(nil) }
-    let image = try await nativeHostedSettle(host, untilText: ["Closest Battles", "GingerNINZIN_JPN"])
+    let image = try await nativeHostedSettle(host, untilText: ["Closest Battles", "Fixture Rival Bravo"])
     _ = try nativeHostedPNG(
         image, filename: "rival-detail-leaderboard-loaded.png", environment: "FST_RIVALS_RENDER_OUT"
     )
-    assertRendersContent(host, image: image, containing: ["Closest Battles", "GingerNINZIN_JPN"])
+    assertRendersContent(host, image: image, containing: ["Closest Battles", "Fixture Rival Bravo"])
 }
 
 @MainActor
@@ -538,8 +538,8 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     let host = nativeHostedView(
         NavigationStack {
             RivalryScreen(
-                session: session, rivalId: "408abb67d81446f0ac714506950ce178",
-                mode: "closest_battles", name: "uwphe", scope: .song(instruments: ["Solo_Guitar"])
+                session: session, rivalId: "f1c749eb07c32578cfa3e59ec38c03a8",
+                mode: "closest_battles", name: "Fixture Rival Golf", scope: .song(instruments: ["Solo_Guitar"])
             )
         }
         .defaultAppStorage(storage)

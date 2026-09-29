@@ -144,7 +144,7 @@ final class RivalsJourneyTests: XCTestCase {
         continueAfterFailure = false
         let app = fixtureApp()
         app.launchEnvironment["FST_DEBUG_ROUTE"] =
-            "rivalDetail:408abb67d81446f0ac714506950ce178:song:Solo_Guitar"
+            "rivalDetail:f1c749eb07c32578cfa3e59ec38c03a8:song:Solo_Guitar"
         app.launch()
         XCTAssertTrue(app.buttons["fst.rival-detail.view-profile"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.staticTexts["Closest Battles"].waitForExistence(timeout: 10))

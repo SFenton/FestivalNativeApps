@@ -202,6 +202,8 @@
     "fst.whats-new.*": "whats-new",
     "fst.songs.section-index.*": "songs-section-index",
     "fst.placeholder.*": "app-navigation",
+    "fst.load-gate.*": "app-navigation",
+    "fst.empty-state.*": "app-navigation",
     "fst.coming-soon": "app-navigation",
     "fst.settings.*": "settings",
     "fst.leaderboards.*": "leaderboards",

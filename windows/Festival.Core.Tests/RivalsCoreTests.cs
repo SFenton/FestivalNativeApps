@@ -6,7 +6,7 @@ namespace Festival.Core.Tests;
 public class RivalsCoreTests
 {
     private const string Me = "fixture-me";
-    private const string Rival = "408abb67d81446f0ac714506950ce178";
+    private const string Rival = "f1c749eb07c32578cfa3e59ec38c03a8";
     private static readonly Uri Base = new(Wire.BaseUrl);
 
     public static string Fixture(string name) => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "fixtures", name + ".json"));
@@ -86,8 +86,8 @@ public class RivalsCoreTests
         Assert.False(board.IsEmpty);
         var detail = await client.GetRivalDetailAsync(Me, "01", Rival);
         Assert.Equal(4, detail.Songs.Count);
-        Assert.Equal("uwphe", detail.Rival.DisplayName);
-        var lbDetail = await client.GetLeaderboardRivalDetailAsync(Me, Instrument.Lead, "75a76ce7304d49c0ab76ea7ff5c3288e", RankingMetric.Weighted);
+        Assert.Equal("Fixture Rival Golf", detail.Rival.DisplayName);
+        var lbDetail = await client.GetLeaderboardRivalDetailAsync(Me, Instrument.Lead, "f1c71052e0052ae7143f3b3c750f2f49", RankingMetric.Weighted);
         Assert.Equal(2, lbDetail.Songs.Count);
         var all = await client.GetRivalsAllAsync(Me);
         Assert.False(all.IsEmpty);

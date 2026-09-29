@@ -107,7 +107,7 @@
   },
   {
     "name": "rival-detail",
-    "route": "/rivals/408abb67d81446f0ac714506950ce178",
+    "route": "/rivals/f1c749eb07c32578cfa3e59ec38c03a8",
     "profile": "fixture-player-1:Demo Player",
     "ready": [
       "waitfor:id=fst.rival-detail.title@20"
@@ -115,7 +115,7 @@
   },
   {
     "name": "rivalry",
-    "route": "/rivals/408abb67d81446f0ac714506950ce178/rivalry",
+    "route": "/rivals/f1c749eb07c32578cfa3e59ec38c03a8/rivalry",
     "profile": "fixture-player-1:Demo Player",
     "ready": [
       "waitfor:id=fst.rivalry.list@20"

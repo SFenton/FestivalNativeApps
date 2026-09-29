@@ -110,13 +110,13 @@ private func anonymousCompeteSession() async throws -> FestivalSession {
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 1800))
     defer { window.orderOut(nil) }
     let image = try await nativeHostedSettle(
-        host, untilText: ["Leaderboards Overview", "Fixture Player 1", "uwphe"], excluding: ["Loading"]
+        host, untilText: ["Leaderboards Overview", "Fixture Player 1", "Fixture Rival Golf"], excluding: ["Loading"]
     )
     _ = try nativeHostedPNG(
         image, filename: "compete-leaderboards-and-rivals.png", environment: "FST_COMPETE_RENDER_OUT"
     )
     assertRendersContent(
-        host, image: image, containing: ["Leaderboards Overview", "Fixture Player 1", "uwphe"]
+        host, image: image, containing: ["Leaderboards Overview", "Fixture Player 1", "Fixture Rival Golf"]
     )
 }
 
@@ -175,7 +175,7 @@ private func anonymousCompeteSession() async throws -> FestivalSession {
     // Leaderboards section already never goes fully blank.
     assertRendersContent(
         host, image: image, containing: ["Fixture Player 1", "Rivals", "No rivals found for Lead yet."],
-        notContaining: ["uwphe", "Loading"]
+        notContaining: ["Fixture Rival Golf", "Loading"]
     )
 }
 #endif

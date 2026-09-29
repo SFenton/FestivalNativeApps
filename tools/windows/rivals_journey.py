@@ -26,7 +26,7 @@ import journey_exe  # noqa: E402  (sibling module)
 ROOT = Path(__file__).resolve().parents[2]
 UIWIN = ROOT / "tools" / "windows" / "uiwin.py"
 EXE = journey_exe.DEBUG_EXE
-RIVAL = "408abb67d81446f0ac714506950ce178"
+RIVAL = "f1c749eb07c32578cfa3e59ec38c03a8"
 
 # name -> (environment, route, steps). {shot:NAME} placeholders become screenshots when --shots is given.
 SCENARIOS: dict[str, tuple[dict[str, str], str | None, list[str]]] = {
