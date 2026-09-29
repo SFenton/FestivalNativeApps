@@ -53,7 +53,7 @@
 
 | Last measured | Logic lines | UI lines | Tests |
 |---|---|---|---|
-| master after and-shell-search (2026-09-28) | 97.9% | 93.2% | JVM + Robolectric (all lanes) |
+| master after and-polish (2026-09-28) | 97.9% | 94.0% | JVM + Robolectric (all lanes) |
 
 - Posture evidence: `tools/android/search_journey.py` drives every FST AVD/posture against a path-logging fixture (screenshots in `android/reports/screenshots/search-*`, `shell-*`).
 - Open: `MainActivity` (0%, needs an instrumented or fixture-origin activity test); instrumented tests and a TalkBack pass not started. Control-state snapshots and navigation coverage are separate evidence from line coverage.
