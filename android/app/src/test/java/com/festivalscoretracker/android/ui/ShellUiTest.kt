@@ -85,6 +85,19 @@ class ShellUiTest {
     }
 
     @Test
+    fun systemBackClosesTheOpenDrawerInsteadOfLeaving() {
+        launch()
+        waitForTag("fst.songs.row.s-alpha")
+        rule.onNodeWithTag("fst.nav.drawer").performClick()
+        waitForTag("fst.nav.drawer-sheet")
+        rule.runOnIdle { rule.activity.onBackPressedDispatcher.onBackPressed() }
+        rule.waitUntil(10_000) { settle(100); rule.onAllNodesWithTag("fst.nav.drawer-sheet").fetchSemanticsNodes().none { node -> node.layoutInfo.isPlaced && node.boundsInRoot.right > 0f } }
+        // Still in the app, on Songs.
+        assertTrue(!rule.activity.isFinishing)
+        rule.onNodeWithTag("fst.songs.row.s-alpha").assertIsDisplayed()
+    }
+
+    @Test
     fun searchSortAndSectionIndex() {
         launch()
         waitForTag("fst.songs.row.s-alpha")

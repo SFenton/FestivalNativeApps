@@ -539,7 +539,9 @@ private fun FestivalShell(
             drawerState = drawerState,
             // Edge swipes belong to system back; the drawer opens from the menu button only.
             gesturesEnabled = drawerState.isOpen,
-            drawerContent = { ChromeColors { ModalDrawerSheet(drawerContainerColor = BrandTokens.cardBackground) { drawer(false) } } },
+            // The drawerState overload adds M3's predictive back handling: system back closes
+            // the open drawer instead of leaving the app.
+            drawerContent = { ChromeColors { ModalDrawerSheet(drawerState = drawerState, drawerContainerColor = BrandTokens.cardBackground) { drawer(false) } } },
         ) { content() }
     }
     GlobalSearchHost(
