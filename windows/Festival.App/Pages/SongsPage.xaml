@@ -23,6 +23,12 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
+        <!-- Wide windows (page >= 1100 epx) split into the list and the selected song's detail (operator 2026-09-28:
+             two populated columns, never an empty detail pane). SongsPage.ApplySplit sets the widths. -->
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition x:Name="ListColumn" Width="*" />
+            <ColumnDefinition x:Name="DetailColumn" Width="0" />
+        </Grid.ColumnDefinitions>
 
         <StackPanel Orientation="Horizontal" Spacing="12">
             <TextBlock Text="Songs" Style="{StaticResource FSTPageTitleStyle}" AutomationProperties.HeadingLevel="Level1" />
@@ -243,8 +249,9 @@
             <!-- Sticky section header (operator batches 3 + 5): the current section's label sits in its own row above the
                  list's viewport, so rows scroll away beneath the list's top edge and never show through it. The in-list
                  headers scroll up into it; the first section's in-list header is omitted (this bar names it). -->
+            <!-- A level-2 heading for UIA too: it is the only header of the first section and names the current one. -->
             <TextBlock x:Name="StickyHeader" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0,0,0,8" Visibility="Collapsed"
-                       AutomationProperties.AccessibilityView="Raw" />
+                       AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.songs.section-header" />
             <SemanticZoom x:Name="Zoom" Grid.Row="1" Visibility="{x:Bind ViewModel.ShowList, Mode=OneWay}" Opacity="0"
                           CanChangeViews="{x:Bind ViewModel.HasJumpIndex, Mode=OneWay}"
                           IsZoomOutButtonEnabled="{x:Bind ViewModel.HasJumpIndex, Mode=OneWay}">
@@ -379,5 +386,9 @@
                         Visibility="{x:Bind ViewModel.IsFilterActive, Mode=OneWay}" />
             </StackPanel>
         </Grid>
+
+        <Frame x:Name="DetailFrame" Grid.Column="1" Grid.RowSpan="4" Margin="12,-12,0,0" Visibility="Collapsed"
+               IsNavigationStackEnabled="False" AutomationProperties.Name="Song details"
+               AutomationProperties.AutomationId="fst.songs.detail-pane" />
     </Grid>
 </Page>

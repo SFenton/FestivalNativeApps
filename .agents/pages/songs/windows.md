@@ -26,7 +26,11 @@
 |---|---|---|
 | Compact (< 640 epx page) | Search full width; Sort/Filter/Jump (icon) below | Chips/pills wrap under the title (`FlowPanel`) |
 | Medium | One row: search (≤ 440) + Sort/Filter/Jump | Chips inline from 760 epx list width; first pill top-right, rest wrap right-aligned |
-| Wide (≥ 1100 epx list) | Same | Every pill inline |
+| Wide (≥ 1100 epx page) | List + detail columns; list toolbar as compact | Chips/pills wrap under the title |
+
+## Two columns (wide)
+
+From a **1100 epx page** (e.g. a 1440 epx window with the expanded pane) the page splits into a 560 epx list and the selected song's Song Detail (`DetailFrame`, `fst.songs.detail-pane`; operator 2026-09-28, mirroring Android foldables/iPad). The list switches to single selection, the first row is selected so the detail is never empty, a sort/filter keeps the selection when the song survives (else the first row), and keyboard arrowing loads the detail 180 ms after it stops. Clicks select instead of pushing. The list column uses the narrow toolbar (search on its own row) and wraps chips under titles. With no rows, or below 1100 epx, it is a single column again and the embedded page is released. Links inside the embedded detail push full pages on the Songs stack.
 
 ## Native decisions
 

@@ -34,11 +34,23 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <summary>List width at which every metadata pill sits inline.</summary>
     private const double InlineMetadataWidth = 1100;
 
+    /// <summary>Page width from which the list and the selected song's detail sit side by side.</summary>
+    public const double SplitWidth = 1100;
+
+    /// <summary>List column width in the split layout.</summary>
+    private const double SplitListWidth = 560;
+
+    /// <summary>Delay before the detail follows keyboard selection (arrowing through rows loads only where it stops).</summary>
+    private static readonly TimeSpan DetailFollowDelay = TimeSpan.FromMilliseconds(180);
+
     private readonly Dictionary<ListViewItem, CancellationTokenSource> artLoads = [];
     private DispatcherQueueTimer? autoScroll;
     private ScrollViewer? scroller;
     private double scrollStep = 6;
     private bool revealed;
+    private bool split;
+    private string? detailSongId;
+    private DispatcherQueueTimer? detailTimer;
     private string? appliedSort;
     private int[] groupStarts = [];
     private List<SongGroup> stickyGroups = [];
@@ -54,6 +66,7 @@ public sealed partial class SongsPage : Page, IPageBack
             () => ViewModel.ShowList || ViewModel.ShowEmpty ? ViewModel.CountText : null, "Loading songs");
         Loaded += (_, _) => UpdateButtonTints();
         SizeChanged += OnSizeChanged;
+        SongList.SelectionChanged += OnSongSelectionChanged;
         Zoom.PreviewKeyDown += OnZoomKeyDown;
         Zoom.ViewChangeCompleted += (_, _) => UpdateStickyHeader();
     }
@@ -89,6 +102,8 @@ public sealed partial class SongsPage : Page, IPageBack
                 if (appliedSort is not null && appliedSort != ViewModel.SortSummary)
                     (scroller ??= FindScrollViewer(SongList))?.ChangeView(null, 0, null, true);
                 appliedSort = ViewModel.SortSummary;
+                if (split) EnsureSplitSelection();
+                else ApplySplit(ActualWidth >= SplitWidth);
                 if (ViewModel.Sections.Count > 0)
                 {
                     // A sort, filter or search change re-staggers the list, like the web's settings fingerprint.
@@ -100,6 +115,7 @@ public sealed partial class SongsPage : Page, IPageBack
                 break;
             case nameof(SongsViewModel.ShowList):
                 UpdateStickyHeader();
+                ApplySplit(ActualWidth >= SplitWidth);
                 break;
             case nameof(SongsViewModel.IsSortChanged) or nameof(SongsViewModel.IsFilterActive):
                 UpdateButtonTints();
@@ -250,27 +266,38 @@ public sealed partial class SongsPage : Page, IPageBack
 
     /// <summary>Current list width.</summary>
     /// <returns>Width in epx.</returns>
-    private double ListWidth() => SongList.ActualWidth > 0 ? SongList.ActualWidth : ActualWidth;
+    private double ListWidth() => split ? SplitListWidth : SongList.ActualWidth > 0 ? SongList.ActualWidth : ActualWidth;
 
     /// <summary>Re-realizes rows when the layout crosses a trailing-content breakpoint.</summary>
     /// <param name="sender">Page.</param>
     /// <param name="e">Size change.</param>
     private void OnSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        var wide = ListWidth() >= InlineChipsWidth;
-        var compact = e.NewSize.Width < 640;
+        ApplySplit(e.NewSize.Width >= SplitWidth);
+        ApplyLayout(e.NewSize.Width);
+    }
+
+    /// <summary>
+    /// Lays out the toolbar and rows for the page width and the list column (narrower in the split layout).
+    /// </summary>
+    /// <param name="pageWidth">Page width in epx.</param>
+    private void ApplyLayout(double pageWidth)
+    {
+        var compact = pageWidth < 640;
+        // The split list column is as narrow as a compact page, so the search gets its own row there too.
+        var narrowList = compact || split;
         JumpLabel.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
-        // Compact: search takes its own full-width row above Sort/Filter/Jump.
-        Grid.SetColumnSpan(SearchBox, compact ? 5 : 1);
-        SearchColumn.MaxWidth = compact ? double.PositiveInfinity : 440;
-        Grid.SetRow(ActionButtons, compact ? 1 : 0);
-        Grid.SetColumn(ActionButtons, compact ? 0 : 1);
-        Grid.SetColumnSpan(ActionButtons, compact ? 5 : 1);
+        Grid.SetColumnSpan(SearchBox, narrowList ? 5 : 1);
+        SearchColumn.MaxWidth = narrowList ? double.PositiveInfinity : 440;
+        Grid.SetRow(ActionButtons, narrowList ? 1 : 0);
+        Grid.SetColumn(ActionButtons, narrowList ? 0 : 1);
+        Grid.SetColumnSpan(ActionButtons, narrowList ? 5 : 1);
         // Compact: the list's scroll indicator overlays the rows, so no right gutter is reserved for it and rows end
         // 12 epx from the edge like the left side (operator 7.24; was 16 epx).
         Root.Padding = compact ? new Thickness(12, 8, 12, 0) : new Thickness(24, 12, 12, 0);
         SongList.Padding = compact ? new Thickness(0, 0, 0, 24) : new Thickness(0, 0, 12, 24);
         Actions.Margin = Notices.Margin = compact ? new Thickness(0) : new Thickness(0, 0, 12, 0);
+        var wide = ListWidth() >= InlineChipsWidth;
         if (wide == wideLayout) return;
         wideLayout = wide;
         if (GroupedSongs.Source is not null) RebindGroups();
@@ -281,9 +308,93 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <param name="e">Clicked row.</param>
     private void OnSongClick(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is SongRowItem row)
-            MainWindow.Instance?.Navigate(new AppRoute.SongDetail(row.Song.SongId, App.Session.Settings.SongFilter.Instrument));
+        if (e.ClickedItem is not SongRowItem row) return;
+        // Split layout: the click selects the row and the detail column follows (SelectionChanged), no push.
+        if (split) return;
+        MainWindow.Instance?.Navigate(new AppRoute.SongDetail(row.Song.SongId, App.Session.Settings.SongFilter.Instrument));
     }
+
+    #region Split layout
+    /// <summary>
+    /// Switches between the single list and list + detail (operator 2026-09-28, like Android foldables/iPad): the list
+    /// keeps a fixed column, the selected song's detail fills the rest, and the first row is selected so the detail is
+    /// never empty. With no rows the page is a single column again.
+    /// </summary>
+    /// <param name="wanted">Whether the page is wide enough.</param>
+    private void ApplySplit(bool wanted)
+    {
+        var on = wanted && ViewModel.ShowList && ViewModel.Sections.Count > 0;
+        if (on == split) return;
+        split = on;
+        ListColumn.Width = on ? new GridLength(SplitListWidth) : new GridLength(1, GridUnitType.Star);
+        DetailColumn.Width = on ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        DetailFrame.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        SongList.SelectionMode = on ? ListViewSelectionMode.Single : ListViewSelectionMode.None;
+        ApplyLayout(ActualWidth);
+        if (on)
+        {
+            EnsureSplitSelection();
+            return;
+        }
+        detailTimer?.Stop();
+        detailSongId = null;
+        DetailFrame.Content = null;
+    }
+
+    /// <summary>Keeps a selection in the split layout: the current row if it survived a sort/filter, else the first.</summary>
+    private void EnsureSplitSelection()
+    {
+        if (!split) return;
+        if (ViewModel.Sections.Count == 0 || !ViewModel.ShowList)
+        {
+            ApplySplit(false);
+            return;
+        }
+        var rows = ViewModel.Sections.SelectMany(section => section.Rows);
+        var keep = detailSongId is null ? null : rows.FirstOrDefault(r => r.Song.SongId == detailSongId);
+        var target = keep ?? rows.First();
+        if (!ReferenceEquals(SongList.SelectedItem, target)) SongList.SelectedItem = target;
+        ShowDetail(target, immediately: true);
+    }
+
+    /// <summary>The detail column follows the selected row (debounced for keyboard arrowing).</summary>
+    /// <param name="sender">List.</param>
+    /// <param name="e">Selection change.</param>
+    private void OnSongSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (split && SongList.SelectedItem is SongRowItem row) ShowDetail(row, immediately: false);
+    }
+
+    /// <summary>Opens the row's Song Detail in the detail column (once per song).</summary>
+    /// <param name="row">Selected row.</param>
+    /// <param name="immediately">Skip the keyboard debounce.</param>
+    private void ShowDetail(SongRowItem row, bool immediately)
+    {
+        detailTimer?.Stop();
+        if (row.Song.SongId == detailSongId && DetailFrame.Content is not null) return;
+        if (!immediately)
+        {
+            detailTimer ??= DispatcherQueue.CreateTimer();
+            detailTimer.Interval = DetailFollowDelay;
+            detailTimer.IsRepeating = false;
+            detailTimer.Tick -= OnDetailTimer;
+            detailTimer.Tick += OnDetailTimer;
+            detailTimer.Start();
+            return;
+        }
+        detailSongId = row.Song.SongId;
+        DetailFrame.Navigate(typeof(SongDetailPage), new AppRoute.SongDetail(row.Song.SongId, App.Session.Settings.SongFilter.Instrument),
+            new Microsoft.UI.Xaml.Media.Animation.SuppressNavigationTransitionInfo());
+    }
+
+    /// <summary>Shows the row selected when the debounce ends.</summary>
+    /// <param name="sender">Timer.</param>
+    /// <param name="args">Unused.</param>
+    private void OnDetailTimer(DispatcherQueueTimer sender, object args)
+    {
+        if (split && SongList.SelectedItem is SongRowItem row) ShowDetail(row, immediately: true);
+    }
+    #endregion
 
     /// <summary>Applies search immediately on Enter.</summary>
     /// <param name="sender">Search box.</param>
