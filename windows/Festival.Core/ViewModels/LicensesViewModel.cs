@@ -3,7 +3,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 namespace Festival.Core.ViewModels;
 
 #region Licenses
-/// <summary>Licenses page (<c>/settings/licenses</c>): this app's own NuGet packages and bundled assets; no network.</summary>
+/// <summary>Licenses page (<c>/settings/licenses</c>): this app's own third-party NuGet packages only (operator rule: no bundled-asset entries); no network.</summary>
 public sealed partial class LicensesViewModel : ObservableObject
 {
     /// <summary>Creates the page model.</summary>
@@ -12,14 +12,10 @@ public sealed partial class LicensesViewModel : ObservableObject
     {
         Packages = manifest.Packages.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
             .Select(p => new LicenseRowViewModel(p, manifest.Texts[p.TextId])).ToList();
-        Assets = LicenseManifest.BundledAssets.Select(a => new LicenseRowViewModel(a.Package, a.Text)).ToList();
     }
 
     /// <summary>Third-party packages, by name.</summary>
     public List<LicenseRowViewModel> Packages { get; }
-
-    /// <summary>Bundled first-party assets.</summary>
-    public List<LicenseRowViewModel> Assets { get; }
 
     /// <summary>Whether no third-party package is listed (a missing or empty manifest).</summary>
     public bool HasNoPackages => Packages.Count == 0;

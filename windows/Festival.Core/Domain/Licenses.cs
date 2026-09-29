@@ -13,7 +13,7 @@ public sealed record LicensePackage
     [JsonPropertyName("name")] public string Name { get; init; } = "";
     /// <summary>Version or role.</summary>
     [JsonPropertyName("version")] public string Version { get; init; } = "";
-    /// <summary>Ecosystem (NuGet, Bundled asset).</summary>
+    /// <summary>Ecosystem (NuGet).</summary>
     [JsonPropertyName("ecosystem")] public string Ecosystem { get; init; } = "";
     /// <summary>License label.</summary>
     [JsonPropertyName("license")] public string License { get; init; } = "";
@@ -32,19 +32,6 @@ public sealed record LicenseManifest
     [JsonPropertyName("packages")] public List<LicensePackage> Packages { get; init; } = [];
     /// <summary>License bodies by ID.</summary>
     [JsonPropertyName("texts")] public Dictionary<string, string> Texts { get; init; } = [];
-
-    /// <summary>First-party bundled assets listed for transparency (they carry no third-party license).</summary>
-    public static IReadOnlyList<(LicensePackage Package, string Text)> BundledAssets { get; } =
-    [
-        (new LicensePackage
-        {
-            Id = "instrument-iconography", Name = "Instrument Iconography", Version = "Assets/Instruments",
-            Ecosystem = "Bundled asset", License = "First-party", TextId = "first-party",
-        },
-        "These instrument icons are the operator's own artwork, copied from the companion website's public/instruments/ " +
-        "directory (the same origin as this app's service). They are not third-party assets, are not licensed from another " +
-        "rights holder, and this app does not bundle any third-party album art or trademarked imagery."),
-    ];
 
     /// <summary>Parses and validates manifest bytes; anything malformed yields an empty manifest.</summary>
     /// <param name="bytes">File bytes, or <see langword="null"/> when missing.</param>
