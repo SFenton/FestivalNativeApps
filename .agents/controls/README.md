@@ -13,6 +13,7 @@ All controls are `pending` until every platform has state/visual/accessibility e
 | songs-filter | `fst.songs.filter` | 29 | pending | [spec](songs-filter/spec.md) | [ios](songs-filter/ios.md) · [android](songs-filter/android.md) · [windows](songs-filter/windows.md) |
 | score-accuracy | `fst.score.accuracy.*` | 16 | pending | [spec](score-accuracy/spec.md) | [ios](score-accuracy/ios.md) · [ipados](score-accuracy/ipados.md) |
 | star-rating | `fst.star-rating.*` | 5 | pending | [spec](star-rating/spec.md) | — |
+| instrument-selector | `fst.instrument-selector.*` | 10 | pending | [spec](instrument-selector/spec.md) | [windows](instrument-selector/windows.md) |
 | chopt-paths | `fst.song-detail.paths` | 12 | pending | [spec](chopt-paths/spec.md) | [ios](chopt-paths/ios.md) · [ipados](chopt-paths/ipados.md) · [android](chopt-paths/android.md) · [windows](chopt-paths/windows.md) |
 | shop-offers | `fst.songs.shop` | 14 | pending | [spec](shop-offers/spec.md) | [ios](shop-offers/ios.md) · [android](shop-offers/android.md) · [windows](shop-offers/windows.md) |
 | app-navigation | `fst.nav.*` | 6 | pending | [spec](app-navigation/spec.md) | [ios](app-navigation/ios.md) · [ipados](app-navigation/ipados.md) · [android](app-navigation/android.md) |
@@ -26,7 +27,6 @@ All controls are `pending` until every platform has state/visual/accessibility e
 | service-status | `fst.service-status.*` | 8 | pending | [spec](service-status/spec.md) | [ios](service-status/ios.md) · [android](service-status/android.md) |
 | global-search | `fst.global-search.*` | 9 | pending | [spec](global-search/spec.md) | [ios](global-search/ios.md) · [ipados](global-search/ipados.md) · [macos](global-search/macos.md) · [android](global-search/android.md) · [windows](global-search/windows.md) |
 | whats-new | `fst.whats-new.*` | 5 | pending | [spec](whats-new/spec.md) | [ios](whats-new/ios.md) · [windows](whats-new/windows.md) |
-| instrument-selector | ? | ? | not in contract | [spec](instrument-selector/spec.md) | [windows](instrument-selector/windows.md) |
 <!-- END GENERATED -->
 # Controls router
 
