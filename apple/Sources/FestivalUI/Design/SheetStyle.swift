@@ -55,7 +55,10 @@ struct FestivalSheetModifier: ViewModifier {
         content
             .scrollContentBackground(.hidden)
             .presentationDetents(size.detents, selection: $detent)
-            .presentationDragIndicator(.visible)
+            // The system grabber hugs the sheet's top edge and cannot be moved; HIG shows
+            // it only on resizable sheets, so large-only sheets drop it (operator batch 7:
+            // grabber too close to the top) and keep their top-right Close.
+            .presentationDragIndicator(size.detents.count > 1 ? .visible : .hidden)
             .modifier(SheetBackground(opaque: reduceTransparency || lessTransparency || moreContrast))
             .modifier(FestivalSheetSizingModifier(
                 sizing: sizing, regularWidth: deviceLayout.widthClass == .regular
@@ -144,4 +147,36 @@ public enum FestivalSheetActionColor {
     /// but light enough (#FF6B66) to keep 4.5:1 contrast on the dark sheet surface
     /// (`BrandTokens.statusRed` is a fill colour and fails as text).
     public static let destructive = Color(.sRGB, red: 1.0, green: 107.0 / 255, blue: 102.0 / 255)
+}
+
+/// The native Close button every Festival modal carries top-right (operator batch 7):
+/// the system close glyph (`Button(role: .close)`) on iOS/macOS 26+, a "Close" text
+/// button before.
+public struct FestivalSheetCloseItem: ToolbarContent {
+    private let identifier: String
+    private let action: () -> Void
+
+    /// Create the close item.
+    ///
+    /// - Parameters:
+    ///   - identifier: Accessibility identifier (existing sheets keep theirs).
+    ///   - action: Dismisses the sheet.
+    public init(identifier: String, action: @escaping () -> Void) {
+        self.identifier = identifier
+        self.action = action
+    }
+
+    public var body: some ToolbarContent {
+        ToolbarItem(placement: .confirmationAction) {
+            Group {
+                if #available(iOS 26.0, macOS 26.0, *) {
+                    Button(role: .close, action: action)
+                } else {
+                    Button("Close", action: action)
+                }
+            }
+            .accessibilityLabel("Close")
+            .accessibilityIdentifier(identifier)
+        }
+    }
 }

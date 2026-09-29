@@ -266,11 +266,8 @@ struct SongsFilterSheet: View {
         .navigationBarTitleDisplayMode(.inline)
       #endif
       .toolbar {
-        // Dismiss-only modal: trailing Done (modal standard, operator 2026-09-28).
-        ToolbarItem(placement: .confirmationAction) {
-          Button("Done") { dismiss() }
-            .accessibilityIdentifier("fst.songs.filter.done")
-        }
+        // Native Close top-right on every modal (operator batch 7).
+        FestivalSheetCloseItem(identifier: "fst.songs.filter.done") { dismiss() }
       }
       .onChange(of: choiceKey) { _, _ in commit() }
     }

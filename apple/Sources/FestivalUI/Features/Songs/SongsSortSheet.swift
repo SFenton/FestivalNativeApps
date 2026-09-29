@@ -129,11 +129,8 @@ struct SongsSortSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
-                // Dismiss-only modal: trailing Done (modal standard, operator 2026-09-28).
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                        .accessibilityIdentifier("fst.songs.sort.done")
-                }
+                // Native Close top-right on every modal (operator batch 7).
+                FestivalSheetCloseItem(identifier: "fst.songs.sort.done") { dismiss() }
             }
             .onChange(of: draftMode) { _, _ in commit() }
             .onChange(of: draftAscending) { _, _ in commit() }

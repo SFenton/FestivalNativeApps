@@ -54,7 +54,7 @@ final class NotificationsJourneyTests: XCTestCase {
         XCTAssertTrue(bell.label.contains("unread"))
         bell.tap()
         XCTAssertTrue(app.navigationBars["Notifications"].waitForExistence(timeout: 15))
-        app.buttons["Done"].tap()
+        app.buttons["fst.notifications.close"].tap()
         XCTAssertTrue(bell.waitForExistence(timeout: 10))
         XCTAssertFalse(bell.label.contains("unread"), "Viewing the sheet must mark rows seen")
     }

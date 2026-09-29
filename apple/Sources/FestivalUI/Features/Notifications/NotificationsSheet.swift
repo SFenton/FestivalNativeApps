@@ -15,6 +15,9 @@ import FestivalDesign
 struct NotificationsSheet: View {
     let session: FestivalSession
     @State private var path: [AppRoute] = []
+    /// The first reveal's stagger has finished; rows rebuilt later (List recycling while
+    /// scrolling back up) appear without fading again (operator batch 7).
+    @State private var fadeSettled = false
     @Environment(\.dismiss) private var dismiss
     private var center: NotificationsCenter { session.notificationsCenter }
 
@@ -32,11 +35,8 @@ struct NotificationsSheet: View {
                 .navigationBarTitleDisplayMode(.inline)
                 #endif
                 .toolbar {
-                    // Dismiss-only modal: Done belongs on the trailing side (HIG), not
-                    // leading like a Cancel action (operator, 2026-09-28).
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { dismiss() }
-                    }
+                    // Native Close top-right on every modal (operator batch 7).
+                    FestivalSheetCloseItem(identifier: "fst.notifications.close") { dismiss() }
                 }
         }
         .task { await center.refresh(session: session) }
@@ -73,18 +73,34 @@ struct NotificationsSheet: View {
             let unread = center.notifications.filter { center.unreadIds.contains($0.id) }
             let older = center.notifications.filter { !center.unreadIds.contains($0.id) }
             if !unread.isEmpty {
-                Section("New") { rows(unread) }
+                Section { rows(unread) } header: { sectionHeader("New") }
             }
             if !older.isEmpty || unread.isEmpty {
-                Section(unread.isEmpty ? "" : "Older") { rows(older) }
+                Section { rows(older, offset: unread.count) } header: {
+                    if !unread.isEmpty { sectionHeader("Older") }
+                }
             }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .task(id: center.notifications.count) {
+            await FadeStagger.settle(afterRevealing: min(center.notifications.count, 12)) {
+                fadeSettled = true
+            }
+        }
+    }
+
+    /// White section title ("New" / "Older", operator batch 7).
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(FestivalText.primary)
+            .textCase(nil)
+            .accessibilityAddTraits(.isHeader)
     }
 
     @ViewBuilder
-    private func rows(_ notifications: [AppNotification]) -> some View {
+    private func rows(_ notifications: [AppNotification], offset: Int = 0) -> some View {
         ForEach(Array(notifications.enumerated()), id: \.element.id) { index, notification in
             Button {
                 Task { await open(notification) }
@@ -94,7 +110,7 @@ struct NotificationsSheet: View {
                 )
             }
             .buttonStyle(.plain)
-            .festivalFadeIn(isLoaded: true, index: index)
+            .festivalFadeIn(isLoaded: true, index: FadeStagger.index(offset + index, settled: fadeSettled))
             .listRowBackground(Color.clear)
             .accessibilityIdentifier("fst.notifications.row.\(notification.id)")
         }
@@ -145,6 +161,8 @@ struct NotificationsEmptyState: View {
 struct NotificationRow: View {
     let notification: AppNotification
     let isUnread: Bool
+    /// Web `UNREAD_DOT_COLOR` (#FACC15).
+    static let unreadDot = Color(.sRGB, red: 250 / 255, green: 204 / 255, blue: 21 / 255)
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -178,17 +196,26 @@ struct NotificationRow: View {
                 }
             }
             Spacer(minLength: 0)
-            if isUnread {
-                Circle()
-                    .fill(BrandTokens.gold)
-                    .frame(width: 8, height: 8)
-                    .accessibilityHidden(true)
-            }
-            if notification.destination != nil {
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(FestivalText.deemphasized)
-                    .accessibilityHidden(true)
+            // Web trailing column: 20pt wide, the chevron centred vertically and the
+            // unread dot centred 24pt above it (`trailingAction` / `unreadDot`).
+            if isUnread || notification.destination != nil {
+                ZStack {
+                    if notification.destination != nil {
+                        Image(systemName: "chevron.right")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(FestivalText.primary.opacity(0.72))
+                    }
+                    if isUnread {
+                        Circle()
+                            .fill(Self.unreadDot)
+                            .frame(width: 9, height: 9)
+                            .overlay(Circle().stroke(BrandTokens.surfaceSubtle, lineWidth: 2))
+                            .offset(y: -24)
+                    }
+                }
+                .frame(width: 20)
+                .frame(maxHeight: .infinity)
+                .accessibilityHidden(true)
             }
         }
         .padding(.vertical, 6)

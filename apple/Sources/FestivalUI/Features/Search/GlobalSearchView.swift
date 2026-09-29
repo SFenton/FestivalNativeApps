@@ -301,10 +301,7 @@ struct GlobalSearchSheet: View {
             .task(id: model.runKey) { await model.search(session: session) }
             .toolbar {
                 // Dismiss-only modal: trailing (modal standard, operator 2026-09-28).
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Close") { dismiss() }
-                        .accessibilityIdentifier("fst.global-search.close")
-                }
+                FestivalSheetCloseItem(identifier: "fst.global-search.close") { dismiss() }
             }
         }
     }
