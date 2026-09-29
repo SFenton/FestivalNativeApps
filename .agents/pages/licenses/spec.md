@@ -22,3 +22,4 @@ Row tap opens the correct entry's text; empty-dependency state (a platform/build
 ## Operator rule
 
 - Do not list or mention the star images (`star_white`/`star_gold`) on the Licenses page on any platform (operator, 2026-09-28). Add no new bundled-art entries without operator approval.
+- 2026-09-28 (batch 6): **remove the Bundled Assets section and the instrument Iconography entry** on every platform; Licenses lists third-party software only.
