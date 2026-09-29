@@ -69,16 +69,19 @@ struct GlobalSearchResults: View {
         }
     }
 
+    /// Web `SearchModal`: every result is its own frosted card, 4pt apart, on the
+    /// sheet's standard 16pt margins (batch 6.4 / 6.5: no inset-grouped double inset).
     private func resultList<Rows: View>(@ViewBuilder rows: () -> Rows) -> some View {
         List {
             rows()
         }
-        #if os(iOS)
-        .listStyle(.insetGrouped)
-        #endif
+        .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.immediately)
     }
+
+    /// One result card's List row chrome.
+    private static let cardInsets = EdgeInsets(top: 2, leading: 16, bottom: 2, trailing: 16)
 
     /// Vertically centred between the scope bar and the bottom safe area.
     private func centeredMessage(_ text: String) -> some View {
@@ -117,25 +120,28 @@ struct GlobalSearchResults: View {
                     Button {
                         open(.songDetail(song))
                     } label: {
+                        // Same art, fonts and padding as a Songs row (batch 6.3).
                         HStack(spacing: 12) {
-                            ArtworkTile(raw: song.albumArt, session: session, size: 40)
-                            VStack(alignment: .leading, spacing: 2) {
-                                MarqueeText(song.title)
+                            ArtworkTile(raw: song.albumArt, session: session, size: 44)
+                            VStack(alignment: .leading, spacing: 4) {
+                                MarqueeText(song.title, font: .headline)
                                     .foregroundStyle(BrandTokens.textPrimary)
-                                    .lineLimit(1)
-                                MarqueeText(song.artist)
-                                    .font(.subheadline)
+                                MarqueeText(Self.subtitle(for: song), font: .subheadline)
                                     .foregroundStyle(FestivalText.primary)
-                                    .lineLimit(1)
                             }
                             Spacer(minLength: 0)
                         }
-                        .frame(minHeight: 44)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .festivalGlass(.card, cornerRadius: 12)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityElement(children: .combine)
                     .accessibilityAddTraits(.isButton)
+                    .listRowInsets(Self.cardInsets)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
                     .accessibilityIdentifier("fst.global-search.result.song")
                     // Each new result set fades in, staggered like the web list.
                     .festivalFadeIn(
@@ -193,11 +199,16 @@ struct GlobalSearchResults: View {
                     } label: {
                         Label(player.displayName, systemImage: "person.crop.circle")
                             .foregroundStyle(BrandTokens.textPrimary)
-                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
+                            .padding(.horizontal, 16)
+                            .festivalGlass(.card, cornerRadius: 12)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(player.displayName)
+                    .listRowInsets(Self.cardInsets)
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
                     .accessibilityIdentifier("fst.global-search.result.player")
                     .festivalFadeIn(
                         isLoaded: true,
@@ -241,18 +252,37 @@ struct GlobalSearchResults: View {
 
     // MARK: Building blocks
 
+    /// "artist · year · duration", like a Songs row.
+    static func subtitle(for song: Song) -> String {
+        var text = song.artist
+        if let year = song.year, year != 0 { text += " · \(year)" }
+        if let duration = song.formattedDuration { text += " · \(duration)" }
+        return text
+    }
+
     private func section<Rows: View>(
         _ title: String, id: String, @ViewBuilder rows: () -> Rows
     ) -> some View {
         Section {
-            rows()
-        } header: {
-            // On the heading: an identifier on the `Section` would override its rows'.
-            FestivalSectionHeader(title)
+            // Web: a small uppercase heading row, not a pinned header band. The
+            // identifier sits on the heading (on the `Section` it would override rows').
+            Text(title.uppercased())
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(FestivalText.primary)
+                .padding(.horizontal, 4)
+                .padding(.top, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityLabel(title)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityIdentifier("fst.global-search.section.\(id)")
+                .listRowInsets(Self.cardInsets)
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+            rows()
         }
-        .listRowBackground(Color.white.opacity(0.06))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .listSectionSeparator(.hidden)
     }
 
     private func messageSection(_ text: String) -> some View {
