@@ -1,0 +1,35 @@
+[
+  {
+    "name": "launch-order-carousel-then-whats-new",
+    "route": "/songs",
+    "preset": "medium",
+    "extra": {"FST_DEBUG_FIRST_RUN": "force", "FST_DEBUG_WHATS_NEW": "force"},
+    "steps": [
+      "waitfor:id=fst.first-run.dialog@20",
+      "shot:{shots}/first-run.png",
+      "key:esc",
+      "waitfor:id=fst.whats-new.dialog@10",
+      "waitfor:id=fst.whats-new.list",
+      "shot:{shots}/whats-new.png",
+      "key:esc",
+      "wait:1",
+      "click:id=fst.songs.sort",
+      "waitfor:id=fst.songs.sort.reset@5",
+      "key:esc"
+    ]
+  },
+  {
+    "name": "outside-click-dismisses-first-run",
+    "route": "/songs",
+    "preset": "medium",
+    "extra": {"FST_DEBUG_FIRST_RUN": "force"},
+    "steps": [
+      "waitfor:id=fst.first-run.dialog@20",
+      "click:1250,1000",
+      "wait:1",
+      "click:id=fst.songs.sort",
+      "waitfor:id=fst.songs.sort.reset@5",
+      "key:esc"
+    ]
+  }
+]

@@ -18,4 +18,4 @@
 
 ## Open
 
-- Live screenshots: `showcase\win-pwa\live\`, `showcase\win-shell2\live\`. Launch order verified by hand (carousel, then What's New); UIA journey for it not yet scripted.
+- Live screenshots: `showcase\win-pwa\live\`, `showcase\win-shell2\live\`. UIA journeys: `python tools/windows/ui_journey.py tools/windows/journeys/whats-new.json` (launch order carousel → What's New → free page; a click on the backdrop dismisses the carousel).
