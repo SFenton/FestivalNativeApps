@@ -7,17 +7,23 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.material3.LocalContentColor
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.semantics
@@ -95,6 +101,9 @@ const val FLOATING_TOOLBAR_MARGIN_DP = 16
 @Composable
 fun FloatingToolbar(host: FloatingToolbarHost, modifier: Modifier = Modifier) {
     val content = host.current ?: return
+    // A page whose actions are all conditional (or none) registers empty content: measure it but
+    // place nothing, so no empty pill draws or blocks touches.
+    var hasContent by remember { mutableStateOf(true) }
     Surface(
         shape = CircleShape,
         color = BrandTokens.cardBackground.copy(alpha = 0.97f),
@@ -102,6 +111,10 @@ fun FloatingToolbar(host: FloatingToolbarHost, modifier: Modifier = Modifier) {
         border = BorderStroke(1.dp, BrandTokens.glassBorder),
         shadowElevation = 6.dp,
         modifier = modifier
+            .layout { measurable, constraints ->
+                val placeable = measurable.measure(constraints)
+                if (hasContent) layout(placeable.width, placeable.height) { placeable.place(0, 0) } else layout(0, 0) {}
+            }
             .heightIn(min = FLOATING_TOOLBAR_HEIGHT_DP.dp)
             .testTag("fst.nav.floating-toolbar")
             // Read after the page content, before the bottom bar.
@@ -112,8 +125,14 @@ fun FloatingToolbar(host: FloatingToolbarHost, modifier: Modifier = Modifier) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
-                content = content,
-            )
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.onSizeChanged { hasContent = it.width > 0 },
+                    content = content,
+                )
+            }
         }
     }
 }

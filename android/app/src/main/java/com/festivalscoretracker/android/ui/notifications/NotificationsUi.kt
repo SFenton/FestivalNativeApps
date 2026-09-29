@@ -21,7 +21,6 @@ import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,6 +52,7 @@ import com.festivalscoretracker.android.core.notifications.NotificationDestinati
 import com.festivalscoretracker.android.presentation.notifications.NotificationRow
 import com.festivalscoretracker.android.presentation.notifications.NotificationsState
 import com.festivalscoretracker.android.presentation.notifications.NotificationsViewModel
+import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
@@ -140,7 +140,7 @@ fun NotificationsSheet(viewModel: NotificationsViewModel, onDismiss: () -> Unit,
                 "Select a player profile to see notifications about new high scores and rank changes.", "fst.notifications.no-player",
             ) { Button(onClick = { onDismiss(); onChooseProfile() }) { Text("Select Player Profile") } }
             NotificationsState.Loading -> Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(Modifier.testTag("fst.notifications.loading"))
+                FestivalLoading("Loading notifications", Modifier.testTag("fst.notifications.loading"))
             }
             is NotificationsState.Failed -> ServiceStatusInline(
                 current.issue, "Notifications unavailable", null, viewModel::refresh, Modifier.padding(16.dp).testTag("fst.notifications.failed"),

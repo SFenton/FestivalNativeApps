@@ -140,12 +140,10 @@ fun FestivalScreen(
     LaunchedEffect(titleTruncated, pageActionsWidth, widthPx) {
         collapsedAtPx = TopBarActionFit.afterTitleLayout(titleTruncated, inlineActions, pageActionsWidth > 0, widthPx, collapsedAtPx)
     }
-    // Compact windows: screen actions + search float over the bottom bar (web bottom dock).
+    // Compact windows: page actions float over the bottom bar (web bottom dock); global search
+    // stays in the top app bar on every window size (operator 2026-09-28).
     if (shell.floatingToolbar != null) {
-        FloatingToolbarContent {
-            actions()
-            GlobalSearchEntry(shell.search)
-        }
+        FloatingToolbarContent { actions() }
     }
     Scaffold(
         modifier = modifier
@@ -177,7 +175,7 @@ fun FestivalScreen(
                 },
                 actions = {
                     val global: @Composable RowScope.() -> Unit = {
-                        if (shell.floatingToolbar == null) GlobalSearchEntry(shell.search)
+                        GlobalSearchEntry(shell.search)
                         shell.notifications?.invoke()
                         if (isRoot) ProfileAvatarButton(shell.selectedPlayer, shell.openProfile)
                     }

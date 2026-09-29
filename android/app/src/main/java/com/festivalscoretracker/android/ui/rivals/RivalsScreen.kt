@@ -17,7 +17,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.PersonSearch
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -56,6 +55,7 @@ import com.festivalscoretracker.android.presentation.ProfileSearchViewModel
 import com.festivalscoretracker.android.presentation.rivals.RivalsHubContent
 import com.festivalscoretracker.android.presentation.rivals.RivalsHubTab
 import com.festivalscoretracker.android.presentation.rivals.RivalsHubViewModel
+import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LoadingView
 import com.festivalscoretracker.android.ui.common.LocalShellActions
@@ -267,7 +267,7 @@ fun FindRivalSheet(
                         textAlign = TextAlign.Center,
                         modifier = Modifier.align(Alignment.Center),
                     )
-                    ProfileSearchState.Searching -> CircularProgressIndicator(Modifier.align(Alignment.Center).size(32.dp))
+                    ProfileSearchState.Searching -> FestivalLoading("Searching", Modifier.align(Alignment.Center), size = 32.dp)
                     is ProfileSearchState.Failed -> ServiceStatusInline(current.issue, "Player search unavailable", null, searchViewModel::retry)
                     is ProfileSearchState.Results -> Column {
                         val results = current.results.filter { it.accountId != selectedPlayer?.accountId }

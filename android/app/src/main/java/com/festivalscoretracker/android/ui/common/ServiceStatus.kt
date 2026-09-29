@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -30,6 +31,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.service.ServiceIssue
 import com.festivalscoretracker.android.ui.theme.BrandTokens
@@ -146,7 +148,7 @@ fun ServiceStatusInline(issue: ServiceIssue, fallbackTitle: String, countdown: I
 }
 
 /**
- * Centered progress indicator.
+ * Centered loading indicator ([FestivalLoading]); no visible caption.
  *
  * @param label Accessible description.
  * @param modifier Modifier.
@@ -154,8 +156,29 @@ fun ServiceStatusInline(issue: ServiceIssue, fallbackTitle: String, countdown: I
 @Composable
 fun LoadingView(label: String, modifier: Modifier = Modifier) {
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(Modifier.semantics { contentDescription = label })
+        FestivalLoading(label)
     }
+}
+
+/**
+ * The app's one loading indicator (cross-platform standard, 2026-09-28): a white indeterminate
+ * arc on a 10% white track (web `ArcSpinner` track), 36 dp with a 3 dp stroke by default, never
+ * the theme's blue primary and never with a subtitle.
+ *
+ * @param label Accessible description, or null when a parent already announces the state.
+ * @param modifier Modifier.
+ * @param size Diameter (web `Spinner` SM 24 / MD 36 / LG 48).
+ */
+@Composable
+fun FestivalLoading(label: String?, modifier: Modifier = Modifier, size: Dp = 36.dp) {
+    CircularProgressIndicator(
+        modifier = modifier
+            .size(size)
+            .then(if (label != null) Modifier.semantics { contentDescription = label } else Modifier),
+        color = BrandTokens.textPrimary,
+        trackColor = BrandTokens.textPrimary.copy(alpha = 0.1f),
+        strokeWidth = if (size >= 48.dp) 4.dp else 3.dp,
+    )
 }
 
 // endregion

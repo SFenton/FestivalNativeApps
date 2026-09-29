@@ -22,7 +22,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -68,6 +67,7 @@ import com.festivalscoretracker.android.core.nav.PlayerRoute
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.bands.BandDetailViewModel
 import com.festivalscoretracker.android.presentation.bands.BandSongsState
+import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LoadingView
@@ -449,7 +449,7 @@ private fun SongList(rows: List<BandSongRow>, description: String, tag: String, 
 @Composable
 private fun SectionProgress(label: String) {
     Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) {
-        CircularProgressIndicator(Modifier.semantics { contentDescription = label })
+        FestivalLoading(label)
     }
 }
 

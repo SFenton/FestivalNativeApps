@@ -21,7 +21,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExpandedDockedSearchBar
 import androidx.compose.material3.ExpandedFullScreenSearchBar
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -90,6 +89,7 @@ import com.festivalscoretracker.android.core.search.SearchScope
 import com.festivalscoretracker.android.presentation.search.GlobalSearchUiState
 import com.festivalscoretracker.android.presentation.search.GlobalSearchViewModel
 import com.festivalscoretracker.android.presentation.search.SectionPhase
+import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.SearchChrome
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
@@ -407,7 +407,7 @@ fun GlobalSearchContent(
             Text(
                 announcement,
                 style = MaterialTheme.typography.labelMedium,
-                color = BrandTokens.textMuted,
+                color = BrandTokens.textPrimary,
                 modifier = Modifier
                     .padding(horizontal = 16.dp)
                     .testTag(GlobalSearchTags.STATUS)
@@ -418,7 +418,7 @@ fun GlobalSearchContent(
             ui.isBandsScope -> BandsUnavailable(onBandRankings)
             ui.hint != null -> CenteredMessage(ui.hint!!, retry = if (ui.canRetryAll) onRetry else null)
             ui.isBusy && !ui.showSongsSection && !ui.showPlayersSection -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(Modifier.size(32.dp).testTag(GlobalSearchTags.LOADING).semantics { contentDescription = "Searching" })
+                FestivalLoading("Searching", Modifier.testTag(GlobalSearchTags.LOADING), size = 32.dp)
             }
             else -> Results(ui, artworkUrl, onRetry, onOpen)
         }
@@ -568,12 +568,14 @@ private fun InlineMessage(text: String) {
 
 @Composable
 private fun CenteredMessage(text: String, retry: (() -> Unit)?) {
+    // Web: the hint ("Enter at least two characters…") is plain white text centred in the
+    // results area, with no container.
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+        modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 32.dp),
     ) {
-        Text(text, color = BrandTokens.textSecondary, textAlign = TextAlign.Center, modifier = Modifier.testTag(GlobalSearchTags.HINT))
+        Text(text, color = BrandTokens.textPrimary, textAlign = TextAlign.Center, modifier = Modifier.testTag(GlobalSearchTags.HINT))
         if (retry != null) {
             FilledTonalButton(onClick = retry, modifier = Modifier.heightIn(min = 48.dp).testTag(GlobalSearchTags.RETRY)) { Text("Retry") }
         }

@@ -1,6 +1,5 @@
 package com.festivalscoretracker.android.ui.settings
 
-import com.festivalscoretracker.android.ui.design.popupTestTags
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -10,10 +9,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -27,7 +26,6 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -75,10 +73,12 @@ import com.festivalscoretracker.android.core.settings.PathDisplayMode
 import com.festivalscoretracker.android.core.settings.ScoreLeeway
 import com.festivalscoretracker.android.presentation.settings.ServiceCheckState
 import com.festivalscoretracker.android.presentation.settings.SettingsViewModel
+import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
+import com.festivalscoretracker.android.ui.design.popupTestTags
 import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
 import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import com.festivalscoretracker.android.ui.theme.BrandTokens
@@ -425,7 +425,7 @@ private fun ServiceSection(state: ServiceCheckState, onCheck: () -> Unit) {
                 FilledTonalButton(onClick = onCheck, enabled = state != ServiceCheckState.Checking, modifier = Modifier.testTag("fst.settings.check-publication")) {
                     Text("Check for Updates")
                 }
-                if (state == ServiceCheckState.Checking) CircularProgressIndicator(Modifier.padding(start = 12.dp).heightIn(max = 24.dp), strokeWidth = 2.dp)
+                if (state == ServiceCheckState.Checking) FestivalLoading(null, Modifier.padding(start = 12.dp), size = 24.dp)
             }
         }
     }
@@ -516,10 +516,11 @@ private fun ToggleRow(
             .testTag(tag),
     ) {
         leading?.invoke()
-        Column(Modifier.weight(1f)) {
+        // 4 dp between the title and each supporting line (cross-platform settings row standard).
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(title, color = if (enabled) BrandTokens.textPrimary else BrandTokens.textMuted, style = MaterialTheme.typography.bodyLarge)
             listOfNotNull(description, reason).forEach {
-                Text(it, color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp))
+                Text(it, color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodyMedium)
             }
         }
         Switch(checked = checked, onCheckedChange = null, enabled = enabled)
@@ -541,7 +542,7 @@ private fun ValueRow(title: String, value: String, tag: String) {
 private fun NavigationRow(title: String, description: String, tag: String, onClick: () -> Unit) {
     GlassCard(Modifier.fillMaxWidth().testTag(tag), onClick = onClick) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(16.dp).semantics(mergeDescendants = true) {}) {
-            Column(Modifier.weight(1f)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)
                 Text(description, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary)
             }

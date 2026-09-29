@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.bands
 
+import com.festivalscoretracker.android.ui.design.StarRating
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -223,7 +224,7 @@ private fun BandScoreRow(entry: SongBandLeaderboardEntry, song: Song?, onClick: 
                             color = BrandTokens.textPrimary,
                             modifier = Modifier.weight(1f, fill = false),
                         )
-                        member.score?.let { Text(BandFormatting.count(it), style = MaterialTheme.typography.bodySmall, color = BrandTokens.textMuted) }
+                        member.score?.let { Text(BandFormatting.count(it), style = MaterialTheme.typography.bodySmall, color = BrandTokens.textPrimary) }
                     }
                 }
             }
@@ -242,7 +243,7 @@ private fun BandScoreRow(entry: SongBandLeaderboardEntry, song: Song?, onClick: 
                         )
                     }
                     accuracy?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = BrandTokens.textSecondary) }
-                    entry.stars?.takeIf { it > 0 }?.let { Text("★ $it", style = MaterialTheme.typography.labelSmall, color = BrandTokens.gold) }
+                    entry.stars?.takeIf { it > 0 }?.let { StarRating(it, size = 14.dp) }
                 }
             }
         }

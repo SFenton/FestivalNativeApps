@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -53,6 +52,7 @@ import com.festivalscoretracker.android.core.rivals.RivalSentiment
 import com.festivalscoretracker.android.core.rivals.RivalSongComparison
 import com.festivalscoretracker.android.core.rivals.RivalText
 import com.festivalscoretracker.android.core.service.ServiceIssue
+import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.fadeInStagger
@@ -261,7 +261,7 @@ fun RivalPreviewRows(
 fun RivalCardLoading(label: String) {
     GlassCard(Modifier.fillMaxWidth().heightIn(min = 120.dp)) {
         Box(Modifier.fillMaxWidth().heightIn(min = 120.dp), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(Modifier.size(28.dp).semantics { contentDescription = label })
+            FestivalLoading(label, size = 28.dp)
         }
     }
 }
@@ -423,7 +423,7 @@ private fun CompareEntry(name: String, rank: Int, score: Long?, win: Boolean, al
             fontWeight = if (win) FontWeight.Bold else FontWeight.Medium,
             color = if (win) BrandTokens.textPrimary else BrandTokens.textSecondary,
         )
-        if (score != null) Text(format.format(score), style = MaterialTheme.typography.bodySmall, color = BrandTokens.textMuted)
+        if (score != null) Text(format.format(score), style = MaterialTheme.typography.bodySmall, color = BrandTokens.textPrimary)
     }
 }
 

@@ -20,7 +20,6 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -53,6 +52,7 @@ import com.festivalscoretracker.android.core.nav.BandRoute
 import com.festivalscoretracker.android.core.nav.PlayerBandsRoute
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.bands.PlayerBandsViewModel
+import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LoadingView
 import com.festivalscoretracker.android.ui.common.LocalShellActions
@@ -179,8 +179,8 @@ fun BandsLandingScreen(player: SelectedPlayer?, preview: PlayerBandsViewModel?, 
                     Modifier.fillMaxWidth().padding(top = 8.dp).testTag("fst.bands.footnote"),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Icon(Icons.Outlined.Info, contentDescription = null, tint = BrandTokens.textMuted, modifier = Modifier.size(18.dp))
-                    Text(SEARCH_FOOTNOTE, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textMuted)
+                    Icon(Icons.Outlined.Info, contentDescription = null, tint = BrandTokens.textPrimary, modifier = Modifier.size(18.dp))
+                    Text(SEARCH_FOOTNOTE, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textPrimary)
                 }
             }
         }
@@ -213,7 +213,7 @@ private fun LazyGridScope.yourBands(
     when (state) {
         LoadState.Loading -> fullRow("your-loading") {
             Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) {
-                CircularProgressIndicator(Modifier.semantics { contentDescription = "Loading bands" })
+                FestivalLoading("Loading bands")
             }
         }
         is LoadState.Failed -> fullRow("your-error") { ServiceStatusInline(state.issue, "Bands unavailable", state.countdown, onRetry) }

@@ -18,7 +18,6 @@ import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FilterList
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,6 +57,7 @@ import com.festivalscoretracker.android.core.suggestions.SuggestionFilterSetting
 import com.festivalscoretracker.android.presentation.suggestions.SuggestionsPhase
 import com.festivalscoretracker.android.presentation.suggestions.SuggestionsUiState
 import com.festivalscoretracker.android.presentation.suggestions.SuggestionsViewModel
+import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LoadingView
 import com.festivalscoretracker.android.ui.common.LocalShellActions
@@ -305,7 +305,7 @@ private fun SuggestionsGrid(
             if (state.hasMore) {
                 item(key = "more", contentType = "more", span = StaggeredGridItemSpan.FullLine) {
                     Box(Modifier.fillMaxWidth().padding(16.dp).testTag("fst.suggestions.loading-more"), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(Modifier.semantics { contentDescription = "Loading more suggestions" })
+                        FestivalLoading("Loading more suggestions")
                     }
                 }
             }

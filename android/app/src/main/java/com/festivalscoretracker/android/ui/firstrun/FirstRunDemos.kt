@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.firstrun
 
+import com.festivalscoretracker.android.ui.design.StarRating
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -241,9 +242,10 @@ private fun MetadataDemo() {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SongRows(1)
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf("987,654", "99.2%", "Top 3%", "★★★★★★").forEach {
+            listOf("987,654", "99.2%", "Top 3%").forEach {
                 Text(it, color = BrandTokens.textPrimary, style = MaterialTheme.typography.labelMedium, modifier = Modifier.background(BrandTokens.surfaceMuted, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 4.dp))
             }
+            StarRating(6, Modifier.align(Alignment.CenterVertically), size = 16.dp)
         }
     }
 }

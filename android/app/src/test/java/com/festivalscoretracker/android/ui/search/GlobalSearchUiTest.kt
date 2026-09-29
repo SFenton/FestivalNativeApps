@@ -101,9 +101,9 @@ class GlobalSearchUiTest {
         h.launch()
         h.waitForTag("fst.songs.row.s-alpha")
         assertEquals(1, rule.onAllNodesWithTag(GlobalSearchTags.OPEN).fetchSemanticsNodes().size)
-        // Phone: search and page actions float over the bottom bar, not in the top app bar.
+        // Phone: page actions float over the bottom bar; search stays in the top app bar.
         val inToolbar = hasAnyAncestor(hasTestTag("fst.nav.floating-toolbar"))
-        rule.onNode(hasTestTag(GlobalSearchTags.OPEN) and inToolbar).assertIsDisplayed()
+        rule.onNode(hasTestTag(GlobalSearchTags.OPEN) and hasAnyAncestor(hasTestTag("fst.nav.top-bar"))).assertIsDisplayed()
         rule.onNode(hasTestTag("fst.songs.sort.open") and inToolbar).assertIsDisplayed()
         assertEquals(0, rule.onAllNodes(hasTestTag("fst.songs.sort.open") and hasAnyAncestor(hasTestTag("fst.nav.top-bar"))).fetchSemanticsNodes().size)
         rule.onNodeWithTag(GlobalSearchTags.OPEN).performClick()
