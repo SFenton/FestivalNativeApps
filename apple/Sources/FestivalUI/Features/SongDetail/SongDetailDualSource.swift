@@ -143,8 +143,11 @@ private struct SongHistoryCard: View {
                 if sorted.isEmpty {
                     note("No tracked score changes on this chart yet.")
                 } else {
-                    PlayerHistoryChart(entries: sorted, highScoreIndex: PlayerScoreHistorySort.highScoreIndex(in: sorted))
-                        .festivalFadeInOnAppear()
+                    let best = PlayerScoreHistorySort.highScoreIndex(in: sorted)
+                    ForEach(Array(sorted.enumerated().suffix(3)), id: \.offset) { index, entry in
+                        ScoreHistoryListRow(entry: entry, isBest: index == best)
+                    }
+                    .festivalFadeInOnAppear()
                     Text("\(sorted.count) score \(sorted.count == 1 ? "change" : "changes") tracked")
                         .font(.caption)
                         .foregroundStyle(BrandTokens.textSecondary)

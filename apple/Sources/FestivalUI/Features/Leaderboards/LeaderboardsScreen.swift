@@ -32,6 +32,9 @@ struct LeaderboardsScreen: View {
     @State private var quickLinks = QuickLinksController()
     /// `reloadKey` whose cards finished loading; a reappearance with the same key keeps them.
     @State private var loadedKey: String?
+    /// The first read of every card settled: until then only a spinner shows, then the
+    /// cards fade in with the web stagger (operator batch 6.41).
+    @State private var firstLoadDone = false
 
     /// Create the screen.
     ///
@@ -112,15 +115,52 @@ struct LeaderboardsScreen: View {
 
     @ViewBuilder
     private var cards: some View {
-        ForEach(visibleInstruments) { instrument in
+        ForEach(Array(visibleInstruments.enumerated()), id: \.element) { index, instrument in
             instrumentCard(instrument)
+                .festivalFadeIn(isLoaded: true, index: index)
         }
-        ForEach(BandType.allCases) { bandType in
+        ForEach(Array(BandType.allCases.enumerated()), id: \.element) { index, bandType in
             bandCard(bandType)
+                .festivalFadeIn(isLoaded: true, index: visibleInstruments.count + index)
         }
     }
 
     var body: some View {
+        Group {
+            if firstLoadDone {
+                loadedScroll
+            } else {
+                FestivalLoadingView(accessibilityLabel: "Loading Leaderboards")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityIdentifier("fst.leaderboards.loading")
+            }
+        }
+        .quickLinks(quickLinks, title: "Leaderboards Quick Links", sections: quickLinkSections)
+        .festivalBackground(.carousel, session: session)
+        .navigationTitle("Leaderboards")
+        .toolbar {
+            ToolbarItem(placement: Self.pageActionPlacement) {
+                RankByMenu(selection: rankByBinding)
+            }
+            QuickLinksToolbarItem(quickLinks)
+            FestivalRootTrailingItems(session: session)
+        }
+        .festivalProvidesRootTrailingItems()
+        .task(id: reloadKey) {
+            // `.task` restarts on every reappearance (e.g. Back from a player). Reloading
+            // then reset all cards and re-rendered the page and its toolbar for ~0.5 s,
+            // which the iPhone Duo rail showed as jitter (Lane W1). Pull to refresh still
+            // reloads.
+            guard loadedKey != reloadKey else { return }
+            let key = reloadKey
+            await loadAll()
+            guard !Task.isCancelled else { return }
+            firstLoadDone = true
+            if allCardsLoaded { loadedKey = key }
+        }
+    }
+
+    private var loadedScroll: some View {
         ScrollView {
             Group {
                 if layout.widthClass == .regular {
@@ -135,28 +175,7 @@ struct LeaderboardsScreen: View {
             }
             .padding(16)
         }
-        .quickLinks(quickLinks, title: "Leaderboards Quick Links", sections: quickLinkSections)
         .refreshable { await loadAll() }
-        .festivalBackground(.carousel, session: session)
-        .navigationTitle("Leaderboards")
-        .toolbar {
-            ToolbarItem(placement: Self.pageActionPlacement) {
-                RankByMenu(selection: rankByBinding)
-            }
-            QuickLinksToolbarItem(quickLinks)
-            FestivalRootTrailingItems(session: session)
-        }
-        .festivalProvidesRootTrailingItems()
-        .task(id: reloadKey) {
-            // `.task` restarts on every reappearance (e.g. Back from a player). Reloading
-            // then reset all cards to skeletons and re-rendered the page and its toolbar
-            // for ~0.5 s, which the iPhone Duo rail showed as jitter (Lane W1). Pull to
-            // refresh still reloads.
-            guard loadedKey != reloadKey else { return }
-            let key = reloadKey
-            await loadAll()
-            if !Task.isCancelled && allCardsLoaded { loadedKey = key }
-        }
     }
 
     // MARK: Instrument cards
@@ -360,14 +379,7 @@ struct LeaderboardsScreen: View {
     /// - Returns: A full-width glass navigation row.
     private func viewAllLink(_ route: AppRoute, title: String, id: String) -> some View {
         NavigationLink(value: route) {
-            Text(title)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(FestivalText.primary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity, minHeight: 44)
-                .padding(.vertical, 4)
-                .contentShape(Rectangle())
-                .modifier(PurpleGlassButtonSurface())
+            PurpleActionLabel(title: title)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(id)
@@ -392,14 +404,16 @@ struct LeaderboardsScreen: View {
         return false
     }
 
+    /// Read every card in parallel and apply the results together (no card pops in on
+    /// its own; a metric change keeps the old cards until the new ones are ready).
     private func loadAll() async {
-        for instrument in visibleInstruments {
-            await loadInstrument(instrument, rankBy: rankBy)
-        }
-        let metric = rankBy.bandMetric
-        for bandType in BandType.allCases {
-            await loadBand(bandType, rankBy: metric)
-        }
+        let cards = await LeaderboardsPreloader.load(
+            session: session, instruments: visibleInstruments, rankBy: rankBy, bandMetric: rankBy.bandMetric
+        )
+        guard !Task.isCancelled else { return }
+        instrumentStates = cards.instruments
+        bandStates = cards.bands
+        spotlightStates = cards.spotlights
     }
 
     /// Load one instrument's top-ten card.
@@ -476,30 +490,6 @@ private struct CardMessageSurface: ViewModifier {
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .festivalGlass(.card, cornerRadius: 12)
-    }
-}
-
-// MARK: - Purple glass button
-
-/// Accent-purple Liquid Glass for the "View all" buttons (operator, 2026-09-28):
-/// tinted interactive glass on iOS/macOS 26, a solid purple fill before 26 or when
-/// transparency is reduced or contrast increased (white text stays ≥4.5:1 on it).
-private struct PurpleGlassButtonSurface: ViewModifier {
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
-    @AppStorage("fst.accessibility.lessTransparency") private var lessTransparency = false
-
-    func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
-        if reduceTransparency || lessTransparency || moreContrast {
-            content.background(BrandTokens.accentPurple, in: shape)
-        } else if #available(iOS 26.0, macOS 26.0, *) {
-            content.glassEffect(.regular.tint(BrandTokens.accentPurple).interactive(), in: shape)
-        } else {
-            content
-                .background(BrandTokens.accentPurple.opacity(0.85), in: shape)
-                .overlay(shape.stroke(BrandTokens.glassBorder, lineWidth: 1))
-        }
     }
 }
 

@@ -6,19 +6,24 @@ import FestivalDesign
 /// Scalable score row shared by the native preview and the paginated Solo chart.
 struct SongLeaderboardEntryRow: View {
     let entry: LeaderboardEntry
+    /// The selected player's own row: rank and name bold (web `LeaderboardEntry`
+    /// `isPlayer`, operator batch 6.42).
+    var isPlayer = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @ScaledMetric(relativeTo: .body) private var accuracyTextWidth: CGFloat = 80
+    @ScaledMetric(relativeTo: .body) private var accuracyTextWidth: CGFloat = 56
     @ScaledMetric(relativeTo: .body) private var accuracyPillHeight: CGFloat = 24
 
     var body: some View {
         let rank = Text("#\(entry.rank.formatted())")
             .font(.body)
+            .fontWeight(isPlayer ? .bold : .regular)
             .monospacedDigit()
             .foregroundStyle(FestivalText.primary)
         let name = Text(
             entry.displayName.flatMap { $0.isEmpty ? nil : $0 } ?? "Unknown User"
         )
         .font(.body)
+        .fontWeight(isPlayer ? .bold : .regular)
         .fixedSize(horizontal: false, vertical: true)
         let score = Text(entry.score.formatted())
             .font(.body)

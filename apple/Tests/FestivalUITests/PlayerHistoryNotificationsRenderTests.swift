@@ -127,23 +127,34 @@ private let fixtureSong = Song(
 
 // MARK: - Player History
 
+/// Score history is a section of the song page: the selector, the chart and the best
+/// scores (highest first, the best marked), expanding to every score in place.
 @MainActor
-@Test func playerHistoryScreenRendersScoreRowsAndChart() async throws {
+@Test func songScoreHistorySectionRendersChartAndBestScores() async throws {
     let transport = HostedHistoryTransport()
     let session = hostedHistorySession(transport: transport)
+    let payload = try await session.songHistory(accountId: "fixture-1", songId: "fixture-song")
+    let entries = payload.response.history
+    #expect(entries.count == 3)
     let size = CGSize(width: 420, height: 900)
     let host = nativeHostedView(
-        PlayerHistoryScreen(session: session, song: fixtureSong, instrument: .lead)
-            .frame(width: size.width, height: size.height)
-            .preferredColorScheme(.dark),
+        ScrollView {
+            SongScoreHistorySection(
+                entries: entries, pool: [.lead, .bass], keyboardIcon: false,
+                instrument: .constant(nil), expanded: .constant(false)
+            )
+            .padding(16)
+        }
+        .frame(width: size.width, height: size.height)
+        .background(BrandTokens.appBackground)
+        .preferredColorScheme(.dark),
         size: size
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    // Let the `.task` load complete.
-    let image = try await nativeHostedSettle(host, untilText: ["Score history chart", "score 850000"])
-    _ = try nativeHostedPNG(image, filename: "player-history.png", environment: "FST_HISTORY_RENDER_OUT")
-    assertRendersContent(host, image: image, containing: ["Score history chart", "score 850000"])
+    let image = try await nativeHostedSettle(host, untilText: ["Score History", "score 850,000"])
+    _ = try nativeHostedPNG(image, filename: "song-score-history.png", environment: "FST_HISTORY_RENDER_OUT")
+    assertRendersContent(host, image: image, containing: ["Score History", "score 850,000"])
 }
 
 // MARK: - Notifications

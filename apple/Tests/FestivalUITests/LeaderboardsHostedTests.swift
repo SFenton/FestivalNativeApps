@@ -453,13 +453,14 @@ private extension View {
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    // The top-ten board itself resolves quickly; only the delayed single-account
-    // spotlight read is still pending at this point.
-    let image = try await nativeHostedSettle(host, untilText: ["Fixture Rank 1", "Loading your rank"])
+    // The page waits for every card, the delayed spotlight included, before it shows
+    // anything (operator batch 6.41): a spinner first, then the finished cards.
+    let loading = try await nativeHostedSettle(host, untilText: ["Loading Leaderboards"])
     _ = try nativeHostedPNG(
-        image, filename: "leaderboards-spotlight-loading.png", environment: "FST_LEADERBOARDS_RENDER_OUT"
+        loading, filename: "leaderboards-spotlight-loading.png", environment: "FST_LEADERBOARDS_RENDER_OUT"
     )
-    assertRendersContent(host, image: image, containing: ["Fixture Rank 1", "Loading your rank"])
+    let image = try await nativeHostedSettle(host, untilText: ["Fixture Rank 1"])
+    assertRendersContent(host, image: image, containing: ["Fixture Rank 1"])
 }
 
 // MARK: - FullRankingsScreen selected-player spotlight

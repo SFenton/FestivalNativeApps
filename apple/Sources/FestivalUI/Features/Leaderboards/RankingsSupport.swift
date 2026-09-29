@@ -71,7 +71,8 @@ struct AccountRankingRow: View {
             spokenSongs: RankingsCountText.spokenSongs(songs, fullCombos: metric == .fcrate),
             rating: RankingFormatting.rating(entry.ratingValue(for: metric), metric: metric),
             bayesian: entry.bayesianValue(for: metric).map(RankingFormatting.bayesian),
-            emphasized: isSelected
+            emphasized: isSelected,
+            showsChevron: entry.hasAccount
         )
         .modifier(RankingRowSurface(isSelected: isSelected, glass: glassSurface))
     }
@@ -97,6 +98,8 @@ struct RankingRowLayout: View {
     let bayesian: String?
     /// Bold name and value for the selected player's own row (web `isPlayer`).
     var emphasized: Bool = false
+    /// A trailing in-card chevron on rows that open something (operator batch 7.12).
+    var showsChevron: Bool = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// Minimum rank column so `#1`…`#10` names line up (web `computeRankWidth`).
     @ScaledMetric(relativeTo: .body) private var rankWidth: CGFloat = 40
@@ -124,6 +127,7 @@ struct RankingRowLayout: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     songsText
                     ratingColumn
+                    if showsChevron { chevron }
                 }
             }
         }
@@ -134,6 +138,13 @@ struct RankingRowLayout: View {
         .accessibilityElement(children: .combine)
     }
 
+    private var chevron: some View {
+        Image(systemName: "chevron.right")
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(FestivalText.deemphasized)
+            .accessibilityHidden(true)
+    }
+
     private var rankText: some View {
         Text("#\(rank.formatted())")
             .font(.body)
@@ -142,8 +153,12 @@ struct RankingRowLayout: View {
             .fixedSize()
     }
 
+    /// Truncates like the web's `colName` (`truncate`): leaderboard names never marquee
+    /// (operator batch 7.7).
     private var nameText: some View {
-        MarqueeText(name)
+        Text(name)
+            .lineLimit(1)
+            .truncationMode(.tail)
             .font(.body)
             .fontWeight(emphasized ? .bold : .regular)
             .foregroundStyle(FestivalText.primary)
@@ -180,8 +195,16 @@ struct RankingRowLayout: View {
 // MARK: - Row surface
 
 /// Per-row glass card, with the selected player's accent fill and border on top
-/// (web `RankingCard.tsx` `entryRow` / `playerEntryRow`).
+/// (web `entryRow` / `playerEntryRow`: `purpleHighlight` rgba(75,15,99,0.75) and a
+/// `purpleHighlightBorder` rgba(124,58,237,0.5) hairline). The one leaderboard row design
+/// for Song Detail cards, song leaderboards, Leaderboards, Full Rankings and Compete
+/// (operator batch 7.4).
 struct RankingRowSurface: ViewModifier {
+    /// Web `Colors.purpleHighlight`.
+    static let playerFill = Color(.sRGB, red: 75 / 255, green: 15 / 255, blue: 99 / 255, opacity: 0.75)
+    /// Web `Colors.purpleHighlightBorder`.
+    static let playerBorder = Color(.sRGB, red: 124 / 255, green: 58 / 255, blue: 237 / 255, opacity: 0.5)
+
     let isSelected: Bool
     /// False keeps only the selected-row accent, for rows already inside a card.
     var glass: Bool = true
@@ -191,13 +214,13 @@ struct RankingRowSurface: ViewModifier {
         content
             .background {
                 if isSelected {
-                    shape.fill(BrandTokens.accentPurple.opacity(0.18))
+                    shape.fill(Self.playerFill)
                 }
             }
-            .modifier(OptionalGlass(enabled: glass))
+            .modifier(OptionalGlass(enabled: glass && !isSelected))
             .overlay {
                 if isSelected {
-                    shape.stroke(BrandTokens.accentPurple, lineWidth: 1)
+                    shape.stroke(Self.playerBorder, lineWidth: 1)
                 }
             }
     }
@@ -295,7 +318,8 @@ struct BandRankingRow: View {
                 rating: RankingFormatting.rating(
                     entry.ratingValue(for: metric), metric: metric.asRankingMetric
                 ),
-                bayesian: entry.bayesianValue(for: metric).map(RankingFormatting.bayesian)
+                bayesian: entry.bayesianValue(for: metric).map(RankingFormatting.bayesian),
+                showsChevron: true
             )
             .modifier(RankingRowSurface(isSelected: false, glass: glassSurface))
         }
@@ -377,60 +401,55 @@ struct RankingsPagerView: View {
         if layout.sectionChrome.isVerticalBar {
             EmptyView()
         } else {
-            let first = pagerButton("First", enabled: page > 1) { onChange(1) }
-                .accessibilityIdentifier("\(idPrefix).page-first")
-            let previous = pagerButton("Previous", enabled: page > 1) { onChange(page - 1) }
-                .accessibilityIdentifier("\(idPrefix).page-previous")
-            let indicator = Text("\(page) / \(totalPages)")
-                .monospacedDigit()
-                .accessibilityIdentifier("\(idPrefix).page-info")
-            let next = pagerButton("Next", enabled: page < totalPages) { onChange(page + 1) }
-                .accessibilityIdentifier("\(idPrefix).page-next")
-            let last = pagerButton("Last", enabled: page < totalPages) { onChange(totalPages) }
-                .accessibilityIdentifier("\(idPrefix).page-last")
-            VStack(spacing: 8) {
-                HStack(spacing: 8) {
-                    first
-                    previous
-                    Spacer(minLength: 0)
-                }
-                indicator
-                HStack(spacing: 8) {
-                    Spacer(minLength: 0)
-                    next
-                    last
-                }
+            // Web `FixedLeaderboardPagination` / `Paginator`: one centred row of
+            // frosted circle arrows around a "page / total" badge (operator batch 7.5).
+            HStack(spacing: 10) {
+                arrow("chevron.left.2", "First page", id: "page-first", enabled: page > 1) { onChange(1) }
+                arrow("chevron.left", "Previous page", id: "page-previous", enabled: page > 1) { onChange(page - 1) }
+                Text("\(page.formatted()) / \(totalPages.formatted())")
+                    .font(.body.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(FestivalText.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 44)
+                    .festivalGlassCapsule(.card)
+                    .accessibilityLabel("Page \(page) of \(totalPages)")
+                    .accessibilityIdentifier("\(idPrefix).page-info")
+                arrow("chevron.right", "Next page", id: "page-next", enabled: page < totalPages) { onChange(page + 1) }
+                arrow("chevron.right.2", "Last page", id: "page-last", enabled: page < totalPages) { onChange(totalPages) }
             }
-            .padding(12)
-            .background(BrandTokens.cardBackground)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 16)
         }
     }
 
-    /// Keep native pager actions scalable and large enough to touch on every row.
+    /// A 44 pt frosted circle arrow (web `arrowBtnBase`), faded when disabled.
     ///
     /// - Parameters:
-    ///   - title: Visible First, Previous, Next or Last action name.
-    ///   - enabled: Whether the current page can move in that direction.
-    ///   - action: Page transition to run when activated.
-    /// - Returns: A native Button with a Fluent opaque plate and Dynamic Type text.
-    private func pagerButton(
-        _ title: String, enabled: Bool, action: @escaping () -> Void
+    ///   - symbol: Chevron symbol.
+    ///   - label: Spoken action.
+    ///   - id: Identifier suffix.
+    ///   - enabled: Whether the move is possible.
+    ///   - action: Page change.
+    /// - Returns: The arrow button.
+    private func arrow(
+        _ symbol: String, _ label: String, id: String, enabled: Bool, action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            Text(title)
-                .font(.body)
-                .foregroundStyle(
-                    enabled ? FestivalText.primary : FestivalText.disabled
-                )
-                .padding(.horizontal, 8)
-                .frame(minHeight: 44)
-                .background(
-                    BrandTokens.cardBackground,
-                    in: RoundedRectangle(cornerRadius: 12)
-                )
+            Image(systemName: symbol)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(enabled ? FestivalText.primary : FestivalText.disabled)
+                .frame(width: 44, height: 44)
+                .festivalGlassCapsule(.card, interactive: enabled)
+                .contentShape(Circle())
         }
         .buttonStyle(HighContrastPagerStyle())
         .disabled(!enabled)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier("\(idPrefix).\(id)")
     }
 }
 

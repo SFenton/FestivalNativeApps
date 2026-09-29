@@ -151,33 +151,50 @@ struct CompeteInstrumentLeaderboardSection: View {
         .task(id: instrument) { await load() }
     }
 
+    /// The one leaderboard design (operator batch 7.4): no card around the rows; each
+    /// row its own glass card (the player's purple), then the shared purple "View Full
+    /// Leaderboard" button (batch 7.6).
     private var card: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 6) {
             switch state {
             case .loading:
-                RankingsSkeletonRows(count: previewCount)
+                RankingsSkeletonRows(count: previewCount, glassRows: true)
             case let .failed(issue):
                 ServiceStatusInline(issue, scope: "compete.\(instrument.rawValue)") { Task { await load() } }
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .festivalGlass(.card, cornerRadius: 12)
             case let .loaded(payload) where payload.rankings.entries.isEmpty:
                 FestivalFootnote("No ranked \(instrument.label) players yet.")
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .festivalGlass(.card, cornerRadius: 12)
             case let .loaded(payload):
-                VStack(spacing: 4) {
+                VStack(spacing: 6) {
                     ForEach(payload.rankings.entries) { entry in
-                        AccountRankingRow(entry: entry, metric: .totalscore)
+                        AccountRankingRow(
+                            entry: entry, metric: .totalscore,
+                            isSelected: isSelected(entry.accountId), glassSurface: true
+                        )
                     }
                 }
                 .festivalFadeIn(isLoaded: true)
                 NavigationLink(
                     value: AppRoute.fullRankings(instrument: instrument, rankBy: "totalscore")
                 ) {
-                    RivalViewAllRow(title: "View Full Leaderboard")
+                    PurpleActionLabel(title: "View Full Leaderboard")
                 }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("fst.compete.leaderboard-card.\(instrument.rawValue).view-all")
                 .festivalFadeIn(isLoaded: true)
             }
         }
-        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .festivalGlass(.card)
+    }
+
+    private func isSelected(_ accountId: String) -> Bool {
+        guard let selected = session.selectedPlayer?.accountId else { return false }
+        return selected.caseInsensitiveCompare(accountId) == .orderedSame
     }
 
     @MainActor

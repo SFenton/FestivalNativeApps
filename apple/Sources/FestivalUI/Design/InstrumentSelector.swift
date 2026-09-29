@@ -106,15 +106,21 @@ struct InstrumentSelector<Panel: View>: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            Group {
-                if isCompact {
-                    compactRow
-                } else {
-                    fullRow
+            // The row is drawn over a full-width, fixed-height slot so a row wider than
+            // the screen can never widen the page; the slot's width decides compact mode.
+            Color.clear
+                .frame(maxWidth: .infinity)
+                .frame(height: Self.buttonSize)
+                .onGeometryChange(for: CGFloat.self, of: { $0.size.width.rounded() }) { measuredWidth = $0 }
+                .overlay {
+                    if measuredWidth > 0 || compact != nil {
+                        if isCompact {
+                            compactRow
+                        } else {
+                            fullRow
+                        }
+                    }
                 }
-            }
-            .frame(maxWidth: .infinity)
-            .onGeometryChange(for: CGFloat.self, of: { $0.size.width.rounded() }) { measuredWidth = $0 }
             if effective != nil, Panel.self != EmptyView.self {
                 panel()
                     .transition(reduceMotion ? .identity : .opacity.combined(with: .move(edge: .top)))

@@ -12,7 +12,11 @@ struct SongScorePreview: View {
     @ScaledMetric(relativeTo: .title3) private var headerIconSize: CGFloat = 48
     @State private var state: LoadState
     @State private var loadedKey: RequestKey?
+    @State private var adoptedPreload = false
     private let usesLiveClient: Bool
+    /// The page already read this chart (Song Detail waits for every card before it
+    /// appears); the first `.task` adopts it instead of reading again.
+    private let hasPreload: Bool
 
     private struct RequestKey: Equatable {
         let publicationRevision: Int
@@ -39,47 +43,50 @@ struct SongScorePreview: View {
     ///   - instrument: Chart displayed in this card.
     ///   - session: Publication-aware, process-scoped public service client.
     ///   - initialState: Optional fixture state that does not start network work.
+    ///   - preloaded: The page's finished read for this card; unlike `initialState`
+    ///     the card still reloads on a new publication, leeway or Retry.
     init(
         song: Song, instrument: Instrument, session: FestivalSession,
-        initialState: LoadState? = nil
+        initialState: LoadState? = nil, preloaded: LoadState? = nil
     ) {
         self.song = song
         self.instrument = instrument
         self.session = session
-        _state = State(initialValue: initialState ?? .loading)
+        _state = State(initialValue: initialState ?? preloaded ?? .loading)
         usesLiveClient = initialState == nil
+        if case .loading? = preloaded { hasPreload = false } else { hasPreload = preloaded != nil }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             instrumentHeader
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 8) {
                 switch state {
                 case .loading:
                     FestivalLoadingView(accessibilityLabel: "Loading \(instrument.label) scores")
                         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                 case let .failed(message):
-                    Text("Scores unavailable: \(message)")
-                        .font(.body)
-                        .foregroundStyle(FestivalText.primary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Button("Retry \(instrument.label) scores") {
-                        Task { await load() }
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Scores unavailable: \(message)")
+                            .font(.body)
+                            .foregroundStyle(FestivalText.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button("Retry \(instrument.label) scores") {
+                            Task { await load() }
+                        }
+                        .frame(minHeight: 44)
                     }
-                    .frame(minHeight: 44)
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .festivalGlass(.card, cornerRadius: 12)
                 case let .loaded(payload):
                     previewRows(payload)
                 }
                 if showsViewFull {
                     viewFullLink
                 }
-                if session.selectedPlayer != nil {
-                    historyLink
-                }
             }
-            .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .festivalGlass(.card, cornerRadius: 16)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .task(id: requestKey) {
@@ -88,6 +95,11 @@ struct SongScorePreview: View {
             // full chart). Reloading then flashed a spinner and collapsed the card,
             // which read as jitter on Back; keep rows already loaded for this key.
             if case .loaded = state, loadedKey == requestKey { return }
+            if hasPreload, loadedKey == nil, !adoptedPreload {
+                adoptedPreload = true
+                if case .loaded = state { loadedKey = requestKey }
+                return
+            }
             await load()
         }
     }
@@ -155,46 +167,12 @@ struct SongScorePreview: View {
     /// otherwise identical actions share the page.
     private var viewFullLink: some View {
         NavigationLink(value: AppRoute.songLeaderboard(song, instrument, 1)) {
-            Text("View full leaderboard")
-                .font(.body.weight(.semibold))
-                .foregroundStyle(FestivalText.primary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity, minHeight: 44)
-                .padding(.horizontal, 12)
-                .modifier(PurpleGlassButtonSurface())
-                .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            PurpleActionLabel(title: "View full leaderboard")
         }
         .buttonStyle(.plain)
         .accessibilityLabel("View full \(instrument.label) leaderboard")
         .accessibilityIdentifier(
             "fst.song-detail.leaderboard.\(instrument.rawValue)"
-        )
-    }
-
-    /// Selected-player entry point to `/history`.
-    ///
-    /// Web's only route to `/history` is a "View all scores" action under the
-    /// selected player's own score-history chart on this page
-    /// (`ScoreHistoryChart.tsx`); that chart is not yet ported, so this is the
-    /// equivalent entry point until it is.
-    private var historyLink: some View {
-        NavigationLink(value: AppRoute.playerHistory(song, instrument)) {
-            Label(
-                "View \(instrument.label) score history",
-                systemImage: "chart.line.uptrend.xyaxis"
-            )
-            .font(.body)
-            .foregroundStyle(FestivalText.primary)
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .padding(.horizontal, 12)
-            .background(
-                BrandTokens.appBackground,
-                in: RoundedRectangle(cornerRadius: 10)
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(
-            "fst.song-detail.history.\(instrument.rawValue)"
         )
     }
 
@@ -226,9 +204,11 @@ struct SongScorePreview: View {
             .foregroundStyle(FestivalText.primary)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .padding(14)
+            .festivalGlass(.card, cornerRadius: 12)
             .festivalFadeInOnAppear()
         } else {
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 6) {
                 ForEach(Array(displayed.enumerated()), id: \.offset) { index, entry in
                     previewRow(
                         entry,
@@ -239,15 +219,12 @@ struct SongScorePreview: View {
                     .accessibilityIdentifier(
                         "fst.song-detail.preview-row.\(instrument.rawValue).\(entry.accountId)"
                     )
-                    if index < displayed.count - 1 {
-                        Divider()
-                    }
                 }
                 // Web `InstrumentCard` spotlight footer: the selected player's own row
                 // (rank 11+) sits after the top ten, before View full leaderboard.
                 if let spotlight {
                     previewRow(spotlight, highlighted: true)
-                        .padding(.top, 8)
+                        .padding(.top, 4)
                         .accessibilityIdentifier(
                             "fst.song-detail.spotlight.\(instrument.rawValue)"
                         )
@@ -263,25 +240,13 @@ struct SongScorePreview: View {
     ///   - entry: Score row to draw.
     ///   - highlighted: Whether this row belongs to the selected player.
     /// - Returns: Row view.
-    @ViewBuilder
     private func previewRow(_ entry: LeaderboardEntry, highlighted: Bool) -> some View {
-        if highlighted {
-            SongLeaderboardEntryRow(entry: entry)
-                .padding(.vertical, 11)
-                .padding(.horizontal, 8)
-                .background(
-                    BrandTokens.accentPurple.opacity(0.18),
-                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(BrandTokens.accentPurple, lineWidth: 1)
-                )
-        } else {
-            // ~44pt rows, close to the web's 48px `entryRowHeight`.
-            SongLeaderboardEntryRow(entry: entry)
-                .padding(.vertical, 11)
-        }
+        // Web `InstrumentCard` `entryRow`: every row its own 48 pt glass card, the
+        // player's purple (the one leaderboard row design, operator batch 7.4).
+        SongLeaderboardEntryRow(entry: entry, isPlayer: highlighted)
+            .padding(.horizontal, 12)
+            .frame(minHeight: 48)
+            .modifier(RankingRowSurface(isSelected: highlighted))
     }
 
     /// Refresh one chart only when visible or after an explicit retry.
@@ -344,30 +309,5 @@ enum SongPreviewSpotlightPolicy {
             accuracy: score.accuracy, isFullCombo: score.isFullCombo,
             stars: score.stars, season: score.season, difficulty: score.difficulty
         )
-    }
-}
-
-// MARK: - Purple glass button
-
-/// Purple Liquid Glass surface for the card's View full leaderboard button, with an
-/// opaque purple fallback under Reduce Transparency / the app's contrast overrides.
-private struct PurpleGlassButtonSurface: ViewModifier {
-    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
-    @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
-    @AppStorage("fst.accessibility.lessTransparency") private var lessTransparency = false
-
-    func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
-        if reduceTransparency || lessTransparency || moreContrast {
-            content.background(BrandTokens.accentPurple, in: shape)
-        } else if #available(iOS 26.0, macOS 26.0, *) {
-            content.glassEffect(
-                .regular.tint(BrandTokens.accentPurple.opacity(0.7)).interactive(), in: shape
-            )
-        } else {
-            content
-                .background(BrandTokens.accentPurple.opacity(0.75), in: shape)
-                .background(.ultraThinMaterial, in: shape)
-        }
     }
 }

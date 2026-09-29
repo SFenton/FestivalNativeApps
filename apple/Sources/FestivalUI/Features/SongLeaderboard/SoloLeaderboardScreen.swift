@@ -20,6 +20,10 @@ struct SoloLeaderboardScreen: View {
     @State private var lastRequest: RequestKey?
     /// First staggered reveal of this page finished; recycled rows then appear instantly.
     @State private var staggerSettled = false
+    /// The in-list song header has scrolled under the bar: show art, title and
+    /// instrument in the navigation bar instead (operator batch 7.2, like Song Detail).
+    @State private var headerHidden = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     enum LoadState {
         case loading
@@ -79,31 +83,29 @@ struct SoloLeaderboardScreen: View {
                 }
             case let .loaded(payload):
                 VStack(spacing: 0) {
-                    if !dynamicTypeSize.isAccessibilitySize {
-                        scoreBanner(payload)
-                        scoreHeader(payload)
-                    }
+                    scoreBanner(payload)
                     List {
-                        if dynamicTypeSize.isAccessibilitySize {
-                            scoreBanner(payload)
-                                .listRowInsets(EdgeInsets())
-                                .listRowBackground(Color.clear)
-                            scoreHeader(payload)
-                                .listRowInsets(EdgeInsets())
-                                .listRowBackground(Color.clear)
-                        }
+                        // The song header scrolls with the rows (no card behind it);
+                        // once it passes under the bar the bar shows it instead.
+                        scoreHeader(payload)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 8, trailing: 16))
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
                         ForEach(Array(payload.leaderboard.entries.enumerated()), id: \.element.id) { index, entry in
                             let isSelectedRow = isSelectedAccount(entry.accountId)
                             NavigationLink(value: playerRoute(for: entry)) {
-                                SongLeaderboardEntryRow(entry: entry)
-                                    .padding(12)
-                                    .festivalGlass(.card)
-                                    .overlay {
-                                        if isSelectedRow {
-                                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                                .stroke(BrandTokens.accentPurple, lineWidth: 2)
-                                        }
-                                    }
+                                // One design with every leaderboard (web `entryRow`): each
+                                // row its own glass card, the player's purple.
+                                HStack(spacing: 8) {
+                                    SongLeaderboardEntryRow(entry: entry, isPlayer: isSelectedRow)
+                                    Image(systemName: "chevron.right")
+                                        .font(.footnote.weight(.semibold))
+                                        .foregroundStyle(FestivalText.deemphasized)
+                                        .accessibilityHidden(true)
+                                }
+                                    .padding(.horizontal, 14)
+                                    .frame(minHeight: 48)
+                                    .modifier(RankingRowSurface(isSelected: isSelectedRow))
                             }
                             // Accessibility grouping first, fade outermost: wrapping the
                             // link in the fade before `.contain` hid its score texts
@@ -136,7 +138,6 @@ struct SoloLeaderboardScreen: View {
                                 move(to: destination)
                             }
                         }
-                        .background(BrandTokens.appBackground.opacity(0.92))
                     }
                 }
             }
@@ -155,17 +156,27 @@ struct SoloLeaderboardScreen: View {
         .toolbar {
             ToolbarItem(placement: .principal) {
                 HStack(spacing: 8) {
-                    InstrumentIcon(instrument, size: 20)
+                    ArtworkTile(raw: song.albumArt, session: session, size: 28)
+                        .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 0) {
                         MarqueeText(song.title)
                             .font(.headline)
+                            .foregroundStyle(FestivalText.primary)
                             .lineLimit(1)
-                        Text(instrument.label)
-                            .font(.caption)
-                            .foregroundStyle(BrandTokens.textSecondary)
+                        HStack(spacing: 4) {
+                            InstrumentIcon(instrument, size: 14)
+                            Text(instrument.label)
+                                .font(.caption)
+                                .foregroundStyle(FestivalText.primary)
+                        }
                     }
                 }
+                .frame(maxWidth: 240)
+                .opacity(headerHidden ? 1 : 0)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: headerHidden)
                 .accessibilityElement(children: .combine)
+                .accessibilityHidden(!headerHidden)
+                .accessibilityIdentifier("fst.song-leaderboard.pinned-title")
             }
             #if os(iOS)
             if case let .loaded(payload) = state {
@@ -227,36 +238,44 @@ struct SoloLeaderboardScreen: View {
             let isVisible = payload.leaderboard.entries.contains {
                 $0.accountId.caseInsensitiveCompare(selected.accountId) == .orderedSame
             }
-            HStack(spacing: 8) {
-                NavigationLink(value: AppRoute.statistics) {
-                    SongLeaderboardEntryRow(entry: entry)
-                        .padding(12)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Your rank, \(RankingFormatting.ordinal(rank)).")
-                if !isVisible {
+            // Same row design and columns as the list rows (operator batch 7.3). Off
+            // this page, tapping jumps to the player's page; on it, opens Statistics.
+            Group {
+                if isVisible {
+                    NavigationLink(value: AppRoute.statistics) {
+                        footerRow(entry)
+                    }
+                } else {
                     Button {
                         move(to: LeaderboardPaging.page(forRank: rank, pageSize: 25))
                     } label: {
-                        Image(systemName: "arrow.right.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(BrandTokens.accentPurple)
+                        footerRow(entry)
                     }
-                    .accessibilityLabel("Jump to your page")
+                    .accessibilityHint("Jumps to your page")
                     .accessibilityIdentifier("fst.song-leaderboard.spotlight-jump")
                 }
             }
-            .padding(.horizontal, 4)
-            .background(BrandTokens.accentPurple.opacity(0.18), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(BrandTokens.accentPurple, lineWidth: 1)
-            )
+            .buttonStyle(.plain)
+            .accessibilityLabel("Your rank, \(RankingFormatting.ordinal(rank)).")
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("fst.song-leaderboard.spotlight-footer")
         }
+    }
+
+    /// The player's footer row, drawn exactly like a list row.
+    private func footerRow(_ entry: LeaderboardEntry) -> some View {
+        HStack(spacing: 8) {
+            SongLeaderboardEntryRow(entry: entry, isPlayer: true)
+            Image(systemName: "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(FestivalText.deemphasized)
+                .accessibilityHidden(true)
+        }
+        .padding(.horizontal, 14)
+        .frame(minHeight: 48)
+        .modifier(RankingRowSurface(isSelected: true))
     }
 
     /// Send a row to the shared Statistics tab when it is the selected player,
@@ -309,21 +328,28 @@ struct SoloLeaderboardScreen: View {
                     .font(.title3.bold())
                     .fixedSize(horizontal: false, vertical: true)
                 Text(song.artist)
-                    .foregroundStyle(BrandTokens.textSecondary)
+                    .foregroundStyle(FestivalText.primary)
                     .fixedSize(horizontal: false, vertical: true)
-                if payload.leaderboard.showLeaderboardEntryTotals == true {
-                    Text("\(payload.leaderboard.totalEntries) \(instrument.label) entries")
-                        .foregroundStyle(BrandTokens.textSecondary)
+                HStack(spacing: 6) {
+                    InstrumentIcon(instrument, size: 20)
+                        .accessibilityHidden(true)
+                    Text(payload.leaderboard.showLeaderboardEntryTotals == true
+                        ? "\(instrument.label) · \(payload.leaderboard.totalEntries.formatted()) entries"
+                        : instrument.label)
+                        .foregroundStyle(FestivalText.primary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
             Spacer()
         }
-        .padding(16)
-        .background(
-            BrandTokens.cardBackground,
-            in: RoundedRectangle(cornerRadius: 12)
-        )
+        .foregroundStyle(FestivalText.primary)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+        .onGeometryChange(for: Bool.self) { proxy in
+            SongDetailPinnedTitlePolicy.isHeroHidden(titleMaxY: proxy.frame(in: .scrollView).maxY)
+        } action: { hidden in
+            headerHidden = hidden
+        }
     }
 
     /// Load a specific page and reject late responses from a previous selection.
