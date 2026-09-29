@@ -458,7 +458,8 @@ private fun FirstRunSection(onShow: (FirstRunPageKey) -> Unit) {
                     onClick = { onShow(page) },
                     colors = festivalFilledButtonColors(),
                     modifier = Modifier.testTag("fst.settings.first-run.${page.key}").semantics { contentDescription = "Show ${page.label} guide" },
-                ) { Text("Show") }
+                    // The description replaces the visible "Show" (read once).
+                ) { Text("Show", Modifier.clearAndSetSemantics {}) }
             }
         }
     }

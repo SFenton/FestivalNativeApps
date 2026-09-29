@@ -207,7 +207,8 @@ fun WhatsNewSettingsRow(onShow: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        // Title and explanation are one stop, read before the button.
+        Column(Modifier.weight(1f).semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("What's New", color = BrandTokens.textPrimary, style = MaterialTheme.typography.bodyLarge)
             Text("Recent changes to Festival Score Tracker.", color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodyMedium)
         }
@@ -215,7 +216,8 @@ fun WhatsNewSettingsRow(onShow: () -> Unit) {
             onClick = onShow,
             colors = ButtonDefaults.buttonColors(containerColor = BrandTokens.accentBlueFill, contentColor = BrandTokens.textPrimary),
             modifier = Modifier.padding(start = 12.dp).testTag("fst.settings.whats-new").semantics { contentDescription = "Show What's New" },
-        ) { Text("Show") }
+            // The description replaces the visible "Show" (read once).
+        ) { Text("Show", Modifier.clearAndSetSemantics {}) }
     }
 }
 
