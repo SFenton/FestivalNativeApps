@@ -46,6 +46,7 @@ import com.festivalscoretracker.android.core.whatsnew.Changelog
 import com.festivalscoretracker.android.core.whatsnew.ChangelogEntry
 import com.festivalscoretracker.android.core.whatsnew.WhatsNewGate
 import com.festivalscoretracker.android.presentation.whatsnew.WhatsNewController
+import com.festivalscoretracker.android.ui.common.festivalSheetTop
 import com.festivalscoretracker.android.ui.design.popupTestTags
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlinx.coroutines.delay
@@ -107,7 +108,7 @@ fun WhatsNewSheet(title: String, entries: List<ChangelogEntry>, compact: Boolean
             onDismissRequest = onDismiss,
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             containerColor = BrandTokens.cardBackground,
-            modifier = Modifier.popupTestTags().testTag("fst.whats-new.sheet").semantics { paneTitle = title },
+            modifier = Modifier.festivalSheetTop().popupTestTags().testTag("fst.whats-new.sheet").semantics { paneTitle = title },
         ) {
             WhatsNewContent(title, entries, onDismiss, Modifier.fillMaxHeight())
         }

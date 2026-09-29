@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -65,10 +66,19 @@ class LoadGateScope internal constructor(val revealed: Boolean) {
  * @param ready Whether the page's data is ready (failures count as ready: show their state).
  * @param modifier Modifier for the page area (the spinner centres in it).
  * @param label Spinner's accessible description.
+ * @param composeWhileLoading Compose the content invisibly (and hidden from accessibility)
+ *   under the spinner, for pages whose own children start loading when composed (e.g. lazy
+ *   cards that fetch as they appear); it is revealed with the same entrance once ready.
  * @param content Page content.
  */
 @Composable
-fun FestivalLoadGate(ready: Boolean, modifier: Modifier = Modifier, label: String = "Loading", content: @Composable LoadGateScope.() -> Unit) {
+fun FestivalLoadGate(
+    ready: Boolean,
+    modifier: Modifier = Modifier,
+    label: String = "Loading",
+    composeWhileLoading: Boolean = false,
+    content: @Composable LoadGateScope.() -> Unit,
+) {
     val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
     var phase by remember { mutableStateOf(LoadGatePolicy.initial(ready)) }
     var sawSpinner by remember { mutableStateOf(!ready) }
@@ -87,12 +97,16 @@ fun FestivalLoadGate(ready: Boolean, modifier: Modifier = Modifier, label: Strin
         }
     }
     Box(modifier.testTag("fst.load-gate")) {
-        if (phase == LoadGatePhase.ContentIn) {
-            val animate = LoadGatePolicy.animatesEntrance(sawSpinner, reduceMotion)
-            var revealed by remember { mutableStateOf(!animate) }
-            LaunchedEffect(Unit) { revealed = true }
-            LoadGateScope(revealed).content()
-        } else {
+        val contentIn = phase == LoadGatePhase.ContentIn
+        if (contentIn || composeWhileLoading) {
+            var revealed by remember { mutableStateOf(contentIn && !LoadGatePolicy.animatesEntrance(sawSpinner, reduceMotion)) }
+            LaunchedEffect(contentIn) { if (contentIn) revealed = true }
+            // One call site in every phase, so content composed while loading keeps its state.
+            Box(if (contentIn) Modifier else Modifier.graphicsLayer { alpha = 0f }.clearAndSetSemantics { }) {
+                LoadGateScope(revealed).content()
+            }
+        }
+        if (!contentIn) {
             Box(
                 Modifier
                     .fillMaxSize()

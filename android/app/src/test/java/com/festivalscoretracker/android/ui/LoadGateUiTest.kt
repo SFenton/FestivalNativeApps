@@ -59,6 +59,25 @@ class LoadGateUiTest {
     }
 
     @Test
+    fun composeWhileLoadingKeepsContentHiddenUnderTheSpinner() {
+        var ready by mutableStateOf(false)
+        var compositions = 0
+        rule.setContent {
+            FestivalTheme {
+                FestivalLoadGate(ready, Modifier.fillMaxSize(), composeWhileLoading = true) {
+                    androidx.compose.runtime.SideEffect { compositions++ }
+                    Text("Row", Modifier.staggered(0).testTag("row"))
+                }
+            }
+        }
+        rule.waitForIdle()
+        // Composed (so it can start loading) but hidden from accessibility under the spinner.
+        assertTrue(compositions > 0 && count("row") == 0 && count("fst.load-gate.spinner") == 1)
+        ready = true
+        rule.waitUntil(5_000) { count("row") == 1 && count("fst.load-gate.spinner") == 0 }
+    }
+
+    @Test
     fun readyDataShowsAtOnce() {
         rule.setContent { FestivalTheme { FestivalLoadGate(true, Modifier.fillMaxSize()) { Text("Row", Modifier.staggered(3).testTag("row")) } } }
         rule.onNodeWithTag("row").assertIsDisplayed()
