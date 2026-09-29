@@ -94,6 +94,7 @@ import com.festivalscoretracker.android.presentation.SongsUiState
 import com.festivalscoretracker.android.presentation.SongsViewModel
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LoadingView
+import com.festivalscoretracker.android.ui.common.festivalEmptyStateItem
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.SectionHeader
@@ -254,7 +255,9 @@ fun InvalidScoreAlert(warning: InvalidScoreWarning, onDismiss: () -> Unit, onOpe
 private fun FirstPaintGate(state: SongsUiState, artworkUrl: (String?) -> String?, content: @Composable () -> Unit) {
     val context = LocalContext.current
     var revealed by rememberSaveable { mutableStateOf(false) }
-    val hasRows = state.rows.isNotEmpty() || state.totalSongs == 0 || state.catalog !is LoadState.Loaded
+    // Rows are derived in the same state as the loaded catalogue, so Loaded means ready — including
+    // a filter that matches nothing (its empty state must still be revealed).
+    val hasRows = state.catalog is LoadState.Loaded
     LaunchedEffect(hasRows) {
         if (revealed || !hasRows) return@LaunchedEffect
         val loader = SingletonImageLoader.get(context)
@@ -331,16 +334,8 @@ private fun SongList(
             state.notices.forEachIndexed { index, notice ->
                 item(key = "notice-$index", contentType = "notice") { Notice(notice, index) }
             }
-            if (state.rows.isEmpty()) {
-                item(key = "empty", contentType = "empty") {
-                    Text(
-                        state.emptyMessage,
-                        color = BrandTokens.textPrimary,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().padding(32.dp).testTag("fst.songs.empty"),
-                    )
-                }
-            }
+            // Web full-page EmptyState, vertically centred in the viewport (6.33).
+            if (state.rows.isEmpty()) festivalEmptyStateItem(state.emptyMessage, subtitle = "Try adjusting your search or filters.", tag = "fst.songs.empty")
             itemsIndexed(state.rows, key = { _, row -> row.song.songId }, contentType = { _, _ -> "song" }) { index, row ->
                 Column {
                     headersByIndex[index]?.let { BucketHeader(it) }

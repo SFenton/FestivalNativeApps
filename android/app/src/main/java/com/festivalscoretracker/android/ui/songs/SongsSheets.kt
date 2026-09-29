@@ -24,6 +24,7 @@ import com.festivalscoretracker.android.core.songs.SongIntensityBucket
 import com.festivalscoretracker.android.core.songs.SongPercentileBucket
 import com.festivalscoretracker.android.core.songs.SongSeasonBucket
 import com.festivalscoretracker.android.core.songs.SongStarsBucket
+import com.festivalscoretracker.android.ui.common.festivalSheetTop
 import com.festivalscoretracker.android.ui.design.DifficultyMeter
 import com.festivalscoretracker.android.ui.design.InstrumentSelector
 import com.festivalscoretracker.android.ui.design.StarRating
@@ -102,7 +103,7 @@ private fun LiveSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = BrandTokens.cardBackground,
-        modifier = Modifier.testTag(tag),
+        modifier = Modifier.festivalSheetTop().testTag(tag),
     ) {
         Column(Modifier.semantics { testTagsAsResourceId = true }.padding(horizontal = 24.dp).padding(bottom = 16.dp)) {
             SectionHeader(title, Modifier.testTag("$tag.title"))

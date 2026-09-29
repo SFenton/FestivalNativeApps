@@ -1,5 +1,17 @@
 package com.festivalscoretracker.android.ui.shop
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.text.style.TextOverflow
+import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ShoppingCart
 import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
@@ -152,7 +164,7 @@ fun ShopScreen(
                 }
             },
         ) { padding ->
-            val revealed = rememberRevealed(state.shop is LoadState.Loaded)
+            val loadedRevealed = rememberRevealed(state.shop is LoadState.Loaded)
             when {
                 state.hidden -> HiddenView(padding)
                 else -> when (val shop = state.shop) {
@@ -160,7 +172,12 @@ fun ShopScreen(
                     is LoadState.Failed -> Box(Modifier.testTag("fst.shop.error")) {
                         ServiceStatusView(shop.issue, "Item Shop unavailable", shop.countdown, onRetry, contentPadding = padding)
                     }
-                    is LoadState.Loaded -> ShopContent(state, effective, artworkUrl, viewModel::retryCatalog, padding, revealed)
+                    // A List ↔ Grid switch recomposes the new layout from the top with the web's
+                    // fade/stagger again (web `useViewTransition`, operator 6.10).
+                    is LoadState.Loaded -> key(effective) {
+                        val switched = rememberViewSwitch(effective)
+                        ShopContent(state, effective, artworkUrl, viewModel::retryCatalog, padding, loadedRevealed && switched)
+                    }
                 }
             }
         }
@@ -169,6 +186,38 @@ fun ShopScreen(
 
 /** Widths below this always use the list. */
 private val COMPACT_WIDTH = 600.dp
+
+/**
+ * False for one frame when [mode] differs from the last shown layout, so a freshly
+ * switched layout fades in again; true otherwise (first visit uses the load fade).
+ *
+ * @param mode Layout now shown.
+ * @return Value to AND into the reveal flag.
+ */
+@Composable
+private fun rememberViewSwitch(mode: ShopViewMode): Boolean {
+    var last by rememberSaveable { mutableStateOf<ShopViewMode?>(null) }
+    val switching = last != null && last != mode
+    var shown by remember { mutableStateOf(!switching) }
+    LaunchedEffect(mode) {
+        last = mode
+        shown = true
+    }
+    return shown
+}
+
+/**
+ * Web grid columns (`ShopPage`): 5 from 1100, 4 from 860, 3 from 600 CSS px, else 2.
+ *
+ * @param widthDp Content width.
+ * @return Columns.
+ */
+internal fun shopGridColumns(widthDp: Float): Int = when {
+    widthDp >= 1100f -> 5
+    widthDp >= 860f -> 4
+    widthDp >= 600f -> 3
+    else -> 2
+}
 
 @Composable
 private fun HiddenView(padding: PaddingValues) {
@@ -202,15 +251,22 @@ private fun ShopContent(
     val header: @Composable () -> Unit = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (state.detailsUnavailable) DetailsUnavailable(onRetryCatalog)
-            if (state.offers.isEmpty()) EmptyShop()
         }
     }
-    if (mode == ShopViewMode.Grid) {
+    if (state.offers.isEmpty()) {
+        Column(Modifier.fillMaxSize().padding(contentPadding)) {
+            header()
+            EmptyShop(Modifier.weight(1f))
+        }
+        return
+    }
+    if (mode == ShopViewMode.Grid) BoxWithConstraints(Modifier.fillMaxSize()) {
+        val columns = shopGridColumns((maxWidth - 32.dp).value)
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(180.dp),
+            columns = GridCells.Fixed(columns),
             contentPadding = contentPadding,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.fillMaxSize().testTag("fst.shop.grid"),
         ) {
             item(key = "header", span = { GridItemSpan(maxLineSpan) }) { header() }
@@ -236,16 +292,14 @@ private fun ShopContent(
     }
 }
 
+/** Web Item Shop `EmptyState` (`shop.empty` / `shop.emptyHint`), centred in the page (6.33). */
 @Composable
-private fun EmptyShop() {
-    GlassCard(Modifier.fillMaxWidth().testTag("fst.shop.empty")) {
-        Text(
-            "No Jam Tracks are in the Item Shop right now.",
-            color = BrandTokens.textPrimary,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(24.dp),
-        )
-    }
+private fun EmptyShop(modifier: Modifier = Modifier) {
+    FestivalEmptyState(
+        "No Songs in the Item Shop",
+        modifier.fillMaxSize().testTag("fst.shop.empty"),
+        subtitle = "Check back later — the shop updates regularly.",
+    )
 }
 
 @Composable
@@ -299,37 +353,49 @@ private fun Modifier.shopPulse(highlight: ShopHighlight?, pulse: () -> Float): M
     null -> this
 }
 
+/**
+ * Web `ShopCard`: square artwork filling the card, title and artist on a bottom scrim,
+ * a "Leaving Tomorrow" pill top-right, and the red/gold outline pulse. The card opens
+ * the official Shop page (or the song when there is none); Song Details is a custom
+ * accessibility action and a long press.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ShopGridCard(item: ShopOfferItem, artUrl: String?, pulse: () -> Float, onOfficial: () -> Unit, onDetail: () -> Unit) {
     val offer = item.offer
-    GlassCard(
-        onClick = onOfficial,
-        modifier = Modifier
+    val shape = RoundedCornerShape(12.dp)
+    val open = if (item.officialUrl != null) onOfficial else onDetail
+    Box(
+        Modifier
             .fillMaxWidth()
+            .aspectRatio(1f)
             .shopPulse(item.highlight, pulse)
-            .testTag("fst.shop.song.${offer.songId}")
-            .semantics { contentDescription = "${item.announcement}. Opens the Fortnite Item Shop" },
-    ) {
-        Box {
-            AsyncImage(
-                model = artUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxWidth().aspectRatio(1f).background(BrandTokens.surfaceMuted),
-            )
-            item.highlight?.let { ShopBadgeLabel(it, offer.songId, Modifier.align(Alignment.TopStart).padding(8.dp)) }
-        }
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            FestivalMarqueeText(offer.title, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold), color = BrandTokens.textPrimary)
-            FestivalMarqueeText(offer.subtitle, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (item.detailSongId != null) {
-                    TextButton(onClick = onDetail, modifier = Modifier.testTag("fst.shop.details.${offer.songId}")) { Text("Song Details") }
-                }
-                Box(Modifier.weight(1f))
-                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, tint = BrandTokens.textSecondary, modifier = Modifier.size(18.dp).testTag("fst.shop.external.${offer.songId}"))
+            .clip(shape)
+            .background(BrandTokens.accentPurple.copy(alpha = 0.35f))
+            .combinedClickable(onClick = open, onLongClick = if (item.detailSongId != null) onDetail else null)
+            .semantics {
+                contentDescription = item.announcement + if (item.officialUrl != null) ". Opens the Fortnite Item Shop" else ""
+                if (item.detailSongId != null) customActions = listOf(CustomAccessibilityAction("Song Details") { onDetail(); true })
             }
+            .testTag("fst.shop.song.${offer.songId}"),
+    ) {
+        if (artUrl != null) {
+            AsyncImage(model = artUrl, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         }
+        Column(
+            Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))))
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+        ) {
+            Text(offer.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = BrandTokens.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(offer.artist, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+        }
+        if (item.highlight == ShopHighlight.LeavingTomorrow) {
+            ShopBadgeLabel(ShopHighlight.LeavingTomorrow, offer.songId, Modifier.align(Alignment.TopEnd).padding(10.dp))
+        }
+        if (item.officialUrl != null) Box(Modifier.size(0.dp).testTag("fst.shop.external.${offer.songId}"))
     }
 }
 

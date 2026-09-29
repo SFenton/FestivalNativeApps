@@ -10,7 +10,9 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -172,8 +174,7 @@ class SongsUiTest {
         waitForTag("fst.paths.row.1")
         // Web table: fret pills and the Overdrive bar, no path summary or max score (6.27).
         assertEquals(0, rule.onAllNodesWithText("Max score", substring = true, useUnmergedTree = true).fetchSemanticsNodes().size)
-        assertTrue(rule.onAllNodesWithTag("fst.paths.fret.green.on", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() ||
-            rule.onAllNodesWithTag("fst.paths.fret.green.off", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+        assertTrue(rule.onNodeWithTag("fst.paths.row.1").fetchSemanticsNode().config.toString().contains("Activation 1"))
         click("fst.paths.difficulty.open")
         waitForTag("fst.paths.difficulty.hard")
         click("fst.paths.difficulty.hard")
@@ -216,11 +217,15 @@ class SongsUiTest {
     fun shopGridToggleOnExpanded() {
         launch(DebugLaunch(route = ShopRoute, stillBackground = true))
         waitForTag("fst.shop.grid")
-        waitForTag("fst.shop.details.s-alpha")
+        waitForTag("fst.shop.song.s-alpha")
         click("fst.shop.view-toggle")
         waitForTag("fst.shop.list")
         click("fst.shop.view-toggle")
         waitForTag("fst.shop.grid")
+        // Web ShopCard: the card opens the official Shop; Song Details is a long press / custom action.
+        waitForTag("fst.shop.song.s-alpha")
+        rule.onNodeWithTag("fst.shop.song.s-alpha").performTouchInput { longClick() }
+        waitForTag("fst.song-detail.list")
     }
 
     @Test

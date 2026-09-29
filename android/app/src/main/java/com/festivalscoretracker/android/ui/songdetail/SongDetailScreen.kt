@@ -88,6 +88,7 @@ import com.festivalscoretracker.android.data.LeaderboardPayload
 import com.festivalscoretracker.android.presentation.BackgroundController
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.SongDetailViewModel
+import com.festivalscoretracker.android.ui.common.FestivalLoadGate
 import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.FestivalScreen
@@ -207,8 +208,9 @@ fun SongDetailScreen(
 
 /**
  * Starts every visible chart's preview and the score history together and shows the
- * spinner until all have settled (loaded or failed), like the web's `allReady` gate.
- * Returning to a page whose data is still cached shows it at once (no fade).
+ * shared load gate's spinner until all have settled (loaded or failed), like the web's
+ * `allReady` gate, then fades the spinner and staggers the page in. Returning to a page
+ * whose data is still cached shows it at once (no fade).
  */
 @Composable
 private fun SongDetailGate(
@@ -227,12 +229,9 @@ private fun SongDetailGate(
     val historyFlow = remember(song, extras.selectedAccountId) { extras.selectedAccountId?.let { viewModel.history(song, it) } }
     val history: State<LoadState<PlayerHistoryPayload>>? = historyFlow?.collectAsStateWithLifecycle()
     val ready = SongDetailLayout.ready(previews.map { it.value == LoadState.Loading }, history?.let { it.value == LoadState.Loading })
-    if (!ready) {
-        LoadingView("Loading song", Modifier.padding(padding).testTag("fst.song-detail.loading"))
-        return
+    FestivalLoadGate(ready, Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()), label = "Loading song") {
+        SongDetailContent(song, viewModel, extras, artUrl, PaddingValues(bottom = padding.calculateBottomPadding()), onOpenPaths, embedded, listState, charts, previews.map { it.value }, history?.value, revealed)
     }
-    val revealed = rememberRevealed(true)
-    SongDetailContent(song, viewModel, extras, artUrl, padding, onOpenPaths, embedded, listState, charts, previews.map { it.value }, history?.value, revealed)
 }
 
 @Composable

@@ -30,6 +30,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import com.festivalscoretracker.android.ui.design.InstrumentSelector
+import com.festivalscoretracker.android.ui.common.festivalSheetTop
 import kotlin.math.roundToInt
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -152,7 +153,7 @@ fun SongPathsSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = BrandTokens.cardBackground,
-        modifier = Modifier.testTag("fst.song-detail.paths").semantics { contentDescription = "Paths for $songTitle" },
+        modifier = Modifier.festivalSheetTop().testTag("fst.song-detail.paths").semantics { contentDescription = "Paths for $songTitle" },
     ) {
         BoxWithConstraints(Modifier.fillMaxHeight()) {
             val wide = maxWidth >= PATH_TABLE_WIDE
@@ -474,8 +475,8 @@ private fun PathRowCard(row: PathActivationRow, content: @Composable () -> Unit)
             .background(BrandTokens.surfaceFrosted)
             .border(1.dp, BrandTokens.glassBorder, shape)
             .padding(horizontal = 16.dp, vertical = 12.dp)
-            .clearAndSetSemantics { contentDescription = spoken(row) }
-            .testTag("fst.paths.row.${row.number}"),
+            .testTag("fst.paths.row.${row.number}")
+            .clearAndSetSemantics { contentDescription = spoken(row) },
     ) {
         // The web table shows no path instruction text; TalkBack still reads it.
         content()
