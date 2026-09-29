@@ -38,7 +38,7 @@ class ReorderListUiTest {
     fun dragHandleMovesARowDownTwoSlots() {
         rule.setContent { FestivalTheme { ReorderList(order, "order", ::move) } }
         val rowHeight = rule.onNodeWithTag("order.0").fetchSemanticsNode().size.height.toFloat()
-        rule.onNodeWithTag("order.0.handle").performTouchInput {
+        rule.onNodeWithTag("order.0.handle", useUnmergedTree = true).performTouchInput {
             down(center)
             // Past the touch slop, then two row heights in small steps.
             repeat(20) { moveBy(androidx.compose.ui.geometry.Offset(0f, rowHeight * 2.2f / 20)) }
