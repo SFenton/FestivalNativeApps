@@ -336,19 +336,21 @@ struct RankingsSkeletonRows: View {
 // MARK: - Rail clearance (B6)
 
 extension View {
-    /// Keeps a rankings `List`'s rows clear of the iPhone Duo vertical bar (B6:
-    /// "row accessibility frames span 0–466 pt, under the vertical bar").
+    /// Keeps a rankings `List`'s rows clear of hardware cutouts beside the iPhone Duo
+    /// vertical bar (B6).
     ///
-    /// `List` doesn't extend its own safe area the way a plain `VStack`/`ScrollView`
-    /// does — its rows (and their accessibility frames / tap targets) can reach the
-    /// physical trailing edge even though the row's own drawn card stops well before
-    /// it, once the system reserves that edge for the rail. A no-op wherever there is
-    /// no vertical bar (`overlayInsets.trailing` is 0 on iPhone and Duo portrait).
+    /// Pads by `cutoutInsets.trailing` (camera occlusion only), not
+    /// `overlayInsets.trailing`: the page's safe area already ends at the rail, so the
+    /// full overlay inset counted the bar twice and left a rail-wide gap beside it
+    /// (the same double inset the Duo lane fixed for the Songs scrubber, `186b430`).
+    /// Zero on iPhone and wherever there is no cutout inside the safe area. Full and
+    /// Band Rankings no longer use it (their `ScrollView` stops at the rail); song
+    /// leaderboards and Player Bands still do.
     ///
     /// - Parameter layout: Current `\.deviceLayout`.
-    /// - Returns: The list, inset clear of the rail.
+    /// - Returns: The list, inset clear of in-safe-area cutouts.
     func rankingsListRailClearance(_ layout: DeviceLayout) -> some View {
-        padding(.trailing, layout.overlayInsets.trailing)
+        padding(.trailing, layout.cutoutInsets.trailing)
     }
 }
 
