@@ -203,11 +203,15 @@ struct SuggestionsScreen: View {
     }
 
     @ViewBuilder private var footer: some View {
-        if viewModel.isLoadingMore {
+        if viewModel.hasMore {
+            // Keep a fixed-height slot while more pages exist so the spinner appearing at
+            // the end never changes content height (that read as a bounce at the bottom).
             FestivalLoadingView(accessibilityLabel: "Loading more suggestions")
+                .opacity(viewModel.isLoadingMore ? 1 : 0)
+                .accessibilityHidden(!viewModel.isLoadingMore)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
-        } else if !viewModel.hasMore {
+        } else {
             VStack(spacing: 12) {
                 Text("You've seen every current suggestion.")
                     .font(.subheadline)

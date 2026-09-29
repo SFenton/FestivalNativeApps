@@ -22,6 +22,7 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen:
           UIColorName: FestivalLaunchBackground
+        CADisableMinimumFrameDurationOnPhone: true
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         UISupportedInterfaceOrientations:
