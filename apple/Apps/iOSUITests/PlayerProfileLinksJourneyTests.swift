@@ -49,17 +49,25 @@ final class PlayerProfileLinksJourneyTests: XCTestCase {
         row.tap()
     }
 
-    /// Scroll the page until a tile is hittable, then tap it.
+    /// Scroll the page in short, momentum-free drags until a tile sits clear of the
+    /// navigation and tab bars, then tap it (fast swipes overshoot a whole card).
     @MainActor
     private func tapTile(_ identifier: String, in app: XCUIApplication) {
         let tile = element(identifier, in: app)
         XCTAssertTrue(tile.waitForExistence(timeout: 15), "\(identifier) never appeared")
+        let window = app.windows.firstMatch.frame
+        func clear() -> Bool {
+            tile.isHittable && tile.frame.minY > window.minY + 140 && tile.frame.maxY < window.maxY - 140
+        }
         var attempts = 0
-        while !tile.isHittable && attempts < 10 {
-            app.swipeUp(velocity: .slow)
+        while !clear() && attempts < 20 {
+            let below = tile.frame.midY > window.midY
+            let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: below ? 0.7 : 0.4))
+            let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: below ? 0.45 : 0.65))
+            start.press(forDuration: 0.05, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0.2)
             attempts += 1
         }
-        XCTAssertTrue(tile.isHittable, "\(identifier) never became hittable")
+        XCTAssertTrue(clear(), "\(identifier) never scrolled into view: \(tile.frame)")
         tile.tap()
     }
 
