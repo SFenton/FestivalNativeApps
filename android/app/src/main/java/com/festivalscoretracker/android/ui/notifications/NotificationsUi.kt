@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -23,7 +24,6 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -106,15 +106,35 @@ fun NotificationDestination.route(): AppRoute = when (this) {
 @Composable
 fun NotificationsBell(viewModel: NotificationsViewModel, onOpen: () -> Unit) {
     val unread by viewModel.unreadCount.collectAsStateWithLifecycle()
-    IconButton(
-        onClick = onOpen,
-        modifier = Modifier.testTag("fst.shell.notifications").semantics { contentDescription = NotificationsViewModel.bellLabel(unread) },
-    ) {
-        BadgedBox(badge = { if (unread > 0) Badge(containerColor = BrandTokens.gold, contentColor = BrandTokens.cardBackground) { Text(NotificationsViewModel.badgeText(unread)) } }) {
+    // The badge is a sibling of the button, not inside it: IconButton clips its content to
+    // its circular state layer, which cut a two-digit badge off at the top (batch 6.23).
+    Box {
+        IconButton(
+            onClick = onOpen,
+            modifier = Modifier.testTag("fst.shell.notifications").semantics { contentDescription = NotificationsViewModel.bellLabel(unread) },
+        ) {
             Icon(Icons.Outlined.Notifications, contentDescription = null)
+        }
+        if (unread > 0) {
+            Badge(
+                containerColor = BrandTokens.gold,
+                contentColor = BrandTokens.cardBackground,
+                // M3 large badge: starts at the icon's horizontal centre, top 2 dp above the glyph.
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset(x = BELL_BADGE_START_DP.dp, y = BELL_BADGE_TOP_DP.dp)
+                    .clearAndSetSemantics { }
+                    .testTag("fst.shell.notifications.badge"),
+            ) { Text(NotificationsViewModel.badgeText(unread)) }
         }
     }
 }
+
+/** Badge start inside the 48 dp bell button (the 24 dp glyph spans 12–36 dp). */
+private const val BELL_BADGE_START_DP = 22
+
+/** Badge top inside the 48 dp bell button. */
+private const val BELL_BADGE_TOP_DP = 6
 
 // endregion
 

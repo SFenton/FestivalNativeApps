@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -56,6 +58,9 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
  * @param tabTags The permanent drawer is the tab navigation, so its tab rows keep the
  *   `fst.nav.tab.<section>` tags; the modal drawer (alongside a bar/rail that owns those tags)
  *   uses `fst.nav.drawer.<entry>`.
+ * @param permanent Permanent (tablet) drawer: no app title, and the first entry starts where
+ *   the page's first content row (e.g. the Songs search field) sits below the top app bar
+ *   (operator 2026-09-28).
  */
 @Composable
 fun DrawerContent(
@@ -69,19 +74,31 @@ fun DrawerContent(
     onDeselect: () -> Unit,
     showShop: Boolean = true,
     tabTags: Boolean = false,
+    permanent: Boolean = false,
 ) {
     fun open(target: DrawerTarget) = when (target) {
         is DrawerTarget.Section -> onSection(target.section)
         is DrawerTarget.Push -> onRoute(target.route)
     }
-    Column(Modifier.fillMaxHeight().padding(horizontal = 12.dp, vertical = 16.dp).testTag("fst.nav.drawer-sheet")) {
-        Text(
-            "Festival Score Tracker",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            color = BrandTokens.textPrimary,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-        )
+    Column(
+        Modifier
+            .fillMaxHeight()
+            .padding(start = 12.dp, end = 12.dp, bottom = 16.dp)
+            .testTag("fst.nav.drawer-sheet"),
+    ) {
+        // Header row the height of the top app bar, so the first entry lines up with the page's
+        // first content row and with the rail's first destination (the drawer extends the rail).
+        Box(Modifier.fillMaxWidth().height(PAGE_CONTENT_TOP_DP.dp), contentAlignment = Alignment.CenterStart) {
+            if (!permanent) {
+                Text(
+                    "Festival Score Tracker",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = BrandTokens.textPrimary,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+            }
+        }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             DrawerPolicy.entries(profile, showShop).forEach { entry ->
                 DrawerItem(entry.title, entry.icon(), selected = DrawerPolicy.isSelected(entry, selected), tag = entry.tag(tabTags)) {
@@ -110,6 +127,12 @@ fun DrawerContent(
         ) { onSection(FestivalSection.Settings) }
     }
 }
+
+/**
+ * Top of a page's first content row below the status bar: the 64 dp M3 small top app bar.
+ * Drawer sheets and the rail already clear the status bar themselves.
+ */
+internal const val PAGE_CONTENT_TOP_DP = 64
 
 /** Drawer row icon (web sidebar icons, Material equivalents). */
 private fun DrawerEntry.icon(): ImageVector = section?.icon() ?: Icons.Outlined.ShoppingBag

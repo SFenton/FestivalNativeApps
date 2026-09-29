@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -70,6 +71,7 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import com.festivalscoretracker.android.ui.common.festivalSheetTop
 
 // region Controller
 
@@ -294,6 +296,9 @@ private fun SectionIcon(section: QuickLinkSection) {
  * @param controller Page controller.
  * @param windowWidthDp Window width, choosing sheet vs menu.
  */
+/** Quick Links button glyph size. */
+private const val QUICK_LINKS_ICON_DP = 30
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuickLinksAction(controller: QuickLinksController, windowWidthDp: Int) {
@@ -304,7 +309,11 @@ fun QuickLinksAction(controller: QuickLinksController, windowWidthDp: Int) {
         IconButton(
             onClick = { open = true },
             modifier = Modifier.testTag("fst.quick-links.open").semantics { contentDescription = label },
-        ) { Icon(Icons.AutoMirrored.Outlined.Toc, contentDescription = null) }
+        ) {
+            // The Toc glyph is thin and short; at the 24 dp default it looked lost in the 64 dp
+            // floating-toolbar circle (batch 6.24), so it uses the web FAB's larger icon size.
+            Icon(Icons.AutoMirrored.Outlined.Toc, contentDescription = null, modifier = Modifier.size(QUICK_LINKS_ICON_DP.dp))
+        }
         if (!QuickLinks.usesSheet(windowWidthDp)) {
             DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.popupTestTags().testTag("fst.quick-links.menu")) {
                 controller.sections.forEach { section ->
@@ -329,7 +338,7 @@ fun QuickLinksAction(controller: QuickLinksController, windowWidthDp: Int) {
             onDismissRequest = { open = false },
             sheetState = sheetState,
             containerColor = BrandTokens.cardBackground,
-            modifier = Modifier.popupTestTags().testTag("fst.quick-links.sheet").semantics { paneTitle = controller.title },
+            modifier = Modifier.festivalSheetTop().popupTestTags().testTag("fst.quick-links.sheet").semantics { paneTitle = controller.title },
         ) {
             Text(
                 controller.title,

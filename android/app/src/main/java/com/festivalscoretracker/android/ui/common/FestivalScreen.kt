@@ -114,8 +114,8 @@ val LocalShellActions = staticCompositionLocalOf { ShellActions() }
  * @param isRoot Whether this is a tab root.
  * @param modifier Modifier.
  * @param actions Screen actions, placed before search and the avatar.
- * @param scrolled Content sits under the bar even without a nested-scroll event
- *   (e.g. after a programmatic Quick Links jump), so the bar shows its scrolled color.
+ * @param scrolled Content sits under the bar. No visual effect since batch 6.20 (the bar stays
+ *   transparent); kept so screens can still report it without churn.
  * @param content Content given padding that clears the top bar and bottom chrome.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -185,9 +185,11 @@ fun FestivalScreen(
                         global()
                     }
                 },
+                // Transparent in every scroll state (batch 6.20: no translucent slab appears behind
+                // the header on scroll). Content is clipped below the bar, so nothing shows through.
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = if (scrolled) BrandTokens.surfaceFrosted else Color.Transparent,
-                    scrolledContainerColor = BrandTokens.surfaceFrosted,
+                    containerColor = Color.Transparent,
+                    scrolledContainerColor = Color.Transparent,
                     titleContentColor = BrandTokens.textPrimary,
                     navigationIconContentColor = BrandTokens.textPrimary,
                     actionIconContentColor = BrandTokens.textPrimary,

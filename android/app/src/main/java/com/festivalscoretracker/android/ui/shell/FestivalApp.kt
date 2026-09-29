@@ -64,6 +64,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
@@ -431,43 +432,47 @@ private fun FestivalShell(
             onDeselect = shellViewModel::deselectPlayer,
             showShop = !settings.hideShop,
             tabTags = tabTags,
+            permanent = tabTags,
         )
     }
     val navigationSuite = @Composable {
-        if (layout == NavigationLayout.Rail) {
-            FestivalRail(
-                sections = sections,
-                selected = selected,
-                player = settings.selectedPlayer,
-                onSection = { navController.selectSection(it, selected) },
-                onOpenDrawer = { scope.launch { drawerState.open() } },
-                onOpenProfile = { showProfile = true },
-            )
-        } else {
-            NavigationSuite(
-                navigationSuiteType = navigationType,
-                colors = NavigationSuiteDefaults.colors(
-                    shortNavigationBarContainerColor = BrandTokens.cardBackground.copy(alpha = 0.96f),
-                    shortNavigationBarContentColor = BrandTokens.textSecondary,
-                    navigationDrawerContainerColor = BrandTokens.surfaceFrosted,
-                ),
-                modifier = when (layout) {
-                    NavigationLayout.PermanentDrawer -> Modifier.width(PERMANENT_DRAWER_WIDTH_DP.dp).testTag("fst.nav.permanent-drawer")
-                    else -> Modifier.testTag("fst.nav.bar")
-                },
-            ) {
-                if (layout == NavigationLayout.PermanentDrawer) {
-                    drawer(true)
-                } else {
-                    sections.forEach { section ->
-                        NavigationSuiteItem(
-                            selected = section == selected,
-                            onClick = { navController.selectSection(section, selected) },
-                            icon = { Icon(section.icon(), contentDescription = null) },
-                            label = { Text(section.title, maxLines = 1) },
-                            navigationSuiteType = navigationType,
-                            modifier = Modifier.testTag("fst.nav.tab.${section.name.lowercase()}"),
-                        )
+        ChromeColors {
+            if (layout == NavigationLayout.Rail) {
+                FestivalRail(
+                    sections = sections,
+                    selected = selected,
+                    player = settings.selectedPlayer,
+                    onSection = { navController.selectSection(it, selected) },
+                    onOpenDrawer = { scope.launch { drawerState.open() } },
+                    onOpenProfile = { showProfile = true },
+                )
+            } else {
+                NavigationSuite(
+                    navigationSuiteType = navigationType,
+                    colors = NavigationSuiteDefaults.colors(
+                        shortNavigationBarContainerColor = BrandTokens.cardBackground.copy(alpha = 0.96f),
+                        shortNavigationBarContentColor = BrandTokens.textPrimary,
+                        // Transparent so the animated/song backdrop shows through (operator 2026-09-28).
+                        navigationDrawerContainerColor = Color.Transparent,
+                    ),
+                    modifier = when (layout) {
+                        NavigationLayout.PermanentDrawer -> Modifier.width(PERMANENT_DRAWER_WIDTH_DP.dp).testTag("fst.nav.permanent-drawer")
+                        else -> Modifier.testTag("fst.nav.bar")
+                    },
+                ) {
+                    if (layout == NavigationLayout.PermanentDrawer) {
+                        drawer(true)
+                    } else {
+                        sections.forEach { section ->
+                            NavigationSuiteItem(
+                                selected = section == selected,
+                                onClick = { navController.selectSection(section, selected) },
+                                icon = { Icon(section.icon(), contentDescription = null) },
+                                label = { Text(section.title, maxLines = 1) },
+                                navigationSuiteType = navigationType,
+                                modifier = Modifier.testTag("fst.nav.tab.${section.name.lowercase()}"),
+                            )
+                        }
                     }
                 }
             }
@@ -517,7 +522,7 @@ private fun FestivalShell(
             drawerState = drawerState,
             // Edge swipes belong to system back; the drawer opens from the menu button only.
             gesturesEnabled = drawerState.isOpen,
-            drawerContent = { ModalDrawerSheet(drawerContainerColor = BrandTokens.cardBackground) { drawer(false) } },
+            drawerContent = { ChromeColors { ModalDrawerSheet(drawerContainerColor = BrandTokens.cardBackground) { drawer(false) } } },
         ) { content() }
     }
     GlobalSearchHost(
@@ -558,6 +563,24 @@ private fun FestivalShell(
 
 /** Permanent drawer width on large windows. */
 private const val PERMANENT_DRAWER_WIDTH_DP = 280
+
+/**
+ * Navigation chrome (bar, rail, drawers) with white text and icons: Material's unselected
+ * items use `onSurfaceVariant` and bar labels `secondary`, which read gray/purple against the
+ * backdrop; the web and the operator want white chrome text (batch 6.6).
+ *
+ * @param content Chrome content.
+ */
+@Composable
+internal fun ChromeColors(content: @Composable () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    MaterialTheme(
+        colorScheme = scheme.copy(onSurfaceVariant = BrandTokens.textPrimary, secondary = BrandTokens.textPrimary, onSurface = BrandTokens.textPrimary),
+        typography = MaterialTheme.typography,
+        shapes = MaterialTheme.shapes,
+        content = content,
+    )
+}
 
 // endregion
 

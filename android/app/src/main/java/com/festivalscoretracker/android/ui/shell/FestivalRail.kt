@@ -30,6 +30,7 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -44,8 +45,8 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
 
 /**
  * Collapsed navigation rail (M3 `WideNavigationRail` items): the menu button on the top app
- * bar row, the main tabs centred, and Profile + Settings pinned to the bottom edge like the
- * web sidebar footer. Built as a plain column because Material's rail content cannot split
+ * bar row, the main tabs top-aligned below it, and Profile + Settings pinned to the bottom
+ * edge like the web sidebar footer. Built as a plain column because Material's rail content cannot split
  * its destinations between the centre and the bottom.
  *
  * @param sections Visible tabs.
@@ -66,7 +67,8 @@ fun FestivalRail(
     onOpenProfile: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(color = BrandTokens.surfaceFrosted, contentColor = BrandTokens.textPrimary, modifier = modifier.fillMaxHeight()) {
+    // No container color: the shared artwork backdrop shows through, like the pages (batch 6.19).
+    Surface(color = Color.Transparent, contentColor = BrandTokens.textPrimary, modifier = modifier.fillMaxHeight()) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -76,12 +78,14 @@ fun FestivalRail(
                 .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Start + WindowInsetsSides.Vertical))
                 .testTag("fst.nav.rail"),
         ) {
-            // Same row as the top app bar's navigation icon (64 dp bar, 48 dp button).
-            Spacer(Modifier.height(4.dp))
-            IconButton(onClick = onOpenDrawer, modifier = Modifier.testTag("fst.nav.drawer")) {
-                Icon(Icons.Filled.Menu, contentDescription = "Open menu", tint = BrandTokens.textPrimary)
+            // The menu button sits in the top app bar's row (64 dp bar, 48 dp button); the
+            // destinations are top-aligned below it, starting where the drawer's first entry
+            // starts, so opening the drawer reads as the rail expanding (operator 2026-09-28).
+            Box(Modifier.height(PAGE_CONTENT_TOP_DP.dp), contentAlignment = Alignment.Center) {
+                IconButton(onClick = onOpenDrawer, modifier = Modifier.testTag("fst.nav.drawer")) {
+                    Icon(Icons.Filled.Menu, contentDescription = "Open menu", tint = BrandTokens.textPrimary)
+                }
             }
-            Spacer(Modifier.weight(1f))
             DrawerPolicy.railMain(sections).forEach { RailItem(it, selected, onSection) }
             Spacer(Modifier.weight(1f))
             NavigationSuiteItem(
