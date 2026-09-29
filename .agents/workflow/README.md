@@ -10,5 +10,8 @@
 | [source-of-truth.md](source-of-truth.md) | Reading the web source, citing lines, pinning snapshots, parity backlog |
 | [docs-conventions.md](docs-conventions.md) | Adding or splitting `.agents` docs |
 | [windows-relay.md](windows-relay.md) | Running Android/Windows lanes on `sfenton-primary` and moving their history via `tools/win_relay.py` |
+| [android-windows-backlog.md](android-windows-backlog.md) | Queued Android/Windows work while the Windows host is reserved |
+| [backlog-android.md](backlog-android.md) | Android-only queue |
+| [backlog-windows.md](backlog-windows.md) | Windows-only queue |
 
 Plan, lane table and priorities live in [PROGRESS.md](../../PROGRESS.md) (orchestrator-owned).
