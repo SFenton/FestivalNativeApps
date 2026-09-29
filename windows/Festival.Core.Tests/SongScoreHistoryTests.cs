@@ -433,6 +433,19 @@ public class SongDetailHistoryPageTests
     }
 
     [Fact]
+    public async Task AllLeaderboardsMissing_FallsBackToPerChartReads()
+    {
+        var service = new FakeService
+        {
+            Override = r => r.RequestUri!.AbsolutePath.EndsWith("/all", StringComparison.Ordinal) ? Wire.Response(HttpStatusCode.NotFound) : null,
+        };
+        var vm = new SongDetailViewModel(service.Session(), new AppRoute.SongDetail("s1"));
+        await vm.LoadAsync();
+        Assert.All(vm.Leaderboards, c => Assert.True(c.ShowRows));
+        Assert.Single(service.Handler.To("/api/leaderboard/s1/Solo_Bass"));
+    }
+
+    [Fact]
     public async Task NoVisibleChartedInstrument_SkipsTheBoardsRead()
     {
         var service = new FakeService();

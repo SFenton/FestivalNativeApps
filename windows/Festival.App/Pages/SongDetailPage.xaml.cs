@@ -181,9 +181,9 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
         });
     }
 
-    /// <summary>Cards per row in the leaderboard grid (two from 2 × 340 + 16 epx).</summary>
+    /// <summary>Cards per row in the leaderboard grid (two from 2 × 320 + 16 epx).</summary>
     /// <returns>1 or 2.</returns>
-    private int BoardColumns() => Boards.ActualWidth >= 2 * 340 + 16 ? 2 : 1;
+    private int BoardColumns() => Boards.ActualWidth >= 2 * 320 + 16 ? 2 : 1;
     #endregion
 
     /// <summary>Applies the Item Shop button's status fill (gold New, red Leaving Tomorrow, green otherwise).</summary>

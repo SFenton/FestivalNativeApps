@@ -223,7 +223,10 @@ public sealed partial class SongDetailViewModel : ObservableObject
         return Song is { } song ? [.. InstrumentInfo.All.Where(i => visible.Contains(i) && song.Supports(i))] : [];
     }
 
-    /// <summary>Fills every card from one <c>/all</c> read, or reports its failure on each card.</summary>
+    /// <summary>
+    /// Fills every card from one <c>/all</c> read, or reports its failure on each card. A 404 (a service or fixture
+    /// without the combined route) falls back to one read per chart.
+    /// </summary>
     /// <param name="song">Song.</param>
     /// <param name="cards">Cards.</param>
     /// <returns>Load task.</returns>
@@ -234,6 +237,10 @@ public sealed partial class SongDetailViewModel : ObservableObject
             double? leeway = session.Settings.FilterInvalidScores ? session.Settings.Leeway : null;
             var all = await session.Api.GetAllLeaderboardsAsync(song.SongId, PreviewTop, leeway);
             foreach (var card in cards) card.Apply(all.For(card.Instrument));
+        }
+        catch (FestivalApiException error) when (error is { Kind: FestivalApiErrorKind.HttpStatus, StatusCode: 404 })
+        {
+            await Task.WhenAll(cards.Select(c => c.LoadAsync()));
         }
         catch (FestivalApiException error)
         {

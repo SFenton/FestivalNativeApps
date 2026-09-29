@@ -243,7 +243,7 @@
                                ElementPrepared="OnBoardPrepared">
                     <ItemsRepeater.Layout>
                         <!-- At most two cards per row (web isTwoCol), even on wide windows; two already at a portrait tablet. -->
-                        <UniformGridLayout MinItemWidth="340" MinRowSpacing="16" MinColumnSpacing="16" ItemsStretch="Fill"
+                        <UniformGridLayout MinItemWidth="320" MinRowSpacing="16" MinColumnSpacing="16" ItemsStretch="Fill"
                                            MaximumRowsOrColumns="2" />
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
