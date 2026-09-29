@@ -15,7 +15,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -65,6 +64,9 @@ import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
 import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import com.festivalscoretracker.android.ui.rivals.RivalPreviewRows
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import androidx.compose.foundation.layout.RowScope
+import com.festivalscoretracker.android.ui.common.isLargeText
+import com.festivalscoretracker.android.ui.design.SeeAllButton
 
 // region Compete
 
@@ -137,11 +139,13 @@ private fun LazyStaggeredGridScope.groupHeader(id: String, title: String) {
 
 @Composable
 private fun ScopeHeader(scope: CompeteScope, onSeeAll: (() -> Unit)?, tag: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+    val icons: @Composable () -> Unit = {
         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             // Web `InstrumentHeader` SM: 36 dp icons above the card.
             scope.instruments.forEach { InstrumentIcon(it, size = 36.dp, decorative = true) }
         }
+    }
+    val titleAndLink: @Composable RowScope.() -> Unit = {
         Text(
             scope.label,
             style = MaterialTheme.typography.titleMedium,
@@ -149,11 +153,19 @@ private fun ScopeHeader(scope: CompeteScope, onSeeAll: (() -> Unit)?, tag: Strin
             color = BrandTokens.textPrimary,
             modifier = Modifier.weight(1f).semantics { heading() },
         )
-        if (onSeeAll != null) {
-            TextButton(
-                onClick = onSeeAll,
-                modifier = Modifier.heightIn(min = 48.dp).testTag(tag).semantics { contentDescription = "${RivalText.SEE_ALL}: ${scope.label}" },
-            ) { Text(RivalText.SEE_ALL) }
+        // The shared "See All ›" link (white, bold, chevron; read once as "See All: <scope>").
+        if (onSeeAll != null) SeeAllButton(onClick = onSeeAll, modifier = Modifier.testTag(tag), spokenLabel = "${RivalText.SEE_ALL}: ${scope.label}")
+    }
+    if (isLargeText()) {
+        // Large text: a four-instrument combo name needs the full width below its icons.
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+            icons()
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), content = titleAndLink)
+        }
+    } else {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            icons()
+            titleAndLink()
         }
     }
 }
