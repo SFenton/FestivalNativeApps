@@ -70,3 +70,33 @@ Platform-specific queues: [backlog-android.md](backlog-android.md) · [backlog-w
 | 6.41 | Pages must not appear before content is ready: spinner until ready, then fade, then staggered content (web pattern) | G | ✔ | ✔ | ✔ |
 | 6.42 | Selected-player rows use the web's bolding | G | ✔ | ✔ | ✔ |
 
+## Operator batch 7 (2026-09-28, reported on iOS) — cross-platform checks
+
+Take these **after** your batch-6 items, in your areas. Verify each on your platform; fix if it repros.
+
+| # | Item |
+|---|---|
+| 7.1 | Accuracy/percent pills sized for at most "XX.X%" — never wider |
+| 7.2 | Item Shop pulse must not overblow (cap brightness/alpha; no HDR-looking glow) |
+| 7.3 | In-card chevrons (›) on every navigable row/tile — full app sweep |
+| 7.4 | Pagination control: substantial refinement toward the web pager |
+| 7.5 | No card-inside-a-card: Profile sections are separate cards, not nested in one overall card |
+| 7.6 | Chart paging: moving back/forth must not re-animate the line from scratch ("figuring out where to go"); keep stable x-positions |
+| 7.7 | One unified leaderboard design: individual row styling vs multi-row cards must be consistent (song boards, full boards, Leaderboards, Compete) |
+| 7.8 | Song instrument leaderboard page: album art/title/artist/instrument header scrolls into the top bar; no odd background behind it; no dead space above the first row |
+| 7.9 | Selected-player row: score, percentage, position and name aligned in the same columns as other rows (web) |
+| 7.10 | "Reset" in filter/sort sheets is red (red text or red button) |
+| 7.11 | Full-combo notation and badge colours match the web exactly (not "FC 100%") |
+| 7.12 | Persistent profile/avatar button on every page (including pushed pages like View All Rivals); "Deselect" lives in the navigation drawer/flyout like the web, not a page header button |
+| 7.13 | Rival detail must be viewable during publication (freeze) when the web can show it |
+| 7.14 | Usernames should not all marquee on Compete — match web truncation/marquee rules |
+| 7.15 | Quick Links on every page the web has them (incl. Settings); Quick Links jump instantly ("teleport"), not an animated scroll; target not hidden under the header |
+| 7.16 | Capitalization rule ([design README](../design/README.md#capitalization-all-platforms-operator-2026-09-28)): "All Instruments", etc. |
+| 7.17 | Songs filter: no separate "Instrument" filter unless the web has one; percentile "Select All / Clear All" styled per platform guidance (header trailing text actions) |
+| 7.18 | Song rows: intensity and star pills same height as the other pills; long title/artist never pushes the primary metric (score, season, percentile…) onto a second line |
+| 7.19 | Songs currently in the Item Shop are highlighted and show the shop icon |
+| 7.20 | Notifications: list items don't disappear/reappear when scrolling back up; "New"/"Older" headers white; unread dot and chevron placement like web |
+| 7.21 | Sort sheet: direction rows titled "Ascending"/"Descending" with the description as subtitle beside the ↑/↓ |
+| 7.22 | Service Info matches the web card |
+| 7.23 | Rows, checkboxes, toggles etc. keep converging on the web's look (general pass) |
+
