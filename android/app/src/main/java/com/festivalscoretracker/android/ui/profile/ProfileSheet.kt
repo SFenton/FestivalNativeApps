@@ -11,16 +11,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DockedSearchBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,7 +29,6 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.DockedSearchBar
 import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -58,6 +57,7 @@ import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.presentation.ProfileSearchScope
 import com.festivalscoretracker.android.presentation.ProfileSearchState
 import com.festivalscoretracker.android.presentation.ProfileSearchViewModel
+import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.theme.BrandTokens
@@ -208,7 +208,7 @@ private fun SearchSection(viewModel: ProfileSearchViewModel, onOpen: (PlayerSear
                 textAlign = TextAlign.Center,
                 modifier = Modifier.align(Alignment.Center).testTag("fst.profile.hint"),
             )
-            ProfileSearchState.Searching -> CircularProgressIndicator(Modifier.align(Alignment.Center).size(32.dp).testTag("fst.profile.loading"))
+            ProfileSearchState.Searching -> FestivalLoading("Searching", Modifier.align(Alignment.Center).testTag("fst.profile.loading"), size = 32.dp)
             is ProfileSearchState.Failed -> ServiceStatusInline(current.issue, "Player search unavailable", null, viewModel::retry)
             is ProfileSearchState.Results -> Column(Modifier.testTag("fst.profile.results")) {
                 if (current.results.isEmpty()) {

@@ -1,18 +1,5 @@
 package com.festivalscoretracker.android.ui.songdetail
 
-import com.festivalscoretracker.android.ui.common.rememberRevealed
-import com.festivalscoretracker.android.ui.common.festivalFadeIn
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExposedDropdownMenuAnchorType
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.text.style.TextOverflow
-import com.festivalscoretracker.android.ui.design.popupTestTags
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -23,6 +10,8 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -35,13 +24,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material.icons.filled.ZoomOut
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -61,10 +55,12 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.core.format.ScoreFormatting
@@ -77,13 +73,17 @@ import com.festivalscoretracker.android.data.paths.SongPathDataPayload
 import com.festivalscoretracker.android.data.paths.SongPathImagePayload
 import com.festivalscoretracker.android.presentation.songs.PathLoad
 import com.festivalscoretracker.android.presentation.songs.SongPathsViewModel
+import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
+import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
+import com.festivalscoretracker.android.ui.design.popupTestTags
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import kotlin.math.max
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlin.math.max
 
 // region Sheet
 
@@ -146,7 +146,7 @@ fun SongPathsSheet(
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (val load = state.load) {
                     PathLoad.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(Modifier.size(32.dp).testTag("fst.paths.loading"))
+                        FestivalLoading("Loading paths", Modifier.testTag("fst.paths.loading"), size = 32.dp)
                     }
                     PathLoad.NotGenerated -> Text(
                         "No ${state.difficulty.label} path has been generated for ${state.instrument.label} yet.",
@@ -261,7 +261,7 @@ private fun PathImage(image: SongPathImagePayload, description: String) {
     Box(Modifier.fillMaxSize().testTag("fst.paths.image")) {
         val decoded = bitmap?.firstOrNull()
         if (bitmap == null) {
-            CircularProgressIndicator(Modifier.size(28.dp).align(Alignment.Center))
+            FestivalLoading(null, Modifier.align(Alignment.Center), size = 28.dp)
         } else if (decoded == null) {
             Text("This path image couldn't be displayed.", color = BrandTokens.textPrimary, modifier = Modifier.align(Alignment.Center).padding(24.dp).testTag("fst.paths.image-error"))
         } else {

@@ -27,13 +27,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
+import androidx.compose.material3.adaptive.currentWindowSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -60,8 +61,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
-import androidx.compose.material3.adaptive.currentWindowSize
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.SelectedPlayer
@@ -79,13 +78,14 @@ import com.festivalscoretracker.android.presentation.profile.ProfileActionResult
 import com.festivalscoretracker.android.presentation.profile.ProfilePhase
 import com.festivalscoretracker.android.presentation.profile.RankHistoryLoad
 import com.festivalscoretracker.android.presentation.profile.RankLoad
+import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalScreen
-import com.festivalscoretracker.android.ui.common.fadeInStagger
-import com.festivalscoretracker.android.ui.common.festivalFadeIn
-import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
+import com.festivalscoretracker.android.ui.common.fadeInStagger
+import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.SectionHeader
@@ -178,7 +178,7 @@ fun PlayerProfileContent(viewModel: PlayerProfileViewModel, padding: PaddingValu
             Modifier.testTag("fst.player.no-profile"),
         )
         ProfilePhase.Loading -> Box(Modifier.fillMaxSize().padding(padding).testTag("fst.player.loading"), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
+            FestivalLoading("Loading player")
         }
         ProfilePhase.Syncing -> Message(
             "Still Syncing",
@@ -434,7 +434,7 @@ private fun GlobalRank(instrument: Instrument, rank: RankLoad?, state: PlayerPro
     val tag = "fst.player.global-rank.${instrument.wireId}"
     val revealed = rememberRevealed(rank is RankLoad.Available)
     when (rank) {
-        null, RankLoad.Loading -> CircularProgressIndicator(Modifier.size(24.dp).testTag("$tag.loading"))
+        null, RankLoad.Loading -> FestivalLoading(null, Modifier.testTag("$tag.loading"), size = 24.dp)
         RankLoad.Unranked -> Text(
             "Not yet ranked globally on ${instrument.label}.",
             style = MaterialTheme.typography.bodyMedium,

@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -26,6 +25,7 @@ import com.festivalscoretracker.android.presentation.profile.BandsLoad
 import com.festivalscoretracker.android.presentation.profile.PlayerProfileUiState
 import com.festivalscoretracker.android.ui.bands.PlayerBandCard
 import com.festivalscoretracker.android.ui.bands.bandRouteFor
+import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
@@ -63,7 +63,7 @@ internal fun ProfileBandsSection(state: PlayerProfileUiState, bands: BandsLoad?,
                 TextButton(onClick = { onNavigate(all) }, modifier = Modifier.heightIn(min = 48.dp).testTag("fst.player.bands-link")) { Text("See all") }
             }
             when (bands) {
-                null, BandsLoad.Loading -> CircularProgressIndicator(Modifier.size(24.dp).testTag("fst.player.bands.loading"))
+                null, BandsLoad.Loading -> FestivalLoading("Loading bands", Modifier.testTag("fst.player.bands.loading"), size = 24.dp)
                 is BandsLoad.Failed -> ServiceStatusInline(bands.issue, "Bands unavailable", null, onRetry)
                 is BandsLoad.Loaded -> if (bands.bands.entries.isEmpty()) {
                     Column(Modifier.testTag("fst.player.bands.empty")) {

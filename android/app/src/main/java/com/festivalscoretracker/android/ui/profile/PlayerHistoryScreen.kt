@@ -22,7 +22,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -59,6 +58,7 @@ import com.festivalscoretracker.android.core.profile.PlayerScoreSortMode
 import com.festivalscoretracker.android.presentation.profile.HistoryPhase
 import com.festivalscoretracker.android.presentation.profile.PlayerHistoryViewModel
 import com.festivalscoretracker.android.presentation.profile.ScoreHistoryRow
+import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.fadeInStagger
@@ -98,7 +98,7 @@ fun PlayerHistoryScreen(viewModel: PlayerHistoryViewModel) {
         // Rows fade in (staggered) on the frame after the history loads (web FadeIn).
         val revealed = rememberRevealed(state.phase == HistoryPhase.Loaded)
         when (val phase = state.phase) {
-            HistoryPhase.Loading -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            HistoryPhase.Loading -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { FestivalLoading("Loading score history") }
             is HistoryPhase.Failed -> ServiceStatusView(phase.issue, "History unavailable", phase.countdown, viewModel::retry, contentPadding = padding)
             HistoryPhase.NoPlayer -> HistoryMessage("No Player Selected", "Select a player profile to see score history.", padding)
             HistoryPhase.Unregistered -> HistoryMessage("History Unavailable", "Score history is only available for registered users.", padding)
