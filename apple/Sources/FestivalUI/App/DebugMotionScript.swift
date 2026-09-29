@@ -71,7 +71,8 @@ enum DebugMotionScript {
             ("push board", { hooks.push(.songLeaderboard(song, .lead, 1)) }),
             ("pop board", { hooks.pop() }),
             ("pop detail", { hooks.pop() }),
-            ("tab boards", { hooks.select(.leaderboards) }),
+            // Leaderboards is replaced by Compete while a profile is selected.
+            ("tab boards", { hooks.select(session.selectedPlayer == nil ? .leaderboards : .compete) }),
             ("tab settings", { hooks.select(.settings) }),
             ("tab songs", { hooks.select(.songs) }),
         ]
