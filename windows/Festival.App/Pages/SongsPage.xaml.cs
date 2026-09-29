@@ -197,7 +197,17 @@ public sealed partial class SongsPage : Page, IPageBack
             var badge = (Border)root.FindName("ShopBadge");
             badge.Visibility = row.Pulse is null ? Visibility.Collapsed : Visibility.Visible;
             if (row.Pulse is { } pulse)
-                badge.Background = new SolidColorBrush(Color.FromArgb(0xFF, (byte)(pulse.Argb >> 16), (byte)(pulse.Argb >> 8), (byte)pulse.Argb));
+            {
+                // Contrast themes: Highlight / HighlightText instead of the brand gold/red bag.
+                var contrast = Services.ContrastTheme.IsOn;
+                badge.Background = contrast ? Services.ContrastTheme.Brush("FSTShopNewBrush")
+                    : new SolidColorBrush(Color.FromArgb(0xFF, (byte)(pulse.Argb >> 16), (byte)(pulse.Argb >> 8), (byte)pulse.Argb));
+                if (contrast)
+                {
+                    badge.BorderBrush = Services.ContrastTheme.Brush("FSTShopBadgeTextBrush");
+                    ((FontIcon)badge.Child).Foreground = Services.ContrastTheme.Brush("FSTShopBadgeTextBrush");
+                }
+            }
             // Not Handled: x:Bind template bindings run in this same event.
             args.RegisterUpdateCallback(1, OnContainerContentChanging);
             return;
@@ -487,7 +497,7 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <summary>Tints Sort/Filter gold when a non-default choice is applied.</summary>
     private void UpdateButtonTints()
     {
-        var gold = Brush("FSTGoldBrush");
+        var gold = Brush("FSTEmphasisBrush");
         SortButton.ClearValue(ForegroundProperty);
         FilterButton.ClearValue(ForegroundProperty);
         if (ViewModel.IsSortChanged) SortButton.Foreground = gold;

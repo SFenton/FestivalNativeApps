@@ -63,7 +63,7 @@ public sealed partial class StarRow : StackPanel
             return;
         }
         var source = rating.Gold ? gold ??= Bitmap("star_gold.png") : white ??= Bitmap("star_white.png");
-        var ring = rating.Gold ? (Brush)Application.Current.Resources["FSTGoldBrush"] : null;
+        var ring = rating.Gold ? (Brush)Application.Current.Resources["FSTEmphasisBrush"] : null;
         var circle = Math.Round(StarSize * 1.25);
         for (var i = 0; i < rating.Count; i++)
         {

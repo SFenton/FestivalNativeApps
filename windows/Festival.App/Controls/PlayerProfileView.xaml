@@ -13,8 +13,6 @@
         <DataTemplate x:Key="StatTileTemplate" x:DataType="vm:PlayerStatTile">
             <controls:PlayerStatTileView Tile="{x:Bind}" />
         </DataTemplate>
-        <!-- Web btnDanger: solid statusRed. -->
-        <SolidColorBrush x:Key="FSTDangerBrush" Color="#FFC62828" />
     </UserControl.Resources>
 
     <Grid x:Name="Root">
@@ -50,26 +48,27 @@
                                         Visibility="{x:Bind ViewModel.CanSelect, Mode=OneWay}"
                                         AutomationProperties.AutomationId="fst.player.select" />
                                 <Button Content="Deselect Profile" Click="OnDeselectClick" MinHeight="32" FontWeight="SemiBold"
-                                        Background="{StaticResource FSTDangerBrush}" Foreground="White" BorderBrush="{StaticResource FSTDangerBrush}"
+                                        Background="{ThemeResource FSTDangerBackgroundBrush}" Foreground="{ThemeResource FSTDangerForegroundBrush}"
+                                        BorderBrush="{ThemeResource FSTDangerBorderBrush}"
                                         Visibility="{x:Bind ViewModel.CanDeselect, Mode=OneWay}"
                                         AutomationProperties.AutomationId="fst.player.deselect">
                                     <Button.Resources>
-                                        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#FFD33A3A" />
-                                        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#FFA82020" />
-                                        <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="White" />
-                                        <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#E6FFFFFF" />
-                                        <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#FFD33A3A" />
-                                        <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="#FFA82020" />
+                                        <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="FSTDangerBackgroundPointerOverBrush" />
+                                        <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="FSTDangerBackgroundPressedBrush" />
+                                        <StaticResource x:Key="ButtonForegroundPointerOver" ResourceKey="FSTDangerForegroundPointerOverBrush" />
+                                        <StaticResource x:Key="ButtonForegroundPressed" ResourceKey="FSTDangerForegroundPressedBrush" />
+                                        <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="FSTDangerBorderPointerOverBrush" />
+                                        <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="FSTDangerBorderPressedBrush" />
                                     </Button.Resources>
                                 </Button>
                                 <controls:QuickLinksMenuButton x:Name="QuickLinksMenu" MinHeight="32" />
                             </StackPanel>
                             <TextBlock Text="{x:Bind ViewModel.IdentityNotice, Mode=OneWay}" TextWrapping="Wrap"
-                                       Foreground="{ThemeResource FSTGoldBrush}"
+                                       Foreground="{ThemeResource FSTEmphasisBrush}"
                                        Visibility="{x:Bind ViewModel.HasIdentityNotice, Mode=OneWay}"
                                        AutomationProperties.AutomationId="fst.player.identity-notice" />
                             <TextBlock Text="{x:Bind ViewModel.ActionError, Mode=OneWay}" TextWrapping="Wrap"
-                                       Foreground="{ThemeResource FSTGoldBrush}" AutomationProperties.LiveSetting="Assertive"
+                                       Foreground="{ThemeResource FSTEmphasisBrush}" AutomationProperties.LiveSetting="Assertive"
                                        Visibility="{x:Bind ViewModel.HasActionError, Mode=OneWay}"
                                        AutomationProperties.AutomationId="fst.player.action-error" />
                         </StackPanel>

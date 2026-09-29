@@ -131,17 +131,17 @@
                                     AutomationProperties.AutomationId="fst.songs.sort.reset">
                                     <Button.Resources>
                                         <!-- Web Modal reset: a full-width red (btnDanger #C62828) button (operator batch 7.10). -->
-                                        <SolidColorBrush x:Key="ButtonBackground" Color="#FFC62828" />
-                                        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#FFD84343" />
-                                        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#FFA82020" />
-                                        <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="#59C62828" />
-                                        <SolidColorBrush x:Key="ButtonForeground" Color="#FFFFFFFF" />
-                                        <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#FFFFFFFF" />
-                                        <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#E6FFFFFF" />
-                                        <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="#99FFFFFF" />
-                                        <SolidColorBrush x:Key="ButtonBorderBrush" Color="#FFC62828" />
-                                        <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#FFD84343" />
-                                        <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="#FFA82020" />
+                                        <StaticResource x:Key="ButtonBackground" ResourceKey="FSTDangerBackgroundBrush" />
+                                        <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="FSTDangerBackgroundPointerOverBrush" />
+                                        <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="FSTDangerBackgroundPressedBrush" />
+                                        <StaticResource x:Key="ButtonBackgroundDisabled" ResourceKey="FSTDangerBackgroundDisabledBrush" />
+                                        <StaticResource x:Key="ButtonForeground" ResourceKey="FSTDangerForegroundBrush" />
+                                        <StaticResource x:Key="ButtonForegroundPointerOver" ResourceKey="FSTDangerForegroundPointerOverBrush" />
+                                        <StaticResource x:Key="ButtonForegroundPressed" ResourceKey="FSTDangerForegroundPressedBrush" />
+                                        <StaticResource x:Key="ButtonForegroundDisabled" ResourceKey="FSTDangerForegroundDisabledBrush" />
+                                        <StaticResource x:Key="ButtonBorderBrush" ResourceKey="FSTDangerBorderBrush" />
+                                        <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="FSTDangerBorderPointerOverBrush" />
+                                        <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="FSTDangerBorderPressedBrush" />
                                         <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="Transparent" />
                                     </Button.Resources>
                             </Button>
@@ -288,17 +288,17 @@
                                     AutomationProperties.Name="Reset Song Filters" AutomationProperties.AutomationId="fst.songs.filter.reset">
                                     <Button.Resources>
                                         <!-- Web Modal reset: a full-width red (btnDanger #C62828) button (operator batch 7.10). -->
-                                        <SolidColorBrush x:Key="ButtonBackground" Color="#FFC62828" />
-                                        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#FFD84343" />
-                                        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#FFA82020" />
-                                        <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="#59C62828" />
-                                        <SolidColorBrush x:Key="ButtonForeground" Color="#FFFFFFFF" />
-                                        <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#FFFFFFFF" />
-                                        <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#E6FFFFFF" />
-                                        <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="#99FFFFFF" />
-                                        <SolidColorBrush x:Key="ButtonBorderBrush" Color="#FFC62828" />
-                                        <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#FFD84343" />
-                                        <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="#FFA82020" />
+                                        <StaticResource x:Key="ButtonBackground" ResourceKey="FSTDangerBackgroundBrush" />
+                                        <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="FSTDangerBackgroundPointerOverBrush" />
+                                        <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="FSTDangerBackgroundPressedBrush" />
+                                        <StaticResource x:Key="ButtonBackgroundDisabled" ResourceKey="FSTDangerBackgroundDisabledBrush" />
+                                        <StaticResource x:Key="ButtonForeground" ResourceKey="FSTDangerForegroundBrush" />
+                                        <StaticResource x:Key="ButtonForegroundPointerOver" ResourceKey="FSTDangerForegroundPointerOverBrush" />
+                                        <StaticResource x:Key="ButtonForegroundPressed" ResourceKey="FSTDangerForegroundPressedBrush" />
+                                        <StaticResource x:Key="ButtonForegroundDisabled" ResourceKey="FSTDangerForegroundDisabledBrush" />
+                                        <StaticResource x:Key="ButtonBorderBrush" ResourceKey="FSTDangerBorderBrush" />
+                                        <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="FSTDangerBorderPointerOverBrush" />
+                                        <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="FSTDangerBorderPressedBrush" />
                                         <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="Transparent" />
                                     </Button.Resources>
                             </Button>

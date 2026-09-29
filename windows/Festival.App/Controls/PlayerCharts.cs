@@ -183,16 +183,16 @@ public static class PlayerBrushes
     /// <summary>Gold for highlighted tiles, else the accent blue.</summary>
     /// <param name="gold">Whether to use gold.</param>
     /// <returns>Brush.</returns>
-    public static Brush Tile(bool gold) => (Brush)Application.Current.Resources[gold ? "FSTGoldBrush" : "FSTAccentBlueBrush"];
+    public static Brush Tile(bool gold) => (Brush)Application.Current.Resources[gold ? "FSTEmphasisBrush" : "FSTStatBlueBrush"];
 
     /// <summary>Stat tile value colour (web <c>StatBox</c> <c>color</c>).</summary>
     /// <param name="tint">Tint.</param>
     /// <returns>Brush.</returns>
     public static Brush Tint(PlayerStatTint tint) => (Brush)Application.Current.Resources[tint switch
     {
-        PlayerStatTint.Gold => "FSTGoldBrush",
-        PlayerStatTint.Green => "FSTStatusGreenBrush",
-        _ => "FSTAccentBlueBrush",
+        PlayerStatTint.Gold => "FSTEmphasisBrush",
+        PlayerStatTint.Green => "FSTStatGreenBrush",
+        _ => "FSTStatBlueBrush",
     }];
 
     /// <summary>Gold or accent bar fill.</summary>
@@ -203,7 +203,7 @@ public static class PlayerBrushes
     /// <summary>Star colour: gold for six stars, else primary text.</summary>
     /// <param name="gold">Gold stars.</param>
     /// <returns>Brush.</returns>
-    public static Brush Stars(bool gold) => (Brush)Application.Current.Resources[gold ? "FSTGoldBrush" : "FSTTextPrimaryBrush"];
+    public static Brush Stars(bool gold) => (Brush)Application.Current.Resources[gold ? "FSTEmphasisBrush" : "FSTTextPrimaryBrush"];
 
     /// <summary>Gold stroke for a personal-best row, else the card stroke.</summary>
     /// <param name="highlight">Whether to highlight.</param>

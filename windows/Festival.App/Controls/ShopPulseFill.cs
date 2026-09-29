@@ -42,7 +42,9 @@ public sealed partial class ShopPulseFill : Grid
         highlight = value;
         pulses = breathe;
         var argb = ShopPulse.TargetArgb(breathe ? value : null);
-        Background = new SolidColorBrush(Color.FromArgb((byte)(argb >> 24), (byte)(argb >> 16), (byte)(argb >> 8), (byte)argb));
+        // Contrast themes: the system Highlight instead of the brand red/gold/green (the label names the state).
+        Background = Services.ContrastTheme.IsOn ? Services.ContrastTheme.Brush("FSTShopNewBrush")
+            : new SolidColorBrush(Color.FromArgb((byte)(argb >> 24), (byte)(argb >> 16), (byte)(argb >> 8), (byte)argb));
         Stop();
         Update();
     }

@@ -108,7 +108,7 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Text="{x:Bind Score}" Style="{StaticResource BodyStrongTextBlockStyle}" VerticalAlignment="Center" TextWrapping="NoWrap" />
-                                <Border Grid.Column="1" CornerRadius="4" Padding="6,1" BorderThickness="1" BorderBrush="{StaticResource FSTGoldBrush}"
+                                <Border Grid.Column="1" CornerRadius="4" Padding="6,1" BorderThickness="1" BorderBrush="{ThemeResource FSTEmphasisStrokeBrush}"
                                         Visibility="{x:Bind IsFullCombo}" VerticalAlignment="Center">
                                     <TextBlock Text="FC" FontSize="12" FontWeight="SemiBold" />
                                 </Border>

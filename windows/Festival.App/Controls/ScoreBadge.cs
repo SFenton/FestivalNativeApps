@@ -13,7 +13,6 @@ namespace Festival.App.Controls;
 /// </summary>
 public static class ScoreBadge
 {
-    private static readonly SolidColorBrush GoldStroke = new(Color.FromArgb(0xFF, 0xCF, 0xA5, 0x00));
     private static readonly SolidColorBrush Clear = new(Color.FromArgb(0, 0, 0, 0));
 
     /// <summary>Badge fill: transparent for FC, else the accuracy tint.</summary>
@@ -23,6 +22,8 @@ public static class ScoreBadge
     public static Brush Fill(bool fullCombo, double expandedAccuracy)
     {
         if (fullCombo) return Clear;
+        // Contrast themes: a ButtonFace pill (the accuracy is in the text), never the red→green tint.
+        if (Services.ContrastTheme.IsOn) return Services.ContrastTheme.Brush("FSTNeutralPillFillBrush");
         var (r, g, b) = ScoreFormatting.AccuracyTint(expandedAccuracy);
         return new SolidColorBrush(Color.FromArgb(0x40, r, g, b));
     }
@@ -30,13 +31,15 @@ public static class ScoreBadge
     /// <summary>Gold stroke for FC, else none.</summary>
     /// <param name="fullCombo">Explicit FC.</param>
     /// <returns>Brush.</returns>
-    public static Brush Stroke(bool fullCombo) => fullCombo ? GoldStroke : Clear;
+    public static Brush Stroke(bool fullCombo) =>
+        fullCombo ? Services.ContrastTheme.Brush("FSTEmphasisStrokeBrush")
+        : Services.ContrastTheme.IsOn ? Services.ContrastTheme.Brush("FSTNeutralPillStrokeBrush") : Clear;
 
     /// <summary>Gold text for FC, else primary text.</summary>
     /// <param name="fullCombo">Explicit FC.</param>
     /// <returns>Brush.</returns>
     public static Brush Text(bool fullCombo) =>
-        (Brush)Application.Current.Resources[fullCombo ? "FSTGoldBrush" : "FSTTextPrimaryBrush"];
+        Services.ContrastTheme.Brush(fullCombo ? "FSTEmphasisBrush" : Services.ContrastTheme.IsOn ? "FSTNeutralPillTextBrush" : "FSTTextPrimaryBrush");
 
     /// <summary>Italic for FC.</summary>
     /// <param name="fullCombo">Explicit FC.</param>

@@ -27,11 +27,12 @@ public static class SongRowVisuals
     {
         var (fill, stroke) = badge.Status switch
         {
-            SongInstrumentStatus.FullCombo => ("FSTGoldBrush", "FSTGoldStrokeBrush"),
-            SongInstrumentStatus.Scored => ("FSTStatusGreenBrush", "FSTStatusGreenStrokeBrush"),
-            SongInstrumentStatus.NoScore => ("FSTStatusRedBrush", "FSTStatusRedStrokeBrush"),
-            SongInstrumentStatus.InconsistentFullCombo => ("FSTStatusAmberBrush", "FSTStatusAmberStrokeBrush"),
-            _ => ("FSTSurfaceMutedBrush", "FSTBorderSubtleBrush"),
+            // Contrast roles: brand hues, or Highlight (FC) / WindowText (scored) / GrayText (missing, no chart) rings.
+            SongInstrumentStatus.FullCombo => ("FSTStatusFcFillBrush", "FSTStatusFcStrokeBrush"),
+            SongInstrumentStatus.Scored => ("FSTStatusScoredFillBrush", "FSTStatusScoredStrokeBrush"),
+            SongInstrumentStatus.NoScore => ("FSTStatusMissingFillBrush", "FSTStatusMissingStrokeBrush"),
+            SongInstrumentStatus.InconsistentFullCombo => ("FSTStatusAmberFillBrush", "FSTStatusAmberStrokeBrush"),
+            _ => ("FSTStatusNoneFillBrush", "FSTStatusNoneStrokeBrush"),
         };
         var chip = new Border
         {
@@ -40,7 +41,9 @@ public static class SongRowVisuals
             CornerRadius = new CornerRadius(ChipSize / 2),
             Background = Brush(fill),
             BorderBrush = Brush(stroke),
-            BorderThickness = new Thickness(1.5),
+            // Contrast themes: the ring's weight carries the status too (3 epx FC/scored, 1 epx missing/no chart).
+            BorderThickness = new Thickness(!Services.ContrastTheme.IsOn ? 1.5
+                : badge.Status is SongInstrumentStatus.FullCombo or SongInstrumentStatus.Scored or SongInstrumentStatus.InconsistentFullCombo ? 3 : 1),
             Opacity = badge.Status == SongInstrumentStatus.Unavailable ? 0.45 : 1,
             Child = new Image
             {
@@ -63,22 +66,25 @@ public static class SongRowVisuals
         FrameworkElement element = field.Kind switch
         {
             MetadataField.Score => Text(field.Text, 14, FontWeights.SemiBold, null),
-            MetadataField.Percentage when field.FullCombo => Box(Text(field.Text, 12, FontWeights.Bold, Brush("FSTGoldBrush")),
-                background: null, border: Brush("FSTGoldBrush")),
+            MetadataField.Percentage when field.FullCombo => Box(Text(field.Text, 12, FontWeights.Bold, Brush("FSTEmphasisBrush")),
+                background: null, border: Brush("FSTEmphasisBrush")),
+            MetadataField.Percentage when Services.ContrastTheme.IsOn => Neutral(field.Text),
             MetadataField.Percentage => Box(Text(field.Text, 12, FontWeights.SemiBold, null),
                 background: field.Tint is { } t ? new SolidColorBrush(Color.FromArgb(0x40, t.R, t.G, t.B)) : Brush("FSTSurfaceMutedBrush"), border: null),
             MetadataField.Percentile => field.Percentile switch
             {
-                SongPercentileTier.TopOne => Box(Text(field.Text, 12, FontWeights.Bold, new SolidColorBrush(Colors.Black)), Brush("FSTGoldBrush"), null),
-                SongPercentileTier.TopFive => Box(Text(field.Text, 12, FontWeights.SemiBold, Brush("FSTGoldBrush")), null, Brush("FSTGoldBrush")),
+                SongPercentileTier.TopOne => Box(Text(field.Text, 12, FontWeights.Bold, Brush("FSTTopOneTextBrush")), Brush("FSTTopOneFillBrush"), null),
+                SongPercentileTier.TopFive => Box(Text(field.Text, 12, FontWeights.SemiBold, Brush("FSTEmphasisBrush")), null, Brush("FSTEmphasisBrush")),
+                _ when Services.ContrastTheme.IsOn => Neutral(field.Text),
                 _ => Box(Text(field.Text, 12, FontWeights.SemiBold, null), Brush("FSTSurfaceMutedBrush"), null),
             },
             // Stars and intensity sit in the same 22 epx slot as the text pills so every pill lines up (operator batch 7.18).
             MetadataField.Stars => Slot(new StarRow { Stars = field.Stars.Gold ? StarRating.GoldValue : field.Stars.Count, StarSize = 14 }),
             MetadataField.Season => field.CurrentSeason
-                ? Box(Text(field.Text, 12, FontWeights.Bold, new SolidColorBrush(Colors.Black)), new SolidColorBrush(Colors.White), null)
+                ? Box(Text(field.Text, 12, FontWeights.Bold, Brush("FSTCurrentSeasonTextBrush")), Brush("FSTCurrentSeasonFillBrush"), null)
                 : Box(Text(field.Text, 12, FontWeights.SemiBold, null), null, Brush("FSTBorderSubtleBrush")),
             MetadataField.Intensity => Slot(new DifficultyMeter { Raw = field.IntensityRaw ?? 0, VerticalAlignment = VerticalAlignment.Center }),
+            MetadataField.Difficulty when Services.ContrastTheme.IsOn => Neutral(field.Text),
             MetadataField.Difficulty => Box(
                 Text(field.Text, 12, FontWeights.Bold, new SolidColorBrush(field.GameDifficulty is 0 or 2 ? Colors.Black : Colors.White)),
                 Brush(field.GameDifficulty switch { 0 => "FSTDiffPillEasyBrush", 1 => "FSTDiffPillMediumBrush", 2 => "FSTDiffPillHardBrush", _ => "FSTDiffPillExpertBrush" }),
@@ -90,6 +96,12 @@ public static class SongRowVisuals
         AutomationProperties.SetAccessibilityView(element, AccessibilityView.Raw);
         return element;
     }
+
+    /// <summary>A contrast-theme pill: ButtonFace fill, ButtonText text and outline (the value is in the text).</summary>
+    /// <param name="text">Pill text.</param>
+    /// <returns>Pill.</returns>
+    private static Border Neutral(string text) =>
+        Box(Text(text, 12, FontWeights.SemiBold, Brush("FSTNeutralPillTextBrush")), Brush("FSTNeutralPillFillBrush"), Brush("FSTNeutralPillStrokeBrush"));
 
     /// <summary>Creates a text run.</summary>
     /// <param name="text">Text.</param>

@@ -149,12 +149,14 @@ public sealed partial class SuggestionSongRow : Button
                     metadata.Children.Add(new TextBlock
                     {
                         Text = delta, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center,
-                        Foreground = p.RivalDeltaSign > 0 ? Green : Red,
+                        Foreground = Services.ContrastTheme.IsOn ? Services.ContrastTheme.Brush("FSTEmphasisBrush") : p.RivalDeltaSign > 0 ? Green : Red,
                     });
                 break;
             case SuggestionRowLayout.UnfcAccuracy when p.AccuracyExpanded is { } accuracy:
                 var (r, g, b) = ScoreFormatting.AccuracyTint(accuracy);
-                metadata.Children.Add(Pill(p.AccuracyText!, new SolidColorBrush(Color.FromArgb(0x40, r, g, b)), null, null));
+                metadata.Children.Add(Services.ContrastTheme.IsOn
+                    ? Pill(p.AccuracyText!, Role("FSTNeutralPillFillBrush"), Role("FSTNeutralPillStrokeBrush"), Role("FSTNeutralPillTextBrush"))
+                    : Pill(p.AccuracyText!, new SolidColorBrush(Color.FromArgb(0x40, r, g, b)), null, null));
                 break;
             case SuggestionRowLayout.Season when p.SeasonText is { } season:
                 metadata.Children.Add(Pill(season, (Brush)Application.Current.Resources["FSTSurfaceMutedBrush"], null, null));
@@ -162,8 +164,9 @@ public sealed partial class SuggestionSongRow : Button
             case SuggestionRowLayout.Percentile when p.PercentileText is { } percentile:
                 metadata.Children.Add(p.PercentileTier switch
                 {
+                    PercentileTier.Top1 when Services.ContrastTheme.IsOn => Pill(percentile, Role("FSTTopOneFillBrush"), null, Role("FSTTopOneTextBrush"), italic: true),
                     PercentileTier.Top1 => Pill(percentile, GoldBackground, GoldStroke, Gold, italic: true),
-                    PercentileTier.Top5 => Pill(percentile, null, GoldStroke, Gold),
+                    PercentileTier.Top5 => Pill(percentile, null, Role("FSTEmphasisStrokeBrush"), Role("FSTEmphasisBrush")),
                     _ => Pill(percentile, SubtleFill, null, null),
                 });
                 break;
@@ -173,7 +176,10 @@ public sealed partial class SuggestionSongRow : Button
             case SuggestionRowLayout.InstrumentChips:
                 foreach (var chip in p.Chips)
                 {
-                    var (fill, stroke) = chip.IsFullCombo ? (Gold, GoldStroke) : chip.HasScore ? (Green, GreenStroke) : (Red, RedStroke);
+                    // Contrast roles, like the Songs chips (brand hues, or Highlight / WindowText / GrayText under a contrast theme).
+                    var (fill, stroke) = chip.IsFullCombo ? (Role("FSTStatusFcFillBrush"), Role("FSTStatusFcStrokeBrush"))
+                        : chip.HasScore ? (Role("FSTStatusScoredFillBrush"), Role("FSTStatusScoredStrokeBrush"))
+                        : (Role("FSTStatusMissingFillBrush"), Role("FSTStatusMissingStrokeBrush"));
                     // Web instrumentChip: 34 epx circle, 2 epx status stroke, 20 epx icon.
                     metadata.Children.Add(new Border
                     {
@@ -191,7 +197,18 @@ public sealed partial class SuggestionSongRow : Button
         if (IsLoaded) LoadArt();
     }
 
+    /// <summary>Contrast role brush (<see cref="Services.ContrastTheme"/>).</summary>
+    /// <param name="key">Resource key.</param>
+    /// <returns>Brush.</returns>
+    private static Brush Role(string key) => Services.ContrastTheme.Brush(key);
+
     /// <summary>A rounded metadata pill.</summary>
+    /// <param name="text">Text.</param>
+    /// <param name="fill">Fill, or none.</param>
+    /// <param name="stroke">Outline, or none.</param>
+    /// <param name="foreground">Text brush, or the default.</param>
+    /// <param name="italic">Italic text.</param>
+    /// <returns>Pill.</returns>
     private static Border Pill(string text, Brush? fill, Brush? stroke, Brush? foreground, bool italic = false)
     {
         var label = new TextBlock { Text = text, FontWeight = FontWeights.SemiBold, FontSize = 14, HorizontalAlignment = HorizontalAlignment.Center };

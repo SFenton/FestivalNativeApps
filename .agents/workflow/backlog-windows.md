@@ -6,7 +6,7 @@
 
 | Item | Source | Notes |
 |---|---|---|
-| Operator Narrator walkthrough (script in [windows.md](../testing/windows.md)); contrast-theme status/chip colour decision | win-a11y | Needs the operator |
+| Operator Narrator walkthrough (script in [windows.md](../testing/windows.md)) | win-a11y | Needs the operator; contrast-theme colours decided by win-unify ([design/windows.md](../design/windows.md)) |
 | Notification badge at real 100% / 200% DPI | win-chrome | Only 150% verified; the host has no 100%/200% display (needs a monitor or remote session at that scale) |
 
 ## Done

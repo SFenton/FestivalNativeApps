@@ -43,6 +43,44 @@
                  pinned row backplate): a solid colour instead of a per-frame backdrop blur. -->
             <SolidColorBrush x:Key="FSTPagerButtonBrush" Color="#FF121826" />
             <SolidColorBrush x:Key="FSTFloatingBackplateBrush" Color="#FF0B1220" />
+            <!-- Contrast roles (design/windows.md, Contrast themes): brand hues here, system colours under a contrast theme.
+                 Status chips, emphasis (gold) text and outlines, stat values, Top 1% and current-season pills, accuracy/difficulty
+                 pills, Shop borders and badges, and destructive (red) buttons. -->
+            <SolidColorBrush x:Key="FSTStatusFcFillBrush" Color="#FFFFD700" />
+            <SolidColorBrush x:Key="FSTStatusFcStrokeBrush" Color="#FFCFA500" />
+            <SolidColorBrush x:Key="FSTStatusScoredFillBrush" Color="#FF2ECC71" />
+            <SolidColorBrush x:Key="FSTStatusScoredStrokeBrush" Color="#FF1E7F46" />
+            <SolidColorBrush x:Key="FSTStatusMissingFillBrush" Color="#FFC62828" />
+            <SolidColorBrush x:Key="FSTStatusMissingStrokeBrush" Color="#FF8B0000" />
+            <SolidColorBrush x:Key="FSTStatusAmberFillBrush" Color="#FFF5A623" />
+            <SolidColorBrush x:Key="FSTStatusAmberStrokeBrush" Color="#FFAB7419" />
+            <SolidColorBrush x:Key="FSTStatusNoneFillBrush" Color="#FF223047" />
+            <SolidColorBrush x:Key="FSTStatusNoneStrokeBrush" Color="#FF1E2A3A" />
+            <SolidColorBrush x:Key="FSTEmphasisBrush" Color="#FFFFD700" />
+            <SolidColorBrush x:Key="FSTEmphasisStrokeBrush" Color="#FFCFA500" />
+            <SolidColorBrush x:Key="FSTStatBlueBrush" Color="#FF2D82E6" />
+            <SolidColorBrush x:Key="FSTStatGreenBrush" Color="#FF2ECC71" />
+            <SolidColorBrush x:Key="FSTTopOneFillBrush" Color="#FFFFD700" />
+            <SolidColorBrush x:Key="FSTTopOneTextBrush" Color="#FF000000" />
+            <SolidColorBrush x:Key="FSTCurrentSeasonFillBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="FSTCurrentSeasonTextBrush" Color="#FF000000" />
+            <SolidColorBrush x:Key="FSTNeutralPillFillBrush" Color="#1FFFFFFF" />
+            <SolidColorBrush x:Key="FSTNeutralPillTextBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="FSTNeutralPillStrokeBrush" Color="#00000000" />
+            <SolidColorBrush x:Key="FSTShopNewBrush" Color="#FFFFD700" />
+            <SolidColorBrush x:Key="FSTShopLeavingBrush" Color="#FFC62828" />
+            <SolidColorBrush x:Key="FSTShopBadgeTextBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="FSTDangerBackgroundBrush" Color="#FFC62828" />
+            <SolidColorBrush x:Key="FSTDangerBackgroundPointerOverBrush" Color="#FFD84343" />
+            <SolidColorBrush x:Key="FSTDangerBackgroundPressedBrush" Color="#FFA82020" />
+            <SolidColorBrush x:Key="FSTDangerBackgroundDisabledBrush" Color="#59C62828" />
+            <SolidColorBrush x:Key="FSTDangerForegroundBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="FSTDangerForegroundPointerOverBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="FSTDangerForegroundPressedBrush" Color="#E6FFFFFF" />
+            <SolidColorBrush x:Key="FSTDangerForegroundDisabledBrush" Color="#99FFFFFF" />
+            <SolidColorBrush x:Key="FSTDangerBorderBrush" Color="#FFC62828" />
+            <SolidColorBrush x:Key="FSTDangerBorderPointerOverBrush" Color="#FFD84343" />
+            <SolidColorBrush x:Key="FSTDangerBorderPressedBrush" Color="#FFA82020" />
             <!--
                 Shell chrome over the artwork backdrop (MainWindow): the docked pane and the content area are transparent,
                 so the backdrop's dim scrim is the only layer (no Mica, no LayerFill, no 1 px content border). The pane
@@ -97,6 +135,43 @@
             <SolidColorBrush x:Key="FSTPagerBadgeBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="FSTPagerButtonBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
             <SolidColorBrush x:Key="FSTFloatingBackplateBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <!-- Contrast roles: Highlight/HighlightText = emphasis and selection, ButtonFace/ButtonText = pills and buttons,
+                 Window/WindowText = surfaces and text, GrayText = absent. Meaning never rests on hue alone (shape, text, UIA name). -->
+            <SolidColorBrush x:Key="FSTStatusFcFillBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="FSTStatusFcStrokeBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="FSTStatusScoredFillBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="FSTStatusScoredStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTStatusMissingFillBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="FSTStatusMissingStrokeBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
+            <SolidColorBrush x:Key="FSTStatusAmberFillBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="FSTStatusAmberStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTStatusNoneFillBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="FSTStatusNoneStrokeBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
+            <SolidColorBrush x:Key="FSTEmphasisBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTEmphasisStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTStatBlueBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTStatGreenBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTTopOneFillBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="FSTTopOneTextBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="FSTCurrentSeasonFillBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="FSTCurrentSeasonTextBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="FSTNeutralPillFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
+            <SolidColorBrush x:Key="FSTNeutralPillTextBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
+            <SolidColorBrush x:Key="FSTNeutralPillStrokeBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
+            <SolidColorBrush x:Key="FSTShopNewBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="FSTShopLeavingBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="FSTShopBadgeTextBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="FSTDangerBackgroundBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
+            <SolidColorBrush x:Key="FSTDangerBackgroundPointerOverBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="FSTDangerBackgroundPressedBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="FSTDangerBackgroundDisabledBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
+            <SolidColorBrush x:Key="FSTDangerForegroundBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
+            <SolidColorBrush x:Key="FSTDangerForegroundPointerOverBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="FSTDangerForegroundPressedBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="FSTDangerForegroundDisabledBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
+            <SolidColorBrush x:Key="FSTDangerBorderBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
+            <SolidColorBrush x:Key="FSTDangerBorderPointerOverBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="FSTDangerBorderPressedBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 

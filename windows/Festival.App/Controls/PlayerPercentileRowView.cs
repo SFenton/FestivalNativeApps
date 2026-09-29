@@ -71,7 +71,7 @@ public sealed partial class PlayerPercentileRowView : ContentControl
     private void Render()
     {
         if (Row is not { } row) return;
-        var gold = (Brush)Application.Current.Resources["FSTGoldBrush"];
+        var gold = (Brush)Application.Current.Resources["FSTEmphasisBrush"];
         pill.Text = row.Label;
         pill.Foreground = row.Gold ? gold : (Brush)Application.Current.Resources["FSTSecondaryTextBrush"];
         pillBox.Background = row.Gold ? null : new SolidColorBrush(Windows.UI.Color.FromArgb(0x1F, 0xFF, 0xFF, 0xFF));

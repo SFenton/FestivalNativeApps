@@ -92,7 +92,7 @@ public sealed partial class SuggestionsPage : Page
     private void UpdateFilterTint()
     {
         FilterButton.ClearValue(ForegroundProperty);
-        if (ViewModel.IsFilterActive) FilterButton.Foreground = (Brush)Application.Current.Resources["FSTGoldBrush"];
+        if (ViewModel.IsFilterActive) FilterButton.Foreground = (Brush)Application.Current.Resources["FSTEmphasisBrush"];
     }
     #endregion
 }

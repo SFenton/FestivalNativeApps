@@ -194,8 +194,9 @@ public sealed partial class ShopPage : Page
     private static void ApplyBadge(FrameworkElement root, ShopOfferItem item, string badgeName, string textName)
     {
         if (root.FindName(badgeName) is not Border badge || root.FindName(textName) is not TextBlock text) return;
-        badge.Background = item.IsLeaving ? Brush("FSTStatusRedBrush") : new SolidColorBrush(Windows.UI.Color.FromArgb(0xE6, 0x12, 0x18, 0x26));
-        text.Foreground = item.IsLeaving ? new SolidColorBrush(Colors.White) : Brush("FSTGoldBrush");
+        badge.Background = item.IsLeaving ? Brush("FSTShopLeavingBrush")
+            : Services.ContrastTheme.IsOn ? Brush("FSTShopNewBrush") : new SolidColorBrush(Windows.UI.Color.FromArgb(0xE6, 0x12, 0x18, 0x26));
+        text.Foreground = item.IsLeaving || Services.ContrastTheme.IsOn ? Brush("FSTShopBadgeTextBrush") : Brush("FSTShopNewBrush");
         AutomationProperties.SetAutomationId(text, item.IsLeaving ? $"fst.shop.badge.leaving.{item.Offer.SongId}" : $"fst.shop.badge.new.{item.Offer.SongId}");
     }
 
@@ -204,8 +205,8 @@ public sealed partial class ShopPage : Page
     /// <returns>Brush.</returns>
     private static Brush BorderFor(ShopOfferItem item) => item.Highlight switch
     {
-        ShopHighlight.LeavingTomorrow => Brush("FSTStatusRedBrush"),
-        ShopHighlight.New => Brush("FSTGoldBrush"),
+        ShopHighlight.LeavingTomorrow => Brush("FSTShopLeavingBrush"),
+        ShopHighlight.New => Brush("FSTShopNewBrush"),
         _ => Brush("FSTCardStrokeBrush"),
     };
 

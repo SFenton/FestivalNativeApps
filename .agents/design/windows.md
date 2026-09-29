@@ -55,7 +55,24 @@ Artwork motion follows [artwork-background](../controls/artwork-background/windo
 - **Collections:** `ItemsRepeater` is one Tab stop with no arrow-key navigation by default, which hid every item after the first from the keyboard. Card and control repeaters set `TabFocusNavigation="Local"`; row lists stay one Tab stop with `XYFocusKeyboardNavigation="Enabled"` (Up/Down between rows). New repeaters must pick one of the two.
 - **Quick Links:** a jump (menu or pane) scrolls, moves keyboard focus to the section's first focusable element and announces "<Section> section", like a web skip link.
 - **Keyboard:** Ctrl+1…7 open the visible pane sections in order and Ctrl+comma opens Settings (tooltips "Songs (Ctrl+1)", UIA `AcceleratorKey`); Alt shows access keys on pane items (S, U, T, R, L, I, E in pane order) and the profile button (P); Ctrl+E global search, Ctrl+F in-page find, F5 refresh on ranking/rivals pages; Alt+Left / Back / XButton1 go back, including from a focused text field (tunneling `PreviewKeyDown`). The TitleBar itself is not a tab stop. Flyouts and dialogs close on Esc and return focus to their invoker.
-- **Contrast themes:** the artwork backdrop is hidden (`ArtworkPlaybackPolicy` `HighContrast` input → `Hidden`), so content sits on the theme's window colour; card, header, secondary-text and meter brushes map to system colours in the `HighContrast` theme dictionary. Brand status colours (FC gold, scored green, missing red) and Shop borders keep their hues; their meaning is also in each row's UIA name.
+- **Contrast themes:** the artwork backdrop is hidden (`ArtworkPlaybackPolicy` `HighContrast` input → `Hidden`), so content sits on the theme's window colour; card, header, secondary-text and meter brushes map to system colours in the `HighContrast` theme dictionary.
+- **Contrast roles** (decided 2026-09-29, win-unify; Fluent contrast-theme guidance: use the system colour pairs by meaning, never a brand hue): `Themes/Styles.xaml` defines role brushes with the brand value in `Default` and a system colour in `HighContrast`, and `Services/ContrastTheme` (`IsOn`, `Brush`) serves code that computes a brand tint. Meaning never rests on hue alone: shape, weight, text and the UIA name carry it too.
+
+| Role | Default (brand) | Contrast theme |
+|---|---|---|
+| Surfaces, text, card strokes | frosted `#C7121826`, white | Window / WindowText |
+| Selected player row, personal best | `purpleHighlight` + purple border | Highlight / HighlightText |
+| Status chip FC (`FSTStatusFc*`) | gold fill, `#CFA500` ring | Highlight fill, HighlightText ring, 3 epx |
+| Status chip scored / inconsistent FC | green / amber | Window fill, WindowText ring, 3 epx |
+| Status chip missing / no chart | red / muted | Window fill, GrayText ring, 1 epx (no chart also 45% opacity) |
+| Emphasis text and outlines (`FSTEmphasis*`: FC badge, Top 5%, gold stars ring, active Sort/Filter tint, profile notices) | gold | WindowText (the FC badge keeps its skewed italic shape) |
+| Stat tile values (`FSTStatBlue/Green`), ratings | blue / green | WindowText |
+| Top 1% pill, current-season pill | gold / white fill | Highlight / HighlightText |
+| Accuracy, difficulty and plain percentile pills | red→green tint, difficulty hues | ButtonFace / ButtonText with a ButtonText outline |
+| Shop borders, Songs art bag, Shop badges and pulse (`FSTShop*`) | gold (New) / red (Leaving) | Highlight / HighlightText (the label and UIA name say which) |
+| Destructive buttons (Reset, Reset All Settings, Deselect; `FSTDanger*`) | `#C62828` | ButtonFace / ButtonText; hover and press Highlight / HighlightText |
+
+Open: charts (rank history bars, score history bars and line) keep brand hues; their values are on the axes and in each bar's UIA name.
 - **Text size:** controls keep `IsTextScaleFactorEnabled`; at ≥150% the title-bar caption text is dropped so the global search box keeps its width.
 - **Motion and transparency:** system Animation effects off or in-app Reduce Motion → still artwork and no marquee; transparency off or in-app Less Transparency → opaque cards and the overlay pane's acrylic uses its solid fallback.
 - Results per page and open gaps: [testing/windows-accessibility.md](../testing/windows-accessibility.md).

@@ -46,7 +46,9 @@ public sealed partial class ShopPulseRing : Grid
             Visibility = Visibility.Collapsed;
             return;
         }
-        ring.BorderBrush = new SolidColorBrush(Color.FromArgb(0xFF, (byte)(value.Argb >> 16), (byte)(value.Argb >> 8), (byte)value.Argb));
+        // Contrast themes: the system Highlight instead of the brand gold/red (the row's UIA name carries the Shop state).
+        ring.BorderBrush = Services.ContrastTheme.IsOn ? Services.ContrastTheme.Brush("FSTShopNewBrush")
+            : new SolidColorBrush(Color.FromArgb(0xFF, (byte)(value.Argb >> 16), (byte)(value.Argb >> 8), (byte)value.Argb));
         Visibility = Visibility.Visible;
         if (IsLoaded) Attach();
     }

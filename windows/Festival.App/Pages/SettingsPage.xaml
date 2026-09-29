@@ -590,15 +590,15 @@
                             FontWeight="SemiBold" CornerRadius="4" Padding="16,8" MinWidth="180"
                             AutomationProperties.AutomationId="fst.settings.reset">
                         <Button.Resources>
-                            <SolidColorBrush x:Key="ButtonBackground" Color="#FFC62828" />
-                            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#FFD84343" />
-                            <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#FFA82020" />
-                            <SolidColorBrush x:Key="ButtonForeground" Color="#FFFFFFFF" />
-                            <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#FFFFFFFF" />
-                            <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#E6FFFFFF" />
-                            <SolidColorBrush x:Key="ButtonBorderBrush" Color="#FFC62828" />
-                            <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#FFD84343" />
-                            <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="#FFA82020" />
+                            <StaticResource x:Key="ButtonBackground" ResourceKey="FSTDangerBackgroundBrush" />
+                            <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="FSTDangerBackgroundPointerOverBrush" />
+                            <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="FSTDangerBackgroundPressedBrush" />
+                            <StaticResource x:Key="ButtonForeground" ResourceKey="FSTDangerForegroundBrush" />
+                            <StaticResource x:Key="ButtonForegroundPointerOver" ResourceKey="FSTDangerForegroundPointerOverBrush" />
+                            <StaticResource x:Key="ButtonForegroundPressed" ResourceKey="FSTDangerForegroundPressedBrush" />
+                            <StaticResource x:Key="ButtonBorderBrush" ResourceKey="FSTDangerBorderBrush" />
+                            <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="FSTDangerBorderPointerOverBrush" />
+                            <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="FSTDangerBorderPressedBrush" />
                         </Button.Resources>
                     </Button>
                 </Grid>
