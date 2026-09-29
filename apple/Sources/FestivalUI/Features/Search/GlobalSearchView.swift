@@ -33,6 +33,8 @@ struct GlobalSearchResults: View {
             results
         }
         .padding(.top, 8)
+        // A container element, so the identifier does not replace its children's own.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.global-search.surface")
     }
 
