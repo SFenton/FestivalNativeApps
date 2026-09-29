@@ -21,3 +21,16 @@ Debug-only launch overrides (fixture tests only, never simulator resets): `FST_U
 ## Launch screen prerequisite
 
 Keep the `UILaunchScreen` Info.plist key and named launch colour asset. Without them iOS runs the app in a legacy 320×480 / 768×1024 compatibility frame (iPhone captured 960×1440 of 1206×2622; iPad 1536×2048 of 1668×2420), which invalidates layout and audit evidence ([TN3208](https://developer.apple.com/documentation/technotes/tn3208-preparing-your-apps-launch-screen-to-meet-app-store-requirements) also requires the key for iOS 27 SDK uploads). XCTest's `UIScreen.main` may still report runner geometry: compare **app screenshot pixels** with `SIMULATOR_MAINSCREEN_WIDTH/HEIGHT`. The iOS AppIcon asset is still pending (XcodeGen sets an empty name); distribution branding needs a separate review.
+
+## Physical iPhone (operator device)
+
+The project keeps `CODE_SIGNING_ALLOWED: NO` for simulator lanes; signing is supplied on the command line only for operator device installs (operator approved, 2026-09-28; team `3Q9X8JX23S`, device "iPhone 18 Pro" `00008160-00022D8230914036` registered in the portal):
+
+```bash
+cd apple && xcodegen generate -q && cd ..
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project apple/FestivalNativeApple.xcodeproj -scheme FestivalMobile -configuration Release -destination "id=00008160-00022D8230914036" -derivedDataPath <scratch>/device-dd -allowProvisioningUpdates DEVELOPMENT_TEAM=3Q9X8JX23S CODE_SIGNING_ALLOWED=YES CODE_SIGN_STYLE=Automatic build
+xcrun devicectl device install app --device 00008160-00022D8230914036 <scratch>/device-dd/Build/Products/Release-iphoneos/FestivalMobile.app
+xcrun devicectl device process launch --device 00008160-00022D8230914036 com.sfenton.festivalscoretracker.native   # needs the phone unlocked
+```
+
+Never commit the team ID into `project.yml` or use another project's team (e.g. Home Assistant's) on this Mac.
