@@ -191,7 +191,7 @@ struct SettingsServiceInfoSection<Footer: View>: View {
                     .font(.headline)
                     .foregroundStyle(FestivalText.primary)
                 if rows.processState == .loading || rows.processState == .updating {
-                    ProgressView()
+                    FestivalLoadingView()
                         .controlSize(.small)
                         .accessibilityHidden(true)
                 }
