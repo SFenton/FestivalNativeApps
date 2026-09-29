@@ -480,7 +480,8 @@ fun ShopDetailAction(highlight: ShopHighlight?, url: String, songId: String, pul
                 ),
         ) {
             Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
-            Text("Item Shop", modifier = Modifier.padding(start = 6.dp))
+            // The button's description already says "Item Shop".
+            Text("Item Shop", modifier = Modifier.padding(start = 6.dp).clearAndSetSemantics {})
         }
     }
 }

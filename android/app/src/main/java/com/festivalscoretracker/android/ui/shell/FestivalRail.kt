@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -77,7 +78,10 @@ fun FestivalRail(
                 .fillMaxHeight()
                 .width(RAIL_WIDTH_DP.dp)
                 .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.displayCutout).only(WindowInsetsSides.Start + WindowInsetsSides.Vertical))
-                .testTag("fst.nav.rail"),
+                .testTag("fst.nav.rail")
+                // One TalkBack unit: without it the destinations interleave with the page by
+                // vertical position (Songs, then the page, then the other destinations).
+                .semantics { isTraversalGroup = true },
         ) {
             // The menu button sits in the top app bar's row (64 dp bar, 48 dp button); the
             // destinations are top-aligned below it, starting where the drawer's first entry
