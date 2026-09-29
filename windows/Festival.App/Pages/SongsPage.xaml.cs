@@ -39,6 +39,9 @@ public sealed partial class SongsPage : Page, IPageBack
     private ScrollViewer? scroller;
     private double scrollStep = 6;
     private bool revealed;
+    private string? appliedSort;
+    private int[] groupStarts = [];
+    private List<SongGroup> stickyGroups = [];
     private bool wideLayout;
 
     /// <summary>Creates the page.</summary>
@@ -52,6 +55,7 @@ public sealed partial class SongsPage : Page, IPageBack
         Loaded += (_, _) => UpdateButtonTints();
         SizeChanged += OnSizeChanged;
         Zoom.PreviewKeyDown += OnZoomKeyDown;
+        Zoom.ViewChangeCompleted += (_, _) => UpdateStickyHeader();
     }
 
     /// <summary>Page model.</summary>
@@ -80,7 +84,11 @@ public sealed partial class SongsPage : Page, IPageBack
             case nameof(SongsViewModel.Sections):
                 // A new search, sort or filter closes the jump index: its letters described the old list.
                 if (!Zoom.IsZoomedInViewActive) Zoom.IsZoomedInViewActive = true;
-                GroupedSongs.Source = ViewModel.Sections.Select(s => new SongGroup(s.Label, s.Rows)).ToList();
+                RebindGroups();
+                // A new sort starts at the top of the list (operator batch 5; web and every sortable list).
+                if (appliedSort is not null && appliedSort != ViewModel.SortSummary)
+                    (scroller ??= FindScrollViewer(SongList))?.ChangeView(null, 0, null, true);
+                appliedSort = ViewModel.SortSummary;
                 if (ViewModel.Sections.Count > 0)
                 {
                     // A sort, filter or search change re-staggers the list, like the web's settings fingerprint.
@@ -90,10 +98,41 @@ public sealed partial class SongsPage : Page, IPageBack
                     if (App.Options.AutoScroll) StartAutoScroll();
                 }
                 break;
+            case nameof(SongsViewModel.ShowList):
+                UpdateStickyHeader();
+                break;
             case nameof(SongsViewModel.IsSortChanged) or nameof(SongsViewModel.IsFilterActive):
                 UpdateButtonTints();
                 break;
         }
+    }
+
+    /// <summary>Rebuilds the grouped source and the sticky header's section offsets.</summary>
+    private void RebindGroups()
+    {
+        var groups = ViewModel.Sections.Select((s, i) => new SongGroup(s.Label, s.Rows, i == 0)).ToList();
+        groupStarts = new int[groups.Count];
+        for (int i = 0, start = 0; i < groups.Count; start += groups[i].Count, i++) groupStarts[i] = start;
+        stickyGroups = groups;
+        GroupedSongs.Source = groups;
+        UpdateStickyHeader();
+    }
+
+    /// <summary>
+    /// Shows the label of the section holding the first visible row in the bar above the list. Runs on scroll view
+    /// changes only (no per-frame work while idle).
+    /// </summary>
+    private void UpdateStickyHeader()
+    {
+        if (scroller is null && (scroller = FindScrollViewer(SongList)) is not null)
+            scroller.ViewChanged += (_, _) => UpdateStickyHeader();
+        var first = SongList.ItemsPanelRoot is ItemsStackPanel panel && panel.FirstVisibleIndex >= 0 ? panel.FirstVisibleIndex : 0;
+        var index = Array.BinarySearch(groupStarts, first);
+        if (index < 0) index = ~index - 1;
+        var label = index >= 0 && index < stickyGroups.Count ? stickyGroups[index].Label : "";
+        StickyHeader.Text = label;
+        var shown = label.Length > 0 && Zoom.IsZoomedInViewActive && ViewModel.ShowList && Zoom.Opacity > 0;
+        StickyHeader.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>First-paint gate: decode the first rows' art (bounded), then fade the list in.</summary>
@@ -111,6 +150,7 @@ public sealed partial class SongsPage : Page, IPageBack
         // Web fadeInUp stagger over the visible rows (FadeIn: 400 ms, 125 ms apart); a still list when motion is off.
         FadeIn.StaggerRealized(SongList);
         Zoom.Opacity = 1;
+        UpdateStickyHeader();
     }
 
     /// <summary>Phased row realization: text first, then art and trailing content on phase 1.</summary>
@@ -233,7 +273,7 @@ public sealed partial class SongsPage : Page, IPageBack
         Actions.Margin = Notices.Margin = compact ? new Thickness(0) : new Thickness(0, 0, 12, 0);
         if (wide == wideLayout) return;
         wideLayout = wide;
-        if (GroupedSongs.Source is not null) GroupedSongs.Source = ViewModel.Sections.Select(s => new SongGroup(s.Label, s.Rows)).ToList();
+        if (GroupedSongs.Source is not null) RebindGroups();
     }
 
     /// <summary>Opens Song Detail, carrying the filtered chart.</summary>
@@ -365,12 +405,20 @@ public sealed partial class SongGroup : List<SongRowItem>
     /// <summary>Creates a group.</summary>
     /// <param name="label">Header ("" hides it).</param>
     /// <param name="rows">Rows.</param>
-    public SongGroup(string label, IEnumerable<SongRowItem> rows) : base(rows) => Label = label;
+    /// <param name="isFirst">Whether it is the list's first section (the sticky bar names it, so it has no in-list header).</param>
+    public SongGroup(string label, IEnumerable<SongRowItem> rows, bool isFirst = false) : base(rows)
+    {
+        Label = label;
+        ShowInlineHeader = HasLabel && !isFirst;
+    }
 
     /// <summary>White Title Case header.</summary>
     public string Label { get; }
 
     /// <summary>Whether the header shows (a single Shop bucket has none).</summary>
     public bool HasLabel => Label.Length > 0;
+
+    /// <summary>Whether the in-list header shows: labelled sections after the first.</summary>
+    public bool ShowInlineHeader { get; }
 }
 #endregion

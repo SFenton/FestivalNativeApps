@@ -236,7 +236,16 @@
         </ItemsRepeater>
 
         <Grid Grid.Row="3">
-            <SemanticZoom x:Name="Zoom" Visibility="{x:Bind ViewModel.ShowList, Mode=OneWay}" Opacity="0"
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <!-- Sticky section header (operator batches 3 + 5): the current section's label sits in its own row above the
+                 list's viewport, so rows scroll away beneath the list's top edge and never show through it. The in-list
+                 headers scroll up into it; the first section's in-list header is omitted (this bar names it). -->
+            <TextBlock x:Name="StickyHeader" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0,0,0,8" Visibility="Collapsed"
+                       AutomationProperties.AccessibilityView="Raw" />
+            <SemanticZoom x:Name="Zoom" Grid.Row="1" Visibility="{x:Bind ViewModel.ShowList, Mode=OneWay}" Opacity="0"
                           CanChangeViews="{x:Bind ViewModel.HasJumpIndex, Mode=OneWay}"
                           IsZoomOutButtonEnabled="{x:Bind ViewModel.HasJumpIndex, Mode=OneWay}">
                 <SemanticZoom.ZoomedInView>
@@ -254,7 +263,8 @@
                                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                             </Style>
                         </ListView.ItemContainerStyle>
-                        <!-- Section headers scroll with the rows like the web's (audit 30: sticky headers let rows show through). -->
+                        <!-- In-list headers scroll with the rows (sticky ones let rows show through, audit 30); StickyHeader pins
+                             the current label above the viewport instead. -->
                         <ListView.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <ItemsStackPanel AreStickyGroupHeadersEnabled="False" />
@@ -262,9 +272,27 @@
                         </ListView.ItemsPanel>
                         <ListView.GroupStyle>
                             <GroupStyle HidesIfEmpty="True">
+                                <!-- No template divider, padding or minimum height: an empty header takes no space. -->
+                                <GroupStyle.HeaderContainerStyle>
+                                    <Style TargetType="ListViewHeaderItem">
+                                        <Setter Property="Margin" Value="0" />
+                                        <Setter Property="Padding" Value="0" />
+                                        <Setter Property="MinHeight" Value="0" />
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="ListViewHeaderItem">
+                                                    <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                                      HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </GroupStyle.HeaderContainerStyle>
                                 <GroupStyle.HeaderTemplate>
                                     <DataTemplate x:DataType="pages:SongGroup">
-                                        <TextBlock Text="{x:Bind Label}" Style="{StaticResource FSTSectionHeaderStyle}" Visibility="{x:Bind HasLabel}"
+                                        <TextBlock Text="{x:Bind Label}" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0,12,0,8"
+                                                   Visibility="{x:Bind ShowInlineHeader}"
                                                    AutomationProperties.HeadingLevel="Level2" />
                                     </DataTemplate>
                                 </GroupStyle.HeaderTemplate>
@@ -326,14 +354,14 @@
                 </SemanticZoom.ZoomedOutView>
             </SemanticZoom>
 
-            <ProgressRing x:Name="LoadingRing" IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Width="48" Height="48"
+            <ProgressRing Grid.RowSpan="2" x:Name="LoadingRing" IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Width="48" Height="48"
                           AutomationProperties.Name="Loading songs" />
 
-            <controls:ServiceStatusView Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
+            <controls:ServiceStatusView Grid.RowSpan="2" Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
                                         Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}"
                                         AutomationProperties.AutomationId="fst.songs.error" />
 
-            <StackPanel Visibility="{x:Bind ViewModel.ShowInvalidFilter, Mode=OneWay}" VerticalAlignment="Center"
+            <StackPanel Grid.RowSpan="2" Visibility="{x:Bind ViewModel.ShowInvalidFilter, Mode=OneWay}" VerticalAlignment="Center"
                         HorizontalAlignment="Center" Spacing="12" MaxWidth="420">
                 <TextBlock Text="Saved Filters Can't Be Read" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" TextWrapping="Wrap"
                            AutomationProperties.AutomationId="fst.songs.filter-invalid" />
@@ -343,7 +371,7 @@
                         Command="{x:Bind ViewModel.ClearFilterCommand}" AutomationProperties.AutomationId="fst.songs.filter-reset-invalid" />
             </StackPanel>
 
-            <StackPanel Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" VerticalAlignment="Center"
+            <StackPanel Grid.RowSpan="2" Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" VerticalAlignment="Center"
                         HorizontalAlignment="Center" Spacing="12" AutomationProperties.AutomationId="fst.songs.empty">
                 <TextBlock Text="No Results" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" />
                 <TextBlock Text="{x:Bind ViewModel.EmptyMessage, Mode=OneWay}" HorizontalAlignment="Center" TextWrapping="Wrap" />
