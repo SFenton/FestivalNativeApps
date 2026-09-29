@@ -130,6 +130,16 @@ class GlobalSearchCoreTest {
     }
 
     @Test
+    fun dockedPanelKeyboardOverlapPadsResultsWithoutResizing() {
+        // Panel 52..1385 in a 2000 px window: an 800 px keyboard covers 185 px of it.
+        assertEquals(185, GlobalSearchLayout.imeOverlap(52, 1333, 2000, 800))
+        assertEquals(0, GlobalSearchLayout.imeOverlap(52, 1333, 2000, 0))
+        assertEquals(0, GlobalSearchLayout.imeOverlap(52, 600, 2000, 800))
+        // Never more than the panel itself.
+        assertEquals(600, GlobalSearchLayout.imeOverlap(1300, 600, 2000, 1900))
+    }
+
+    @Test
     fun dockedPanelStaysOnTheRequestersSideOfAVerticalHinge() {
         val hinge = PxRect(1038, 0, 1038, 2152)
         // Requester in the left pane: panel clamped to the left pane.

@@ -8,8 +8,6 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
-import androidx.compose.ui.test.assertIsOff
-import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
@@ -117,8 +115,10 @@ class GlobalSearchUiTest {
         rule.onNodeWithTag(GlobalSearchTags.FIELD).performTextReplacement("synthetic")
         h.waitForTag(GlobalSearchTags.RESULT_PLAYER)
         rule.onNodeWithTag(GlobalSearchTags.section(SearchScope.Players)).assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading))
-        rule.onNodeWithTag(GlobalSearchTags.STATUS).assert(hasText("0 songs, 1 player"))
+        // Counts are announced (polite live region) but never drawn as text (operator batch 6).
+        rule.onNodeWithTag(GlobalSearchTags.STATUS).assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("0 songs, 1 player")))
         rule.onNodeWithTag(GlobalSearchTags.STATUS).assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.LiveRegion))
+        assertEquals(0, rule.onAllNodesWithText("0 songs, 1 player").fetchSemanticsNodes().size)
         assertEquals(1, h.transport.sent("/api/account/search").size)
         assertTrue(h.transport.sent("/api/account/search").single().url.contains("limit=10"))
         h.transport.sent("/api/account/search").single().headers.keys.forEach { key ->
@@ -129,19 +129,22 @@ class GlobalSearchUiTest {
         h.waitForTag(GlobalSearchTags.RESULT_SONG)
         rule.onNodeWithTag(GlobalSearchTags.section(SearchScope.Songs)).assertIsDisplayed()
 
-        // Scope segments fill the width equally (phone), no icon on Bands.
+        // Scope pills: equal shares of the row (two 8 dp gaps), pill-shaped and at least 48 dp to touch.
         val row = rule.onNodeWithTag(GlobalSearchTags.SCOPES).fetchSemanticsNode().boundsInRoot
-        val widths = SearchScope.chips.map { rule.onNodeWithTag(GlobalSearchTags.scope(it)).fetchSemanticsNode().boundsInRoot.width }
-        assertTrue("segments $widths", widths.max() - widths.min() < 2f)
-        assertTrue(widths.sum() > row.width - 4f)
+        val chips = SearchScope.chips.map { rule.onNodeWithTag(GlobalSearchTags.scope(it)).fetchSemanticsNode() }
+        val widths = chips.map { it.boundsInRoot.width }
+        assertTrue("pills $widths", widths.max() - widths.min() < 2f)
+        assertTrue("pills $widths in ${row.width}", widths.sum() > row.width - 16 * 3f - 4f)
+        chips.forEach { assertTrue(it.touchBoundsInRoot.height >= 48 * 3f - 1f) }
         // Scope toggles: Songs only, then back to all.
+        rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Songs)).assertIsNotSelected()
         rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Songs)).performClick()
         h.settle()
-        rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Songs)).assertIsOn()
+        rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Songs)).assertIsSelected()
         assertEquals(0, rule.onAllNodesWithTag(GlobalSearchTags.section(SearchScope.Players)).fetchSemanticsNodes().size)
         rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Songs)).performClick()
         h.settle()
-        rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Songs)).assertIsOff()
+        rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Songs)).assertIsNotSelected()
 
         // Bands: explanation, no request, Band Rankings link.
         rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Bands)).performClick()
@@ -229,7 +232,7 @@ class GlobalSearchUiTest {
     fun keyboardShortcutsAndDebugLaunchOpenSearch() {
         h.launch(DebugLaunch(stillBackground = true, searchQuery = "alpha", searchScope = SearchScope.Songs))
         h.waitForTag(GlobalSearchTags.RESULT_SONG)
-        rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Songs)).assertIsOn()
+        rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Songs)).assertIsSelected()
         rule.onNodeWithTag(GlobalSearchTags.CLOSE).performClick()
         h.waitForGone(GlobalSearchTags.SURFACE)
         rule.runOnIdle { assertTrue(h.shortcuts.dispatch(ShellShortcut.OpenSearch)) }
@@ -268,9 +271,13 @@ class ExpandedGlobalSearchUiTest {
         assertEquals(0, rule.onAllNodesWithTag("fst.nav.floating-toolbar").fetchSemanticsNodes().size)
         rule.onNodeWithTag(GlobalSearchTags.OPEN).performClick()
         h.waitForTag(GlobalSearchTags.FIELD)
+        h.settle(800)
+        val hintHeight = rule.onNodeWithTag(GlobalSearchTags.SURFACE).fetchSemanticsNode().boundsInRoot.height
         rule.onNodeWithTag(GlobalSearchTags.FIELD).performTextInput("alpha")
         h.waitForTag(GlobalSearchTags.RESULT_SONG)
         h.waitForTag(GlobalSearchTags.RESULT_PLAYER)
+        // The docked panel has one fixed height: it does not shrink or grow as the query settles.
+        assertEquals(hintHeight, rule.onNodeWithTag(GlobalSearchTags.SURFACE).fetchSemanticsNode().boundsInRoot.height, 1f)
         rule.onNodeWithTag(GlobalSearchTags.RESULT_SONG).performClick()
         h.waitForGone(GlobalSearchTags.SURFACE)
         h.waitForTag("fst.song-detail.intensity")

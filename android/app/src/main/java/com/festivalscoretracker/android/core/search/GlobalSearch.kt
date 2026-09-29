@@ -268,7 +268,7 @@ data class PxRect(val left: Int, val top: Int, val right: Int, val bottom: Int) 
  * Where the expanded search surface sits.
  *
  * @property anchor Collapsed bounds the expanded bar grows from (the docked panel's top-left and width).
- * @property maxPanelHeight Maximum docked panel height, or null for Material's default (2/3 of the window).
+ * @property maxPanelHeight Docked panel height (fixed, so it never resizes while typing), or null for full screen.
  */
 data class SearchAnchor(val anchor: PxRect, val maxPanelHeight: Int?)
 
@@ -353,6 +353,19 @@ object GlobalSearchLayout {
             ?.let { it.top - anchor.top - gap }
         return SearchAnchor(anchor, cap ?: if (presentation == SearchPresentation.FullScreen) null else windowHeight * 2 / 3)
     }
+
+    /**
+     * How much of a fixed-height docked panel the keyboard covers, so its results can pad by
+     * exactly that and stay scrollable above the keyboard while the panel keeps its height.
+     *
+     * @param panelTop Panel top in window px.
+     * @param panelHeight Panel height in px.
+     * @param windowHeight Window height in px.
+     * @param imeBottom Keyboard height in px (0 when hidden).
+     * @return Covered px, never negative.
+     */
+    fun imeOverlap(panelTop: Int, panelHeight: Int, windowHeight: Int, imeBottom: Int): Int =
+        (panelTop + panelHeight - (windowHeight - imeBottom)).coerceIn(0, panelHeight)
 }
 
 // endregion

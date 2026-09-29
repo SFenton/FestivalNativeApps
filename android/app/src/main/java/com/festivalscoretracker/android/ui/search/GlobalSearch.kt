@@ -5,16 +5,21 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -25,16 +30,14 @@ import androidx.compose.material3.ExpandedDockedSearchBar
 import androidx.compose.material3.ExpandedFullScreenSearchBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MultiChoiceSegmentedButtonRow
 import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.SearchBarState
 import androidx.compose.material3.SearchBarValue
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -42,6 +45,7 @@ import androidx.compose.material3.TextFieldColors
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -60,6 +64,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -74,11 +79,13 @@ import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.festivalscoretracker.android.core.search.GlobalPlayerResult
+import com.festivalscoretracker.android.core.search.GlobalSearchLayout
 import com.festivalscoretracker.android.core.search.GlobalSearchResults
 import com.festivalscoretracker.android.core.search.GlobalSongResult
 import com.festivalscoretracker.android.core.search.PxRect
@@ -153,7 +160,7 @@ object GlobalSearchTags {
      */
     fun scope(scope: SearchScope) = "fst.global-search.scope.${scope.token}"
 
-    /** Segmented scope row. */
+    /** Scope pill row. */
     const val SCOPES = "fst.global-search.scopes"
 
     /**
@@ -230,6 +237,11 @@ fun GlobalSearchHost(
     val ui by viewModel.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
+    // Window height and keyboard height as the main window sees them: the docked panel is a
+    // popup of fixed height, so the keyboard can cover its bottom; its results pad by exactly
+    // that overlap instead of the panel resizing (operator batch 6, 6.21).
+    var windowHeightPx by remember { mutableIntStateOf(0) }
+    val imeBottomPx = WindowInsets.ime.getBottom(density)
 
     // The view model owns "open"; the Material state follows it, and a collapse the
     // Material bar makes on its own (back, scrim, Escape) closes the view model.
@@ -248,7 +260,7 @@ fun GlobalSearchHost(
         }
     }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().onSizeChanged { windowHeightPx = it.height }) {
         with(density) {
             Box(
                 Modifier
@@ -276,9 +288,16 @@ fun GlobalSearchHost(
             onCollapse = { collapseThen {} },
         )
     }
+    val dockedHeightPx = anchor.maxPanelHeight
+    val dockedImeOverlapPx = if (presentation == SearchPresentation.Docked && dockedHeightPx != null && windowHeightPx > 0) {
+        GlobalSearchLayout.imeOverlap(anchor.anchor.top, dockedHeightPx, windowHeightPx, imeBottomPx)
+    } else {
+        0
+    }
     val content: @Composable () -> Unit = {
         GlobalSearchContent(
             ui = ui,
+            bottomInset = with(density) { dockedImeOverlapPx.toDp() },
             artworkUrl = artworkUrl,
             onToggleScope = viewModel::toggleScope,
             onRetry = viewModel::retry,
@@ -300,9 +319,11 @@ fun GlobalSearchHost(
                 state = searchState,
                 inputField = inputField,
                 colors = colors,
+                // A fixed height: the panel never shrinks or grows as results, progress and
+                // hints replace each other while typing.
                 modifier = surfaceModifier
                     .width(anchor.anchor.width.toDp())
-                    .then(anchor.maxPanelHeight?.let { Modifier.heightIn(max = it.toDp()) } ?: Modifier),
+                    .then(dockedHeightPx?.let { Modifier.height(it.toDp()) } ?: Modifier),
             ) { content() }
         }
     }
@@ -363,6 +384,7 @@ private fun SearchField(
  *
  * @param ui Current state.
  * @param artworkUrl Artwork resolver.
+ * @param bottomInset Space the keyboard covers at the bottom of the surface (docked panel).
  * @param onToggleScope Toggle a scope chip.
  * @param onRetry Retry the query.
  * @param onOpen Open a result.
@@ -376,57 +398,79 @@ fun GlobalSearchContent(
     onRetry: () -> Unit,
     onOpen: (SearchDestination) -> Unit,
     onBandRankings: () -> Unit,
+    bottomInset: Dp = 0.dp,
 ) {
-    Column(Modifier.fillMaxWidth()) {
-        // Scope toggles go above results (the IME covers the bottom): a full-width M3 segmented
-        // row with equal segments. Multi-choice segments give toggle semantics like the web's
-        // `aria-pressed` chips; tapping the pressed one returns to All, so at most one is on.
-        MultiChoiceSegmentedButtonRow(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).testTag(GlobalSearchTags.SCOPES),
-        ) {
-            SearchScope.chips.forEachIndexed { index, chip ->
-                SegmentedButton(
-                    checked = ui.scope == chip,
-                    onCheckedChange = { onToggleScope(chip) },
-                    shape = SegmentedButtonDefaults.itemShape(index, SearchScope.chips.size),
-                    colors = SegmentedButtonDefaults.colors(
-                        activeContainerColor = BrandTokens.accentPurple.copy(alpha = 0.45f),
-                        activeContentColor = BrandTokens.textPrimary,
-                        inactiveContainerColor = Color.Transparent,
-                        inactiveContentColor = BrandTokens.textSecondary,
-                        activeBorderColor = BrandTokens.glassBorder,
-                        inactiveBorderColor = BrandTokens.glassBorder,
-                    ),
-                    label = { Text(chip.title, maxLines = 1) },
-                    modifier = Modifier.weight(1f).testTag(GlobalSearchTags.scope(chip)),
-                )
-            }
-        }
+    // Fills the surface: every state (hint, progress, results) shares one full-height region,
+    // so nothing resizes while typing.
+    Column(Modifier.fillMaxSize()) {
+        ScopePills(ui.scope, onToggleScope)
+        // Result counts are spoken, not shown (operator batch 6): an undrawn polite live region.
         val announcement = ui.announcement
         if (announcement != null && !ui.isBandsScope && !ui.isShortQuery) {
-            Text(
-                announcement,
-                style = MaterialTheme.typography.labelMedium,
-                color = BrandTokens.textPrimary,
-                modifier = Modifier
-                    .padding(horizontal = 16.dp)
+            Box(
+                Modifier
+                    .size(1.dp)
                     .testTag(GlobalSearchTags.STATUS)
-                    .semantics { liveRegion = LiveRegionMode.Polite },
+                    .semantics {
+                        contentDescription = announcement
+                        liveRegion = LiveRegionMode.Polite
+                    },
             )
         }
-        when {
-            ui.isBandsScope -> BandsUnavailable(onBandRankings)
-            ui.hint != null -> CenteredMessage(ui.hint!!, retry = if (ui.canRetryAll) onRetry else null)
-            ui.isBusy && !ui.showSongsSection && !ui.showPlayersSection -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                FestivalLoading("Searching", Modifier.testTag(GlobalSearchTags.LOADING), size = 32.dp)
+        Box(Modifier.fillMaxWidth().weight(1f)) {
+            when {
+                ui.isBandsScope -> BandsUnavailable(onBandRankings)
+                ui.hint != null -> CenteredMessage(ui.hint!!, retry = if (ui.canRetryAll) onRetry else null)
+                ui.isBusy && !ui.showSongsSection && !ui.showPlayersSection -> Box(Modifier.fillMaxSize().padding(bottom = bottomInset), contentAlignment = Alignment.Center) {
+                    FestivalLoading("Searching", Modifier.testTag(GlobalSearchTags.LOADING), size = 36.dp)
+                }
+                else -> Results(ui, artworkUrl, onRetry, onOpen, bottomInset)
             }
-            else -> Results(ui, artworkUrl, onRetry, onOpen)
+        }
+    }
+}
+
+/**
+ * Songs / Players / Bands scope toggles as M3 filter chips with pill ends (web `aria-pressed`
+ * pills). Tapping the selected chip returns to All, so at most one is selected; each chip is
+ * an equal share of the row and at least 48 dp tall to touch.
+ *
+ * @param selected Current scope.
+ * @param onToggle Toggle a chip.
+ */
+@Composable
+private fun ScopePills(selected: SearchScope, onToggle: (SearchScope) -> Unit) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).selectableGroup().testTag(GlobalSearchTags.SCOPES),
+    ) {
+        SearchScope.chips.forEach { chip ->
+            val isSelected = selected == chip
+            FilterChip(
+                selected = isSelected,
+                onClick = { onToggle(chip) },
+                label = { Text(chip.title, maxLines = 1, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
+                shape = CircleShape,
+                colors = FilterChipDefaults.filterChipColors(
+                    containerColor = Color.Transparent,
+                    labelColor = BrandTokens.textSecondary,
+                    selectedContainerColor = BrandTokens.accentPurple.copy(alpha = 0.45f),
+                    selectedLabelColor = BrandTokens.textPrimary,
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = isSelected,
+                    borderColor = BrandTokens.glassBorder,
+                    selectedBorderColor = BrandTokens.accentPurple,
+                ),
+                modifier = Modifier.weight(1f).heightIn(min = 40.dp).testTag(GlobalSearchTags.scope(chip)),
+            )
         }
     }
 }
 
 @Composable
-private fun Results(ui: GlobalSearchUiState, artworkUrl: (String?) -> String?, onRetry: () -> Unit, onOpen: (SearchDestination) -> Unit) {
+private fun Results(ui: GlobalSearchUiState, artworkUrl: (String?) -> String?, onRetry: () -> Unit, onOpen: (SearchDestination) -> Unit, bottomInset: Dp) {
     // Web SearchModal restaggers once per content signature: hide for a frame when the result
     // set changes, then fade rows in (web fadeInUp, 125 ms stagger).
     val signature = remember(ui.songs, ui.players) { ui.songs.map { it.songId } to ui.players.map { it.accountId } }
@@ -434,7 +478,7 @@ private fun Results(ui: GlobalSearchUiState, artworkUrl: (String?) -> String?, o
     LaunchedEffect(signature) { settled = signature }
     val revealed = rememberRevealed(settled == signature)
     val playersOffset = if (ui.showSongsSection) ui.songs.size + 1 else 0
-    LazyColumn(Modifier.fillMaxWidth().testTag("fst.global-search.results")) {
+    LazyColumn(Modifier.fillMaxSize().testTag("fst.global-search.results"), contentPadding = PaddingValues(bottom = bottomInset)) {
         if (ui.showSongsSection) {
             item(key = "h-songs") {
                 Box(Modifier.festivalFadeIn(revealed)) { SectionTitle("Songs", GlobalSearchTags.section(SearchScope.Songs)) }
@@ -454,13 +498,16 @@ private fun Results(ui: GlobalSearchUiState, artworkUrl: (String?) -> String?, o
             }
             when (ui.playersPhase) {
                 SectionPhase.Loading -> item(key = "players-loading") {
-                    LinearProgressIndicator(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp)
-                            .testTag(GlobalSearchTags.PLAYERS_LOADING)
-                            .semantics { contentDescription = "Searching players"; liveRegion = LiveRegionMode.Polite },
-                    )
+                    // The app's one progress ring (operator batch 6: a ring, not a line).
+                    Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
+                        FestivalLoading(
+                            null,
+                            Modifier
+                                .testTag(GlobalSearchTags.PLAYERS_LOADING)
+                                .semantics { contentDescription = "Searching players"; liveRegion = LiveRegionMode.Polite },
+                            size = 24.dp,
+                        )
+                    }
                 }
                 SectionPhase.Failed -> item(key = "players-failed") {
                     ServiceStatusInline(
