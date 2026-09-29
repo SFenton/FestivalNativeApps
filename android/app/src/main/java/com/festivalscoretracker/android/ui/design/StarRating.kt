@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.Dp
@@ -30,7 +29,7 @@ fun StarRating(stars: Int, modifier: Modifier = Modifier, size: Dp = 16.dp) {
     if (stars <= 0) return
     val gold = stars >= 6
     val count = if (gold) 5 else stars.coerceAtMost(5)
-    val painter = painterResource(if (gold) R.drawable.star_gold else R.drawable.star_white)
+    val painter = bundledPainter(if (gold) R.drawable.star_gold else R.drawable.star_white)
     Row(
         modifier.clearAndSetSemantics { contentDescription = starsDescription(stars) },
         horizontalArrangement = Arrangement.spacedBy(2.dp),

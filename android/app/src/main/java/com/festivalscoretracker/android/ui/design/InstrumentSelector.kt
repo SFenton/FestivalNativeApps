@@ -40,7 +40,6 @@ import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.Image
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -206,7 +205,7 @@ private fun SelectorButton(
             .testTag(tag),
     ) {
         Image(
-            painter = painterResource(instrumentIconRes(instrument, keyboard)),
+            painter = bundledPainter(instrumentIconRes(instrument, keyboard)),
             contentDescription = null,
             colorFilter = if (isDisabled || isMuted) GREYSCALE else null,
             modifier = Modifier

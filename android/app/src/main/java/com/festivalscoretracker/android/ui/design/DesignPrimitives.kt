@@ -22,7 +22,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.isTraversalGroup
@@ -138,7 +137,7 @@ fun instrumentIconRes(instrument: Instrument, keyboard: Boolean = false): Int = 
 @Composable
 fun InstrumentIcon(instrument: Instrument, modifier: Modifier = Modifier, keyboard: Boolean = false, size: Dp = 24.dp, decorative: Boolean = false) {
     Image(
-        painter = painterResource(instrumentIconRes(instrument, keyboard)),
+        painter = bundledPainter(instrumentIconRes(instrument, keyboard)),
         contentDescription = if (decorative) null else instrument.label,
         modifier = modifier.size(size),
     )
