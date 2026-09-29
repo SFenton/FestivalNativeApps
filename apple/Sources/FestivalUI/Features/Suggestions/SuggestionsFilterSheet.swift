@@ -28,14 +28,14 @@ struct SuggestionsFilterSheet: View {
         self.visibleInstruments = visibleInstruments
         self.onChange = onChange
         _draft = State(initialValue: applied)
-        _selectedInstrument = State(initialValue: visibleInstruments.first)
+        // Web: the instrument-specific selector opens with nothing chosen.
+        _selectedInstrument = State(initialValue: nil)
     }
 
+    /// The chosen instrument, only while it is still enabled in Settings.
     private var effectiveSelectedInstrument: Instrument? {
-        if let selectedInstrument, visibleInstruments.contains(selectedInstrument) {
-            return selectedInstrument
-        }
-        return visibleInstruments.first
+        guard let selectedInstrument, visibleInstruments.contains(selectedInstrument) else { return nil }
+        return selectedInstrument
     }
 
     var body: some View {
@@ -44,14 +44,22 @@ struct SuggestionsFilterSheet: View {
                 if !visibleInstruments.isEmpty {
                     Section {
                         ForEach(visibleInstruments) { instrument in
-                            Toggle(instrument.label, isOn: instrumentBinding(instrument))
+                            // Web `ToggleRow` with the instrument icon beside its name.
+                            Toggle(isOn: instrumentBinding(instrument)) {
+                                HStack(spacing: 12) {
+                                    InstrumentIcon(instrument, size: 28)
+                                        .accessibilityHidden(true)
+                                    Text(instrument.label)
+                                }
+                            }
                                 .accessibilityIdentifier(
                                     "fst.suggestions.filter.instrument.\(instrument.rawValue)"
                                 )
                         }
                     } header: {
                         FestivalSectionHeader(
-                            "Instruments", subtitle: "Hide suggestions for specific charts."
+                            "Instruments",
+                            subtitle: "Hide suggestions for specific charts. Only instruments enabled in Settings are listed."
                         )
                     }
                     .listRowBackground(Color.white.opacity(0.06))
@@ -74,20 +82,22 @@ struct SuggestionsFilterSheet: View {
                 }
                 .listRowBackground(Color.white.opacity(0.06))
 
-                if let instrument = effectiveSelectedInstrument {
+                if !visibleInstruments.isEmpty {
                     Section {
-                        Picker("Instrument", selection: instrumentPickerBinding) {
-                            ForEach(visibleInstruments) { choice in
-                                Text(choice.label).tag(Instrument?.some(choice))
+                        // Web: the shared InstrumentSelector (deferred selection) over the
+                        // Settings-enabled instruments; the chosen one's toggles expand.
+                        InstrumentSelector(
+                            instruments: visibleInstruments, selected: $selectedInstrument,
+                            deferSelection: true, identifier: "fst.suggestions.filter.instrument-picker"
+                        )
+                        .padding(.vertical, 6)
+                        if let instrument = effectiveSelectedInstrument {
+                            ForEach(SuggestionCategoryType.allCases) { type in
+                                Toggle(type.label, isOn: perInstrumentBinding(type, instrument))
+                                    .accessibilityIdentifier(
+                                        "fst.suggestions.filter.type.\(instrument.rawValue).\(type.rawValue)"
+                                    )
                             }
-                        }
-                        .pickerStyle(.menu)
-                        .accessibilityIdentifier("fst.suggestions.filter.instrument-picker")
-                        ForEach(SuggestionCategoryType.allCases) { type in
-                            Toggle(type.label, isOn: perInstrumentBinding(type, instrument))
-                                .accessibilityIdentifier(
-                                    "fst.suggestions.filter.type.\(instrument.rawValue).\(type.rawValue)"
-                                )
                         }
                     } header: {
                         FestivalSectionHeader(
@@ -118,10 +128,6 @@ struct SuggestionsFilterSheet: View {
         }
         .festivalSheet(.large)
         .onChange(of: draft) { _, updated in onChange(updated) }
-    }
-
-    private var instrumentPickerBinding: Binding<Instrument?> {
-        Binding(get: { effectiveSelectedInstrument }, set: { selectedInstrument = $0 })
     }
 
     private func instrumentBinding(_ instrument: Instrument) -> Binding<Bool> {
