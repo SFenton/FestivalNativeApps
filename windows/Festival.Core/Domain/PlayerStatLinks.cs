@@ -30,19 +30,20 @@ public sealed record SongsStatPreset(Instrument? Instrument, SongScoreFilterKind
                 SongFilter = SongFilter.None,
                 ShopFilter = SongShopFilter.None,
                 PlayerScoreFilter = Check is { } all ? SongPlayerScoreFilter.None.WithAll(all, visible, true) : SongPlayerScoreFilter.None,
-                ScoreBandFilter = null,
                 SongSort = SongSortMode.Title,
                 SongSortAscending = true,
             };
         }
         var current = settings.PlayerScoreFilter.IsValid ? settings.PlayerScoreFilter : SongPlayerScoreFilter.None;
-        var cleaned = SongScoreFilterKindInfo.All.Aggregate(current, (filter, kind) => filter.With(kind, chart, false));
-        var band = new SongScoreBandFilter(chart, TopPercent, Stars);
+        // Web cleanFilters: this chart's checks off and every bucket (season/percentile/stars/intensity) shown again.
+        var cleaned = current.CleanedFor(chart);
+        var player = Check is { } check ? cleaned.With(check, chart, true) : cleaned;
+        if (TopPercent is { } top) player = player.Only(SongBucketKind.Percentile, top);
+        if (Stars is { } stars) player = player.Only(SongBucketKind.Stars, stars);
         return settings with
         {
             SongFilter = new SongFilter(chart),
-            PlayerScoreFilter = Check is { } check ? cleaned.With(check, chart, true) : cleaned,
-            ScoreBandFilter = band.IsActive ? band : null,
+            PlayerScoreFilter = player,
             // Web percentile rows keep the sort mode (ascending); star levels sort by Stars, score checks by Score.
             SongSort = Stars is not null ? SongSortMode.Stars : TopPercent is not null ? settings.SongSort : SongSortMode.Score,
             SongSortAscending = true,

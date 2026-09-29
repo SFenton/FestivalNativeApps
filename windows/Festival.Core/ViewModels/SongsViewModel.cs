@@ -103,9 +103,10 @@ public sealed partial class SongsViewModel : ObservableObject
     public bool IsSortChanged => session.Settings.SongSort != SongSortMode.Title || !session.Settings.SongSortAscending;
 
     /// <summary>Whether any saved filter is set (gold tint).</summary>
+    /// <remarks>Season / Percentile / Stars / Intensity buckets count only with an instrument selected (web <c>isFilterActive</c>).</remarks>
     public bool IsFilterActive =>
-        session.Settings.SongFilter.IsActive || session.Settings.ShopFilter.IsActive || session.Settings.PlayerScoreFilter.IsActive ||
-        session.Settings.ScoreBandFilter is { IsActive: true };
+        session.Settings.SongFilter.IsActive || session.Settings.ShopFilter.IsActive ||
+        (session.Settings.PlayerScoreFilter.IsValid && session.Settings.PlayerScoreFilter.AppliesTo(session.Settings.SongFilter.Instrument));
 
     /// <summary>
     /// Whether the Filter button shows: the web offers no Songs filter without a selected profile, but a filter saved
@@ -116,8 +117,8 @@ public sealed partial class SongsViewModel : ObservableObject
     /// <summary>Applied sort label, e.g. "Title ↑".</summary>
     public string SortSummary => session.Settings.SongSort.Label() + (session.Settings.SongSortAscending ? " ↑" : " ↓");
 
-    /// <summary>Whether the saved player filter is corrupt.</summary>
-    private bool InvalidSavedFilter => !session.Settings.PlayerScoreFilter.IsValid;
+    /// <summary>Whether a saved filter is corrupt (the list waits for an explicit Reset).</summary>
+    private bool InvalidSavedFilter => !session.Settings.PlayerScoreFilter.IsValid || !session.Settings.SongFilter.IsValid;
 
     /// <summary>Loads the catalogue (plus Shop and player scores, best-effort) and rebuilds the list.</summary>
     /// <param name="force">Re-read from the service.</param>
@@ -159,14 +160,17 @@ public sealed partial class SongsViewModel : ObservableObject
 
     /// <summary>Applies the filter draft.</summary>
     [RelayCommand]
-    private void ApplyFilter() => session.UpdateSettings(FilterDraft.Apply);
+    private void ApplyFilter()
+    {
+        session.UpdateSettings(FilterDraft.Apply);
+        FilterDraft.SyncApplied();
+    }
 
     /// <summary>Clears every applied filter (no-results and invalid-filter action).</summary>
     [RelayCommand]
     private void ClearFilter() => session.UpdateSettings(s => s with
     {
         SongFilter = SongFilter.None, ShopFilter = SongShopFilter.None, PlayerScoreFilter = SongPlayerScoreFilter.None,
-        ScoreBandFilter = null,
     });
 
     /// <summary>Debounces search input.</summary>
@@ -268,7 +272,6 @@ public sealed partial class SongsViewModel : ObservableObject
             HasPlayer = session.HasPlayer,
             FilterInvalidScores = settings.FilterInvalidScores,
             Scores = scores.Available ? scores.Facts : null,
-            ScoreBand = settings.ScoreBandFilter,
             Details = scores.Available ? scores.Detail : null,
         });
 
@@ -419,270 +422,5 @@ public sealed partial class SongSortDraft(FestivalSession session) : ObservableO
         Mode = SongSortMode.Title;
         Ascending = true;
     }
-}
-#endregion
-
-#region Filter draft
-/// <summary>
-/// Filter flyout draft: one charted instrument and a 1–7 difficulty range (public), Item Shop toggles, and the
-/// selected player's per-chart score/FC checks. Live once <see cref="Begin"/> has loaded the applied filters: the page
-/// model commits every valid change (an inverted difficulty range waits until it is valid again).
-/// </summary>
-public sealed partial class SongFilterDraft(FestivalSession session) : ObservableObject
-{
-    /// <summary>Whether changes commit immediately (set once <see cref="Begin"/> finishes loading).</summary>
-    public bool IsLive { get; private set; }
-
-    /// <summary>Choices for the instrument picker: index 0 is "All Instruments".</summary>
-    public List<string> InstrumentChoices =>
-        ["All Instruments", .. session.Settings.VisibleInstruments.Select(i => i.Label())];
-
-    /// <summary>Selected picker index (0 = all).</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanApply))]
-    private int instrumentIndex;
-
-    /// <summary>Lowest difficulty (1–7).</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanApply), nameof(IsRangeValid))]
-    private double minDifficulty = 1;
-
-    /// <summary>Highest difficulty (1–7).</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanApply), nameof(IsRangeValid))]
-    private double maxDifficulty = 7;
-
-    /// <summary>Require current Shop membership.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanApply))]
-    private bool inShop;
-
-    /// <summary>Require an offer leaving tomorrow.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanApply))]
-    private bool leavingTomorrow;
-
-    /// <summary>Draft player score checks.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanApply), nameof(AllMissingScores), nameof(AllHasScores), nameof(AllMissingFCs), nameof(AllHasFCs))]
-    private SongPlayerScoreFilter scoreFilter = SongPlayerScoreFilter.None;
-
-    /// <summary>Per-chart check rows for the visible charts.</summary>
-    public List<ScoreFilterChartRow> ScoreRows { get; private set; } = [];
-
-    /// <summary>Placement band picker index (0 = any band; then <see cref="PlayerStatistics.PercentileThresholds"/>).</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanApply))]
-    private int percentileIndex;
-
-    /// <summary>Star picker index (0 = any; 1 = Gold Stars; 2…6 = 5…1 stars).</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanApply))]
-    private int starsIndex;
-
-    /// <summary>Placement band choices.</summary>
-    public List<string> PercentileChoices { get; } =
-        ["Any Percentile", .. PlayerStatistics.PercentileThresholds.Select(SongScoreBandFilter.BandLabel)];
-
-    /// <summary>Star choices, gold first.</summary>
-    public List<string> StarsChoices { get; } = ["Any Stars", .. Enumerable.Range(1, 6).Reverse().Select(SongScoreBandFilter.StarsLabel)];
-
-    /// <summary>Whether the percentile/star pickers show (web: one instrument selected and a player).</summary>
-    public bool ShowScoreBand => session.HasPlayer && InstrumentIndex > 0;
-
-    /// <summary>The draft placement-band/star filter, or <see langword="null"/> when none (or no single chart).</summary>
-    /// <returns>Filter.</returns>
-    public SongScoreBandFilter? ToScoreBand()
-    {
-        if (ToFilter().Instrument is not { } chart) return null;
-        var thresholds = PlayerStatistics.PercentileThresholds;
-        int? top = PercentileIndex > 0 && PercentileIndex <= thresholds.Count ? thresholds[PercentileIndex - 1] : null;
-        int? stars = StarsIndex is > 0 and <= 6 ? 7 - StarsIndex : null;
-        var band = new SongScoreBandFilter(chart, top, stars);
-        return band.IsActive ? band : null;
-    }
-
-    /// <summary>Instrument change: the band pickers follow the chart.</summary>
-    /// <param name="value">New index.</param>
-    partial void OnInstrumentIndexChanged(int value) => OnPropertyChanged(nameof(ShowScoreBand));
-
-    /// <summary>Whether Shop toggles can change (hidden Shop keeps them visible but disabled, still clearable by Reset).</summary>
-    public bool ShopEnabled => !session.Settings.HideShop;
-
-    /// <summary>Whether the player score section shows.</summary>
-    public bool ShowScoreFilters => session.HasPlayer;
-
-    /// <summary>Whether hidden-chart checks are saved but inactive (disclosed).</summary>
-    public bool HasHiddenScoreChecks => ScoreFilter.ScopedTo(session.Settings.VisibleInstruments) != ScoreFilter;
-
-    /// <summary>Whether min ≤ max.</summary>
-    public bool IsRangeValid => MinDifficulty <= MaxDifficulty;
-
-    /// <summary>Whether the draft is valid and differs from the applied filters.</summary>
-    public bool CanApply
-    {
-        get
-        {
-            if (!IsRangeValid) return false;
-            var applied = session.Settings;
-            return ToFilter() != applied.SongFilter || new SongShopFilter(InShop, LeavingTomorrow) != applied.ShopFilter ||
-                   !Equals(ScoreFilter, applied.PlayerScoreFilter) || ToScoreBand() != applied.ScoreBandFilter;
-        }
-    }
-
-    /// <summary>Global Missing Scores switch over visible charts.</summary>
-    public bool AllMissingScores { get => All(SongScoreFilterKind.MissingScores); set => SetAll(SongScoreFilterKind.MissingScores, value); }
-
-    /// <summary>Global Has Scores switch.</summary>
-    public bool AllHasScores { get => All(SongScoreFilterKind.HasScores); set => SetAll(SongScoreFilterKind.HasScores, value); }
-
-    /// <summary>Global Missing FCs switch.</summary>
-    public bool AllMissingFCs { get => All(SongScoreFilterKind.MissingFCs); set => SetAll(SongScoreFilterKind.MissingFCs, value); }
-
-    /// <summary>Global Has FCs switch.</summary>
-    public bool AllHasFCs { get => All(SongScoreFilterKind.HasFCs); set => SetAll(SongScoreFilterKind.HasFCs, value); }
-
-    /// <summary>Loads the applied filters (flyout opening).</summary>
-    public void Begin()
-    {
-        IsLive = false;
-        var applied = session.Settings;
-        OnPropertyChanged(nameof(InstrumentChoices));
-        InstrumentIndex = applied.SongFilter.Instrument is { } chart ? IndexOf(chart) : 0;
-        MinDifficulty = applied.SongFilter.MinDifficulty;
-        MaxDifficulty = applied.SongFilter.MaxDifficulty;
-        InShop = applied.ShopFilter.InShop;
-        LeavingTomorrow = applied.ShopFilter.LeavingTomorrow;
-        ScoreFilter = applied.PlayerScoreFilter.IsValid ? applied.PlayerScoreFilter : SongPlayerScoreFilter.None;
-        var band = applied.ScoreBandFilter is { } saved && saved.Instrument == applied.SongFilter.Instrument ? saved : null;
-        PercentileIndex = band?.TopPercent is { } top ? PlayerStatistics.PercentileThresholds.ToList().IndexOf(top) + 1 : 0;
-        StarsIndex = band?.Stars is { } stars ? 7 - stars : 0;
-        OnPropertyChanged(nameof(ShowScoreBand));
-        ScoreRows = [.. applied.VisibleInstruments.Select(i => new ScoreFilterChartRow(this, i))];
-        OnPropertyChanged(nameof(ScoreRows));
-        OnPropertyChanged(nameof(ShopEnabled));
-        OnPropertyChanged(nameof(ShowScoreFilters));
-        OnPropertyChanged(nameof(HasHiddenScoreChecks));
-        IsLive = true;
-        OnPropertyChanged(nameof(CanApply));
-    }
-
-    /// <summary>Builds the typed public filter from the draft.</summary>
-    /// <returns>Filter.</returns>
-    public SongFilter ToFilter()
-    {
-        var visible = session.Settings.VisibleInstruments;
-        Instrument? chart = InstrumentIndex > 0 && InstrumentIndex <= visible.Count ? visible[InstrumentIndex - 1] : null;
-        return new SongFilter(chart, (int)Math.Clamp(Math.Round(MinDifficulty), 1, 7), (int)Math.Clamp(Math.Round(MaxDifficulty), 1, 7));
-    }
-
-    /// <summary>Applies the draft to settings (hidden-chart score checks are removed, like source sanitization).</summary>
-    /// <param name="settings">Current settings.</param>
-    /// <returns>Updated settings.</returns>
-    public AppSettings Apply(AppSettings settings) => settings with
-    {
-        SongFilter = ToFilter(),
-        ShopFilter = new SongShopFilter(InShop, LeavingTomorrow),
-        PlayerScoreFilter = ScoreFilter.ScopedTo(settings.VisibleInstruments),
-        ScoreBandFilter = ToScoreBand(),
-    };
-
-    /// <summary>Reads one draft check.</summary>
-    /// <param name="kind">Check.</param>
-    /// <param name="instrument">Chart.</param>
-    /// <returns>Value.</returns>
-    public bool Get(SongScoreFilterKind kind, Instrument instrument) => ScoreFilter.Contains(kind, instrument);
-
-    /// <summary>Sets one draft check.</summary>
-    /// <param name="kind">Check.</param>
-    /// <param name="instrument">Chart.</param>
-    /// <param name="value">Value.</param>
-    public void Set(SongScoreFilterKind kind, Instrument instrument, bool value)
-    {
-        ScoreFilter = ScoreFilter.With(kind, instrument, value);
-        foreach (var row in ScoreRows) row.Refresh();
-    }
-
-    /// <summary>Clears every filter (applied at once while live).</summary>
-    [RelayCommand]
-    private void Reset()
-    {
-        InstrumentIndex = 0;
-        MinDifficulty = 1;
-        MaxDifficulty = 7;
-        InShop = false;
-        LeavingTomorrow = false;
-        ScoreFilter = SongPlayerScoreFilter.None;
-        PercentileIndex = 0;
-        StarsIndex = 0;
-        foreach (var row in ScoreRows) row.Refresh();
-        OnPropertyChanged(nameof(HasHiddenScoreChecks));
-    }
-
-    /// <summary>Global switch state over visible charts.</summary>
-    /// <param name="kind">Check.</param>
-    /// <returns>Whether all visible charts have it.</returns>
-    private bool All(SongScoreFilterKind kind) => ScoreFilter.AllVisible(kind, session.Settings.VisibleInstruments);
-
-    /// <summary>Sets a check on every visible chart.</summary>
-    /// <param name="kind">Check.</param>
-    /// <param name="value">Value.</param>
-    private void SetAll(SongScoreFilterKind kind, bool value)
-    {
-        if (All(kind) == value) return;
-        ScoreFilter = ScoreFilter.WithAll(kind, session.Settings.VisibleInstruments, value);
-        foreach (var row in ScoreRows) row.Refresh();
-    }
-
-    /// <summary>Picker index for a chart.</summary>
-    /// <param name="chart">Chart.</param>
-    /// <returns>1-based index among visible charts, or 0.</returns>
-    private int IndexOf(Instrument chart)
-    {
-        var index = session.Settings.VisibleInstruments.ToList().IndexOf(chart);
-        return index < 0 ? 0 : index + 1;
-    }
-}
-
-/// <summary>One chart's four score/FC checks in the filter flyout.</summary>
-/// <param name="draft">Owning draft.</param>
-/// <param name="instrument">Chart.</param>
-public sealed partial class ScoreFilterChartRow(SongFilterDraft draft, Instrument instrument) : ObservableObject
-{
-    /// <summary>Chart.</summary>
-    public Instrument Instrument { get; } = instrument;
-
-    /// <summary>Chart label.</summary>
-    public string Label => Instrument.Label();
-
-    /// <summary>Icon file.</summary>
-    public string IconFile => Instrument.IconFile();
-
-    /// <summary>Missing Scores check.</summary>
-    public bool MissingScores { get => draft.Get(SongScoreFilterKind.MissingScores, Instrument); set => draft.Set(SongScoreFilterKind.MissingScores, Instrument, value); }
-
-    /// <summary>Has Scores check.</summary>
-    public bool HasScores { get => draft.Get(SongScoreFilterKind.HasScores, Instrument); set => draft.Set(SongScoreFilterKind.HasScores, Instrument, value); }
-
-    /// <summary>Missing FCs check.</summary>
-    public bool MissingFCs { get => draft.Get(SongScoreFilterKind.MissingFCs, Instrument); set => draft.Set(SongScoreFilterKind.MissingFCs, Instrument, value); }
-
-    /// <summary>Has FCs check.</summary>
-    public bool HasFCs { get => draft.Get(SongScoreFilterKind.HasFCs, Instrument); set => draft.Set(SongScoreFilterKind.HasFCs, Instrument, value); }
-
-    /// <summary>Accessible names for the four checks.</summary>
-    public string MissingScoresName => $"{Label}: Missing Scores";
-
-    /// <summary>Accessible name.</summary>
-    public string HasScoresName => $"{Label}: Has Scores";
-
-    /// <summary>Accessible name.</summary>
-    public string MissingFCsName => $"{Label}: Missing FCs";
-
-    /// <summary>Accessible name.</summary>
-    public string HasFCsName => $"{Label}: Has FCs";
-
-    /// <summary>Re-reads every check from the draft.</summary>
-    public void Refresh() => OnPropertyChanged(string.Empty);
 }
 #endregion

@@ -465,7 +465,24 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <summary>Loads the applied filter into the draft.</summary>
     /// <param name="sender">Flyout.</param>
     /// <param name="e">Unused.</param>
-    private void OnFilterOpening(object sender, object e) => ViewModel.FilterDraft.Begin();
+    private void OnFilterOpening(object sender, object e)
+    {
+        ViewModel.FilterDraft.Begin();
+        // Fit the window: the Reset footer must stay on screen below the button at every size (compact 500 × 800 …).
+        if (XamlRoot is { } root)
+        {
+            var below = root.Size.Height - FilterButton.TransformToVisual(null).TransformPoint(new(0, FilterButton.ActualHeight)).Y;
+            FilterForm.MaxHeight = Math.Clamp(below - 24, 280, 680);
+            FilterForm.Width = Math.Clamp(root.Size.Width - 32, 280, 440);
+        }
+        FilterInstrumentPicker.Instruments = ViewModel.FilterDraft.Instruments;
+        FilterInstrumentPicker.Selected = ViewModel.FilterDraft.SelectedInstrument;
+    }
+
+    /// <summary>Instrument Selector choice (web <c>instrumentFilter</c>): applies live and reveals its bucket sections.</summary>
+    /// <param name="sender">Selector.</param>
+    /// <param name="instrument">Chart, or <see langword="null"/> when cleared.</param>
+    private void OnFilterInstrumentChanged(object? sender, Instrument? instrument) => ViewModel.FilterDraft.SelectedInstrument = instrument;
 
     /// <summary>Tints Sort/Filter gold when a non-default choice is applied.</summary>
     private void UpdateButtonTints()

@@ -126,7 +126,7 @@ public class SettingsTests : IDisposable
             Version = 0,
             SelectedPlayer = new SelectedPlayer("bad id", "x"),
             SongSort = (SongSortMode)42,
-            SongFilter = new SongFilter(null, 5, 2),
+            SongFilter = new SongFilter((Instrument)77),
             VisibleInstruments = [(Instrument)99],
         };
         var clean = bad.Sanitized();
@@ -177,7 +177,7 @@ public class SettingsTests : IDisposable
             SelectedPlayer = new SelectedPlayer("acc_1", "Player One"),
             SongSort = SongSortMode.Year,
             SongSortAscending = false,
-            SongFilter = new SongFilter(Instrument.Drums, 2, 5),
+            SongFilter = new SongFilter(Instrument.Drums, [2, 5]),
             VisibleInstruments = [Instrument.Lead, Instrument.Drums],
             ReduceMotion = true,
             DisableAnimatedArtwork = true,

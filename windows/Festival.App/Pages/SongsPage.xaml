@@ -14,6 +14,26 @@
         <Style x:Key="SongSubtitleStyle" TargetType="TextBlock" BasedOn="{StaticResource BodyTextBlockStyle}">
             <Setter Property="Foreground" Value="{ThemeResource FSTSecondaryTextBrush}" />
         </Style>
+        <!-- Web ToggleRow: label (or stars / intensity bars), optional description, trailing switch. -->
+        <DataTemplate x:Key="FilterToggleTemplate" x:DataType="vm:FilterToggleRow">
+            <Grid ColumnSpacing="12" MinHeight="40" Padding="0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Text="{x:Bind Label}" TextWrapping="Wrap" Visibility="{x:Bind ShowText}" />
+                    <controls:StarRow Stars="{x:Bind Stars}" StarSize="14" HorizontalAlignment="Left" AutomationProperties.AccessibilityView="Raw" />
+                    <controls:DifficultyMeter Raw="{x:Bind BarsRaw}" HorizontalAlignment="Left" Visibility="{x:Bind ShowBars}"
+                                              AutomationProperties.AccessibilityView="Raw" />
+                    <TextBlock Text="{x:Bind Description}" Style="{StaticResource FSTSecondaryTextStyle}" FontSize="12" TextWrapping="Wrap"
+                               Visibility="{x:Bind HasDescription}" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="1" IsOn="{x:Bind IsOn, Mode=TwoWay}" IsEnabled="{x:Bind IsEnabled, Mode=OneWay}"
+                              OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center"
+                              AutomationProperties.Name="{x:Bind Label}" AutomationProperties.AutomationId="{x:Bind AutomationId}" />
+            </Grid>
+        </DataTemplate>
     </Page.Resources>
 
     <Grid x:Name="Root" Padding="24,12,12,0" RowSpacing="12">
@@ -139,127 +159,133 @@
                 </StackPanel>
                 <DropDownButton.Flyout>
                     <Flyout x:Name="FilterFlyout" Placement="BottomEdgeAlignedLeft" Opening="OnFilterOpening">
-                        <Grid Width="400" RowSpacing="12">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        <ScrollViewer MaxHeight="520" Padding="0,0,16,0" AutomationProperties.AutomationId="fst.songs.filter.form">
-                        <StackPanel Spacing="12">
-                            <TextBlock Text="Filter Songs" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0"
+                        <Flyout.FlyoutPresenterStyle>
+                            <Style TargetType="FlyoutPresenter">
+                                <Setter Property="MaxWidth" Value="520" />
+                                <Setter Property="Padding" Value="0" />
+                            </Style>
+                        </Flyout.FlyoutPresenterStyle>
+                        <!-- Web FilterModal order (6.32/7.17): Global and Individual Score & FC toggles (player), Item Shop, then
+                             Selected Instrument Filters (Instrument Selector revealing Season / Percentile / Stars / Song
+                             Intensity switches with Select All / Clear All). Changes apply live; Reset clears everything. -->
+                        <Grid x:Name="FilterForm" Width="440" MaxHeight="680" RowSpacing="0" AutomationProperties.AutomationId="fst.songs.filter.form">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Filter Songs" Style="{StaticResource FSTSectionHeaderStyle}" Margin="16,16,16,8"
                                        AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.songs.filter.title" />
-                            <ComboBox Header="Instrument" HorizontalAlignment="Stretch"
-                                      ItemsSource="{x:Bind ViewModel.FilterDraft.InstrumentChoices, Mode=OneWay}"
-                                      SelectedIndex="{x:Bind ViewModel.FilterDraft.InstrumentIndex, Mode=TwoWay}"
-                                      AutomationProperties.AutomationId="fst.songs.filter.instrument" />
-                            <Slider Header="Lowest Difficulty" Minimum="1" Maximum="7" StepFrequency="1" TickFrequency="1"
-                                    TickPlacement="Outside" SnapsTo="StepValues"
-                                    Value="{x:Bind ViewModel.FilterDraft.MinDifficulty, Mode=TwoWay}"
-                                    AutomationProperties.AutomationId="fst.songs.filter.min-difficulty" />
-                            <Slider Header="Highest Difficulty" Minimum="1" Maximum="7" StepFrequency="1" TickFrequency="1"
-                                    TickPlacement="Outside" SnapsTo="StepValues"
-                                    Value="{x:Bind ViewModel.FilterDraft.MaxDifficulty, Mode=TwoWay}"
-                                    AutomationProperties.AutomationId="fst.songs.filter.max-difficulty" />
-                            <InfoBar IsOpen="{x:Bind pages:SongsPage.Not(ViewModel.FilterDraft.IsRangeValid), Mode=OneWay}" IsClosable="False"
-                                     Severity="Warning" Message="The lowest difficulty must not exceed the highest." />
+                            <ScrollViewer Grid.Row="1" Padding="16,0,16,0">
+                                <StackPanel Spacing="8" Padding="0,0,0,12">
+                                    <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.FilterDraft.ShowScoreFilters, Mode=OneWay}">
+                                        <!-- Web Accordions start collapsed. -->
+                                        <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                                  AutomationProperties.AutomationId="fst.songs.filter.score.global">
+                                            <Expander.Header>
+                                                <StackPanel Padding="0,8">
+                                                    <TextBlock Text="Global Score &amp; FC Toggles" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                                    <TextBlock Text="Toggles that impact visible instruments. Turning these on or off will enable or disable them across the instruments shown in app settings."
+                                                               Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" FontSize="12" />
+                                                </StackPanel>
+                                            </Expander.Header>
+                                            <ItemsControl ItemsSource="{x:Bind ViewModel.FilterDraft.GlobalRows}" ItemTemplate="{StaticResource FilterToggleTemplate}" IsTabStop="False" />
+                                        </Expander>
 
-                            <TextBlock Text="Item Shop" Style="{StaticResource BodyStrongTextBlockStyle}" AutomationProperties.HeadingLevel="Level3" />
-                            <CheckBox Content="In Item Shop" IsChecked="{x:Bind ViewModel.FilterDraft.InShop, Mode=TwoWay}"
-                                      IsEnabled="{x:Bind ViewModel.FilterDraft.ShopEnabled, Mode=OneWay}"
-                                      AutomationProperties.AutomationId="fst.songs.filter.in-shop" />
-                            <CheckBox Content="Leaving Tomorrow" IsChecked="{x:Bind ViewModel.FilterDraft.LeavingTomorrow, Mode=TwoWay}"
-                                      IsEnabled="{x:Bind ViewModel.FilterDraft.ShopEnabled, Mode=OneWay}"
-                                      AutomationProperties.AutomationId="fst.songs.filter.leaving" />
-
-                            <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.FilterDraft.ShowScoreFilters, Mode=OneWay}">
-                                <TextBlock Text="Player Scores" Style="{StaticResource BodyStrongTextBlockStyle}" AutomationProperties.HeadingLevel="Level3"
-                                           AutomationProperties.AutomationId="fst.songs.filter.score-sections" />
-                                <TextBlock Text="Checks on one instrument must all match; any checked instrument can match."
-                                           TextWrapping="Wrap" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-                                <Grid ColumnSpacing="8" RowSpacing="0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition />
-                                        <RowDefinition />
-                                    </Grid.RowDefinitions>
-                                    <ToggleSwitch Header="Missing Scores" IsOn="{x:Bind ViewModel.FilterDraft.AllMissingScores, Mode=TwoWay}"
-                                                  AutomationProperties.AutomationId="fst.songs.filter.score.global.missing-scores" />
-                                    <ToggleSwitch Grid.Column="1" Header="Has Scores" IsOn="{x:Bind ViewModel.FilterDraft.AllHasScores, Mode=TwoWay}"
-                                                  AutomationProperties.AutomationId="fst.songs.filter.score.global.has-scores" />
-                                    <ToggleSwitch Grid.Row="1" Header="Missing FCs" IsOn="{x:Bind ViewModel.FilterDraft.AllMissingFCs, Mode=TwoWay}"
-                                                  AutomationProperties.AutomationId="fst.songs.filter.score.global.missing-fcs" />
-                                    <ToggleSwitch Grid.Row="1" Grid.Column="1" Header="Has FCs" IsOn="{x:Bind ViewModel.FilterDraft.AllHasFCs, Mode=TwoWay}"
-                                                  AutomationProperties.AutomationId="fst.songs.filter.score.global.has-fcs" />
-                                </Grid>
-                                <Expander Header="Per Instrument" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
-                                          AutomationProperties.AutomationId="fst.songs.filter.score.instrument">
-                                    <StackPanel Spacing="4">
-                                        <Grid ColumnSpacing="4">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="56" />
-                                                <ColumnDefinition Width="56" />
-                                                <ColumnDefinition Width="56" />
-                                                <ColumnDefinition Width="56" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="1" Text="No Score" Style="{StaticResource CaptionTextBlockStyle}" TextAlignment="Center" />
-                                            <TextBlock Grid.Column="2" Text="Score" Style="{StaticResource CaptionTextBlockStyle}" TextAlignment="Center" />
-                                            <TextBlock Grid.Column="3" Text="No FC" Style="{StaticResource CaptionTextBlockStyle}" TextAlignment="Center" />
-                                            <TextBlock Grid.Column="4" Text="FC" Style="{StaticResource CaptionTextBlockStyle}" TextAlignment="Center" />
-                                        </Grid>
-                                        <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.FilterDraft.ScoreRows, Mode=OneWay}">
-                                            <ItemsRepeater.ItemTemplate>
+                                        <StackPanel Padding="0,8,0,0">
+                                            <TextBlock Text="Individual Score &amp; FC Toggles" Style="{StaticResource BodyStrongTextBlockStyle}" AutomationProperties.HeadingLevel="Level3"
+                                                       AutomationProperties.AutomationId="fst.songs.filter.score-sections" />
+                                            <TextBlock Text="Toggles that impact individual instruments. These filters are computed per-instrument and then combined with other instruments."
+                                                       Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" FontSize="12" />
+                                        </StackPanel>
+                                        <ItemsControl ItemsSource="{x:Bind ViewModel.FilterDraft.ScoreRows, Mode=OneWay}" IsTabStop="False"
+                                                      AutomationProperties.AutomationId="fst.songs.filter.score.instrument">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Spacing="8" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
                                                 <DataTemplate x:DataType="vm:ScoreFilterChartRow">
-                                                    <Grid ColumnSpacing="4" MinHeight="36">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="*" />
-                                                            <ColumnDefinition Width="56" />
-                                                            <ColumnDefinition Width="56" />
-                                                            <ColumnDefinition Width="56" />
-                                                            <ColumnDefinition Width="56" />
-                                                        </Grid.ColumnDefinitions>
-                                                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                                            <controls:InstrumentIcon File="{x:Bind IconFile}" Label="{x:Bind Label}" Width="20" Height="20" />
-                                                            <TextBlock Text="{x:Bind Label}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                                        </StackPanel>
-                                                        <CheckBox Grid.Column="1" MinWidth="0" HorizontalAlignment="Center" IsChecked="{x:Bind MissingScores, Mode=TwoWay}"
-                                                                  AutomationProperties.Name="{x:Bind MissingScoresName}" />
-                                                        <CheckBox Grid.Column="2" MinWidth="0" HorizontalAlignment="Center" IsChecked="{x:Bind HasScores, Mode=TwoWay}"
-                                                                  AutomationProperties.Name="{x:Bind HasScoresName}" />
-                                                        <CheckBox Grid.Column="3" MinWidth="0" HorizontalAlignment="Center" IsChecked="{x:Bind MissingFCs, Mode=TwoWay}"
-                                                                  AutomationProperties.Name="{x:Bind MissingFCsName}" />
-                                                        <CheckBox Grid.Column="4" MinWidth="0" HorizontalAlignment="Center" IsChecked="{x:Bind HasFCs, Mode=TwoWay}"
-                                                                  AutomationProperties.Name="{x:Bind HasFCsName}" />
-                                                    </Grid>
+                                                    <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                                              AutomationProperties.Name="{x:Bind Label}" AutomationProperties.AutomationId="{x:Bind AutomationId}">
+                                                        <Expander.Header>
+                                                            <StackPanel Orientation="Horizontal" Spacing="12" Padding="0,6">
+                                                                <controls:InstrumentIcon File="{x:Bind IconFile}" Label="{x:Bind Label}" Width="28" Height="28" />
+                                                                <TextBlock Text="{x:Bind Label}" Style="{StaticResource BodyStrongTextBlockStyle}" VerticalAlignment="Center" />
+                                                            </StackPanel>
+                                                        </Expander.Header>
+                                                        <ItemsControl ItemsSource="{x:Bind Toggles}" ItemTemplate="{StaticResource FilterToggleTemplate}" IsTabStop="False" />
+                                                    </Expander>
                                                 </DataTemplate>
-                                            </ItemsRepeater.ItemTemplate>
-                                        </ItemsRepeater>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <InfoBar IsOpen="{x:Bind ViewModel.FilterDraft.HasHiddenScoreChecks, Mode=OneWay}" IsClosable="False" Severity="Informational"
+                                                 Message="Some checks are on instruments hidden in Settings. They're saved but inactive, and your next change removes them."
+                                                 AutomationProperties.AutomationId="fst.songs.score-filter-hidden" />
                                     </StackPanel>
-                                </Expander>
-                                <!-- Web percentile/stars filters (one instrument selected): one band and one star level. -->
-                                <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.FilterDraft.ShowScoreBand, Mode=OneWay}">
-                                    <ComboBox Header="Percentile" HorizontalAlignment="Stretch"
-                                              ItemsSource="{x:Bind ViewModel.FilterDraft.PercentileChoices}"
-                                              SelectedIndex="{x:Bind ViewModel.FilterDraft.PercentileIndex, Mode=TwoWay}"
-                                              AutomationProperties.AutomationId="fst.songs.filter.percentile" />
-                                    <ComboBox Header="Stars" HorizontalAlignment="Stretch"
-                                              ItemsSource="{x:Bind ViewModel.FilterDraft.StarsChoices}"
-                                              SelectedIndex="{x:Bind ViewModel.FilterDraft.StarsIndex, Mode=TwoWay}"
-                                              AutomationProperties.AutomationId="fst.songs.filter.stars" />
-                                </StackPanel>
-                                <InfoBar IsOpen="{x:Bind ViewModel.FilterDraft.HasHiddenScoreChecks, Mode=OneWay}" IsClosable="False" Severity="Informational"
-                                         Message="Some checks are on instruments hidden in Settings. They're saved but inactive, and Apply removes them."
-                                         AutomationProperties.AutomationId="fst.songs.score-filter-hidden" />
-                            </StackPanel>
 
-                        </StackPanel>
-                        </ScrollViewer>
+                                    <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                              AutomationProperties.AutomationId="fst.songs.filter.shop">
+                                        <Expander.Header>
+                                            <StackPanel Padding="0,8">
+                                                <TextBlock Text="Item Shop" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                                <TextBlock Text="Toggles that impact visibility of songs based on the current Item Shop rotation."
+                                                           Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" FontSize="12" />
+                                            </StackPanel>
+                                        </Expander.Header>
+                                        <ItemsControl ItemsSource="{x:Bind ViewModel.FilterDraft.ShopRows}" ItemTemplate="{StaticResource FilterToggleTemplate}" IsTabStop="False" />
+                                    </Expander>
+
+                                    <StackPanel Spacing="8" Padding="0,8,0,0">
+                                        <StackPanel>
+                                            <TextBlock Text="Selected Instrument Filters" Style="{StaticResource BodyStrongTextBlockStyle}" AutomationProperties.HeadingLevel="Level3"
+                                                       AutomationProperties.AutomationId="fst.songs.filter.instrument-filters" />
+                                            <TextBlock Text="Select an instrument to only show its metadata on each song row. When none is selected, all instruments are shown."
+                                                       Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" FontSize="12" />
+                                        </StackPanel>
+                                        <controls:InstrumentSelector x:Name="FilterInstrumentPicker" DeferSelection="True" IdPrefix="fst.songs.filter.instrument"
+                                                                     SelectionChanged="OnFilterInstrumentChanged">
+                                            <controls:InstrumentSelector.DetailContent>
+                                                <ItemsControl Margin="0,8,0,0" ItemsSource="{x:Bind ViewModel.FilterDraft.BucketSections, Mode=OneWay}" IsTabStop="False">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <StackPanel Spacing="8" />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:FilterBucketSection">
+                                                            <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                                                      AutomationProperties.Name="{x:Bind Title}" AutomationProperties.AutomationId="{x:Bind AutomationId}">
+                                                                <Expander.Header>
+                                                                    <StackPanel Padding="0,8">
+                                                                        <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                                                        <TextBlock Text="{x:Bind Hint}" Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" FontSize="12" />
+                                                                    </StackPanel>
+                                                                </Expander.Header>
+                                                                <StackPanel>
+                                                                    <!-- Web BulkActions as trailing text actions (7.17). -->
+                                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4" Margin="0,0,-8,0">
+                                                                        <HyperlinkButton Content="Select All" Command="{x:Bind SelectAllCommand}"
+                                                                                         AutomationProperties.Name="{x:Bind SelectAllName}" AutomationProperties.AutomationId="{x:Bind SelectAllId}" />
+                                                                        <HyperlinkButton Content="Clear All" Command="{x:Bind ClearAllCommand}"
+                                                                                         AutomationProperties.Name="{x:Bind ClearAllName}" AutomationProperties.AutomationId="{x:Bind ClearAllId}" />
+                                                                    </StackPanel>
+                                                                    <ItemsControl ItemsSource="{x:Bind Rows}" ItemTemplate="{StaticResource FilterToggleTemplate}" IsTabStop="False" />
+                                                                </StackPanel>
+                                                            </Expander>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </controls:InstrumentSelector.DetailContent>
+                                        </controls:InstrumentSelector>
+                                    </StackPanel>
+                                </StackPanel>
+                            </ScrollViewer>
                             <!-- Changes apply live; Reset clears every filter. Light dismiss / Esc closes. -->
-                            <Button Grid.Row="1" Content="Reset" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.FilterDraft.ResetCommand}"
-                                    AutomationProperties.AutomationId="fst.songs.filter.reset">
+                            <Grid Grid.Row="2" Padding="16,12,16,16" BorderThickness="0,1,0,0" BorderBrush="{ThemeResource FSTCardStrokeBrush}">
+                            <Button Content="Reset" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.FilterDraft.ResetCommand}"
+                                    AutomationProperties.Name="Reset Song Filters" AutomationProperties.AutomationId="fst.songs.filter.reset">
                                     <Button.Resources>
                                         <!-- Web Modal reset: a full-width red (btnDanger #C62828) button (operator batch 7.10). -->
                                         <SolidColorBrush x:Key="ButtonBackground" Color="#FFC62828" />
@@ -276,6 +302,7 @@
                                         <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="Transparent" />
                                     </Button.Resources>
                             </Button>
+                            </Grid>
                         </Grid>
                     </Flyout>
                 </DropDownButton.Flyout>

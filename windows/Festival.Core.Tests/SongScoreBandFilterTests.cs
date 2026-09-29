@@ -32,15 +32,11 @@ public class SongScoreBandFilterTests
         var gold = new SongScoreBandFilter(Instrument.Lead, Stars: 6);
         Assert.True(gold.Matches(new SongScoreDetail(1, Stars: 6)));
         Assert.False(gold.Matches(new SongScoreDetail(1, Stars: 5)));
-        Assert.False(gold.Matches(null));
-        var both = new SongScoreBandFilter(Instrument.Lead, 2, 5);
-        Assert.True(both.Matches(new SongScoreDetail(1, Stars: 5, Rank: 2, TotalEntries: 100)));
-        Assert.False(both.Matches(new SongScoreDetail(1, Stars: 6, Rank: 2, TotalEntries: 100)));
         Assert.False(new SongScoreBandFilter(Instrument.Lead).IsActive);
     }
 
     [Fact]
-    public void Validity_LabelsAndSanitize()
+    public void Validity_AndLabels()
     {
         Assert.True(new SongScoreBandFilter(Instrument.Bass, 15, 1).IsValid);
         Assert.False(new SongScoreBandFilter(Instrument.Bass, 7).IsValid);
@@ -48,30 +44,24 @@ public class SongScoreBandFilterTests
         Assert.False(new SongScoreBandFilter((Instrument)42, 1).IsValid);
         Assert.Equal("Top 5%", SongScoreBandFilter.BandLabel(5));
         Assert.Equal(["Gold Stars", "5 Stars", "1 Star"], new[] { 6, 5, 1 }.Select(SongScoreBandFilter.StarsLabel));
-        Assert.Null(new AppSettings { ScoreBandFilter = new SongScoreBandFilter(Instrument.Bass, 7) }.Sanitized().ScoreBandFilter);
-        Assert.Null(new AppSettings { ScoreBandFilter = new SongScoreBandFilter(Instrument.Bass) }.Sanitized().ScoreBandFilter);
-        var kept = new SongScoreBandFilter(Instrument.Bass, 5);
-        Assert.Equal(kept, new AppSettings { ScoreBandFilter = kept }.Sanitized().ScoreBandFilter);
-        Assert.NotEqual(new AppSettings(), new AppSettings { ScoreBandFilter = kept });
     }
 
     [Fact]
-    public void Presets_BandAndStars()
+    public void Presets_SortsAndHints()
     {
         var settings = new AppSettings { SongSort = SongSortMode.Year, SongSortAscending = false };
         var pct = new SongsStatPreset(Instrument.Lead, null, TopPercent: 5).ApplyTo(settings);
-        Assert.Equal(new SongScoreBandFilter(Instrument.Lead, 5), pct.ScoreBandFilter);
         Assert.Equal(SongSortMode.Year, pct.SongSort);
         Assert.True(pct.SongSortAscending);
-        Assert.False(pct.PlayerScoreFilter.IsActive);
+        Assert.False(pct.PlayerScoreFilter.HasChecks);
         var stars = new SongsStatPreset(Instrument.Lead, null, Stars: 6).ApplyTo(pct);
-        Assert.Equal(new SongScoreBandFilter(Instrument.Lead, Stars: 6), stars.ScoreBandFilter);
+        // A later preset cleans the earlier bucket choice first (web cleanFilters).
+        Assert.Empty(stars.PlayerScoreFilter.ExcludedPercentiles);
         // Web instStarsUpdater sorts by Stars; score checks sort by Score (instSongsPlayedUpdater / instFCsUpdater).
         Assert.Equal(SongSortMode.Stars, stars.SongSort);
         Assert.Equal(SongSortMode.Score, new SongsStatPreset(Instrument.Lead, SongScoreFilterKind.HasFCs).ApplyTo(settings).SongSort);
         Assert.Equal(SongSortMode.Title, new SongsStatPreset(null, SongScoreFilterKind.HasFCs).ApplyTo(settings).SongSort);
-        Assert.Null(new SongsStatPreset(null, SongScoreFilterKind.HasScores).ApplyTo(stars).ScoreBandFilter);
-        Assert.Null(new SongsStatPreset(Instrument.Lead, SongScoreFilterKind.HasScores).ApplyTo(stars).ScoreBandFilter);
+        Assert.False(new SongsStatPreset(null, SongScoreFilterKind.HasScores).ApplyTo(stars).PlayerScoreFilter.HasBucketChecks);
         Assert.False(new SongsStatPreset(null, null).ApplyTo(stars).PlayerScoreFilter.IsActive);
         Assert.Equal("Opens Lead songs in the Top 5%", new PlayerStatLink.Songs(new SongsStatPreset(Instrument.Lead, null, TopPercent: 5)).Hint);
         Assert.Equal("Opens Lead songs with Gold Stars", new PlayerStatLink.Songs(new SongsStatPreset(Instrument.Lead, null, Stars: 6)).Hint);
@@ -80,11 +70,11 @@ public class SongScoreBandFilterTests
 
 public class SongsScoreBandTests
 {
-    private static async Task<(FestivalSession Session, SongsViewModel Vm)> Loaded(bool player = true)
+    internal static async Task<(FestivalSession Session, SongsViewModel Vm)> Loaded(bool player = true, AppSettings? settings = null)
     {
         var service = new FakeService();
         SongsWire.Install(service, player: true);
-        var initial = new AppSettings();
+        var initial = settings ?? new AppSettings();
         if (player) initial = initial with { SelectedPlayer = new SelectedPlayer(PlayerWire.Id, "Fixture One") };
         var session = service.Session(settings: initial);
         var vm = new SongsViewModel(session);
@@ -92,63 +82,60 @@ public class SongsScoreBandTests
         return (session, vm);
     }
 
-    private static List<string> Ids(SongsViewModel vm) => [.. vm.Sections.SelectMany(s => s.Rows).Select(r => r.Song.SongId)];
+    internal static List<string> Ids(SongsViewModel vm) => [.. vm.Sections.SelectMany(s => s.Rows).Select(r => r.Song.SongId)];
 
     [Fact]
-    public async Task Pipeline_FiltersOnTheSelectedChartOnly()
+    public async Task Pipeline_BucketsApplyOnTheSelectedChartOnly()
     {
         var (session, vm) = await Loaded();
-        session.UpdateSettings(s => s with { SongFilter = new SongFilter(Instrument.Lead), ScoreBandFilter = new SongScoreBandFilter(Instrument.Lead, TopPercent: 1) });
+        session.UpdateSettings(new SongsStatPreset(Instrument.Lead, null, TopPercent: 1).ApplyTo);
         Assert.Equal(["s1"], Ids(vm));
         Assert.True(vm.IsFilterActive);
-        session.UpdateSettings(s => s with { ScoreBandFilter = new SongScoreBandFilter(Instrument.Lead, Stars: 5) });
+        session.UpdateSettings(new SongsStatPreset(Instrument.Lead, null, Stars: 5).ApplyTo);
         Assert.Equal(["s2"], Ids(vm));
-        var leadOnly = session.Settings with { ScoreBandFilter = null };
-        session.UpdateSettings(s => s with { ScoreBandFilter = new SongScoreBandFilter(Instrument.Bass, Stars: 5) });
-        var inactive = Ids(vm);
-        session.UpdateSettings(_ => leadOnly);
-        Assert.Equal(Ids(vm), inactive);
+        // Buckets stay saved but inert without an instrument (web: instrument-specific filters skip with none).
+        session.UpdateSettings(s => s with { SongFilter = SongFilter.None });
+        Assert.False(vm.IsFilterActive);
+        Assert.Equal(3, vm.ResultCount);
 
-        session.UpdateSettings(s => s with { ScoreBandFilter = new SongScoreBandFilter(Instrument.Lead, Stars: 5), FilterInvalidScores = true });
-        Assert.Contains(vm.Notices, n => n.StartsWith("Percentile and star filters paused while Filter Invalid Scores", StringComparison.Ordinal));
+        session.UpdateSettings(s => s with { SongFilter = new SongFilter(Instrument.Lead), FilterInvalidScores = true });
+        Assert.Contains(vm.Notices, n => n.StartsWith("Player score filters paused while Filter Invalid Scores", StringComparison.Ordinal));
         session.UpdateSettings(s => s with { FilterInvalidScores = false });
         session.DeselectPlayer();
-        Assert.Null(session.Settings.ScoreBandFilter);
+        Assert.False(session.Settings.PlayerScoreFilter.IsActive);
     }
 
     [Fact]
     public async Task Pipeline_PausesWithoutPlayer()
     {
         var (session, vm) = await Loaded(player: false);
-        session.UpdateSettings(s => s with { SongFilter = new SongFilter(Instrument.Lead), ScoreBandFilter = new SongScoreBandFilter(Instrument.Lead, TopPercent: 1) });
-        Assert.Contains(vm.Notices, n => n == "Percentile and star filters paused until a player is selected.");
+        session.UpdateSettings(s => s with
+        {
+            SongFilter = new SongFilter(Instrument.Lead),
+            PlayerScoreFilter = SongPlayerScoreFilter.None.Only(SongBucketKind.Percentile, 1),
+        });
+        Assert.Contains(vm.Notices, n => n == "Player score filters paused until a player is selected.");
         Assert.True(vm.ResultCount > 1);
     }
 
     [Fact]
-    public async Task Draft_RoundTripsAndResets()
+    public async Task Pipeline_SeasonAndIntensityBuckets()
     {
         var (session, vm) = await Loaded();
-        session.UpdateSettings(new SongsStatPreset(Instrument.Lead, null, TopPercent: 30).ApplyTo);
-        vm.FilterDraft.Begin();
-        Assert.True(vm.FilterDraft.ShowScoreBand);
-        Assert.Equal(PlayerStatistics.PercentileThresholds.ToList().IndexOf(30) + 1, vm.FilterDraft.PercentileIndex);
-        Assert.Equal(0, vm.FilterDraft.StarsIndex);
-        Assert.Equal("Any Percentile", vm.FilterDraft.PercentileChoices[0]);
-        Assert.Equal("Gold Stars", vm.FilterDraft.StarsChoices[1]);
-        vm.FilterDraft.StarsIndex = 2; // 5 stars, applied live
-        Assert.Equal(new SongScoreBandFilter(Instrument.Lead, 30, 5), session.Settings.ScoreBandFilter);
-        Assert.Equal(["s2"], Ids(vm));
-        vm.FilterDraft.InstrumentIndex = 0;
-        Assert.False(vm.FilterDraft.ShowScoreBand);
-        Assert.Null(session.Settings.ScoreBandFilter);
-        session.UpdateSettings(new SongsStatPreset(Instrument.Lead, null, Stars: 6).ApplyTo);
-        vm.FilterDraft.Begin();
-        Assert.Equal(1, vm.FilterDraft.StarsIndex);
-        vm.FilterDraft.ResetCommand.Execute(null);
-        Assert.Null(session.Settings.ScoreBandFilter);
-        session.UpdateSettings(new SongsStatPreset(Instrument.Lead, null, Stars: 6).ApplyTo);
-        vm.ClearFilterCommand.Execute(null);
-        Assert.Null(session.Settings.ScoreBandFilter);
+        session.UpdateSettings(s => s with
+        {
+            SongFilter = new SongFilter(Instrument.Lead),
+            PlayerScoreFilter = SongPlayerScoreFilter.None.WithExcluded(SongBucketKind.Season, [9]),
+        });
+        // Every fixture score is Season 9; hiding it leaves only Lead charts without a score (No Score = 0).
+        Assert.DoesNotContain("s1", Ids(vm));
+        Assert.DoesNotContain("s2", Ids(vm));
+        session.UpdateSettings(s => s with { PlayerScoreFilter = SongPlayerScoreFilter.None.WithExcluded(SongBucketKind.Season, [0]) });
+        Assert.Equal(["s1", "s2"], Ids(vm).Order());
+        var all = Ids(vm).Count;
+        session.UpdateSettings(s => s with { PlayerScoreFilter = SongPlayerScoreFilter.None, SongFilter = new SongFilter(Instrument.Lead, SongBuckets.IntensityKeys) });
+        Assert.True(vm.ShowEmpty);
+        Assert.Equal("No songs match the filters.", vm.EmptyMessage);
+        Assert.True(all > 0);
     }
 }

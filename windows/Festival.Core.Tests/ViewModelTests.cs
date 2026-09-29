@@ -233,32 +233,46 @@ public class SongsViewModelTests
         var vm = new SongsViewModel(session);
         await vm.AppearCommand.ExecuteAsync(null);
         vm.FilterDraft.Begin();
-        Assert.Equal(10, vm.FilterDraft.InstrumentChoices.Count);
+        Assert.Equal(9, vm.FilterDraft.Instruments.Count);
         Assert.False(vm.FilterDraft.CanApply);
-        vm.FilterDraft.InstrumentIndex = 1 + InstrumentInfo.All.ToList().IndexOf(Instrument.Karaoke);
+        Assert.False(vm.FilterDraft.HasInstrument);
+        vm.FilterDraft.SelectedInstrument = Instrument.Karaoke;
+        Assert.True(vm.FilterDraft.HasInstrument);
         Assert.False(vm.FilterDraft.CanApply);
         Assert.Equal(["s3"], vm.Sections.SelectMany(s => s.Rows).Select(r => r.Song.SongId));
         Assert.True(vm.IsFilterActive);
         vm.FilterDraft.Begin();
         Assert.Equal(Instrument.Karaoke, vm.FilterDraft.ToFilter().Instrument);
-        vm.FilterDraft.MinDifficulty = 7;
-        vm.FilterDraft.MaxDifficulty = 2;
-        Assert.False(vm.FilterDraft.IsRangeValid);
-        Assert.False(vm.FilterDraft.CanApply);
-        // An inverted range is never applied: the last valid filter stays until the range is valid again.
-        Assert.Equal(new SongFilter(Instrument.Karaoke, 7, 7), session.Settings.SongFilter);
+        // Anonymous: only Song Intensity is offered (Season / Percentile / Stars read the player's scores).
+        var intensity = Assert.Single(vm.FilterDraft.BucketSections);
+        Assert.Equal((SongBucketKind.Intensity, "Song Intensity"), (intensity.Kind, intensity.Title));
+        Assert.Equal("Filter by the song's difficulty rating for the selected instrument.", intensity.Hint);
+        Assert.Equal(("fst.songs.filter.intensity.select-all", "fst.songs.filter.intensity.clear-all"), (intensity.SelectAllId, intensity.ClearAllId));
+        Assert.Equal(("Select All Song Intensity", "Clear All Song Intensity"), (intensity.SelectAllName, intensity.ClearAllName));
+        Assert.Equal(8, intensity.Rows.Count);
+        Assert.Equal((1, 0.0, true, false), (intensity.Rows[0].Bars, intensity.Rows[0].BarsRaw, intensity.Rows[0].ShowBars, intensity.Rows[0].ShowText));
+        Assert.Equal(("No Score", true), (intensity.Rows[^1].Label, intensity.Rows[^1].ShowText));
+        Assert.Equal("Intensity 7 of 7", intensity.Rows[6].Label);
+        intensity.ClearAllCommand.Execute(null);
+        Assert.True(intensity.Rows.All(r => !r.IsOn));
+        Assert.Equal(SongBuckets.IntensityKeys.Order(), session.Settings.SongFilter.ExcludedIntensities);
+        Assert.True(vm.ShowEmpty);
+        intensity.SelectAllCommand.Execute(null);
+        Assert.True(intensity.Rows.All(r => r.IsOn));
+        Assert.Equal(["s3"], vm.Sections.SelectMany(s => s.Rows).Select(r => r.Song.SongId));
         vm.FilterDraft.ResetCommand.Execute(null);
         Assert.Equal(SongFilter.None, vm.FilterDraft.ToFilter());
         Assert.Equal(SongFilter.None, session.Settings.SongFilter);
-        vm.FilterDraft.InstrumentIndex = 2;
-        vm.FilterDraft.MinDifficulty = 7;
+        vm.FilterDraft.SelectedInstrument = Instrument.Bass;
+        vm.FilterDraft.Begin();
+        foreach (var row in vm.FilterDraft.BucketSections[0].Rows) row.IsOn = false;
         Assert.True(vm.ShowEmpty);
         Assert.Equal("No songs match the filters.", vm.EmptyMessage);
         vm.ClearFilterCommand.Execute(null);
         Assert.Equal(3, vm.ResultCount);
         session.UpdateSettings(s => s with { SongFilter = new SongFilter(Instrument.Bass), VisibleInstruments = [Instrument.Lead] });
         vm.FilterDraft.Begin();
-        Assert.Equal(0, vm.FilterDraft.InstrumentIndex);
+        Assert.Null(vm.FilterDraft.SelectedInstrument);
     }
 
     [Fact]
@@ -269,7 +283,7 @@ public class SongsViewModelTests
         await vm.AppearCommand.ExecuteAsync(null);
         Assert.Equal("1 song", vm.CountText);
         vm.FilterDraft.Begin();
-        Assert.Equal(7, vm.FilterDraft.InstrumentIndex);
+        Assert.Equal(Instrument.Karaoke, vm.FilterDraft.SelectedInstrument);
     }
 }
 

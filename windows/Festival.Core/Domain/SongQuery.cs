@@ -108,46 +108,95 @@ public static class SongSortModeInfo
 
 #region Filter
 /// <summary>
-/// Public-data Songs filter: one charted instrument and an inclusive 1–7 display difficulty range for it
-/// (or for any charted instrument when none is chosen). Bounded and typed so it persists safely.
+/// Public-data Songs filter (web <c>instrumentFilter</c> + <c>difficultyFilter</c>): one selected instrument and the Song
+/// Intensity buckets hidden on it (<see cref="SongBuckets.IntensityKeys"/>; intensity applies only with an instrument,
+/// like the web). Bounded and typed so it persists safely. Settings v1 saved a 1–7 difficulty range instead; the legacy
+/// fields are read once and migrated by <see cref="AppSettings.Sanitized"/>.
 /// </summary>
-/// <param name="Instrument">Single chart, or <see langword="null"/> for all.</param>
-/// <param name="MinDifficulty">Lowest display level, 1–7.</param>
-/// <param name="MaxDifficulty">Highest display level, 1–7.</param>
-public sealed record SongFilter(Instrument? Instrument = null, int MinDifficulty = 1, int MaxDifficulty = 7)
+public sealed record SongFilter
 {
     /// <summary>The unfiltered default.</summary>
     public static SongFilter None { get; } = new();
 
-    /// <summary>Whether this filter changes the list.</summary>
-    [JsonIgnore]
-    public bool IsActive => Instrument is not null || MinDifficulty > 1 || MaxDifficulty < 7;
+    /// <summary>Creates the default filter (serializer entry point).</summary>
+    [JsonConstructor]
+    public SongFilter()
+    {
+    }
 
-    /// <summary>Whether the values are in range and ordered.</summary>
-    [JsonIgnore]
-    public bool IsValid => MinDifficulty is >= 1 and <= 7 && MaxDifficulty is >= 1 and <= 7 && MinDifficulty <= MaxDifficulty;
+    /// <summary>Creates a filter.</summary>
+    /// <param name="instrument">Single chart, or <see langword="null"/> for all.</param>
+    /// <param name="excludedIntensities">Hidden intensity buckets.</param>
+    public SongFilter(Instrument? instrument, IEnumerable<int>? excludedIntensities = null)
+    {
+        Instrument = instrument;
+        ExcludedIntensities = SongBuckets.Normalize(excludedIntensities ?? []);
+    }
 
-    /// <summary>Whether a song passes this filter.</summary>
+    // Settable (not init): source-generated JSON assigns every init property, so a missing key would become null.
+    /// <summary>Selected instrument, or <see langword="null"/> for all. (Key kept from settings v1.)</summary>
+    [JsonPropertyName("Instrument")] public Instrument? Instrument { get; set; }
+
+    /// <summary>Hidden Song Intensity buckets (web <c>difficultyFilter</c> <c>false</c> keys).</summary>
+    [JsonPropertyName("excludedIntensities")] public IReadOnlyList<int> ExcludedIntensities { get; set; } = [];
+
+    /// <summary>Settings v1 lowest difficulty (read only for migration; never written).</summary>
+    [JsonPropertyName("MinDifficulty")] public int? LegacyMinDifficulty { get; set; }
+
+    /// <summary>Settings v1 highest difficulty (read only for migration; never written).</summary>
+    [JsonPropertyName("MaxDifficulty")] public int? LegacyMaxDifficulty { get; set; }
+
+    /// <summary>Whether this filter changes the list (intensity buckets count only with an instrument).</summary>
+    [JsonIgnore]
+    public bool IsActive => Instrument is not null;
+
+    /// <summary>Whether the saved values are known (otherwise the saved filter blocks the list until Reset).</summary>
+    [JsonIgnore]
+    public bool IsValid => (Instrument is null || Enum.IsDefined(Instrument.Value)) &&
+                           SongBuckets.AreValid(SongBucketKind.Intensity, ExcludedIntensities);
+
+    /// <summary>Whether a song passes: charted for the instrument and in a shown intensity bucket.</summary>
     /// <param name="song">Catalogue row.</param>
     /// <returns><see langword="true"/> when kept.</returns>
     public bool Matches(Song song)
     {
-        if (Instrument is { } chart)
-            return song.Difficulty?.ChartedValue(chart) is { } raw && InRange(DifficultyScale.BarsForRaw(raw));
-        if (MinDifficulty <= 1 && MaxDifficulty >= 7) return true;
-        return InstrumentInfo.All.Any(i => song.Difficulty?.ChartedValue(i) is { } raw && InRange(DifficultyScale.BarsForRaw(raw)));
+        if (Instrument is not { } chart) return true;
+        if (song.Difficulty?.ChartedValue(chart) is not { } raw) return false;
+        return ExcludedIntensities.Count == 0 || !ExcludedIntensities.Contains(SongBuckets.IntensityOf(raw));
     }
 
-    /// <summary>Drops a chart the user has hidden in Settings.</summary>
+    /// <summary>Drops a chart the user has hidden in Settings (hidden buckets stay saved, inert without a chart).</summary>
     /// <param name="visible">Settings-visible charts.</param>
     /// <returns>This filter, or one without the hidden chart.</returns>
     public SongFilter ScopedTo(IReadOnlyCollection<Instrument> visible) =>
         Instrument is { } chart && !visible.Contains(chart) ? this with { Instrument = null } : this;
 
-    /// <summary>Whether a bar count is inside the range.</summary>
-    /// <param name="bars">1–7.</param>
-    /// <returns><see langword="true"/> when inside.</returns>
-    private bool InRange(int bars) => bars >= MinDifficulty && bars <= MaxDifficulty;
+    /// <summary>
+    /// Settings v1 migration: a difficulty range on one chart becomes the hidden intensity buckets outside it; a range
+    /// without a chart has no web equivalent (intensity needs an instrument) and is dropped.
+    /// </summary>
+    /// <returns>A filter without legacy fields.</returns>
+    public SongFilter Migrated()
+    {
+        // A null list only comes from corrupt JSON: keep it invalid so Songs asks for an explicit Reset.
+        if (ExcludedIntensities is null) return new SongFilter { Instrument = Instrument, ExcludedIntensities = [-1] };
+        if (LegacyMinDifficulty is null && LegacyMaxDifficulty is null) return this;
+        var min = Math.Clamp(LegacyMinDifficulty ?? 1, 1, 7);
+        var max = Math.Clamp(LegacyMaxDifficulty ?? 7, 1, 7);
+        IEnumerable<int> hidden = Instrument is not null && min <= max ? Enumerable.Range(1, 7).Where(b => b < min || b > max) : [];
+        return new SongFilter(Instrument, ExcludedIntensities.Concat(hidden));
+    }
+
+    /// <summary>Content equality.</summary>
+    /// <param name="other">Other filter.</param>
+    /// <returns><see langword="true"/> when chart, buckets and legacy fields match.</returns>
+    public bool Equals(SongFilter? other) =>
+        other is not null && Instrument == other.Instrument && ExcludedIntensities.SequenceEqual(other.ExcludedIntensities) &&
+        LegacyMinDifficulty == other.LegacyMinDifficulty && LegacyMaxDifficulty == other.LegacyMaxDifficulty;
+
+    /// <summary>Hash consistent with <see cref="Equals(SongFilter?)"/>.</summary>
+    /// <returns>Hash code.</returns>
+    public override int GetHashCode() => HashCode.Combine(Instrument, ExcludedIntensities.Count);
 }
 #endregion
 

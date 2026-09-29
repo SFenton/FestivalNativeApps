@@ -34,8 +34,12 @@ public sealed record SelectedPlayer(
 /// <summary>Persisted preferences. Everything is bounded and re-validated on load.</summary>
 public sealed record AppSettings
 {
-    /// <summary>Current schema version.</summary>
-    public const int CurrentVersion = 1;
+    /// <summary>
+    /// Current schema version. v2 (2026-09-29): the Songs filter uses the web's bucket model (intensity buckets on
+    /// <see cref="SongFilter"/>; season/percentile/stars buckets on <see cref="PlayerScoreFilter"/>); v1's difficulty
+    /// range and single percentile/star choice (<see cref="LegacyScoreBandFilter"/>) are migrated by <see cref="Sanitized"/>.
+    /// </summary>
+    public const int CurrentVersion = 2;
 
     /// <summary>Schema version.</summary>
     [JsonPropertyName("version")] public int Version { get; set; } = CurrentVersion;
@@ -140,8 +144,8 @@ public sealed record AppSettings
     /// <summary>Applied selected-player score/FC filter (cleared on confirmed deselection).</summary>
     [JsonPropertyName("songPlayerScoreFilter")] public SongPlayerScoreFilter PlayerScoreFilter { get; set; } = SongPlayerScoreFilter.None;
 
-    /// <summary>Applied selected-player placement-band/star filter on one chart (cleared on confirmed deselection).</summary>
-    [JsonPropertyName("songScoreBandFilter")] public SongScoreBandFilter? ScoreBandFilter { get; set; }
+    /// <summary>Settings v1 single percentile/star choice on one chart (read only for migration; never written).</summary>
+    [JsonPropertyName("songScoreBandFilter")] public SongScoreBandFilter? LegacyScoreBandFilter { get; set; }
 
     /// <summary>Item Shop grid/list preference.</summary>
     [JsonPropertyName("shopViewMode")] public ShopViewMode ShopViewMode { get; set; } = ShopViewMode.Grid;
@@ -228,8 +232,16 @@ public sealed record AppSettings
     {
         var visible = (VisibleInstruments ?? []).Where(Enum.IsDefined).Distinct().Order().ToArray();
         if (visible.Length == 0) visible = [.. InstrumentInfo.All];
-        var filter = SongFilter is { IsValid: true } f && (f.Instrument is null || Enum.IsDefined(f.Instrument.Value))
-            ? f.ScopedTo(visible) : SongFilter.None;
+        // v1 → v2: the difficulty range becomes intensity buckets, the single band/star choice becomes bucket sets.
+        // Corrupt bucket data is kept (not silently dropped) so Songs blocks until an explicit Reset.
+        var filter = (SongFilter ?? SongFilter.None).Migrated() is var migrated && (migrated.Instrument is null || Enum.IsDefined(migrated.Instrument.Value))
+            ? migrated.ScopedTo(visible) : SongFilter.None;
+        var player = SongPlayerScoreFilter.Repaired(PlayerScoreFilter);
+        if (LegacyScoreBandFilter is { IsValid: true, IsActive: true } band && band.Instrument == filter.Instrument && player.IsValid)
+        {
+            if (band.TopPercent is { } top) player = player.Only(SongBucketKind.Percentile, top);
+            if (band.Stars is { } stars) player = player.Only(SongBucketKind.Stars, stars);
+        }
         return this with
         {
             Version = CurrentVersion,
@@ -245,8 +257,8 @@ public sealed record AppSettings
             TapTelemetry = TapTelemetry && TapDiagnostics,
             LeaderboardRankBy = RankingMetrics.Contains(LeaderboardRankBy) ? LeaderboardRankBy : "totalscore",
             ShopFilter = ShopFilter ?? SongShopFilter.None,
-            PlayerScoreFilter = PlayerScoreFilter ?? SongPlayerScoreFilter.None,
-            ScoreBandFilter = ScoreBandFilter is { IsValid: true, IsActive: true } band ? band : null,
+            PlayerScoreFilter = player,
+            LegacyScoreBandFilter = null,
             ShopViewMode = Enum.IsDefined(ShopViewMode) ? ShopViewMode : ShopViewMode.Grid,
         };
     }
@@ -273,7 +285,7 @@ public sealed record AppSettings
         MoreContrast == other.MoreContrast && LessTransparency == other.LessTransparency &&
         LeaderboardRankBy == other.LeaderboardRankBy &&
         ShopFilter == other.ShopFilter && Equals(PlayerScoreFilter, other.PlayerScoreFilter) && ShopViewMode == other.ShopViewMode &&
-        ScoreBandFilter == other.ScoreBandFilter;
+        LegacyScoreBandFilter == other.LegacyScoreBandFilter;
 
     /// <summary>Hash consistent with <see cref="Equals(AppSettings?)"/>.</summary>
     /// <returns>Hash code.</returns>

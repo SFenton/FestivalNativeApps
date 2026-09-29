@@ -374,12 +374,17 @@ public class SongsViewModelPlayerTests
         Assert.True(vm.FilterDraft.ShowScoreFilters);
         Assert.Equal(9, vm.FilterDraft.ScoreRows.Count);
         var lead = vm.FilterDraft.ScoreRows[0];
-        lead.HasFCs = true;
-        Assert.True(lead.HasFCs);
-        Assert.Equal("Lead: Has FCs", lead.HasFCsName);
-        Assert.Equal(("Lead: Missing Scores", "Lead: Has Scores", "Lead: Missing FCs"), (lead.MissingScoresName, lead.HasScoresName, lead.MissingFCsName));
-        Assert.False(lead.MissingScores || lead.HasScores || lead.MissingFCs);
+        var hasFcs = lead.Toggles[3];
+        hasFcs.IsOn = true;
+        Assert.True(hasFcs.IsOn);
+        // Web filter.instrument* labels and descriptions.
+        Assert.Equal(["Missing Lead Scores", "Has Lead Scores", "Missing Lead FCs", "Has Lead FCs"], lead.Toggles.Select(t => t.Label));
+        Assert.Equal("Songs with FCs on Lead.", hasFcs.Description);
+        Assert.Equal("fst.songs.filter.score.chart.lead.has-fcs", hasFcs.AutomationId);
+        Assert.Equal("fst.songs.filter.score.chart.lead", lead.AutomationId);
+        Assert.DoesNotContain(lead.Toggles.Take(3), t => t.IsOn);
         Assert.Equal("instrument_guitar.png", lead.IconFile);
+        Assert.Equal("Lead", lead.Label);
         Assert.False(vm.FilterDraft.CanApply); // applied live
         Assert.Equal(["s1"], vm.Sections.SelectMany(s => s.Rows).Select(r => r.Song.SongId));
         Assert.True(vm.IsFilterActive);
@@ -393,15 +398,18 @@ public class SongsViewModelPlayerTests
     {
         var (_, session, vm) = await Loaded();
         vm.FilterDraft.Begin();
-        vm.FilterDraft.AllMissingScores = true;
-        Assert.True(vm.FilterDraft.AllMissingScores);
-        Assert.True(vm.FilterDraft.ScoreRows.All(r => r.MissingScores));
-        vm.FilterDraft.AllMissingScores = true;
-        vm.FilterDraft.AllMissingScores = false;
-        vm.FilterDraft.AllHasScores = true;
-        vm.FilterDraft.AllMissingFCs = true;
-        vm.FilterDraft.AllHasFCs = true;
-        Assert.True(vm.FilterDraft.AllHasScores && vm.FilterDraft.AllMissingFCs && vm.FilterDraft.AllHasFCs);
+        var global = vm.FilterDraft.GlobalRows;
+        Assert.Equal(["Missing Scores", "Has Scores", "Missing FCs", "Has FCs"], global.Select(r => r.Label));
+        Assert.Equal("Songs missing scores on any visible instrument.", global[0].Description);
+        global[0].IsOn = true;
+        Assert.True(global[0].IsOn);
+        Assert.True(vm.FilterDraft.ScoreRows.All(r => r.Toggles[0].IsOn));
+        global[0].IsOn = true;
+        global[0].IsOn = false;
+        foreach (var row in global.Skip(1)) row.IsOn = true;
+        Assert.True(global.Skip(1).All(r => r.IsOn));
+        vm.FilterDraft.ScoreRows[0].Toggles[1].IsOn = false;
+        Assert.False(global[1].IsOn);
         vm.FilterDraft.ResetCommand.Execute(null);
         Assert.False(vm.FilterDraft.CanApply);
         session.UpdateSettings(s => s with { PlayerScoreFilter = SongPlayerScoreFilter.None.With(SongScoreFilterKind.HasScores, Instrument.Drums, true) });

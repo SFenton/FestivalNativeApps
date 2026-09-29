@@ -188,12 +188,15 @@ public class ModelAndSongsTests
         var lead = new SongFilter(Instrument.Lead);
         Assert.True(lead.IsActive);
         Assert.Equal(["1", "2"], Ids(all.Where(lead.Matches)));
-        Assert.Equal(["2"], Ids(all.Where(new SongFilter(Instrument.Lead, 6, 7).Matches)));
-        Assert.Equal(["1", "2"], Ids(all.Where(new SongFilter(null, 6, 7).Matches)));
-        Assert.Equal(["1", "3"], Ids(all.Where(new SongFilter(null, 1, 3).Matches)));
-        Assert.True(new SongFilter(null, 1, 3).IsActive);
-        Assert.False(new SongFilter(null, 5, 3).IsValid);
-        Assert.False(new SongFilter(null, 0, 3).IsValid);
+        // Web difficultyFilter: hidden intensity buckets on the selected chart only (raw 0 = 1 bar, raw 6 = 7 bars).
+        Assert.Equal(["2"], Ids(all.Where(new SongFilter(Instrument.Lead, [1, 2, 3, 4, 5, 6]).Matches)));
+        Assert.Equal(["1"], Ids(all.Where(new SongFilter(Instrument.Lead, [7]).Matches)));
+        Assert.Equal(4, all.Count(new SongFilter(null, [1, 2, 3]).Matches));
+        Assert.False(new SongFilter(null, [1, 2, 3]).IsActive);
+        Assert.True(new SongFilter(null, [0, 7]).IsValid);
+        Assert.False(new SongFilter(null, [8]).IsValid);
+        Assert.False(new SongFilter { ExcludedIntensities = [3, 3] }.IsValid);
+        Assert.Equal([1, 3], new SongFilter(null, [3, 1, 3]).ExcludedIntensities);
         Assert.Null(lead.ScopedTo([Instrument.Bass]).Instrument);
         Assert.Equal(Instrument.Lead, lead.ScopedTo([Instrument.Lead]).Instrument);
     }

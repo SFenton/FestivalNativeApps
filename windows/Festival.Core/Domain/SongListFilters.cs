@@ -87,14 +87,96 @@ public sealed record SongPlayerScoreFilter
     [JsonPropertyName("missingFCs")] public IReadOnlyList<Instrument> MissingFCs { get; set; } = [];
     /// <summary>Charts with an explicit FC.</summary>
     [JsonPropertyName("hasFCs")] public IReadOnlyList<Instrument> HasFCs { get; set; } = [];
+    /// <summary>Hidden season buckets on the selected instrument (0 = no score).</summary>
+    [JsonPropertyName("excludedSeasons")] public IReadOnlyList<int> ExcludedSeasons { get; set; } = [];
+    /// <summary>Hidden percentile buckets (<see cref="SongBuckets.PercentileKeys"/>).</summary>
+    [JsonPropertyName("excludedPercentiles")] public IReadOnlyList<int> ExcludedPercentiles { get; set; } = [];
+    /// <summary>Hidden star buckets (<see cref="SongBuckets.StarKeys"/>).</summary>
+    [JsonPropertyName("excludedStars")] public IReadOnlyList<int> ExcludedStars { get; set; } = [];
 
-    /// <summary>Whether any check is set.</summary>
+    /// <summary>Whether any check or bucket is set.</summary>
     [JsonIgnore]
-    public bool IsActive => Lists().Any(l => l.Count > 0);
+    public bool IsActive => HasChecks || HasBucketChecks;
+
+    /// <summary>Whether any per-chart score/FC check is set.</summary>
+    [JsonIgnore]
+    public bool HasChecks => Lists().Any(l => l.Count > 0);
+
+    /// <summary>Whether a Season, Percentile or Stars bucket is hidden (these need one selected instrument).</summary>
+    [JsonIgnore]
+    public bool HasBucketChecks => ExcludedSeasons.Count > 0 || ExcludedPercentiles.Count > 0 || ExcludedStars.Count > 0;
 
     /// <summary>Whether the saved lists are bounded, known and duplicate-free (corrupt data needs an explicit Reset).</summary>
     [JsonIgnore]
-    public bool IsValid => Lists().All(l => l is not null && l.Count <= InstrumentInfo.All.Count && l.All(Enum.IsDefined) && l.Distinct().Count() == l.Count);
+    public bool IsValid =>
+        Lists().All(l => l is not null && l.Count <= InstrumentInfo.All.Count && l.All(Enum.IsDefined) && l.Distinct().Count() == l.Count) &&
+        SongBuckets.AreValid(SongBucketKind.Season, ExcludedSeasons) && SongBuckets.AreValid(SongBucketKind.Percentile, ExcludedPercentiles) &&
+        SongBuckets.AreValid(SongBucketKind.Stars, ExcludedStars);
+
+    /// <summary>Whether this filter narrows the list for a selected instrument (buckets need one, like the web).</summary>
+    /// <param name="selectedInstrument">Songs instrument, or <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> when something applies.</returns>
+    public bool AppliesTo(Instrument? selectedInstrument) => HasChecks || (HasBucketChecks && selectedInstrument is not null);
+
+    /// <summary>
+    /// Makes a deserialized filter safe to inspect: <see langword="null"/> becomes the default, and a <c>null</c> list (only
+    /// possible in hand-edited or corrupt JSON) becomes an unknown value so <see cref="IsValid"/> fails and Songs asks for
+    /// an explicit Reset instead of guessing.
+    /// </summary>
+    /// <param name="saved">Deserialized filter.</param>
+    /// <returns>A filter whose lists are never <see langword="null"/>.</returns>
+    public static SongPlayerScoreFilter Repaired(SongPlayerScoreFilter? saved)
+    {
+        if (saved is null) return None;
+        IReadOnlyList<Instrument> Charts(IReadOnlyList<Instrument>? list) => list ?? [(Instrument)(-1)];
+        IReadOnlyList<int> Keys(IReadOnlyList<int>? list) => list ?? [-1];
+        return new SongPlayerScoreFilter
+        {
+            MissingScores = Charts(saved.MissingScores), HasScores = Charts(saved.HasScores),
+            MissingFCs = Charts(saved.MissingFCs), HasFCs = Charts(saved.HasFCs),
+            ExcludedSeasons = Keys(saved.ExcludedSeasons), ExcludedPercentiles = Keys(saved.ExcludedPercentiles),
+            ExcludedStars = Keys(saved.ExcludedStars),
+        };
+    }
+
+    /// <summary>Hidden keys of one player-scoped bucket section.</summary>
+    /// <param name="kind">Season, Percentile or Stars.</param>
+    /// <returns>Hidden keys (none for Intensity, which lives on <see cref="SongFilter"/>).</returns>
+    public IReadOnlyList<int> Excluded(SongBucketKind kind) => kind switch
+    {
+        SongBucketKind.Season => ExcludedSeasons,
+        SongBucketKind.Percentile => ExcludedPercentiles,
+        SongBucketKind.Stars => ExcludedStars,
+        _ => [],
+    };
+
+    /// <summary>Replaces one section's hidden keys.</summary>
+    /// <param name="kind">Season, Percentile or Stars.</param>
+    /// <param name="keys">Hidden keys.</param>
+    /// <returns>Updated filter.</returns>
+    public SongPlayerScoreFilter WithExcluded(SongBucketKind kind, IEnumerable<int> keys) => kind switch
+    {
+        SongBucketKind.Season => this with { ExcludedSeasons = SongBuckets.Normalize(keys) },
+        SongBucketKind.Percentile => this with { ExcludedPercentiles = SongBuckets.Normalize(keys) },
+        SongBucketKind.Stars => this with { ExcludedStars = SongBuckets.Normalize(keys) },
+        _ => this,
+    };
+
+    /// <summary>
+    /// Web <c>cleanFilters</c> for a stat preset: every bucket shown again and this chart's checks cleared (other charts'
+    /// checks stay).
+    /// </summary>
+    /// <param name="instrument">Chart.</param>
+    /// <returns>Updated filter.</returns>
+    public SongPlayerScoreFilter CleanedFor(Instrument instrument) =>
+        SongScoreFilterKindInfo.All.Aggregate(this with { ExcludedSeasons = [], ExcludedPercentiles = [], ExcludedStars = [] },
+            (filter, kind) => filter.With(kind, instrument, false));
+
+    /// <summary>Shows only one bucket of a section (web <c>buildStarFilter</c>/<c>buildPercentileFilter</c>).</summary>
+    /// <param name="kind">Percentile or Stars.</param>
+    /// <param name="key">The bucket to keep.</param>
+    /// <returns>Updated filter.</returns>
+    public SongPlayerScoreFilter Only(SongBucketKind kind, int key) => WithExcluded(kind, kind.Keys().Where(k => k != key));
 
     /// <summary>Whether a check is set for a chart.</summary>
     /// <param name="kind">Check.</param>
@@ -140,7 +222,7 @@ public sealed record SongPlayerScoreFilter
     /// <summary>The filter restricted to visible charts (hidden checks are inactive, not erased).</summary>
     /// <param name="visible">Settings-visible charts.</param>
     /// <returns>Scoped filter.</returns>
-    public SongPlayerScoreFilter ScopedTo(IReadOnlyCollection<Instrument> visible) => new()
+    public SongPlayerScoreFilter ScopedTo(IReadOnlyCollection<Instrument> visible) => this with
     {
         MissingScores = [.. MissingScores.Where(visible.Contains)],
         HasScores = [.. HasScores.Where(visible.Contains)],
@@ -148,23 +230,39 @@ public sealed record SongPlayerScoreFilter
         HasFCs = [.. HasFCs.Where(visible.Contains)],
     };
 
-    /// <summary>Applies OR across active charted instruments and AND within each chart's checks.</summary>
+    /// <summary>
+    /// Applies OR across active charted instruments and AND within each chart's checks; then, with a selected visible
+    /// instrument and <paramref name="details"/>, its Season / Percentile / Stars buckets (web <c>useFilteredSongs</c>).
+    /// </summary>
     /// <param name="songs">Search-, chart- and Shop-filtered rows.</param>
     /// <param name="scores">Score facts for a matching, available index (<see langword="null"/> for no row).</param>
     /// <param name="visible">Settings-visible charts.</param>
     /// <param name="selectedInstrument">Optional single-chart Songs filter.</param>
+    /// <param name="details">Score details for the bucket checks (same availability rule as <paramref name="scores"/>).</param>
     /// <returns>Matching rows in source order.</returns>
     public IReadOnlyList<Song> Filter(
         IReadOnlyList<Song> songs, Func<string, Instrument, ChartScoreFacts?> scores,
-        IReadOnlyCollection<Instrument> visible, Instrument? selectedInstrument)
+        IReadOnlyCollection<Instrument> visible, Instrument? selectedInstrument,
+        Func<string, Instrument, SongScoreDetail?>? details = null)
     {
         var scoped = ScopedTo(visible);
         var charts = InstrumentInfo.All
             .Where(c => (selectedInstrument is null || selectedInstrument == c) && scoped.Lists().Any(l => l.Contains(c)))
             .ToArray();
-        if (charts.Length == 0) return songs;
-        return [.. songs.Where(song => charts.Any(chart => scoped.Matches(song, chart, scores(song.SongId, chart))))];
+        Instrument? bucketChart = details is not null && HasBucketChecks && selectedInstrument is { } s && visible.Contains(s) ? s : null;
+        if (charts.Length == 0 && bucketChart is null) return songs;
+        return [.. songs.Where(song =>
+            (charts.Length == 0 || charts.Any(chart => scoped.Matches(song, chart, scores(song.SongId, chart)))) &&
+            (bucketChart is not { } chart || InBuckets(details!(song.SongId, chart))))];
     }
+
+    /// <summary>Whether a score falls in shown Season, Percentile and Stars buckets.</summary>
+    /// <param name="detail">The selected player's score on the chart, or <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> when no section hides it.</returns>
+    public bool InBuckets(SongScoreDetail? detail) =>
+        !ExcludedSeasons.Contains(SongBuckets.SeasonOf(detail)) &&
+        !ExcludedPercentiles.Contains(SongBuckets.PercentileOf(detail)) &&
+        !ExcludedStars.Contains(SongBuckets.StarsOf(detail));
 
     /// <summary>Whether one chart's checks all hold for a song.</summary>
     /// <param name="song">Row.</param>
@@ -200,16 +298,19 @@ public sealed record SongPlayerScoreFilter
     /// <returns>Lists in kind order.</returns>
     private IEnumerable<IReadOnlyList<Instrument>> Lists() => [MissingScores, HasScores, MissingFCs, HasFCs];
 
-    /// <summary>Content equality for the four lists.</summary>
+    /// <summary>Content equality for every list.</summary>
     /// <param name="other">Other filter.</param>
     /// <returns><see langword="true"/> when every list matches.</returns>
     public bool Equals(SongPlayerScoreFilter? other) =>
         other is not null && MissingScores.SequenceEqual(other.MissingScores) && HasScores.SequenceEqual(other.HasScores) &&
-        MissingFCs.SequenceEqual(other.MissingFCs) && HasFCs.SequenceEqual(other.HasFCs);
+        MissingFCs.SequenceEqual(other.MissingFCs) && HasFCs.SequenceEqual(other.HasFCs) &&
+        ExcludedSeasons.SequenceEqual(other.ExcludedSeasons) && ExcludedPercentiles.SequenceEqual(other.ExcludedPercentiles) &&
+        ExcludedStars.SequenceEqual(other.ExcludedStars);
 
     /// <summary>Hash consistent with <see cref="Equals(SongPlayerScoreFilter?)"/>.</summary>
     /// <returns>Hash code.</returns>
-    public override int GetHashCode() => HashCode.Combine(MissingScores.Count, HasScores.Count, MissingFCs.Count, HasFCs.Count);
+    public override int GetHashCode() => HashCode.Combine(
+        MissingScores.Count, HasScores.Count, MissingFCs.Count, HasFCs.Count, ExcludedSeasons.Count, ExcludedPercentiles.Count, ExcludedStars.Count);
 }
 #endregion
 

@@ -10,7 +10,7 @@ public class PlayerStatLinksTests
         var settings = new AppSettings
         {
             VisibleInstruments = [Instrument.Lead, Instrument.Drums],
-            SongFilter = new SongFilter(Instrument.Bass, 2, 5),
+            SongFilter = new SongFilter(Instrument.Bass, [2, 5]),
             ShopFilter = new SongShopFilter(InShop: true),
             SongSort = SongSortMode.Year,
             SongSortAscending = false,
@@ -31,10 +31,11 @@ public class PlayerStatLinksTests
         var settings = new AppSettings
         {
             ShopFilter = new SongShopFilter(InShop: true),
-            SongFilter = new SongFilter(null, 3, 4),
+            SongFilter = new SongFilter(Instrument.Lead, [3, 4]),
             PlayerScoreFilter = SongPlayerScoreFilter.None
                 .With(SongScoreFilterKind.MissingScores, Instrument.Lead, true)
-                .With(SongScoreFilterKind.HasFCs, Instrument.Bass, true),
+                .With(SongScoreFilterKind.HasFCs, Instrument.Bass, true)
+                .WithExcluded(SongBucketKind.Season, [0]),
         };
         var applied = new SongsStatPreset(Instrument.Lead, SongScoreFilterKind.HasScores).ApplyTo(settings);
         Assert.Equal(new SongFilter(Instrument.Lead), applied.SongFilter);
@@ -42,6 +43,19 @@ public class PlayerStatLinksTests
         Assert.Equal([Instrument.Lead], applied.PlayerScoreFilter.HasScores);
         Assert.Empty(applied.PlayerScoreFilter.MissingScores);
         Assert.Equal([Instrument.Bass], applied.PlayerScoreFilter.HasFCs);
+        // Web cleanFilters also shows every season/percentile/stars/intensity bucket again.
+        Assert.False(applied.PlayerScoreFilter.HasBucketChecks);
+    }
+
+    [Fact]
+    public void InstrumentPreset_BandAndStarsShowOnlyThatBucket()
+    {
+        var top = new SongsStatPreset(Instrument.Lead, null, TopPercent: 5).ApplyTo(new AppSettings());
+        Assert.Equal(SongBuckets.PercentileKeys.Where(k => k != 5), top.PlayerScoreFilter.ExcludedPercentiles);
+        Assert.Empty(top.PlayerScoreFilter.ExcludedStars);
+        var gold = new SongsStatPreset(Instrument.Lead, null, Stars: 6).ApplyTo(new AppSettings());
+        Assert.Equal([0, 1, 2, 3, 4, 5], gold.PlayerScoreFilter.ExcludedStars);
+        Assert.Equal(SongSortMode.Stars, gold.SongSort);
     }
 
     [Fact]
