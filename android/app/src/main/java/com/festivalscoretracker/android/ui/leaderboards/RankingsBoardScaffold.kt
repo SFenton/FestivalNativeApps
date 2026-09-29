@@ -176,7 +176,8 @@ private fun AnchoredFooter(idPrefix: String, footer: @Composable ColumnScope.() 
 fun AnchoredRowCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Surface(
         shape = RoundedCornerShape(12.dp),
-        color = BrandTokens.cardBackground.copy(alpha = 0.96f),
+        // Opaque: no row may show through a pinned footer (operator batch 5).
+        color = BrandTokens.cardBackground,
         border = BorderStroke(1.dp, BrandTokens.glassBorder),
         shadowElevation = 4.dp,
         modifier = modifier.fillMaxWidth(),

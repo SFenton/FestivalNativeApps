@@ -451,7 +451,7 @@ fun RankingsPager(page: Int, totalPages: Int, idPrefix: String, onChange: (Int) 
 }
 
 /** Opaque frosted fill for the floating pager, legible over rows scrolling beneath it. */
-private val PagerSurface: Color get() = BrandTokens.cardBackground.copy(alpha = 0.96f)
+private val PagerSurface: Color get() = BrandTokens.cardBackground
 
 /**
  * One frosted circular pager button (web `PaginatorButton`): 48 dp, dimmed when disabled.
