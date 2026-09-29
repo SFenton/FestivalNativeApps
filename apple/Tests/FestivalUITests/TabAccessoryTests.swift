@@ -49,6 +49,27 @@ struct TabAccessoryRegistryTests {
         #expect(registry.items(in: detailPage).map(\.id) == [links])
     }
 
+    /// The incoming page of a push or pop is the front one as soon as it appears; the
+    /// outgoing page gets the controls back if it is still on screen afterwards (a
+    /// cancelled interactive pop).
+    @Test func frontPageIsTheLatestStillOnScreen() {
+        let registry = TabAccessoryRegistry()
+        let songs = UUID()
+        let detail = UUID()
+        registry.pageAppeared(songs)
+        #expect(registry.isFront(songs))
+        registry.pageAppeared(detail)   // push starts
+        #expect(registry.isFront(detail) && !registry.isFront(songs))
+        registry.pageDisappeared(songs) // push ends
+        #expect(registry.isFront(detail))
+        registry.pageAppeared(songs)    // interactive pop starts
+        #expect(registry.isFront(songs))
+        registry.pageDisappeared(songs) // pop cancelled
+        #expect(registry.isFront(detail))
+        registry.pageAppeared(detail)   // re-appearing never duplicates
+        #expect(registry.pageScopes == [detail])
+    }
+
     @Test func removingUnknownIdIsHarmless() {
         let registry = TabAccessoryRegistry()
         let songs = UUID()

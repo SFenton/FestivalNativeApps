@@ -29,6 +29,8 @@ final class TabAccessoryRegistry {
     }
 
     private(set) var entries: [Entry] = []
+    /// Pages whose floating controls are on screen, in the order they appeared.
+    private(set) var pageScopes: [UUID] = []
 
     /// The page controls to show after Search, in dock order (stable for equal orders).
     var items: [Entry] {
@@ -70,6 +72,36 @@ final class TabAccessoryRegistry {
     /// - Returns: Only that page's controls, so a push never shows two pages' buttons.
     func items(in scope: UUID) -> [Entry] {
         items.filter { $0.scope == scope }
+    }
+
+    /// A page started appearing (a push, a pop revealing it, or a tab switch).
+    ///
+    /// SwiftUI calls `onAppear` for the incoming page when a transition starts and
+    /// `onDisappear` for the outgoing one only when it ends, so both pages are on screen
+    /// in between. The most recently appeared page is the front one.
+    ///
+    /// - Parameter scope: The page's `FloatingPageControls` scope.
+    func pageAppeared(_ scope: UUID) {
+        pageScopes.removeAll { $0 == scope }
+        pageScopes.append(scope)
+    }
+
+    /// A page finished disappearing.
+    ///
+    /// - Parameter scope: The page's `FloatingPageControls` scope.
+    func pageDisappeared(_ scope: UUID) {
+        pageScopes.removeAll { $0 == scope }
+    }
+
+    /// Whether a page is the front one, whose controls float. During a push or pop
+    /// only the incoming page's controls show, so two pages' buttons never overlap
+    /// over transparent pages; a cancelled interactive pop hands the controls back
+    /// when the revealed page disappears again.
+    ///
+    /// - Parameter scope: The page's `FloatingPageControls` scope.
+    /// - Returns: True for the most recently appeared page still on screen.
+    func isFront(_ scope: UUID) -> Bool {
+        pageScopes.last == scope
     }
 
     /// Remove a control (its page disappeared or no longer offers it).
@@ -156,12 +188,18 @@ struct FloatingPageControls: ViewModifier {
 
     func body(content: Content) -> some View {
         let items = registry?.items(in: scope) ?? []
+        // Only the front page draws its buttons (see `TabAccessoryRegistry.isFront`);
+        // the inset stays so an outgoing page's layout does not jump mid-transition.
+        let front = registry?.isFront(scope) ?? false
         content
             .environment(\.floatingControlsScope, scope)
             .environment(\.floatingControlsInset, items.isEmpty ? 0 : Self.height)
             .safeAreaPadding(.bottom, items.isEmpty ? 0 : Self.height)
+            .onAppear { registry?.pageAppeared(scope) }
+            .onDisappear { registry?.pageDisappeared(scope) }
+            .animation(.easeInOut(duration: 0.15), value: front)
             .overlay(alignment: .bottomTrailing) {
-                if !items.isEmpty {
+                if !items.isEmpty && front {
                     FestivalGlassGroup(spacing: 12) {
                         HStack(spacing: 12) {
                             ForEach(items, id: \.id) { item in
