@@ -4,19 +4,53 @@ using CommunityToolkit.Mvvm.Input;
 namespace Festival.Core.ViewModels;
 
 #region Song detail
-/// <summary>Song Detail: header, Intensity for all charted instruments, and a top-10 card per visible chart.</summary>
+/// <summary>
+/// Song Detail: header, Intensity for all charted instruments, the selected player's score history, and a top-10 card per
+/// visible chart. Like the web (<c>SongDetailPage.tsx</c> <c>allReady</c>), the page stays on its spinner until the song,
+/// the player's scores, the history and every chart's top rows (one <c>/all</c> read) are in, then reveals everything.
+/// </summary>
 public sealed partial class SongDetailViewModel : ObservableObject
 {
+    /// <summary>Rows per chart card.</summary>
+    public const int PreviewTop = 10;
+
+    /// <summary>Quick Links / scroll anchor of the history section.</summary>
+    public const string HistoryQuickLinkId = "score-history";
+
     private readonly FestivalSession session;
+    private string? lastAccount;
 
     /// <summary>Creates the page model for a route.</summary>
     /// <param name="session">Shared session.</param>
     /// <param name="route">Detail route (song ID and optional initial chart).</param>
-    public SongDetailViewModel(FestivalSession session, AppRoute.SongDetail route)
+    public SongDetailViewModel(FestivalSession session, AppRoute.SongDetail route) : this(session, route.SongId, route.Instrument, false)
+    {
+    }
+
+    /// <summary>Creates the page model for the score-history route: Song Detail scrolled to the history section.</summary>
+    /// <param name="session">Shared session.</param>
+    /// <param name="route">History route (song and chart).</param>
+    public SongDetailViewModel(FestivalSession session, AppRoute.PlayerHistory route) : this(session, route.SongId, route.Instrument, true)
+    {
+    }
+
+    /// <summary>Shared constructor.</summary>
+    /// <param name="session">Shared session.</param>
+    /// <param name="songId">Song.</param>
+    /// <param name="instrument">Initial chart.</param>
+    /// <param name="scrollToHistory">Whether to open at the history section.</param>
+    private SongDetailViewModel(FestivalSession session, string songId, Instrument? instrument, bool scrollToHistory)
     {
         this.session = session;
-        SongId = route.SongId;
-        InitialInstrument = route.Instrument;
+        SongId = songId;
+        InitialInstrument = instrument;
+        ScrollToHistory = scrollToHistory;
+        lastAccount = session.SelectedPlayer?.AccountId;
+        History = new SongScoreHistoryViewModel(session, songId, instrument);
+        History.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(SongScoreHistoryViewModel.Phase)) OnPropertyChanged(nameof(QuickLinkSections));
+        };
         Status = new ServiceStatusViewModel("song-detail", "Song unavailable", LoadAsync, session.Time);
         session.PropertyChanged += OnSessionChanged;
     }
@@ -29,10 +63,22 @@ public sealed partial class SongDetailViewModel : ObservableObject
     /// <param name="e">Changed property.</param>
     private void OnSessionChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(FestivalSession.Settings) && session.SelectedPlayer?.AccountId != lastAccount)
+        {
+            // Per-entity reset: another player's history (the cards follow through the score source below).
+            lastAccount = session.SelectedPlayer?.AccountId;
+            if (State == LoadState.Loaded) _ = History.LoadAsync(Song, VisibleCharted());
+        }
         if (!SongScoreSource.AffectsRows(e.PropertyName) && e.PropertyName != nameof(FestivalSession.Catalog)) return;
         var scores = SongScoreSource.For(session);
         foreach (var card in Leaderboards) card.UpdatePlayer(scores);
     }
+
+    /// <summary>The selected player's score history section.</summary>
+    public SongScoreHistoryViewModel History { get; }
+
+    /// <summary>Whether the page opens scrolled to the history section (the <c>/songs/:id/:instrument/history</c> route).</summary>
+    public bool ScrollToHistory { get; }
 
     /// <summary>Requested song.</summary>
     public string SongId { get; }
@@ -63,14 +109,20 @@ public sealed partial class SongDetailViewModel : ObservableObject
     private List<LeaderboardPreviewViewModel> leaderboards = [];
 
     /// <summary>
-    /// Quick Links (web <c>SongDetailPage.tsx:528-602</c>, offered on mobile only): <c>intensity</c>, then one
-    /// <c>instrument-&lt;key&gt;</c> per leaderboard card. Score history and band sections have no Windows section yet.
+    /// Quick Links (web <c>SongDetailPage.tsx:535-587</c>, offered on mobile only): <c>intensity</c>, <c>score-history</c> while
+    /// that section shows, then one <c>instrument-&lt;key&gt;</c> per leaderboard card. Band sections have no Windows section yet.
     /// </summary>
-    public List<QuickLinkSection> QuickLinkSections => Leaderboards.Count == 0 ? [] :
-    [
-        new("intensity", "Intensity", "\uE9D9"),
-        .. Leaderboards.Select(c => new QuickLinkSection(c.QuickLinkId, c.Title, Instrument: c.Instrument)),
-    ];
+    public List<QuickLinkSection> QuickLinkSections
+    {
+        get
+        {
+            if (Leaderboards.Count == 0) return [];
+            List<QuickLinkSection> sections = [new("intensity", "Intensity", "\uE9D9")];
+            if (History.IsVisible) sections.Add(new(HistoryQuickLinkId, "Score History", "\uE81C"));
+            sections.AddRange(Leaderboards.Select(c => new QuickLinkSection(c.QuickLinkId, c.Title, Instrument: c.Instrument)));
+            return sections;
+        }
+    }
 
     /// <summary>Validated offer for this song (none while the Shop is hidden).</summary>
     [ObservableProperty]
@@ -122,7 +174,11 @@ public sealed partial class SongDetailViewModel : ObservableObject
     /// <summary>Whether the page is loading.</summary>
     public bool IsLoading => State == LoadState.Loading;
 
-    /// <summary>Resolves the song against the catalogue and builds sections.</summary>
+    /// <summary>
+    /// Resolves the song against the catalogue, then reads the player's scores, their history for this song and every
+    /// chart's top rows together; the page keeps its spinner until all of them settle (a failed chart read becomes each
+    /// card's inline error with Retry, a failed history read the section's).
+    /// </summary>
     /// <returns>Load task.</returns>
     [RelayCommand]
     public async Task LoadAsync()
@@ -139,14 +195,16 @@ public sealed partial class SongDetailViewModel : ObservableObject
                 .Where(found.Supports)
                 .Select(i => new IntensityRow(i, found.Difficulty!.ChartedValue(i)!.Value, found.UsesKeyboardIcon))
                 .ToList();
-            var visible = session.Settings.VisibleInstruments;
             await SongScoreSource.LoadAsync(session);
             var scores = SongScoreSource.For(session);
-            Leaderboards = InstrumentInfo.All
-                .Where(i => visible.Contains(i) && found.Supports(i))
-                .Select(i => new LeaderboardPreviewViewModel(session, found, i, scores))
-                .ToList();
-            PathInstruments = [.. InstrumentInfo.All.Where(i => i.HasPaths() && visible.Contains(i) && found.Supports(i))];
+            var charted = VisibleCharted();
+            var cards = charted.Select(i => new LeaderboardPreviewViewModel(session, found, i, scores)).ToList();
+            await Task.WhenAll(cards.Count == 0 ? Task.CompletedTask : LoadBoardsAsync(found, cards), History.LoadAsync(found, charted));
+            // Scores may have settled while the reads ran (the session only updates published cards).
+            var latest = SongScoreSource.For(session);
+            foreach (var card in cards) card.UpdatePlayer(latest);
+            Leaderboards = cards;
+            PathInstruments = [.. charted.Where(i => i.HasPaths())];
             State = LoadState.Loaded;
             await LoadShopAsync();
         }
@@ -154,6 +212,32 @@ public sealed partial class SongDetailViewModel : ObservableObject
         {
             Status.Report(error);
             State = LoadState.Failed;
+        }
+    }
+
+    /// <summary>Visible charted instruments in display order (cards, history selector and Paths).</summary>
+    /// <returns>Instruments.</returns>
+    private List<Instrument> VisibleCharted()
+    {
+        var visible = session.Settings.VisibleInstruments;
+        return Song is { } song ? [.. InstrumentInfo.All.Where(i => visible.Contains(i) && song.Supports(i))] : [];
+    }
+
+    /// <summary>Fills every card from one <c>/all</c> read, or reports its failure on each card.</summary>
+    /// <param name="song">Song.</param>
+    /// <param name="cards">Cards.</param>
+    /// <returns>Load task.</returns>
+    private async Task LoadBoardsAsync(Song song, List<LeaderboardPreviewViewModel> cards)
+    {
+        try
+        {
+            double? leeway = session.Settings.FilterInvalidScores ? session.Settings.Leeway : null;
+            var all = await session.Api.GetAllLeaderboardsAsync(song.SongId, PreviewTop, leeway);
+            foreach (var card in cards) card.Apply(all.For(card.Instrument));
+        }
+        catch (FestivalApiException error)
+        {
+            foreach (var card in cards) card.Fail(error);
         }
     }
 
@@ -263,50 +347,22 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
     /// <summary>Route for the full 25-row leaderboard.</summary>
     public AppRoute FullRoute => new AppRoute.SongLeaderboard(Song.SongId, Instrument);
 
-    /// <summary>Whether a player is selected (adds the score history link).</summary>
+    /// <summary>Whether a player is selected.</summary>
     public bool HasPlayer { get; }
 
     /// <summary>Selected player's account, for row highlighting.</summary>
     public string? PlayerAccountId { get; }
 
-    /// <summary>Selected player's score summary for this chart, or an explicit state.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasPlayerSummary), nameof(ShowPlayerSummary))]
-    private string? playerSummary;
-
-    /// <summary>Recomputes the player summary and row eleven (scores finished loading, went syncing or paused).</summary>
+    /// <summary>Recomputes row eleven (scores finished loading, went syncing or paused).</summary>
     /// <param name="scores">Current score source.</param>
     public void UpdatePlayer(SongScoreSource? scores)
     {
         playerDetail = scores?.Detail?.Invoke(Song.SongId, Instrument) is { Score: > 0 } found ? found : null;
         if (State == LoadState.Loaded) ComposeRows();
-        if (playerDetail is { } detail)
-        {
-            var parts = new List<string> { ScoreFormatting.Score(detail.Score) };
-            if (ScoreFormatting.Accuracy(detail.Accuracy) is { Length: > 0 } accuracy) parts.Add(accuracy);
-            if (detail.IsFullCombo == true) parts.Add("FC");
-            if (SongMetadataPolicy.PercentileBucket(detail.Rank, detail.TotalEntries) is { } bucket) parts.Add(bucket);
-            if (detail.Rank is > 0 and { } rank) parts.Add(ScoreFormatting.Rank(rank));
-            PlayerSummary = "Your score: " + string.Join(" · ", parts);
-        }
-        else
-        {
-            PlayerSummary = scores is { HasPlayer: true } ? scores.Available ? "Your score: no score yet" : scores.RowState : null;
-        }
     }
-
-    /// <summary>Whether <see cref="PlayerSummary"/> exists.</summary>
-    public bool HasPlayerSummary => PlayerSummary is not null;
-
-    /// <summary>
-    /// Whether the summary line shows: only while no leaderboard row stands for the selected player (web cards show the
-    /// player as a highlighted row in the top ten or as row eleven, never as a line of text).
-    /// </summary>
-    public bool ShowPlayerSummary => HasPlayerSummary && !HasPlayerRow;
 
     /// <summary>Whether a row (highlighted top-ten row or row eleven) stands for the selected player.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowPlayerSummary))]
     private bool hasPlayerRow;
 
     /// <summary>"12,345 total entries" (web <c>leaderboard.totalEntries</c>) when the service allows totals; else empty.</summary>
@@ -355,12 +411,6 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
         HasPlayerRow = rows.Any(r => r.IsSelectedPlayer);
     }
 
-    /// <summary>Route to the selected player's score history on this chart.</summary>
-    public AppRoute HistoryRoute => new AppRoute.PlayerHistory(Song.SongId, Instrument);
-
-    /// <summary>"View Lead Score History".</summary>
-    public string HistoryLabel => $"View {Instrument.Label()} Score History";
-
     /// <summary>Inline failed-read presentation.</summary>
     public ServiceStatusViewModel Status { get; }
 
@@ -394,7 +444,7 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
         return LoadAsync();
     }
 
-    /// <summary>Reads the top ten scores.</summary>
+    /// <summary>Reads the top ten scores (Retry, or a card created without a prefetched page).</summary>
     /// <returns>Load task.</returns>
     public async Task LoadAsync()
     {
@@ -403,23 +453,38 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
         try
         {
             double? leeway = session.Settings.FilterInvalidScores ? session.Settings.Leeway : null;
-            var board = await session.Api.GetLeaderboardAsync(Song.SongId, Instrument, 1, PreviewSize, leeway);
-            topRows = board.Entries.Select(e => new LeaderboardRow(e)
-            {
-                IsSelectedPlayer = PlayerAccountId is { } id && string.Equals(e.AccountId, id, StringComparison.OrdinalIgnoreCase),
-            }).ToList();
-            TotalEntriesText = board.Entries.Count == 0 ? NoScoresText : board.ShowLeaderboardEntryTotals == true && board.TotalEntries > 0
-                ? string.Create(System.Globalization.CultureInfo.CurrentCulture, $"{board.TotalEntries:N0} total {(board.TotalEntries == 1 ? "entry" : "entries")}") : "";
-            OnPropertyChanged(nameof(HeaderName));
-            ComposeRows();
-            Status.Clear();
-            State = Rows.Count == 0 ? LoadState.Empty : LoadState.Loaded;
+            Apply(await session.Api.GetLeaderboardAsync(Song.SongId, Instrument, 1, PreviewSize, leeway));
         }
         catch (FestivalApiException error)
         {
-            Status.Report(error);
-            State = LoadState.Failed;
+            Fail(error);
         }
+    }
+
+    /// <summary>Shows a page of top rows (from the song's <c>/all</c> read or this chart's own read).</summary>
+    /// <param name="board">Rows for this chart.</param>
+    public void Apply(LeaderboardResponse board)
+    {
+        started = true;
+        topRows = board.Entries.Select(e => new LeaderboardRow(e)
+        {
+            IsSelectedPlayer = PlayerAccountId is { } id && string.Equals(e.AccountId, id, StringComparison.OrdinalIgnoreCase),
+        }).ToList();
+        TotalEntriesText = board.Entries.Count == 0 ? NoScoresText : board.ShowLeaderboardEntryTotals == true && board.TotalEntries > 0
+            ? string.Create(System.Globalization.CultureInfo.CurrentCulture, $"{board.TotalEntries:N0} total {(board.TotalEntries == 1 ? "entry" : "entries")}") : "";
+        OnPropertyChanged(nameof(HeaderName));
+        ComposeRows();
+        Status.Clear();
+        State = Rows.Count == 0 ? LoadState.Empty : LoadState.Loaded;
+    }
+
+    /// <summary>Shows the inline error with Retry.</summary>
+    /// <param name="error">Failure.</param>
+    public void Fail(FestivalApiException error)
+    {
+        started = true;
+        Status.Report(error);
+        State = LoadState.Failed;
     }
 }
 

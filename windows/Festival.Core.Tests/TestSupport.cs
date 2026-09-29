@@ -52,6 +52,15 @@ public static class Wire
         return $$"""{"songId":"{{songId}}","instrument":"{{instrument}}","count":{{count}},"totalEntries":{{total}},"localEntries":{{Num(local)}},"entries":[{{entries}}]}""";
     }
 
+    /// <summary><c>/api/leaderboard/{song}/all</c>: every chart with <paramref name="count"/> rows (ten by default).</summary>
+    public static string AllLeaderboards(string songId, int count = 10, bool? totals = null)
+    {
+        var blocks = InstrumentInfo.All.Select(i =>
+            $$"""{"instrument":"{{i.ServiceId()}}","count":{{count}},"totalEntries":100,"localEntries":90,"entries":[{{string.Join(",", Enumerable.Range(1, count).Select(Entry))}}]}""");
+        var flag = totals is null ? "" : "\"showLeaderboardEntryTotals\":" + Lower(totals.Value) + ",";
+        return $$"""{"songId":"{{songId}}",{{flag}}"instruments":[{{string.Join(",", blocks)}}]}""";
+    }
+
     private static string Entry(int i) =>
         $$"""{"accountId":"a{{i}}","displayName":"Player {{i}}","score":{{100000 - i}},"rank":{{i}},"accuracy":985000,"isFullCombo":{{Lower(i == 1)}},"stars":6,"season":15}""";
 
@@ -100,6 +109,8 @@ public sealed class FakeService
         var pub = ("X-FST-Publication-Id", PublicationId.ToString(System.Globalization.CultureInfo.InvariantCulture));
         if (path == "/api/publication") return Wire.Ok(Wire.Publication(PublicationId));
         if (path == "/api/songs") return Wire.Ok(SongsBody, pub, ("ETag", "W/\"songs\""));
+        if (path.StartsWith("/api/leaderboard/", StringComparison.Ordinal) && path.EndsWith("/all", StringComparison.Ordinal))
+            return Wire.Ok(Wire.AllLeaderboards(path.Split('/')[3]), pub);
         if (path.StartsWith("/api/leaderboard/", StringComparison.Ordinal))
         {
             var parts = path.Split('/');

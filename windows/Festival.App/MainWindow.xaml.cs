@@ -142,7 +142,7 @@ public sealed partial class MainWindow : Window
         AppRoute.Band => typeof(BandsDetailPage),
         AppRoute.SongBandLeaderboard => typeof(BandsSongLeaderboardPage),
         AppRoute.Player => typeof(PlayerProfilePage),
-        AppRoute.PlayerHistory => typeof(PlayerHistoryPage),
+        AppRoute.PlayerHistory => typeof(SongDetailPage), // score history lives on Song Detail (opened scrolled to it)
         AppRoute.SongLeaderboard => typeof(LeaderboardsSongPage),
         AppRoute.Leaderboards => typeof(LeaderboardsPage),
         AppRoute.FullRankings => typeof(LeaderboardsFullRankingsPage),

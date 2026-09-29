@@ -1,0 +1,447 @@
+using System.Net;
+using Festival.Core.ViewModels;
+
+namespace Festival.Core.Tests;
+
+public class SongScoreHistoryDomainTests
+{
+    private static ScoreHistoryEntry Entry(string ins = "Solo_Guitar", long score = 1000, double? acc = 950000, bool? fc = false,
+        string? achieved = "2026-03-01T10:00:00Z", string changed = "2026-03-02T10:00:00Z", int? season = 9) =>
+        new() { SongId = "s1", Instrument = ins, NewScore = score, Accuracy = acc, IsFullCombo = fc, ScoreAchievedAt = achieved, ChangedAt = changed, Season = season };
+
+    [Fact]
+    public void Point_ProjectsAccuracyGoldAndLabels()
+    {
+        var gold = new ScoreHistoryPoint(Entry(acc: 1000000, fc: true), new DateTimeOffset(2026, 3, 30, 12, 0, 0, TimeSpan.Zero));
+        Assert.Equal(100, gold.AccuracyPercent);
+        Assert.True(gold.IsGold);
+        Assert.Equal(1000, gold.Score);
+        Assert.Matches(@"^3/3\d/26$", gold.DateLabel);
+        Assert.Matches(@"^Mar 3\d, 2026$", gold.LongDate);
+        var plain = new ScoreHistoryPoint(Entry(acc: 1000000, fc: false), DateTimeOffset.UnixEpoch);
+        Assert.False(plain.IsGold);
+        Assert.Equal(0, new ScoreHistoryPoint(Entry(acc: null), DateTimeOffset.UnixEpoch).AccuracyPercent);
+        Assert.Equal(0, new ScoreHistoryPoint(Entry(acc: double.NaN), DateTimeOffset.UnixEpoch).AccuracyPercent);
+    }
+
+    [Fact]
+    public void FilterInvalid_UsesMaxScoreTimesLeeway()
+    {
+        var song = new Song { SongId = "s1", MaxScores = new Dictionary<string, int> { ["Solo_Guitar"] = 1000 } };
+        List<ScoreHistoryEntry> rows = [Entry(score: 1000), Entry(score: 1010), Entry(score: 1011), Entry("Solo_Bass", 5000), Entry("Weird", 9000)];
+        Assert.Equal(5, SongScoreHistory.FilterInvalid(rows, song, false, 1).Count);
+        Assert.Equal(5, SongScoreHistory.FilterInvalid(rows, null, true, 1).Count);
+        Assert.Equal([1000, 1010, 5000, 9000], SongScoreHistory.FilterInvalid(rows, song, true, 1).Select(r => r.NewScore));
+        Assert.Equal([1000, 5000, 9000], SongScoreHistory.FilterInvalid(rows, song, true, 0).Select(r => r.NewScore));
+    }
+
+    [Fact]
+    public void Counts_DefaultInstrument_PointsAndTopScores()
+    {
+        List<ScoreHistoryEntry> rows =
+        [
+            Entry("Solo_Bass", 10, achieved: "2026-01-03T00:00:00Z"), Entry("Solo_Bass", 30, achieved: "2026-01-01T00:00:00Z"),
+            Entry("Solo_Bass", 20, achieved: null, changed: "2026-01-02T00:00:00Z"), Entry("Solo_Drums", 5), Entry("Nope", 1),
+            Entry("Solo_Bass", 40, achieved: "garbage", changed: "garbage"),
+        ];
+        var counts = SongScoreHistory.Counts(rows);
+        Assert.Equal(4, counts[Instrument.Bass]);
+        Assert.Equal(1, counts[Instrument.Drums]);
+        Instrument[] pool = [Instrument.Lead, Instrument.Bass, Instrument.Drums];
+        Assert.Equal(Instrument.Drums, SongScoreHistory.DefaultInstrument(pool, counts, Instrument.Drums));
+        Assert.Equal(Instrument.Bass, SongScoreHistory.DefaultInstrument(pool, counts, Instrument.Vocals));
+        Assert.Equal(Instrument.Bass, SongScoreHistory.DefaultInstrument(pool, counts, null));
+        counts[Instrument.Lead] = 1;
+        Assert.Equal(Instrument.Lead, SongScoreHistory.DefaultInstrument(pool, counts, null));
+        Assert.Null(SongScoreHistory.DefaultInstrument([Instrument.Vocals], counts, null));
+
+        var points = SongScoreHistory.Points(rows, Instrument.Bass);
+        Assert.Equal([30, 20, 10], points.Select(p => p.Score)); // oldest first; undated dropped
+        Assert.Equal([30, 20, 10], SongScoreHistory.TopScores(points).Select(p => p.Score));
+        var many = Enumerable.Range(1, 7).Select(i => new ScoreHistoryPoint(Entry(score: i), DateTimeOffset.UnixEpoch.AddDays(i))).ToList();
+        Assert.Equal([7, 6, 5, 4, 3], SongScoreHistory.TopScores(many).Select(p => p.Score));
+        Assert.Equal(7, SongScoreHistory.TopScores(many, all: true).Count);
+    }
+
+    [Theory]
+    [InlineData(0, 220, 40, 40)]
+    [InlineData(100, 46, 204, 113)]
+    [InlineData(50, 133, 122, 77)]
+    [InlineData(-50, 220, 40, 40)]
+    [InlineData(150, 46, 204, 113)]
+    [InlineData(double.NaN, 220, 40, 40)]
+    public void AccuracyColor_MatchesWeb(double percent, byte r, byte g, byte b) =>
+        Assert.Equal((r, g, b), SongScoreHistory.AccuracyColor(percent));
+
+    [Theory]
+    [InlineData(0, 4)]
+    [InlineData(3, 4)]
+    [InlineData(20, 20)]
+    [InlineData(90923, 100000)]
+    [InlineData(176616, 200000)]
+    [InlineData(1000, 1000)]
+    [InlineData(1001, 1200)]
+    public void NiceMax_RoundsUpToFourSteps(long max, long expected) => Assert.Equal(expected, ScoreHistoryChartScale.NiceMax(max));
+
+    [Fact]
+    public void Scale_TicksAndBars()
+    {
+        Assert.Equal("25k", ScoreHistoryChartScale.Tick(25000));
+        Assert.Equal("500", ScoreHistoryChartScale.Tick(500));
+        Assert.Equal(int.MaxValue, ScoreHistoryChartScale.MaxBars(0));
+        Assert.Equal(int.MaxValue, ScoreHistoryChartScale.MaxBars(double.NaN));
+        Assert.Equal(1, ScoreHistoryChartScale.MaxBars(50));
+        Assert.Equal(2, ScoreHistoryChartScale.MaxBars(200));
+        Assert.Equal(1, ScoreHistoryChartScale.MaxBars(199));
+    }
+
+    [Fact]
+    public void Pager_PagesFromNewestAndFollowsSelection()
+    {
+        var pager = new ScoreHistoryPager();
+        pager.Reset(10);
+        Assert.False(pager.NeedsPagination);
+        pager.SetMaxBars(4);
+        Assert.True(pager.NeedsPagination);
+        Assert.True(pager.ShowPageJumps);
+        Assert.Equal((6, 10), (pager.PageStart, pager.PageEnd));
+        Assert.True(pager.ForwardDisabled);
+        Assert.False(pager.BackDisabled);
+        pager.BackEntry();
+        Assert.Equal((5, 9), (pager.PageStart, pager.PageEnd));
+        pager.BackPage();
+        pager.BackPage();
+        Assert.Equal((0, 4), (pager.PageStart, pager.PageEnd));
+        Assert.True(pager.BackDisabled);
+        pager.ForwardPage();
+        Assert.Equal((4, 8), (pager.PageStart, pager.PageEnd));
+
+        pager.Toggle(4);
+        Assert.Equal(4, pager.SelectedIndex);
+        pager.BackEntry(); // 3 is off the page → the page starts at 3
+        Assert.Equal(3, pager.SelectedIndex);
+        Assert.Equal((3, 7), (pager.PageStart, pager.PageEnd));
+        pager.ForwardPage(); // 7 → the page ends at 7
+        Assert.Equal(7, pager.SelectedIndex);
+        Assert.Equal((4, 8), (pager.PageStart, pager.PageEnd));
+        pager.ForwardEntry(); // 8 → page includes 8
+        Assert.Equal((5, 9), (pager.PageStart, pager.PageEnd));
+        pager.ForwardPage();
+        Assert.Equal(9, pager.SelectedIndex);
+        Assert.True(pager.ForwardDisabled);
+        pager.Toggle(9);
+        Assert.Equal(-1, pager.SelectedIndex);
+        pager.Toggle(99);
+        Assert.Equal(-1, pager.SelectedIndex);
+        pager.Toggle(0);
+        Assert.True(pager.BackDisabled);
+        pager.ClearSelection();
+        Assert.Equal(-1, pager.SelectedIndex);
+
+        pager.SetMaxBars(1);
+        Assert.False(pager.ShowPageJumps);
+        pager.Reset(0);
+        pager.BackEntry();
+        Assert.Equal(0, pager.Offset);
+    }
+
+    [Fact]
+    public void Reveal_FollowsTheWebSchedule()
+    {
+        Assert.False(SongDetailReveal.Animates(TimeSpan.FromMilliseconds(100), true));
+        Assert.True(SongDetailReveal.Animates(TimeSpan.FromMilliseconds(400), true));
+        Assert.False(SongDetailReveal.Animates(TimeSpan.FromSeconds(2), false));
+        Assert.Equal(TimeSpan.FromMilliseconds(300), SongDetailReveal.Card(1, 2));
+        Assert.Equal(TimeSpan.FromMilliseconds(450), SongDetailReveal.Card(2, 2));
+        Assert.Equal(TimeSpan.FromMilliseconds(600), SongDetailReveal.Card(2, 1));
+        Assert.Equal(TimeSpan.FromMilliseconds(300), SongDetailReveal.Card(-3, 0));
+    }
+}
+
+public class SongDetailApiTests
+{
+    [Fact]
+    public void Endpoints_ValidateArguments()
+    {
+        var baseUri = new Uri(Wire.BaseUrl);
+        Assert.EndsWith("/api/leaderboard/s1/all?top=10", ServiceEndpoints.AllLeaderboards(baseUri, "s1").AbsoluteUri);
+        Assert.EndsWith("top=5&leeway=1.5", ServiceEndpoints.AllLeaderboards(baseUri, "s1", 5, 1.5).AbsoluteUri);
+        Assert.Throws<FestivalApiException>(() => ServiceEndpoints.AllLeaderboards(baseUri, "s1", 26));
+        Assert.Throws<FestivalApiException>(() => ServiceEndpoints.AllLeaderboards(baseUri, "s1", 10, 9));
+        Assert.Throws<FestivalApiException>(() => ServiceEndpoints.AllLeaderboards(baseUri, "s1", 10, double.NaN));
+        Assert.Throws<FestivalApiException>(() => ServiceEndpoints.AllLeaderboards(baseUri, "a/b"));
+        Assert.EndsWith($"/api/player/{PlayerWire.Id}/history?songId=s1", ServiceEndpoints.PlayerSongHistory(baseUri, PlayerWire.Id, "s1").AbsoluteUri);
+        Assert.Throws<FestivalApiException>(() => ServiceEndpoints.PlayerSongHistory(baseUri, PlayerWire.Id, ""));
+    }
+
+    [Fact]
+    public async Task AllLeaderboards_ValidatesAndSplitsPerChart()
+    {
+        var service = new FakeService();
+        var all = await service.Client().GetAllLeaderboardsAsync("s1");
+        Assert.Equal(9, all.Instruments.Count);
+        var lead = all.For(Instrument.Lead);
+        Assert.Equal(("s1", "Solo_Guitar", 10, 100, 90), (lead.SongId, lead.Instrument, lead.Count, lead.TotalEntries, lead.LocalEntries));
+        var missing = new AllLeaderboardsResponse { SongId = "s1", ShowLeaderboardEntryTotals = true }.For(Instrument.Bass);
+        Assert.Equal(("Solo_Bass", 0, true), (missing.Instrument, missing.Entries.Count, missing.ShowLeaderboardEntryTotals));
+    }
+
+    [Theory]
+    [InlineData("""{"songId":"other","instruments":[]}""")]
+    [InlineData("""{"songId":"s1","instruments":[{"instrument":"Solo_Guitar","count":2,"totalEntries":1,"entries":[]}]}""")]
+    [InlineData("""{"songId":"s1","instruments":[{"instrument":"Solo_Guitar","count":0,"totalEntries":-1,"entries":[]}]}""")]
+    [InlineData("""{"songId":"s1","instruments":[{"instrument":"Solo_Guitar","count":0,"totalEntries":1,"localEntries":-1,"entries":[]}]}""")]
+    [InlineData("""{"songId":"s1","instruments":[{"instrument":"Solo_Guitar","count":0,"entries":[]},{"instrument":"Solo_Guitar","count":0,"entries":[]}]}""")]
+    [InlineData("""{"songId":"s1","instruments":[null]}""")]
+    public async Task AllLeaderboards_RejectsInconsistentBodies(string body)
+    {
+        var service = new FakeService { Override = r => r.RequestUri!.AbsolutePath.EndsWith("/all", StringComparison.Ordinal) ? Wire.Ok(body, ("X-FST-Publication-Id", "7")) : null };
+        var error = await Assert.ThrowsAsync<FestivalApiException>(() => service.Client().GetAllLeaderboardsAsync("s1"));
+        Assert.Equal(FestivalApiErrorKind.InvalidResponse, error.Kind);
+    }
+
+    [Fact]
+    public async Task SongHistory_MapsSyncingAndUnregistered()
+    {
+        var status = HttpStatusCode.OK;
+        var service = new FakeService
+        {
+            Override = r => r.RequestUri!.AbsolutePath.EndsWith("/history", StringComparison.Ordinal)
+                ? Wire.Response(status, PlayerWire.History(PlayerWire.Id, PlayerWire.HistoryEntry()), ("X-FST-Publication-Id", "7"))
+                : null,
+        };
+        var client = service.Client();
+        var read = await client.GetPlayerSongHistoryAsync(PlayerWire.Id, "s1");
+        Assert.Equal(PlayerHistoryState.Available, read.State);
+        Assert.Single(read.Response.History);
+        status = HttpStatusCode.Accepted;
+        Assert.Equal(PlayerHistoryState.Syncing, (await client.GetPlayerSongHistoryAsync(PlayerWire.Id, "s1")).State);
+        status = HttpStatusCode.NotFound;
+        Assert.Equal(PlayerHistoryState.Unregistered, (await client.GetPlayerSongHistoryAsync(PlayerWire.Id, "s1")).State);
+        status = HttpStatusCode.InternalServerError;
+        await Assert.ThrowsAsync<FestivalApiException>(() => client.GetPlayerSongHistoryAsync(PlayerWire.Id, "s1"));
+    }
+}
+
+public class SongScoreHistoryViewModelTests
+{
+    private static readonly string[] SixLead =
+    [
+        PlayerWire.HistoryEntry("s1", "Solo_Guitar", 100, achieved: "2026-01-01T00:00:00Z", season: 1),
+        PlayerWire.HistoryEntry("s1", "Solo_Guitar", 600, achieved: "2026-01-02T00:00:00Z", fc: true, acc: 1000000),
+        PlayerWire.HistoryEntry("s1", "Solo_Guitar", 300, achieved: "2026-01-03T00:00:00Z", season: null),
+        PlayerWire.HistoryEntry("s1", "Solo_Guitar", 400, achieved: "2026-01-04T00:00:00Z", acc: null),
+        PlayerWire.HistoryEntry("s1", "Solo_Guitar", 500, achieved: "2026-01-05T00:00:00Z"),
+        PlayerWire.HistoryEntry("s1", "Solo_Guitar", 200, achieved: "2026-01-06T00:00:00Z"),
+        PlayerWire.HistoryEntry("s1", "Solo_Bass", 50),
+        PlayerWire.HistoryEntry("other", "Solo_Bass", 70),
+        PlayerWire.HistoryEntry("s1", "Solo_Vocals", 70),
+    ];
+
+    /// <summary>A session with a selected player whose <c>/history</c> answers <paramref name="status"/> + rows.</summary>
+    private static (FakeService Service, FestivalSession Session, Func<HttpStatusCode> Status, Action<HttpStatusCode> SetStatus) Setup(
+        HttpStatusCode status = HttpStatusCode.OK, string[]? rows = null, AppSettings? settings = null)
+    {
+        var service = new FakeService();
+        SongsWire.Install(service, player: true);
+        var inner = service.Override!;
+        var current = status;
+        service.Override = r => r.RequestUri!.AbsolutePath.EndsWith("/history", StringComparison.Ordinal)
+            ? Wire.Response(current, PlayerWire.History(PlayerWire.Id, rows ?? SixLead), ("X-FST-Publication-Id", "7"))
+            : inner(r);
+        var initial = (settings ?? new AppSettings()) with { SelectedPlayer = new SelectedPlayer(PlayerWire.Id, "Fixture One") };
+        return (service, service.Session(settings: initial), () => current, s => current = s);
+    }
+
+    private static Song Song(string id = "s1") => new() { SongId = id };
+
+    [Fact]
+    public async Task NoPlayer_HidesWithoutReading()
+    {
+        var service = new FakeService();
+        var vm = new SongScoreHistoryViewModel(service.Session(), "s1", null);
+        await vm.LoadAsync(Song(), [Instrument.Lead]);
+        Assert.False(vm.IsVisible);
+        Assert.Empty(service.Handler.Requests);
+        Assert.Equal("No score history for this instrument", vm.EmptyMessage);
+    }
+
+    [Fact]
+    public async Task Loaded_PicksLeadAndBuildsChartAndTopFive()
+    {
+        var (service, session, _, _) = Setup();
+        var vm = new SongScoreHistoryViewModel(session, "s1", null);
+        await vm.LoadAsync(Song(), [Instrument.Lead, Instrument.Bass, Instrument.Drums]);
+        Assert.Single(service.Handler.To($"/api/player/{PlayerWire.Id}/history"));
+        Assert.True(vm.ShowChart);
+        Assert.True(vm.IsVisible);
+        Assert.False(vm.ShowSyncing || vm.ShowError);
+        Assert.Equal([Instrument.Lead, Instrument.Bass], vm.Instruments);
+        Assert.Equal(Instrument.Lead, vm.Selected);
+        Assert.Equal(6, vm.Points.Count);
+        Assert.Equal(6, vm.Bars.Count);
+        Assert.False(vm.ShowPaging);
+        Assert.Equal([600, 500, 400, 300, 200], vm.Rows.Select(r => r.Point.Score));
+        Assert.True(vm.Rows[0].IsBest);
+        Assert.True(vm.CanViewAll);
+        Assert.Contains("Lead score history, 6 of 6 scores", vm.ChartSummary);
+        Assert.Equal("No score history for Lead", vm.EmptyMessage);
+        Assert.Equal("Score ↓", vm.SortLabel);
+        Assert.Equal("Sort scores by Score, descending", vm.SortAnnouncement);
+        Assert.Equal(("Score History", "View all scores"), (vm.Title, vm.ViewAllLabel));
+        Assert.StartsWith("Select a bar", vm.Subtitle);
+        Assert.False(vm.KeyboardLead);
+
+        vm.ViewAll();
+        Assert.Equal(6, vm.Rows.Count);
+        Assert.False(vm.CanViewAll);
+        vm.SortBy(PlayerScoreSortMode.Date);
+        Assert.Equal([200, 500, 400, 300, 600, 100], vm.Rows.Select(r => r.Point.Score));
+        Assert.True(vm.Rows[4].IsBest);
+        vm.ToggleDirection();
+        Assert.Equal(100, vm.Rows[0].Point.Score);
+        vm.ResetSort();
+        Assert.Equal(600, vm.Rows[0].Point.Score);
+
+        vm.SelectInstrument(Instrument.Bass);
+        Assert.Single(vm.Points);
+        Assert.False(vm.ShowAll);
+        Assert.False(vm.CanViewAll);
+        vm.SelectInstrument(Instrument.Drums); // not in the selector
+        Assert.Equal(Instrument.Bass, vm.Selected);
+    }
+
+    [Fact]
+    public async Task Bars_PageAndSelectDetailRow()
+    {
+        var (_, session, _, _) = Setup();
+        var vm = new SongScoreHistoryViewModel(session, "s1", Instrument.Lead);
+        await vm.LoadAsync(Song(), [Instrument.Lead]);
+        vm.SetPlotWidth(2 * 96 + 8 + 50); // two bars
+        vm.SetPlotWidth(2 * 96 + 8 + 50); // unchanged: no rebuild
+        Assert.Equal([4, 5], vm.Bars.Select(b => b.Index));
+        Assert.True(vm.ShowPaging);
+        Assert.True(vm.ShowPageJumps);
+        Assert.True(vm.CanGoBack);
+        Assert.False(vm.CanGoForward);
+        vm.BackEntry();
+        Assert.Equal([3, 4], vm.Bars.Select(b => b.Index));
+        vm.BackPage();
+        vm.ForwardPage();
+        vm.ForwardEntry();
+        Assert.Equal([4, 5], vm.Bars.Select(b => b.Index));
+        vm.ToggleBar(5);
+        Assert.True(vm.HasSelectedPoint);
+        Assert.True(vm.Bars[1].IsSelected);
+        var row = vm.SelectedRow!;
+        Assert.Equal(("200", "S9", true, false), (row.Score, row.Season, row.HasSeason, row.IsBest));
+        Assert.True(row.HasAccuracy);
+        Assert.Equal(950000, row.AccuracyValue);
+        Assert.Contains("score 200", row.Announcement);
+        vm.ToggleBar(5);
+        Assert.False(vm.HasSelectedPoint);
+
+        var fc = vm.Rows[0];
+        Assert.True(fc.IsFullCombo);
+        Assert.Contains("full combo", fc.Announcement);
+        Assert.Contains("personal best", fc.Announcement);
+        var noAccuracy = vm.Rows.Single(r => r.Point.Score == 400);
+        Assert.False(noAccuracy.HasAccuracy);
+        Assert.Equal(0, noAccuracy.AccuracyValue);
+        Assert.False(vm.Rows.Single(r => r.Point.Score == 300).HasSeason);
+    }
+
+    [Fact]
+    public async Task InvalidScoresAreFiltered_AndNoVisibleChartHides()
+    {
+        var (_, session, _, _) = Setup(settings: new AppSettings { FilterInvalidScores = true, Leeway = 0 });
+        var vm = new SongScoreHistoryViewModel(session, "s1", null);
+        var song = new Song { SongId = "s1", MaxScores = new Dictionary<string, int> { ["Solo_Guitar"] = 350 } };
+        await vm.LoadAsync(song, [Instrument.Lead]);
+        Assert.Equal([100, 300, 200], vm.Points.Select(p => p.Score));
+        await vm.LoadAsync(song, [Instrument.Drums]);
+        Assert.False(vm.IsVisible);
+    }
+
+    [Fact]
+    public async Task Syncing_ThenRetryLoads_AndFailureReportsStatus()
+    {
+        var (_, session, _, set) = Setup(HttpStatusCode.Accepted);
+        var vm = new SongScoreHistoryViewModel(session, "s1", null);
+        await vm.LoadAsync(Song(), [Instrument.Lead]);
+        Assert.True(vm.ShowSyncing);
+        Assert.True(vm.IsVisible);
+        set(HttpStatusCode.OK);
+        await vm.RetryCommand.ExecuteAsync(null);
+        Assert.True(vm.ShowChart);
+        set(HttpStatusCode.InternalServerError);
+        await vm.RetryAsync();
+        Assert.True(vm.ShowError);
+        Assert.Equal("Score history unavailable", vm.Status.Title);
+        set(HttpStatusCode.NotFound);
+        await vm.RetryAsync();
+        Assert.False(vm.IsVisible);
+    }
+}
+
+public class SongDetailHistoryPageTests
+{
+    [Fact]
+    public async Task HistoryRoute_OpensSongDetailAtHistory_WithQuickLink()
+    {
+        var service = new FakeService();
+        SongsWire.Install(service, player: true);
+        var inner = service.Override!;
+        service.Override = r => r.RequestUri!.AbsolutePath.EndsWith("/history", StringComparison.Ordinal)
+            ? Wire.Ok(PlayerWire.History(PlayerWire.Id, PlayerWire.HistoryEntry("s1", "Solo_Bass", 50)), ("X-FST-Publication-Id", "7"))
+            : inner(r);
+        var session = service.Session(settings: new AppSettings { SelectedPlayer = new SelectedPlayer(PlayerWire.Id, "Fixture One") });
+        var vm = new SongDetailViewModel(session, new AppRoute.PlayerHistory("s1", Instrument.Bass));
+        Assert.True(vm.ScrollToHistory);
+        Assert.Equal(Instrument.Bass, vm.InitialInstrument);
+        await vm.LoadAsync();
+        Assert.True(vm.ShowContent);
+        Assert.Equal(Instrument.Bass, vm.History.Selected);
+        Assert.Equal(["intensity", SongDetailViewModel.HistoryQuickLinkId, "instrument-Solo_Guitar"], vm.QuickLinkSections.Take(3).Select(s => s.Id));
+        Assert.False(new SongDetailViewModel(session, new AppRoute.SongDetail("s1")).ScrollToHistory);
+
+        // Another player: history re-reads (per-entity reset); none selected hides it.
+        session.SelectPlayer(new PlayerSearchResult(PlayerWire.Other, "Fixture Two"));
+        await Async.Until(() => service.Handler.To($"/api/player/{PlayerWire.Other}/history").Any());
+        session.DeselectPlayer();
+        await Async.Until(() => !vm.History.IsVisible);
+        Assert.DoesNotContain(SongDetailViewModel.HistoryQuickLinkId, vm.QuickLinkSections.Select(s => s.Id));
+        vm.Detach();
+    }
+
+    [Fact]
+    public async Task AllLeaderboardsFailure_FailsEachCardWithRetry()
+    {
+        var service = new FakeService();
+        var fail = true;
+        service.Override = r => fail && r.RequestUri!.AbsolutePath.EndsWith("/all", StringComparison.Ordinal)
+            ? Wire.Response(HttpStatusCode.InternalServerError)
+            : null;
+        var vm = new SongDetailViewModel(service.Session(), new AppRoute.SongDetail("s1"));
+        await vm.LoadAsync();
+        Assert.True(vm.ShowContent);
+        Assert.All(vm.Leaderboards, c => Assert.True(c.ShowError));
+        Assert.False(vm.History.IsVisible);
+        fail = false;
+        await vm.Leaderboards[0].Status.RetryCommand.ExecuteAsync(null);
+        await Async.Until(() => vm.Leaderboards[0].ShowRows);
+    }
+
+    [Fact]
+    public async Task NoVisibleChartedInstrument_SkipsTheBoardsRead()
+    {
+        var service = new FakeService();
+        var vm = new SongDetailViewModel(service.Session(settings: new AppSettings { VisibleInstruments = [Instrument.ProDrums] }),
+            new AppRoute.SongDetail("s1"));
+        await vm.LoadAsync();
+        Assert.True(vm.ShowContent);
+        Assert.Empty(vm.Leaderboards);
+        Assert.Empty(vm.QuickLinkSections);
+        Assert.Empty(service.Handler.To("/api/leaderboard/s1/all"));
+    }
+}

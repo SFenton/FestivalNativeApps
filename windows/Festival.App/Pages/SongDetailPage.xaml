@@ -5,9 +5,43 @@
     xmlns:controls="using:Festival.App.Controls"
     xmlns:vm="using:Festival.Core.ViewModels"
     Background="Transparent">
+    <Page.Resources>
+        <!-- Score-history list/detail row (web LeaderboardEntry with a date label): date, season pill, score, accuracy badge.
+             The personal best is purple with a bold date (web scoreListCardBestStyle + isPlayer). -->
+        <DataTemplate x:Key="HistoryRowTemplate" x:DataType="vm:ScoreHistoryListRow">
+            <Grid ColumnSpacing="12" MinHeight="48" Padding="16,0" CornerRadius="8" BorderThickness="1"
+                  Background="{x:Bind controls:SongDetailVisuals.RowFill(IsBest)}"
+                  BorderBrush="{x:Bind controls:SongDetailVisuals.RowStroke(IsBest)}"
+                  AutomationProperties.Name="{x:Bind Announcement}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="64" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="{x:Bind Date}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                           FontWeight="{x:Bind controls:SongDetailVisuals.Weight(IsBest)}" />
+                <Border Grid.Column="1" CornerRadius="4" Padding="6,1" VerticalAlignment="Center"
+                        Background="{ThemeResource FSTSurfaceMutedBrush}" Visibility="{x:Bind HasSeason}">
+                    <TextBlock Text="{x:Bind Season}" FontSize="12" />
+                </Border>
+                <TextBlock Grid.Column="2" Text="{x:Bind Score}" VerticalAlignment="Center" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                <Border Grid.Column="3" CornerRadius="8" Padding="6,1" MinWidth="56" HorizontalAlignment="Right"
+                        VerticalAlignment="Center" BorderThickness="2"
+                        Background="{x:Bind controls:ScoreBadge.Fill(IsFullCombo, AccuracyValue)}"
+                        BorderBrush="{x:Bind controls:ScoreBadge.Stroke(IsFullCombo)}"
+                        RenderTransform="{x:Bind controls:ScoreBadge.Skew(IsFullCombo)}"
+                        Visibility="{x:Bind HasAccuracy}">
+                    <TextBlock Text="{x:Bind Accuracy}" FontSize="12" FontWeight="Bold" HorizontalAlignment="Center"
+                               Foreground="{x:Bind controls:ScoreBadge.Text(IsFullCombo)}"
+                               FontStyle="{x:Bind controls:ScoreBadge.Style(IsFullCombo)}" />
+                </Border>
+            </Grid>
+        </DataTemplate>
+    </Page.Resources>
 
     <Grid x:Name="Root">
-        <ScrollViewer x:Name="Scroller" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" controls:FadeIn.OnShow="True"
+        <ScrollViewer x:Name="Scroller" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}"
                       ViewChanged="OnScrollerViewChanged" AutomationProperties.AutomationId="fst.song-detail">
             <StackPanel Padding="24,12,24,32" Spacing="8" MaxWidth="1200" HorizontalAlignment="Stretch">
                 <!-- Header: static cover, title, artist · year · duration. -->
@@ -57,6 +91,7 @@
                 <InfoBar IsOpen="{x:Bind ViewModel.HasShopIssue, Mode=OneWay}" IsClosable="False" Severity="Warning"
                          Message="{x:Bind ViewModel.ShopIssueText, Mode=OneWay}" AutomationProperties.AutomationId="fst.song-detail.shop-error" />
 
+                <StackPanel x:Name="IntensitySection">
                 <TextBlock Text="Intensity" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2"
                            controls:QuickLinkAnchor.Id="intensity" />
                 <Border Style="{StaticResource FSTCardStyle}" AutomationProperties.AutomationId="fst.song-detail.intensity">
@@ -85,7 +120,109 @@
                         </ItemsRepeater.ItemTemplate>
                     </ItemsRepeater>
                 </Border>
+                </StackPanel>
 
+                <!-- Score history (web ScoreHistoryChart in GraphCard): selected player only; hidden when there is none. -->
+                <StackPanel x:Name="HistorySection" Spacing="8" Margin="0,16,0,0" Visibility="{x:Bind ViewModel.History.IsVisible, Mode=OneWay}"
+                            controls:QuickLinkAnchor.Id="score-history">
+                    <Border Style="{StaticResource FSTCardStyle}" Padding="16,20">
+                        <StackPanel Spacing="12">
+                            <controls:InstrumentSelector x:Name="HistorySelector" IdPrefix="fst.history.instrument" Required="True"
+                                                         Visibility="{x:Bind ViewModel.History.ShowChart, Mode=OneWay}" />
+                            <StackPanel HorizontalAlignment="Center" Spacing="4">
+                                <TextBlock Text="{x:Bind ViewModel.History.Title}" FontSize="22" FontWeight="Bold" TextAlignment="Center"
+                                           AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.history" />
+                                <TextBlock Text="{x:Bind ViewModel.History.Subtitle}" TextAlignment="Center" TextWrapping="Wrap"
+                                           Foreground="{ThemeResource FSTSecondaryTextBrush}" Opacity="0.8"
+                                           Visibility="{x:Bind ViewModel.History.ShowChart, Mode=OneWay}"
+                                           AutomationProperties.AutomationId="fst.history.subtitle" />
+                            </StackPanel>
+                            <controls:SongScoreHistoryChart Model="{x:Bind ViewModel.History}" Visibility="{x:Bind ViewModel.History.ShowChart, Mode=OneWay}"
+                                                            AutomationProperties.AutomationId="fst.history.chart" />
+                            <!-- Selected bar's detail row (web detail card; half width on desktop). -->
+                            <ContentControl Content="{x:Bind ViewModel.History.SelectedRow, Mode=OneWay}" ContentTemplate="{StaticResource HistoryRowTemplate}"
+                                            HorizontalContentAlignment="Stretch" HorizontalAlignment="Center" MaxWidth="560" MinWidth="280"
+                                            Visibility="{x:Bind ViewModel.History.HasSelectedPoint, Mode=OneWay}" IsTabStop="False"
+                                            AutomationProperties.AutomationId="fst.history.detail" />
+                            <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center"
+                                        Visibility="{x:Bind ViewModel.History.ShowPaging, Mode=OneWay}">
+                                <Button Command="{x:Bind ViewModel.History.BackPageCommand}" IsEnabled="{x:Bind ViewModel.History.CanGoBack, Mode=OneWay}"
+                                        Visibility="{x:Bind ViewModel.History.ShowPageJumps, Mode=OneWay}" Width="40" Height="40" CornerRadius="20" Padding="0"
+                                        AutomationProperties.Name="Back one page" ToolTipService.ToolTip="Back one page"
+                                        AutomationProperties.AutomationId="fst.history.page-back">
+                                    <FontIcon Glyph="&#xE892;" FontSize="12" />
+                                </Button>
+                                <Button Command="{x:Bind ViewModel.History.BackEntryCommand}" IsEnabled="{x:Bind ViewModel.History.CanGoBack, Mode=OneWay}"
+                                        Width="40" Height="40" CornerRadius="20" Padding="0"
+                                        AutomationProperties.Name="Back one entry" ToolTipService.ToolTip="Back one entry"
+                                        AutomationProperties.AutomationId="fst.history.entry-back">
+                                    <FontIcon Glyph="&#xE76B;" FontSize="12" />
+                                </Button>
+                                <Button Command="{x:Bind ViewModel.History.ForwardEntryCommand}" IsEnabled="{x:Bind ViewModel.History.CanGoForward, Mode=OneWay}"
+                                        Width="40" Height="40" CornerRadius="20" Padding="0"
+                                        AutomationProperties.Name="Forward one entry" ToolTipService.ToolTip="Forward one entry"
+                                        AutomationProperties.AutomationId="fst.history.entry-forward">
+                                    <FontIcon Glyph="&#xE76C;" FontSize="12" />
+                                </Button>
+                                <Button Command="{x:Bind ViewModel.History.ForwardPageCommand}" IsEnabled="{x:Bind ViewModel.History.CanGoForward, Mode=OneWay}"
+                                        Visibility="{x:Bind ViewModel.History.ShowPageJumps, Mode=OneWay}" Width="40" Height="40" CornerRadius="20" Padding="0"
+                                        AutomationProperties.Name="Forward one page" ToolTipService.ToolTip="Forward one page"
+                                        AutomationProperties.AutomationId="fst.history.page-forward">
+                                    <FontIcon Glyph="&#xE893;" FontSize="12" />
+                                </Button>
+                            </StackPanel>
+                            <!-- 202: still preparing (paused, never "no history"). -->
+                            <StackPanel Spacing="8" HorizontalAlignment="Center" Visibility="{x:Bind ViewModel.History.ShowSyncing, Mode=OneWay}">
+                                <TextBlock Text="This player's score history is still being prepared. Try again shortly." TextWrapping="Wrap"
+                                           TextAlignment="Center" AutomationProperties.LiveSetting="Polite"
+                                           AutomationProperties.AutomationId="fst.history.message" />
+                                <Button Content="Retry" HorizontalAlignment="Center" Command="{x:Bind ViewModel.History.RetryCommand}" />
+                            </StackPanel>
+                            <StackPanel Spacing="8" HorizontalAlignment="Center" Visibility="{x:Bind ViewModel.History.ShowError, Mode=OneWay}"
+                                        AutomationProperties.AutomationId="fst.service-status.inline">
+                                <TextBlock Text="{x:Bind ViewModel.History.Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" TextAlignment="Center" />
+                                <TextBlock Text="{x:Bind ViewModel.History.Status.Message, Mode=OneWay}" TextWrapping="Wrap" TextAlignment="Center" />
+                                <Button Content="{x:Bind ViewModel.History.Status.RetryLabel, Mode=OneWay}" HorizontalAlignment="Center"
+                                        Command="{x:Bind ViewModel.History.Status.RetryCommand}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                    <!-- Sort applies to the list (Fluent command menu; web list order is Score, descending). -->
+                    <DropDownButton HorizontalAlignment="Right" Visibility="{x:Bind ViewModel.History.ShowChart, Mode=OneWay}"
+                                    AutomationProperties.Name="{x:Bind ViewModel.History.SortAnnouncement, Mode=OneWay}"
+                                    AutomationProperties.AutomationId="fst.history.sort.open">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE8CB;" FontSize="14" />
+                            <TextBlock Text="{x:Bind ViewModel.History.SortLabel, Mode=OneWay}" />
+                        </StackPanel>
+                        <DropDownButton.Flyout>
+                            <MenuFlyout x:Name="SortMenu" Placement="BottomEdgeAlignedRight" Opening="OnSortMenuOpening">
+                                <RadioMenuFlyoutItem Text="Date" GroupName="mode" Tag="Date" Click="OnSortModeClick" AutomationProperties.AutomationId="fst.history.sort.mode.date" />
+                                <RadioMenuFlyoutItem Text="Score" GroupName="mode" Tag="Score" Click="OnSortModeClick" AutomationProperties.AutomationId="fst.history.sort.mode.score" />
+                                <RadioMenuFlyoutItem Text="Accuracy" GroupName="mode" Tag="Accuracy" Click="OnSortModeClick" AutomationProperties.AutomationId="fst.history.sort.mode.accuracy" />
+                                <RadioMenuFlyoutItem Text="Season" GroupName="mode" Tag="Season" Click="OnSortModeClick" AutomationProperties.AutomationId="fst.history.sort.mode.season" />
+                                <MenuFlyoutSeparator />
+                                <RadioMenuFlyoutItem Text="Ascending" GroupName="direction" Tag="asc" Click="OnSortDirectionClick" AutomationProperties.AutomationId="fst.history.sort.direction.ascending" />
+                                <RadioMenuFlyoutItem Text="Descending" GroupName="direction" Tag="desc" Click="OnSortDirectionClick" AutomationProperties.AutomationId="fst.history.sort.direction.descending" />
+                                <MenuFlyoutSeparator />
+                                <MenuFlyoutItem Text="Reset" Command="{x:Bind ViewModel.History.ResetSortCommand}" AutomationProperties.AutomationId="fst.history.sort.reset" />
+                            </MenuFlyout>
+                        </DropDownButton.Flyout>
+                    </DropDownButton>
+                    <ItemsRepeater x:Name="HistoryRows" ItemsSource="{x:Bind ViewModel.History.Rows, Mode=OneWay}" ItemTemplate="{StaticResource HistoryRowTemplate}"
+                                   Visibility="{x:Bind ViewModel.History.ShowChart, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="56"
+                                   AutomationProperties.Name="Score history" AutomationProperties.AutomationId="fst.history.rows">
+                        <ItemsRepeater.Layout>
+                            <StackLayout Spacing="8" />
+                        </ItemsRepeater.Layout>
+                    </ItemsRepeater>
+                    <Button Content="{x:Bind ViewModel.History.ViewAllLabel}" Command="{x:Bind ViewModel.History.ViewAllCommand}"
+                            Visibility="{x:Bind ViewModel.History.CanViewAll, Mode=OneWay}" HorizontalAlignment="Stretch" MinHeight="48"
+                            FontWeight="SemiBold" Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}"
+                            CornerRadius="8" AutomationProperties.AutomationId="fst.history.view-all" />
+                </StackPanel>
+
+                <StackPanel x:Name="LeaderboardsSection">
                 <TextBlock Text="Leaderboards" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
                 <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
                     <TextBlock Text="Band Leaderboards:" VerticalAlignment="Center" Style="{StaticResource FSTSecondaryTextStyle}"
@@ -101,11 +238,12 @@
                         </ItemsRepeater.ItemTemplate>
                     </ItemsRepeater>
                 </StackPanel>
+                </StackPanel>
                 <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" x:Name="Boards" ItemsSource="{x:Bind ViewModel.Leaderboards, Mode=OneWay}"
                                ElementPrepared="OnBoardPrepared">
                     <ItemsRepeater.Layout>
-                        <!-- At most two cards per row (web isTwoCol), even on wide windows. -->
-                        <UniformGridLayout MinItemWidth="380" MinRowSpacing="16" MinColumnSpacing="16" ItemsStretch="Fill"
+                        <!-- At most two cards per row (web isTwoCol), even on wide windows; two already at a portrait tablet. -->
+                        <UniformGridLayout MinItemWidth="340" MinRowSpacing="16" MinColumnSpacing="16" ItemsStretch="Fill"
                                            MaximumRowsOrColumns="2" />
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
@@ -119,9 +257,6 @@
                                                          Subtitle="{x:Bind TotalEntriesText, Mode=OneWay}" />
                                     <Border Style="{StaticResource FSTCardStyle}" MinHeight="96">
                                         <StackPanel Spacing="8">
-                                            <TextBlock Text="{x:Bind PlayerSummary, Mode=OneWay}" Visibility="{x:Bind ShowPlayerSummary, Mode=OneWay}"
-                                                       TextWrapping="Wrap" Style="{StaticResource BodyStrongTextBlockStyle}"
-                                                       Foreground="{ThemeResource FSTGoldBrush}" />
                                             <ProgressRing IsActive="{x:Bind IsLoading, Mode=OneWay}" HorizontalAlignment="Left" Width="24" Height="24"
                                                           Visibility="{x:Bind IsLoading, Mode=OneWay}" />
                                             <TextBlock Text="{x:Bind EmptyText}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}" TextWrapping="Wrap"
@@ -147,10 +282,14 @@
                                                                 <ColumnDefinition Width="Auto" />
                                                                 <ColumnDefinition Width="64" />
                                                             </Grid.ColumnDefinitions>
-                                                            <Border Grid.ColumnSpan="4" Margin="-4,0" CornerRadius="4" Background="#33FFD700" BorderBrush="{ThemeResource FSTGoldBrush}"
-                                                                    BorderThickness="1" Visibility="{x:Bind IsSelectedPlayer}" />
-                                                            <TextBlock Text="{x:Bind Rank}" VerticalAlignment="Center" Style="{StaticResource FSTSecondaryTextStyle}" />
-                                                            <TextBlock Grid.Column="1" Text="{x:Bind Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                            <Border Grid.ColumnSpan="4" Margin="-4,0" CornerRadius="4" BorderThickness="1"
+                                                                    Background="{x:Bind controls:SongDetailVisuals.Fill(IsSelectedPlayer)}"
+                                                                    BorderBrush="{x:Bind controls:SongDetailVisuals.Stroke(IsSelectedPlayer)}"
+                                                                    Visibility="{x:Bind IsSelectedPlayer}" />
+                                                            <TextBlock Text="{x:Bind Rank}" VerticalAlignment="Center" Style="{StaticResource FSTSecondaryTextStyle}"
+                                                                       FontWeight="{x:Bind controls:SongDetailVisuals.Weight(IsSelectedPlayer)}" />
+                                                            <TextBlock Grid.Column="1" Text="{x:Bind Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                                       FontWeight="{x:Bind controls:SongDetailVisuals.Weight(IsSelectedPlayer)}" />
                                                             <TextBlock Grid.Column="2" Text="{x:Bind Score}" VerticalAlignment="Center"
                                                                        Style="{StaticResource BodyStrongTextBlockStyle}" />
                                                             <!-- Score first, then the accuracy badge: gold skewed outline for FC, tinted pill otherwise. -->
@@ -171,8 +310,6 @@
                                             <Button Content="View Full Leaderboard" Tag="{x:Bind}" Click="OnViewFull" Style="{StaticResource FSTViewAllButtonStyle}"
                                                     Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName}"
                                                     AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
-                                            <HyperlinkButton Content="{x:Bind HistoryLabel}" Tag="{x:Bind}" Click="OnViewHistory" Padding="0,4"
-                                                             Visibility="{x:Bind HasPlayer}" />
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>
@@ -210,7 +347,8 @@
             </Grid>
         </Border>
 
-        <ProgressRing IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Width="48" Height="48" />
+        <!-- Web ArcSpinner: shown until every section is ready, then faded out (500 ms) before the content staggers in. -->
+        <ProgressRing x:Name="Spinner" IsActive="True" Width="48" Height="48" AutomationProperties.Name="Loading song" />
         <controls:ServiceStatusView Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
                                     Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}" />
     </Grid>

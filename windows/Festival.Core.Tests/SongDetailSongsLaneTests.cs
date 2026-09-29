@@ -75,33 +75,25 @@ public class SongDetailSongsLaneTests
     }
 
     [Fact]
-    public async Task SelectedPlayer_SummarizesScoresAndLinksHistory()
+    public async Task SelectedPlayer_CardsCarryNoScoreText()
     {
         var (service, _, vm) = await Open("s1", player: true);
         var lead = vm.Leaderboards.Single(b => b.Instrument == Instrument.Lead);
         Assert.True(lead.HasPlayer);
-        Assert.True(lead.HasPlayerSummary);
-        Assert.Equal("Your score: 1,000 · 99% · FC · Top 1% · #1", lead.PlayerSummary);
-        Assert.Equal(new AppRoute.PlayerHistory("s1", Instrument.Lead), lead.HistoryRoute);
-        Assert.Equal("View Lead Score History", lead.HistoryLabel);
-        var bass = vm.Leaderboards.Single(b => b.Instrument == Instrument.Bass);
-        Assert.Equal("Your score: 800 · 0%", bass.PlayerSummary);
-        var vocals = vm.Leaderboards.Single(b => b.Instrument == Instrument.Vocals);
-        Assert.Equal("Your score: no score yet", vocals.PlayerSummary);
-        await lead.EnsureLoadedAsync();
+        Assert.True(lead.ShowRows);
         Assert.DoesNotContain(lead.Rows, r => r.IsSelectedPlayer);
         Assert.DoesNotContain(service.Handler.Requests, r => r.Uri.Query.Contains("leeway", StringComparison.Ordinal));
     }
 
     [Fact]
-    public async Task NoPlayer_NoSummary_AndLeewayWhenFilteringInvalidScores()
+    public async Task NoPlayer_LeewayWhenFilteringInvalidScores()
     {
         var (service, _, vm) = await Open("s1", new AppSettings { FilterInvalidScores = true, Leeway = 1.5 });
         var lead = vm.Leaderboards.Single(b => b.Instrument == Instrument.Lead);
         Assert.False(lead.HasPlayer);
-        Assert.False(lead.HasPlayerSummary);
-        await lead.EnsureLoadedAsync();
-        Assert.Contains(service.Handler.Requests, r => r.Uri.Query.Contains("leeway=1.5", StringComparison.Ordinal));
+        Assert.Contains(service.Handler.To("/api/leaderboard/s1/all"), r => r.Uri.Query.Contains("leeway=1.5", StringComparison.Ordinal));
+        await lead.LoadAsync();
+        Assert.Contains(service.Handler.To("/api/leaderboard/s1/Solo_Guitar"), r => r.Uri.Query.Contains("leeway=1.5", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -110,14 +102,14 @@ public class SongDetailSongsLaneTests
         var service = new FakeService();
         SongsWire.Install(service, player: true);
         var inner = service.Override!;
-        service.Override = r => r.RequestUri!.AbsolutePath.StartsWith("/api/leaderboard/", StringComparison.Ordinal)
+        service.Override = r => r.RequestUri!.AbsolutePath.StartsWith("/api/leaderboard/", StringComparison.Ordinal) && !r.RequestUri.AbsolutePath.EndsWith("/all", StringComparison.Ordinal)
             ? Wire.Ok(Wire.Leaderboard("s1", "Solo_Guitar", 1).Replace("\"a1\"", $"\"{PlayerWire.Id}\""), ("X-FST-Publication-Id", "7"))
             : inner(r);
         var session = service.Session(settings: new AppSettings { SelectedPlayer = new SelectedPlayer(PlayerWire.Id, "Fixture One") });
         var vm = new SongDetailViewModel(session, new AppRoute.SongDetail("s1"));
         await vm.LoadAsync();
         var lead = vm.Leaderboards.Single(b => b.Instrument == Instrument.Lead);
-        await lead.EnsureLoadedAsync();
+        await lead.LoadAsync();
         var row = Assert.Single(lead.Rows);
         Assert.True(row.IsSelectedPlayer);
         Assert.EndsWith(", you", row.Announcement);
@@ -128,15 +120,12 @@ public class SongDetailSongsLaneTests
     {
         var (_, _, vm) = await Open("s2", player: true);
         var lead = vm.Leaderboards.Single(b => b.Instrument == Instrument.Lead);
-        Assert.True(lead.ShowPlayerSummary);
-        await lead.EnsureLoadedAsync();
         Assert.Equal(11, lead.Rows.Count);
         var mine = lead.Rows[10];
         Assert.True(mine.IsSelectedPlayer);
         Assert.Equal("#30", mine.Rank);
         Assert.Equal("Fixture One", mine.Name);
         Assert.True(lead.HasPlayerRow);
-        Assert.False(lead.ShowPlayerSummary);
         Assert.Equal("fst.song-detail.view-all.Solo_Guitar", lead.ViewAllAutomationId);
         Assert.Equal("View full Lead leaderboard", lead.ViewAllName);
         lead.UpdatePlayer(null);
@@ -151,7 +140,7 @@ public class SongDetailSongsLaneTests
         SongsWire.Install(service);
         var inner = service.Override!;
         var allow = true;
-        service.Override = r => r.RequestUri!.AbsolutePath.StartsWith("/api/leaderboard/", StringComparison.Ordinal)
+        service.Override = r => r.RequestUri!.AbsolutePath.StartsWith("/api/leaderboard/", StringComparison.Ordinal) && !r.RequestUri.AbsolutePath.EndsWith("/all", StringComparison.Ordinal)
             ? Wire.Ok(Wire.Leaderboard("s1", "Solo_Guitar", 2, total: 12345)
                 .Replace("{\"songId\"", $"{{\"showLeaderboardEntryTotals\":{(allow ? "true" : "false")},\"songId\""), ("X-FST-Publication-Id", "7"))
             : inner(r);
@@ -160,7 +149,7 @@ public class SongDetailSongsLaneTests
         await vm.LoadAsync();
         var lead = vm.Leaderboards.Single(b => b.Instrument == Instrument.Lead);
         Assert.Equal("Lead", lead.HeaderName);
-        await lead.EnsureLoadedAsync();
+        await lead.LoadAsync();
         Assert.Equal(12345.ToString("N0", System.Globalization.CultureInfo.CurrentCulture) + " total entries", lead.TotalEntriesText);
         Assert.True(lead.HasTotalEntries);
         Assert.Equal("Lead, " + lead.TotalEntriesText, lead.HeaderName);
@@ -175,13 +164,13 @@ public class SongDetailSongsLaneTests
         var service = new FakeService();
         SongsWire.Install(service);
         var inner = service.Override!;
-        service.Override = r => r.RequestUri!.AbsolutePath.StartsWith("/api/leaderboard/", StringComparison.Ordinal)
+        service.Override = r => r.RequestUri!.AbsolutePath.StartsWith("/api/leaderboard/", StringComparison.Ordinal) && !r.RequestUri.AbsolutePath.EndsWith("/all", StringComparison.Ordinal)
             ? Wire.Ok(Wire.Leaderboard("s1", "Solo_Guitar", 0, total: 0), ("X-FST-Publication-Id", "7"))
             : inner(r);
         var vm = new SongDetailViewModel(service.Session(), new AppRoute.SongDetail("s1"));
         await vm.LoadAsync();
         var lead = vm.Leaderboards.Single(b => b.Instrument == Instrument.Lead);
-        await lead.EnsureLoadedAsync();
+        await lead.LoadAsync();
         Assert.True(lead.ShowEmpty);
         Assert.False(lead.ShowRows); // View Full Leaderboard is bound to ShowRows
         Assert.Equal(LeaderboardPreviewViewModel.NoScoresText, lead.TotalEntriesText);
@@ -190,7 +179,7 @@ public class SongDetailSongsLaneTests
     }
 
     [Fact]
-    public async Task Summary_UpdatesWhenScoresArriveAfterLoad()
+    public async Task RowEleven_FollowsScoresThatArriveAfterLoad()
     {
         var service = new FakeService();
         SongsWire.Install(service, player: true);
@@ -203,26 +192,15 @@ public class SongDetailSongsLaneTests
         };
         var session = service.Session(settings: new AppSettings { SelectedPlayer = new SelectedPlayer(PlayerWire.Id, "Fixture One") });
         var profile = session.LoadSelectedProfileAsync();
-        var vm = new SongDetailViewModel(session, new AppRoute.SongDetail("s1"));
-        await vm.LoadAsync();
-        var lead = vm.Leaderboards.Single(b => b.Instrument == Instrument.Lead);
-        Assert.Equal("Loading scores", lead.PlayerSummary);
+        var vm = new SongDetailViewModel(session, new AppRoute.SongDetail("s2"));
+        var load = vm.LoadAsync();
         release.SetResult();
         await profile;
-        await Async.Until(() => lead.PlayerSummary?.StartsWith("Your score: 1,000", StringComparison.Ordinal) == true);
+        await load;
+        var lead = vm.Leaderboards.Single(b => b.Instrument == Instrument.Lead);
+        await Async.Until(() => lead.Rows.Count == 11);
         vm.Detach();
         session.DeselectPlayer();
-        Assert.StartsWith("Your score", lead.PlayerSummary);
-    }
-
-    [Fact]
-    public async Task SyncingPlayer_ShowsStateInSummary()
-    {
-        var service = new FakeService();
-        SongsWire.Install(service, player: true, profiles: new() { [PlayerWire.Id] = (HttpStatusCode.Accepted, PlayerWire.Syncing()) });
-        var session = service.Session(settings: new AppSettings { SelectedPlayer = new SelectedPlayer(PlayerWire.Id, "Fixture One") });
-        var vm = new SongDetailViewModel(session, new AppRoute.SongDetail("s1"));
-        await vm.LoadAsync();
-        Assert.Equal("Scores syncing", vm.Leaderboards[0].PlayerSummary);
+        Assert.Equal(11, lead.Rows.Count);
     }
 }

@@ -293,10 +293,10 @@ public class SongDetailViewModelTests
         var card = Assert.Single(vm.Leaderboards);
         Assert.Equal(("Lead", "instrument_keys.png"), (card.Title, card.IconFile));
         Assert.Equal(new AppRoute.SongLeaderboard("s2", Instrument.Lead), card.FullRoute);
-        Assert.True(card.IsLoading);
+        // Filled by the page's single /all read (web getAllLeaderboards); realizing the card reads nothing more.
         await card.EnsureLoadedAsync();
-        await card.EnsureLoadedAsync();
-        Assert.Single(service.Handler.To("/api/leaderboard/s2/Solo_Guitar"));
+        Assert.Single(service.Handler.To("/api/leaderboard/s2/all"));
+        Assert.Empty(service.Handler.To("/api/leaderboard/s2/Solo_Guitar"));
         Assert.True(card.ShowRows);
         Assert.Equal(10, card.Rows.Count);
         var row = card.Rows[0];
@@ -331,7 +331,7 @@ public class SongDetailViewModelTests
             : r.RequestUri.AbsolutePath.StartsWith("/api/leaderboard/", StringComparison.Ordinal) ? Wire.Response(HttpStatusCode.InternalServerError) : null;
         await vm.Leaderboards[0].LoadAsync();
         Assert.True(vm.Leaderboards[0].ShowEmpty);
-        await vm.Leaderboards[1].EnsureLoadedAsync();
+        await vm.Leaderboards[1].LoadAsync();
         Assert.True(vm.Leaderboards[1].ShowError);
         Assert.Equal("Bass unavailable", vm.Leaderboards[1].Status.Title);
     }
