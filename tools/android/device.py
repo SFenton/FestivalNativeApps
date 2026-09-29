@@ -332,13 +332,32 @@ def am_start_command(component: str, extras: list[tuple[str, str]]) -> str:
         component: ``package/.Activity`` component.
         extras: String extras to attach.
 
+    ``-S`` alone is not enough right after ``adb install -r``: the package
+    manager's own restart can leave the old task on top, so ``am start``
+    delivers the intent to that instance and the ``FST_*`` extras never reach
+    ``onCreate``. ``--activity-clear-task`` always recreates the activity.
+
     Returns:
-        A single ``am start`` command line (``-W`` waits, ``-S`` force-stops first).
+        A single ``am start`` command line (``-W`` waits, ``-S`` force-stops
+        first, ``--activity-clear-task`` recreates the task).
     """
-    parts = ["am", "start", "-W", "-S", "--display", "0", "-n", remote_quote(component)]
+    parts = ["am", "start", "-W", "-S", "--activity-clear-task", "--display", "0",
+             "-n", remote_quote(component)]
     for key, value in extras:
         parts += ["--es", remote_quote(key), remote_quote(value)]
     return " ".join(parts)
+
+
+def reused_instance(am_output: str) -> bool:
+    """Whether ``am start`` handed the intent to an already running activity.
+
+    Args:
+        am_output: Output of an ``am start -W`` command.
+
+    Returns:
+        True when the launch was not a fresh activity (its extras were dropped).
+    """
+    return "Activity not started" in am_output
 
 
 def emulator_args(avd: str, *, window: bool = False, gpu: str = "swiftshader_indirect",
@@ -453,8 +472,12 @@ STEP_VERBS = {
     "tap": True, "longpress": True, "waitfor": True, "swipe": True, "type": True,
     "key": True, "wait": True, "shot": True, "tree": True, "posture": True,
     "rotate": True, "resize": True, "talkback": True, "fontscale": True, "dark": True,
-    "back": False, "home": False,
+    "record": True, "back": False, "home": False,
 }
+
+#: Device path for ``record`` steps; ``screenrecord`` caps a clip at 180 s.
+RECORD_REMOTE = "/sdcard/fst-record.mp4"
+RECORD_LIMIT_S = 180
 
 #: TalkBack service component on Google APIs images (preinstalled from API 37).
 TALKBACK_SERVICE = ("com.google.android.marvin.talkback/"
@@ -500,6 +523,19 @@ def parse_step(step: str) -> tuple[str, str]:
     if STEP_VERBS[verb] and not arg.strip():
         raise ValueError(f"step {verb!r} needs an argument")
     return verb, arg.strip()
+
+
+def record_command(remote: str = RECORD_REMOTE, limit: int = RECORD_LIMIT_S) -> str:
+    """Build the device ``screenrecord`` command line for a ``record`` step.
+
+    Args:
+        remote: Output path on the device.
+        limit: Maximum clip length in seconds (``screenrecord`` allows ≤180).
+
+    Returns:
+        The shell command line.
+    """
+    return f"screenrecord --time-limit {max(1, min(limit, RECORD_LIMIT_S))} {remote_quote(remote)}"
 
 
 def parse_selector(text: str) -> tuple[str, str]:
@@ -760,6 +796,7 @@ class Device:
     def __init__(self, lock: HostLock | None, serial: str = FST_SERIAL):
         self.lock = lock
         self.serial = serial
+        self.recording: tuple[subprocess.Popen, Path] | None = None
 
     def _timeout(self, cap: float) -> float:
         return min(cap, self.lock.remaining()) if self.lock else cap
@@ -820,6 +857,41 @@ class Device:
         data = data[start:]
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_bytes(data)
+
+    def start_recording(self, out: Path) -> None:
+        """Start ``adb shell screenrecord`` in the background (stopped by :meth:`stop_recording`).
+
+        Args:
+            out: Local ``.mp4`` path the clip is pulled to.
+        """
+        if self.recording:
+            raise DeviceError("record: a recording is already running (use record:stop)")
+        self.shell(f"rm -f {remote_quote(RECORD_REMOTE)}", check=False)
+        proc = subprocess.Popen([adb_path(), "-s", self.serial, "shell", record_command()],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.recording = (proc, out)
+        time.sleep(1)  # screenrecord needs a moment before the first frame
+
+    def stop_recording(self) -> Path | None:
+        """Stop the running recording, pull it and delete the device copy.
+
+        Returns:
+            The local clip path, or None when nothing was recording.
+        """
+        if not self.recording:
+            return None
+        proc, out = self.recording
+        self.recording = None
+        self.shell("pkill -INT screenrecord", check=False)
+        try:
+            proc.wait(timeout=15)
+        except subprocess.TimeoutExpired:
+            kill_tree(proc)
+        time.sleep(1)  # let the muxer finalize the file
+        out.parent.mkdir(parents=True, exist_ok=True)
+        self.adb("pull", RECORD_REMOTE, str(out), cap=60)
+        self.shell(f"rm -f {remote_quote(RECORD_REMOTE)}", check=False)
+        return out
 
     def dump_tree(self, attempts: int = 3) -> str:
         """Dump the UIAutomator hierarchy XML (retrying transient idle failures)."""
@@ -1296,7 +1368,20 @@ def _launch(device: Device, args: argparse.Namespace) -> None:
     if component.startswith("."):
         component = f"{args.package}/{component}"
     extras = launch_extras(args.tab, args.route, parse_extras(args.extra))
-    print(device.shell(am_start_command(component, extras), cap=60).strip(), flush=True)
+    command = am_start_command(component, extras)
+    output = device.shell(command, cap=60)
+    if reused_instance(output):
+        # The previous instance survived (install race): stop it and retry once.
+        package = component.split("/", 1)[0]
+        device.shell(f"am force-stop {remote_quote(package)}", check=False)
+        deadline = time.monotonic() + 10
+        while (device.shell(f"pidof {remote_quote(package)}", check=False).strip()
+               and time.monotonic() < deadline):
+            time.sleep(0.5)
+        output = device.shell(command, cap=60)
+        if reused_instance(output):
+            raise DeviceError(f"launch reused a running instance; extras dropped:\n{output}")
+    print(output.strip(), flush=True)
 
 
 def cmd_launch(args: argparse.Namespace) -> int:
@@ -1386,6 +1471,11 @@ def run_step(device: Device, avd: str, verb: str, arg: str) -> None:
         time.sleep(1)
     elif verb == "resize":
         apply_resize(device, arg)
+    elif verb == "record":
+        if arg.lower() == "stop":
+            print(device.stop_recording() or "record: nothing recording", file=sys.stderr)
+        else:
+            device.start_recording(Path(arg))
     elif verb == "talkback":
         enabled = toggle_arg(arg)
         services = TALKBACK_SERVICE if enabled else '""'
@@ -1413,8 +1503,13 @@ def cmd_drive(args: argparse.Namespace) -> int:
         if args.launch:
             _launch(device, args)
             time.sleep(args.wait)
-        for verb, arg in steps:
-            run_step(device, args.avd, verb, arg)
+        try:
+            for verb, arg in steps:
+                run_step(device, args.avd, verb, arg)
+        finally:
+            clip = device.stop_recording()  # an unstopped record: step ends with the drive
+            if clip:
+                print(clip, file=sys.stderr)
     return 0
 
 

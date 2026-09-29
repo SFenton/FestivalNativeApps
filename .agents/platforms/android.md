@@ -60,7 +60,7 @@ No official tri-fold profile ships with emulator 37.1 or cmdline-tools 23.0. `FS
 | `shutdown` | Power off FST emulators (never foreign ones) and reap orphaned FST qemu processes |
 | `posture <name\|angles\|preset> [--avd]` | Hinge posture or resizable preset |
 | `install <apk>` | `adb install -r -t -g` |
-| `launch [--tab] [--route] [--extra K=V] [--apk] [--posture]` | Cold start (`am start -W -S --display 0`) with string intent extras `FST_DEBUG_TAB`/`FST_DEBUG_ROUTE`/any `FST_*` |
+| `launch [--tab] [--route] [--extra K=V] [--apk] [--posture]` | Cold start (`am start -W -S --activity-clear-task --display 0`) with string intent extras `FST_DEBUG_TAB`/`FST_DEBUG_ROUTE`/any `FST_*`. Right after `install`, `-S` alone could hand the intent to the old instance and drop the extras; `--activity-clear-task` plus one force-stop retry makes the launch fresh, and the launch fails if it still isn't |
 | `shot <out.png>… [--no-launch] [launch options]` | Launch, then screenshot the physical display backing logical display 0, plus a `.json` sidecar |
 | `drive --steps "…" [--steps-file] [--launch]` | UIAutomator/`adb input` steps (below) |
 | `features [postures…]` | FoldingFeatures seen by WindowManager, per posture |
@@ -78,6 +78,9 @@ Drive steps (`;`- or newline-separated; `#` comments):
 | `shot:<png>`, `tree:<xml>` | Screenshot plus sidecar; UIAutomator dump |
 | `posture:<p>`, `resize:<preset>` | Fold posture; resizable preset |
 | `talkback:on\|off`, `fontscale:<0.5–2>`, `dark:on\|off` | Accessibility state |
+| `record:<mp4>` … `record:stop` | `adb shell screenrecord` (≤180 s) in the background; `stop` pulls the clip. A recording still running when the drive ends is stopped and pulled |
+
+From Git Bash, pass Windows paths (`C:/…`) inside `--steps`: MSYS converts only whole arguments, so `/c/…` inside a step becomes `C:\c\…`.
 
 Compose `testTag`s appear as resource ids only when the app sets `testTagsAsResourceId`. Under TalkBack, `input tap` explores rather than activates.
 

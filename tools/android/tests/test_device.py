@@ -5,6 +5,7 @@ emulator, so lanes can trust its parsing without a running device.
 Run: ``python -m unittest discover -s tools/android/tests`` from the repo root.
 """
 
+import argparse
 import tempfile
 import unittest
 from pathlib import Path
@@ -41,8 +42,35 @@ class LaunchTests(unittest.TestCase):
 
     def test_am_start_quotes_and_targets_display_zero(self):
         line = d.am_start_command("pkg/.Main", [("FST_DEBUG_ROUTE", "it's a route")])
-        self.assertTrue(line.startswith("am start -W -S --display 0 -n 'pkg/.Main'"))
+        self.assertTrue(line.startswith(
+            "am start -W -S --activity-clear-task --display 0 -n 'pkg/.Main'"))
         self.assertIn("--es 'FST_DEBUG_ROUTE' 'it'\\''s a route'", line)
+
+    def test_reused_instance(self):
+        self.assertTrue(d.reused_instance(
+            "Warning: Activity not started, intent has been delivered to currently "
+            "running top-most instance.\nLaunchState: UNKNOWN (0)"))
+        self.assertFalse(d.reused_instance("Status: ok\nLaunchState: COLD\nComplete"))
+
+    def test_launch_retries_after_reused_instance(self):
+        class FakeDevice:
+            def __init__(self, outputs):
+                self.outputs, self.commands = list(outputs), []
+
+            def shell(self, command, cap=60.0, check=True):
+                self.commands.append(command)
+                return self.outputs.pop(0) if command.startswith("am start") else ""
+
+        args = argparse.Namespace(activity="pkg/.Main", package="pkg", tab="settings",
+                                  route=None, extra=None)
+        stale = "Warning: Activity not started, intent has been delivered"
+        device = FakeDevice([stale, "LaunchState: COLD"])
+        d._launch(device, args)
+        self.assertEqual(device.commands[1], "am force-stop 'pkg'")
+        self.assertEqual(sum(c.startswith("am start") for c in device.commands), 2)
+        self.assertIn("--es 'FST_DEBUG_TAB' 'settings'", device.commands[-1])
+        with self.assertRaises(d.DeviceError):
+            d._launch(FakeDevice([stale, stale]), args)
 
     def test_remote_quote(self):
         self.assertEqual(d.remote_quote("a b"), "'a b'")
@@ -136,6 +164,15 @@ class StepTests(unittest.TestCase):
         for bad in ("fly:x", "tap:", "shot"):
             with self.assertRaises(ValueError):
                 d.parse_step(bad)
+
+    def test_record_step(self):
+        self.assertEqual(d.parse_step("record:out/a.mp4"), ("record", "out/a.mp4"))
+        self.assertEqual(d.parse_step("record:stop"), ("record", "stop"))
+        with self.assertRaises(ValueError):
+            d.parse_step("record")
+        self.assertEqual(d.record_command(), "screenrecord --time-limit 180 '/sdcard/fst-record.mp4'")
+        self.assertIn("--time-limit 180 ", d.record_command(limit=900))
+        self.assertIsNone(d.Device(None).stop_recording())
 
     def test_parse_selector(self):
         self.assertEqual(d.parse_selector("id=fst.nav.songs"), ("id", "fst.nav.songs"))
