@@ -165,12 +165,12 @@ class RivalsUiTest {
     }
 
     @Test
-    fun anonymousShowsChooseProfile() {
+    fun anonymousRedirectsToSongs() {
+        // Web parity: profile-only pages redirect to Songs while no profile is selected.
         launch(DebugLaunch(route = RivalRoutes.allRivals(RivalScopes.song(listOf(Instrument.Lead))), anonymous = true, stillBackground = true))
-        waitForTag("fst.rivals.chooseProfile")
-        rule.onNodeWithText("Track a player to see their rivals.").assertIsDisplayed()
-        rule.onNodeWithTag("fst.rivals.chooseProfile.action").performClick()
-        waitForTag("fst.profile.sheet")
+        waitForTag("fst.songs.list")
+        assertEquals(0, rule.onAllNodesWithTag("fst.all-rivals.list").fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithTag("fst.rivals.chooseProfile").fetchSemanticsNodes().size)
     }
 
     @Test

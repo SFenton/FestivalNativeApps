@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
@@ -23,6 +24,7 @@ import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,31 +38,48 @@ import androidx.compose.material3.PermanentDrawerSheet
 import androidx.compose.material3.PermanentNavigationDrawer
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
+import androidx.compose.material3.adaptive.HingeInfo
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.material3.adaptive.currentWindowSize
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuite
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteItem
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldLayout
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material3.rememberSearchBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
-import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -83,16 +102,36 @@ import com.festivalscoretracker.android.core.nav.SongLeaderboardRoute
 import com.festivalscoretracker.android.core.nav.SongsTab
 import com.festivalscoretracker.android.core.nav.StatisticsRoute
 import com.festivalscoretracker.android.core.nav.StatisticsTab
+import com.festivalscoretracker.android.core.search.GlobalSearchLayout
+import com.festivalscoretracker.android.core.search.GlobalSearchResults
+import com.festivalscoretracker.android.core.search.PxRect
+import com.festivalscoretracker.android.core.search.SearchDestination
+import com.festivalscoretracker.android.core.search.ShellShortcut
 import com.festivalscoretracker.android.core.settings.AppSettings
+import com.festivalscoretracker.android.core.shell.ProfileRoutePolicy
+import com.festivalscoretracker.android.data.notifications.playerNotifications
+import com.festivalscoretracker.android.data.songs.watchDeselection
 import com.festivalscoretracker.android.presentation.ProfileSearchViewModel
 import com.festivalscoretracker.android.presentation.ShellViewModel
+import com.festivalscoretracker.android.presentation.notifications.NotificationsViewModel
+import com.festivalscoretracker.android.presentation.search.GlobalSearchViewModel
+import com.festivalscoretracker.android.presentation.settings.SettingsViewModel
 import com.festivalscoretracker.android.ui.background.ArtworkBackground
 import com.festivalscoretracker.android.ui.bands.bandsDestinations
 import com.festivalscoretracker.android.ui.common.ComingSoonScreen
+import com.festivalscoretracker.android.ui.common.FLOATING_TOOLBAR_HEIGHT_DP
+import com.festivalscoretracker.android.ui.common.FLOATING_TOOLBAR_MARGIN_DP
+import com.festivalscoretracker.android.ui.common.FloatingToolbar
+import com.festivalscoretracker.android.ui.common.FloatingToolbarHost
 import com.festivalscoretracker.android.ui.common.LocalShellActions
+import com.festivalscoretracker.android.ui.common.SearchChrome
 import com.festivalscoretracker.android.ui.common.ShellActions
 import com.festivalscoretracker.android.ui.compete.competeDestinations
+import com.festivalscoretracker.android.ui.firstrun.FirstRunHost
+import com.festivalscoretracker.android.ui.firstrun.firstRunPage
 import com.festivalscoretracker.android.ui.leaderboards.leaderboardsGraph
+import com.festivalscoretracker.android.ui.notifications.NotificationsBell
+import com.festivalscoretracker.android.ui.notifications.NotificationsSheet
 import com.festivalscoretracker.android.ui.profile.PlayerHistoryScreen
 import com.festivalscoretracker.android.ui.profile.PlayerProfileScreen
 import com.festivalscoretracker.android.ui.profile.ProfileSheet
@@ -100,56 +139,18 @@ import com.festivalscoretracker.android.ui.profile.StatisticsScreen
 import com.festivalscoretracker.android.ui.profile.playerHistoryViewModel
 import com.festivalscoretracker.android.ui.profile.profileViewModel
 import com.festivalscoretracker.android.ui.rivals.rivalsDestinations
+import com.festivalscoretracker.android.ui.search.GlobalSearchHost
 import com.festivalscoretracker.android.ui.settings.LicensesScreen
 import com.festivalscoretracker.android.ui.settings.SettingsScreen
-import com.festivalscoretracker.android.data.notifications.playerNotifications
-import com.festivalscoretracker.android.presentation.notifications.NotificationsViewModel
-import com.festivalscoretracker.android.presentation.settings.SettingsViewModel
-import com.festivalscoretracker.android.ui.firstrun.FirstRunHost
-import com.festivalscoretracker.android.ui.firstrun.firstRunPage
-import com.festivalscoretracker.android.ui.notifications.NotificationsBell
-import com.festivalscoretracker.android.ui.notifications.NotificationsSheet
+import com.festivalscoretracker.android.ui.shop.ShopRouteScreen
 import com.festivalscoretracker.android.ui.songdetail.SongDetailRouteScreen
 import com.festivalscoretracker.android.ui.songdetail.SongLeaderboardRouteScreen
-import com.festivalscoretracker.android.ui.suggestions.suggestionsDestinations
 import com.festivalscoretracker.android.ui.songs.SongsRoute
-import com.festivalscoretracker.android.ui.shop.ShopRouteScreen
-import com.festivalscoretracker.android.data.songs.watchDeselection
+import com.festivalscoretracker.android.ui.suggestions.suggestionsDestinations
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.FestivalTheme
-import androidx.compose.ui.ExperimentalComposeUiApi
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.testTagsAsResourceId
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.adaptive.navigationsuite.NavigationSuite
-import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults
-import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteItem
-import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldLayout
-import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
-import androidx.compose.material3.rememberSearchBarState
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.withFrameNanos
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInWindow
-import androidx.compose.material3.adaptive.HingeInfo
-import androidx.lifecycle.createSavedStateHandle
-import com.festivalscoretracker.android.core.search.GlobalSearchLayout
-import com.festivalscoretracker.android.core.search.GlobalSearchResults
-import com.festivalscoretracker.android.core.search.PxRect
-import com.festivalscoretracker.android.core.search.SearchDestination
-import com.festivalscoretracker.android.core.search.ShellShortcut
-import com.festivalscoretracker.android.presentation.search.GlobalSearchViewModel
-import com.festivalscoretracker.android.ui.common.FLOATING_TOOLBAR_HEIGHT_DP
-import com.festivalscoretracker.android.ui.common.FLOATING_TOOLBAR_MARGIN_DP
-import com.festivalscoretracker.android.ui.common.FloatingToolbar
-import com.festivalscoretracker.android.ui.common.FloatingToolbarHost
-import com.festivalscoretracker.android.ui.common.SearchChrome
-import com.festivalscoretracker.android.ui.search.GlobalSearchHost
 
 // region Root
 
@@ -280,6 +281,19 @@ private fun FestivalShell(
     LaunchedEffect(sections) {
         val resolved = FestivalTabPolicy.resolve(selected, sections)
         if (resolved != selected) navController.selectSection(resolved, selected)
+    }
+    // Web parity: profile-only pages (Rivals, Statistics, Suggestions, Compete, Player History)
+    // redirect to Songs while no profile is selected — deep links and a deselect included.
+    val topDestination = stack.lastOrNull()?.destination
+    val hasProfile = settings.selectedPlayer != null
+    LaunchedEffect(topDestination, hasProfile) {
+        val destination = topDestination ?: return@LaunchedEffect
+        if (ProfileRoutePolicy.requiresProfile.any { destination.hasRoute(it) && ProfileRoutePolicy.redirectsToSongs(it, hasProfile) }) {
+            navController.navigate(SongsTab) {
+                popUpTo(navController.graph.findStartDestination().id) { inclusive = true }
+                launchSingleTop = true
+            }
+        }
     }
     LaunchedEffect(Unit) {
         launch.section?.takeIf { it in sections }?.let { navController.selectSection(it, FestivalSection.Songs) }

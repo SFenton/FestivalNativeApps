@@ -40,3 +40,16 @@ class DrawerPolicyTest {
         assertEquals(rail - FestivalSection.Settings, DrawerPolicy.railMain(rail))
     }
 }
+
+/** Web parity: profile-only routes redirect to Songs without a profile. */
+class ProfileRoutePolicyTest {
+    @Test
+    fun profileOnlyRoutesRedirectWithoutAProfile() {
+        val policy = com.festivalscoretracker.android.core.shell.ProfileRoutePolicy
+        assertTrue(policy.redirectsToSongs(com.festivalscoretracker.android.core.nav.RivalsTab::class, hasProfile = false))
+        assertTrue(policy.redirectsToSongs(com.festivalscoretracker.android.core.nav.PlayerHistoryRoute::class, hasProfile = false))
+        assertFalse(policy.redirectsToSongs(com.festivalscoretracker.android.core.nav.SuggestionsTab::class, hasProfile = true))
+        assertFalse(policy.redirectsToSongs(com.festivalscoretracker.android.core.nav.SongsTab::class, hasProfile = false))
+        assertFalse(policy.redirectsToSongs(com.festivalscoretracker.android.core.nav.PlayerRoute::class, hasProfile = false))
+    }
+}

@@ -82,26 +82,16 @@ class BandsUiTest {
     // region Landing
 
     @Test
-    fun landingWithoutPlayerExplainsMissingSearchAndLinksRankings() {
+    fun bandsWithoutAnIdShowsBandNotFound() {
         launch("bands")
-        waitForTag("fst.bands.screen")
-        rule.onNodeWithTag("fst.bands.select-player").assertIsDisplayed()
-        scrollTo("fst.bands.list", "fst.bands.footnote")
-        rule.onNodeWithText("Band search isn't available", substring = true).assertIsDisplayed()
-        scrollTo("fst.bands.list", "fst.bands.rankings.Band_Trios")
-        click("fst.bands.rankings.Band_Trios")
-        rule.waitUntil(10_000) { rule.onAllNodesWithText("Trios Leaderboards").fetchSemanticsNodes().isNotEmpty() }
-        assertTrue(transport.requests.none { it.url.contains("/api/player/") })
+        waitForTag("fst.bands.not-found")
+        rule.onNodeWithText("Band not found").assertIsDisplayed()
+        assertTrue(transport.requests.none { it.url.contains("/api/bands") })
     }
 
     @Test
-    fun landingPreviewOpensPlayerBandsAndBandDetail() {
-        launch("bands", player)
-        waitForTag("fst.player-bands.row.${BandFixtures.DUO_ID}")
-        rule.onNodeWithText("Synthetic Player's Bands").assertIsDisplayed()
-        assertTrue(transport.requests.any { it.url.contains("pageSize=6") })
-        scrollTo("fst.bands.list", "fst.bands.your-bands")
-        click("fst.bands.your-bands")
+    fun playerBandsOpensBandDetail() {
+        launch("playerBands:${player.accountId}", player)
         waitForTag("fst.player-bands.screen")
         waitForTag("fst.player-bands.row.${BandFixtures.DUO_ID}")
         rule.onNodeWithText("All Bands · 30 bands").assertIsDisplayed()

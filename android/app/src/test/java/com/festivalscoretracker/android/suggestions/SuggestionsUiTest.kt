@@ -165,13 +165,11 @@ class SuggestionsUiTest {
     }
 
     @Test
-    fun noPlayerOffersProfileSelection() {
+    fun noPlayerRedirectsToSongs() {
+        // Web parity: Suggestions exists only while a profile is selected.
         launch(debug = DebugLaunch(route = SuggestionsRoute, anonymous = true, stillBackground = true))
-        waitForTag("fst.suggestions.choose-profile")
-        rule.onNodeWithText("Select a player profile to get personalized suggestions.").assertIsDisplayed()
+        waitForTag("fst.songs.list")
         assertEquals(0, rule.onAllNodesWithTag("fst.suggestions.filter-button").fetchSemanticsNodes().size)
-        rule.onNodeWithTag("fst.suggestions.choose-profile").performClick()
-        waitForTag("fst.profile.search")
     }
 
     @Test

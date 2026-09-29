@@ -27,26 +27,16 @@ import com.festivalscoretracker.android.core.bands.BandPaging
 // region Destinations
 
 /** Rows in the Bands landing preview (web `BandsPage` preview size). */
-private const val LANDING_PREVIEW = 6
 
 /**
- * Register the Bands routes: landing, player bands, band detail and the per-song
+ * Register the Bands routes: `/bands` (Band not found, web parity), player bands, band detail and the per-song
  * band leaderboard. The single registration point in `FestivalApp`'s `NavHost`.
  *
  * @param container Process dependencies.
  */
 fun NavGraphBuilder.bandsDestinations(container: AppContainer) {
     val api = container.api
-    composable<BandsRoute> {
-        val shell = LocalShellActions.current
-        val player = shell.selectedPlayer
-        val preview = player?.let {
-            viewModel<PlayerBandsViewModel>(key = "bands-preview:${it.accountId}") {
-                PlayerBandsViewModel(it.accountId, LANDING_PREVIEW, api::playerBands, container.backoff)
-            }
-        }
-        BandsLandingScreen(player, preview, shell.navigate)
-    }
+    composable<BandsRoute> { BandNotFoundScreen() }
     composable<PlayerBandsRoute> { entry ->
         val route = entry.toRoute<PlayerBandsRoute>()
         val shell = LocalShellActions.current

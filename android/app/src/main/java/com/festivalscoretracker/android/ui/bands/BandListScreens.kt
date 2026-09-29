@@ -1,29 +1,19 @@
 package com.festivalscoretracker.android.ui.bands
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Groups
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -34,37 +24,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.core.bands.BandFormatting
 import com.festivalscoretracker.android.core.bands.BandLayout
-import com.festivalscoretracker.android.core.bands.BandType
 import com.festivalscoretracker.android.core.bands.PlayerBandEntry
 import com.festivalscoretracker.android.core.bands.PlayerBandGroup
-import com.festivalscoretracker.android.core.bands.PlayerBandListResponse
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.AppRoute
-import com.festivalscoretracker.android.core.nav.BandRankingsRoute
 import com.festivalscoretracker.android.core.nav.BandRoute
-import com.festivalscoretracker.android.core.nav.PlayerBandsRoute
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.bands.PlayerBandsViewModel
-import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LoadingView
-import com.festivalscoretracker.android.ui.common.LocalShellActions
-import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.common.rememberRevealed
-import com.festivalscoretracker.android.ui.design.GlassCard
-import com.festivalscoretracker.android.ui.design.SectionHeader
-import com.festivalscoretracker.android.ui.theme.BrandTokens
-import kotlinx.coroutines.flow.MutableStateFlow
 
 // region Shared grid
 
@@ -117,122 +93,19 @@ private fun LazyGridScope.fullRow(key: String, content: @Composable () -> Unit) 
 
 // endregion
 
-// region Bands landing
+// region Band not found
 
 /**
- * `/bands`: no band-name search (the service's band search can write on a GET,
- * service-safety.md). Shows the selected player's bands preview with View All,
- * Band Rankings per size, and a footnote explaining the missing search.
- *
- * @param player Selected player, if any.
- * @param preview Six-row preview for [player] (keyed by account so it resets on change).
- * @param onNavigate Push a route.
+ * `/bands` with no band id (web `BandPage` without an id or lookup context): the web's
+ * "Band not found" empty state. There is no band search (the service's band search can write on
+ * a GET, service-safety.md); bands open from a player's band list, Band Rankings, a song's band
+ * leaderboard or global search.
  */
 @Composable
-fun BandsLandingScreen(player: SelectedPlayer?, preview: PlayerBandsViewModel?, onNavigate: (AppRoute) -> Unit) {
-    val shell = LocalShellActions.current
-    val idle = remember { MutableStateFlow<LoadState<PlayerBandListResponse>>(LoadState.Loading) }
-    val previewState by (preview?.bands ?: idle).collectAsStateWithLifecycle()
-    val revealed = rememberRevealed(previewState is LoadState.Loaded)
-    FestivalScreen(title = "Bands", isRoot = false, modifier = Modifier.testTag("fst.bands.screen")) { padding ->
-        BandGrid(padding, "fst.bands.list") {
-            fullRow("header") {
-                BandPageHeader(null, "Band lineups, rankings and band scores", "fst.bands")
-            }
-            if (player != null && preview != null) {
-                yourBands(player, previewState, revealed, preview::retry, onNavigate)
-            } else {
-                fullRow("no-player") {
-                    GlassCard(Modifier.fillMaxWidth().testTag("fst.bands.select-player")) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text("Your Bands", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)
-                            Text(
-                                "Select a player profile to see the bands they have played in.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = BrandTokens.textSecondary,
-                            )
-                            FilledTonalButton(onClick = shell.openProfile, modifier = Modifier.heightIn(min = 48.dp)) { Text("Select Player") }
-                        }
-                    }
-                }
-            }
-            fullRow("rankings-header") { SectionHeader("Band Rankings") }
-            items(BandType.entries, key = { "rankings-${it.wireId}" }) { type ->
-                GlassCard(
-                    Modifier
-                        .fillMaxWidth()
-                        .testTag("fst.bands.rankings.${type.wireId}")
-                        .semantics(mergeDescendants = true) { contentDescription = "${type.label} rankings, ${rankingsDescription(type)}" },
-                    onClick = { onNavigate(BandRankingsRoute(type.wireId)) },
-                ) {
-                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Icon(Icons.Outlined.Groups, contentDescription = null, tint = BrandTokens.textSecondary, modifier = Modifier.size(28.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text("${type.label} Rankings", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)
-                            Text(rankingsDescription(type), style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary)
-                        }
-                    }
-                }
-            }
-            fullRow("footnote") {
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 8.dp).testTag("fst.bands.footnote"),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Icon(Icons.Outlined.Info, contentDescription = null, tint = BrandTokens.textPrimary, modifier = Modifier.size(18.dp))
-                    Text(SEARCH_FOOTNOTE, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textPrimary)
-                }
-            }
-        }
-    }
-}
-
-/** Why the landing has no band search. */
-internal const val SEARCH_FOOTNOTE =
-    "Band search isn't available in the app: looking a band up by name can change data on the service. " +
-        "Open bands from a player's band list, Band Rankings or a song's band leaderboard instead."
-
-/**
- * One-line description of a band-size ranking.
- *
- * @param type Band size.
- * @return Description.
- */
-internal fun rankingsDescription(type: BandType): String = "${type.memberCount}-player bands ranked across every song"
-
-private fun LazyGridScope.yourBands(
-    player: SelectedPlayer,
-    state: LoadState<PlayerBandListResponse>,
-    revealed: Boolean,
-    onRetry: () -> Unit,
-    onNavigate: (AppRoute) -> Unit,
-) {
-    fullRow("your-header") {
-        SectionHeader("${player.displayName}'s Bands", Modifier.testTag("fst.bands.your-bands-section"))
-    }
-    when (state) {
-        LoadState.Loading -> fullRow("your-loading") {
-            Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) {
-                FestivalLoading("Loading bands")
-            }
-        }
-        is LoadState.Failed -> fullRow("your-error") { ServiceStatusInline(state.issue, "Bands unavailable", state.countdown, onRetry) }
-        is LoadState.Loaded -> {
-            val list = state.value
-            if (list.entries.isEmpty()) {
-                fullRow("your-empty") {
-                    BandEmptyState("No bands found", "No bands have been recorded for this player yet.", "fst.bands.your-bands-empty")
-                }
-            } else {
-                itemsIndexed(list.entries, key = { _, entry -> "your-${entry.key}" }) { index, entry ->
-                    PlayerBandCard(entry, { onNavigate(bandRouteFor(entry)) }, Modifier.festivalFadeIn(revealed, fadeInStagger(index + 1)))
-                }
-                fullRow("your-more") {
-                    BandTextLink("View All ${BandFormatting.count(list.totalCount.toLong())} Bands", "fst.bands.your-bands") {
-                        onNavigate(PlayerBandsRoute(player.accountId, player.displayName))
-                    }
-                }
-            }
+fun BandNotFoundScreen() {
+    FestivalScreen(title = "Band", isRoot = false, modifier = Modifier.testTag("fst.bands.screen")) { padding ->
+        Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+            BandEmptyState("Band not found", "This band link is missing an ID and cannot be resolved.", "fst.bands.not-found")
         }
     }
 }
