@@ -88,7 +88,7 @@ struct SoloLeaderboardScreen: View {
                         // The song header scrolls with the rows (no card behind it);
                         // once it passes under the bar the bar shows it instead.
                         scoreHeader(payload)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 8, trailing: 16))
+                            .listRowInsets(EdgeInsets(top: 20, leading: 16, bottom: 8, trailing: 16))
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                         ForEach(Array(payload.leaderboard.entries.enumerated()), id: \.element.id) { index, entry in
@@ -153,30 +153,30 @@ struct SoloLeaderboardScreen: View {
         .detailFadeTestSafe()
         .festivalBackground(.song(song.albumArt), session: session)
         .navigationTitle(song.title)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: headerHidden)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                HStack(spacing: 8) {
-                    ArtworkTile(raw: song.albumArt, session: session, size: 28)
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 0) {
-                        MarqueeText(song.title)
-                            .font(.headline)
-                            .foregroundStyle(FestivalText.primary)
-                            .lineLimit(1)
-                        HStack(spacing: 4) {
-                            InstrumentIcon(instrument, size: 14)
+                // Built only once the header has scrolled away: a hidden (opacity 0)
+                // copy was still audited, and its fixed-size icon failed Dynamic Type.
+                if headerHidden {
+                    HStack(spacing: 8) {
+                        ArtworkTile(raw: song.albumArt, session: session, size: 28)
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 0) {
+                            MarqueeText(song.title)
+                                .font(.headline)
+                                .foregroundStyle(FestivalText.primary)
+                                .lineLimit(1)
                             Text(instrument.label)
                                 .font(.caption)
                                 .foregroundStyle(FestivalText.primary)
                         }
                     }
+                    .frame(maxWidth: 240)
+                    .transition(.opacity)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("fst.song-leaderboard.pinned-title")
                 }
-                .frame(maxWidth: 240)
-                .opacity(headerHidden ? 1 : 0)
-                .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: headerHidden)
-                .accessibilityElement(children: .combine)
-                .accessibilityHidden(!headerHidden)
-                .accessibilityIdentifier("fst.song-leaderboard.pinned-title")
             }
             #if os(iOS)
             if case let .loaded(payload) = state {
