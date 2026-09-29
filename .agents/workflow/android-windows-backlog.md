@@ -99,4 +99,5 @@ Take these **after** your batch-6 items, in your areas. Verify each on your plat
 | 7.21 | Sort sheet: direction rows titled "Ascending"/"Descending" with the description as subtitle beside the ↑/↓ |
 | 7.22 | Service Info matches the web card |
 | 7.23 | Rows, checkboxes, toggles etc. keep converging on the web's look (general pass) |
+| 7.24 | Recover unneeded right-side space on lists: scroll indicators are overlays on every platform (don't hide them); reserve trailing space for the #–Z rail/jump control only when it is visible (not on Year/Duration/Shop sorts or other pages) |
 
