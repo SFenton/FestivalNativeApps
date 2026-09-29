@@ -28,6 +28,7 @@ struct ShopScreen: View {
     let isVisible: Bool
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.playerStatNavigator) private var navigator
     @AppStorage("fst.shop.viewMode") private var preferredMode = ShopViewMode.grid
     @AppStorage("fst.settings.hideShop") private var hideShop = false
     @AppStorage("fst.settings.disableShopHighlighting") private var disableHighlights = false
@@ -41,6 +42,12 @@ struct ShopScreen: View {
         case loading
         case loaded(ShopSnapshot)
         case failed(ServiceIssue)
+    }
+
+    /// Identity of one staggered reveal: a load, or a layout switch.
+    private struct StaggerKey: Equatable {
+        let load: RequestKey?
+        let mode: ShopViewMode
     }
 
     private struct RequestKey: Equatable {
@@ -79,9 +86,15 @@ struct ShopScreen: View {
                 }
             case let .loaded(snapshot):
                 shopContent(snapshot)
+                    // New identity per layout: the switch fades the old layout out and
+                    // the new one's rows stagger in, instead of reusing faded-in rows.
+                    .id(viewMode)
+                    .transition(.opacity)
             }
         }
-        .task(id: loadedKey) {
+        // A new load or a List ↔ Grid switch re-runs the staggered reveal for the new
+        // layout (web `toggleView`: `setStaggerGen`, batch 6.10).
+        .task(id: StaggerKey(load: loadedKey, mode: viewMode)) {
             guard case let .loaded(snapshot) = state else { return }
             staggerSettled = false
             await FadeStagger.settle(afterRevealing: snapshot.payload.sortedSongs.count) {
@@ -95,7 +108,10 @@ struct ShopScreen: View {
             if sizeClass != .compact && !dynamicTypeSize.isAccessibilitySize {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
-                        preferredMode = viewMode == .grid ? .list : .grid
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            staggerSettled = false
+                            preferredMode = viewMode == .grid ? .list : .grid
+                        }
                     } label: {
                         Label(
                             viewMode == .grid ? "List View" : "Grid View",
@@ -415,62 +431,63 @@ struct ShopScreen: View {
         .contentShape(Rectangle())
     }
 
-    /// Let full-bleed artwork and a readable scrim drive the regular-width grid.
+    /// The web `ShopCard`: a square of full-bleed art with a bottom scrim holding the
+    /// title and artist, the Leaving Tomorrow pill top-right and the highlight border;
+    /// the whole card opens the official Item Shop (batch 6.9). Song Detail stays
+    /// reachable from the card's context menu and VoiceOver actions.
     ///
     /// - Parameters:
     ///   - offer: Validated public Shop item.
     ///   - snapshot: Optional current-catalog song for native Detail navigation.
-    /// - Returns: One lazy square artwork card with distinct official/Detail actions.
+    /// - Returns: One square artwork card.
     private func gridOffer(_ offer: ShopSong, snapshot: ShopSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            GeometryReader { geometry in
-                ZStack(alignment: .topTrailing) {
-                    Link(destination: offer.shopUrl) {
-                        ZStack(alignment: .bottomLeading) {
-                            ArtworkTile(
-                                raw: offer.albumArt, session: session,
-                                size: geometry.size.width
-                            )
-                            .accessibilityHidden(true)
-                            LinearGradient(
-                                colors: [.clear, .black.opacity(0.85)],
-                                startPoint: .center, endPoint: .bottom
-                            )
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(offer.title).font(.headline)
-                                Text(offer.artist).font(.subheadline)
-                            }
-                            .foregroundStyle(FestivalText.primary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(12)
-                        }
-                        .frame(width: geometry.size.width, height: geometry.size.width)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
-                    .accessibilityLabel(
-                        "\(offer.title), \(offer.artist), Open Official Item Shop"
+        let song = snapshot.songsById[offer.songId]
+        return GeometryReader { geometry in
+            Link(destination: offer.shopUrl) {
+                ZStack(alignment: .bottomLeading) {
+                    ArtworkTile(raw: offer.albumArt, session: session, size: geometry.size.width)
+                        .accessibilityHidden(true)
+                    LinearGradient(
+                        colors: [.clear, .black.opacity(0.85)],
+                        startPoint: .center, endPoint: .bottom
                     )
-                    .accessibilityIdentifier("fst.shop.external.\(offer.songId)")
-                    offerBadge(offer, compact: false)
-                        .padding(8)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(offer.title).font(.headline).lineLimit(1)
+                        Text(offer.artist).font(.subheadline).lineLimit(1)
+                    }
+                    .foregroundStyle(FestivalText.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+                }
+                .frame(width: geometry.size.width, height: geometry.size.width)
+                .overlay(alignment: .topTrailing) {
+                    offerBadge(offer, compact: false).padding(12)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(borderColor(for: offer), lineWidth: 2)
                 }
             }
-            .aspectRatio(1, contentMode: .fit)
-            if let song = snapshot.songsById[offer.songId] {
-                NavigationLink(value: AppRoute.songDetail(song)) {
-                    Label("View Song Details", systemImage: "music.note")
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(offer.title), \(offer.artist), Open Official Item Shop")
+            .accessibilityIdentifier("fst.shop.external.\(offer.songId)")
+            .contextMenu {
+                // A NavigationLink inside a context menu does not push; the root's
+                // push action (installed for stat tiles) pushes on this tab.
+                if let song, let navigator {
+                    Button {
+                        navigator.push(.songDetail(song))
+                    } label: {
+                        Label("View Song Details", systemImage: "music.note")
+                    }
                 }
-                .accessibilityIdentifier("fst.shop.song.\(offer.songId)")
+                Link(destination: offer.shopUrl) {
+                    Label("Open Official Item Shop", systemImage: "bag")
+                }
             }
         }
-        .font(.body)
-        .padding(8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(BrandTokens.cardBackground, in: RoundedRectangle(cornerRadius: 12))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(borderColor(for: offer), lineWidth: 2)
-        }
+        .aspectRatio(1, contentMode: .fit)
     }
 
     /// Reflect leaving/new highlights without erasing a hidden preference.

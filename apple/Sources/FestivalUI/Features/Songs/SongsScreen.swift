@@ -580,7 +580,7 @@ struct SongsScreen: View {
         Button {
             filterPresented = true
         } label: {
-            Label("Filter", systemImage: "line.3.horizontal.decrease.circle")
+            Label("Filter", systemImage: "line.3.horizontal.decrease")
         }
         .accessibilityLabel("Filter Songs")
         .accessibilityValue(filterAccessibilityValue)
