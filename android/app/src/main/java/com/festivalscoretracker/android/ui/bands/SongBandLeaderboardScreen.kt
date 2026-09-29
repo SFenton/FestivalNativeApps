@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.ui.bands
 
+import com.festivalscoretracker.android.ui.design.AccuracyPill
 import com.festivalscoretracker.android.ui.design.StarRating
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -231,18 +232,8 @@ private fun BandScoreRow(entry: SongBandLeaderboardEntry, song: Song?, onClick: 
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(BandFormatting.count(entry.score), fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (entry.isFullCombo == true) {
-                        Text(
-                            "FC",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = BrandTokens.gold,
-                            modifier = Modifier
-                                .border(BorderStroke(1.dp, BrandTokens.gold), RoundedCornerShape(50))
-                                .padding(horizontal = 6.dp, vertical = 1.dp),
-                        )
-                    }
-                    accuracy?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = BrandTokens.textSecondary) }
+                    // Web `AccuracyDisplay`: a full combo is the gold-outlined accuracy, not an "FC" chip (7.11).
+                    if (accuracy != null || entry.isFullCombo == true) AccuracyPill(entry.accuracy, entry.isFullCombo == true)
                     entry.stars?.takeIf { it > 0 }?.let { StarRating(it, size = 14.dp) }
                 }
             }

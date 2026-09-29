@@ -53,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.festivalscoretracker.android.ui.design.AccuracyPill
 import com.festivalscoretracker.android.ui.common.festivalSheetTop
 import com.festivalscoretracker.android.core.format.ScoreFormatting
 import com.festivalscoretracker.android.core.profile.PlayerScoreSortMode
@@ -192,20 +193,10 @@ private fun HistoryRow(row: ScoreHistoryRow) {
                     color = BrandTokens.textSecondary,
                     modifier = Modifier.weight(1f),
                 )
-                row.accuracy?.let { accuracy ->
-                    val tint = row.entry.accuracy?.let { ScoreFormatting.accuracyTint(it) }
-                    Pill(accuracy, tint?.let { androidx.compose.ui.graphics.Color(0xFF000000 or it.toLong()).copy(alpha = 0.25f) } ?: BrandTokens.surfaceMuted)
-                }
-                if (row.isFullCombo) Pill("FC", BrandTokens.gold.copy(alpha = 0.25f))
+                // Web `AccuracyDisplay`: a full combo is the gold-outlined accuracy, not an "FC" chip (7.11).
+                if (row.accuracy != null || row.isFullCombo) AccuracyPill(row.entry.accuracy, row.isFullCombo)
             }
         }
-    }
-}
-
-@Composable
-private fun Pill(text: String, color: androidx.compose.ui.graphics.Color) {
-    Surface(color = color, shape = RoundedCornerShape(50), modifier = Modifier.padding(start = 6.dp)) {
-        Text(text, style = MaterialTheme.typography.labelMedium, color = BrandTokens.textPrimary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
     }
 }
 

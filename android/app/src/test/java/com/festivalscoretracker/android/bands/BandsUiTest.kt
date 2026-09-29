@@ -9,6 +9,8 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
@@ -211,8 +213,10 @@ class BandsUiTest {
         launch("songBandLeaderboard:s-alpha:Band_Duets")
         waitForTag("fst.song-band-leaderboard.row.band-1:1")
         rule.onNodeWithText("Duos · 30 entries").assertIsDisplayed()
-        rule.onNodeWithText("100%", useUnmergedTree = true).assertExists()
-        assertTrue(rule.onAllNodesWithText("97.5%", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+        // Web AccuracyDisplay: the full combo is the gold accuracy pill, not an "FC" chip (7.11).
+        rule.onNodeWithContentDescription("Full combo, 100%", useUnmergedTree = true).assertExists()
+        assertTrue(rule.onAllNodesWithText("FC", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+        assertTrue(rule.onAllNodesWithContentDescription("Accuracy 97.5%", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         waitForTag("fst.song-band-leaderboard.song")
         scrollTo("fst.song-band-leaderboard.list", "fst.song-band-leaderboard.page-last")
         click("fst.song-band-leaderboard.page-last")
