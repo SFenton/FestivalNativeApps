@@ -44,7 +44,7 @@ struct FirstRunPlayerHistoryScoreListDemo: View {
 
 /// Ported from `pages/leaderboard/player/firstRun/demo/SortControlsDemo.tsx`: the sort-mode list
 /// (Date/Score/Accuracy/Season) plus the ascending/descending direction row, mirroring the
-/// Songs sort demo's established layout for consistency (`FirstRunSortDemo`).
+/// Songs sort sheet's layout for consistency.
 struct FirstRunPlayerHistorySortDemo: View {
     private let modes = ["Date", "Score", "Accuracy", "Season"]
 

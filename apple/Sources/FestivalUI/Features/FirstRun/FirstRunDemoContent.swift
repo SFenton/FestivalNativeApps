@@ -27,16 +27,16 @@ struct FirstRunDemoContent: View {
     @ViewBuilder
     private var liveDemo: some View {
         switch slide.id {
-        // Songs (9)
-        case "songs-song-list": FirstRunSongListDemo()
-        case "songs-sort": FirstRunSortDemo()
-        case "songs-navigation": FirstRunNavigationDemo()
-        case "songs-filter": FirstRunFilterDemo()
-        case "songs-icons": FirstRunSongIconsDemo()
-        case "songs-metadata": FirstRunMetadataDemo()
-        case "songs-shop-highlight": FirstRunShopBadgeDemo(kind: .highlight)
-        case "songs-new-in-shop": FirstRunShopBadgeDemo(kind: .new)
-        case "songs-leaving-tomorrow": FirstRunShopBadgeDemo(kind: .leaving)
+        // Songs (9) — the app's real Songs UI (batch 7): rows, sheets, tab bar, chips.
+        case "songs-song-list": FirstRunNativeSongListDemo()
+        case "songs-sort": FirstRunNativeSortDemo()
+        case "songs-navigation": FirstRunNativeNavigationDemo()
+        case "songs-filter": FirstRunNativeFilterDemo()
+        case "songs-icons": FirstRunNativeIconsDemo()
+        case "songs-metadata": FirstRunNativeMetadataDemo()
+        case "songs-shop-highlight": FirstRunNativeShopDemo(kind: .highlight)
+        case "songs-new-in-shop": FirstRunNativeShopDemo(kind: .new)
+        case "songs-leaving-tomorrow": FirstRunNativeShopDemo(kind: .leaving)
 
         // Song Info (8)
         case "songinfo-chart": FirstRunSongInfoChartDemo()

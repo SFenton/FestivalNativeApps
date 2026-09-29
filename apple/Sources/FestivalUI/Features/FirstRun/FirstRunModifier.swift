@@ -21,8 +21,10 @@ struct FirstRunPageModifier: ViewModifier {
     /// empty slide list. `.sheet(isPresented:)` plus a separate `@State` array raced when a
     /// non-default tab was the launch tab (the sheet showed "page 1 of 0").
     @State private var presentation: FirstRunPresentation?
-    /// Slides shown by the current/last presentation, marked seen on dismiss.
+    /// Slides offered by the current/last presentation.
     @State private var shownSlides: [FirstRunSlide] = []
+    /// Which of `shownSlides` were actually on screen; only these are marked seen.
+    @State private var viewing = FirstRunViewing(slides: [])
 
     func body(content: Content) -> some View {
         content
@@ -33,7 +35,10 @@ struct FirstRunPageModifier: ViewModifier {
             .onChange(of: experimentalRanks) { _, _ in evaluate() }
             .onDisappear { center.release(page.rawValue) }
             .sheet(item: $presentation, onDismiss: finish) { shown in
-                FirstRunCarouselView(page: page, slides: shown.slides) { presentation = nil }
+                FirstRunCarouselView(page: page, slides: shown.slides, viewing: $viewing) {
+                    presentation = nil
+                }
+                .environment(\.firstRunSession, session)
             }
     }
 
@@ -65,14 +70,16 @@ struct FirstRunPageModifier: ViewModifier {
             )
         guard !slides.isEmpty, center.claim(page.rawValue) else { return }
         shownSlides = slides
+        viewing = FirstRunViewing(slides: slides)
         presentation = FirstRunPresentation(slides: slides)
     }
 
-    /// The displayed slides are marked seen and the shared slot released exactly once, whether
-    /// the sheet closed via Skip/Done or a swipe-to-dismiss.
+    /// The slides actually viewed are marked seen and the shared slot released exactly once,
+    /// whether the sheet closed via Done/Close, a swipe down or a tap outside. Pages the
+    /// person never reached stay unseen and show next time (operator batch 6, item 6.7).
     private func finish() {
         guard !shownSlides.isEmpty else { return }
-        center.store.markSeen(shownSlides)
+        center.store.markSeen(viewing.seenSlides(shownSlides))
         center.release(page.rawValue)
         shownSlides = []
     }

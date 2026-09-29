@@ -13,6 +13,9 @@ import FestivalDesign
 struct FirstRunSettingsSection: View {
     let session: FestivalSession
     @State private var replayPage: FirstRunPageKey?
+    /// Page of the replay being shown (kept after `replayPage` clears, for `onDismiss`).
+    @State private var lastReplayed: FirstRunPageKey?
+    @State private var viewing = FirstRunViewing(slides: [])
 
     /// Create the section.
     ///
@@ -26,28 +29,38 @@ struct FirstRunSettingsSection: View {
             "First Run Guides", subtitle: "Re-visit the first run experience for each page."
         ) {
             ForEach(Self.settingsOrder) { page in
-                Button { openReplay(page) } label: {
-                    HStack {
-                        SettingLabel(Self.rowLabel(page))
-                        Spacer(minLength: 8)
+                HStack {
+                    SettingLabel(Self.rowLabel(page))
+                    Spacer(minLength: 8)
+                    // The web's blue `btnPrimary` "Show" button; no slide counts.
+                    Button { openReplay(page) } label: {
                         Text("Show")
                             .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(BrandTokens.accentBlue)
+                            .padding(.horizontal, 6)
                     }
-                    .contentShape(Rectangle())
+                    .buttonStyle(.borderedProminent)
+                    .tint(BrandTokens.accentBlue)
+                    .foregroundStyle(.white)
+                    .accessibilityLabel("Show \(Self.rowLabel(page)) guide")
+                    .accessibilityIdentifier("fst.settings.first-run.\(page.rawValue)")
+                    .accessibilityHint("Shows every first-run guide slide for \(Self.rowLabel(page))")
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("fst.settings.first-run.\(page.rawValue)")
-                .accessibilityHint("Shows every first-run guide slide for \(Self.rowLabel(page))")
             }
         }
-        .sheet(item: $replayPage) { page in
-            let slides = FirstRunSlideEvaluator.allSlides(FirstRunCatalog.slides(for: page))
-            FirstRunCarouselView(page: page, slides: slides) {
-                session.firstRunCenter.store.markSeen(slides)
+        .sheet(item: $replayPage, onDismiss: finishReplay) { page in
+            FirstRunCarouselView(page: page, slides: Self.replaySlides(page), viewing: $viewing) {
                 replayPage = nil
             }
+            .environment(\.firstRunSession, session)
         }
+    }
+
+    /// Every slide for a page, ignoring gates and seen-state (`getAllSlides`).
+    ///
+    /// - Parameter page: Page to replay.
+    /// - Returns: The page's full catalog.
+    static func replaySlides(_ page: FirstRunPageKey) -> [FirstRunSlide] {
+        FirstRunSlideEvaluator.allSlides(FirstRunCatalog.slides(for: page))
     }
 
     /// Row order of the web Settings page (`SettingsPage.tsx:756-810`), which lists Statistics
@@ -73,6 +86,15 @@ struct FirstRunSettingsSection: View {
     private func openReplay(_ page: FirstRunPageKey) {
         let slides = FirstRunCatalog.slides(for: page)
         session.firstRunCenter.store.resetPage(slides.map(\.id))
+        viewing = FirstRunViewing(slides: Self.replaySlides(page))
+        lastReplayed = page
         replayPage = page
+    }
+
+    /// Mark only the replayed pages that were actually shown, however the sheet closed.
+    private func finishReplay() {
+        guard let page = lastReplayed else { return }
+        lastReplayed = nil
+        session.firstRunCenter.store.markSeen(viewing.seenSlides(Self.replaySlides(page)))
     }
 }
