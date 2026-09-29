@@ -39,6 +39,9 @@ import device  # noqa: E402  (shared emulator tool beside this script)
 
 # region Pure helpers
 
+#: System animation scale settings (``--animations-on``).
+ANIMATION_SCALES = ("animator_duration_scale", "transition_animation_scale", "window_animation_scale")
+
 #: Frame budgets (ms) reported: 120 Hz and 60 Hz.
 BUDGETS_MS = (8.33, 16.67)
 
@@ -177,6 +180,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--apk")
     parser.add_argument("--name", required=True)
     parser.add_argument("--out", required=True)
+    parser.add_argument("--animations-on", action="store_true",
+                        help="set the three system animation scales to 1 before launch (cold boots set 0, which "
+                             "freezes Compose animations and flings for the whole process)")
     parser.add_argument("--wait", type=float, default=6.0, help="seconds after launch before measuring")
     parser.add_argument("--before", help="drive steps after launch, before the reset (e.g. open a page)")
     parser.add_argument("--steps", help="drive steps measured (scrolls, taps)")
@@ -191,6 +197,9 @@ def run(args: argparse.Namespace) -> int:
     with device._lock(args, f"frame-stats {args.name} {args.avd}") as lock:
         dev = device._booted(args, lock)
         device._prepare(dev, args)
+        if args.animations_on:
+            for scale in ANIMATION_SCALES:
+                dev.shell(f"settings put global {scale} 1", check=False)
         device._launch(dev, args)
         time.sleep(args.wait)
         if args.before:
