@@ -113,12 +113,13 @@ struct SongsSortSheet: View {
                     FestivalSectionHeader("Sort Direction")
                 }
                 Section {
-                    Button("Reset to Title A-Z") {
+                    // Reset is red in every filter and sort sheet (operator batch 7).
+                    Button("Reset to Title A–Z", role: .destructive) {
                         draftMode = .title
                         draftAscending = true
                     }
                     .font(.body)
-                    .tint(FestivalText.primary)
+                    .foregroundStyle(FestivalSheetActionColor.destructive)
                     .accessibilityIdentifier("fst.songs.sort.reset")
                 }
             }
@@ -155,9 +156,15 @@ struct SortDirectionControl: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Text(ascending ? "Ascending (A–Z, low–high)" : "Descending (Z–A, high–low)")
-                .foregroundStyle(FestivalText.primary)
-                .fixedSize(horizontal: false, vertical: true)
+            // Titled row with the description as a subtitle (operator batch 7).
+            VStack(alignment: .leading, spacing: 2) {
+                Text(ascending ? "Ascending" : "Descending")
+                    .foregroundStyle(FestivalText.primary)
+                Text(ascending ? "A–Z, low to high" : "Z–A, high to low")
+                    .font(.footnote)
+                    .foregroundStyle(FestivalText.primary)
+            }
+            .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 8)
             HStack(spacing: 4) {
                 button(up: true)

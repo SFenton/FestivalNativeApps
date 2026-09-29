@@ -222,7 +222,7 @@ struct SongsFilterSheet: View {
           if selectedPlayer {
             Section {
               Picker("Instrument", selection: $draftInstrument) {
-                Text("All instruments").tag(Instrument?.none)
+                Text("All Instruments").tag(Instrument?.none)
                 ForEach(Instrument.allCases.filter(visibleInstruments.contains)) { choice in
                   Text(choice.label).tag(Instrument?.some(choice))
                 }
@@ -241,13 +241,13 @@ struct SongsFilterSheet: View {
             bucketSections
           }
           Section {
-            Button(selectedPlayer ? "Reset filters" : "Reset Shop filters") {
+            Button(selectedPlayer ? "Reset Filters" : "Reset Shop Filters", role: .destructive) {
               draftInShop = false
               draftLeavingTomorrow = false
               draftPlayerFilter = SongPlayerScoreFilter()
               draftInstrument = nil
             }
-            .tint(FestivalText.primary)
+            .foregroundStyle(FestivalSheetActionColor.destructive)
             .accessibilityIdentifier("fst.songs.filter.reset")
           }
           if let applyError {
@@ -334,11 +334,6 @@ struct SongsFilterSheet: View {
   ) -> some View {
     Section {
       DisclosureGroup(isExpanded: expanded) {
-        bulkActions(
-          id: kind.rawValue,
-          all: { draftPlayerFilter = draftPlayerFilter.settingExcluded(kind, []) },
-          none: { draftPlayerFilter = draftPlayerFilter.settingExcluded(kind, Set(keys)) }
-        )
         ForEach(keys, id: \.self) { key in
           Toggle(isOn: bucketBinding(kind, key)) { label(key) }
             .accessibilityLabel(Self.spokenLabel(kind, key))
@@ -350,6 +345,16 @@ struct SongsFilterSheet: View {
         // replaces every nested toggle's own.
         bucketLabel(title, hint: hint)
           .accessibilityIdentifier("fst.songs.filter.\(kind.rawValue)")
+      }
+    } header: {
+      // Platform pattern: trailing text actions in the section header, Clear in red
+      // (operator batch 7), shown while the accordion is open.
+      if expanded.wrappedValue {
+        bulkActions(
+          id: kind.rawValue,
+          all: { draftPlayerFilter = draftPlayerFilter.settingExcluded(kind, []) },
+          none: { draftPlayerFilter = draftPlayerFilter.settingExcluded(kind, Set(keys)) }
+        )
       }
     }
   }
@@ -385,14 +390,18 @@ struct SongsFilterSheet: View {
 
   /// The web's `BulkActions` row (Select All / Clear All).
   private func bulkActions(id: String, all: @escaping () -> Void, none: @escaping () -> Void) -> some View {
-    HStack(spacing: 12) {
+    HStack(spacing: 16) {
+      Spacer()
       Button("Select All", action: all)
+        .foregroundStyle(FestivalText.primary)
         .accessibilityIdentifier("fst.songs.filter.\(id).select-all")
       Button("Clear All", action: none)
+        .foregroundStyle(FestivalSheetActionColor.destructive)
         .accessibilityIdentifier("fst.songs.filter.\(id).clear-all")
     }
+    .font(.subheadline.weight(.semibold))
+    .textCase(nil)
     .buttonStyle(.borderless)
-    .tint(FestivalText.primary)
     .disabled(!canEnableScores)
   }
 

@@ -395,6 +395,14 @@ struct RootProfileButton: View {
             "Profile: \($0.displayName)"
         } ?? "Choose Profile")
         .accessibilityHint("Opens profile selection")
+        // Bar buttons keep their size at large text (HIG); the Large Content Viewer
+        // shows the name instead of the fixed-size monogram.
+        .accessibilityShowsLargeContentViewer {
+            Label(
+                session.selectedPlayer?.displayName ?? "Choose Profile",
+                systemImage: "person.crop.circle"
+            )
+        }
         .accessibilityIdentifier("fst.shell.profile")
     }
 }

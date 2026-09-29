@@ -135,3 +135,13 @@ public extension View {
         modifier(FestivalSheetModifier(size: size, sizing: sizing))
     }
 }
+
+// MARK: - Sheet actions
+
+/// Colours for text actions inside Festival sheets.
+public enum FestivalSheetActionColor {
+    /// Reset / Clear actions: red, as the operator asked for every filter and sort sheet,
+    /// but light enough (#FF6B66) to keep 4.5:1 contrast on the dark sheet surface
+    /// (`BrandTokens.statusRed` is a fill colour and fails as text).
+    public static let destructive = Color(.sRGB, red: 1.0, green: 107.0 / 255, blue: 102.0 / 255)
+}
