@@ -1106,7 +1106,10 @@ struct SongsScreen: View {
             SongRowView(
                 song: song, instrument: instrument,
                 session: session, highContrast: highContrast,
-                shopHighlight: highlight, profileChart: chart,
+                shopHighlight: highlight,
+                inShop: !hideShop && !disableShopHighlighting
+                    && shopOffersForCurrentSongs?[song.songId] != nil,
+                profileChart: chart,
                 catalogueObservation: catalogueObservation,
                 metadata: metadataVisibility,
                 filterInvalidScores: filterInvalidScores,

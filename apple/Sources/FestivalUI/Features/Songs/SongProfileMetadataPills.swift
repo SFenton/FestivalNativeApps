@@ -165,6 +165,9 @@ struct SongMetadataFieldView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @ScaledMetric(relativeTo: .body) private var minHeight: CGFloat = 28
     @ScaledMetric(relativeTo: .body) private var horizontalInset: CGFloat = 4
+    /// Width of a percent pill: exactly "XX.X%" at the callout bold size, plus
+    /// insets (operator batch 7: never wider), scaled with Dynamic Type.
+    @ScaledMetric(relativeTo: .callout) private var percentWidth: CGFloat = 66
 
     private var badgeHeight: CGFloat {
         max(minHeight, dynamicTypeSize.isAccessibilitySize ? 44 : 28)
@@ -191,24 +194,22 @@ struct SongMetadataFieldView: View {
                 percentageVisible: percentageVisible, tint: tint
             )
             let text: Text = combo ? Text(label).italic() : Text(label)
+            // FC is the web's `goldOutlineSkew` (as on Song Detail): gold bold italic
+            // percentage in a sheared gold outline on a clear fill, no "FC" prefix.
             text
                 .font(.callout.bold())
                 .foregroundStyle(combo ? BrandTokens.gold : FestivalText.primary)
-                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
                 .padding(.horizontal, horizontalInset)
-                .frame(
-                    minWidth: combo ? max(82, badgeHeight * 2.8)
-                        : max(64, badgeHeight * 2.1),
-                    minHeight: badgeHeight
-                )
-                .background(
-                    accuracyBackground(combo: combo, tint: tint),
-                    in: RoundedRectangle(cornerRadius: 6)
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: 6).stroke(
-                        combo ? BrandTokens.goldStroke : Color.clear, lineWidth: 2
-                    )
+                .frame(width: percentWidth, height: badgeHeight)
+                .background {
+                    if combo {
+                        GoldSkewBadgeShape(skewed: true).strokeBorder(BrandTokens.gold, lineWidth: 2)
+                    } else {
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(accuracyBackground(combo: false, tint: tint))
+                    }
                 }
         case let .percentile(label, tier):
             let highlighted = tier != .ordinary
@@ -219,7 +220,7 @@ struct SongMetadataFieldView: View {
                 .foregroundStyle(
                     highlighted ? BrandTokens.gold : FestivalText.primary
                 )
-                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(1)
                 .padding(.horizontal, horizontalInset)
                 .frame(minWidth: 80, minHeight: badgeHeight)
                 .background(
@@ -250,10 +251,11 @@ struct SongMetadataFieldView: View {
                 .padding(.horizontal, horizontalInset)
                 .frame(minHeight: badgeHeight)
             } else {
-                // The web's star images (`GoldStars`), not SF Symbols.
-                StarRating(stars: count, gold: gold, size: 16)
+                // The web row's `MiniStars`: each star in a circle, sized so the row is
+                // as tall as the other pills (operator batch 7).
+                StarRating(stars: count, gold: gold, style: .mini, size: badgeHeight / 1.2)
                     .accessibilityHidden(true)
-                    .frame(minHeight: badgeHeight)
+                    .frame(height: badgeHeight)
             }
         case let .season(number, current):
             Text("S\(number)")
@@ -268,7 +270,11 @@ struct SongMetadataFieldView: View {
                     in: RoundedRectangle(cornerRadius: 6)
                 )
         case let .intensity(raw):
+            // The meter draws 62×20; scale it to the pills' height (operator batch 7).
+            let scale = badgeHeight / 20
             DifficultyMeter(level: raw, raw: true)
+                .scaleEffect(scale)
+                .frame(width: 62 * scale, height: badgeHeight)
         case let .difficulty(number):
             Text(difficultyInitial(number))
                 .font(.callout.bold())
@@ -327,7 +333,7 @@ struct SongMetadataFieldView: View {
             return "Accuracy display unavailable"
         }
         if percentageVisible, let value {
-            return "\(fullCombo ? "FC " : "")\(ScoreFormatting.accuracy(value))%"
+            return "\(ScoreFormatting.accuracy(value))%"
         }
         return fullCombo ? "FC" : "Accuracy unavailable"
     }

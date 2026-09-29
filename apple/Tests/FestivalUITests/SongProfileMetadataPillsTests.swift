@@ -95,7 +95,9 @@ private func renderedBadgeInsets(
     #expect(narrow.height >= phone.height)
     #expect(phone.height > tablet.height)
     #expect(desktop.height == tablet.height)
-    #expect(largest.height > narrow.height)
+    // Web MiniStars (circled, pill-height) make the narrow row wrap more, so compare
+    // the largest type with the default phone width.
+    #expect(largest.height > phone.height)
     #expect(paintedPixels(near: (255, 215, 0), in: phone, sampleStep: 1) > 40)
     #expect(paintedPixels(near: (124, 58, 237), in: phone) > 25)
     #expect(paintedPixels(near: (215, 222, 232), in: phone) > 25)

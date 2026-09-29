@@ -19,6 +19,8 @@ enum ShopStatusTone: Equatable, Sendable {
     static let base = Color(.sRGB, red: 18 / 255, green: 24 / 255, blue: 38 / 255, opacity: 0.96)
     /// One full breathe cycle (web: `3s ease-in-out infinite`).
     static let period: Double = 3
+    /// Highest opacity of the status colour over the base (no bloom on EDR displays).
+    static let peakOpacity: Double = 0.8
 
     /// Resolve the tone the web would pulse with (`useShopState.isShopHighlighted`).
     ///
@@ -63,8 +65,8 @@ enum ShopStatusTone: Equatable, Sendable {
 
 // MARK: - Breathing fill
 
-/// Circular fill that breathes between ``ShopStatusTone/base`` and the tone's colour,
-/// with a soft glow in the same colour at the peak.
+/// Circular fill that breathes between ``ShopStatusTone/base`` and the tone's colour
+/// (capped at ``ShopStatusTone/peakOpacity``), without a glow.
 ///
 /// Driven by `TimelineView(.animation)` rather than a `repeatForever` state animation:
 /// toolbar items are re-hosted by the navigation bar, which dropped the implicit
@@ -115,12 +117,80 @@ struct ShopStatusBreathe: ViewModifier {
                 let level = Self.intensity(
                     at: context.date.timeIntervalSinceReferenceDate, animating: running
                 )
+                // The web only cross-fades the fill; the former glow read as an
+                // overblown HDR bloom (operator batch 7), so there is none, and the
+                // peak is capped below the full status colour.
                 ZStack {
                     Circle().fill(ShopStatusTone.base)
-                    Circle().fill(tone.target).opacity(level)
+                    Circle().fill(tone.target).opacity(level * ShopStatusTone.peakOpacity)
                 }
-                .shadow(color: tone.target.opacity(0.7 * level), radius: 6 * level)
             }
         }
+    }
+}
+
+// MARK: - Row border pulse
+
+extension ShopStatusTone {
+    /// Tone for a Songs row already known to be in the Shop.
+    ///
+    /// - Parameter highlight: New / Leaving Tomorrow, or nil for a plain offer.
+    init(highlight: ShopHighlight?) {
+        switch highlight {
+        case .leavingTomorrow: self = .leaving
+        case .new: self = .new
+        case nil: self = .inShop
+        }
+    }
+
+    /// Border colour of the web's row pulse (`shopPulse*`: #2ECC71, gold, red).
+    var borderColor: Color {
+        switch self {
+        case .inShop: BrandTokens.diffPillEasy
+        case .new: BrandTokens.gold
+        case .leaving: Color(.sRGB, red: 239 / 255, green: 68 / 255, blue: 68 / 255, opacity: 1)
+        }
+    }
+}
+
+/// The web's `shopPulse` row border: 2pt, opacity 0 → 0.7 → 0 over 2 s (ease-in-out).
+/// Reduce Motion, an inactive scene or the UI-test still override hold it at 0.7.
+struct ShopRowPulseBorder: View {
+    let tone: ShopStatusTone
+    let cornerRadius: CGFloat
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
+    @Environment(\.scenePhase) private var scenePhase
+
+    /// Web keyframe peak.
+    static let peak: Double = 0.7
+    /// Web cycle length.
+    static let period: Double = 2
+
+    /// Border opacity at a time.
+    ///
+    /// - Parameters:
+    ///   - time: Seconds since any fixed reference.
+    ///   - animating: False holds the peak.
+    /// - Returns: 0…``peak``.
+    static func opacity(at time: TimeInterval, animating: Bool) -> Double {
+        guard animating else { return peak }
+        let phase = time.truncatingRemainder(dividingBy: period) / period
+        return peak * (1 - cos(2 * .pi * phase)) / 2
+    }
+
+    var body: some View {
+        let running = ShopStatusBreathe.animates(
+            reduceMotion: systemReduceMotion || appReduceMotion,
+            sceneActive: scenePhase == .active,
+            still: DebugAnimationOverride.stillBackground
+        )
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !running)) { context in
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .stroke(tone.borderColor, lineWidth: 2)
+                .opacity(Self.opacity(at: context.date.timeIntervalSinceReferenceDate, animating: running))
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }

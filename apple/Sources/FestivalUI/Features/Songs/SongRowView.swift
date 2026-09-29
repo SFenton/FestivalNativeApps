@@ -9,6 +9,9 @@ struct SongRowView: View {
     let session: FestivalSession
     let highContrast: Bool
     let shopHighlight: ShopHighlight?
+    /// In the current, publication-matched Shop with highlighting enabled (web
+    /// `isShopHighlighted`): pulsing border and the bag icon.
+    let inShop: Bool
     let profileChart: Instrument?
     let catalogueObservation: Int?
     let metadata: SongMetadataVisibility
@@ -28,6 +31,7 @@ struct SongRowView: View {
     ///   - session: Process-scoped artwork loader.
     ///   - highContrast: Explicit content contrast override.
     ///   - shopHighlight: Validated, effectively enabled Shop badge.
+    ///   - inShop: Song is in the validated Shop with highlighting enabled.
     ///   - profileChart: First visible chart or explicit Songs chart filter.
     ///   - catalogueObservation: Observed generation for this validated Songs row.
     ///   - metadata: Persisted score-field visibility switches.
@@ -38,6 +42,7 @@ struct SongRowView: View {
     init(
         song: Song, instrument: Instrument?, session: FestivalSession,
         highContrast: Bool, shopHighlight: ShopHighlight? = nil,
+        inShop: Bool = false,
         profileChart: Instrument? = nil,
         catalogueObservation: Int? = nil,
         metadata: SongMetadataVisibility = SongMetadataVisibility(),
@@ -51,6 +56,7 @@ struct SongRowView: View {
         self.session = session
         self.highContrast = highContrast
         self.shopHighlight = shopHighlight
+        self.inShop = inShop || shopHighlight != nil
         self.profileChart = profileChart
         self.catalogueObservation = catalogueObservation
         self.metadata = metadata
@@ -179,6 +185,21 @@ struct SongRowView: View {
         }
     }
 
+    /// The web row's shop bag (`IoBagHandle`) for every song in the Item Shop, before the
+    /// Leaving Tomorrow clock (operator batch 7).
+    @ViewBuilder private var shopIcons: some View {
+        if inShop {
+            HStack(spacing: 6) {
+                Image(systemName: "bag.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(FestivalText.primary)
+                    .accessibilityLabel("In the Item Shop")
+                    .accessibilityIdentifier("fst.songs.shop-bag.\(song.songId)")
+                shopBadge
+            }
+        }
+    }
+
     @ViewBuilder private var shopBadge: some View {
         if shopHighlight == .new {
             // No visible "New" chip (operator, 2026-09-28): the row's gold outline marks
@@ -214,7 +235,7 @@ struct SongRowView: View {
                let difficulty = song.difficulty?.chartedValue(for: instrument) {
                 DifficultyMeter(level: difficulty, raw: true)
             }
-            shopBadge
+            shopIcons
         }
     }
 
@@ -226,14 +247,18 @@ struct SongRowView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 12) {
                 artworkTile
-                ViewThatFits(in: .horizontal) {
+                if !dynamicTypeSize.isAccessibilitySize {
+                    // The primary metric keeps its line; a long title/artist marquees
+                    // instead of pushing it down (operator batch 7).
                     HStack(alignment: .top, spacing: 8) {
-                        selectedChartInfo.frame(minWidth: 150, alignment: .leading)
-                        Spacer(minLength: 0)
+                        selectedChartInfo.frame(maxWidth: .infinity, alignment: .leading)
                         if let primary = fields.first {
                             SongMetadataFieldView(field: primary, songId: song.songId)
+                                .fixedSize()
+                                .layoutPriority(1)
                         }
                     }
+                } else {
                     VStack(alignment: .leading, spacing: 6) {
                         selectedChartInfo
                         if let primary = fields.first {
@@ -250,10 +275,10 @@ struct SongRowView: View {
                     fields: Array(fields.dropFirst()), songId: song.songId
                 )
             }
-            if shopHighlight != nil {
+            if inShop {
                 HStack {
                     Spacer(minLength: 0)
-                    shopBadge
+                    shopIcons
                 }
             }
         }
@@ -289,14 +314,13 @@ struct SongRowView: View {
         .padding(.vertical, 10)
         .festivalGlass(.card, cornerRadius: 12)
         .overlay {
-            if shopHighlight != nil || highContrast {
+            if inShop {
+                // Web `shopPulse`: a 2pt border fading 0 → 0.7 → 0 every 2 s, green in
+                // the shop, gold when new, red when leaving tomorrow.
+                ShopRowPulseBorder(tone: ShopStatusTone(highlight: shopHighlight), cornerRadius: 12)
+            } else if highContrast {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(
-                        shopHighlight == .leavingTomorrow ? BrandTokens.statusRed
-                            : shopHighlight == .new ? BrandTokens.gold
-                            : FestivalText.primary,
-                        lineWidth: 2
-                    )
+                    .stroke(FestivalText.primary, lineWidth: 2)
             }
         }
         .accessibilityElement(children: .combine)
