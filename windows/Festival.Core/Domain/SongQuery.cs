@@ -155,26 +155,33 @@ public static class SongCatalogQuery
     /// <summary>Section label for one song.</summary>
     /// <param name="song">Row.</param>
     /// <param name="mode">Sort field.</param>
-    /// <returns>A–Z or #, a year, or a duration bucket.</returns>
+    /// <returns>A–Z or #, a decade, or a duration bucket.</returns>
     public static string SectionKey(Song song, SongSortMode mode) => mode switch
     {
         SongSortMode.Title => FirstLetter(song.Title),
         SongSortMode.Artist => FirstLetter(song.Artist),
-        SongSortMode.Year => song.Year?.ToString(CultureInfo.InvariantCulture) ?? "Unknown Year",
+        SongSortMode.Year => DecadeBucket(song.Year),
         _ => DurationBucket(song.DurationSeconds),
     };
 
-    /// <summary>Web duration quick-link bucket labels (<c>songQuickLinks.ts:193-202</c>).</summary>
+    /// <summary>Year sections are decades (operator 2026-09-28, all platforms): "1970s" … or "Unknown Year".</summary>
+    /// <param name="year">Release year.</param>
+    /// <returns>Decade label.</returns>
+    public static string DecadeBucket(int? year) =>
+        year is > 0 and { } y ? (y / 10 * 10).ToString(CultureInfo.InvariantCulture) + "s" : "Unknown Year";
+
+    /// <summary>
+    /// One-minute duration sections (operator 2026-09-28, deliberately not the web's four buckets): "Under 1 Minute",
+    /// "1–2 Minutes" … "9–10 Minutes", "Over 10 Minutes", or "Unknown Duration".
+    /// </summary>
     /// <param name="seconds">Duration.</param>
     /// <returns>Bucket label.</returns>
     public static string DurationBucket(int? seconds) => seconds switch
     {
         null or <= 0 => "Unknown Duration",
-        < 120 => "Under 2 Minutes",
-        < 180 => "2–3 Minutes",
-        < 240 => "3–4 Minutes",
-        < 300 => "4–5 Minutes",
-        _ => "5 Minutes And Over",
+        < 60 => "Under 1 Minute",
+        >= 600 => "Over 10 Minutes",
+        { } s => $"{s / 60}–{s / 60 + 1} Minutes",
     };
 
     /// <summary>Accent-folded uppercase A–Z initial, or <c>#</c>.</summary>

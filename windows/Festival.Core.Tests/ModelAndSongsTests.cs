@@ -160,12 +160,17 @@ public class ModelAndSongsTests
         Assert.Equal(["#", "A", "B"], byTitle.Select(s => s.Label));
         Assert.Equal(2, byTitle[1].Songs.Count);
         Assert.Equal(["E", "Z", "#", "#"], songs.Select(s => SongCatalogQuery.SectionKey(s, SongSortMode.Artist)));
-        Assert.Equal(["2019", "2019", "Unknown Year", "2020"], songs.Select(s => SongCatalogQuery.SectionKey(s, SongSortMode.Year)));
-        Assert.Equal(["Under 2 Minutes", "2–3 Minutes", "5 Minutes And Over", "Unknown Duration"],
+        Assert.Equal(["2010s", "2010s", "Unknown Year", "2020s"], songs.Select(s => SongCatalogQuery.SectionKey(s, SongSortMode.Year)));
+        Assert.Equal(["1–2 Minutes", "2–3 Minutes", "6–7 Minutes", "Unknown Duration"],
             songs.Select(s => SongCatalogQuery.SectionKey(s, SongSortMode.Duration)));
         Assert.Equal("#", SongCatalogQuery.FirstLetter("(Don't Fear)"));
+        Assert.Equal("Under 1 Minute", SongCatalogQuery.DurationBucket(59));
         Assert.Equal("3–4 Minutes", SongCatalogQuery.DurationBucket(200));
         Assert.Equal("4–5 Minutes", SongCatalogQuery.DurationBucket(299));
+        Assert.Equal("9–10 Minutes", SongCatalogQuery.DurationBucket(599));
+        Assert.Equal("Over 10 Minutes", SongCatalogQuery.DurationBucket(600));
+        Assert.Equal("1970s", SongCatalogQuery.DecadeBucket(1979));
+        Assert.Equal("Unknown Year", SongCatalogQuery.DecadeBucket(0));
         Assert.Empty(SongCatalogQuery.Sections([], SongSortMode.Title));
     }
 

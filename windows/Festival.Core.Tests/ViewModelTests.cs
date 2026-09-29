@@ -216,7 +216,8 @@ public class SongsViewModelTests
         Assert.False(vm.SortDraft.CanApply);
         Assert.True(vm.IsSortChanged);
         Assert.Equal("Year ↓", vm.SortSummary);
-        Assert.Equal(["2021", "2020", "Unknown Year"], vm.Sections.Select(s => s.Label));
+        Assert.Equal(["2020s", "Unknown Year"], vm.Sections.Select(s => s.Label));
+        Assert.False(vm.HasJumpIndex); // Year sort has no quick-jump
         vm.SortDraft.Begin();
         Assert.Equal(SongSortMode.Year, vm.SortDraft.Mode);
         vm.SortDraft.ResetCommand.Execute(null);

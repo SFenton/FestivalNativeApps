@@ -263,7 +263,9 @@ public sealed partial class SongsViewModel : ObservableObject
 
         var projector = new SongRowProjector(settings, catalog.CurrentSeason, offers, scores);
         Sections = [.. result.Sections.Select(s => new SongRowSection(s.Label, [.. s.Songs.Select(projector.Project)]))];
-        HasJumpIndex = Sections.Count > 1 || (Sections.Count == 1 && Sections[0].Label.Length > 0);
+        // No quick-jump under the Year sort (operator 2026-09-28): decade headers stay, the zoomed-out index does not.
+        HasJumpIndex = settings.SongSort != SongSortMode.Year &&
+                       (Sections.Count > 1 || (Sections.Count == 1 && Sections[0].Label.Length > 0));
         ResultCount = result.Count;
         var notices = new List<string>();
         if (scores.Notice is { } scoreNotice) notices.Add(scoreNotice);

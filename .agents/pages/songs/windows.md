@@ -10,7 +10,9 @@
 - Sort: Title/Artist/Year/Duration + **Item Shop** (members first ascending; buckets Leaving Tomorrow / In Shop / Not In Shop in first-seen order, unlabeled when only one). Item Shop is hidden from the choices while Hide Item Shop is on.
 - Filter flyout: chart + 1–7 difficulty (public), In Item Shop / Leaving Tomorrow (disabled but clearable when Shop is hidden), and with a player four global switches plus a per-chart grid (AND within a chart, OR across charts). Apply scopes checks to visible charts; hidden checks are disclosed. Confirmed deselect clears player checks only.
 - A damaged saved player filter shows "Saved Filters Can't Be Read" with Reset (`fst.songs.filter-invalid`) instead of the list.
-- Jump index: `SemanticZoom` over group headers plus a **Jump** toolbar button (`fst.songs.section-index-button`); disabled when there is a single unlabeled group.
+- Sections (operator 2026-09-28, all platforms): Year sorts group by **decade** ("1970s" … "Unknown Year"); Duration sorts use one-minute buckets "Under 1 Minute", "1–2 Minutes" … "9–10 Minutes", "Over 10 Minutes", "Unknown Duration" (`SongCatalogQuery.DecadeBucket` / `DurationBucket`). **This deliberately deviates from the web**, whose Duration quick links use four buckets (`songQuickLinks.ts`); Quick Links take the section labels.
+- Jump index: `SemanticZoom` over group headers plus a **Jump** toolbar button (`fst.songs.section-index-button`); disabled when there is a single unlabeled group and under the **Year** sort (no quick-jump there, operator 2026-09-28).
+- Rows stagger in with the shared fade (`FadeIn`, after the art-priming gate) and re-stagger on sort/filter/search changes.
 - First-paint gate: the first reveal waits (≤ 900 ms) for the first 12 rows' art to decode, then fades in (instant under reduced motion).
 - `MarqueeText` for titles/subtitles (see [design/windows.md](../../design/windows.md#motion)).
 
@@ -29,7 +31,7 @@
 | Filter only with a player/band | Filter always available (chart, difficulty, Shop); player section only with a player | Public filters are useful without a profile on desktop |
 | Shop filter pauses without a player (iPhone) | Shop filter applies without a player | Shop membership is public data |
 | Right-edge scrubber | `SemanticZoom` + Jump button | Windows-native quick jump (Start, Mail, Photos) |
-| Marquee always scrolls on overflow | Scrolls only while the row is hovered or keyboard-focused | No per-frame work while idle beside a game |
+| Marquee always scrolls on overflow | Same (operator 2026-09-28): scrolls whenever it overflows, phase-aligned; stops when motion is off, the window is hidden or the row is unrealized | Composition animation only; see perf notes in [design/windows.md](../../design/windows.md#motion) |
 | Cancel on a changed draft confirms discard | Light-dismiss flyout discards | Fluent flyout convention |
 
 ## UI journeys
