@@ -16,4 +16,6 @@
 | Rivals: Rank By picker, native combo full board, half-open gap ~17 px left of the fold | and-rivals | |
 | Profile: star/percentile tiles need a Songs stars filter; Global Rank opens rankings at page 1; Song Detail `?instrument=` focus; rank-history bar width (40 dp vs web 96 px) | and-profile2 | |
 | Shell: floating-toolbar hide-on-scroll; embedded Song Detail pads the status bar itself; Songs filter → `RegisterPageFind`; MainActivity coverage | and-shell-search | |
-| FST-and-polish leftovers | and-polish report | Fill in when its report lands (splash, CHOpt drag, spinners/marquee in closed lanes' files) |
+| Splash uses the placeholder launcher icon; web logo needs the asset-licensing gate | and-polish | Operator approval |
+| TalkBack order/touch targets + instrumented journeys for the shell changes | and-polish | |
+| Delete stray empty folder `C:\c\Users\sfent\workspace\showcase\and-polish\live` on the Windows host | and-polish | Operator (safety check blocked removal) |
