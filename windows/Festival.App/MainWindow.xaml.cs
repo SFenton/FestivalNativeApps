@@ -54,6 +54,7 @@ public sealed partial class MainWindow : Window
         InitializeGlobalSearch();
         InitializeAccessibility();
         InitializeTitleBarInset();
+        InitializeRoutePolicy();
         Nav.Loaded += (_, _) =>
         {
             if (Nav.SettingsItem is NavigationViewItem settingsItem) Configure(settingsItem);
@@ -101,6 +102,12 @@ public sealed partial class MainWindow : Window
     /// <param name="route">Destination.</param>
     public void Navigate(AppRoute route)
     {
+        // Player-only routes redirect to the Songs root without a profile, like the web's RequirePlayer guards.
+        if (AppRouteParser.ForProfile(route, session.HasPlayer) is null)
+        {
+            ShowSongsRoot();
+            return;
+        }
         // Windows has no Compete section (wide split: Leaderboards + Rivals); /compete and /rivals open the Rivals root.
         if (route is AppRoute.Compete or AppRoute.Rivals && session.HasPlayer)
         {
@@ -173,6 +180,14 @@ public sealed partial class MainWindow : Window
         OnFrameNavigated();
     }
 
+    /// <summary>Shows the Songs list itself (the anonymous redirect target), popping any Songs stack.</summary>
+    private void ShowSongsRoot()
+    {
+        Show(AppSection.Songs);
+        var frame = frames[AppSection.Songs];
+        while (frame.CanGoBack) frame.GoBack();
+    }
+
     /// <summary>Drops cached section stacks whose pages hold reset state, so they reload from defaults on next visit.</summary>
     /// <param name="sections">Owning sections (the visible one is kept: Reset runs from Settings).</param>
     private void DropCachedSections(IEnumerable<AppSection> sections)
@@ -214,6 +229,7 @@ public sealed partial class MainWindow : Window
         var frame = frames.GetValueOrDefault(current);
         AppTitleBar.IsBackButtonEnabled = frame?.CanGoBack == true;
         if (frame is not null) TrackRoutes(frame);
+        UpdateWindowTitle();
         QueueFirstRun();
         if (frame?.Content is IBackdropPage { UsesSongCover: true } page) Backdrop.ShowSong(page.BackdropArt);
         else Backdrop.ShowCarousel();

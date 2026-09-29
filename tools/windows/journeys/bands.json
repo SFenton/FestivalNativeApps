@@ -66,16 +66,13 @@
     ]
   },
   {
-    "name": "bands-landing",
+    "name": "bands-not-found",
     "route": "/bands",
     "preset": "medium",
     "steps": [
       "waitfor:id=fst.bands.title@15",
-      "waitfor:id=fst.bands.rankings.Band_Trios@10",
-      "invoke:id=fst.bands.rankings.Band_Trios",
-      "wait:2",
-      "key:alt+left",
-      "waitfor:id=fst.bands.footnote@10"
+      "waitfor:name=Band not found@10",
+      "shot:{shots}\bands-not-found.png"
     ]
   }
 ]

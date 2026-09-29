@@ -71,10 +71,6 @@ public sealed partial class LeaderboardsPage : Page
         if (route is not null) MainWindow.Instance?.Navigate(route);
     }
 
-    /// <summary>Opens the Bands landing (not in the navigation pane).</summary>
-    /// <param name="sender">Hyperlink.</param>
-    /// <param name="e">Unused.</param>
-    private void OnBrowseBands(object sender, RoutedEventArgs e) => MainWindow.Instance?.Navigate(new AppRoute.Bands());
 
     /// <summary>F5 reloads every card.</summary>
     /// <param name="sender">Accelerator.</param>

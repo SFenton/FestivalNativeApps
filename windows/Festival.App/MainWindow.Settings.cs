@@ -77,6 +77,7 @@ public sealed partial class MainWindow
             if (e.NavigationMode == NavigationMode.Back && stack.Count > 1) stack.Pop();
             else if (e.NavigationMode == NavigationMode.New) stack.Push(e.Parameter as AppRoute);
             if (frame.BackStack.Count == 0) routeStacks[frame] = RootStack();
+            UpdateWindowTitle();
         };
     }
 

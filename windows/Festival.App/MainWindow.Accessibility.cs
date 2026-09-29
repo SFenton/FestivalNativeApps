@@ -65,7 +65,7 @@ public sealed partial class MainWindow
     /// At large Windows text sizes (≥150%) the title-bar caption text would squeeze the global search box to a sliver; the
     /// caption is dropped there (the window title, taskbar and Alt+Tab still name the app).
     /// </summary>
-    private void ApplyTextScale() => AppTitleBar.Title = uiSettings.TextScaleFactor >= 1.5 ? "" : Title;
+    private void ApplyTextScale() => AppTitleBar.Title = uiSettings.TextScaleFactor >= 1.5 ? "" : WindowTitles.Brand;
 
     /// <summary>Opens the <paramref name="position"/>-th visible pane section (Ctrl+digit).</summary>
     /// <param name="position">1-based pane position.</param>

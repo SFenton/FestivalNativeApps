@@ -118,8 +118,6 @@
 
             <Grid Margin="0,12,0,0">
                 <TextBlock Text="Bands" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
-                <HyperlinkButton Content="Browse Bands" HorizontalAlignment="Right" VerticalAlignment="Center" Click="OnBrowseBands"
-                                 AutomationProperties.AutomationId="fst.leaderboards.bands-link" />
             </Grid>
             <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.BandCards, Mode=OneWay}"
                            controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="420">
