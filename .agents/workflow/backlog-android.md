@@ -19,3 +19,7 @@
 | Splash uses the placeholder launcher icon; web logo needs the asset-licensing gate | and-polish | Operator approval |
 | TalkBack order/touch targets + instrumented journeys for the shell changes | and-polish | |
 | Delete stray empty folder `C:\c\Users\sfent\workspace\showcase\and-polish\live` on the Windows host | and-polish | Operator (safety check blocked removal) |
+| Tablet permanent drawer: drop the "Festival Score Tracker" title; first entry (Songs) lines up with where the page's top content/search bar sits; transparent drawer background so the animated/song background shows through | Operator 2026-09-28 | |
+| Foldables still show the large empty "Select a song" area: when width allows two columns, show **two populated columns** (auto-select the first or last-selected item); never an empty detail pane | Operator 2026-09-28 | Same rule on Duo, Windows, iPad |
+| Foldable navigation rail: **top-align** the destination icons so expanding the rail into the full drawer is a natural extension of the icon positions (supersedes the earlier "vertically centre" request for foldables) | Operator 2026-09-28 | |
+

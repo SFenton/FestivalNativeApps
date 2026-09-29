@@ -13,3 +13,6 @@
 | GlobalSearch test flaked once under load | win-polish | |
 | `contracts/product.json` still lists `fst.song-detail.shop-badge` | win-polish | Chip removed |
 | FST-win-pwa leftovers | win-pwa report | Fill in when its report lands |
+| Two populated columns (list + detail with an auto-selected first/last item) when the window is wide enough — Songs, Rankings, Rivals; never an empty detail pane | Operator 2026-09-28 | Mirrors Android foldables/Duo/iPad |
+| Expanded NavigationView pane: consider the Android rule — no app title in the pane header, first item aligned with page content top, transparent pane over the animated background | Operator 2026-09-28 (Android tablet) | Cross-platform check |
+
