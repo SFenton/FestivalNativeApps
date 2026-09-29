@@ -66,7 +66,10 @@ public class SongScoreBandFilterTests
         Assert.False(pct.PlayerScoreFilter.IsActive);
         var stars = new SongsStatPreset(Instrument.Lead, null, Stars: 6).ApplyTo(pct);
         Assert.Equal(new SongScoreBandFilter(Instrument.Lead, Stars: 6), stars.ScoreBandFilter);
-        Assert.Equal(SongSortMode.Title, stars.SongSort);
+        // Web instStarsUpdater sorts by Stars; score checks sort by Score (instSongsPlayedUpdater / instFCsUpdater).
+        Assert.Equal(SongSortMode.Stars, stars.SongSort);
+        Assert.Equal(SongSortMode.Score, new SongsStatPreset(Instrument.Lead, SongScoreFilterKind.HasFCs).ApplyTo(settings).SongSort);
+        Assert.Equal(SongSortMode.Title, new SongsStatPreset(null, SongScoreFilterKind.HasFCs).ApplyTo(settings).SongSort);
         Assert.Null(new SongsStatPreset(null, SongScoreFilterKind.HasScores).ApplyTo(stars).ScoreBandFilter);
         Assert.Null(new SongsStatPreset(Instrument.Lead, SongScoreFilterKind.HasScores).ApplyTo(stars).ScoreBandFilter);
         Assert.False(new SongsStatPreset(null, null).ApplyTo(stars).PlayerScoreFilter.IsActive);

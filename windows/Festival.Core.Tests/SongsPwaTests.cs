@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Festival.Core.ViewModels;
 
@@ -32,8 +33,83 @@ public class SongsHasFcSortTests
     public void HasFc_IsInTheMenuAfterItemShop()
     {
         Assert.Equal([SongSortMode.Title, SongSortMode.Artist, SongSortMode.Year, SongSortMode.Duration, SongSortMode.Shop, SongSortMode.HasFC],
-            SongSortModeInfo.All);
+            SongSortModeInfo.ModesFor(hasPlayer: false, hasChart: true, hideShop: false));
+        // Web Sort modal: Last Played with a player; the instrument modes only with a player and one chart.
+        Assert.Equal([SongSortMode.Title, SongSortMode.Artist, SongSortMode.Year, SongSortMode.Duration, SongSortMode.HasFC, SongSortMode.LastPlayed],
+            SongSortModeInfo.ModesFor(hasPlayer: true, hasChart: false, hideShop: true));
+        var full = SongSortModeInfo.ModesFor(hasPlayer: true, hasChart: true, hideShop: false);
+        Assert.Equal(SongSortModeInfo.InstrumentModes, full.Skip(7));
+        Assert.True(SongSortMode.MaxScoreDiff.IsInstrumentMode());
+        Assert.False(SongSortMode.LastPlayed.IsInstrumentMode());
         Assert.Equal("Has FC", SongSortMode.HasFC.Label());
+    }
+
+    [Theory]
+    [InlineData(SongSortMode.Score)]
+    [InlineData(SongSortMode.Stars)]
+    [InlineData(SongSortMode.Percentile)]
+    public void MetricSorts_FollowTheWebComparator(SongSortMode mode)
+    {
+        CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        var songs = new List<Song>
+        {
+            new() { SongId = "a", Title = "Alpha", Artist = "x", Difficulty = new SongDifficulty { Guitar = 3 }, MaxScores = new Dictionary<string, int> { ["Solo_Guitar"] = 1000 } },
+            new() { SongId = "b", Title = "Beta", Artist = "x", Difficulty = new SongDifficulty { Guitar = 5 }, MaxScores = new Dictionary<string, int> { ["Solo_Guitar"] = 1000 } },
+            new() { SongId = "c", Title = "Gamma", Artist = "x", Difficulty = new SongDifficulty { Guitar = 1 } },
+        };
+        var details = new Dictionary<string, SongScoreDetail>
+        {
+            ["a"] = new(900, Stars: 5, Rank: 50, TotalEntries: 100, LastPlayedAt: "2026-09-01"),
+            ["b"] = new(500, Stars: 3, Rank: 1, TotalEntries: 100, LastPlayedAt: "2026-09-20"),
+        };
+        SongListInputs Inputs(SongSortMode sort, bool ascending, Instrument? chart = Instrument.Lead) => new()
+        {
+            Songs = songs, Sort = sort, Ascending = ascending, HasPlayer = true, Filter = new SongFilter(chart),
+            Details = (id, _) => details.GetValueOrDefault(id),
+        };
+        var ascending = SongListPipeline.Run(Inputs(mode, true)).Sections.Single().Songs.Select(r => r.SongId).ToList();
+        var expected = mode == SongSortMode.Percentile ? new[] { "b", "a", "c" } : ["b", "a", "c"];
+        Assert.Equal(expected, ascending);
+        // Descending reverses everything, so the unscored row comes first (web cmp * dir).
+        Assert.Equal(Enumerable.Reverse(expected), SongListPipeline.Run(Inputs(mode, false)).Sections.Single().Songs.Select(r => r.SongId));
+        // Without a chart filter an instrument sort falls back to title order with sections.
+        var noChart = SongListPipeline.Run(Inputs(mode, true, chart: null));
+        Assert.Equal(SongSortMode.Title, noChart.EffectiveSort);
+    }
+
+    [Fact]
+    public void MaxScoreSorts_KeepScoredRowsFirstAndLastPlayedUsesTheLatestChart()
+    {
+        CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        var songs = new List<Song>
+        {
+            new() { SongId = "a", Title = "Alpha", Artist = "x", Difficulty = new SongDifficulty { Guitar = 3 }, MaxScores = new Dictionary<string, int> { ["Solo_Guitar"] = 1000 } },
+            new() { SongId = "b", Title = "Beta", Artist = "x", Difficulty = new SongDifficulty { Guitar = 5 }, MaxScores = new Dictionary<string, int> { ["Solo_Guitar"] = 1000 } },
+            new() { SongId = "c", Title = "Gamma", Artist = "x", Difficulty = new SongDifficulty { Guitar = 1 } },
+        };
+        var details = new Dictionary<(string, Instrument), SongScoreDetail>
+        {
+            [("a", Instrument.Lead)] = new(900, LastPlayedAt: "2026-09-01"),
+            [("b", Instrument.Lead)] = new(500, LastPlayedAt: "2026-09-02"),
+            [("c", Instrument.Bass)] = new(10, LastPlayedAt: "2026-09-30"),
+        };
+        SongListInputs Inputs(SongSortMode sort, bool ascending, Instrument? chart) => new()
+        {
+            Songs = songs, Sort = sort, Ascending = ascending, HasPlayer = true, Filter = new SongFilter(chart),
+            Details = (id, i) => details.GetValueOrDefault((id, i)),
+        };
+        string[] Order(SongSortMode sort, bool ascending, Instrument? chart = Instrument.Lead) =>
+            [.. SongListPipeline.Run(Inputs(sort, ascending, chart)).Sections.SelectMany(x => x.Songs).Select(r => r.SongId)];
+        Assert.Equal(["b", "a", "c"], Order(SongSortMode.MaxScorePercent, true));
+        Assert.Equal(["a", "b", "c"], Order(SongSortMode.MaxScorePercent, false));
+        Assert.Equal(["b", "a", "c"], Order(SongSortMode.MaxScoreDiff, true));
+        Assert.Equal(["c", "a", "b"], Order(SongSortMode.Intensity, true));
+        Assert.Equal(["b", "a", "c"], Order(SongSortMode.Intensity, false));
+        // Last Played without a chart takes each song's latest play across visible charts (Gamma's Bass play).
+        Assert.Equal(["a", "b", "c"], Order(SongSortMode.LastPlayed, true, chart: null));
+        Assert.Equal(["c", "b", "a"], Order(SongSortMode.LastPlayed, false, chart: null));
+        // Without a player the player sorts pause to title order.
+        Assert.Equal(SongSortMode.Title, SongListPipeline.Run(Inputs(SongSortMode.Score, true, Instrument.Lead) with { HasPlayer = false }).EffectiveSort);
     }
 
     [Fact]

@@ -19,6 +19,7 @@
 - Rows stagger in with the shared fade (`FadeIn`, after the art-priming gate) and re-stagger on sort/filter/search changes.
 - First-paint gate: the first reveal waits (≤ 900 ms) for the first 12 rows' art to decode, then fades in (instant under reduced motion).
 - Songs in the Item Shop carry a small bag badge on the album art, coloured like the row's pulse (green / gold New / red Leaving; operator batch 7.19). Metadata pills, stars and the intensity meter share one 22 epx height (7.18); the primary metric stays top-right, so a long title never pushes it down.
+- Player sorts (web `SortModal` + `compareByMode`): with a player, **Last Played** (the filtered chart, else each song's latest play across visible charts); with a player and one chart, **Score, Percentage, Percentile, Stars, Season, Intensity, Difficulty, Max Score %, Max Score Diff** (`SongListPipeline.MetricSort`). Unscored rows sort after scored ones before the direction applies (so descending lists them first, as on the web), except Max Score % / Diff, which keep scored rows first; one unlabeled section; without the score index or chart they fall back to Title. Profile presets sort like the web updaters: Songs Played / FCs by Score, a star level by Stars, a placement band keeps the sort.
 - Sort flyout: Sort By radio list, then Ascending / Descending rows with the web descriptions ("A–Z, low–high") as subtitles (7.21); Sort and Filter Reset are the web's full-width red button (7.10).
 - `MarqueeText` for titles/subtitles (see [design/windows.md](../../design/windows.md#motion)).
 

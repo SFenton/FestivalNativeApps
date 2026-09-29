@@ -380,8 +380,8 @@ public sealed partial class SongSortDraft(FestivalSession session) : ObservableO
     public const string DescendingHint = "Z–A, high–low";
 
     /// <summary>Available modes (Item Shop is removed while the Shop is hidden).</summary>
-    public List<SongSortMode> Modes =>
-        [.. SongSortModeInfo.All.Where(m => m != SongSortMode.Shop || !session.Settings.HideShop)];
+    public List<SongSortMode> Modes => SongSortModeInfo.ModesFor(session.HasPlayer,
+        session.Settings.SongFilter.ScopedTo(session.Settings.VisibleInstruments).Instrument is not null, session.Settings.HideShop);
 
     /// <summary>Labels for <see cref="Modes"/>.</summary>
     public List<string> ModeLabels => [.. Modes.Select(m => m.Label())];

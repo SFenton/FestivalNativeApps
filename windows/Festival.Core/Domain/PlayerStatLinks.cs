@@ -17,8 +17,8 @@ public sealed record SongsStatPreset(Instrument? Instrument, SongScoreFilterKind
     /// <param name="settings">Current settings.</param>
     /// <returns>Settings with the Songs sort/filter replaced.</returns>
     /// <remarks>
-    /// The web sorts instrument presets by Score; native Songs has no Score sort, so every preset sorts by Title
-    /// ascending (the iPhone and Android ports do the same).
+    /// Web updaters: Songs Played / FCs sort by Score, a star level by Stars, a placement band keeps the current sort;
+    /// overall presets sort by Title. All ascending.
     /// </remarks>
     public AppSettings ApplyTo(AppSettings settings)
     {
@@ -43,8 +43,8 @@ public sealed record SongsStatPreset(Instrument? Instrument, SongScoreFilterKind
             SongFilter = new SongFilter(chart),
             PlayerScoreFilter = Check is { } check ? cleaned.With(check, chart, true) : cleaned,
             ScoreBandFilter = band.IsActive ? band : null,
-            // Web percentile rows keep the sort mode (ascending); every other preset sorts, which natively means Title.
-            SongSort = TopPercent is not null && Stars is null ? settings.SongSort : SongSortMode.Title,
+            // Web percentile rows keep the sort mode (ascending); star levels sort by Stars, score checks by Score.
+            SongSort = Stars is not null ? SongSortMode.Stars : TopPercent is not null ? settings.SongSort : SongSortMode.Score,
             SongSortAscending = true,
         };
     }

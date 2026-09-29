@@ -87,9 +87,17 @@ public static class SongListPipeline
 
         var sortPaused = input.Sort == SongSortMode.Shop ? ShopPauseReason(input, "sort") : null;
         var effective = input.Sort == SongSortMode.Shop && sortPaused is not null ? SongSortMode.Title : input.Sort;
+        // Player-score sorts need the score index (and one chart for the instrument modes); otherwise title order, as on
+        // the web (its per-chart score map is empty).
+        var metric = MetricSort(input, effective);
+        if (metric is null && (effective.IsInstrumentMode() || effective == SongSortMode.LastPlayed)) effective = SongSortMode.Title;
         var sorted = rows.ToList();
         var fcFacts = effective == SongSortMode.HasFC ? FcFacts(input) : null;
-        if (effective == SongSortMode.Shop)
+        if (metric is not null)
+        {
+            sorted.Sort((a, b) => metric(a, b));
+        }
+        else if (effective == SongSortMode.Shop)
         {
             var offers = input.Offers!;
             sorted.Sort((a, b) => CompareShop(a, b, offers, input.Ascending));
@@ -107,6 +115,7 @@ public static class SongListPipeline
         {
             SongSortMode.Shop => ShopSections(sorted, input.Offers!),
             SongSortMode.HasFC => HasFCSections(sorted, fcFacts),
+            _ when metric is not null => [new SongSection("", sorted)],
             _ => SongCatalogQuery.Sections(sorted, effective),
         };
         var applied = input.Filter.IsActive || (input.ShopFilter.IsActive && shopPaused is null) || (scoped.IsActive && scorePaused is null) ||
@@ -129,6 +138,113 @@ public static class SongListPipeline
         if (primary == 0) primary = (left.Year ?? 0).CompareTo(right.Year ?? 0);
         if (primary == 0) primary = string.CompareOrdinal(left.SongId, right.SongId);
         return ascending ? primary : -primary;
+    }
+
+    /// <summary>
+    /// Comparer for the player-score sorts (web <c>useFilteredSongs</c> + <c>compareByMode</c>), or <see langword="null"/>
+    /// when the mode isn't one or its scores aren't available. Unscored rows sort after scored ones before the direction
+    /// is applied (so a descending sort lists them first, as on the web), except Max Score % / Diff, which keep scored rows
+    /// first in both directions; ties fall back to title in the sort's direction.
+    /// </summary>
+    /// <param name="input">Inputs.</param>
+    /// <param name="mode">Effective mode.</param>
+    /// <returns>Comparer, or <see langword="null"/>.</returns>
+    private static Comparison<Song>? MetricSort(SongListInputs input, SongSortMode mode)
+    {
+        if (!(mode.IsInstrumentMode() || mode == SongSortMode.LastPlayed) || !input.HasPlayer || input.Details is not { } details) return null;
+        var chart = input.Filter.ScopedTo(input.Visible).Instrument;
+        if (mode != SongSortMode.LastPlayed && chart is null) return null;
+        var dir = input.Ascending ? 1 : -1;
+        var culture = CultureInfo.CurrentCulture.CompareInfo;
+        SongScoreDetail? Detail(Song song) => chart is { } c ? details(song.SongId, c) : null;
+        string LastPlayed(Song song) => chart is { } c
+            ? details(song.SongId, c)?.LastPlayedAt ?? ""
+            : input.Visible.Select(i => details(song.SongId, i)?.LastPlayedAt ?? "").DefaultIfEmpty("").Max(StringComparer.Ordinal) ?? "";
+        return (left, right) =>
+        {
+            int cmp;
+            switch (mode)
+            {
+                case SongSortMode.Intensity:
+                    cmp = (left.Difficulty?.ChartedValue(chart!.Value) ?? -1).CompareTo(right.Difficulty?.ChartedValue(chart!.Value) ?? -1);
+                    break;
+                case SongSortMode.MaxScorePercent or SongSortMode.MaxScoreDiff:
+                    cmp = CompareMax(left, right, mode, chart!.Value, Detail, dir);
+                    break;
+                case SongSortMode.LastPlayed:
+                {
+                    var a = LastPlayed(left);
+                    var b = LastPlayed(right);
+                    cmp = a.Length > 0 && b.Length == 0 ? -dir : a.Length == 0 && b.Length > 0 ? dir : string.CompareOrdinal(a, b) * dir;
+                    if (cmp != 0) return cmp;
+                    return culture.Compare(left.Title, right.Title, CompareOptions.IgnoreCase) * dir;
+                }
+                default:
+                    cmp = CompareScores(mode, Detail(left), Detail(right)) * dir;
+                    break;
+            }
+            if (mode == SongSortMode.Intensity) cmp *= dir;
+            if (cmp == 0) cmp = culture.Compare(left.Title, right.Title, CompareOptions.IgnoreCase) * dir;
+            if (cmp == 0) cmp = string.CompareOrdinal(left.SongId, right.SongId);
+            return cmp;
+        };
+    }
+
+    /// <summary>Web <c>compareByMode</c>: missing scores sort after present ones; the caller applies the direction.</summary>
+    /// <param name="mode">Mode.</param>
+    /// <param name="a">First detail.</param>
+    /// <param name="b">Second detail.</param>
+    /// <returns>Sign of the ascending ordering.</returns>
+    public static int CompareScores(SongSortMode mode, SongScoreDetail? a, SongScoreDetail? b)
+    {
+        if (a is null && b is null) return 0;
+        if (a is null) return 1;
+        if (b is null) return -1;
+        switch (mode)
+        {
+            case SongSortMode.Score:
+                return a.Score.CompareTo(b.Score);
+            case SongSortMode.Percentage:
+                var byAccuracy = (a.Accuracy ?? 0).CompareTo(b.Accuracy ?? 0);
+                return byAccuracy != 0 ? byAccuracy : (a.IsFullCombo == true).CompareTo(b.IsFullCombo == true);
+            case SongSortMode.Percentile:
+                return Placement(a).CompareTo(Placement(b));
+            case SongSortMode.Stars:
+                return (a.Stars ?? 0).CompareTo(b.Stars ?? 0);
+            case SongSortMode.Season:
+                return (a.Season ?? 0).CompareTo(b.Season ?? 0);
+            case SongSortMode.Difficulty:
+                return (a.Difficulty ?? -1).CompareTo(b.Difficulty ?? -1);
+            default:
+                return 0;
+        }
+
+        static double Placement(SongScoreDetail d) =>
+            d.Rank is > 0 && d.TotalEntries is > 0 ? (double)d.Rank.Value / d.TotalEntries.Value : double.PositiveInfinity;
+    }
+
+    /// <summary>Web <c>maxdistance</c>/<c>maxscorediff</c>: scored rows first in either direction, else raw score.</summary>
+    /// <param name="left">First song.</param>
+    /// <param name="right">Second song.</param>
+    /// <param name="mode">Max Score % or Diff.</param>
+    /// <param name="chart">Filtered chart.</param>
+    /// <param name="detail">Detail lookup.</param>
+    /// <param name="dir">1 ascending, −1 descending.</param>
+    /// <returns>Signed comparison with the direction applied.</returns>
+    private static int CompareMax(Song left, Song right, SongSortMode mode, Instrument chart, Func<Song, SongScoreDetail?> detail, int dir)
+    {
+        double? Value(Song song)
+        {
+            var d = detail(song);
+            if (d is not { Score: > 0 } || song.MaxScore(chart) is not { } max) return null;
+            return mode == SongSortMode.MaxScorePercent ? (double)d.Score / max : d.Score - max;
+        }
+        var a = Value(left);
+        var b = Value(right);
+        if (a is { } x && b is { } y) return x.CompareTo(y) * dir;
+        if (a is not null) return -1;
+        if (b is not null) return 1;
+        return CompareScores(SongSortMode.Score, detail(left), detail(right)) * dir;
     }
 
     /// <summary>Score facts on the filtered chart, or <see langword="null"/> when Has FC falls back to title order.</summary>

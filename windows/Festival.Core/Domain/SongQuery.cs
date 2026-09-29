@@ -22,6 +22,26 @@ public enum SongSortMode
     /// title order, as on the web (its per-chart score map is empty without an instrument).
     /// </summary>
     HasFC,
+    /// <summary>Selected player's score on the filtered chart (web <c>score</c>).</summary>
+    Score,
+    /// <summary>Accuracy, then FC (web <c>percentage</c>).</summary>
+    Percentage,
+    /// <summary>Placement rank / entries, best first ascending (web <c>percentile</c>).</summary>
+    Percentile,
+    /// <summary>Stars (web <c>stars</c>).</summary>
+    Stars,
+    /// <summary>Season the score was set (web <c>seasonachieved</c>).</summary>
+    Season,
+    /// <summary>The chart's intensity (web <c>intensity</c>).</summary>
+    Intensity,
+    /// <summary>Game difficulty the score was set on (web <c>difficulty</c>).</summary>
+    Difficulty,
+    /// <summary>Score as a share of the chart's maximum, scored rows first (web <c>maxdistance</c>).</summary>
+    MaxScorePercent,
+    /// <summary>Score minus the chart's maximum, scored rows first (web <c>maxscorediff</c>).</summary>
+    MaxScoreDiff,
+    /// <summary>Most recent play (web <c>lastplayed</c>): the filtered chart, else the latest across visible charts.</summary>
+    LastPlayed,
 }
 
 /// <summary>Labels for <see cref="SongSortMode"/>.</summary>
@@ -29,6 +49,37 @@ public static class SongSortModeInfo
 {
     /// <summary>All modes in menu order.</summary>
     public static IReadOnlyList<SongSortMode> All { get; } = Enum.GetValues<SongSortMode>();
+
+    /// <summary>Modes that sort by the selected player's scores on one chart (web <c>INSTRUMENT_SORT_MODES</c>).</summary>
+    public static IReadOnlyList<SongSortMode> InstrumentModes { get; } =
+    [
+        SongSortMode.Score, SongSortMode.Percentage, SongSortMode.Percentile, SongSortMode.Stars, SongSortMode.Season,
+        SongSortMode.Intensity, SongSortMode.Difficulty, SongSortMode.MaxScorePercent, SongSortMode.MaxScoreDiff,
+    ];
+
+    /// <summary>Whether a mode needs a selected player and a single-chart filter.</summary>
+    /// <param name="mode">Mode.</param>
+    /// <returns><see langword="true"/> for the instrument modes.</returns>
+    public static bool IsInstrumentMode(this SongSortMode mode) => InstrumentModes.Contains(mode);
+
+    /// <summary>
+    /// The web Sort modal's choices: the base modes (Item Shop only while the Shop shows), Last Played with a player, and
+    /// the instrument modes only with a player and a single-chart filter.
+    /// </summary>
+    /// <param name="hasPlayer">Whether a player is selected.</param>
+    /// <param name="hasChart">Whether a single chart is filtered.</param>
+    /// <param name="hideShop">Hide Item Shop setting.</param>
+    /// <returns>Modes in menu order.</returns>
+    public static List<SongSortMode> ModesFor(bool hasPlayer, bool hasChart, bool hideShop)
+    {
+        List<SongSortMode> modes = [SongSortMode.Title, SongSortMode.Artist, SongSortMode.Year, SongSortMode.Duration];
+        if (!hideShop) modes.Add(SongSortMode.Shop);
+        modes.Add(SongSortMode.HasFC);
+        if (!hasPlayer) return modes;
+        modes.Add(SongSortMode.LastPlayed);
+        if (hasChart) modes.AddRange(InstrumentModes);
+        return modes;
+    }
 
     /// <summary>User-facing label.</summary>
     /// <param name="mode">Sort mode.</param>
@@ -40,6 +91,16 @@ public static class SongSortModeInfo
         SongSortMode.Year => "Year",
         SongSortMode.Duration => "Duration",
         SongSortMode.HasFC => "Has FC",
+        SongSortMode.Score => "Score",
+        SongSortMode.Percentage => "Percentage",
+        SongSortMode.Percentile => "Percentile",
+        SongSortMode.Stars => "Stars",
+        SongSortMode.Season => "Season",
+        SongSortMode.Intensity => "Intensity",
+        SongSortMode.Difficulty => "Difficulty",
+        SongSortMode.MaxScorePercent => "Max Score %",
+        SongSortMode.MaxScoreDiff => "Max Score Diff",
+        SongSortMode.LastPlayed => "Last Played",
         _ => "Item Shop",
     };
 }
