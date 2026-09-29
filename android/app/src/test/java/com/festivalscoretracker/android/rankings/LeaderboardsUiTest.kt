@@ -111,7 +111,7 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         // No selected player: no rank-history card and no history read.
         assertFalse(exists("fst.leaderboards.rank-history"))
         assertTrue(transport.requests.none { it.url.contains("/history") })
-        assertEquals("Rank 1st, Synthetic Player 1. 49,999,000. 199 / 250 songs.", description("fst.rankings.row.${RankingsFixtures.accountId(1)}"))
+        assertEquals("#1. Synthetic Player 1. 49,999,000. 199 / 250 songs.", description("fst.rankings.row.${RankingsFixtures.accountId(1)}"))
         // Anonymous production rows read "Unknown User" and do nothing.
         val anonymous = "fst.rankings.row.anonymous-3-3-3"
         assertTrue(description(anonymous)!!.contains("Unknown User"))
@@ -153,7 +153,7 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         waitForTag("fst.leaderboards.rank-history")
         rule.waitUntil(10_000) { settle(100); runCatching { scrollTo("fst.leaderboards", "$lead.spotlight") }.isSuccess }
         waitForTag("$lead.spotlight")
-        assertTrue(description("$lead.spotlight")!!.startsWith("Your rank, 40th. Synthetic Player 40."))
+        assertTrue(description("$lead.spotlight")!!.startsWith("Your rank, #40. Synthetic Player 40."))
         scrollTo("fst.leaderboards", "fst.leaderboards.card.Solo_Bass.spotlight.unranked")
         waitForTag("fst.leaderboards.card.Solo_Bass.spotlight.unranked")
         scrollTo("fst.leaderboards", "$lead.spotlight")
@@ -245,7 +245,7 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         waitForTag("fst.band-rankings.population")
         waitForDescription("Page 1 of 2")
         val second = "fst.band-rankings.row.${RankingsFixtures.SELECTED}:${RankingsFixtures.accountId(2002)}"
-        assertTrue(description(second)!!.startsWith("Your rank, 2nd. Member 2A + Unknown User."))
+        assertTrue(description(second)!!.startsWith("Your rank, #2. Member 2A + Unknown User."))
         click("fst.band-rankings.page-next")
         waitForDescription("Page 2 of 2")
         click("fst.band-rankings.band-type-menu")

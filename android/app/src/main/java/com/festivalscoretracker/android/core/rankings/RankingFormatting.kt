@@ -137,7 +137,8 @@ object RankingFormatting {
      * @return Spoken label.
      */
     fun rowDescription(rank: Int, name: String, rating: String, songs: String, isSelected: Boolean, locale: Locale = Locale.getDefault()): String {
-        val lead = if (isSelected) "Your rank, ${ordinal(rank, locale)}. $name." else "Rank ${ordinal(rank, locale)}, $name."
+        // Same opening as the song boards' rows ("#2. Name."), so every board reads alike (7.7).
+        val lead = if (isSelected) "Your rank, ${rankLabel(rank, locale)}. $name." else "${rankLabel(rank, locale)}. $name."
         return "$lead $rating. $songs songs."
     }
 

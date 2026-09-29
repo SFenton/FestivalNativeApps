@@ -192,8 +192,8 @@ class RankingsCoreTest {
         assertEquals(listOf("1st", "2nd", "3rd", "4th", "11th", "12th", "13th", "21st", "22nd", "23rd", "101st", "112th", "1,234th"), ordinals)
         assertEquals("869,000 ranked players", RankingFormatting.population(869_000, "player", Locale.US))
         assertEquals("1 ranked band", RankingFormatting.population(1, "band", Locale.US))
-        assertEquals("Your rank, 2nd. Ann. Top 3%. 1 / 2 songs.", RankingFormatting.rowDescription(2, "Ann", "Top 3%", "1 / 2", true, Locale.US))
-        assertEquals("Rank 5th, Bo. 10. 1 / 2 songs.", RankingFormatting.rowDescription(5, "Bo", "10", "1 / 2", false, Locale.US))
+        assertEquals("Your rank, #2. Ann. Top 3%. 1 / 2 songs.", RankingFormatting.rowDescription(2, "Ann", "Top 3%", "1 / 2", true, Locale.US))
+        assertEquals("#5. Bo. 10. 1 / 2 songs.", RankingFormatting.rowDescription(5, "Bo", "10", "1 / 2", false, Locale.US))
     }
 
     // endregion
