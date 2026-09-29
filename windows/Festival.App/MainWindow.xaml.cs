@@ -349,6 +349,19 @@ public sealed partial class MainWindow : Window
         if (Shell.IsPlayerScope && !Shell.ProfileSearch.IsSettled) _ = Shell.ProfileSearch.RetryCommand.ExecuteAsync(null);
     }
 
+    /// <summary>
+    /// Escape in Find Player closes the flyout (focus returns to the profile button) unless the box's own suggestion
+    /// list is open, which Escape closes first. The AutoSuggestBox otherwise swallows the key inside the flyout.
+    /// </summary>
+    /// <param name="sender">Search box.</param>
+    /// <param name="e">Key.</param>
+    private void OnProfileSearchKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key != Windows.System.VirtualKey.Escape || ProfileSearchBox.IsSuggestionListOpen) return;
+        e.Handled = true;
+        ProfileFlyout.Hide();
+    }
+
     /// <summary>Stops the flyout's pending search (no automatic retry keeps running behind a closed flyout).</summary>
     /// <param name="sender">Flyout.</param>
     /// <param name="e">Unused.</param>

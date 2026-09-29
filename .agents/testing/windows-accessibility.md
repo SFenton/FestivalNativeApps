@@ -23,6 +23,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Page | Axe C/M/W | Tab | Keys | HC ×4 | Text 225% |
 |---|---|---|---|---|---|
 | Songs (anonymous / selected) | ✅✅✅ | 9/10/10 | ✅ | ✅ | ✅ (C+M) |
+| Songs Filter (web sections, percentile open) | ✅✅✅ (+AOT) | 20/20/20 | ✅ | ✅ | ✅ |
 | Song Detail + Paths dialog | ✅✅✅ | 16/17/17 | ✅ | ✅ | ✅ |
 | Song Leaderboard | ✅✅✅ | 8/10/10 | ✅ | ✅ | ✅ |
 | Player History | ✅✅✅ | 7/9/9 | — | ✅ | ✅ |
@@ -31,21 +32,21 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Suggestions | ✅✅✅ (AOT crash fixed) | 7/11/11 | ✅ | ✅ | ✅ |
 | Leaderboards + Quick Links | ✅✅✅ | 20/21/21 | ✅ | ✅ | ✅ |
 | Full Rankings / Rank By menu | ✅✅✅ | 8/11/11 | ✅ | ✅ | ✅ |
-| Band Rankings | ✅✅✅ | 8/11/11 | — | ✅ | ✅ |
+| Band Rankings (+ Band Detail column ≥1100) | ✅✅✅ (+AOT) | 8/11/17 | — | ✅ | ✅ |
 | Rivals / Compete | ✅✅✅ | 9/10/10 | — | ✅ | ✅ |
-| All Rivals | ✅✅✅ | 6/9/9 | — | ✅ | ✅ |
+| All Rivals (+ Rival Detail column ≥1100) | ✅✅✅ (+AOT) | 6/9/15 | — | ✅ | ✅ |
 | Rival Detail | ✅✅✅ | 12/14/14 | — | ✅ | ✅ |
 | Rivalry | ✅✅✅ | 8/11/11 | — | ✅ | ✅ |
 | Statistics / Player Profile | ✅✅✅ | 7–8/10–11 | ✅ | ✅ | ✅ (tiles scale) |
 | Bands | ✅✅✅ | 10/13/13 | — | ✅ | ✅ |
-| Player Bands | ⚠️✅✅ (issue 3) | 9/12/12 | — | ✅ | ✅ |
+| Player Bands | ✅✅✅ | 8/11/11 | — | ✅ | ✅ |
 | Band Detail | ✅✅✅ | 10/14/14 | — | ✅ | ✅ |
 | Search | ✅✅✅ | 9/10/10 | ✅ | ✅ | ✅ |
 | Settings | ✅✅✅ | 30/30/30 | ✅ | ✅ | ✅ |
 | Licenses | ✅✅✅ | 7/9/9 | — | ✅ | ✅ |
 | Profile flyout | ✅✅✅ | 2 | ✅ | ✅ | ✅ |
 | Notifications flyout | ✅✅✅ | 1 (list) | ✅ | ✅ | ✅ |
-| Quick Links menu | ✅✅ (C/M) | 1 (menu) | ✅ | ✅ | ✅ |
+| Quick Links menu | ⚠️✅ (issue 8) | 1 (menu) | ✅ | ✅ | ✅ |
 | First-run dialog | ✅✅✅ | 4 | ✅ | ✅ | ✅ |
 
 ## Fixed in this pass
@@ -56,12 +57,20 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 - Contrast themes now hide the artwork and use the theme's window colour (the `HighContrastChanged` subscription crashed the desktop app). At ≥150% text the title-bar caption is dropped, and stat tiles scale with the text size.
 - `/statistics` deep links showed Coming Soon. The NativeAOT Suggestions page crashed on open because `Rows` was an `IReadOnlyList` bound to `ItemsSource`.
 
+## Second pass (FST-win-next, 2026-09-29)
+
+Scope: everything changed since win-a11y (win-shell2, win-detail2, win-next). Evidence: `a11y_matrix.py --scan --tabs 30` on all 31 pages × compact/medium/wide (Debug); the 12 changed pages (Songs selected, Songs Filter, Song Detail, Leaderboards, Full/Band Rankings, All Rivals, Band Detail, Player, Settings, Item Shop, Licenses) at medium under all four contrast themes, text 150% and 225%, Animation effects off and transparency off (96 runs, 0 Axe errors, no focus leaving the window, no repeated stops); `a11y-keyboard.json` at all three sizes (30/30); NativeAOT Release for the new surfaces at medium and wide.
+
+Fixed: the Songs Filter's Global toggles and Item Shop `Expander`s had no UIA name; chart axis labels (Band Rank History, player charts) were exposed, because Raw on their panel does not hide children, and one clipped at the 1440×900 viewport edge failed `BoundingRectangleSizeReasonable`; Esc in the profile flyout's Find Player box (now an `AutoSuggestBox`) no longer closed the flyout; two keyboard journeys ran anonymously although the Songs Filter needs a profile (win-pwa gap 5) and the Paths keyboard journey waited for a removed ID. Issues 3 and 7 below no longer reproduce (Player Bands compact and Leaderboards wide scan clean).
+
 ## Open issues
 
 1. Title bar at ≥150% text: dropping the caption keeps search usable, but the title-bar layout is owned by shell/infra.
 2. Contrast themes keep brand hues for the status rings (FC gold, scored green, no score red), the Shop borders and the percentile/FC chips. The chips get HC text backplates, and the meaning is in each row's UIA name. Mapping these to system colours is a design decision (TODO(orchestrator)).
-3. Player Bands at compact: the row sitting exactly on the viewport's bottom edge reports a zero-height, not-offscreen UIA rectangle (Axe `BoundingRectangleSizeReasonable`). This is WinUI clipping, not app layout, and it doesn't occur at medium or wide.
+3. (Resolved 2026-09-29, no repro.) Player Bands at compact: the row sitting exactly on the viewport's bottom edge reports a zero-height, not-offscreen UIA rectangle (Axe `BoundingRectangleSizeReasonable`). This is WinUI clipping, not app layout, and it doesn't occur at medium or wide.
 4. The XAML choice menus (Rank By, Instrument, Band Size, Jump, Sort) share the implicit presenter name "Options". The invoking button names the choice, but per-menu names would read better.
 5. Narrator has no scripted driver. Announcements are covered by `LoadAnnouncer` unit tests and the UIA tree; spoken output needs the operator script.
 6. The system modes run on a lane host where other lanes' windows share the desktop. If a Tab walk leaves the window (focus theft), re-run it: Search compact did this once and passed on the re-run.
-7. The same viewport-edge clipping (item 3) hits Leaderboards at the 1440×900 `wide` preset after the 2026-09-28 header change: 4 `NameText` findings on rank-3 rows at the bottom edge; 1440×880 and 1440×920 scan clean.
+7. (Resolved 2026-09-29, no repro.) The same viewport-edge clipping (item 3) hits Leaderboards at the 1440×900 `wide` preset after the 2026-09-28 header change: 4 `NameText` findings on rank-3 rows at the bottom edge; 1440×880 and 1440×920 scan clean.
+8. Quick Links menu at compact: Axe `BoundingRectangleCompletelyObscuresContainer` on WinUI's windowed popup internals (an `InputSiteWindowClass` exactly the size of its `PopupHost` bridge, no app element involved); medium scans clean.
+9. Contrast themes: the red Reset buttons (Filter, Sort, Suggestions) keep brand `#C62828` with an HC text backplate, part of the colour decision in issue 2.

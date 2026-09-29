@@ -2,6 +2,7 @@
   {
     "name": "kb-songs-order",
     "tab": "songs",
+    "profile": "fixture-player-1:Demo Player",
     "tabs": 0,
     "ready": [
       "waitfor:id=fst.songs.row.fixture-pulse@20"
@@ -26,6 +27,7 @@
   {
     "name": "kb-songs-sort-esc",
     "tab": "songs",
+    "profile": "fixture-player-1:Demo Player",
     "tabs": 0,
     "ready": [
       "waitfor:id=fst.songs.row.fixture-pulse@20"

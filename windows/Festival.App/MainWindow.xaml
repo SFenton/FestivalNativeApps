@@ -105,6 +105,7 @@
                                                 QueryIcon="Find" UpdateTextOnSelect="False"
                                                 Text="{x:Bind Shell.ProfileQuery, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                 IsEnabled="{x:Bind Shell.IsPlayerScope, Mode=OneWay}" QuerySubmitted="OnProfileSearchSubmitted"
+                                                PreviewKeyDown="OnProfileSearchKeyDown"
                                                 AutomationProperties.Name="{x:Bind Shell.SearchPlaceholder, Mode=OneWay}"
                                                 AutomationProperties.AutomationId="fst.profile.search" />
                                 <ListView ItemsSource="{x:Bind Shell.ProfileResults, Mode=OneWay}" MaxHeight="320"
