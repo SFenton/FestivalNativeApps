@@ -32,7 +32,7 @@ enum class ShopViewMode {
 /**
  * Saved Songs filter state.
  *
- * @property filter Public chart/difficulty filter.
+ * @property filter Public chart and Song Intensity filter.
  * @property shopFilter Public Shop filter.
  * @property playerFilter Selected-player filter, or null when the saved value is corrupt
  *   (the list is blocked until an explicit Reset).
@@ -47,7 +47,7 @@ data class SongsPreferencesState(
     val metadataOrder: List<MetadataField> = MetadataField.entries,
 ) {
     /** Whether any saved filter is set (gold filter icon). */
-    val anyFilterActive: Boolean get() = filter.isActive || shopFilter.isActive || playerFilter?.isActive == true
+    val anyFilterActive: Boolean get() = filter.isActive || shopFilter.isActive || playerFilter?.appliesTo(filter.instrument) == true
 }
 
 // endregion
@@ -128,8 +128,7 @@ class SongsPreferences(private val settings: SettingsRepository) {
     @Serializable
     private data class StoredPublic(
         val instrument: String? = null,
-        val minDifficulty: Int = 1,
-        val maxDifficulty: Int = 7,
+        val excludedIntensities: List<Int> = emptyList(),
         val inShop: Boolean = false,
         val leavingTomorrow: Boolean = false,
     )
@@ -145,8 +144,8 @@ class SongsPreferences(private val settings: SettingsRepository) {
          * @return JSON or null.
          */
         internal fun encodePublic(filter: SongFilter, shopFilter: SongShopFilter): String? {
-            if (!filter.isActive && !shopFilter.isActive) return null
-            val stored = StoredPublic(filter.instrument?.wireId, filter.minDifficulty, filter.maxDifficulty, shopFilter.inShop, shopFilter.leavingTomorrow)
+            if (!filter.isActive && filter.excludedIntensities.isEmpty() && !shopFilter.isActive) return null
+            val stored = StoredPublic(filter.instrument?.wireId, filter.excludedIntensities.sorted(), shopFilter.inShop, shopFilter.leavingTomorrow)
             return JSON.encodeToString(StoredPublic.serializer(), stored)
         }
 
@@ -159,8 +158,9 @@ class SongsPreferences(private val settings: SettingsRepository) {
         internal fun decodePublic(raw: String?): Pair<SongFilter, SongShopFilter> {
             val stored = raw?.let { runCatching { JSON.decodeFromString(StoredPublic.serializer(), it) }.getOrNull() }
                 ?: return SongFilter() to SongShopFilter()
-            val filter = SongFilter(stored.instrument?.let(Instrument::fromWireId), stored.minDifficulty, stored.maxDifficulty)
-            return (if (filter.isValid) filter else SongFilter()) to SongShopFilter(stored.inShop, stored.leavingTomorrow)
+            val filter = SongFilter(stored.instrument?.let(Instrument::fromWireId), stored.excludedIntensities.toSet())
+            val valid = filter.isValid && filter.excludedIntensities.size == stored.excludedIntensities.size
+            return (if (valid) filter else SongFilter(filter.instrument)) to SongShopFilter(stored.inShop, stored.leavingTomorrow)
         }
     }
 }

@@ -108,8 +108,8 @@ data class SongSortDraft(
 // region Filter draft
 
 /**
- * Filter sheet draft over the public chart/difficulty filter, Shop toggles and the
- * selected player's score/FC checks. Hidden-chart checks stay in the draft but are
+ * Filter sheet draft over the public instrument/intensity filter, Shop toggles and the
+ * selected player's score/FC checks and Season/Percentile/Stars buckets. Hidden-chart checks stay in the draft but are
  * disclosed, and are removed on Apply (source sanitization).
  *
  * @property filter Public filter.
@@ -125,7 +125,7 @@ data class SongFilterDraft(
     val visible: Set<Instrument> = Instrument.entries.toSet(),
     val applied: Triple<SongFilter, SongShopFilter, SongPlayerScoreFilter> = Triple(filter, shopFilter, playerFilter),
 ) {
-    /** Whether the difficulty range is ordered. */
+    /** Whether every hidden intensity bucket is a known key. */
     val isValid: Boolean get() = filter.isValid
 
     /** Whether Apply would change anything. */
@@ -153,14 +153,40 @@ data class SongFilterDraft(
     fun withInstrument(instrument: Instrument?): SongFilterDraft = copy(filter = filter.copy(instrument = instrument))
 
     /**
-     * Set the 1–7 difficulty range.
+     * Hidden keys of one "Selected Instrument Filters" section.
      *
-     * @param min Lowest.
-     * @param max Highest.
+     * @param kind Section.
+     * @return Hidden keys.
+     */
+    fun excluded(kind: SongBucketKind): Set<Int> =
+        if (kind == SongBucketKind.Intensity) filter.excludedIntensities else playerFilter.excluded(kind)
+
+    /**
+     * Show or hide one bucket (web toggle rows: every bucket starts shown).
+     *
+     * @param kind Section.
+     * @param key Bucket key.
+     * @param shown New value.
      * @return Updated draft.
      */
-    fun withDifficulty(min: Int, max: Int): SongFilterDraft =
-        copy(filter = filter.copy(minDifficulty = min.coerceIn(1, 7), maxDifficulty = max.coerceIn(1, 7)))
+    fun withBucket(kind: SongBucketKind, key: Int, shown: Boolean): SongFilterDraft {
+        val keys = if (shown) excluded(kind) - key else excluded(kind) + key
+        return withExcluded(kind, keys)
+    }
+
+    /**
+     * Select All (none hidden) or Clear All (every key hidden) for one section.
+     *
+     * @param kind Section.
+     * @param keys Every key the section lists.
+     * @param shown True for Select All.
+     * @return Updated draft.
+     */
+    fun withAllBuckets(kind: SongBucketKind, keys: List<Int>, shown: Boolean): SongFilterDraft =
+        withExcluded(kind, if (shown) emptySet() else keys.toSet())
+
+    private fun withExcluded(kind: SongBucketKind, keys: Set<Int>): SongFilterDraft =
+        if (kind == SongBucketKind.Intensity) copy(filter = filter.copy(excludedIntensities = keys)) else copy(playerFilter = playerFilter.withExcluded(kind, keys))
 
     /**
      * Toggle one per-chart check.

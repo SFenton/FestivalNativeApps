@@ -467,7 +467,7 @@ class SongsParityTest {
         assertEquals(setOf(lead, Instrument.Karaoke), chips.warning!!.reasons.keys)
         val warn = SongRowProjector(AppSettings(), SongFilter(), 15, null, SongScoreSource(true, detail = lookup, invalid = { mapOf(lead to InvalidScoreReason.OverThreshold) })).project(a)
         assertTrue(warn.announcement.endsWith("Score over the CHOpt maximum"))
-        assertEquals(ChartScoreFacts(90_000, true, overThreshold = true), SongScoreSource(true, detail = lookup, invalid = { mapOf(lead to InvalidScoreReason.OverThreshold) }).facts!!("a", lead))
+        assertEquals(ChartScoreFacts(90_000, true, overThreshold = true, stars = 6, season = 5, rank = 10, totalEntries = 1000), SongScoreSource(true, detail = lookup, invalid = { mapOf(lead to InvalidScoreReason.OverThreshold) }).facts!!("a", lead))
     }
 
     @Test

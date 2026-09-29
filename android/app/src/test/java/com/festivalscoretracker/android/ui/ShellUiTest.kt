@@ -138,7 +138,10 @@ class ShellUiTest {
         rule.onNodeWithContentDescription("Profile: Synthetic Player").assertIsDisplayed()
         rule.onNodeWithTag("fst.songs.filter.open").performClick()
         settle()
-        rule.onNodeWithTag("fst.songs.filter.instrument.Solo_PeripheralDrums").performClick()
+        // Phone sheet: the Instrument Selector is compact; ‹ previews Pro Drums, the centre commits it.
+        rule.onNodeWithTag("fst.songs.filter.form").performScrollToNode(hasTestTag("fst.songs.filter.instrument.previous"))
+        rule.onNodeWithTag("fst.songs.filter.instrument.previous").performClick()
+        rule.onNodeWithTag("fst.songs.filter.instrument.preview").performClick()
         rule.onNodeWithTag("fst.songs.filter.done").performClick()
         settle()
         rule.onNodeWithTag("fst.nav.tab.statistics").performClick()

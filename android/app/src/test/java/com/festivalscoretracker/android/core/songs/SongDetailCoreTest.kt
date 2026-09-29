@@ -199,4 +199,82 @@ class SongDetailCoreTest {
     }
 
     // endregion
+
+    // region Filter buckets
+
+    @Test
+    fun bucketKeysFollowTheWeb() {
+        assertEquals(0, SongPercentileBucket.of(scored = false, rank = 1, totalEntries = 10))
+        assertEquals(0, SongPercentileBucket.of(scored = true, rank = 0, totalEntries = 10))
+        assertEquals(0, SongPercentileBucket.of(scored = true, rank = 3, totalEntries = null))
+        assertEquals(1, SongPercentileBucket.of(scored = true, rank = 1, totalEntries = 1000))
+        assertEquals(5, SongPercentileBucket.of(scored = true, rank = 42, totalEntries = 1000))
+        assertEquals(10, SongPercentileBucket.of(scored = true, rank = 51, totalEntries = 1000))
+        assertEquals(100, SongPercentileBucket.of(scored = true, rank = 2000, totalEntries = 1000))
+        assertEquals(6, SongStarsBucket.of(9))
+        assertEquals(0, SongStarsBucket.of(null))
+        assertEquals(listOf(3, 9, 0), SongSeasonBucket.keys(listOf(9, 3, 3, 0, 5000)))
+        assertEquals(0, SongSeasonBucket.of(scored = false, season = 7))
+        assertEquals(7, SongSeasonBucket.of(scored = true, season = 7))
+        assertEquals(0, SongIntensityBucket.of(null))
+        assertEquals(0, SongIntensityBucket.of(Double.NaN))
+        assertEquals(1, SongIntensityBucket.of(0.0))
+        assertEquals(4, SongIntensityBucket.of(3.5))
+        assertEquals(7, SongIntensityBucket.of(9.0))
+        assertEquals(0, ChartScoreFacts(5, null).bucket(SongBucketKind.Intensity))
+        assertEquals(0, ChartScoreFacts(0, null, stars = 5).bucket(SongBucketKind.Stars))
+    }
+
+    @Test
+    fun playerBucketsApplyOnlyWithOneVisibleInstrument() {
+        val a = Fixtures.song("a", "A")
+        val b = Fixtures.song("b", "B")
+        val c = Fixtures.song("c", "C")
+        val facts = mapOf(
+            "a" to ChartScoreFacts(100, true, stars = 6, season = 9, rank = 1, totalEntries = 1000),
+            "b" to ChartScoreFacts(50, false, stars = 3, season = 4, rank = 900, totalEntries = 1000),
+        )
+        val lookup = { id: String, chart: Instrument -> if (chart == Instrument.Lead) facts[id] else null }
+        val songs = listOf(a, b, c)
+        val all = Instrument.entries.toSet()
+        val gold = SongPlayerScoreFilter().onlyStars(6)
+        assertTrue(gold.isActive)
+        assertFalse(gold.appliesTo(null))
+        assertTrue(gold.appliesTo(Instrument.Lead))
+        assertEquals(songs, gold.filter(songs, lookup, all, null))
+        assertEquals(listOf(a), gold.filter(songs, lookup, all, Instrument.Lead))
+        assertEquals(songs, gold.filter(songs, lookup, all - Instrument.Lead, Instrument.Lead))
+        assertEquals(listOf(c), SongPlayerScoreFilter().onlyPercentile(0).filter(songs, lookup, all, Instrument.Lead))
+        assertEquals(listOf(b), SongPlayerScoreFilter(excludedSeasons = setOf(9, 0)).filter(songs, lookup, all, Instrument.Lead))
+        // Checks and buckets combine (AND).
+        val both = SongPlayerScoreFilter(hasScores = setOf(Instrument.Lead), excludedStars = setOf(6))
+        assertEquals(listOf(b), both.filter(songs, lookup, all, Instrument.Lead))
+        // cleanedFor clears buckets and that chart's checks only.
+        val cleaned = SongPlayerScoreFilter(hasScores = setOf(Instrument.Lead, Instrument.Bass), excludedStars = setOf(1), excludedSeasons = setOf(2), excludedPercentiles = setOf(3)).cleanedFor(Instrument.Lead)
+        assertEquals(SongPlayerScoreFilter(hasScores = setOf(Instrument.Bass)), cleaned)
+    }
+
+    @Test
+    fun bucketsPersistBoundedAndOldFiltersDecodeUnchanged() {
+        val filter = SongPlayerScoreFilter(hasFCs = setOf(Instrument.Lead), excludedSeasons = setOf(3, 1), excludedPercentiles = setOf(10), excludedStars = setOf(0, 6))
+        val raw = filter.encoded()
+        assertTrue(raw.contains("\"excludedSeasons\":[1,3]"))
+        assertEquals(filter, SongPlayerScoreFilter.decodeSaved(raw))
+        val legacy = SongPlayerScoreFilter(hasFCs = setOf(Instrument.Lead)).encoded()
+        assertFalse(legacy.contains("excluded"))
+        assertEquals(SongPlayerScoreFilter(excludedStars = setOf(2)), SongPlayerScoreFilter.decodeSaved(SongPlayerScoreFilter(excludedStars = setOf(2)).encoded()))
+        fun stored(field: String, values: String) =
+            """{"missingScores":[],"hasScores":[],"missingFCs":[],"hasFCs":[],"$field":$values}"""
+        assertNull(SongPlayerScoreFilter.decodeSaved(stored("excludedStars", "[7]")))
+        assertNull(SongPlayerScoreFilter.decodeSaved(stored("excludedPercentiles", "[6]")))
+        assertNull(SongPlayerScoreFilter.decodeSaved(stored("excludedSeasons", "[1,1]")))
+        assertNull(SongPlayerScoreFilter.decodeSaved(stored("excludedSeasons", "[-1]")))
+        assertEquals(setOf(0, 1, 2, 3, 4, 5), SongPlayerScoreFilter().onlyStars(6).excludedStars)
+        assertEquals(SongPercentileBucket.KEYS.toSet() - 5, SongPlayerScoreFilter().onlyPercentile(5).excludedPercentiles)
+        assertEquals(setOf(4), SongPlayerScoreFilter().withExcluded(SongBucketKind.Season, setOf(4)).excluded(SongBucketKind.Season))
+        assertEquals(SongPlayerScoreFilter(), SongPlayerScoreFilter().withExcluded(SongBucketKind.Intensity, setOf(4)))
+        assertEquals(emptySet<Int>(), SongPlayerScoreFilter(excludedStars = setOf(1)).excluded(SongBucketKind.Intensity))
+    }
+
+    // endregion
 }

@@ -210,6 +210,7 @@ fun SongsScreen(
             hasPlayer = state.hasPlayer,
             hideShop = state.hideShop,
             filterInvalidScores = state.filterInvalidScores,
+            availableSeasons = state.availableSeasons,
             onApply = onApplyFilter,
             onDismiss = { showFilter = false },
         )

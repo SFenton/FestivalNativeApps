@@ -24,7 +24,7 @@ class ProfileSongsPresetsTest {
 
     @Test
     fun overallPresetReplacesFiltersAndSort() = runTest {
-        prefs.setFilters(SongFilter(Instrument.Bass, 2, 6), SongShopFilter(inShop = true), SongPlayerScoreFilter(missingScores = setOf(Instrument.Lead)))
+        prefs.setFilters(SongFilter(Instrument.Bass, setOf(2, 6)), SongShopFilter(inShop = true), SongPlayerScoreFilter(missingScores = setOf(Instrument.Lead)))
         repository.setSongSort(SongSortMode.Year, false)
         repository.setInstrumentVisible(Instrument.Karaoke, false)
         val visible = repository.settings.first().visibleInstruments

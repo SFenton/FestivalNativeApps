@@ -60,6 +60,7 @@ import kotlinx.coroutines.flow.stateIn
  * @property filterInvalidScores Filter Invalid Scores (Over CHOpt Threshold checks in the Filter sheet).
  * @property sortChart Settings-visible single-chart filter (single-chart sort modes).
  * @property visibleMetadata Settings-visible metadata fields (sort modes and priority rows).
+ * @property availableSeasons Seasons in the selected player's scores (Filter Season buckets).
  */
 data class SongsUiState(
     val catalog: LoadState<CatalogPayload> = LoadState.Loading,
@@ -79,6 +80,7 @@ data class SongsUiState(
     val filterInvalidScores: Boolean = false,
     val sortChart: com.festivalscoretracker.android.core.model.Instrument? = null,
     val visibleMetadata: Set<MetadataField> = MetadataField.entries.toSet(),
+    val availableSeasons: List<Int> = emptyList(),
 ) {
     /** Non-default sort (gold Sort icon). */
     val sortChanged: Boolean get() = sort != SongSortMode.Title || !ascending
@@ -182,6 +184,7 @@ class SongsViewModel(
             effectiveSort = app.songSort, hasPlayer = app.selectedPlayer != null, hideShop = app.hideShop,
             filterInvalidScores = app.filterInvalidScores, sortChart = saved.filter.scopedTo(app.visibleInstruments).instrument,
             visibleMetadata = app.visibleMetadata,
+            availableSeasons = if (app.selectedPlayer == null) emptyList() else seasons(player),
         )
         val payload = catalog.valueOrNull ?: return base
         val playerFilter = saved.playerFilter ?: return base.copy(invalidSavedFilter = true, totalSongs = payload.catalog.songs.size)
@@ -225,6 +228,15 @@ class SongsViewModel(
             filtersApplied = result.filtersApplied,
             totalSongs = payload.catalog.songs.size,
         )
+    }
+
+    @Volatile private var seasonIndex: Pair<Any?, List<Int>>? = null
+
+    private fun seasons(player: SelectedProfileState): List<Int> {
+        val index = player.scoreIndex ?: return emptyList()
+        seasonIndex?.takeIf { it.first === index }?.let { return it.second }
+        val seasons = index.values.flatMap { charts -> charts.values.mapNotNull { it.season } }.distinct().sorted()
+        return seasons.also { seasonIndex = index to it }
     }
 
     @Volatile private var songIndex: Pair<CatalogPayload, Map<String, Song>>? = null

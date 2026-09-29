@@ -75,7 +75,7 @@ class ProfileParityCoreTest {
     @Test
     fun overallPresetsResetEverythingAndCheckEveryVisibleChart() {
         val current = SongsFilterState(
-            filter = SongFilter(Instrument.Bass, 2, 5),
+            filter = SongFilter(Instrument.Bass, setOf(2, 5)),
             shopFilter = SongShopFilter(inShop = true),
             playerFilter = SongPlayerScoreFilter(missingFCs = setOf(Instrument.Drums)),
             sort = SongSortMode.Shop,
@@ -93,7 +93,7 @@ class ProfileParityCoreTest {
     @Test
     fun instrumentPresetsClearOnlyThatChartKeepShopAndSortByScore() {
         val current = SongsFilterState(
-            filter = SongFilter(Instrument.Bass, 2, 5),
+            filter = SongFilter(Instrument.Bass, setOf(2, 5)),
             shopFilter = SongShopFilter(inShop = true, leavingTomorrow = true),
             playerFilter = SongPlayerScoreFilter(
                 missingScores = setOf(Instrument.Lead),

@@ -92,17 +92,17 @@ class SongsCoreTest {
     // region Filters
 
     @Test
-    fun publicFilterMatchesChartAndDifficulty() {
+    fun publicFilterMatchesChartAndIntensityBuckets() {
         assertFalse(SongFilter().isActive)
-        assertTrue(SongFilter(minDifficulty = 2).isActive)
-        assertFalse(SongFilter(minDifficulty = 5, maxDifficulty = 3).isValid)
+        // Intensity buckets need an instrument (web `checkDiff`).
+        assertFalse(SongFilter(excludedIntensities = setOf(4)).isActive)
+        assertTrue(SongFilter(excludedIntensities = setOf(4)).matches(a))
+        assertFalse(SongFilter(excludedIntensities = setOf(8)).isValid)
         assertTrue(SongFilter(Instrument.Lead).matches(a))
         assertFalse(SongFilter(Instrument.Lead).matches(c))
-        // Lead raw 3.0 → 4 bars; Pro Drums 5 → 6 bars.
-        assertTrue(SongFilter(Instrument.Lead, 4, 4).matches(a))
-        assertFalse(SongFilter(Instrument.Lead, 5, 7).matches(a))
-        assertTrue(SongFilter(minDifficulty = 6, maxDifficulty = 7).matches(a))
-        assertFalse(SongFilter(minDifficulty = 7, maxDifficulty = 7).matches(a.copy(difficulty = SongDifficulty(guitar = 1.0))))
+        // Lead raw 3.0 → bucket 4 (web trunc + 1).
+        assertFalse(SongFilter(Instrument.Lead, setOf(4)).matches(a))
+        assertTrue(SongFilter(Instrument.Lead, setOf(1, 2, 3, 5, 6, 7, 0)).matches(a))
         assertTrue(SongFilter().matches(c))
         assertEquals(SongFilter(), SongFilter(Instrument.Bass).scopedTo(setOf(Instrument.Lead)))
         assertEquals(SongFilter(Instrument.Bass), SongFilter(Instrument.Bass).scopedTo(setOf(Instrument.Bass)))
@@ -296,10 +296,17 @@ class SongsCoreTest {
         assertFalse(draft.changed)
         assertTrue(draft.hasHiddenChecks)
         assertEquals(SongPlayerScoreFilter(hasScores = setOf(Instrument.Lead)), draft.result.third)
-        val edited = draft.withInstrument(Instrument.Bass).withDifficulty(9, 0)
-        assertEquals(SongFilter(Instrument.Bass, 7, 1), edited.filter)
-        assertFalse(edited.canApply)
-        val ok = draft.withDifficulty(2, 5).withCheck(SongScoreFilterKind.HasFCs, Instrument.Bass, true).withAll(SongScoreFilterKind.MissingFCs, true)
+        val edited = draft.withInstrument(Instrument.Bass).withBucket(SongBucketKind.Intensity, 3, shown = false)
+        assertEquals(SongFilter(Instrument.Bass, setOf(3)), edited.filter)
+        assertEquals(setOf(3), edited.excluded(SongBucketKind.Intensity))
+        assertTrue(edited.withBucket(SongBucketKind.Intensity, 3, shown = true).filter.excludedIntensities.isEmpty())
+        assertTrue(edited.canApply)
+        val stars = edited.withAllBuckets(SongBucketKind.Stars, SongStarsBucket.KEYS, shown = false)
+        assertEquals(SongStarsBucket.KEYS.toSet(), stars.playerFilter.excludedStars)
+        assertTrue(stars.withAllBuckets(SongBucketKind.Stars, SongStarsBucket.KEYS, shown = true).playerFilter.excludedStars.isEmpty())
+        assertEquals(setOf(2), edited.withBucket(SongBucketKind.Season, 2, shown = false).playerFilter.excludedSeasons)
+        assertEquals(setOf(10), edited.withBucket(SongBucketKind.Percentile, 10, shown = false).excluded(SongBucketKind.Percentile))
+        val ok = draft.withInstrument(Instrument.Bass).withCheck(SongScoreFilterKind.HasFCs, Instrument.Bass, true).withAll(SongScoreFilterKind.MissingFCs, true)
         assertTrue(ok.canApply)
         assertTrue(ok.allOn(SongScoreFilterKind.MissingFCs))
         assertFalse(ok.allOn(SongScoreFilterKind.HasFCs))
@@ -442,7 +449,7 @@ class SongsCoreTest {
         assertEquals("Scores unavailable", SongScoreSource.failed("x").rowState)
         assertEquals("Player scores unavailable: x", SongScoreSource.failed("x").notice)
         assertNull(SongScoreSource.PAUSED.facts)
-        assertEquals(ChartScoreFacts(100, true), available.facts!!("a", Instrument.Lead))
+        assertEquals(ChartScoreFacts(100, true, stars = 6, season = 15, rank = 3, totalEntries = 1000), available.facts!!("a", Instrument.Lead))
 
         val hiddenFilter = SongRowProjector(settings.copy(visibleInstruments = setOf(Instrument.Bass)), SongFilter(Instrument.Lead), 15, null, SongScoreSource.NONE).project(a)
         assertNull(hiddenFilter.chart)

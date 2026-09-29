@@ -46,7 +46,7 @@ data class SongScoreDetail(
     val lastPlayedAt: String? = null,
 ) {
     /** Facts used by filters and chips. */
-    val facts: ChartScoreFacts get() = ChartScoreFacts(score, isFullCombo)
+    val facts: ChartScoreFacts get() = ChartScoreFacts(score, isFullCombo, stars = stars, season = season, rank = rank, totalEntries = totalEntries)
 }
 
 /**

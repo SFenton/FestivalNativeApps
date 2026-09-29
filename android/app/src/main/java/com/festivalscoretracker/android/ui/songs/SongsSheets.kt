@@ -1,9 +1,35 @@
 package com.festivalscoretracker.android.ui.songs
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontWeight
+import com.festivalscoretracker.android.core.songs.SongBucketKind
+import com.festivalscoretracker.android.core.songs.SongIntensityBucket
+import com.festivalscoretracker.android.core.songs.SongPercentileBucket
+import com.festivalscoretracker.android.core.songs.SongSeasonBucket
+import com.festivalscoretracker.android.core.songs.SongStarsBucket
+import com.festivalscoretracker.android.ui.design.DifficultyMeter
+import com.festivalscoretracker.android.ui.design.InstrumentSelector
+import com.festivalscoretracker.android.ui.design.StarRating
+import com.festivalscoretracker.android.ui.design.starsDescription
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,11 +43,9 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -52,7 +76,6 @@ import com.festivalscoretracker.android.ui.settings.ReorderList
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.theme.BrandTokens
-import kotlin.math.roundToInt
 
 // region Live sheet frame
 
@@ -181,18 +204,22 @@ private fun RadioRow(label: String, selected: Boolean, tag: String, leading: (@C
 // region Filter
 
 /**
- * Filter Songs: instrument and difficulty, Item Shop toggles, and the selected
- * player's per-chart score/FC checks (plus Over CHOpt Threshold while Filter
- * Invalid Scores is on). Every change applies immediately.
+ * Filter Songs, structured like the web `FilterModal` (operator 6.32): Global Score &
+ * FC Toggles, Individual Score & FC Toggles per instrument, Item Shop, then Selected
+ * Instrument Filters — the shared Instrument Selector (deferred selection) revealing
+ * Season, Percentile, Stars and Song Intensity bucket toggles with Select All /
+ * Clear All. Every section is a collapsible group (web `Accordion`); toggles are
+ * switches with the web's descriptions. Every change applies immediately.
  *
  * @param initial Draft seeded from saved values.
- * @param hasPlayer Show the player score section.
+ * @param hasPlayer Show the player score sections.
  * @param hideShop Shop toggles disabled (still clearable by Reset).
- * @param filterInvalidScores Offer Over CHOpt Threshold checks.
  * @param onApply Persist the filters.
  * @param onDismiss Close.
+ * @param filterInvalidScores Offer Over CHOpt Threshold checks.
+ * @param availableSeasons Seasons in the selected player's scores (Season buckets).
+ * @param keyboard Keys artwork for Lead/Pro Lead in the selector.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun FilterSheet(
     initial: SongFilterDraft,
@@ -201,6 +228,8 @@ fun FilterSheet(
     onApply: (SongFilterDraft) -> Unit,
     onDismiss: () -> Unit,
     filterInvalidScores: Boolean = false,
+    availableSeasons: List<Int> = emptyList(),
+    keyboard: Boolean = false,
 ) {
     var filters by remember { mutableStateOf(initial) }
     val draft = filters
@@ -211,71 +240,89 @@ fun FilterSheet(
     val kinds = SongScoreFilterKind.offered(filterInvalidScores)
     val visible = Instrument.entries.filter { it in draft.visible }
     LiveSheet(title = "Filter Songs", tag = "fst.songs.filter", onReset = { change(draft.reset()) }, onDismiss = onDismiss) {
-        SectionHeader("Instrument")
-        Column(Modifier.selectableGroup().testTag("fst.songs.filter.instrument")) {
-            RadioRow("All Instruments", draft.filter.instrument == null, "fst.songs.filter.instrument.all") { change(draft.withInstrument(null)) }
-            visible.forEach { chart ->
-                RadioRow(
-                    chart.label, draft.filter.instrument == chart, "fst.songs.filter.instrument.${chart.wireId}",
-                    leading = { InstrumentIcon(chart, size = 28.dp, decorative = true) },
-                ) { change(draft.withInstrument(chart)) }
-            }
-        }
-        SectionHeader("Difficulty")
-        val min = draft.filter.minDifficulty
-        val max = draft.filter.maxDifficulty
-        Text(
-            if (min == 1 && max == 7) "Any difficulty" else "Difficulty $min–$max of 7",
-            color = BrandTokens.textSecondary,
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        RangeSlider(
-            value = min.toFloat()..max.toFloat(),
-            onValueChange = { range -> change(draft.withDifficulty(range.start.roundToInt(), range.endInclusive.roundToInt())) },
-            valueRange = 1f..7f,
-            steps = 5,
-            modifier = Modifier.testTag("fst.songs.filter.difficulty").semantics { contentDescription = "Difficulty range" },
-        )
-        SectionHeader("Item Shop")
-        if (hideShop) {
-            Text("The Item Shop is hidden in Settings. Saved choices stay until you reset them.", color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodySmall)
-        }
-        SwitchRow("In Shop", draft.shopFilter.inShop, enabled = !hideShop, tag = "fst.songs.filter.in-shop") {
-            change(draft.copy(shopFilter = draft.shopFilter.copy(inShop = it)))
-        }
-        SwitchRow("Leaving Tomorrow", draft.shopFilter.leavingTomorrow, enabled = !hideShop, tag = "fst.songs.filter.leaving") {
-            change(draft.copy(shopFilter = draft.shopFilter.copy(leavingTomorrow = it)))
-        }
         if (hasPlayer) {
             Column(Modifier.testTag("fst.songs.filter.score-sections")) {
-                SectionHeader("Scores")
-                kinds.forEach { kind ->
-                    SwitchRow(kind.label, draft.allOn(kind), enabled = true, tag = "fst.songs.filter.score.global.${kind.name}") { change(draft.withAll(kind, it)) }
+                Accordion(
+                    title = "Global Score & FC Toggles",
+                    hint = "Toggles that impact visible instruments. Turning these on or off will enable or disable them across the instruments shown in app settings.",
+                    tag = "fst.songs.filter.global",
+                    initiallyOpen = kinds.any(draft::allOn),
+                ) {
+                    kinds.forEach { kind ->
+                        ToggleRow(kind.label, kind.globalDescription, draft.allOn(kind), enabled = true, tag = "fst.songs.filter.score.global.${kind.name}") { change(draft.withAll(kind, it)) }
+                    }
                 }
+                SectionHeader("Individual Score & FC Toggles")
+                Hint("Toggles that impact individual instruments. These filters are computed per-instrument and then combined with other instruments.")
                 if (draft.hasHiddenChecks) {
-                    Text(
+                    Hint(
                         "Some saved checks are for instruments hidden in Settings; they stay inactive and are removed when you change a filter.",
-                        color = BrandTokens.textSecondary,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.testTag("fst.songs.score-filter-hidden"),
+                        Modifier.testTag("fst.songs.score-filter-hidden"),
                     )
                 }
                 visible.forEach { chart ->
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)) {
-                        InstrumentIcon(chart, size = 24.dp, decorative = true)
-                        Text(chart.label, color = BrandTokens.textPrimary, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(start = 8.dp))
-                    }
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.testTag("fst.songs.filter.score.chart.${chart.wireId}")) {
+                    Accordion(
+                        title = chart.label,
+                        tag = "fst.songs.filter.score.chart.${chart.wireId}",
+                        icon = { InstrumentIcon(chart, keyboard = keyboard, size = 28.dp, decorative = true) },
+                        initiallyOpen = kinds.any { draft.playerFilter.contains(it, chart) },
+                    ) {
                         kinds.forEach { kind ->
-                            val on = draft.playerFilter.contains(kind, chart)
-                            FilterChip(
-                                selected = on,
-                                onClick = { change(draft.withCheck(kind, chart, !on)) },
-                                label = { Text(kind.label) },
-                                modifier = Modifier
-                                    .testTag("fst.songs.filter.score.instrument.${chart.wireId}.${kind.name}")
-                                    .semantics { contentDescription = "${chart.label}: ${kind.label}" },
-                            )
+                            ToggleRow(
+                                kind.chartLabel(chart),
+                                kind.chartDescription(chart),
+                                draft.playerFilter.contains(kind, chart),
+                                enabled = true,
+                                tag = "fst.songs.filter.score.instrument.${chart.wireId}.${kind.name}",
+                            ) { change(draft.withCheck(kind, chart, it)) }
+                        }
+                    }
+                }
+            }
+        }
+        Accordion(
+            title = "Item Shop",
+            hint = "Toggles that impact visibility of songs based on the current Item Shop rotation.",
+            tag = "fst.songs.filter.shop",
+            initiallyOpen = draft.shopFilter.isActive,
+        ) {
+            if (hideShop) Hint("The Item Shop is hidden in Settings. Saved choices stay until you reset them.")
+            ToggleRow("In the Shop", "Songs that are available in the Item Shop today.", draft.shopFilter.inShop, enabled = !hideShop, tag = "fst.songs.filter.in-shop") {
+                change(draft.copy(shopFilter = draft.shopFilter.copy(inShop = it)))
+            }
+            ToggleRow("Leaving Tomorrow", "Songs that are leaving the Item Shop tomorrow.", draft.shopFilter.leavingTomorrow, enabled = !hideShop, tag = "fst.songs.filter.leaving") {
+                change(draft.copy(shopFilter = draft.shopFilter.copy(leavingTomorrow = it)))
+            }
+        }
+        SectionHeader("Selected Instrument Filters")
+        Hint("Select an instrument to only show its metadata on each song row. When none is selected, all instruments are shown.")
+        InstrumentSelector(
+            instruments = visible,
+            selected = draft.filter.instrument,
+            onSelect = { change(draft.withInstrument(it)) },
+            deferSelection = true,
+            keyboard = keyboard,
+            tag = "fst.songs.filter.instrument",
+            modifier = Modifier.padding(vertical = 8.dp),
+        ) {
+            Column {
+                val sections = if (hasPlayer) SongBucketKind.entries else listOf(SongBucketKind.Intensity)
+                sections.forEach { kind ->
+                    val keys = when (kind) {
+                        SongBucketKind.Season -> SongSeasonBucket.keys(availableSeasons)
+                        SongBucketKind.Percentile -> SongPercentileBucket.KEYS
+                        SongBucketKind.Stars -> SongStarsBucket.KEYS
+                        SongBucketKind.Intensity -> SongIntensityBucket.KEYS
+                    }
+                    val hidden = draft.excluded(kind)
+                    Accordion(kind.title, kind.hint, "fst.songs.filter.${kind.name.lowercase()}", initiallyOpen = hidden.isNotEmpty()) {
+                        BulkActions(
+                            tag = "fst.songs.filter.${kind.name.lowercase()}",
+                            onSelectAll = { change(draft.withAllBuckets(kind, keys, shown = true)) },
+                            onClearAll = { change(draft.withAllBuckets(kind, keys, shown = false)) },
+                        )
+                        keys.forEach { key ->
+                            BucketRow(kind, key, key !in hidden, "fst.songs.filter.${kind.name.lowercase()}.$key") { change(draft.withBucket(kind, key, it)) }
                         }
                     }
                 }
@@ -284,17 +331,151 @@ fun FilterSheet(
     }
 }
 
+/** Web global-toggle descriptions. */
+private val SongScoreFilterKind.globalDescription: String
+    get() = when (this) {
+        SongScoreFilterKind.MissingScores -> "Songs missing scores on any visible instrument."
+        SongScoreFilterKind.HasScores -> "Songs with scores on any visible instrument."
+        SongScoreFilterKind.MissingFCs -> "Songs missing FCs on any visible instrument."
+        SongScoreFilterKind.HasFCs -> "Songs with FCs on any visible instrument."
+        SongScoreFilterKind.OverThreshold -> "Songs with scores above the configured CHOpt max score threshold in app settings."
+    }
+
+/** Web per-instrument toggle labels ("Missing Lead Scores"). */
+private fun SongScoreFilterKind.chartLabel(chart: Instrument): String = when (this) {
+    SongScoreFilterKind.MissingScores -> "Missing ${chart.label} Scores"
+    SongScoreFilterKind.HasScores -> "Has ${chart.label} Scores"
+    SongScoreFilterKind.MissingFCs -> "Missing ${chart.label} FCs"
+    SongScoreFilterKind.HasFCs -> "Has ${chart.label} FCs"
+    SongScoreFilterKind.OverThreshold -> "${chart.label} Over CHOpt Threshold"
+}
+
+/** Web per-instrument toggle descriptions. */
+private fun SongScoreFilterKind.chartDescription(chart: Instrument): String = when (this) {
+    SongScoreFilterKind.MissingScores -> "Songs missing scores on ${chart.label}."
+    SongScoreFilterKind.HasScores -> "Songs with scores on ${chart.label}."
+    SongScoreFilterKind.MissingFCs -> "Songs missing FCs on ${chart.label}."
+    SongScoreFilterKind.HasFCs -> "Songs with FCs on ${chart.label}."
+    SongScoreFilterKind.OverThreshold -> "Songs with ${chart.label} scores above the configured CHOpt max score threshold in app settings."
+}
+
+/**
+ * A collapsible group (web `Accordion`): a heading row with optional icon and a
+ * rotating chevron; the hint and content expand below it.
+ */
 @Composable
-private fun SwitchRow(label: String, checked: Boolean, enabled: Boolean, tag: String, onChange: (Boolean) -> Unit) {
+private fun Accordion(
+    title: String,
+    hint: String? = null,
+    tag: String,
+    initiallyOpen: Boolean = false,
+    icon: (@Composable () -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
+    var open by rememberSaveable(tag) { mutableStateOf(initiallyOpen) }
+    val rotation by animateFloatAsState(if (open) 180f else 0f, label = "accordionChevron")
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(BrandTokens.surfaceFrosted)
+                .toggleable(value = open, role = Role.Button, onValueChange = { open = it })
+                .padding(horizontal = 12.dp)
+                .semantics { heading(); stateDescription = if (open) "Expanded" else "Collapsed" }
+                .testTag(tag),
+        ) {
+            if (icon != null) {
+                icon()
+                Spacer(Modifier.width(10.dp))
+            }
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = Modifier.weight(1f))
+            Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = BrandTokens.textSecondary, modifier = Modifier.graphicsLayer { rotationZ = rotation })
+        }
+        AnimatedVisibility(visible = open, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+            Column(Modifier.padding(horizontal = 4.dp).testTag("$tag.content")) {
+                hint?.let { Hint(it) }
+                content()
+            }
+        }
+    }
+}
+
+@Composable
+private fun Hint(text: String, modifier: Modifier = Modifier) {
+    Text(text, color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodySmall, modifier = modifier.padding(vertical = 4.dp))
+}
+
+/** Web `BulkActions`: Select All / Clear All. */
+@Composable
+private fun BulkActions(tag: String, onSelectAll: () -> Unit, onClearAll: () -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        OutlinedButton(onClick = onSelectAll, modifier = Modifier.weight(1f).testTag("$tag.select-all")) { Text("Select All") }
+        OutlinedButton(onClick = onClearAll, modifier = Modifier.weight(1f).testTag("$tag.clear-all")) { Text("Clear All") }
+    }
+}
+
+/**
+ * One bucket toggle: "Season 9" / "Top 5%" / star images / the intensity meter, or
+ * "No Score"; the switch shows whether songs in the bucket are shown.
+ */
+@Composable
+private fun BucketRow(kind: SongBucketKind, key: Int, shown: Boolean, tag: String, onChange: (Boolean) -> Unit) {
+    val spoken = bucketLabel(kind, key)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 48.dp)
-            .toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onChange)
+            .toggleable(value = shown, role = Role.Switch, onValueChange = onChange)
+            .semantics(mergeDescendants = true) { contentDescription = spoken }
             .testTag(tag),
     ) {
-        Text(label, color = if (enabled) BrandTokens.textPrimary else BrandTokens.textDisabled, modifier = Modifier.weight(1f))
+        Box(Modifier.weight(1f)) {
+            when {
+                key == 0 -> Text("No Score", color = BrandTokens.textPrimary)
+                kind == SongBucketKind.Stars -> StarRating(key, size = 16.dp)
+                kind == SongBucketKind.Intensity -> DifficultyMeter((key - 1).toDouble())
+                else -> Text(spoken, color = BrandTokens.textPrimary)
+            }
+        }
+        Switch(checked = shown, onCheckedChange = null)
+    }
+}
+
+/**
+ * Spoken/visible bucket label.
+ *
+ * @param kind Section.
+ * @param key Key.
+ * @return Label.
+ */
+internal fun bucketLabel(kind: SongBucketKind, key: Int): String = when {
+    key == 0 -> "No Score"
+    kind == SongBucketKind.Season -> "Season $key"
+    kind == SongBucketKind.Percentile -> "Top $key%"
+    kind == SongBucketKind.Stars -> starsDescription(key)
+    else -> "Intensity $key of 7"
+}
+
+/** Web `ToggleRow`: label, description and a switch; the whole row toggles. */
+@Composable
+private fun ToggleRow(label: String, description: String?, checked: Boolean, enabled: Boolean, tag: String, onChange: (Boolean) -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onChange)
+            .padding(vertical = 4.dp)
+            .testTag(tag),
+    ) {
+        Column(Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(label, color = if (enabled) BrandTokens.textPrimary else BrandTokens.textDisabled, fontWeight = FontWeight.SemiBold)
+            description?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = if (enabled) BrandTokens.textSecondary else BrandTokens.textDisabled) }
+        }
         Switch(checked = checked, onCheckedChange = null, enabled = enabled)
     }
 }

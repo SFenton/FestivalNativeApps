@@ -1,6 +1,5 @@
 package com.festivalscoretracker.android.core.songs
 
-import com.festivalscoretracker.android.core.format.DifficultyMeterSpec
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.Song
 import com.festivalscoretracker.android.core.shop.ShopSong
@@ -11,45 +10,39 @@ import kotlinx.serialization.json.Json
 // region Public chart filter
 
 /**
- * Public-data filter: one charted instrument and an inclusive 1–7 display
- * difficulty range for it (or for any charted instrument when none is chosen).
+ * Public-data filter: one charted instrument (web `instrumentFilter`) and its
+ * hidden Song Intensity buckets (web `difficultyFilter` `false` entries, keys
+ * [SongIntensityBucket.KEYS]). Intensity applies only with an instrument, like the web.
  *
  * @property instrument Single chart, or null for all.
- * @property minDifficulty Lowest display level, 1–7.
- * @property maxDifficulty Highest display level, 1–7.
+ * @property excludedIntensities Hidden intensity buckets (1–7 bars, 0 = no chart value).
  */
-data class SongFilter(val instrument: Instrument? = null, val minDifficulty: Int = 1, val maxDifficulty: Int = 7) {
-    /** Whether this filter changes the list. */
-    val isActive: Boolean get() = instrument != null || minDifficulty > 1 || maxDifficulty < 7
+data class SongFilter(val instrument: Instrument? = null, val excludedIntensities: Set<Int> = emptySet()) {
+    /** Whether this filter changes the list (intensity buckets need an instrument). */
+    val isActive: Boolean get() = instrument != null
 
-    /** Whether the range is in bounds and ordered. */
-    val isValid: Boolean get() = minDifficulty in 1..7 && maxDifficulty in 1..7 && minDifficulty <= maxDifficulty
+    /** Whether every hidden bucket is a known key. */
+    val isValid: Boolean get() = SongIntensityBucket.KEYS.containsAll(excludedIntensities)
 
     /**
-     * Whether a song passes.
+     * Whether a song passes: charted for the instrument and in a shown intensity bucket.
      *
      * @param song Catalogue row.
      * @return True when kept.
      */
     fun matches(song: Song): Boolean {
-        val chart = instrument
-        if (chart != null) return song.difficulty?.chartedValue(chart)?.let { inRange(it) } == true
-        if (minDifficulty <= 1 && maxDifficulty >= 7) return true
-        return Instrument.entries.any { song.difficulty?.chartedValue(it)?.let(::inRange) == true }
+        val chart = instrument ?: return true
+        if (!song.supports(chart)) return false
+        return SongIntensityBucket.of(song.difficulty?.chartedValue(chart)) !in excludedIntensities
     }
 
     /**
-     * Drop a chart hidden in Settings.
+     * Drop a chart hidden in Settings (hidden buckets stay saved, inert without a chart).
      *
      * @param visible Settings-visible charts.
      * @return This filter, or one without the hidden chart.
      */
     fun scopedTo(visible: Set<Instrument>): SongFilter = if (instrument != null && instrument !in visible) copy(instrument = null) else this
-
-    private fun inRange(raw: Double): Boolean {
-        val bars = DifficultyMeterSpec.filledBars(raw, raw = true) ?: return false
-        return bars in minDifficulty..maxDifficulty
-    }
 }
 
 // endregion
@@ -115,19 +108,52 @@ enum class SongScoreFilterKind(val label: String) {
  * @property score Score (0 = no score).
  * @property isFullCombo Explicit FC flag (never inferred from accuracy).
  * @property overThreshold The raw score shown exceeds the CHOpt maximum (Over CHOpt Threshold view).
+ * @property stars Stars (6 = gold), or null.
+ * @property season Season the score was set in, or null.
+ * @property rank One-based rank, or null.
+ * @property totalEntries Board population, or null.
  */
-data class ChartScoreFacts(val score: Long, val isFullCombo: Boolean?, val overThreshold: Boolean = false)
+data class ChartScoreFacts(
+    val score: Long,
+    val isFullCombo: Boolean?,
+    val overThreshold: Boolean = false,
+    val stars: Int? = null,
+    val season: Int? = null,
+    val rank: Int? = null,
+    val totalEntries: Int? = null,
+) {
+    /** Whether the chart has a positive score. */
+    val scored: Boolean get() = score > 0
+
+    /**
+     * This score's key in a player-scoped bucket section.
+     *
+     * @param kind Season, Percentile or Stars.
+     * @return Key (0 = no score).
+     */
+    fun bucket(kind: SongBucketKind): Int = when (kind) {
+        SongBucketKind.Season -> SongSeasonBucket.of(scored, season)
+        SongBucketKind.Percentile -> SongPercentileBucket.of(scored, rank, totalEntries)
+        SongBucketKind.Stars -> if (scored) SongStarsBucket.of(stars) else 0
+        SongBucketKind.Intensity -> 0
+    }
+}
 
 /**
  * Selected-player predicates: AND within one chart's checks, OR across active
- * charts. Bounded, typed JSON so it persists safely; hidden charts stay saved but
- * inactive; cleared on confirmed deselection (Apple `SongPlayerScoreFilter`).
+ * charts, then the Songs instrument's Season / Percentile / Stars buckets (web
+ * `seasonFilter`/`percentileFilter`/`starsFilter`, applied only with one instrument).
+ * Bounded, typed JSON so it persists safely; hidden charts stay saved but inactive;
+ * cleared on confirmed deselection (Apple `SongPlayerScoreFilter`).
  *
  * @property missingScores Charts requiring no positive score.
  * @property hasScores Charts requiring a positive score.
  * @property missingFCs Charts without an explicit FC.
  * @property hasFCs Charts with an explicit FC.
  * @property overThreshold Charts showing only raw scores over the CHOpt maximum (Filter Invalid Scores only).
+ * @property excludedSeasons Hidden season buckets on the Songs instrument (0 = no score).
+ * @property excludedPercentiles Hidden [SongPercentileBucket] keys on the Songs instrument.
+ * @property excludedStars Hidden [SongStarsBucket] keys on the Songs instrument.
  */
 data class SongPlayerScoreFilter(
     val missingScores: Set<Instrument> = emptySet(),
@@ -135,10 +161,84 @@ data class SongPlayerScoreFilter(
     val missingFCs: Set<Instrument> = emptySet(),
     val hasFCs: Set<Instrument> = emptySet(),
     val overThreshold: Set<Instrument> = emptySet(),
+    val excludedSeasons: Set<Int> = emptySet(),
+    val excludedPercentiles: Set<Int> = emptySet(),
+    val excludedStars: Set<Int> = emptySet(),
 ) {
-    /** Whether any check is set. */
+    /** Whether any check or bucket is set. */
     val isActive: Boolean
+        get() = hasChecks || hasBucketChecks
+
+    /** Whether any per-chart score/FC check is set. */
+    val hasChecks: Boolean
         get() = missingScores.isNotEmpty() || hasScores.isNotEmpty() || missingFCs.isNotEmpty() || hasFCs.isNotEmpty() || overThreshold.isNotEmpty()
+
+    /** Whether a Season, Percentile or Stars bucket is hidden (these need one Songs instrument). */
+    val hasBucketChecks: Boolean
+        get() = excludedSeasons.isNotEmpty() || excludedPercentiles.isNotEmpty() || excludedStars.isNotEmpty()
+
+    /**
+     * Whether this filter narrows the list for a Songs instrument (buckets need one, like the web).
+     *
+     * @param selectedInstrument Songs instrument filter, or null.
+     * @return True when something applies.
+     */
+    fun appliesTo(selectedInstrument: Instrument?): Boolean = hasChecks || (hasBucketChecks && selectedInstrument != null)
+
+    /**
+     * The hidden keys of one bucket section.
+     *
+     * @param kind Season, Percentile or Stars.
+     * @return Hidden keys.
+     */
+    fun excluded(kind: SongBucketKind): Set<Int> = when (kind) {
+        SongBucketKind.Season -> excludedSeasons
+        SongBucketKind.Percentile -> excludedPercentiles
+        SongBucketKind.Stars -> excludedStars
+        SongBucketKind.Intensity -> emptySet()
+    }
+
+    /**
+     * Replace one bucket section's hidden keys.
+     *
+     * @param kind Season, Percentile or Stars.
+     * @param keys Hidden keys.
+     * @return Updated filter.
+     */
+    fun withExcluded(kind: SongBucketKind, keys: Set<Int>): SongPlayerScoreFilter = when (kind) {
+        SongBucketKind.Season -> copy(excludedSeasons = keys)
+        SongBucketKind.Percentile -> copy(excludedPercentiles = keys)
+        SongBucketKind.Stars -> copy(excludedStars = keys)
+        SongBucketKind.Intensity -> this
+    }
+
+    /**
+     * Web `cleanFilters` for a stat-tile preset: every bucket shown again and this chart's
+     * score/FC/threshold checks cleared (other charts' checks stay).
+     *
+     * @param instrument Chart.
+     * @return Updated filter.
+     */
+    fun cleanedFor(instrument: Instrument): SongPlayerScoreFilter =
+        SongScoreFilterKind.entries.fold(copy(excludedSeasons = emptySet(), excludedPercentiles = emptySet(), excludedStars = emptySet())) { filter, kind ->
+            filter.with(kind, instrument, false)
+        }
+
+    /**
+     * Show only one star bucket (web `instStarsUpdater`).
+     *
+     * @param key A [SongStarsBucket.KEYS] key.
+     * @return Updated filter.
+     */
+    fun onlyStars(key: Int): SongPlayerScoreFilter = copy(excludedStars = SongStarsBucket.KEYS.toSet() - key)
+
+    /**
+     * Show only one percentile bucket (web `instPercentileBucketUpdater`).
+     *
+     * @param key A [SongPercentileBucket.KEYS] key.
+     * @return Updated filter.
+     */
+    fun onlyPercentile(key: Int): SongPlayerScoreFilter = copy(excludedPercentiles = SongPercentileBucket.KEYS.toSet() - key)
 
     /**
      * The checks that apply under the current Filter Invalid Scores setting
@@ -217,13 +317,14 @@ data class SongPlayerScoreFilter(
      * @param visible Settings-visible charts.
      * @return Scoped filter.
      */
-    fun scopedTo(visible: Set<Instrument>): SongPlayerScoreFilter = SongPlayerScoreFilter(
-        missingScores intersect visible, hasScores intersect visible, missingFCs intersect visible, hasFCs intersect visible,
-        overThreshold intersect visible,
+    fun scopedTo(visible: Set<Instrument>): SongPlayerScoreFilter = copy(
+        missingScores = missingScores intersect visible, hasScores = hasScores intersect visible,
+        missingFCs = missingFCs intersect visible, hasFCs = hasFCs intersect visible, overThreshold = overThreshold intersect visible,
     )
 
     /**
-     * OR across active charted instruments, AND within each chart's checks.
+     * OR across active charted instruments, AND within each chart's checks; then, with a
+     * Songs instrument, its Season / Percentile / Stars buckets (web `useFilteredSongs`).
      *
      * @param songs Search-, chart- and Shop-filtered rows.
      * @param scores Facts for a matching, available index (null for no row).
@@ -241,8 +342,17 @@ data class SongPlayerScoreFilter(
         val active = Instrument.entries.filter { chart ->
             (selectedInstrument == null || selectedInstrument == chart) && SongScoreFilterKind.entries.any { scoped.contains(it, chart) }
         }
-        if (active.isEmpty()) return songs
-        return songs.filter { song -> active.any { chart -> scoped.matches(song, chart, scores(song.songId, chart)) } }
+        val buckets = selectedInstrument?.takeIf { hasBucketChecks && it in visible }
+        if (active.isEmpty() && buckets == null) return songs
+        return songs.filter { song ->
+            (active.isEmpty() || active.any { chart -> scoped.matches(song, chart, scores(song.songId, chart)) }) &&
+                (buckets == null || inBuckets(scores(song.songId, buckets)))
+        }
+    }
+
+    private fun inBuckets(facts: ChartScoreFacts?): Boolean {
+        val shown = facts ?: ChartScoreFacts(0, null)
+        return BUCKET_KINDS.none { kind -> shown.bucket(kind) in excluded(kind) }
     }
 
     private fun matches(song: Song, chart: Instrument, facts: ChartScoreFacts?): Boolean {
@@ -267,7 +377,11 @@ data class SongPlayerScoreFilter(
     fun encoded(): String {
         if (!isActive) return ""
         fun ids(set: Set<Instrument>) = Instrument.entries.filter { it in set }.map { it.wireId }
-        return Json.encodeToString(Stored.serializer(), Stored(ids(missingScores), ids(hasScores), ids(missingFCs), ids(hasFCs), ids(overThreshold)))
+        val stored = Stored(
+            ids(missingScores), ids(hasScores), ids(missingFCs), ids(hasFCs), ids(overThreshold),
+            excludedSeasons.sorted(), excludedPercentiles.sorted(), excludedStars.sorted(),
+        )
+        return Json.encodeToString(Stored.serializer(), stored)
     }
 
     @Serializable
@@ -277,6 +391,9 @@ data class SongPlayerScoreFilter(
         val missingFCs: List<String>,
         val hasFCs: List<String>,
         val overThreshold: List<String> = emptyList(),
+        val excludedSeasons: List<Int> = emptyList(),
+        val excludedPercentiles: List<Int> = emptyList(),
+        val excludedStars: List<Int> = emptyList(),
     )
 
     companion object {
@@ -304,14 +421,22 @@ data class SongPlayerScoreFilter(
                 val charts = ids.map { Instrument.fromWireId(it) ?: return null }
                 return charts.toSet().takeIf { it.size == charts.size }
             }
+            fun keys(values: List<Int>, valid: (Int) -> Boolean): Set<Int>? =
+                values.toSet().takeIf { set -> set.size == values.size && values.all(valid) }
             return SongPlayerScoreFilter(
                 parse(stored.missingScores) ?: return null,
                 parse(stored.hasScores) ?: return null,
                 parse(stored.missingFCs) ?: return null,
                 parse(stored.hasFCs) ?: return null,
                 parse(stored.overThreshold) ?: return null,
+                keys(stored.excludedSeasons) { it in 0..SongSeasonBucket.MAX_SEASON } ?: return null,
+                keys(stored.excludedPercentiles) { it in SongPercentileBucket.KEYS } ?: return null,
+                keys(stored.excludedStars) { it in SongStarsBucket.KEYS } ?: return null,
             )
         }
+
+        /** Player-scoped bucket sections. */
+        private val BUCKET_KINDS = SongBucketKind.entries.filter { it.playerScoped }
     }
 }
 

@@ -95,10 +95,16 @@ class SongsUiTest {
 
         click("fst.songs.filter.open")
         settle()
+        // Web structure: collapsed Global / per-instrument groups (6.32).
+        click("fst.songs.filter.global")
+        settle()
+        click("fst.songs.filter.score.global.MissingFCs")
+        click("fst.songs.filter.score.global.MissingFCs")
+        rule.onNodeWithTag("fst.songs.filter.form").performScrollToNode(hasTestTag("fst.songs.filter.score.chart.Solo_Guitar"))
+        click("fst.songs.filter.score.chart.Solo_Guitar")
+        settle()
         rule.onNodeWithTag("fst.songs.filter.form").performScrollToNode(hasTestTag("fst.songs.filter.score.instrument.Solo_Guitar.HasScores"))
         click("fst.songs.filter.score.instrument.Solo_Guitar.HasScores")
-        click("fst.songs.filter.score.global.MissingFCs")
-        click("fst.songs.filter.score.global.MissingFCs")
         click("fst.songs.filter.done")
         rule.waitUntil(5_000) { settle(100); rule.onAllNodesWithTag("fst.songs.row.s-beta").fetchSemanticsNodes().isEmpty() }
         waitForTag("fst.songs.row.s-alpha")

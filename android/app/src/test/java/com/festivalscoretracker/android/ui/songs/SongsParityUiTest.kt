@@ -165,7 +165,9 @@ class SongsParityUiTest {
         // Clearing the chart filter drops the single-chart sort back to Title.
         click("fst.songs.filter.open")
         settle()
-        click("fst.songs.filter.instrument.all")
+        // The selected instrument (compact selector centre) toggles off.
+        rule.onNodeWithTag("fst.songs.filter.form").performScrollToNode(hasTestTag("fst.songs.filter.instrument.preview"))
+        click("fst.songs.filter.instrument.preview")
         click("fst.songs.filter.done")
         waitForTag("fst.songs.section-index")
     }
@@ -175,6 +177,9 @@ class SongsParityUiTest {
         launch(DebugLaunch(profile = player, stillBackground = true), prefs(booleanPreferencesKey(SettingsRegistry.FILTER_INVALID_SCORES) to true))
         waitForTag("fst.songs.row.s-beta")
         click("fst.songs.filter.open")
+        settle()
+        rule.onNodeWithTag("fst.songs.filter.form").performScrollToNode(hasTestTag("fst.songs.filter.score.chart.Solo_Guitar"))
+        click("fst.songs.filter.score.chart.Solo_Guitar")
         settle()
         rule.onNodeWithTag("fst.songs.filter.form").performScrollToNode(hasTestTag("fst.songs.filter.score.instrument.Solo_Guitar.OverThreshold"))
         click("fst.songs.filter.score.instrument.Solo_Guitar.OverThreshold")

@@ -173,9 +173,9 @@ class SongsDataTest {
         assertEquals(SongsPreferencesState(), prefs.state.first())
         assertFalse(prefs.state.first().anyFilterActive)
         val player = SongPlayerScoreFilter(hasFCs = setOf(Instrument.Lead))
-        prefs.setFilters(SongFilter(Instrument.Bass, 2, 6), SongShopFilter(inShop = true), player)
+        prefs.setFilters(SongFilter(Instrument.Bass, setOf(0, 7)), SongShopFilter(inShop = true), player)
         val saved = prefs.state.first()
-        assertEquals(SongFilter(Instrument.Bass, 2, 6), saved.filter)
+        assertEquals(SongFilter(Instrument.Bass, setOf(0, 7)), saved.filter)
         assertEquals(SongShopFilter(inShop = true), saved.shopFilter)
         assertEquals(player, saved.playerFilter)
         assertTrue(saved.anyFilterActive)
@@ -197,7 +197,11 @@ class SongsDataTest {
         repository.writeBlob(com.festivalscoretracker.android.core.settings.SettingsRegistry.SONG_PLAYER_SCORE_FILTERS, "{broken")
         assertNull(prefs.state.first().playerFilter)
         assertEquals(SongFilter() to SongShopFilter(), SongsPreferences.decodePublic("{bad"))
+        // Retired range keys are ignored; unknown or duplicate intensity keys drop the buckets but keep the instrument.
         assertEquals(SongFilter() to SongShopFilter(leavingTomorrow = true), SongsPreferences.decodePublic("""{"minDifficulty":6,"maxDifficulty":2,"leavingTomorrow":true}"""))
+        assertEquals(SongFilter(Instrument.Bass) to SongShopFilter(), SongsPreferences.decodePublic("""{"instrument":"Solo_Bass","excludedIntensities":[9]}"""))
+        assertEquals(SongFilter(Instrument.Bass) to SongShopFilter(), SongsPreferences.decodePublic("""{"instrument":"Solo_Bass","excludedIntensities":[2,2]}"""))
+        assertEquals(SongFilter(null, setOf(3)) to SongShopFilter(), SongsPreferences.decodePublic(SongsPreferences.encodePublic(SongFilter(null, setOf(3)), SongShopFilter())))
         assertNull(SongsPreferences.encodePublic(SongFilter(), SongShopFilter()))
     }
 
