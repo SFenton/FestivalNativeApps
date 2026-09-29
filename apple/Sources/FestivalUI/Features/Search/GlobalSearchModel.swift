@@ -108,6 +108,24 @@ final class GlobalSearchModel {
         songState = .ready
     }
 
+    /// VoiceOver's result-count summary once the current query's results settle, or nil.
+    var resultAnnouncement: String? {
+        guard hasQuery else { return nil }
+        return GlobalSearch.resultAnnouncement(
+            scope: scope, songs: Self.outcome(songState, count: songs.count),
+            players: Self.outcome(playerState, count: players.count)
+        )
+    }
+
+    /// Map a section state to its announcement outcome.
+    private static func outcome(_ state: SectionState, count: Int) -> GlobalSearch.SectionOutcome {
+        switch state {
+        case .idle, .loading: .pending
+        case .failed: .failed
+        case .ready: .found(count)
+        }
+    }
+
     private func clearResults() {
         songs = []
         players = []

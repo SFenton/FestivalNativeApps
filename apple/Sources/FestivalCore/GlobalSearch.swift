@@ -90,4 +90,52 @@ public enum GlobalSearch {
         case .bands: "Search bands"
         }
     }
+
+    // MARK: - Result-count announcement
+
+    /// Where one result section stands, for the VoiceOver result-count announcement.
+    public enum SectionOutcome: Equatable, Sendable {
+        /// Still searching (or not searched yet).
+        case pending
+        /// The search failed; the section shows Retry.
+        case failed
+        /// Finished with this many results.
+        case found(Int)
+    }
+
+    /// What VoiceOver announces once the results for a query settle (web live region
+    /// equivalent): nil while a section the scope shows is still pending, and for
+    /// Bands (never searched).
+    ///
+    /// - Parameters:
+    ///   - scope: Active scope.
+    ///   - songs: Songs section outcome.
+    ///   - players: Players section outcome.
+    /// - Returns: "3 songs, 1 player", "No results found.", …, or nil.
+    public static func resultAnnouncement(
+        scope: GlobalSearchScope, songs: SectionOutcome, players: SectionOutcome
+    ) -> String? {
+        func count(_ outcome: SectionOutcome, _ one: String, _ many: String) -> String? {
+            switch outcome {
+            case .pending: nil
+            case .failed: "\(many.capitalized) unavailable"
+            case let .found(value): "\(value) \(value == 1 ? one : many)"
+            }
+        }
+        switch scope {
+        case .bands:
+            return nil
+        case .songs:
+            if songs == .found(0) { return "No songs found." }
+            return count(songs, "song", "songs")
+        case .players:
+            if players == .found(0) { return "No players found." }
+            return count(players, "player", "players")
+        case .all:
+            guard songs != .pending, players != .pending else { return nil }
+            if songs == .found(0) && players == .found(0) { return "No results found." }
+            return [count(songs, "song", "songs"), count(players, "player", "players")]
+                .compactMap { $0 }.joined(separator: ", ")
+        }
+    }
 }

@@ -36,7 +36,22 @@ struct GlobalSearchResults: View {
         // A container element, so the identifier does not replace its children's own.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.global-search.surface")
+        // Speak the result count once results settle; a newer query or scope cancels a
+        // pending announcement, so fast typing speaks only the last count.
+        .task(id: model.resultAnnouncement) {
+            guard let text = model.resultAnnouncement else { return }
+            do {
+                try await Task.sleep(for: Self.announcementDelay)
+            } catch {
+                return
+            }
+            AccessibilityNotification.Announcement(text).post()
+        }
     }
+
+    /// Quiet period before announcing, so typing or a second section settling does not
+    /// speak intermediate counts.
+    static let announcementDelay: Duration = .milliseconds(700)
 
     /// The area below the scope bar: a centred message, or the result sections.
     @ViewBuilder private var results: some View {

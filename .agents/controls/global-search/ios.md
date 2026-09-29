@@ -36,6 +36,7 @@ Songs keeps its **inline** `.searchable` field with the prompt "Filter Songs". I
 - **Loading:** Songs render as soon as the catalogue filter runs; Players show their own progress (`fst.global-search.players-loading`) until the account search returns (the spec's native correction).
 - **Errors:** per section via `ServiceStatusInline`, so a scrape freeze reads "Scores are updating" with its countdown. An empty players envelope offers Retry.
 - **Bands:** never requested ([service-safety](../../platforms/service-safety.md)). The Bands segment shows the explanation and a **Band Rankings** button; "All" has no Bands section, and its prompt is "Search songs or players".
+- **Result-count announcement:** once the sections the scope shows have settled, VoiceOver hears `AccessibilityNotification.Announcement` with "3 songs, 1 player", "No results found.", "No songs found." or "1 song, Players unavailable" (`GlobalSearch.resultAnnouncement`, `GlobalSearchModel.resultAnnouncement`). It is debounced (`GlobalSearchResults.announcementDelay`, 700 ms in a `.task(id:)` keyed by the text), so typing or a second section arriving speaks only the last count; Bands and queries under two characters announce nothing.
 - **Result rows:** one `Button` per `List` row (`PlayerSearchResultRows` for players). Songs show 40 pt art (`ArtworkTile`), title and artist. A selected player's row opens Statistics.
 
 ## Test IDs (Apple)
@@ -44,5 +45,4 @@ Songs keeps its **inline** `.searchable` field with the prompt "Filter Songs". I
 
 ## Open
 
-- Result-count announcement ("3 songs, 10 players") is not implemented yet.
 - If a later iOS lets a search tab sit beside five tabs without "More", revisit the search tab.

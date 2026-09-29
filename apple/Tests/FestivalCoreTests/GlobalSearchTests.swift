@@ -48,3 +48,23 @@ func globalSearchEffectiveQuery(_ raw: String, _ expected: String?) {
     #expect(GlobalSearch.songLimit == 20)
     #expect(GlobalSearch.playerLimit == 10)
 }
+
+// MARK: - Result-count announcement
+
+@Test func resultAnnouncementWaitsForSettledSectionsAndCountsThem() {
+    typealias Outcome = GlobalSearch.SectionOutcome
+    #expect(GlobalSearch.resultAnnouncement(scope: .all, songs: .found(3), players: .pending) == nil)
+    #expect(GlobalSearch.resultAnnouncement(scope: .all, songs: .found(3), players: .found(1))
+            == "3 songs, 1 player")
+    #expect(GlobalSearch.resultAnnouncement(scope: .all, songs: .found(0), players: .found(0))
+            == "No results found.")
+    #expect(GlobalSearch.resultAnnouncement(scope: .all, songs: .found(1), players: .failed)
+            == "1 song, Players unavailable")
+    #expect(GlobalSearch.resultAnnouncement(scope: .songs, songs: .found(0), players: .pending)
+            == "No songs found.")
+    #expect(GlobalSearch.resultAnnouncement(scope: .songs, songs: .found(2), players: .pending) == "2 songs")
+    #expect(GlobalSearch.resultAnnouncement(scope: .players, songs: .pending, players: .found(0))
+            == "No players found.")
+    #expect(GlobalSearch.resultAnnouncement(scope: .players, songs: .found(4), players: .pending) == nil)
+    #expect(GlobalSearch.resultAnnouncement(scope: .bands, songs: Outcome.found(1), players: .found(1)) == nil)
+}
