@@ -67,8 +67,11 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, dict, list[str]]] = {
             "waitfor:id=fst.shop.grid@20",
             "waitfor:id=fst.shop.song.fixture-pulse",
             "waitfor:id=fst.shop.badge.leaving.fixture-orbit",
-            "waitfor:id=fst.shop.external.fixture-pulse",
             "{shot:shop-grid}",
+            # The purchase link lives in the tile's context menu (web-style tiles carry no cart button).
+            "rightclick:id=fst.shop.song.fixture-pulse",
+            "waitfor:id=fst.shop.external.fixture-pulse@5",
+            "key:esc",
             "click:id=fst.shop.view-toggle",
             "waitfor:id=fst.shop.list@5",
             "waitfor:id=fst.shop.song.fixture-orbit",

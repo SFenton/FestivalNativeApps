@@ -39,12 +39,14 @@
                  AutomationProperties.AutomationId="fst.shop.song-details-error" />
 
         <Grid Grid.Row="2">
-            <!-- Grid: the web's album-art tiles (square, full-bleed art, title/artist scrim; 2-5 columns by width). The tile
-                 opens Song Detail (or the official Item Shop when the song isn't in the catalogue); the cart button is the
-                 secondary purchase action. New/Leaving tiles pulse gold/red like the web's ShopCard. -->
+            <!-- Grid: the web's ShopCard tiles (square, full-bleed art, title/artist scrim, Leaving Tomorrow pill; 2-5 columns,
+                 at most 1040 epx wide like the web's 1080 content column). The tile opens Song Detail (or the official Item
+                 Shop when the song isn't in the catalogue); the purchase link is in its context menu, so the tile carries no
+                 extra button (operator batch 6.9). New/Leaving tiles pulse gold/red like the web's ShopCard. -->
             <ScrollViewer x:Name="GridScroller" Visibility="{x:Bind ViewModel.ShowGrid, Mode=OneWay}" Padding="0,0,12,24"
                           SizeChanged="OnGridSizeChanged" AutomationProperties.AutomationId="fst.shop.grid">
                 <ItemsRepeater XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Local" x:Name="OfferGrid" controls:FadeIn.Stagger="True"
+                               HorizontalAlignment="Left"
                                controls:FadeIn.RowHeight="220" ItemsSource="{x:Bind ViewModel.Offers, Mode=OneWay}"
                                ElementPrepared="OnGridPrepared" ElementClearing="OnElementClearing">
                     <ItemsRepeater.Layout>
@@ -57,7 +59,18 @@
                                 <Button x:Name="TileButton" Padding="0" BorderThickness="0" Background="Transparent" CornerRadius="8"
                                         HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                         HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Click="OnTileClick" Tag="{x:Bind}"
-                                        AutomationProperties.Name="{x:Bind TileName}">
+                                        AutomationProperties.Name="{x:Bind TileName}" AutomationProperties.AutomationId="{x:Bind TileAutomationId}">
+                                    <Button.ContextFlyout>
+                                        <MenuFlyout>
+                                            <MenuFlyoutItem Text="Open in Item Shop" Click="OnExternalClick" Tag="{x:Bind}"
+                                                            AutomationProperties.Name="{x:Bind ExternalName}"
+                                                            AutomationProperties.AutomationId="{x:Bind ExternalAutomationId}">
+                                                <MenuFlyoutItem.Icon>
+                                                    <FontIcon Glyph="&#xE7BF;" />
+                                                </MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
+                                        </MenuFlyout>
+                                    </Button.ContextFlyout>
                                     <Grid>
                                         <Image x:Name="Art" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
                                         <Rectangle AutomationProperties.AccessibilityView="Raw">
@@ -68,23 +81,18 @@
                                                 </LinearGradientBrush>
                                             </Rectangle.Fill>
                                         </Rectangle>
-                                        <StackPanel VerticalAlignment="Bottom" Padding="12,12,52,12" Spacing="2">
-                                            <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" Foreground="White"
+                                        <StackPanel VerticalAlignment="Bottom" Padding="16" Spacing="4">
+                                            <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" FontSize="16" Foreground="White"
                                                        TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
-                                            <TextBlock Text="{x:Bind Offer.Artist}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="White"
+                                            <TextBlock Text="{x:Bind Offer.Artist}" Style="{StaticResource BodyTextBlockStyle}" Foreground="White"
                                                        TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
                                         </StackPanel>
                                     </Grid>
                                 </Button>
-                                <Border x:Name="BadgePill" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="10" Padding="8,3"
+                                <Border x:Name="BadgePill" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="16" Padding="8,3"
                                         CornerRadius="10" Visibility="{x:Bind IsLeaving}" IsHitTestVisible="False">
                                     <TextBlock x:Name="BadgeLabel" Text="{x:Bind BadgeText}" FontSize="12" FontWeight="Bold" />
                                 </Border>
-                                <Button x:Name="ArtButton" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="8" Width="36" Height="36"
-                                        Padding="0" CornerRadius="18" Click="OnExternalClick" Tag="{x:Bind}" Background="#B3121826" BorderThickness="0"
-                                        AutomationProperties.Name="{x:Bind ExternalName}" ToolTipService.ToolTip="Open official Item Shop">
-                                    <FontIcon Glyph="&#xE7BF;" FontSize="16" Foreground="White" />
-                                </Button>
                                 <controls:ShopPulseRing x:Name="ShopRing" />
                             </Grid>
                         </DataTemplate>
@@ -127,7 +135,8 @@
                                 </Border>
                             </StackPanel>
                             <Button Grid.Column="2" Width="44" Height="44" Padding="0" CornerRadius="22" Click="OnExternalClick" Tag="{x:Bind}"
-                                    AutomationProperties.Name="{x:Bind ExternalName}" ToolTipService.ToolTip="Open official Item Shop">
+                                    AutomationProperties.Name="{x:Bind ExternalName}" AutomationProperties.AutomationId="{x:Bind ExternalAutomationId}"
+                                    ToolTipService.ToolTip="Open official Item Shop">
                                 <FontIcon Glyph="&#xE719;" FontSize="16" />
                             </Button>
                         </Grid>
@@ -137,6 +146,8 @@
 
             <ProgressRing IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Width="48" Height="48"
                           AutomationProperties.Name="Loading Item Shop" />
+            <!-- Held while the first tiles' art decodes (and after a List/Grid switch), then the layout fades in (6.41). -->
+            <ProgressRing x:Name="RevealRing" IsActive="False" Width="48" Height="48" AutomationProperties.Name="Loading Item Shop" />
 
             <controls:ServiceStatusView Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
                                         Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}"

@@ -148,11 +148,13 @@ public class ShopGridMetricsTests
     [InlineData(599, 2, 294)]
     [InlineData(600, 3, 193)]
     [InlineData(860, 4, 207)]
-    [InlineData(1100, 5, 212)]
+    [InlineData(1100, 5, 200)]
+    [InlineData(2400, 5, 200)]
     [InlineData(0, 2, 1)]
     public void Columns_AndSquareTiles(double width, int columns, double tile)
     {
         Assert.Equal(columns, ShopGridMetrics.Columns(width));
         Assert.Equal(tile, ShopGridMetrics.TileSize(width));
+        Assert.Equal(Math.Min(width, 1040), ShopGridMetrics.ContentWidth(width));
     }
 }

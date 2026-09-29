@@ -55,6 +55,12 @@ public sealed class ArtworkByteCache
             {
                 task = download(url, CancellationToken.None);
                 inFlight[url] = task;
+                // Leave the table when it finishes even if every waiter already cancelled (a row scrolled away):
+                // otherwise a failed download stayed "in flight" and every later request replayed its failure, so that
+                // art never loaded again in the session (operator batch 6.9).
+                var started = task;
+                _ = started.ContinueWith(_ => Forget(url, started), CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
             }
         }
         try
@@ -68,13 +74,18 @@ public sealed class ArtworkByteCache
         }
         finally
         {
-            if (task.IsCompleted)
-            {
-                lock (gate)
-                {
-                    if (inFlight.TryGetValue(url, out var current) && current == task) inFlight.Remove(url);
-                }
-            }
+            if (task.IsCompleted) Forget(url, task);
+        }
+    }
+
+    /// <summary>Removes a finished download from the in-flight table (only if it is still the current one).</summary>
+    /// <param name="url">Key.</param>
+    /// <param name="task">Finished download.</param>
+    private void Forget(Uri url, Task<byte[]> task)
+    {
+        lock (gate)
+        {
+            if (inFlight.TryGetValue(url, out var current) && current == task) inFlight.Remove(url);
         }
     }
 

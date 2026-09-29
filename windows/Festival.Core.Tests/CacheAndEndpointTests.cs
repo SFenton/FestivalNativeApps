@@ -81,6 +81,26 @@ public class CacheAndEndpointTests
     }
 
     [Fact]
+    public async Task ArtworkCache_FailureAfterEveryWaiterCancelledIsRetried()
+    {
+        // Operator batch 6.9: a row that scrolled away cancelled its wait; the download then failed. The failed task must
+        // not stay "in flight", or every later request for that art replays the failure.
+        var calls = 0;
+        var first = new TaskCompletionSource<byte[]>();
+        var cache = new ArtworkByteCache((_, _) => ++calls == 1 ? first.Task : Task.FromResult(new byte[] { 7 }));
+        var url = new Uri("https://cdn2.unrealengine.com/a.jpg");
+        using (var cts = new CancellationTokenSource())
+        {
+            var waiting = cache.GetAsync(url, cts.Token);
+            cts.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waiting);
+        }
+        first.SetException(new FestivalApiException(FestivalApiErrorKind.Offline));
+        Assert.Equal([7], await cache.GetAsync(url));
+        Assert.Equal(2, calls);
+    }
+
+    [Fact]
     public void Endpoints_BuildEscapedUrls()
     {
         Assert.Equal("https://festivalscoretracker.com/api/publication", ServiceEndpoints.Publication(Base).AbsoluteUri);

@@ -194,6 +194,12 @@ public sealed record ShopOfferItem(ShopSong Offer, ShopHighlight? Highlight, boo
     /// <summary>Accessible name for the official-link action.</summary>
     public string ExternalName => $"{Offer.Title}, {Offer.Artist}, Open Official Item Shop";
 
+    /// <summary>UIA ID of the official Item Shop action (the tile's context menu, the list row's cart button).</summary>
+    public string ExternalAutomationId => $"fst.shop.external.{Offer.SongId}";
+
+    /// <summary>UIA ID of the tile/row that opens Song Detail.</summary>
+    public string TileAutomationId => $"fst.shop.song.{Offer.SongId}";
+
     /// <summary>Full announcement for the in-app action.</summary>
     public string Announcement => Highlight is { } h ? $"{Title}, {Subtitle}, {h.Label()}" : $"{Title}, {Subtitle}";
 }

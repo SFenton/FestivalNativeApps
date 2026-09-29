@@ -212,6 +212,7 @@ public class ShopViewModelTests
         Assert.Equal("Absent, Artist x9 · 2020, Leaving Tomorrow", absent.Announcement);
         Assert.Equal("Absent, Artist x9, Open Official Item Shop", absent.ExternalName);
         Assert.Equal((absent.ExternalName, SongRowShopPulse.Leaving), (absent.TileName, absent.Pulse));
+        Assert.Equal(("fst.shop.external.x9", "fst.shop.song.x9"), (absent.ExternalAutomationId, absent.TileAutomationId));
         var beta = vm.Offers[1];
         Assert.True(beta.HasSongDetail);
         Assert.True(beta.HasBadge);

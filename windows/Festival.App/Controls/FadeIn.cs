@@ -130,6 +130,23 @@ public static class FadeIn
         }
     }
 
+    /// <summary>
+    /// <see cref="StaggerRealized(ListViewBase)"/> for a repeater (the Shop grid kept hidden until its first tiles' art
+    /// decoded, and a List/Grid switch that replays the entrance for the new layout).
+    /// </summary>
+    /// <param name="repeater">Repeater.</param>
+    public static void StaggerRealized(ItemsRepeater repeater)
+    {
+        Restagger(repeater);
+        var visible = FadeInTiming.VisibleCount(repeater.XamlRoot?.Size.Height ?? repeater.ActualHeight, GetRowHeight(repeater));
+        var count = repeater.ItemsSourceView?.Count ?? 0;
+        for (var i = 0; i < Math.Min(count, FadeInTiming.MaxStaggered); i++)
+        {
+            if (repeater.TryGetElement(i) is not UIElement element) continue;
+            if (FadeInTiming.StaggerDelay(i, visible) is { } delay) Play(element, delay);
+        }
+    }
+
     /// <summary>Fades a freshly realized row when its list loaded moments ago and it is within the visible count.</summary>
     /// <param name="list">Owning list.</param>
     /// <param name="element">Row element.</param>

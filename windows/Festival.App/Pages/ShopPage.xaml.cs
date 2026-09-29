@@ -13,15 +13,24 @@ namespace Festival.App.Pages;
 #region Shop page
 /// <summary>
 /// Item Shop: the web's album-art grid (always at compact widths) or, by preference on wider windows, a list. Tiles and
-/// rows open Song Detail for catalogue songs; the cart button opens the validated official Item Shop link.
+/// rows open Song Detail for catalogue songs; the tile's context menu and the row's cart button open the validated
+/// official Item Shop link. Each layout stays hidden behind a ring until its first art decodes (bounded), then staggers in
+/// (web page-ready gate, operator batch 6.41), again after a List/Grid switch (6.10).
 /// </summary>
 public sealed partial class ShopPage : Page
 {
     /// <summary>Width below which the grid is forced and the layout toggle hidden.</summary>
     private const double CompactWidth = 640;
 
+    /// <summary>Offers whose art is decoded before a layout is revealed.</summary>
+    private const int ArtworkPrimeCount = 15;
+
+    /// <summary>Upper bound on the reveal wait.</summary>
+    private static readonly TimeSpan ArtworkPrimeTimeout = TimeSpan.FromMilliseconds(900);
+
     private readonly Dictionary<FrameworkElement, CancellationTokenSource> artLoads = [];
     private double tileSize = 200;
+    private int revealGeneration;
 
     /// <summary>Creates the page.</summary>
     public ShopPage()
@@ -57,6 +66,8 @@ public sealed partial class ShopPage : Page
     {
         if (e.PropertyName == nameof(ShopViewModel.ToggleLabel)) UpdateToggleGlyph();
         if (e.PropertyName == nameof(ShopViewModel.Offers)) PerfLog.Mark("shop-rendered");
+        // Offers are projected before the state turns Loaded; a re-projection while loaded (settings) reveals again.
+        if (e.PropertyName is nameof(ShopViewModel.Offers) or nameof(ShopViewModel.State) && ViewModel.ShowOffers) _ = RevealAsync();
     }
 
     /// <summary>List icon when the grid shows, grid icon when the list shows.</summary>
@@ -65,7 +76,43 @@ public sealed partial class ShopPage : Page
     /// <summary>Switches grid/list.</summary>
     /// <param name="sender">Button.</param>
     /// <param name="e">Unused.</param>
-    private void OnToggleView(object sender, RoutedEventArgs e) => ViewModel.ToggleViewCommand.Execute(null);
+    private void OnToggleView(object sender, RoutedEventArgs e)
+    {
+        ViewModel.ToggleViewCommand.Execute(null);
+        // The new layout starts at the top and replays the entrance, like the web's view toggle (operator batch 6.10).
+        GridScroller.ChangeView(null, 0, null, true);
+        if (ViewModel.Offers.Count > 0) OfferList.ScrollIntoView(ViewModel.Offers[0]);
+        _ = RevealAsync();
+    }
+
+    /// <summary>
+    /// Hides the visible layout behind the ring until the first offers' art has decoded (at most
+    /// <see cref="ArtworkPrimeTimeout"/>, so Shop art is fetched ahead of anything else the page would show), then fades
+    /// its realized tiles or rows in with the shared stagger. A newer reveal supersedes an older one.
+    /// </summary>
+    /// <returns>Reveal task.</returns>
+    private async Task RevealAsync()
+    {
+        var generation = ++revealGeneration;
+        if (!ViewModel.ShowOffers) return;
+        var grid = ViewModel.ShowGrid;
+        UIElement target = grid ? GridScroller : OfferList;
+        target.Opacity = 0;
+        RevealRing.IsActive = true;
+        if (!App.Session.Settings.SaveData && !App.Options.NoArt)
+        {
+            var pixels = (int)Math.Ceiling((grid ? tileSize : 56) * (XamlRoot?.RasterizationScale ?? 1));
+            using var cancellation = new CancellationTokenSource(ArtworkPrimeTimeout);
+            var loads = ViewModel.Offers.Take(ArtworkPrimeCount)
+                .Select(o => ArtworkImages.LoadAsync(o.Offer.AlbumArt, pixels, cancellation.Token));
+            await Task.WhenAny(Task.WhenAll(loads), Task.Delay(ArtworkPrimeTimeout));
+        }
+        if (generation != revealGeneration) return;
+        RevealRing.IsActive = false;
+        target.Opacity = 1;
+        if (grid) FadeIn.StaggerRealized(OfferGrid);
+        else FadeIn.StaggerRealized(OfferList);
+    }
 
     /// <summary>Styles and loads art for a realized grid tile.</summary>
     /// <param name="sender">Repeater.</param>
@@ -76,8 +123,6 @@ public sealed partial class ShopPage : Page
         SizeTile(tile);
         ApplyBadge(tile, item, "BadgePill", "BadgeLabel");
         ((ShopPulseRing)tile.FindName("ShopRing")).Apply(item.Pulse);
-        AutomationProperties.SetAutomationId((FrameworkElement)tile.FindName("TileButton"), $"fst.shop.song.{item.Offer.SongId}");
-        AutomationProperties.SetAutomationId((FrameworkElement)tile.FindName("ArtButton"), $"fst.shop.external.{item.Offer.SongId}");
         var image = (Image)tile.FindName("Art");
         image.Source = null;
         _ = LoadArtAsync(tile, image, item, tileSize);
@@ -94,6 +139,7 @@ public sealed partial class ShopPage : Page
         var width = e.NewSize.Width - GridScroller.Padding.Left - GridScroller.Padding.Right;
         var tile = ShopGridMetrics.TileSize(width);
         TileLayout.MaximumRowsOrColumns = ShopGridMetrics.Columns(width);
+        OfferGrid.MaxWidth = ShopGridMetrics.ContentWidth(width);
         if (tile == tileSize) return;
         tileSize = tile;
         TileLayout.MinItemWidth = tile;
@@ -170,10 +216,16 @@ public sealed partial class ShopPage : Page
     {
         if (App.Session.Settings.SaveData || App.Options.NoArt) return;
         var cancellation = new CancellationTokenSource();
+        if (artLoads.Remove(owner, out var previous)) previous.Cancel();
         artLoads[owner] = cancellation;
         var pixels = (int)Math.Ceiling(size * (XamlRoot?.RasterizationScale ?? 1));
         var bitmap = await ArtworkImages.LoadAsync(item.Offer.AlbumArt, pixels, cancellation.Token);
-        if (!cancellation.IsCancellationRequested) image.Source = bitmap;
+        // A recycled tile may already show another offer: only the load it still owns may set its art.
+        if (!cancellation.IsCancellationRequested && artLoads.TryGetValue(owner, out var current) && current == cancellation)
+        {
+            artLoads.Remove(owner);
+            image.Source = bitmap;
+        }
     }
 
     /// <summary>Opens the validated official Item Shop page in the browser.</summary>
