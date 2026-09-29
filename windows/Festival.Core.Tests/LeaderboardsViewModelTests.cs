@@ -623,7 +623,7 @@ public sealed class SongLeaderboardViewModelTests
 
         var row = vm.Rows[0];
         Assert.Equal("#1", row.RankText);
-        Assert.Equal("FC 98.5%", row.AccuracyPill);
+        Assert.Equal("98.5%", row.AccuracyPill);
         Assert.Equal(6, row.StarCount);
         Assert.Equal("S15", row.Season);
         Assert.Equal(new AppRoute.Player("a1", "Player 1"), row.Route);

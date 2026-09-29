@@ -23,9 +23,11 @@
             <Border x:Name="StarsHost" Grid.Column="3" VerticalAlignment="Center">
                 <controls:StarRow x:Name="StarsView" StarSize="14" AutomationProperties.AccessibilityView="Raw" />
             </Border>
-            <Border x:Name="Pill" Grid.Column="4" CornerRadius="4" Padding="6,2" HorizontalAlignment="Right" VerticalAlignment="Center"
-                    Background="{StaticResource FSTSurfaceMutedBrush}">
-                <TextBlock x:Name="PillText" FontSize="12" />
+            <!-- Web AccuracyDisplay: accuracy-tinted pill, or the skewed gold outline for a full combo; sized for at most
+                 "XX.X%" (operator batch 7.1). -->
+            <Border x:Name="Pill" Grid.Column="4" CornerRadius="4" Padding="4,1" Width="58" BorderThickness="2"
+                    HorizontalAlignment="Right" VerticalAlignment="Center">
+                <TextBlock x:Name="PillText" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center" />
             </Border>
             <TextBlock x:Name="ScoreText" Grid.Column="5" VerticalAlignment="Center" HorizontalAlignment="Right"
                        Style="{StaticResource BodyStrongTextBlockStyle}" />

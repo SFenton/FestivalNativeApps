@@ -52,8 +52,17 @@ public sealed partial class LeaderboardsSongRow : UserControl, ISeparatedRow
         Separator.Visibility = separatorWanted && Row?.IsSelected != true ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>Rank column minimum: ranks of equal length share a width so names align (web computeRankWidth).</summary>
-    private void UpdateRankWidth() =>
-        RankColumn.MinWidth = Math.Max(compact ? 24 : 28, Math.Ceiling(RankText.Text.Length * RankCharWidth));
+    private void UpdateRankWidth()
+    {
+        var rankChars = Math.Max(RankText.Text.Length, Row?.RankChars ?? 0);
+        RankColumn.MinWidth = Math.Max(compact ? 24 : 28, Math.Ceiling(rankChars * RankCharWidth));
+        // Shared score width too (web "ch" width over the page and the pinned row).
+        var scoreWidth = Math.Ceiling((Row?.ScoreChars ?? 0) * ScoreCharWidth);
+        ScoreColumn.MinWidth = compact ? scoreWidth : Math.Max(88, scoreWidth);
+    }
+
+    /// <summary>Score column width per character, epx (semibold body digits).</summary>
+    private const double ScoreCharWidth = 9;
 
     /// <summary>Projects the model into the template.</summary>
     private void Update()
@@ -65,6 +74,11 @@ public sealed partial class LeaderboardsSongRow : UserControl, ISeparatedRow
         StarsView.Stars = row.StarCount;
         PillText.Text = row.AccuracyPill;
         Pill.Visibility = row.HasAccuracy ? Visibility.Visible : Visibility.Collapsed;
+        Pill.Background = ScoreBadge.Fill(row.IsFullCombo, row.AccuracyValue);
+        Pill.BorderBrush = ScoreBadge.Stroke(row.IsFullCombo);
+        Pill.RenderTransform = ScoreBadge.Skew(row.IsFullCombo);
+        PillText.Foreground = ScoreBadge.Text(row.IsFullCombo);
+        PillText.FontStyle = ScoreBadge.Style(row.IsFullCombo);
         ScoreText.Text = row.Score;
         AutomationProperties.SetName(RowButton, row.Announcement);
         AutomationProperties.SetAutomationId(RowButton, row.AutomationId);
@@ -101,7 +115,6 @@ public sealed partial class LeaderboardsSongRow : UserControl, ISeparatedRow
         RowGrid.ColumnSpacing = compact ? 8 : 12;
         UpdateRankWidth();
         PillColumn.MinWidth = compact ? 0 : 72;
-        ScoreColumn.MinWidth = compact ? 0 : 88;
     }
 
     /// <summary>Compact-row threshold in effective pixels.</summary>

@@ -9,84 +9,81 @@
         <KeyboardAccelerator Key="F5" Invoked="OnRefreshInvoked" />
     </Page.KeyboardAccelerators>
 
-    <!-- Solo leaderboard: song header, 25 rows, pinned "your score" row, pager (reading order matches the spec). -->
-    <Grid x:Name="PageRoot" Padding="24,12,24,12" RowSpacing="12" MaxWidth="1100">
+    <!-- Solo leaderboard: song header and 25 rows scroll together (the header scrolls away under the title bar, operator
+         batch 7.8), then the pinned "your score" row and the pager stay at the bottom (reading order matches the spec). -->
+    <Grid x:Name="PageRoot" Padding="24,0,24,12" RowSpacing="8" MaxWidth="1100">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Grid ColumnSpacing="16" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" controls:FadeIn.OnShow="True">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <Border x:Name="HeaderArtHost" Width="80" Height="80" CornerRadius="8" Background="{StaticResource FSTSurfaceMutedBrush}">
-                <Image x:Name="HeaderArt" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
-            </Border>
-            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                <TextBlock Text="{x:Bind ViewModel.Title, Mode=OneWay}" Style="{StaticResource FSTPageTitleStyle}" TextWrapping="Wrap"
-                           AutomationProperties.HeadingLevel="Level1" AutomationProperties.AutomationId="fst.song-leaderboard.title" />
-                <TextBlock Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" />
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <controls:InstrumentIcon File="{x:Bind ViewModel.IconFile, Mode=OneWay}" Width="20" Height="20"
-                                             AutomationProperties.AccessibilityView="Raw" />
-                    <TextBlock Text="{x:Bind ViewModel.InstrumentLabel}" VerticalAlignment="Center"
-                               AutomationProperties.AutomationId="fst.song-leaderboard.instrument" />
-                </StackPanel>
-                <TextBlock Text="{x:Bind ViewModel.TotalText, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" />
-            </StackPanel>
-        </Grid>
-
-        <ProgressBar Grid.Row="1" IsIndeterminate="True" VerticalAlignment="Top"
-                     Visibility="{x:Bind ViewModel.IsRefreshing, Mode=OneWay}" AutomationProperties.Name="Loading page" />
-        <ScrollViewer x:Name="Scroller" Grid.Row="1" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
+        <ScrollViewer x:Name="Scroller" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}"
                       AutomationProperties.AutomationId="fst.song-leaderboard.list">
-            <Border Style="{StaticResource FSTRowsCardStyle}" Margin="0,4,0,0" VerticalAlignment="Top">
-                <ItemsRepeater XYFocusKeyboardNavigation="Enabled" controls:RowSeparators.Enabled="True" x:Name="RowsRepeater" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}">
-                    <ItemsRepeater.Layout>
-                        <StackLayout Spacing="0" />
-                    </ItemsRepeater.Layout>
-                    <ItemsRepeater.ItemTemplate>
-                        <DataTemplate x:DataType="vm:SongLeaderboardRowViewModel">
-                            <controls:LeaderboardsSongRow Row="{x:Bind}" />
-                        </DataTemplate>
-                    </ItemsRepeater.ItemTemplate>
-                </ItemsRepeater>
-            </Border>
+            <StackPanel x:Name="ScrollContent" Spacing="12" Padding="0,12,0,4">
+                <Grid ColumnSpacing="16" controls:FadeIn.OnShow="True">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border x:Name="HeaderArtHost" Width="80" Height="80" CornerRadius="8" Background="{StaticResource FSTSurfaceMutedBrush}">
+                        <Image x:Name="HeaderArt" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
+                    </Border>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                        <TextBlock Text="{x:Bind ViewModel.Title, Mode=OneWay}" Style="{StaticResource FSTPageTitleStyle}" TextWrapping="Wrap"
+                                   AutomationProperties.HeadingLevel="Level1" AutomationProperties.AutomationId="fst.song-leaderboard.title" />
+                        <TextBlock Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <controls:InstrumentIcon File="{x:Bind ViewModel.IconFile, Mode=OneWay}" Width="20" Height="20"
+                                                     AutomationProperties.AccessibilityView="Raw" />
+                            <TextBlock Text="{x:Bind ViewModel.InstrumentLabel}" VerticalAlignment="Center"
+                                       AutomationProperties.AutomationId="fst.song-leaderboard.instrument" />
+                        </StackPanel>
+                        <TextBlock Text="{x:Bind ViewModel.TotalText, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}"
+                                   Visibility="{x:Bind ViewModel.HasTotal, Mode=OneWay}" />
+                    </StackPanel>
+                </Grid>
+                <Border Style="{StaticResource FSTRowsCardStyle}" VerticalAlignment="Top" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}">
+                    <ItemsRepeater XYFocusKeyboardNavigation="Enabled" controls:RowSeparators.Enabled="True" x:Name="RowsRepeater" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}">
+                        <ItemsRepeater.Layout>
+                            <StackLayout Spacing="0" />
+                        </ItemsRepeater.Layout>
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SongLeaderboardRowViewModel">
+                                <controls:LeaderboardsSongRow Row="{x:Bind}" />
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+                </Border>
+                <TextBlock Text="No scores yet." Style="{StaticResource FSTSecondaryTextStyle}" HorizontalAlignment="Center" Margin="0,48"
+                           Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" />
+            </StackPanel>
         </ScrollViewer>
-        <TextBlock Grid.Row="1" Text="No scores yet." Style="{StaticResource FSTSecondaryTextStyle}"
-                   HorizontalAlignment="Center" VerticalAlignment="Center"
-                   Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" />
-        <ProgressRing Grid.Row="1" Width="48" Height="48" IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}"
+        <ProgressBar IsIndeterminate="True" VerticalAlignment="Top"
+                     Visibility="{x:Bind ViewModel.IsRefreshing, Mode=OneWay}" AutomationProperties.Name="Loading page" />
+        <ProgressRing Width="48" Height="48" IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}"
                       AutomationProperties.Name="Loading leaderboard" />
-        <controls:ServiceStatusView Grid.Row="1" Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
+        <controls:ServiceStatusView Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
                                     Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}" />
 
-        <Border Grid.Row="2" Style="{StaticResource FSTRowsCardStyle}"
-                Visibility="{x:Bind ViewModel.ShowSpotlight, Mode=OneWay}"
-                AutomationProperties.AutomationId="fst.song-leaderboard.spotlight-footer">
-            <Grid ColumnSpacing="8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
+        <!-- The pinned row is a full-width row like the list's so its rank, name, accuracy and score line up with them
+             (operator batch 7.9); "Your page" sits above it instead of stealing its width. -->
+        <StackPanel Grid.Row="1" Spacing="4" Visibility="{x:Bind ViewModel.ShowSpotlight, Mode=OneWay}">
+            <Button HorizontalAlignment="Right" MinHeight="32" Command="{x:Bind ViewModel.JumpCommand}"
+                    Visibility="{x:Bind ViewModel.CanJump, Mode=OneWay}"
+                    ToolTipService.ToolTip="Jump to your page" AutomationProperties.Name="Jump to your page"
+                    AutomationProperties.AutomationId="fst.song-leaderboard.spotlight-jump">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <FontIcon Glyph="&#xE8A7;" FontSize="14" />
+                    <TextBlock Text="Your Page" />
+                </StackPanel>
+            </Button>
+            <Border Style="{StaticResource FSTRowsCardStyle}" AutomationProperties.AutomationId="fst.song-leaderboard.spotlight-footer">
                 <controls:LeaderboardsSongRow Row="{x:Bind ViewModel.Spotlight, Mode=OneWay}" />
-                <Button Grid.Column="1" VerticalAlignment="Center" MinHeight="36" Command="{x:Bind ViewModel.JumpCommand}"
-                        Visibility="{x:Bind ViewModel.CanJump, Mode=OneWay}"
-                        ToolTipService.ToolTip="Jump to your page" AutomationProperties.Name="Jump to your page"
-                        AutomationProperties.AutomationId="fst.song-leaderboard.spotlight-jump">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE8A7;" FontSize="14" />
-                        <TextBlock Text="Your page" />
-                    </StackPanel>
-                </Button>
-            </Grid>
-        </Border>
+            </Border>
+        </StackPanel>
 
-        <controls:LeaderboardsPager Grid.Row="3" Pager="{x:Bind ViewModel.Pager}"
+        <controls:LeaderboardsPager Grid.Row="2" Pager="{x:Bind ViewModel.Pager}"
                                     Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" />
 
         <VisualStateManager.VisualStateGroups>
@@ -101,7 +98,7 @@
                         <AdaptiveTrigger MinWindowWidth="0" />
                     </VisualState.StateTriggers>
                     <VisualState.Setters>
-                        <Setter Target="PageRoot.Padding" Value="12,8,12,8" />
+                        <Setter Target="PageRoot.Padding" Value="12,0,12,8" />
                         <Setter Target="HeaderArtHost.Width" Value="56" />
                         <Setter Target="HeaderArtHost.Height" Value="56" />
                     </VisualState.Setters>

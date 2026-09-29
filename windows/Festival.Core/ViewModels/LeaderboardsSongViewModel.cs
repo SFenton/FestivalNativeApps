@@ -73,7 +73,11 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
 
     /// <summary>"12,345 Lead entries" when the service allows totals, else empty.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasTotal))]
     private string totalText = "";
+
+    /// <summary>Whether the totals line shows (no empty line above the rows otherwise).</summary>
+    public bool HasTotal => TotalText.Length > 0;
 
     /// <summary>Selected player's pinned row, when they have a score on this chart.</summary>
     [ObservableProperty]
@@ -198,8 +202,15 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
     private void ApplySelection()
     {
         var selected = session.SelectedPlayer;
-        Rows = entries.Select(e => new SongLeaderboardRowViewModel(e, RankingSpotlight.SameAccount(e.AccountId, selected?.AccountId))).ToList();
-        Spotlight = SelectedEntry() is { } own ? new SongLeaderboardRowViewModel(own, true) : null;
+        var rows = entries.Select(e => new SongLeaderboardRowViewModel(e, RankingSpotlight.SameAccount(e.AccountId, selected?.AccountId))).ToList();
+        var spotlight = SelectedEntry() is { } own ? new SongLeaderboardRowViewModel(own, true) : null;
+        // Web computeRankWidth / score "ch" width over the page and the pinned row: every row, including the pinned
+        // selected-player row, uses the same rank and score column widths so the columns line up (operator batch 7.9).
+        var all = spotlight is null ? rows : [.. rows, spotlight];
+        var rankChars = all.Count == 0 ? 0 : all.Max(r => r.RankText.Length);
+        var scoreChars = all.Count == 0 ? 0 : all.Max(r => r.Score.Length);
+        Rows = [.. rows.Select(r => r with { RankChars = rankChars, ScoreChars = scoreChars })];
+        Spotlight = spotlight is null ? null : spotlight with { RankChars = rankChars, ScoreChars = scoreChars };
         OnPropertyChanged(nameof(CanJump));
         JumpCommand.NotifyCanExecuteChanged();
     }
@@ -265,8 +276,17 @@ public sealed record SongLeaderboardRowViewModel(LeaderboardEntry Entry, bool Is
     /// <summary>Explicit full combo.</summary>
     public bool IsFullCombo => Entry.IsFullCombo == true;
 
-    /// <summary>Pill text ("98.5%" or "FC 100%").</summary>
-    public string AccuracyPill => IsFullCombo ? "FC " + Accuracy : Accuracy;
+    /// <summary>Badge text: the accuracy alone; a full combo is shown by the gold badge style, not an "FC" prefix (web).</summary>
+    public string AccuracyPill => Accuracy;
+
+    /// <summary>Accuracy in ten-thousandths of a percent, for the badge tint.</summary>
+    public double AccuracyValue => Entry.Accuracy ?? 0;
+
+    /// <summary>Longest rank text on the page (including the pinned row), sizing the shared rank column.</summary>
+    public int RankChars { get; init; }
+
+    /// <summary>Longest score text on the page (including the pinned row), sizing the shared score column.</summary>
+    public int ScoreChars { get; init; }
 
     /// <summary>Service stars (0 when missing), drawn as star images by the row.</summary>
     public int StarCount => Entry.Stars ?? 0;
