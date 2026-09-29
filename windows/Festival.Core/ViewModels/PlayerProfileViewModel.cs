@@ -322,15 +322,63 @@ public sealed partial class PlayerProfileViewModel : ObservableObject, IDisposab
         }
         var visible = session.Settings.VisibleInstruments;
         var stats = PlayerStatistics.Overall(profile, visible);
+        var catalogSize = session.Catalog?.Songs.Count ?? 0;
         Overview =
         [
-            new("Songs Played", stats.SongsPlayed.ToString("N0", CultureInfo.CurrentCulture)),
-            new("Full Combos", stats.FullComboText),
-            new("Gold Stars", stats.GoldStarCount.ToString("N0", CultureInfo.CurrentCulture), Gold: true),
-            new("Avg Accuracy", stats.AverageAccuracyText),
-            new("Best Rank", stats.BestRankText),
+            new("songs-played", "Songs Played", stats.SongsPlayed.ToString("N0", CultureInfo.CurrentCulture),
+                catalogSize > 0 && stats.SongsPlayed >= catalogSize ? PlayerStatTint.Green : PlayerStatTint.Default,
+                link: new PlayerStatLink.Songs(new SongsStatPreset(null, SongScoreFilterKind.HasScores))),
+            new("full-combos", "Full Combos", stats.FullComboText,
+                stats.SongsPlayed > 0 && stats.FullComboPercent >= 100 ? PlayerStatTint.Gold : PlayerStatTint.Default,
+                link: new PlayerStatLink.Songs(new SongsStatPreset(null, SongScoreFilterKind.HasFCs))),
+            new("gold-stars", "Gold Stars", stats.GoldStarCount.ToString("N0", CultureInfo.CurrentCulture), PlayerStatTint.Gold),
+            new("avg-accuracy", "Avg Accuracy", stats.AverageAccuracyText),
+            new("best-rank", "Best Rank", stats.BestRankText,
+                link: stats.BestRankSongId is { } song && stats.BestRankInstrument is { } chart ? new PlayerStatLink.SongDetail(song, chart) : null),
         ];
-        Instruments = [.. visible.Select(i => new PlayerInstrumentViewModel(session, AccountId, profile, i))];
+        Instruments = [.. visible.Select(i => new PlayerInstrumentViewModel(session, AccountId, profile, i, catalogSize))];
+        RefreshLinks();
+    }
+
+    /// <summary>Enables or pauses Songs links for the current identity state (plain tiles while selection is paused).</summary>
+    private void RefreshLinks()
+    {
+        var songsAllowed = IsSelected || CanSelect;
+        foreach (var tile in Overview) tile.LinkEnabled = tile.Link is not { RequiresSelection: true } || songsAllowed;
+        foreach (var section in Instruments) section.SetSongsLinksEnabled(songsAllowed);
+    }
+
+    /// <summary>What the page must do before following a link (select first, confirm a switch, or blocked).</summary>
+    /// <param name="link">Link.</param>
+    /// <returns>Step.</returns>
+    public PlayerLinkStep PlanLink(PlayerStatLink link) =>
+        PlayerLinkPolicy.Plan(link, IsSelected, CanSelect, session.HasPlayer && !IsSelected);
+
+    /// <summary>
+    /// Follows a link after the page confirmed any switch: selects the shown player when needed, then applies a Songs
+    /// preset to the saved Songs state (the caller shows Songs) or returns the route to push.
+    /// </summary>
+    /// <param name="link">Link.</param>
+    /// <returns>Whether to navigate, and the route to push (<see langword="null"/> = show the Songs root).</returns>
+    public (bool Followed, AppRoute? Route) FollowLink(PlayerStatLink link)
+    {
+        var step = PlanLink(link);
+        if (step == PlayerLinkStep.Blocked) return (false, null);
+        if (step is PlayerLinkStep.SelectThenGo or PlayerLinkStep.ConfirmSwitchThenGo)
+        {
+            Select();
+            if (!IsSelected) return (false, null);
+        }
+        switch (link)
+        {
+            case PlayerStatLink.Songs songs:
+                session.UpdateSettings(songs.Preset.ApplyTo);
+                return (true, null);
+            case PlayerStatLink.SongDetail detail:
+                return (true, detail.Route);
+            default:
+                return (true, ((PlayerStatLink.FullRankings)link).Route);
+        }
     }
 
     /// <summary>Raises every identity-derived property.</summary>
@@ -341,6 +389,7 @@ public sealed partial class PlayerProfileViewModel : ObservableObject, IDisposab
                      nameof(IdentityNotice), nameof(HasIdentityNotice), nameof(SwitchMessage), nameof(BandsLabel),
                      nameof(SyncingMessage)])
             OnPropertyChanged(name);
+        RefreshLinks();
     }
 
     /// <summary>Reacts to selection, visible charts and the selected player's read.</summary>
@@ -377,18 +426,132 @@ public sealed partial class PlayerProfileViewModel : ObservableObject, IDisposab
     }
 }
 
-/// <summary>One stat tile (value over an uppercase label).</summary>
-/// <param name="Label">Label.</param>
-/// <param name="Value">Value text.</param>
-/// <param name="Gold">Gold tint (gold stars, top-5%, full combos).</param>
-/// <param name="GoldStars">Draw five gold star images instead of the value (average stars of exactly six).</param>
-public sealed record PlayerStatTile(string Label, string Value, bool Gold = false, bool GoldStars = false)
+/// <summary>Value colour of a stat tile (web <c>StatBox</c> <c>color</c>).</summary>
+public enum PlayerStatTint
 {
+    /// <summary>Accent blue (web <c>accentBlueBright</c>).</summary>
+    Default,
+    /// <summary>Gold (gold stars, 100% FCs, top-5% percentile).</summary>
+    Gold,
+    /// <summary>Green (every catalogue song played).</summary>
+    Green,
+}
+
+/// <summary>
+/// One stat tile (value over an uppercase label, web <c>StatBox</c>). Tiles keep their identity for the page's lifetime;
+/// late values (global rank) update <see cref="Value"/> in place so the grid never re-creates or re-flows them.
+/// </summary>
+public sealed partial class PlayerStatTile : ObservableObject
+{
+    /// <summary>Creates a tile.</summary>
+    /// <param name="key">Stable key, e.g. <c>songs-played</c>.</param>
+    /// <param name="label">Label.</param>
+    /// <param name="value">Value text.</param>
+    /// <param name="tint">Value colour.</param>
+    /// <param name="goldStars">Draw five gold star images instead of the value (average stars of exactly six).</param>
+    /// <param name="link">Destination when clickable.</param>
+    public PlayerStatTile(string key, string label, string value, PlayerStatTint tint = PlayerStatTint.Default,
+        bool goldStars = false, PlayerStatLink? link = null)
+    {
+        Key = key;
+        Label = label;
+        this.value = value;
+        this.tint = tint;
+        GoldStars = goldStars;
+        this.link = link;
+    }
+
+    /// <summary>Stable key within its grid.</summary>
+    public string Key { get; }
+
+    /// <summary>Grid scope for the automation ID: <c>overview</c> or the chart's service ID.</summary>
+    public string Scope { get; set; } = "overview";
+
+    /// <summary>Automation ID, <c>fst.player.stat.&lt;scope&gt;.&lt;key&gt;</c>.</summary>
+    public string AutomationId => $"fst.player.stat.{Scope}.{Key}";
+
+    /// <summary>Label.</summary>
+    public string Label { get; }
+
+    /// <summary>Draw five gold stars instead of the value.</summary>
+    public bool GoldStars { get; }
+
     /// <summary>Whether the value text shows (not replaced by gold stars).</summary>
     public bool ShowValue => !GoldStars;
 
+    /// <summary>Value text.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Announcement))]
+    private string value;
+
+    /// <summary>Value colour.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Gold))]
+    private PlayerStatTint tint;
+
+    /// <summary>Whether the value is a loading placeholder (drawn dimmed at its final size).</summary>
+    [ObservableProperty]
+    private bool isPending;
+
+    /// <summary>Destination, or <see langword="null"/> for a plain tile.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsLinked), nameof(Hint))]
+    private PlayerStatLink? link;
+
+    /// <summary>Whether the link may be followed now (a Songs preset pauses while selection is paused).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsLinked), nameof(Hint))]
+    private bool linkEnabled = true;
+
+    /// <summary>Whether the tile is drawn as a button with a chevron.</summary>
+    public bool IsLinked => Link is not null && LinkEnabled;
+
+    /// <summary>Gold tint.</summary>
+    public bool Gold => Tint == PlayerStatTint.Gold;
+
+    /// <summary>Narrator help text naming the destination.</summary>
+    public string Hint => IsLinked ? Link!.Hint : "";
+
     /// <summary>Screen-reader text.</summary>
     public string Announcement => $"{Label}: {Value}";
+}
+
+/// <summary>One row of the percentile table (web <c>PlayerPercentileRow</c>): "Top N%" pill, song count, chevron.</summary>
+/// <param name="bucket">Placement band.</param>
+/// <param name="instrument">Chart.</param>
+public sealed partial class PlayerPercentileRow(PlayerPercentileBucket bucket, Instrument instrument) : ObservableObject
+{
+    /// <summary>Band.</summary>
+    public PlayerPercentileBucket Bucket { get; } = bucket;
+
+    /// <summary>Chart.</summary>
+    public Instrument Instrument { get; } = instrument;
+
+    /// <summary>Automation ID, <c>fst.player.percentile.&lt;Solo_…&gt;.&lt;top&gt;</c>.</summary>
+    public string AutomationId => $"fst.player.percentile.{Instrument.ServiceId()}.{Bucket.TopPercent}";
+
+    /// <summary>"Top 5%".</summary>
+    public string Label => Bucket.Label;
+
+    /// <summary>Count text.</summary>
+    public string CountText => Bucket.Count.ToString("N0", CultureInfo.CurrentCulture);
+
+    /// <summary>Top-5% band: gold pill (web <c>goldOutline</c>).</summary>
+    public bool Gold => Bucket.IsTopFive;
+
+    /// <summary>Destination, or <see langword="null"/> while native Songs has no percentile filter.</summary>
+    public PlayerStatLink? Link { get; init; }
+
+    /// <summary>Whether the link may be followed now.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsLinked))]
+    private bool linkEnabled = true;
+
+    /// <summary>Whether the row is clickable.</summary>
+    public bool IsLinked => Link is not null && LinkEnabled;
+
+    /// <summary>Screen-reader text.</summary>
+    public string Announcement => $"{Label}: {CountText} {(Bucket.Count == 1 ? "song" : "songs")}";
 }
 #endregion
 
@@ -420,24 +583,64 @@ public sealed partial class PlayerInstrumentViewModel : ObservableObject
     /// <param name="accountId">Shown account.</param>
     /// <param name="profile">Available profile.</param>
     /// <param name="instrument">Chart.</param>
-    public PlayerInstrumentViewModel(FestivalSession session, string accountId, PlayerProfileResponse profile, Instrument instrument)
+    /// <param name="catalogSize">Catalogue song count (green Songs Played when complete), 0 when unknown.</param>
+    public PlayerInstrumentViewModel(FestivalSession session, string accountId, PlayerProfileResponse profile, Instrument instrument, int catalogSize = 0)
     {
         this.session = session;
         this.accountId = accountId;
         Instrument = instrument;
         var stats = PlayerStatistics.ForInstrument(profile, instrument);
         HasScores = stats.SongsPlayed > 0;
-        Stats =
+        static string N(int n) => n.ToString("N0", CultureInfo.CurrentCulture);
+        // Web InstrumentStatsSection order: played, FCs, star counts (non-zero), accuracy, avg stars, best rank, ranks.
+        var tiles = new List<PlayerStatTile>
+        {
+            new("songs-played", "Songs Played", N(stats.SongsPlayed),
+                catalogSize > 0 && stats.SongsPlayed >= catalogSize ? PlayerStatTint.Green : PlayerStatTint.Default,
+                link: new PlayerStatLink.Songs(new SongsStatPreset(instrument, SongScoreFilterKind.HasScores))),
+        };
+        if (stats.FullComboCount > 0)
+            tiles.Add(new("full-combos", "Full Combos", stats.FullComboText,
+                stats.FullComboPercent >= 100 ? PlayerStatTint.Gold : PlayerStatTint.Default,
+                link: new PlayerStatLink.Songs(new SongsStatPreset(instrument, SongScoreFilterKind.HasFCs))));
+        foreach (var (stars, count) in PlayerStatistics.StarCounts(profile, instrument))
+            if (count > 0)
+                tiles.Add(new(stars == 6 ? "gold-stars" : $"stars-{stars}", StarLabel(stars), N(count), stars == 6 ? PlayerStatTint.Gold : PlayerStatTint.Default));
+        tiles.Add(new("avg-accuracy", "Avg Accuracy", stats.AverageAccuracyText));
+        tiles.Add(new("avg-stars", "Avg Stars", stats.AverageStarsText, goldStars: stats.AverageStarsGold));
+        tiles.Add(new("best-rank", "Best Rank", stats.BestRankText,
+            link: stats.BestRankSongId is { } song ? new PlayerStatLink.SongDetail(song, instrument) : null));
+        // Global rank tiles hold their final place from the first frame (placeholders until the read lands).
+        RankTiles =
         [
-            new("Songs Played", stats.SongsPlayed.ToString("N0", CultureInfo.CurrentCulture)),
-            new("Full Combos", stats.FullComboText, Gold: stats.FullComboCount > 0),
-            new("Gold Stars", stats.GoldStarCount.ToString("N0", CultureInfo.CurrentCulture), Gold: true),
-            new("5 Stars", stats.FiveStarCount.ToString("N0", CultureInfo.CurrentCulture)),
-            new("Avg Accuracy", stats.AverageAccuracyText),
-            new("Avg Stars", stats.AverageStarsText, GoldStars: stats.AverageStarsGold),
-            new("Best Rank", stats.BestRankText),
+            new("global-rank", "Global Rank", "—", link: new PlayerStatLink.FullRankings(instrument)) { IsPending = true, LinkEnabled = false },
+            new("total-score", "Total Score", "—") { IsPending = true },
+            new("percentile", "Percentile", "—") { IsPending = true },
         ];
-        Percentiles = PercentileBar.Build(PlayerStatistics.PercentileBuckets(profile, instrument));
+        if (HasScores) tiles.AddRange(RankTiles);
+        foreach (var tile in tiles.Concat(RankTiles)) tile.Scope = instrument.ServiceId();
+        Stats = tiles;
+        Percentiles = [.. PlayerStatistics.PercentileBuckets(profile, instrument).Select(b => new PlayerPercentileRow(b, instrument))];
+    }
+
+    /// <summary>Web star-card labels.</summary>
+    /// <param name="stars">1-6.</param>
+    /// <returns>Label.</returns>
+    private static string StarLabel(int stars) => stars switch
+    {
+        6 => "Gold Stars",
+        1 => "1 Star",
+        _ => $"{stars} Stars",
+    };
+
+    /// <summary>Pauses or resumes Songs links (selection paused on a viewed profile).</summary>
+    /// <param name="enabled">Whether Songs presets may be followed.</param>
+    internal void SetSongsLinksEnabled(bool enabled)
+    {
+        foreach (var tile in Stats)
+            if (tile.Link is { RequiresSelection: true }) tile.LinkEnabled = enabled;
+        foreach (var row in Percentiles)
+            if (row.Link is { RequiresSelection: true }) row.LinkEnabled = enabled;
     }
 
     /// <summary>Chart.</summary>
@@ -464,11 +667,14 @@ public sealed partial class PlayerInstrumentViewModel : ObservableObject
     /// <summary>Empty footnote.</summary>
     public string EmptyText => $"No {Label} scores recorded yet.";
 
-    /// <summary>Stat tiles.</summary>
+    /// <summary>Stat tiles, including the three global-rank tiles when the chart has scores.</summary>
     public List<PlayerStatTile> Stats { get; }
 
-    /// <summary>Placement distribution bars.</summary>
-    public List<PercentileBar> Percentiles { get; }
+    /// <summary>The Global Rank, Total Score and Percentile tiles (updated in place).</summary>
+    public List<PlayerStatTile> RankTiles { get; }
+
+    /// <summary>Percentile table rows, best band first.</summary>
+    public List<PlayerPercentileRow> Percentiles { get; }
 
     /// <summary>Whether the percentile card has bars.</summary>
     public bool HasPercentiles => Percentiles.Count > 0;
@@ -478,22 +684,18 @@ public sealed partial class PlayerInstrumentViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(RankLoading), nameof(RankUnranked), nameof(RankAvailable), nameof(RankFailed))]
     private PlayerRankLoad rankState = PlayerRankLoad.Loading;
 
-    /// <summary>Global-rank tiles.</summary>
-    [ObservableProperty]
-    private List<PlayerStatTile> rankTiles = [];
-
     /// <summary>Global-rank failure text.</summary>
     [ObservableProperty]
     private string rankError = "";
 
     /// <summary>Rank-history chart, or <see langword="null"/> while loading, failed or without snapshots.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasRankHistory))]
+    [NotifyPropertyChangedFor(nameof(HasRankHistory), nameof(ShowRankHistoryCard))]
     private RankHistoryChartModel? rankHistory;
 
     /// <summary>Rank-history failure text, or empty.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(RankHistoryFailed))]
+    [NotifyPropertyChangedFor(nameof(RankHistoryFailed), nameof(ShowRankHistoryCard))]
     private string rankHistoryError = "";
 
     /// <summary>Loading.</summary>
@@ -513,6 +715,14 @@ public sealed partial class PlayerInstrumentViewModel : ObservableObject
 
     /// <summary>Whether the rank-history chart is shown.</summary>
     public bool HasRankHistory => RankHistory is not null;
+
+    /// <summary>Whether the Rank History card shows its fixed-height placeholder (read not finished yet).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowRankHistoryCard))]
+    private bool rankHistoryLoading = true;
+
+    /// <summary>Whether the Rank History card is shown at all: while loading, with a chart, or with a retry.</summary>
+    public bool ShowRankHistoryCard => HasScores && (RankHistoryLoading || HasRankHistory || RankHistoryFailed);
 
     /// <summary>Whether the rank-history retry is shown.</summary>
     public bool RankHistoryFailed => RankHistoryError.Length > 0;
@@ -540,6 +750,7 @@ public sealed partial class PlayerInstrumentViewModel : ObservableObject
     {
         rankLoad?.Cancel();
         var token = (rankLoad = new CancellationTokenSource()).Token;
+        foreach (var tile in RankTiles) tile.IsPending = true;
         RankState = PlayerRankLoad.Loading;
         try
         {
@@ -547,15 +758,11 @@ public sealed partial class PlayerInstrumentViewModel : ObservableObject
             if (token.IsCancellationRequested) return;
             if (read.Ranking is not { } ranking)
             {
+                SetRankTiles("Unranked", "—", "—", false, linked: false);
                 RankState = PlayerRankLoad.Unranked;
                 return;
             }
-            RankTiles =
-            [
-                new("Global Rank", ranking.RankText),
-                new("Total Score", ranking.TotalScoreText),
-                new("Percentile", ranking.PercentileText, Gold: ranking.IsTopFive),
-            ];
+            SetRankTiles(ranking.RankText, ranking.TotalScoreText, ranking.PercentileText, ranking.IsTopFive, linked: true);
             RankState = PlayerRankLoad.Available;
         }
         catch (OperationCanceledException)
@@ -566,8 +773,25 @@ public sealed partial class PlayerInstrumentViewModel : ObservableObject
         {
             if (token.IsCancellationRequested) return;
             RankError = $"Global rank unavailable: {ServiceIssue.From(error).Message}";
+            SetRankTiles("—", "—", "—", false, linked: false);
             RankState = PlayerRankLoad.Failed;
         }
+    }
+
+    /// <summary>Updates the rank tiles in place.</summary>
+    /// <param name="rank">Global Rank value.</param>
+    /// <param name="total">Total Score value.</param>
+    /// <param name="percentile">Percentile value.</param>
+    /// <param name="gold">Top-5% percentile.</param>
+    /// <param name="linked">Whether Global Rank opens the full rankings.</param>
+    private void SetRankTiles(string rank, string total, string percentile, bool gold, bool linked)
+    {
+        RankTiles[0].Value = rank;
+        RankTiles[0].LinkEnabled = linked;
+        RankTiles[1].Value = total;
+        RankTiles[2].Value = percentile;
+        RankTiles[2].Tint = gold ? PlayerStatTint.Gold : PlayerStatTint.Default;
+        foreach (var tile in RankTiles) tile.IsPending = false;
     }
 
     /// <summary>Reads the 30-day rank history.</summary>
@@ -578,11 +802,13 @@ public sealed partial class PlayerInstrumentViewModel : ObservableObject
         historyLoad?.Cancel();
         var token = (historyLoad = new CancellationTokenSource()).Token;
         RankHistoryError = "";
+        RankHistoryLoading = true;
         try
         {
             var history = await session.Api.GetPlayerRankHistoryAsync(Instrument, accountId, 30, token);
             if (token.IsCancellationRequested) return;
             RankHistory = RankHistoryChartModel.Build(history.RankedChronological);
+            RankHistoryLoading = false;
         }
         catch (OperationCanceledException)
         {
@@ -593,6 +819,7 @@ public sealed partial class PlayerInstrumentViewModel : ObservableObject
             if (token.IsCancellationRequested) return;
             RankHistory = null;
             RankHistoryError = $"Rank history unavailable: {ServiceIssue.From(error).Message}";
+            RankHistoryLoading = false;
         }
     }
 }

@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 
 namespace Festival.App.Controls;
 
@@ -11,12 +12,6 @@ namespace Festival.App.Controls;
 /// </summary>
 public sealed partial class PlayerProfileView : UserControl
 {
-    /// <summary>Card width at which charts move beside the stats.</summary>
-    private const double SideBySideWidth = 780;
-
-    /// <summary>Card width below which charts move back under the stats (hysteresis against scrollbar-width oscillation).</summary>
-    private const double StackedWidth = 740;
-
     private readonly QuickLinksViewModel quickLinks = new("Quick Links");
 
     /// <summary>Creates the view with its Quick Links (the page model is replaced per navigation; the links stay).</summary>
@@ -28,6 +23,9 @@ public sealed partial class PlayerProfileView : UserControl
         host.Binder.Resolve = id => ViewModel?.Instruments.FindIndex(i => i.QuickLinkId == id) is >= 0 and var index
             ? InstrumentsRepeater.GetOrCreateElement(index) as FrameworkElement
             : null;
+        // Web PlayerPage: spinner until the profile is ready, then header, Overview and sections fade in, staggered.
+        Scroller.RegisterPropertyChangedCallback(VisibilityProperty, (_, _) => StaggerIn());
+        Scroller.Loaded += (_, _) => StaggerIn();
     }
 
     /// <summary>Page model; set before <see cref="Bind"/>.</summary>
@@ -91,6 +89,16 @@ public sealed partial class PlayerProfileView : UserControl
     /// <returns>Automation ID.</returns>
     public static string PercentilesId(string key) => "fst.player.percentiles." + key;
 
+    /// <summary>Rank-history placeholder ID.</summary>
+    /// <param name="key">Service instrument ID.</param>
+    /// <returns>Automation ID.</returns>
+    public static string RankHistoryLoadingId(string key) => "fst.player.rank-history." + key + ".loading";
+
+    /// <summary>Spoken name for a rank-history spinner.</summary>
+    /// <param name="label">Instrument name.</param>
+    /// <returns>Name.</returns>
+    public static string LoadingHistoryName(string label) => $"Loading {label} rank history";
+
     /// <summary>Spoken name for a rank spinner.</summary>
     /// <param name="label">Instrument name.</param>
     /// <returns>Name.</returns>
@@ -98,6 +106,43 @@ public sealed partial class PlayerProfileView : UserControl
     #endregion
 
     #region Events
+    /// <summary>The profile view that hosts an element (stat tiles and percentile rows route their links here).</summary>
+    /// <param name="element">Descendant.</param>
+    /// <returns>Owning view, or <see langword="null"/>.</returns>
+    internal static PlayerProfileView? OwnerOf(DependencyObject element)
+    {
+        for (var node = element; node is not null; node = VisualTreeHelper.GetParent(node))
+            if (node is PlayerProfileView view) return view;
+        return null;
+    }
+
+    /// <summary>
+    /// Follows a stat link: a viewed player is selected first (after the Switch confirmation when another player is
+    /// selected, web <c>withProfileSwitch</c>), then Songs opens with the preset or the destination is pushed.
+    /// </summary>
+    /// <param name="link">Link.</param>
+    internal async void Follow(PlayerStatLink link)
+    {
+        var step = ViewModel.PlanLink(link);
+        if (step == PlayerLinkStep.Blocked) return;
+        if (step == PlayerLinkStep.ConfirmSwitchThenGo &&
+            !await ConfirmAsync("Switch selected profile?", ViewModel.SwitchMessage, "Switch Profile"))
+            return;
+        var (followed, route) = ViewModel.FollowLink(link);
+        if (!followed) return;
+        if (route is null) MainWindow.Instance?.ShowFilteredSongs();
+        else MainWindow.Instance?.Navigate(route);
+    }
+
+    /// <summary>Fades the header, Overview heading and Overview cards in, 125 ms apart (sections stagger themselves).</summary>
+    private void StaggerIn()
+    {
+        if (Scroller.Visibility != Visibility.Visible || !Scroller.IsLoaded) return;
+        FadeIn.Play(HeaderCard, TimeSpan.Zero);
+        FadeIn.Play(OverviewHeading, FadeInTiming.Interval);
+        FadeIn.Play(OverviewGrid, FadeInTiming.Interval * 2);
+    }
+
     /// <summary>Selects directly, or confirms a switch away from another selected player.</summary>
     /// <param name="sender">Button.</param>
     /// <param name="e">Unused.</param>
@@ -128,20 +173,6 @@ public sealed partial class PlayerProfileView : UserControl
     private void OnInstrumentPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
     {
         if (sender.ItemsSourceView?.GetAt(args.Index) is PlayerInstrumentViewModel section) _ = section.EnsureLoadedAsync();
-    }
-
-    /// <summary>Places charts beside the stats on wide cards and below them on narrow ones.</summary>
-    /// <param name="sender">Card grid.</param>
-    /// <param name="e">Size.</param>
-    private void OnInstrumentCardSizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        if (sender is not Grid grid || grid.Children.Count < 2 || grid.Children[1] is not FrameworkElement charts) return;
-        var isWide = grid.ColumnDefinitions[1].Width.IsStar;
-        var wide = isWide ? e.NewSize.Width >= StackedWidth : e.NewSize.Width >= SideBySideWidth;
-        if (wide == isWide) return;
-        grid.ColumnDefinitions[1].Width = wide ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-        Grid.SetRow(charts, wide ? 0 : 1);
-        Grid.SetColumn(charts, wide ? 1 : 0);
     }
     #endregion
 

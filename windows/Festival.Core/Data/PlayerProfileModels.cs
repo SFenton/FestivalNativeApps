@@ -320,6 +320,16 @@ public static class PlayerStatistics
         return Aggregate(rows, rows.Count);
     }
 
+    /// <summary>Per-star-level score counts for one chart (web <c>goldStarCount</c> ... <c>oneStarCount</c>), gold first.</summary>
+    /// <param name="profile">Validated profile.</param>
+    /// <param name="instrument">Chart.</param>
+    /// <returns>(stars, count) for 6 down to 1; six means six or more.</returns>
+    public static List<(int Stars, int Count)> StarCounts(PlayerProfileResponse profile, Instrument instrument)
+    {
+        var stars = profile.Scores.Where(s => s.Instrument == instrument).Select(s => s.Stars ?? 0).ToList();
+        return [.. Enumerable.Range(1, 6).Reverse().Select(level => (level, stars.Count(s => level == 6 ? s >= 6 : s == level)))];
+    }
+
     /// <summary>Placement distribution: each ranked row contributes <c>rank / totalEntries</c> to its first band.</summary>
     /// <param name="profile">Validated profile.</param>
     /// <param name="instrument">Chart.</param>

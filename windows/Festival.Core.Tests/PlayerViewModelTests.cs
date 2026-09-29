@@ -257,7 +257,14 @@ public class PlayerProfileViewModelTests
         Assert.Equal("Lead", lead.Label);
         Assert.Equal("Solo_Guitar", lead.AutomationKey);
         Assert.Equal("instrument_guitar.png", lead.IconFile);
-        Assert.Equal(7, lead.Stats.Count);
+        Assert.Equal(["songs-played", "full-combos", "gold-stars", "stars-5", "avg-accuracy", "avg-stars", "best-rank",
+            "global-rank", "total-score", "percentile"], lead.Stats.Select(t => t.Key));
+        Assert.Equal("fst.player.stat.Solo_Guitar.best-rank", lead.Stats[6].AutomationId);
+        Assert.Equal(new PlayerStatLink.SongDetail("s1", Instrument.Lead), lead.Stats[6].Link);
+        Assert.All(lead.RankTiles, t => Assert.True(t.IsPending));
+        Assert.False(lead.RankTiles[0].IsLinked);
+        Assert.True(lead.RankHistoryLoading);
+        Assert.True(lead.ShowRankHistoryCard);
         var avgStars = lead.Stats.Single(t => t.Label == "Avg Stars");
         Assert.Equal(5.5.ToString("0.##", System.Globalization.CultureInfo.CurrentCulture), avgStars.Value);
         Assert.True(avgStars.ShowValue);
@@ -269,6 +276,10 @@ public class PlayerProfileViewModelTests
         Assert.Single(fake.Service.Handler.To($"/api/rankings/Solo_Guitar/{PlayerWire.Id}"));
         Assert.True(lead.RankAvailable);
         Assert.Equal("#12", lead.RankTiles[0].Value);
+        Assert.True(lead.RankTiles[0].IsLinked);
+        Assert.Equal("Opens Lead rankings", lead.RankTiles[0].Hint);
+        Assert.False(lead.RankTiles[0].IsPending);
+        Assert.False(lead.RankHistoryLoading);
         Assert.True(lead.HasRankHistory);
         Assert.False(lead.RankHistoryFailed);
         Assert.Equal("#7 of 500", lead.RankHistory!.Headline);
@@ -278,6 +289,9 @@ public class PlayerProfileViewModelTests
         await lead.LoadRankCommand.ExecuteAsync(null);
         await lead.LoadRankHistoryCommand.ExecuteAsync(null);
         Assert.True(lead.RankUnranked);
+        Assert.Equal("Unranked", lead.RankTiles[0].Value);
+        Assert.False(lead.RankTiles[0].IsLinked);
+        Assert.True(lead.ShowRankHistoryCard);
         Assert.Contains("Lead", lead.UnrankedText);
         Assert.True(lead.RankHistoryFailed);
         Assert.StartsWith("Rank history unavailable", lead.RankHistoryError);
@@ -290,6 +304,8 @@ public class PlayerProfileViewModelTests
 
         var drums = vm.Instruments.Single(i => i.Instrument == Instrument.Drums);
         Assert.True(drums.IsEmpty);
+        Assert.False(drums.ShowRankHistoryCard);
+        Assert.Equal(4, drums.Stats.Count);
         Assert.False(drums.RankLoading);
         Assert.Contains("Drums", drums.EmptyText);
         await drums.EnsureLoadedAsync();

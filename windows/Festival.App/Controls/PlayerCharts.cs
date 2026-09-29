@@ -184,6 +184,16 @@ public static class PlayerBrushes
     /// <returns>Brush.</returns>
     public static Brush Tile(bool gold) => (Brush)Application.Current.Resources[gold ? "FSTGoldBrush" : "FSTAccentBlueBrush"];
 
+    /// <summary>Stat tile value colour (web <c>StatBox</c> <c>color</c>).</summary>
+    /// <param name="tint">Tint.</param>
+    /// <returns>Brush.</returns>
+    public static Brush Tint(PlayerStatTint tint) => (Brush)Application.Current.Resources[tint switch
+    {
+        PlayerStatTint.Gold => "FSTGoldBrush",
+        PlayerStatTint.Green => "FSTStatusGreenBrush",
+        _ => "FSTAccentBlueBrush",
+    }];
+
     /// <summary>Gold or accent bar fill.</summary>
     /// <param name="gold">Whether to use gold.</param>
     /// <returns>Brush.</returns>
