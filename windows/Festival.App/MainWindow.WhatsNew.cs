@@ -19,6 +19,9 @@ public sealed partial class MainWindow
     private bool whatsNewPending;
     private bool whatsNewOpen;
 
+    /// <summary>Launch-check timer, held in a field: a local timer was collected before it fired, so the launch dialog never showed.</summary>
+    private DispatcherQueueTimer? whatsNewTimer;
+
     /// <summary>App version shown in the title and stored on dismissal.</summary>
     private static string AppVersion => typeof(App).Assembly.GetName().Version?.ToString(3) ?? "";
 
@@ -30,11 +33,15 @@ public sealed partial class MainWindow
         if (mode == WhatsNewMode.Fresh) whatsNewStore.Reset();
         whatsNewPending = WhatsNewGate.IsPending(mode, whatsNewStore.SeenHash(), Changelog.CurrentHash);
         if (!whatsNewPending) return;
-        var timer = DispatcherQueue.CreateTimer();
-        timer.Interval = WhatsNewSettleDelay;
-        timer.IsRepeating = false;
-        timer.Tick += (_, _) => ShowPendingWhatsNew();
-        timer.Start();
+        whatsNewTimer = DispatcherQueue.CreateTimer();
+        whatsNewTimer.Interval = WhatsNewSettleDelay;
+        whatsNewTimer.IsRepeating = false;
+        whatsNewTimer.Tick += (_, _) =>
+        {
+            whatsNewTimer = null;
+            ShowPendingWhatsNew();
+        };
+        whatsNewTimer.Start();
     }
 
     /// <summary>Presents the owed launch dialog once the window is visible.</summary>
@@ -76,6 +83,8 @@ public sealed partial class MainWindow
                 RequestedTheme = ElementTheme.Dark,
             };
             AutomationProperties.SetAutomationId(dialog, "fst.whats-new.dialog");
+            // Dismiss spans the command row, centred like the web's full-width button (operator batch 6.14).
+            Controls.DialogChrome.FullWidthSingleButton(dialog);
             await ShowDialogAsync(dialog);
             whatsNewStore?.MarkSeen(AppVersion, Changelog.CurrentHash);
         }

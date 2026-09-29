@@ -69,11 +69,14 @@ public sealed class FirstRunCenter(FirstRunSeenStore store, FirstRunMode mode = 
         return Active = new FirstRunCarouselViewModel(this, page, slides, isReplay: true);
     }
 
-    /// <summary>Marks every displayed slide seen and frees the slot (close, Skip or Done alike).</summary>
+    /// <summary>
+    /// Marks the slides the user actually viewed as seen and frees the slot (Done, Esc or a click outside alike). Slides
+    /// the user never paged to stay unseen and come back on the next visit (operator batch 6.7).
+    /// </summary>
     /// <param name="carousel">Closing carousel.</param>
     internal void Complete(FirstRunCarouselViewModel carousel)
     {
-        Store.MarkSeen(carousel.Slides, clock.GetUtcNow());
+        Store.MarkSeen(carousel.ViewedSlides, clock.GetUtcNow());
         if (ReferenceEquals(Active, carousel)) Active = null;
     }
 }
@@ -84,6 +87,7 @@ public sealed class FirstRunCenter(FirstRunSeenStore store, FirstRunMode mode = 
 public sealed partial class FirstRunCarouselViewModel : ObservableObject
 {
     private readonly FirstRunCenter center;
+    private readonly SortedSet<int> viewed = [0];
 
     /// <summary>Creates a carousel.</summary>
     /// <param name="center">Owning center.</param>
@@ -131,6 +135,16 @@ public sealed partial class FirstRunCarouselViewModel : ObservableObject
     /// <summary>Whether the first slide is shown.</summary>
     public bool IsFirst => Index == 0;
 
+    /// <summary>Whether the carousel has a single slide (the dialog then offers only Done).</summary>
+    public bool IsSingle => Slides.Count == 1;
+
+    /// <summary>Slides shown so far, in display order: the ones completion marks seen.</summary>
+    public IReadOnlyList<FirstRunSlide> ViewedSlides => [.. viewed.Select(i => Slides[i])];
+
+    /// <summary>Records each slide the user reaches.</summary>
+    /// <param name="value">New index.</param>
+    partial void OnIndexChanged(int value) => viewed.Add(value);
+
     /// <summary>Whether the last slide is shown.</summary>
     public bool IsLast => Index == Slides.Count - 1;
 
@@ -162,7 +176,7 @@ public sealed partial class FirstRunCarouselViewModel : ObservableObject
     /// <returns><see langword="true"/> after the first slide.</returns>
     private bool CanGoBack() => !IsFirst;
 
-    /// <summary>Closes (close button, Skip, Esc, Done): marks every displayed slide seen once.</summary>
+    /// <summary>Closes (Done, Esc, a click outside): marks the viewed slides seen once.</summary>
     public void Complete()
     {
         if (IsCompleted) return;

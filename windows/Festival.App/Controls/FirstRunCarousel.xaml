@@ -4,6 +4,13 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Festival.App.Controls"
     xmlns:domain="using:Festival.Core.Domain">
+    <UserControl.Resources>
+        <!-- White pips (operator batch 6.7): dimmed white for other slides, solid white for the current one. -->
+        <SolidColorBrush x:Key="PipsPagerSelectionIndicatorForeground" Color="#80FFFFFF" />
+        <SolidColorBrush x:Key="PipsPagerSelectionIndicatorForegroundPointerOver" Color="#CCFFFFFF" />
+        <SolidColorBrush x:Key="PipsPagerSelectionIndicatorForegroundPressed" Color="#CCFFFFFF" />
+        <SolidColorBrush x:Key="PipsPagerSelectionIndicatorForegroundSelected" Color="#FFFFFFFF" />
+    </UserControl.Resources>
     <!-- Content of the first-run ContentDialog: FlipView of slides and pips. No visible "Slide X of Y" (the web has none):
          FlipView items expose PositionInSet/SizeOfSet and slide changes are announced (FirstRunCarousel.xaml.cs). -->
     <StackPanel Spacing="12" Width="440" AutomationProperties.AutomationId="fst.first-run.carousel">

@@ -48,6 +48,8 @@ public sealed partial class MainWindow
         await DialogGate.WaitAsync();
         try
         {
+            // Every modal closes on a click outside it, like Esc (operator batch 6.14; web modals).
+            Controls.DialogChrome.LightDismiss(dialog);
             return await dialog.ShowAsync();
         }
         finally

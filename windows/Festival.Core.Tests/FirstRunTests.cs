@@ -377,10 +377,21 @@ public class FirstRunTests
         Assert.Equal(["songs-song-list", "songs-sort", "songs-navigation", "songs-shop-highlight", "songs-new-in-shop", "songs-leaving-tomorrow"],
             carousel.Slides.Select(s => s.Id));
         Assert.Null(center.TryBegin(FirstRunPageKey.SongInfo, new AppSettings()));
+        carousel.GoTo(carousel.Slides.Count - 1);
         carousel.Complete();
         carousel.Complete();
         Assert.Null(center.Active);
-        Assert.Equal(Now, center.Store.Load()["songs-sort"].SeenAt);
+        Assert.Equal(Now, center.Store.Load()["songs-song-list"].SeenAt);
+        Assert.Equal(Now, center.Store.Load()["songs-leaving-tomorrow"].SeenAt);
+        // Jumping straight to the last slide skipped the middle ones: they stay unseen and come back.
+        Assert.False(center.Store.Load().ContainsKey("songs-sort"));
+        Assert.Equal(["songs-sort", "songs-navigation", "songs-shop-highlight", "songs-new-in-shop"],
+            center.TryBegin(FirstRunPageKey.Songs, new AppSettings())!.Slides.Select(s => s.Id));
+        center.Active!.GoTo(3);
+        center.Active.GoTo(0);
+        center.Active.GoTo(1);
+        center.Active.GoTo(2);
+        center.Active.Complete();
         Assert.Null(center.TryBegin(FirstRunPageKey.Songs, new AppSettings()));
 
         // Selecting a player later reveals only the newly eligible player slides.
@@ -422,8 +433,10 @@ public class FirstRunTests
         Assert.Equal(3, replay.Slides.Count);
         Assert.Empty(center.Store.Load());
         Assert.Null(center.BeginReplay(FirstRunPageKey.Songs));
+        replay.Next();
         replay.Complete();
-        Assert.Equal(3, center.Store.Load().Count);
+        // Only the two slides reached before closing count as seen.
+        Assert.Equal(2, center.Store.Load().Count);
     }
 
     [Fact]
@@ -434,6 +447,8 @@ public class FirstRunTests
         var changes = new List<string?>();
         carousel.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
         Assert.Equal("Player History", carousel.Title);
+        Assert.False(carousel.IsSingle);
+        Assert.Equal(["playerhistory-score-list"], carousel.ViewedSlides.Select(s => s.Id));
         Assert.Equal(FirstRunPageKey.PlayerHistory, carousel.Page);
         Assert.True(carousel.IsFirst);
         Assert.False(carousel.PreviousCommand.CanExecute(null));
@@ -463,5 +478,23 @@ public class FirstRunTests
         Assert.Null(center.Active);
         Assert.Equal(2, center.Store.Load().Count);
     }
+    [Fact]
+    public void Carousel_SingleSlideAndClosingOnFirstSlide()
+    {
+        var center = Center();
+        // Anonymous Leaderboards has one gate-passing slide: the dialog offers only Done.
+        var single = center.TryBegin(FirstRunPageKey.Leaderboards, new AppSettings())!;
+        Assert.True(single.IsSingle);
+        Assert.True(single.IsLast);
+        Assert.True(single.Next());
+        Assert.Single(center.Store.Load());
+
+        // Closing (Esc or a click outside) on the first of two slides marks only that slide.
+        var replay = center.BeginReplay(FirstRunPageKey.PlayerHistory)!;
+        replay.Complete();
+        Assert.True(center.Store.Load().ContainsKey("playerhistory-score-list"));
+        Assert.False(center.Store.Load().ContainsKey(replay.Slides[1].Id));
+    }
+
     #endregion
 }

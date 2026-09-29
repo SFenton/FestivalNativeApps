@@ -7,8 +7,9 @@ namespace Festival.App.Controls;
 #region Carousel dialog
 /// <summary>
 /// First-run carousel presented in a Fluent <see cref="ContentDialog"/> (a modal onboarding sequence; TeachingTip is
-/// for single anchored tips). Primary = Next/Done, Secondary = Back, Close = Skip; Esc and Skip mark every displayed
-/// slide seen, like Done.
+/// for single anchored tips). Primary = Next/Done before Secondary = Back; a one-slide guide shows only a full-width Done
+/// (operator batch 6.7: no Skip, no disabled Back). Done, Esc and a click outside the dialog all close it and mark only
+/// the slides actually viewed as seen. The FlipView's hover arrows are hidden (the buttons and pips page it).
 /// </summary>
 public sealed partial class FirstRunCarousel : UserControl
 {
@@ -26,10 +27,25 @@ public sealed partial class FirstRunCarousel : UserControl
         Loaded += (_, _) =>
         {
             carousel.PropertyChanged += announce;
+            HideFlipViewArrows();
             // Containers realize after load; activate the first slide's demo once they exist.
             DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, UpdateActiveDemo);
         };
         Unloaded += (_, _) => carousel.PropertyChanged -= announce;
+    }
+
+    /// <summary>
+    /// Hides the FlipView's previous/next hover arrows (operator batch 6.7): FlipView toggles their visibility from code on
+    /// pointer moves, so they are made transparent and click-through instead of collapsed.
+    /// </summary>
+    private void HideFlipViewArrows()
+    {
+        foreach (var button in Descendants(Slides).OfType<Button>())
+        {
+            if (button.Name is not ("PreviousButtonHorizontal" or "NextButtonHorizontal" or "PreviousButtonVertical" or "NextButtonVertical")) continue;
+            button.Opacity = 0;
+            button.IsHitTestVisible = false;
+        }
     }
 
     /// <summary>Whether a slide has no live demo (the static illustration shows instead).</summary>
@@ -84,13 +100,13 @@ public sealed partial class FirstRunCarousel : UserControl
             Title = carousel.Title,
             Content = content,
             PrimaryButtonText = carousel.NextLabel,
-            SecondaryButtonText = "Back",
-            CloseButtonText = "Skip",
+            SecondaryButtonText = carousel.IsSingle ? "" : "Back",
             DefaultButton = ContentDialogButton.Primary,
             IsSecondaryButtonEnabled = !carousel.IsFirst,
             RequestedTheme = ElementTheme.Dark,
         };
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(dialog, "fst.first-run.dialog");
+        if (carousel.IsSingle) DialogChrome.FullWidthSingleButton(dialog);
         PropertyChangedEventHandler sync = (_, e) =>
         {
             if (e.PropertyName != nameof(FirstRunCarouselViewModel.Index)) return;
