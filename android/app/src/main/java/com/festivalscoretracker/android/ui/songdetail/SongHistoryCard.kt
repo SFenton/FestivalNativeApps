@@ -292,11 +292,11 @@ private fun HistoryRow(point: SongHistoryPoint, best: Boolean, tag: String) {
             .background(if (best) PurpleHighlight else BrandTokens.surfaceFrosted)
             .border(1.dp, if (best) PurpleHighlightBorder else BrandTokens.glassBorder, shape)
             .padding(horizontal = 12.dp)
+            .testTag(tag)
             // One stop that reads the summary once (not the summary and then each child text).
             .clearAndSetSemantics {
                 contentDescription = listOfNotNull(date, point.season?.let { "Season $it" }, "score ${NumberFormat.getIntegerInstance().format(point.score)}", "accuracy $accuracy", "full combo".takeIf { point.isFullCombo }, "best score".takeIf { best }).joinToString(", ")
-            }
-            .testTag(tag),
+            },
     ) {
         Text(date, color = BrandTokens.textPrimary, fontWeight = if (best) FontWeight.Bold else null, modifier = Modifier.weight(1f), maxLines = 1)
         point.season?.let { SeasonPill(it) }

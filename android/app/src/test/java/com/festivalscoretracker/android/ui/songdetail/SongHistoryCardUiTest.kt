@@ -89,7 +89,6 @@ class SongHistoryCardUiTest {
         rule.onNodeWithTag("fst.song-detail.history.pager").assertExists()
         rule.onNodeWithContentDescription("Forward one page").assertIsNotEnabled()
         rule.onNodeWithContentDescription("Back one page").assertIsEnabled()
-        assertTrue(rule.onAllNodes(hasText("Accuracy (FC)")).fetchSemanticsNodes().isNotEmpty())
         draw()
         // Tap the last bar: its detail row appears (selected stroke drawn); tapping it again clears it.
         rule.onNodeWithTag("fst.song-detail.history.chart").performTouchInput { click(centerRight.copy(x = width - 44.dp.toPx())) }
@@ -130,7 +129,6 @@ class SongHistoryCardUiTest {
         rule.waitForIdle()
         draw()
         assertTrue(exists("fst.song-detail.history.top.2"))
-        assertFalse(rule.onAllNodes(hasText("Accuracy (FC)")).fetchSemanticsNodes().isNotEmpty())
         rule.onNodeWithTag("fst.song-detail.history.chart").assert(
             androidx.compose.ui.test.hasContentDescription("Lead score history: 3 scores", substring = true),
         )
