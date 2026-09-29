@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.ui.design.readingGroup
+import com.festivalscoretracker.android.ui.common.rememberSingleColumn
 
 // region Hinge
 
@@ -51,7 +52,9 @@ fun rememberHingeSplit(): Pair<HingeSplit?, Modifier> {
         left = it.positionInWindow().x
         width = it.size.width.toFloat()
     }
-    if (hinge == null || left.isNaN()) return null to modifier
+    // No split under TalkBack or at large text: one column, full width (rememberSingleColumn).
+    val singleColumn = rememberSingleColumn()
+    if (hinge == null || left.isNaN() || singleColumn) return null to modifier
     val start = hinge.bounds.left - left
     val end = hinge.bounds.right - left
     if (start <= 0f || end >= width) return null to modifier

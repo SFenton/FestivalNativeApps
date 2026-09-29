@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import com.festivalscoretracker.android.core.quicklinks.QuickLinks
+import com.festivalscoretracker.android.ui.common.rememberSingleColumn
 
 // region Hinge split
 
@@ -36,7 +37,9 @@ fun rememberHingeSplit(): HingeSplit {
         left = it.positionInWindow().x
         width = it.size.width.toFloat()
     }
-    return HingeSplit(hinge?.let { QuickLinks.hingeSplit(left, width, it.bounds.left, it.bounds.right) }, modifier)
+    // No split under TalkBack or at large text: one column, full width (rememberSingleColumn).
+    val split = if (rememberSingleColumn()) null else hinge?.let { QuickLinks.hingeSplit(left, width, it.bounds.left, it.bounds.right) }
+    return HingeSplit(split, modifier)
 }
 
 // endregion
