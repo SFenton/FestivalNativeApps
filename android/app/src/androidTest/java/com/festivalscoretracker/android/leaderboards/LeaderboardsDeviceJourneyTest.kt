@@ -70,7 +70,13 @@ class LeaderboardsDeviceJourneyTest {
 
     private fun exists(tag: String) = rule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
 
-    private fun waitForTag(tag: String) = rule.waitUntil(15_000) { exists(tag) }
+    private fun waitForTag(tag: String) {
+        try {
+            rule.waitUntil(15_000) { exists(tag) }
+        } catch (timeout: androidx.compose.ui.test.ComposeTimeoutException) {
+            throw AssertionError("Timed out waiting for $tag", timeout)
+        }
+    }
 
     private fun waitGone(tag: String) = rule.waitUntil(15_000) { !exists(tag) }
 
@@ -108,9 +114,11 @@ class LeaderboardsDeviceJourneyTest {
     fun overviewPairsHistoryAcrossTheFoldAndOpensTheFullBoard() {
         launch("leaderboards")
         waitForTag("fst.leaderboards.rank-history")
+        val folds = hinges()
+        // On a phone the chart fills the first screen; Lead's card is the next item.
+        if (folds.isEmpty()) scrollTo("fst.leaderboards", lead)
         waitForTag(lead)
         assertNothingStraddles("fst.leaderboards.rank-history", lead)
-        val folds = hinges()
         if (folds.isNotEmpty()) {
             // Half-open book fold: the chart on the leading panel, Lead's card on the trailing one.
             val history = rule.onAllNodesWithTag("fst.leaderboards.rank-history").fetchSemanticsNodes().first().boundsInWindow
