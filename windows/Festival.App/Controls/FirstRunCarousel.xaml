@@ -7,14 +7,18 @@
     <!-- Content of the first-run ContentDialog: FlipView of slides and pips. No visible "Slide X of Y" (the web has none):
          FlipView items expose PositionInSet/SizeOfSet and slide changes are announced (FirstRunCarousel.xaml.cs). -->
     <StackPanel Spacing="12" Width="440" AutomationProperties.AutomationId="fst.first-run.carousel">
-        <FlipView x:Name="Slides" Height="300" Background="Transparent" ItemsSource="{x:Bind Carousel.Slides}"
+        <FlipView x:Name="Slides" Height="370" SelectionChanged="OnSlideChanged" Background="Transparent" ItemsSource="{x:Bind Carousel.Slides}"
                   SelectedIndex="{x:Bind Carousel.Index, Mode=TwoWay}"
                   AutomationProperties.Name="{x:Bind Carousel.Title}"
                   AutomationProperties.AutomationId="fst.first-run.slides">
             <FlipView.ItemTemplate>
                 <DataTemplate x:DataType="domain:FirstRunSlide">
                     <StackPanel Spacing="12" Padding="4,0" AutomationProperties.AutomationId="{x:Bind Id}">
-                        <controls:FirstRunIllustration SlideId="{x:Bind Id}" Height="150" />
+                        <!-- Live demo (6 s loop, visible slide only); the static illustration covers any slide without one. -->
+                        <Grid Height="210">
+                            <controls:FirstRunIllustration SlideId="{x:Bind Id}" Visibility="{x:Bind controls:FirstRunCarousel.NoDemo(Id)}" />
+                            <controls:FirstRunDemo SlideId="{x:Bind Id}" />
+                        </Grid>
                         <TextBlock Text="{x:Bind Title}" Style="{StaticResource SubtitleTextBlockStyle}" TextWrapping="Wrap"
                                    AutomationProperties.HeadingLevel="Level2" />
                         <TextBlock Text="{x:Bind Description}" TextWrapping="Wrap" Foreground="{ThemeResource FSTSecondaryTextBrush}" />

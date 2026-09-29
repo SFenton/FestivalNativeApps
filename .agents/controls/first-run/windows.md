@@ -14,7 +14,7 @@
 ## UI
 
 - Fluent `ContentDialog` (`Controls/FirstRunCarousel.xaml`): FlipView + PipsPager, no visible "Slide x of y" (the web shows only pips; operator 2026-09-28): FlipView items expose UIA `PositionInSet`/`SizeOfSet` and each slide change raises a UIA notification ("<title>, slide 2 of 5"); Next/Done (primary), Back (secondary), Skip (close). Close, Skip, Esc and Done all mark every displayed slide seen. TeachingTip was rejected: it is for one anchored tip, not a multi-slide sequence.
-- `Controls/FirstRunIllustration.cs`: static brand-gradient card + Segoe Fluent glyph per slide (no animation, so off-screen FlipView pages cost nothing). The web's live per-slide demos are **not** ported yet.
+- **Live demos** (`Controls/FirstRunDemo.cs`, data in `Domain/FirstRunDemos.cs`): every one of the 42 catalogue slides maps to a demo kind (song rows, sort flip, filter chip, letter strip, status chips, metadata pills, green/gold/red Shop pulse rows, score bars, leaderboard / your-rank rows, Shop button breathe, stat tiles, rival rows, Shop tiles). Song rows use the catalogue's Epic Games songs and their art through the shared art cache (web `useDemoSongs`), falling back to a text pool. One step every **6 s** (the PWA's measured loop): a row fades out and back in 400 ms with new content, a highlight moves or an order flips. Only the selected FlipView slide's demo runs (`Active`, set by `FirstRunCarousel` on selection); it holds still with motion off or the window hidden and stops when the dialog closes. Decorative (UIA Raw). `FirstRunIllustration` (static glyph card) only covers an ID without a demo.
 - Shell seam `MainWindow.Settings.cs`: tracks each section frame's route stack, and after every navigation or settings change queues (low priority) `FirstRunCenter.TryBegin` for the visible page. Skipped over `PlaceholderPage`, while minimized, or when another carousel is active. Dialogs are serialized through `MainWindow.ShowDialogAsync` (one ContentDialog per window).
 
 ## Debug
@@ -23,5 +23,5 @@
 
 ## Open
 
-- Live demos per slide (web `pages/<page>/firstRun/demo/*`).
+- Demos approximate the web's per-slide `render()` rather than copying each 1:1 (e.g. Compete/Rivals cycle rival rows instead of the web's category timer).
 - IDs: `fst.first-run.dialog`, `.carousel`, `.slides`, `.pips`; replay rows `fst.settings.first-run.<pageKey>`. Screenshot: `windows/reports/screenshots/first-run-replay-wide.png`.

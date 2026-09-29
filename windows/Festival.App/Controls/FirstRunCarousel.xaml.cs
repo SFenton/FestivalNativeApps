@@ -23,8 +23,46 @@ public sealed partial class FirstRunCarousel : UserControl
             if (e.PropertyName == nameof(FirstRunCarouselViewModel.Index) && IsLoaded)
                 Services.ScreenReader.Announce(this, new Festival.Core.ViewModels.Announcement(carousel.PositionAnnouncement, Festival.Core.ViewModels.AnnouncementKind.Completed));
         };
-        Loaded += (_, _) => carousel.PropertyChanged += announce;
+        Loaded += (_, _) =>
+        {
+            carousel.PropertyChanged += announce;
+            // Containers realize after load; activate the first slide's demo once they exist.
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, UpdateActiveDemo);
+        };
         Unloaded += (_, _) => carousel.PropertyChanged -= announce;
+    }
+
+    /// <summary>Whether a slide has no live demo (the static illustration shows instead).</summary>
+    /// <param name="slideId">Slide ID.</param>
+    /// <returns>Collapsed when a demo exists.</returns>
+    public static Visibility NoDemo(string slideId) => FirstRunDemos.KindFor(slideId) is null ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>Runs only the visible slide's demo (off-screen FlipView pages hold still).</summary>
+    /// <param name="sender">FlipView.</param>
+    /// <param name="e">Unused.</param>
+    private void OnSlideChanged(object sender, SelectionChangedEventArgs e) => UpdateActiveDemo();
+
+    /// <summary>Marks each realized slide's demo active when its slide is selected.</summary>
+    private void UpdateActiveDemo()
+    {
+        for (var i = 0; i < Slides.Items.Count; i++)
+        {
+            if (Slides.ContainerFromIndex(i) is not DependencyObject container) continue;
+            foreach (var demo in Descendants(container).OfType<FirstRunDemo>()) demo.Active = i == Slides.SelectedIndex;
+        }
+    }
+
+    /// <summary>Visual-tree descendants.</summary>
+    /// <param name="parent">Root.</param>
+    /// <returns>Descendants, depth first.</returns>
+    private static IEnumerable<DependencyObject> Descendants(DependencyObject parent)
+    {
+        for (var i = 0; i < Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
+            yield return child;
+            foreach (var nested in Descendants(child)) yield return nested;
+        }
     }
 
     /// <summary>Carousel model.</summary>
