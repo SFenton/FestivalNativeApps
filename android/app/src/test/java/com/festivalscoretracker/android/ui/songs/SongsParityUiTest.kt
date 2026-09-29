@@ -210,15 +210,73 @@ class SongsParityUiTest {
     }
 
     @Test
-    fun songDetailBandLinksOpenTheSongBandLeaderboard() {
+    fun songDetailBandPreviewsComeLastAndOpenTheFullBoard() {
         BandFixtures.install(transport)
         launch(DebugLaunch(songQuery = "s-alpha", stillBackground = true))
         waitForTag("fst.song-detail.list")
-        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.band.Band_Duets"))
-        click("fst.song-detail.band.Band_Duets")
+        // Web: a ten-row preview per band size after the instrument cards; Quads is empty.
+        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.band-empty.Band_Quad"))
+        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.band-row.Band_Duets.9"))
+        assertFalse(exists("fst.song-detail.band-row.Band_Duets.10"))
+        assertTrue(transport.sent("/api/leaderboard/s-alpha/bands/Band_Duets").all { "top=10&offset=0" in it.url && "accountId" !in it.url })
+        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.band-view-all.Band_Duets"))
+        click("fst.song-detail.band-view-all.Band_Duets")
         waitForTag("fst.song-band-leaderboard.screen")
         waitForTag("fst.song-band-leaderboard.row.band-1:1", unmerged = true)
-        assertTrue(transport.sent("/api/leaderboard/s-alpha/bands/Band_Duets").isNotEmpty())
+    }
+
+    @Test
+    fun songDetailBandPreviewsSpotlightTheSelectedPlayersBand() {
+        BandFixtures.install(transport)
+        launch(DebugLaunch(profile = player, songQuery = "s-alpha", stillBackground = true))
+        waitForTag("fst.song-detail.list")
+        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.band-selected.Band_Duets"))
+        assertTrue(transport.sent("/api/leaderboard/s-alpha/bands/Band_Duets").all { "accountId=${Fixtures.ACCOUNT_A}" in it.url })
+        // Trios ranks the player's band 2nd: highlighted in place, not appended.
+        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.band-row.Band_Trios.1"))
+        assertFalse(exists("fst.song-detail.band-selected.Band_Trios"))
+        click("fst.song-detail.band-selected.Band_Duets")
+        waitForTag("fst.band.screen")
+    }
+
+    @Test
+    fun songDetailBandPreviewFailureRetries() {
+        transport.onRaw("/api/leaderboard/s-alpha/bands/Band_Trios") { com.festivalscoretracker.android.data.HttpResult(500, ByteArray(0)) }
+        launch(DebugLaunch(songQuery = "s-alpha", stillBackground = true))
+        waitForTag("fst.song-detail.list")
+        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.band-preview.Band_Trios"))
+        assertTrue(rule.onAllNodes(hasText("Trios scores unavailable", substring = true) and hasAnyAncestor(hasTestTag("fst.song-detail.band-preview.Band_Trios")), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+    }
+
+    @Test
+    fun songDetailQuickLinksJumpToEverySection() {
+        launch(DebugLaunch(songQuery = "s-alpha", stillBackground = true))
+        waitForTag("fst.song-detail.list")
+        waitForTag("fst.quick-links.open")
+        click("fst.quick-links.open")
+        waitForTag("fst.quick-links.sheet")
+        listOf("intensity", "instrument-Solo_Guitar", "band-Band_Duets", "band-Band_Quad").forEach { waitForTag("fst.quick-links.item.$it") }
+        assertFalse(exists("fst.quick-links.item.score-history"))
+        click("fst.quick-links.item.band-Band_Quad")
+        waitGone("fst.quick-links.sheet")
+        waitForTag("fst.song-detail.band-preview.Band_Quad")
+        assertFalse(exists("fst.song-detail.header"))
+    }
+
+    @Test
+    fun songDetailInstrumentFocusScrollsToTheChart() {
+        launch(DebugLaunch(songQuery = "s-alpha", songInstrument = "Solo_Vocals", stillBackground = true))
+        waitForTag("fst.song-detail.list")
+        waitForTag("fst.song-detail.preview.Solo_Vocals")
+        rule.waitUntil(10_000) { settle(100); !exists("fst.song-detail.header") }
+    }
+
+    @Test
+    fun songDetailIgnoresAHiddenInstrumentFocus() {
+        launch(DebugLaunch(songQuery = "s-alpha", songInstrument = "bogus", stillBackground = true))
+        waitForTag("fst.song-detail.intensity.Solo_Guitar", unmerged = true)
+        settle()
+        assertTrue(exists("fst.song-detail.header"))
     }
 
     @Test
@@ -249,7 +307,7 @@ class SongsParityUiTest {
         waitForTag("fst.song-detail.header")
         waitForTag("fst.song-detail.intensity.Solo_Guitar", unmerged = true)
         waitForTag("fst.song-detail.paths.open")
-        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.bands"))
+        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.band-preview.Band_Quad"))
         settle()
         assertFalse(exists("fst.song-detail.header"))
         assertEquals(1, rule.onAllNodes(hasText("Alpha Tune") and hasAnyAncestor(hasTestTag("fst.nav.top-bar"))).fetchSemanticsNodes().size)

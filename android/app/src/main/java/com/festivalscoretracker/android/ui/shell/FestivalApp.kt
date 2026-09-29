@@ -313,7 +313,7 @@ private fun FestivalShell(
     LaunchedEffect(Unit) {
         launch.section?.takeIf { it in sections }?.let { navController.selectSection(it, FestivalSection.Songs) }
         launch.route?.let { navController.navigate(it) }
-        launch.songQuery?.let { navController.navigate(SongDetailRoute(it)) }
+        launch.songQuery?.let { navController.navigate(SongDetailRoute(it, launch.songInstrument)) }
     }
 
     // region Global search
@@ -679,7 +679,7 @@ private fun FestivalNavHost(
         }
         composable<SongDetailRoute> { entry ->
             val route = entry.toRoute<SongDetailRoute>()
-            SongDetailRouteScreen(container, shellViewModel, settings, route.songId, embedded = false)
+            SongDetailRouteScreen(container, shellViewModel, settings, route.songId, embedded = false, instrument = route.instrument)
         }
         composable<SongLeaderboardRoute> { entry ->
             SongLeaderboardRouteScreen(container, settings, entry.savedStateHandle.toRoute<SongLeaderboardRoute>(), entry.savedStateHandle)

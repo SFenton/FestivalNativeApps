@@ -468,7 +468,7 @@ class PlayerProfileViewModel(
                 saveSongsPreset(action.preset)
                 SongsTab
             }
-            is PlayerTileAction.OpenSong -> SongDetailRoute(action.songId)
+            is PlayerTileAction.OpenSong -> SongDetailRoute(action.songId, action.instrument.wireId)
             is PlayerTileAction.OpenRankings -> FullRankingsRoute(action.instrument.wireId, action.metric.wireId, action.page)
         }
         return ProfileActionResult.Navigate(route)

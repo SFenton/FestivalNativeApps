@@ -27,6 +27,7 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.LibraryMusic
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.ShoppingBag
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.DropdownMenu
@@ -276,6 +277,7 @@ fun quickLinkIcon(token: String?): ImageVector = when (token) {
     "trophy" -> Icons.Outlined.EmojiEvents
     "people" -> Icons.Outlined.People
     "chart" -> Icons.Outlined.BarChart
+    "timer" -> Icons.Outlined.Timer
     else -> Icons.AutoMirrored.Outlined.Toc
 }
 

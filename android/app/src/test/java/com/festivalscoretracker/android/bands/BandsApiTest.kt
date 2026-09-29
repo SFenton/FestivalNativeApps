@@ -16,6 +16,8 @@ import com.festivalscoretracker.android.testing.Fixtures
 import kotlinx.coroutines.test.runTest
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -50,6 +52,10 @@ class BandsApiTest {
         assertEquals("https://fixture.test/api/rankings/bands/Band_Quad/a:b/history?days=30", BandEndpoints.bandRankHistory(BandType.Quad, "a:b", 30).url(base))
         assertEquals("https://fixture.test/api/rankings/bands/Band_Trios/a/songs?limit=5", BandEndpoints.bandSongExtremes(BandType.Trios, "a", 5).url(base))
         assertEquals("https://fixture.test/api/leaderboard/s-1/bands/Band_Duets?top=25&offset=50", BandEndpoints.songBandLeaderboard("s-1", BandType.Duets, 25, 50).url(base))
+        assertEquals(
+            "https://fixture.test/api/leaderboard/s-1/bands/Band_Duets?top=10&offset=0&accountId=${Fixtures.ACCOUNT_A}",
+            BandEndpoints.songBandLeaderboard("s-1", BandType.Duets, 10, 0, Fixtures.ACCOUNT_A).url(base),
+        )
     }
 
     @Test
@@ -67,6 +73,7 @@ class BandsApiTest {
             { BandEndpoints.songBandLeaderboard("..", BandType.Duets, 25, 0) },
             { BandEndpoints.songBandLeaderboard("s", BandType.Duets, 0, 0) },
             { BandEndpoints.songBandLeaderboard("s", BandType.Duets, 25, -1) },
+            { BandEndpoints.songBandLeaderboard("s", BandType.Duets, 25, 0, "bad/id") },
         ).forEach { assertThrows(FestivalApiException.InvalidResource::class.java) { it() } }
     }
 
@@ -83,6 +90,16 @@ class BandsApiTest {
         assertEquals("s-alpha", songs.best.single().songId)
         val board = api.songBandLeaderboard("s-alpha", BandType.Trios, 2, 25)
         assertEquals(26, board.entries.first().rank)
+        assertNull(board.selectedPlayerEntry)
+        // With the selected player: their band row comes back; outside the page it's appended.
+        val duos = api.songBandLeaderboard("s-alpha", BandType.Duets, 1, 10, BandFixtures.PLAYER)
+        assertEquals(12, duos.selectedOutsidePage?.rank)
+        val trios = api.songBandLeaderboard("s-alpha", BandType.Trios, 1, 10, BandFixtures.PLAYER)
+        assertEquals(2, trios.selectedPlayerEntry?.rank)
+        assertNull(trios.selectedOutsidePage)
+        assertTrue(trios.entries[1].sameBand(trios.selectedPlayerEntry!!))
+        assertFalse(trios.entries[0].sameBand(trios.selectedPlayerEntry!!))
+        assertTrue(trios.entries[0].copy(bandId = "").sameBand(trios.entries[0].copy(bandId = "")))
         // Every band read went through the keyless gate, GET only, and never touched a blocked route.
         transport.requests.forEach { RequestGate.validateKeyless(it) }
         val paths = transport.requests.map { it.url.substringAfter("fixture.test").substringBefore('?') }

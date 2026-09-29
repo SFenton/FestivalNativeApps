@@ -40,8 +40,11 @@ sealed interface AppRoute
 
 // Songs
 
-/** `/songs/:songId`. */
-@Serializable data class SongDetailRoute(val songId: String) : AppRoute
+/**
+ * `/songs/:songId[?instrument=]`: a chart focus (web `?instrument=` with `autoScroll`)
+ * preselects it in Score History and scrolls its leaderboard card into view.
+ */
+@Serializable data class SongDetailRoute(val songId: String, val instrument: String? = null) : AppRoute
 
 /** `/songs/:songId/:instrument` with a one-based page. */
 @Serializable data class SongLeaderboardRoute(val songId: String, val instrument: String, val page: Int = 1) : AppRoute

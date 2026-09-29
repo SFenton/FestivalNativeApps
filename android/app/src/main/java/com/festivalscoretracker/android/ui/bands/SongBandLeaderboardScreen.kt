@@ -1,11 +1,14 @@
 package com.festivalscoretracker.android.ui.bands
 
+import com.festivalscoretracker.android.ui.design.RowChevron
 import com.festivalscoretracker.android.ui.design.AccuracyPill
 import com.festivalscoretracker.android.ui.design.StarRating
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -27,6 +30,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
@@ -184,14 +188,24 @@ private fun SongHeader(
 
 /**
  * One band score: rank, members with instruments and per-member scores, team
- * score, FC badge, accuracy and stars. The whole card opens Band Detail.
+ * score, FC badge, accuracy and stars. The whole card opens Band Detail. Shared with
+ * Song Detail's band previews, where the selected player's band gets the web
+ * `selectedCard` purple treatment.
  *
  * @param entry Wire row.
  * @param song Song, for keyboard-variant icons.
+ * @param selected The selected player's band (purple highlight and border).
+ * @param tag Test tag.
  * @param onClick Open action.
  */
 @Composable
-private fun BandScoreRow(entry: SongBandLeaderboardEntry, song: Song?, onClick: () -> Unit) {
+internal fun BandScoreRow(
+    entry: SongBandLeaderboardEntry,
+    song: Song?,
+    selected: Boolean = false,
+    tag: String = "fst.song-band-leaderboard.row.${entry.key}",
+    onClick: () -> Unit,
+) {
     val keyboard = song?.sig == "Keyboard"
     val accuracy = entry.accuracy?.let { if (it > 0) ScoreFormatting.accuracy(it) + "%" else null }
     val announcement = buildString {
@@ -203,42 +217,73 @@ private fun BandScoreRow(entry: SongBandLeaderboardEntry, song: Song?, onClick: 
     GlassCard(
         Modifier
             .fillMaxWidth()
-            .testTag("fst.song-band-leaderboard.row.${entry.key}")
+            .testTag(tag)
             .semantics(mergeDescendants = true) { contentDescription = announcement },
         onClick = onClick,
+        accent = if (selected) SelectedBandBorder else null,
     ) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(
-                BandFormatting.rank(entry.rank),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = BrandTokens.textPrimary,
-                modifier = Modifier.widthIn(min = 44.dp),
-            )
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                BandMember.distinct(entry.members).forEach { member ->
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        member.chartedInstruments.forEach { InstrumentIcon(it, keyboard = keyboard, size = 18.dp, decorative = true) }
-                        FestivalMarqueeText(
-                            member.resolvedName,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = BrandTokens.textPrimary,
-                            modifier = Modifier.weight(1f, fill = false),
-                        )
-                        member.score?.let { Text(BandFormatting.count(it), style = MaterialTheme.typography.bodySmall, color = BrandTokens.textPrimary) }
-                    }
-                }
-            }
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        // Narrow cards (phones, one side of a hinge) move the team score under the members
+        // (web `scoreFooter`), so member names keep their width.
+        BoxWithConstraints(Modifier.background(if (selected) SelectedBandFill else Color.Transparent).padding(12.dp)) {
+            val stacked = maxWidth < BAND_ROW_STACK_WIDTH
+            val teamScore: @Composable () -> Unit = {
                 Text(BandFormatting.count(entry.score), fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)
+            }
+            val badges: @Composable () -> Unit = {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     // Web `AccuracyDisplay`: a full combo is the gold-outlined accuracy, not an "FC" chip (7.11).
                     if (accuracy != null || entry.isFullCombo == true) AccuracyPill(entry.accuracy, entry.isFullCombo == true)
                     entry.stars?.takeIf { it > 0 }?.let { StarRating(it, size = 14.dp) }
                 }
             }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        BandFormatting.rank(entry.rank),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = BrandTokens.textPrimary,
+                        modifier = Modifier.widthIn(min = 44.dp),
+                    )
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        BandMember.distinct(entry.members).forEach { member ->
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                member.chartedInstruments.forEach { InstrumentIcon(it, keyboard = keyboard, size = 18.dp, decorative = true) }
+                                FestivalMarqueeText(
+                                    member.resolvedName,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = BrandTokens.textPrimary,
+                                    modifier = Modifier.weight(1f, fill = false),
+                                )
+                                member.score?.let { Text(BandFormatting.count(it), style = MaterialTheme.typography.bodySmall, color = BrandTokens.textPrimary) }
+                            }
+                        }
+                    }
+                    if (!stacked) {
+                        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            teamScore()
+                            badges()
+                        }
+                    }
+                    RowChevron()
+                }
+                if (stacked) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(start = 54.dp, end = 34.dp)) {
+                        teamScore()
+                        Spacer(Modifier.weight(1f))
+                        badges()
+                    }
+                }
+            }
         }
     }
 }
+
+/** Card width below which the team score moves under the members. */
+private val BAND_ROW_STACK_WIDTH = 400.dp
+
+/** Web `purpleHighlight` / `purpleHighlightBorder`: the selected player's band card. */
+private val SelectedBandFill = Color(0xBF4B0F63)
+private val SelectedBandBorder = Color(0x807C3AED)
 
 // endregion

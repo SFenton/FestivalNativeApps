@@ -26,11 +26,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -112,6 +109,20 @@ import com.festivalscoretracker.android.ui.leaderboards.HingeSplit
 import com.festivalscoretracker.android.ui.leaderboards.rememberHingeSplit
 import com.festivalscoretracker.android.ui.shop.ShopDetailAction
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import com.festivalscoretracker.android.core.bands.SongBandLeaderboardEntry
+import com.festivalscoretracker.android.core.bands.SongBandLeaderboardResponse
+import com.festivalscoretracker.android.core.nav.BandRoute
+import com.festivalscoretracker.android.core.quicklinks.QuickLinkSection
+import com.festivalscoretracker.android.core.songs.SongDetailItem
+import com.festivalscoretracker.android.ui.bands.BandScoreRow
+import com.festivalscoretracker.android.ui.bands.windowWidthDp
+import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
+import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import java.text.NumberFormat
 
 // region Extras
@@ -160,6 +171,8 @@ data class SongDetailExtras(
  * @param artworkUrl Artwork resolver.
  * @param background Shared backdrop (receives this song's static cover).
  * @param embedded True inside a two-pane layout (no own top bar).
+ * @param focus Route `?instrument=` focus (wire ID): preselects Score History and scrolls
+ *   that chart's card into view once the page reveals (web `autoScroll`).
  * @param onOpenPaths Open the CHOpt Paths sheet.
  */
 @Composable
@@ -169,6 +182,7 @@ fun SongDetailScreen(
     artworkUrl: (String?) -> String?,
     background: BackgroundController,
     embedded: Boolean,
+    focus: String? = null,
     onOpenPaths: (Song) -> Unit,
 ) {
     val songState by viewModel.song.collectAsStateWithLifecycle()
@@ -179,11 +193,14 @@ fun SongDetailScreen(
     }
     val listState = rememberLazyListState()
     val headerGone by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
+    // The revealed page publishes its items so Quick Links (in the top bar) can find them.
+    var plan by remember { mutableStateOf(SongDetailPlan()) }
+    val quickLinks = rememberQuickLinks(listState, "Quick Links", plan.sections) { id -> SongDetailLayout.indexOf(plan.items, id) }
     val body: @Composable (PaddingValues) -> Unit = { padding ->
         when (val state = songState) {
             LoadState.Loading -> LoadingView("Loading song", Modifier.padding(padding))
             is LoadState.Failed -> ServiceStatusView(state.issue, "Song unavailable", state.countdown, viewModel::retry, contentPadding = padding)
-            is LoadState.Loaded -> SongDetailGate(state.value, viewModel, extras, artworkUrl(state.value.albumArt), padding, onOpenPaths, embedded, listState)
+            is LoadState.Loaded -> SongDetailGate(state.value, viewModel, extras, artworkUrl(state.value.albumArt), padding, onOpenPaths, embedded, listState, focus) { plan = it }
         }
     }
     if (embedded) {
@@ -202,6 +219,7 @@ fun SongDetailScreen(
                         Icon(Icons.Filled.Route, contentDescription = "View Paths")
                     }
                 }
+                QuickLinksAction(quickLinks, windowWidthDp().toInt())
             },
             content = body,
         )
@@ -224,45 +242,106 @@ private fun SongDetailGate(
     onOpenPaths: (Song) -> Unit,
     embedded: Boolean,
     listState: androidx.compose.foundation.lazy.LazyListState,
+    focus: String?,
+    onPlan: (SongDetailPlan) -> Unit,
 ) {
     val charts = remember(song, extras.visibleInstruments) { Instrument.entries.filter { song.supports(it) && it in extras.visibleInstruments } }
     val flows = remember(song, charts) { viewModel.startPreviews(song, charts) }
     val previews = charts.mapIndexed { index, chart -> key(chart) { flows[index].collectAsStateWithLifecycle() } }
+    val bandFlows = remember(song, extras.selectedAccountId) { viewModel.startBandPreviews(song, extras.selectedAccountId) }
+    val bands = viewModel.bandTypes.mapIndexed { index, type -> key(type) { bandFlows[index].collectAsStateWithLifecycle() } }
     val historyFlow = remember(song, extras.selectedAccountId) { extras.selectedAccountId?.let { viewModel.history(song, it) } }
     val history: State<LoadState<PlayerHistoryPayload>>? = historyFlow?.collectAsStateWithLifecycle()
-    val ready = SongDetailLayout.ready(previews.map { it.value == LoadState.Loading }, history?.let { it.value == LoadState.Loading })
+    val ready = SongDetailLayout.ready((previews + bands).map { it.value == LoadState.Loading }, history?.let { it.value == LoadState.Loading })
     FestivalLoadGate(ready, Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()), label = "Loading song") {
-        SongDetailContent(song, viewModel, extras, artUrl, PaddingValues(bottom = padding.calculateBottomPadding()), onOpenPaths, embedded, listState, charts, previews.map { it.value }, history?.value, revealed)
+        SongDetailContent(
+            SongDetailPage(song, extras, artUrl, charts, previews.map { it.value }, bands.map { it.value }, history?.value, SongDetailLayout.focus(focus, charts)),
+            viewModel, PaddingValues(bottom = padding.calculateBottomPadding()), onOpenPaths, embedded, listState, revealed, onPlan,
+        )
     }
 }
 
+/**
+ * What one revealed Song Detail page shows.
+ *
+ * @property song Song.
+ * @property extras Shop, player and Settings inputs.
+ * @property artUrl Resolved artwork URL.
+ * @property charts Visible charted instruments.
+ * @property previews Each chart's preview, in [charts] order.
+ * @property bands Each band size's preview, in `SongDetailViewModel.bandTypes` order.
+ * @property history Selected player's history, or null without one.
+ * @property focus Route chart focus, or null.
+ */
+private class SongDetailPage(
+    val song: Song,
+    val extras: SongDetailExtras,
+    val artUrl: String?,
+    val charts: List<Instrument>,
+    val previews: List<LoadState<LeaderboardPayload>>,
+    val bands: List<LoadState<SongBandLeaderboardResponse>>,
+    val history: LoadState<PlayerHistoryPayload>?,
+    val focus: Instrument?,
+)
+
+/**
+ * The laid-out page as Quick Links sees it.
+ *
+ * @property items Items in list order.
+ * @property sections Quick Links sections (none until the page reveals).
+ */
+@Immutable
+internal data class SongDetailPlan(val items: List<SongDetailItem> = emptyList(), val sections: List<QuickLinkSection> = emptyList())
+
 @Composable
 private fun SongDetailContent(
-    song: Song,
+    page: SongDetailPage,
     viewModel: SongDetailViewModel,
-    extras: SongDetailExtras,
-    artUrl: String?,
     padding: PaddingValues,
     onOpenPaths: (Song) -> Unit,
     embedded: Boolean,
     listState: androidx.compose.foundation.lazy.LazyListState,
-    cards: List<Instrument>,
-    previews: List<LoadState<LeaderboardPayload>>,
-    history: LoadState<PlayerHistoryPayload>?,
     revealed: Boolean,
+    onPlan: (SongDetailPlan) -> Unit,
 ) {
+    val song = page.song
+    val extras = page.extras
+    val cards = page.charts
     val navigate = LocalShellActions.current.navigate
     val charted = Instrument.entries.filter(song::supports)
-    val historyRows = remember(history, extras.historyLeeway, song) {
-        val payload = (history as? LoadState.Loaded)?.value?.takeIf { it.state == PlayerHistoryState.Available }
+    val historyRows = remember(page.history, extras.historyLeeway, song) {
+        val payload = (page.history as? LoadState.Loaded)?.value?.takeIf { it.state == PlayerHistoryState.Available }
         payload?.let { SongHistoryChart.valid(it.response.history, song, extras.historyLeeway) }.orEmpty()
     }
     val showHistory = SongHistoryChart.available(SongHistoryChart.counts(historyRows), extras.visibleInstruments).isNotEmpty()
+    val bandTypes = viewModel.bandTypes
     val (hinge, hingeModifier) = rememberHingeSplit()
     BoxWithConstraints(Modifier.fillMaxSize().then(hingeModifier)) {
         val rowHinge = hinge?.let { HingeSplit(it.start - PAGE_GUTTER, it.end - PAGE_GUTTER) }
         val columns = SongDetailLayout.columns((maxWidth - PAGE_GUTTER * 2).value, cards.size, rowHinge != null)
-        val rows = cards.chunked(columns)
+        val items = remember(cards, columns, showHistory, rowHinge != null, bandTypes) {
+            SongDetailLayout.items(cards, columns, showHistory, rowHinge != null, bandTypes)
+        }
+        val sections = remember(cards, showHistory, bandTypes) { SongDetailLayout.quickLinks(cards, showHistory, bandTypes) }
+        LaunchedEffect(items, sections) { onPlan(SongDetailPlan(items, sections)) }
+        DisposableEffect(Unit) { onDispose { onPlan(SongDetailPlan()) } }
+        FocusScroll(page.focus, items, listState, revealed)
+        val intensity: @Composable (List<Instrument>, Boolean) -> Unit = { charts, titled ->
+            Column {
+                // The trailing half of a hinge-split grid keeps the header's height so both halves line up.
+                if (titled) SectionHeader("Intensity") else SectionHeader(" ", Modifier.clearAndSetSemantics { })
+                IntensityCard(song, charts)
+            }
+        }
+        val history: @Composable () -> Unit = {
+            SongHistoryCard(
+                entries = historyRows,
+                visible = extras.visibleInstruments,
+                keyboard = song.usesKeyboardIcon,
+                initialInstrument = page.focus,
+                onViewAll = { chart -> navigate(PlayerHistoryRoute(song.songId, chart.wireId)) },
+            )
+        }
         LazyColumn(
             state = listState,
             contentPadding = PaddingValues(start = PAGE_GUTTER, end = PAGE_GUTTER, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 24.dp),
@@ -270,42 +349,61 @@ private fun SongDetailContent(
             modifier = Modifier.fillMaxSize().testTag("fst.song-detail.list"),
         ) {
             // Web order: header, actions, intensity, score history, instrument leaderboards, band leaderboards.
-            item(key = "header") { Box(Modifier.festivalFadeIn(revealed)) { SongHeader(song, artUrl) } }
-            item(key = "actions") { HeaderActions(song, extras, onOpenPaths, showPaths = embedded) }
-            item(key = "intensity") {
-                Column(Modifier.festivalFadeIn(revealed, fadeInStagger(1))) {
-                    SectionHeader("Intensity")
-                    IntensityCard(song, charted)
+            itemsIndexed(items, key = { _, item -> item.key }) { index, item ->
+                val stagger = Modifier.festivalFadeIn(revealed, fadeInStagger((index - 1).coerceAtLeast(0)))
+                when (item) {
+                    SongDetailItem.Header -> Box(Modifier.festivalFadeIn(revealed)) { SongHeader(song, page.artUrl) }
+                    SongDetailItem.Actions -> HeaderActions(song, extras, onOpenPaths, showPaths = embedded)
+                    SongDetailItem.Intensity -> Box(stagger) { intensity(charted, true) }
+                    SongDetailItem.History -> Box(stagger) { history() }
+                    is SongDetailItem.HingeSummary -> Box(stagger.testTag("fst.song-detail.hinge-summary")) {
+                        if (item.history) {
+                            CardGridRow(listOf({ intensity(charted, true) }, history), columns = 2, hinge = rowHinge)
+                        } else {
+                            val (lead, trail) = SongDetailLayout.splitIntensity(charted)
+                            CardGridRow(listOf({ intensity(lead, true) }, { if (trail.isNotEmpty()) intensity(trail, false) }), columns = 2, hinge = rowHinge)
+                        }
+                    }
+                    is SongDetailItem.Instruments -> Box(stagger) {
+                        CardGridRow(
+                            cards = item.charts.map { instrument ->
+                                {
+                                    val state = page.previews[cards.indexOf(instrument)]
+                                    InstrumentCard(song, instrument, state, viewModel, extras, navigate)
+                                }
+                            },
+                            columns = columns,
+                            hinge = rowHinge,
+                        )
+                    }
+                    is SongDetailItem.Bands -> Box(stagger) {
+                        CardGridRow(
+                            cards = item.types.map { type ->
+                                { BandPreview(song, type, page.bands[bandTypes.indexOf(type)], extras.selectedAccountId, viewModel, navigate) }
+                            },
+                            columns = if (rowHinge != null) 2 else 1,
+                            hinge = rowHinge,
+                        )
+                    }
                 }
             }
-            if (showHistory) {
-                item(key = "history") {
-                    SongHistoryCard(
-                        entries = historyRows,
-                        visible = extras.visibleInstruments,
-                        keyboard = song.usesKeyboardIcon,
-                        initialInstrument = null,
-                        onViewAll = { chart -> navigate(PlayerHistoryRoute(song.songId, chart.wireId)) },
-                        modifier = Modifier.festivalFadeIn(revealed, fadeInStagger(2)),
-                    )
-                }
-            }
-            itemsIndexed(rows, key = { _, row -> row.joinToString { it.wireId } }) { rowIndex, row ->
-                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(3 + rowIndex))) {
-                    CardGridRow(
-                        cards = row.map { instrument ->
-                            {
-                                val state = previews[cards.indexOf(instrument)]
-                                InstrumentCard(song, instrument, state, viewModel, extras, navigate)
-                            }
-                        },
-                        columns = columns,
-                        hinge = rowHinge,
-                    )
-                }
-            }
-            item(key = "bands") { Box(Modifier.festivalFadeIn(revealed, fadeInStagger(3 + rows.size))) { BandLinks(song, navigate) } }
         }
+    }
+}
+
+/**
+ * Web `?instrument=` + `autoScroll`: once the page has revealed, scroll the focused
+ * chart's card into view (top-aligned, instantly like a Quick Links jump) unless the
+ * user already scrolled. Runs once per page (saved across configuration changes).
+ */
+@Composable
+private fun FocusScroll(focus: Instrument?, items: List<SongDetailItem>, listState: androidx.compose.foundation.lazy.LazyListState, revealed: Boolean) {
+    var done by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(focus, revealed) {
+        if (focus == null || done || !revealed) return@LaunchedEffect
+        done = true
+        if (listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0) return@LaunchedEffect
+        SongDetailLayout.indexOf(items, SongDetailLayout.instrumentId(focus))?.let { listState.scrollToItem(it) }
     }
 }
 
@@ -413,19 +511,62 @@ private fun IntensityCard(song: Song, charted: List<Instrument>) {
 /** Card widths from which intensity cells carry the instrument name. */
 private val INTENSITY_LABEL_MIN_WIDTH = 480.dp
 
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * One band size's ten-row preview (web `SongBandLeaderboardPreview`): the size as the
+ * section title, band cards (the selected player's band purple, and appended after the
+ * top ten when it ranks lower), the web empty state, and "View full leaderboard".
+ */
 @Composable
-private fun BandLinks(song: Song, navigate: (AppRoute) -> Unit) {
-    Column {
-        SectionHeader("Band Leaderboards")
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("fst.song-detail.bands")) {
-            BandType.entries.forEach { type ->
-                AssistChip(
-                    onClick = { navigate(SongBandLeaderboardRoute(song.songId, type.wireId)) },
-                    label = { Text(type.label) },
-                    leadingIcon = { Icon(Icons.Filled.Groups, contentDescription = null, modifier = Modifier.size(AssistChipDefaults.IconSize)) },
-                    modifier = Modifier.testTag("fst.song-detail.band.${type.wireId}"),
+private fun BandPreview(
+    song: Song,
+    type: BandType,
+    state: LoadState<SongBandLeaderboardResponse>,
+    accountId: String?,
+    viewModel: SongDetailViewModel,
+    navigate: (AppRoute) -> Unit,
+) {
+    Column(Modifier.testTag("fst.song-detail.band-preview.${type.wireId}")) {
+        SectionHeader(type.label)
+        when (state) {
+            LoadState.Loading -> Box(Modifier.fillMaxWidth().heightIn(min = 96.dp), contentAlignment = Alignment.Center) {
+                FestivalLoading(null, size = 28.dp)
+            }
+            is LoadState.Failed -> GlassCard(Modifier.fillMaxWidth()) {
+                ServiceStatusInline(
+                    state.issue, "${type.label} scores unavailable", state.countdown,
+                    onRetry = { viewModel.retryBandPreview(type, accountId) },
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                 )
+            }
+            is LoadState.Loaded -> {
+                val board = state.value
+                val outside = board.selectedOutsidePage
+                if (board.entries.isEmpty() && outside == null) {
+                    GlassCard(Modifier.fillMaxWidth()) {
+                        EmptyState(
+                            "When ${type.label} scores are submitted for this song, they will show up here on the next leaderboard update.",
+                            "fst.song-detail.band-empty.${type.wireId}",
+                        )
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val open = { entry: SongBandLeaderboardEntry -> navigate(BandRoute(entry.bandId.ifEmpty { entry.teamKey }, entry.membersLabel, entry.bandType, entry.teamKey)) }
+                        board.entries.forEachIndexed { index, entry ->
+                            BandScoreRow(
+                                entry, song,
+                                selected = board.selectedPlayerEntry?.sameBand(entry) == true,
+                                tag = "fst.song-detail.band-row.${type.wireId}.$index",
+                            ) { open(entry) }
+                        }
+                        outside?.let { entry ->
+                            BandScoreRow(entry, song, selected = true, tag = "fst.song-detail.band-selected.${type.wireId}") { open(entry) }
+                        }
+                        ViewFullLeaderboardButton(
+                            onClick = { navigate(SongBandLeaderboardRoute(song.songId, type.wireId)) },
+                            testTag = "fst.song-detail.band-view-all.${type.wireId}",
+                        )
+                    }
+                }
             }
         }
     }
@@ -522,18 +663,19 @@ internal fun RowSeparator() {
 /** Web `InstrumentEmptyState` (`songDetail.noScores` + subtitle). */
 @Composable
 private fun EmptyChart(instrument: Instrument) {
+    EmptyState("When scores are submitted for ${instrument.label}, they will show up here on the next leaderboard update.", "fst.song-detail.empty.${instrument.wireId}")
+}
+
+/** Web `InstrumentEmptyState`: "No scores recorded yet." over [subtitle]. */
+@Composable
+private fun EmptyState(subtitle: String, tag: String) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp).testTag("fst.song-detail.empty.${instrument.wireId}"),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp).testTag(tag),
     ) {
         Text("No scores recorded yet.", color = BrandTokens.textPrimary, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
-        Text(
-            "When scores are submitted for ${instrument.label}, they will show up here on the next leaderboard update.",
-            style = MaterialTheme.typography.bodySmall,
-            color = BrandTokens.textSecondary,
-            textAlign = TextAlign.Center,
-        )
+        Text(subtitle, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary, textAlign = TextAlign.Center)
     }
 }
 

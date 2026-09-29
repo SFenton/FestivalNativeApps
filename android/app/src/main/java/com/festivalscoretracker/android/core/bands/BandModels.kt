@@ -284,6 +284,15 @@ data class SongBandLeaderboardEntry(
 
     /** Joined member names. */
     val membersLabel: String get() = BandMember.joinNames(members)
+
+    /**
+     * Web `isSameSongBandEntry`: same band ID, or same size and team key.
+     *
+     * @param other Another row.
+     * @return True for the same band.
+     */
+    fun sameBand(other: SongBandLeaderboardEntry): Boolean =
+        (bandId.isNotEmpty() && bandId == other.bandId) || (bandType == other.bandType && teamKey == other.teamKey)
 }
 
 /** Page from `GET /api/leaderboard/{songId}/bands/{bandType}?top=&offset=`. */
@@ -295,7 +304,12 @@ data class SongBandLeaderboardResponse(
     val totalEntries: Int = 0,
     val localEntries: Int? = null,
     val entries: List<SongBandLeaderboardEntry> = emptyList(),
+    val selectedPlayerEntry: SongBandLeaderboardEntry? = null,
 ) {
+    /** The selected player's band row when it isn't already on this page (web spotlight footer). */
+    val selectedOutsidePage: SongBandLeaderboardEntry?
+        get() = selectedPlayerEntry?.takeIf { selected -> entries.none { it.sameBand(selected) } }
+
     /** Paging population (`localEntries ?: totalEntries`, never negative). */
     val population: Int get() = maxOf(0, localEntries ?: totalEntries)
 

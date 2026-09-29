@@ -21,6 +21,7 @@ import com.festivalscoretracker.android.core.shop.ShopPayload
 import com.festivalscoretracker.android.core.shop.ShopPresentationPolicy
 import com.festivalscoretracker.android.core.shop.ShopResponse
 import com.festivalscoretracker.android.core.shop.SongRelatedPublicationPolicy
+import com.festivalscoretracker.android.data.bands.songBandLeaderboard
 import com.festivalscoretracker.android.data.paths.pathData
 import com.festivalscoretracker.android.data.paths.pathImage
 import com.festivalscoretracker.android.data.songs.leaderboardPage
@@ -47,9 +48,10 @@ import kotlinx.coroutines.launch
  * @param settings Current settings.
  * @param songId Route song ID (or debug title).
  * @param embedded Inside a two-pane layout.
+ * @param instrument Route `?instrument=` focus (wire ID), or null.
  */
 @Composable
-fun SongDetailRouteScreen(container: AppContainer, shellViewModel: ShellViewModel, settings: AppSettings, songId: String, embedded: Boolean) {
+fun SongDetailRouteScreen(container: AppContainer, shellViewModel: ShellViewModel, settings: AppSettings, songId: String, embedded: Boolean, instrument: String? = null) {
     val api = container.api
     val currentSettings by rememberUpdatedState(settings)
     val viewModel: SongDetailViewModel = viewModel(key = "detail:$songId") {
@@ -60,6 +62,7 @@ fun SongDetailRouteScreen(container: AppContainer, shellViewModel: ShellViewMode
             backoff = container.backoff,
             leeway = { currentSettings.leeway.takeIf { currentSettings.filterInvalidScores } },
             loadHistory = { account, id -> api.songScoreHistory(account, id) },
+            loadBandBoard = { id, type, top, account -> api.songBandLeaderboard(id, type, 1, top, account) },
         )
     }
     LaunchedEffect(settings.hideShop) { if (!settings.hideShop) container.shop.ensureStarted() }
@@ -73,7 +76,7 @@ fun SongDetailRouteScreen(container: AppContainer, shellViewModel: ShellViewMode
         song?.let { songDetailExtras(it, settings, shop, profile, catalogPublication, publication ?: catalogPublication) } ?: SongDetailExtras(settings.visibleInstruments)
     }
     var pathsFor by rememberSaveable { mutableStateOf<String?>(null) }
-    SongDetailScreen(viewModel, extras, api::artworkUrl, container.background, embedded) { pathsFor = it.songId }
+    SongDetailScreen(viewModel, extras, api::artworkUrl, container.background, embedded, focus = instrument) { pathsFor = it.songId }
     val scope = rememberCoroutineScope()
     if (song != null && pathsFor == song.songId && extras.pathInstruments.isNotEmpty()) {
         val pathsViewModel: SongPathsViewModel = viewModel(key = "paths:${song.songId}:${extras.pathInstruments}") {

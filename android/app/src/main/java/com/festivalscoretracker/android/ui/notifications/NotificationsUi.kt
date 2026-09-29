@@ -90,7 +90,7 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
  * @return Route.
  */
 fun NotificationDestination.route(): AppRoute = when (this) {
-    is NotificationDestination.Song -> SongDetailRoute(songId)
+    is NotificationDestination.Song -> SongDetailRoute(songId, instrument?.wireId)
     is NotificationDestination.Rankings -> instrument?.let { FullRankingsRoute(it.wireId, rankBy) } ?: LeaderboardsRoute
 }
 

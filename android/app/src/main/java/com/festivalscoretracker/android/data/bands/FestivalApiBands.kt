@@ -85,19 +85,23 @@ object BandEndpoints {
     }
 
     /**
-     * `GET /api/leaderboard/{songId}/bands/{bandType}?top=&offset=`.
+     * `GET /api/leaderboard/{songId}/bands/{bandType}?top=&offset=[&accountId=]`. With
+     * `accountId` the service also returns that player's best band row as
+     * `selectedPlayerEntry` (`GetSongBandLeaderboardEntryForAccount`, a pure `SELECT`).
      *
      * @param songId Catalogue song.
      * @param bandType Band size.
      * @param top Rows, 1–100.
      * @param offset Non-negative offset.
+     * @param accountId Selected player, or null.
      * @return Endpoint.
      */
-    fun songBandLeaderboard(songId: String, bandType: BandType, top: Int, offset: Int): ServiceEndpoint {
+    fun songBandLeaderboard(songId: String, bandType: BandType, top: Int, offset: Int, accountId: String? = null): ServiceEndpoint {
         if (!ServiceEndpoint.isSafeSegment(songId) || top !in 1..100 || offset < 0) throw FestivalApiException.InvalidResource()
+        if (accountId != null && !BandText.isValidMemberId(accountId)) throw FestivalApiException.InvalidResource()
         return ServiceEndpoint.Feature(
             listOf("leaderboard", songId, "bands", bandType.wireId),
-            listOf("top" to top.toString(), "offset" to offset.toString()),
+            listOf("top" to top.toString(), "offset" to offset.toString()) + listOfNotNull(accountId?.let { "accountId" to it }),
         )
     }
 
@@ -180,11 +184,12 @@ suspend fun FestivalApi.bandSongExtremes(bandType: BandType, teamKey: String, li
  * @param bandType Band size.
  * @param page One-based page.
  * @param top Rows per page.
+ * @param accountId Selected player for `selectedPlayerEntry`, or null.
  * @return Validated rows.
  */
-suspend fun FestivalApi.songBandLeaderboard(songId: String, bandType: BandType, page: Int, top: Int): SongBandLeaderboardResponse {
+suspend fun FestivalApi.songBandLeaderboard(songId: String, bandType: BandType, page: Int, top: Int, accountId: String? = null): SongBandLeaderboardResponse {
     if (page < 1 || top < 1 || page - 1 > Int.MAX_VALUE / top) throw FestivalApiException.InvalidResource()
-    val (body, _) = readPinned(BandEndpoints.songBandLeaderboard(songId, bandType, top, (page - 1) * top))
+    val (body, _) = readPinned(BandEndpoints.songBandLeaderboard(songId, bandType, top, (page - 1) * top, accountId))
     return decode(SongBandLeaderboardResponse.serializer(), body).also { it.validate(songId, bandType, top) }
 }
 

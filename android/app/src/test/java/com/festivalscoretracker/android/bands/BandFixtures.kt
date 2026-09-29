@@ -107,19 +107,21 @@ object BandFixtures {
      * @param total Population.
      * @param offset Offset.
      * @param top Page size.
+     * @param selectedRank Rank of the `selectedPlayerEntry` (the `accountId` read), or null.
      * @return JSON.
      */
-    fun songBoard(songId: String, bandType: String, total: Int, offset: Int, top: Int): String {
-        val rows = (offset until minOf(total, offset + top)).map { index ->
-            val rank = index + 1
+    fun songBoard(songId: String, bandType: String, total: Int, offset: Int, top: Int, selectedRank: Int? = null): String {
+        fun row(rank: Int): String {
             val members = listOf(
                 member(Fixtures.ACCOUNT_A, "Synthetic Lead", listOf("Solo_Guitar"), 60000L - rank),
                 member("", null, listOf("Solo_Bass"), 40000L),
             )
-            """{"bandId":"band-$rank","bandType":"$bandType","teamKey":"${Fixtures.ACCOUNT_A}:t$rank","members":[${members.joinToString(",")}],
+            return """{"bandId":"band-$rank","bandType":"$bandType","teamKey":"${Fixtures.ACCOUNT_A}:t$rank","members":[${members.joinToString(",")}],
                "score":${100000 - rank},"rank":$rank,"accuracy":${if (rank == 1) 1000000 else 975000},"isFullCombo":${rank == 1},"stars":6,"season":15,"difficulty":3,"percentile":0.1}"""
         }
-        return """{"songId":"$songId","bandType":"$bandType","count":${rows.size},"totalEntries":$total,"localEntries":$total,"entries":[${rows.joinToString(",")}]}"""
+        val rows = (offset until minOf(total, offset + top)).map { row(it + 1) }
+        val selected = selectedRank?.let { ""","selectedPlayerEntry":${row(it)}""" }.orEmpty()
+        return """{"songId":"$songId","bandType":"$bandType","count":${rows.size},"totalEntries":$total,"localEntries":$total,"entries":[${rows.joinToString(",")}]$selected}"""
     }
 
     /**
@@ -149,7 +151,9 @@ object BandFixtures {
             on("/api/leaderboard/s-alpha/bands/$type", headers = pin) { request ->
                 val top = Regex("top=(\\d+)").find(request.url)!!.groupValues[1].toInt()
                 val offset = Regex("offset=(\\d+)").find(request.url)!!.groupValues[1].toInt()
-                songBoard("s-alpha", type, if (type == "Band_Quad") 0 else boardTotal, offset, top)
+                // The selected player's band ranks 12th on Duos and 2nd on Trios.
+                val selected = if ("accountId=$PLAYER" in request.url) mapOf("Band_Duets" to 12, "Band_Trios" to 2)[type] else null
+                songBoard("s-alpha", type, if (type == "Band_Quad") 0 else boardTotal, offset, top, selected)
             }
         }
     }

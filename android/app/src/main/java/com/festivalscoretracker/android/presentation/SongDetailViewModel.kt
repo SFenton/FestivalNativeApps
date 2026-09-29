@@ -2,6 +2,8 @@ package com.festivalscoretracker.android.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.festivalscoretracker.android.core.bands.BandType
+import com.festivalscoretracker.android.core.bands.SongBandLeaderboardResponse
 import com.festivalscoretracker.android.core.model.FestivalApiException
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.LeaderboardPaging
@@ -49,6 +51,8 @@ object SongResolver {
  * @param leeway Invalid-score leeway while Filter Invalid Scores is on, else null;
  *   previews are keyed by it so a change re-reads.
  * @param loadHistory Song score-history read `(accountId, songId)`, or null when unavailable.
+ * @param loadBandBoard Song band leaderboard first page `(songId, bandType, top, accountId)`,
+ *   or null to show no band previews.
  */
 class SongDetailViewModel(
     songKey: String,
@@ -57,6 +61,7 @@ class SongDetailViewModel(
     private val backoff: ServiceRetryBackoff,
     private val leeway: () -> Double? = { null },
     private val loadHistory: (suspend (String, String) -> PlayerHistoryPayload)? = null,
+    private val loadBandBoard: (suspend (String, BandType, Int, String?) -> SongBandLeaderboardResponse)? = null,
 ) : ViewModel() {
     private val catalogPublicationFlow = MutableStateFlow<Int?>(null)
     private val songLoader = RetryingLoader(viewModelScope, "song:$songKey", backoff) { refresh ->
@@ -66,6 +71,10 @@ class SongDetailViewModel(
     }
     private val previews = mutableMapOf<Pair<Instrument, Double?>, RetryingLoader<LeaderboardPayload>>()
     private val histories = mutableMapOf<String, RetryingLoader<PlayerHistoryPayload>>()
+    private val bandPreviews = mutableMapOf<Pair<BandType, String?>, RetryingLoader<SongBandLeaderboardResponse>>()
+
+    /** Band sizes with previews (web `SONG_BAND_TYPES`), or none without a band reader. */
+    val bandTypes: List<BandType> = if (loadBandBoard == null) emptyList() else BandType.entries
 
     /** The resolved song. */
     val song: StateFlow<LoadState<Song>> = songLoader.state
@@ -118,6 +127,37 @@ class SongDetailViewModel(
         }
         loader.ensureStarted()
         return loader.state
+    }
+
+    /**
+     * Every band size's ten-row preview (web `SongBandLeaderboardPreview`), started together
+     * with the chart previews. With a selected player the service adds their best band row.
+     *
+     * @param song Resolved song.
+     * @param accountId Selected player, or null.
+     * @return Each size's state, in [bandTypes] order.
+     */
+    fun startBandPreviews(song: Song, accountId: String?): List<StateFlow<LoadState<SongBandLeaderboardResponse>>> {
+        val read = loadBandBoard ?: return emptyList()
+        return bandTypes.map { type ->
+            val loader = bandPreviews.getOrPut(type to accountId) {
+                RetryingLoader(viewModelScope, "band-preview:${song.songId}:${type.wireId}", backoff) {
+                    read(song.songId, type, LeaderboardPaging.PREVIEW_SIZE, accountId)
+                }
+            }
+            loader.ensureStarted()
+            loader.state
+        }
+    }
+
+    /**
+     * Retry one band preview.
+     *
+     * @param type Band size.
+     * @param accountId Selected player the preview was read for.
+     */
+    fun retryBandPreview(type: BandType, accountId: String?) {
+        bandPreviews[type to accountId]?.retry()
     }
 
     /**

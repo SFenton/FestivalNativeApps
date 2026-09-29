@@ -23,6 +23,7 @@ import com.festivalscoretracker.android.core.search.SearchScope
  * @property section `FST_DEBUG_TAB`.
  * @property route Parsed `FST_DEBUG_ROUTE`, excluding song lookups.
  * @property songQuery `song:` argument, resolved by ID or title once the catalogue loads.
+ * @property songInstrument `FST_DEBUG_INSTRUMENT=<wireId>`: the `song:` route's `?instrument=` focus.
  * @property opensDrawer `FST_DEBUG_DRAWER=1`.
  * @property opensProfileSheet `FST_DEBUG_SHEET=profile`.
  * @property profile `FST_DEBUG_PROFILE=<accountId>:<displayName>`, in memory only.
@@ -41,6 +42,7 @@ data class DebugLaunch(
     val section: FestivalSection? = null,
     val route: AppRoute? = null,
     val songQuery: String? = null,
+    val songInstrument: String? = null,
     val opensDrawer: Boolean = false,
     val opensProfileSheet: Boolean = false,
     val profile: SelectedPlayer? = null,
@@ -76,6 +78,7 @@ data class DebugLaunch(
                 section = FestivalSection.fromName(extras["FST_DEBUG_TAB"]),
                 route = rawRoute?.let(::parseRoute),
                 songQuery = songQuery,
+                songInstrument = extras["FST_DEBUG_INSTRUMENT"]?.takeIf { it.isNotBlank() },
                 opensDrawer = extras["FST_DEBUG_DRAWER"] == "1",
                 opensProfileSheet = extras["FST_DEBUG_SHEET"] == "profile",
                 profile = profile,

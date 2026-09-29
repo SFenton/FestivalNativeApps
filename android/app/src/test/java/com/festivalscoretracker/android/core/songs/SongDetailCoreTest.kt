@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.core.songs
 
+import com.festivalscoretracker.android.core.bands.BandType
 import com.festivalscoretracker.android.core.model.FestivalApiException
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.profile.PlayerHistoryState
@@ -82,6 +83,52 @@ class SongDetailCoreTest {
         assertEquals(2, SongDetailLayout.columns(600f, 9, hinge = false))
         assertEquals(2, SongDetailLayout.columns(380f, 9, hinge = true))
         assertEquals(1, SongDetailLayout.columns(900f, 1, hinge = true))
+    }
+
+
+    @Test
+    fun itemsFollowTheWebOrderWithBandsLast() {
+        val bands = BandType.entries
+        val items = SongDetailLayout.items(charts, columns = 2, history = true, hinge = false, bands = bands)
+        assertEquals(
+            listOf("header", "actions", "intensity", "history", "instruments:Solo_Guitar,Solo_Bass", "instruments:Solo_Drums,Solo_Vocals",
+                "bands:Band_Duets", "bands:Band_Trios", "bands:Band_Quad"),
+            items.map { it.key },
+        )
+        assertEquals(6, SongDetailLayout.indexOf(items, "band-Band_Duets"))
+        assertEquals(5, SongDetailLayout.indexOf(items, SongDetailLayout.instrumentId(Instrument.Vocals)))
+        assertEquals(3, SongDetailLayout.indexOf(items, "score-history"))
+        assertNull(SongDetailLayout.indexOf(items, "missing"))
+        val single = SongDetailLayout.items(charts, columns = 1, history = false, hinge = false, bands = emptyList())
+        assertEquals(listOf("header", "actions", "intensity") + charts.map { "instruments:${it.wireId}" }, single.map { it.key })
+    }
+
+    @Test
+    fun aHingeSplitsIntensityAndHistoryAndPairsBands() {
+        val items = SongDetailLayout.items(charts, columns = 2, history = true, hinge = true, bands = BandType.entries)
+        assertEquals(SongDetailItem.HingeSummary(history = true), items[2])
+        assertEquals(listOf("intensity", "score-history"), items[2].sections)
+        assertEquals(2, SongDetailLayout.indexOf(items, "score-history"))
+        assertEquals(listOf("bands:Band_Duets,Band_Trios", "bands:Band_Quad"), items.drop(5).map { it.key })
+        assertEquals(listOf("intensity"), SongDetailItem.HingeSummary(history = false).sections)
+        val all = Instrument.entries.take(5)
+        assertEquals(all.take(3) to all.drop(3), SongDetailLayout.splitIntensity(all))
+        assertEquals(listOf(Instrument.Lead) to emptyList<Instrument>(), SongDetailLayout.splitIntensity(listOf(Instrument.Lead)))
+    }
+
+    @Test
+    fun quickLinksAndFocusMatchTheWeb() {
+        val links = SongDetailLayout.quickLinks(listOf(Instrument.Lead, Instrument.Bass), history = true, bands = listOf(BandType.Duets))
+        assertEquals(listOf("intensity", "score-history", "instrument-Solo_Guitar", "instrument-Solo_Bass", "band-Band_Duets"), links.map { it.id })
+        assertEquals("Song Intensity", links[0].accessibleTitle)
+        assertEquals("Lead Leaderboard", links[2].accessibleTitle)
+        assertEquals(Instrument.Lead, links[2].instrument)
+        assertEquals("Duos Band Leaderboard", links[4].accessibleTitle)
+        assertEquals(listOf("intensity", "instrument-Solo_Guitar"), SongDetailLayout.quickLinks(listOf(Instrument.Lead), history = false, bands = emptyList()).map { it.id })
+        assertEquals(Instrument.Drums, SongDetailLayout.focus("Solo_Drums", charts))
+        assertNull(SongDetailLayout.focus("Solo_PeripheralDrums", charts))
+        assertNull(SongDetailLayout.focus("bogus", charts))
+        assertNull(SongDetailLayout.focus(null, charts))
     }
 
     // endregion

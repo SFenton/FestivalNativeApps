@@ -149,6 +149,12 @@ class FakeTransport(private val routes: MutableMap<String, (HttpRequest) -> Http
                         Fixtures.leaderboard(id, instrument, rows = minOf(top, 60 - offset).coerceAtLeast(0), total = 60, startRank = offset + 1)
                     }
                 }
+                // Song Detail band previews: empty boards unless a test installs rows.
+                listOf("Band_Duets", "Band_Trios", "Band_Quad").forEach { type ->
+                    on("/api/leaderboard/$id/bands/$type", headers = mapOf("X-FST-Publication-Id" to "7")) {
+                        """{"songId":"$id","bandType":"$type","count":0,"totalEntries":0,"localEntries":0,"entries":[]}"""
+                    }
+                }
             }
             on("/api/account/search") { """{"results":[{"accountId":"${Fixtures.ACCOUNT_A}","displayName":"Synthetic Player"},{"accountId":"bad/id","displayName":"Invalid"}]}""" }
         }
