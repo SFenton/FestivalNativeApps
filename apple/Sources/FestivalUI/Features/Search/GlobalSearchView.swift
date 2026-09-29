@@ -397,14 +397,19 @@ extension View {
 /// Implementation of `globalSearchToolbarItem()`.
 struct GlobalSearchToolbarItem: ViewModifier {
     @Environment(\.openGlobalSearch) private var openGlobalSearch
+    /// A root screen pushed as a page (Leaderboards from the drawer) already ends its
+    /// toolbar with `FestivalRootTrailingItems`, whose Search would otherwise appear twice.
+    @State private var pageProvidesSearch = false
 
     func body(content: Content) -> some View {
-        content.toolbar {
-            if let openGlobalSearch {
-                ToolbarItem(placement: .primaryAction) {
-                    GlobalSearchButton { openGlobalSearch() }
+        content
+            .onPreferenceChange(FestivalRootTrailingProvidedKey.self) { pageProvidesSearch = $0 }
+            .toolbar {
+                if let openGlobalSearch, !pageProvidesSearch {
+                    ToolbarItem(placement: .primaryAction) {
+                        GlobalSearchButton { openGlobalSearch() }
+                    }
                 }
             }
-        }
     }
 }

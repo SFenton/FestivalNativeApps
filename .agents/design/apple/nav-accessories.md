@@ -50,6 +50,13 @@
 
 Rivals is a tab root on iPad and Duo unfolded: Find Rival is `.topBarTrailing` and the toolbar ends with Search, bell + avatar.
 
+## Transitions and small widths (Lane A3)
+
+- **One page's tools at a time.** Pages are transparent over the shared artwork, so during a push or pop the outgoing page's floating buttons showed through beside the incoming page's. `TabAccessoryRegistry` records pages in appearance order (`pageAppeared`/`pageDisappeared` from each `FloatingPageControls`); only the latest page still on screen draws its buttons (`isFront`, 0.15 s fade), while every page keeps its bottom inset so layout never jumps. SwiftUI calls the incoming page's `onAppear` when the transition starts and the outgoing page's `onDisappear` when it ends; a cancelled interactive pop hands the tools back when the revealed page disappears again. Verified by recording a Songs → Song Detail push and pop (frames show only one set).
+- **Search sheet → push:** the chosen route is stored and pushed in the sheet's `onDismiss` (A2, `4e49ae7`), like the profile sheet.
+- **No duplicate Search:** a root screen pushed as a page (Leaderboards from the drawer) already ends with `FestivalRootTrailingItems`; `GlobalSearchToolbarItem` reads `FestivalRootTrailingProvidedKey` and steps aside.
+- **375 pt (iPhone SE width):** no FST SE simulator exists, so `FST_DEBUG_CANVAS_WIDTH=375` (Debug) lays the whole app out in a 375 pt canvas on the 402 pt iPhone 17 Pro. Captured with SFentonX: every tab root's large title (Songs, Suggestions, Compete, the player name on Statistics, Settings, Leaderboards) fits untruncated beside drawer + page action + Search + bell + avatar.
+
 ## Quick Links: accessory?
 
 **Floating tool, not the accessory** (operator, 2026-09-28). This lane first kept Quick Links in the top toolbar; the operator then asked for the web's bottom FAB dock, and finally for separate floating buttons rather than one merged bar. On iPhone Quick Links is a floating round glass button after Filter/Sort; on the Duo rail, iPad and Mac it stays a toolbar `Menu` (inspector later). The menu opens upward; its checkmark marks the active section.
@@ -61,4 +68,4 @@ Matches the web sidebar (`Sidebar.tsx`): Songs, Suggestions*, Statistics*, Rival
 ## Open issues
 
 - `TODO(orchestrator)`: Duo unfolded list/detail (W2) keeps the tools in the rail as toolbar items.
-- Songs draft/discard journeys (4) are skipped pending a rewrite for immediate-apply sheets.
+- ~~Songs draft/discard journeys~~: rewritten for immediate-apply sheets (Lane A3).

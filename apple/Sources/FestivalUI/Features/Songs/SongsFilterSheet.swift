@@ -280,9 +280,11 @@ struct SongsFilterSheet: View {
             .accessibilityIdentifier("fst.songs.filter.percentile.\(key)")
         }
       } label: {
+        // ID on the label, not the group: on iOS 26 a DisclosureGroup identifier
+        // replaces every nested toggle's own.
         bucketLabel("Percentile", hint: "Show or hide songs based on their leaderboard ranking bracket.")
+          .accessibilityIdentifier("fst.songs.filter.percentile")
       }
-      .accessibilityIdentifier("fst.songs.filter.percentile")
     }
     Section {
       DisclosureGroup(isExpanded: $starsExpanded) {
@@ -305,9 +307,11 @@ struct SongsFilterSheet: View {
           .accessibilityIdentifier("fst.songs.filter.stars.\(key)")
         }
       } label: {
+        // ID on the label, not the group: on iOS 26 a DisclosureGroup identifier
+        // replaces every nested toggle's own.
         bucketLabel("Stars", hint: "Filter songs by the number of stars on your high score.")
+          .accessibilityIdentifier("fst.songs.filter.stars")
       }
-      .accessibilityIdentifier("fst.songs.filter.stars")
     }
   }
 
