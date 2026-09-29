@@ -166,8 +166,18 @@ public struct FestivalSheetCloseItem: ToolbarContent {
         self.action = action
     }
 
+    /// Trailing, not `.confirmationAction`: that placement drew a prominent blue fill
+    /// whose white glyph missed 4.5:1 contrast.
+    private static var placement: ToolbarItemPlacement {
+        #if os(iOS)
+        .topBarTrailing
+        #else
+        .confirmationAction
+        #endif
+    }
+
     public var body: some ToolbarContent {
-        ToolbarItem(placement: .confirmationAction) {
+        ToolbarItem(placement: Self.placement) {
             Group {
                 if #available(iOS 26.0, macOS 26.0, *) {
                     Button(role: .close, action: action)

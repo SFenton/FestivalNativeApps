@@ -1163,7 +1163,12 @@ struct SongsScreen: View {
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
         if let link = group.quickLink {
+            // Row configuration again outside the quick-link wrapper, which the List
+            // otherwise did not see (the row drew the default opaque background).
             label.quickLinkSection(link)
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
         } else {
             label.id(group.id)
         }
