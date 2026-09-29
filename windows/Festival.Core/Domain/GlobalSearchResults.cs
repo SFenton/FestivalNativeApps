@@ -218,7 +218,7 @@ public static class GlobalSearchResults
         foreach (var player in players.Take(SuggestedPlayers))
             list.Add(new(GlobalSuggestionKind.Player, player.DisplayName, player.Subtitle, null, player.Route,
                 player.IsSelected ? $"Player, {player.DisplayName}, selected, opens Statistics" : $"Player, {player.DisplayName}"));
-        var seeAll = $"See all results for “{text}”";
+        var seeAll = $"See All Results for “{text}”";
         list.Add(new(GlobalSuggestionKind.SeeAll, seeAll, "", null, new AppRoute.Search(text), seeAll));
         return list;
     }

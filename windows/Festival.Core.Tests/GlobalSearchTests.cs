@@ -101,7 +101,7 @@ public class GlobalSearchResultsTests
         Assert.True(seeAll.IsSeeAll);
         Assert.False(seeAll.HasSubtitle);
         Assert.True(song.HasSubtitle);
-        Assert.Equal("See all results for “ab”", seeAll.Title);
+        Assert.Equal("See All Results for “ab”", seeAll.Title);
         Assert.Equal(new AppRoute.Search("ab"), seeAll.Route);
     }
 

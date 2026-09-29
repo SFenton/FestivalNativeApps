@@ -244,7 +244,7 @@ public sealed partial class RankingCardViewModel : ObservableObject
     public string SpotlightAutomationId => AutomationId + ".spotlight";
 
     /// <summary>Accessible name of "View All".</summary>
-    public string ViewAllName => $"View all {Instrument.Label()} rankings";
+    public string ViewAllName => $"View All {Instrument.Label()} Rankings";
 
     /// <summary>Button text, web <c>rankings.viewAllRankingsWithCount</c>: "View all rankings (868,901)".</summary>
     [ObservableProperty]
@@ -321,12 +321,12 @@ public sealed partial class RankingCardViewModel : ObservableObject
 /// <summary>The Leaderboards cards' "View all" label (web <c>RankingCard</c> <c>viewAllLabel</c>).</summary>
 public static class RankingViewAll
 {
-    /// <summary>"View all rankings (868,901)", or "View all rankings" when the total is unknown.</summary>
+    /// <summary>"View All Rankings (868,901)", or "View All Rankings" when the total is unknown (Title Case, operator 7.16).</summary>
     /// <param name="total">Ranked accounts or teams.</param>
     /// <returns>Label.</returns>
     public static string Label(int total) => total > 0
-        ? string.Create(System.Globalization.CultureInfo.CurrentCulture, $"View all rankings ({total:N0})")
-        : "View all rankings";
+        ? string.Create(System.Globalization.CultureInfo.CurrentCulture, $"View All Rankings ({total:N0})")
+        : "View All Rankings";
 }
 #endregion
 
@@ -371,7 +371,7 @@ public sealed partial class BandRankingCardViewModel : ObservableObject
     public string ViewAllAutomationId => AutomationId + ".view-all";
 
     /// <summary>Accessible name of "View All".</summary>
-    public string ViewAllName => $"View all {BandType.Label()} rankings";
+    public string ViewAllName => $"View All {BandType.Label()} Rankings";
 
     /// <summary>Button text with the ranked-team count.</summary>
     [ObservableProperty]

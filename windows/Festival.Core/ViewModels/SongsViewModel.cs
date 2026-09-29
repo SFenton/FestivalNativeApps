@@ -363,8 +363,21 @@ public sealed partial class SongSortDraft(FestivalSession session) : ObservableO
 
     /// <summary>Draft direction.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanApply))]
+    [NotifyPropertyChangedFor(nameof(CanApply), nameof(Descending))]
     private bool ascending = true;
+
+    /// <summary>The Descending choice (the inverse of <see cref="Ascending"/>, for the second direction row).</summary>
+    public bool Descending
+    {
+        get => !Ascending;
+        set => Ascending = !value;
+    }
+
+    /// <summary>Ascending row subtitle (web <c>sort.ascendingHintSongs</c> without the repeated word).</summary>
+    public const string AscendingHint = "A–Z, low–high";
+
+    /// <summary>Descending row subtitle (web <c>sort.descendingHintSongs</c>).</summary>
+    public const string DescendingHint = "Z–A, high–low";
 
     /// <summary>Available modes (Item Shop is removed while the Shop is hidden).</summary>
     public List<SongSortMode> Modes =>

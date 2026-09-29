@@ -85,7 +85,7 @@ public sealed class LeaderboardsOverviewTests
         Assert.Equal("fst.leaderboards.card.Solo_Guitar", lead.AutomationId);
         Assert.Equal("fst.leaderboards.card.Solo_Guitar.view-all", lead.ViewAllAutomationId);
         Assert.Equal(new AppRoute.FullRankings(Instrument.Lead, "totalscore"), lead.ViewAllRoute);
-        Assert.Equal("View all Lead rankings", lead.ViewAllName);
+        Assert.Equal("View All Lead Rankings", lead.ViewAllName);
         Assert.False(lead.Spotlight.IsVisible);
         var band = vm.BandCards[2];
         Assert.True(band.ShowRows);
@@ -94,7 +94,7 @@ public sealed class LeaderboardsOverviewTests
         Assert.Equal("fst.leaderboards.band-card.Band_Quad", band.AutomationId);
         Assert.Equal("fst.leaderboards.band-card.Band_Quad.view-all", band.ViewAllAutomationId);
         Assert.Equal(new AppRoute.BandRankings("Band_Quad"), band.ViewAllRoute);
-        Assert.Equal("View all Quads rankings", band.ViewAllName);
+        Assert.Equal("View All Quads Rankings", band.ViewAllName);
         Assert.Equal("Leaderboards Quick Links", vm.QuickLinks.Title);
         Assert.Equal(["instrument:Solo_Guitar", "instrument:Solo_Bass", "band:Band_Duets", "band:Band_Trios", "band:Band_Quad"],
             vm.QuickLinks.Items.Select(i => i.Section.Id));
@@ -785,7 +785,7 @@ public sealed class RankingViewAllTests
     public void Label_CarriesTheGroupedCountWhenKnown()
     {
         System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
-        Assert.Equal("View all rankings (868,901)", RankingViewAll.Label(868_901));
-        Assert.Equal("View all rankings", RankingViewAll.Label(0));
+        Assert.Equal("View All Rankings (868,901)", RankingViewAll.Label(868_901));
+        Assert.Equal("View All Rankings", RankingViewAll.Label(0));
     }
 }

@@ -71,12 +71,60 @@
                             <RadioButtons Header="Sort By" ItemsSource="{x:Bind ViewModel.SortDraft.ModeLabels, Mode=OneWay}"
                                           SelectedIndex="{x:Bind ViewModel.SortDraft.ModeIndex, Mode=TwoWay}"
                                           AutomationProperties.AutomationId="fst.songs.sort.mode" />
-                            <ToggleSwitch Header="Direction" OnContent="Ascending" OffContent="Descending"
-                                          IsOn="{x:Bind ViewModel.SortDraft.Ascending, Mode=TwoWay}"
-                                          AutomationProperties.AutomationId="fst.songs.sort.direction" />
+                            <!-- Direction rows (operator batch 7.21): "Ascending" / "Descending" with the web's description as the
+                                 subtitle beside the arrow. -->
+                            <StackPanel Spacing="2" AutomationProperties.Name="Direction" AutomationProperties.AutomationId="fst.songs.sort.direction">
+                                <TextBlock Text="Direction" Style="{StaticResource BodyStrongTextBlockStyle}" Margin="0,0,0,4" />
+                            <RadioButton GroupName="SongSortDirection" IsChecked="{x:Bind ViewModel.SortDraft.Ascending, Mode=TwoWay}"
+                                         AutomationProperties.Name="Ascending, A–Z, low–high" AutomationProperties.AutomationId="fst.songs.sort.direction.ascending">
+                                <Grid ColumnSpacing="10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <FontIcon Glyph="&#xE74A;" FontSize="16" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="Ascending" />
+                                        <TextBlock Text="A–Z, low–high" Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                                    </StackPanel>
+                                </Grid>
+                            </RadioButton>
+                            <RadioButton GroupName="SongSortDirection" IsChecked="{x:Bind ViewModel.SortDraft.Descending, Mode=TwoWay}"
+                                         AutomationProperties.Name="Descending, Z–A, high–low" AutomationProperties.AutomationId="fst.songs.sort.direction.descending">
+                                <Grid ColumnSpacing="10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <FontIcon Glyph="&#xE74B;" FontSize="16" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="Descending" />
+                                        <TextBlock Text="Z–A, high–low" Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                                    </StackPanel>
+                                </Grid>
+                            </RadioButton>
+                            </StackPanel>
                             <!-- Changes apply live; Reset restores the default sort. Light dismiss / Esc closes. -->
                             <Button Content="Reset" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.SortDraft.ResetCommand}"
-                                    AutomationProperties.AutomationId="fst.songs.sort.reset" />
+                                    AutomationProperties.AutomationId="fst.songs.sort.reset">
+                                    <Button.Resources>
+                                        <!-- Web Modal reset: a full-width red (btnDanger #C62828) button (operator batch 7.10). -->
+                                        <SolidColorBrush x:Key="ButtonBackground" Color="#FFC62828" />
+                                        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#FFD84343" />
+                                        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#FFA82020" />
+                                        <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="#59C62828" />
+                                        <SolidColorBrush x:Key="ButtonForeground" Color="#FFFFFFFF" />
+                                        <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#FFFFFFFF" />
+                                        <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#E6FFFFFF" />
+                                        <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="#99FFFFFF" />
+                                        <SolidColorBrush x:Key="ButtonBorderBrush" Color="#FFC62828" />
+                                        <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#FFD84343" />
+                                        <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="#FFA82020" />
+                                        <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="Transparent" />
+                                    </Button.Resources>
+                            </Button>
                         </StackPanel>
                     </Flyout>
                 </DropDownButton.Flyout>
@@ -211,7 +259,23 @@
                         </ScrollViewer>
                             <!-- Changes apply live; Reset clears every filter. Light dismiss / Esc closes. -->
                             <Button Grid.Row="1" Content="Reset" HorizontalAlignment="Stretch" Command="{x:Bind ViewModel.FilterDraft.ResetCommand}"
-                                    AutomationProperties.AutomationId="fst.songs.filter.reset" />
+                                    AutomationProperties.AutomationId="fst.songs.filter.reset">
+                                    <Button.Resources>
+                                        <!-- Web Modal reset: a full-width red (btnDanger #C62828) button (operator batch 7.10). -->
+                                        <SolidColorBrush x:Key="ButtonBackground" Color="#FFC62828" />
+                                        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#FFD84343" />
+                                        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#FFA82020" />
+                                        <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="#59C62828" />
+                                        <SolidColorBrush x:Key="ButtonForeground" Color="#FFFFFFFF" />
+                                        <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="#FFFFFFFF" />
+                                        <SolidColorBrush x:Key="ButtonForegroundPressed" Color="#E6FFFFFF" />
+                                        <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="#99FFFFFF" />
+                                        <SolidColorBrush x:Key="ButtonBorderBrush" Color="#FFC62828" />
+                                        <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#FFD84343" />
+                                        <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="#FFA82020" />
+                                        <SolidColorBrush x:Key="ButtonBorderBrushDisabled" Color="Transparent" />
+                                    </Button.Resources>
+                            </Button>
                         </Grid>
                     </Flyout>
                 </DropDownButton.Flyout>
