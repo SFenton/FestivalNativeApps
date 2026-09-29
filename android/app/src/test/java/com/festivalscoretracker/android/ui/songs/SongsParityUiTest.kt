@@ -10,6 +10,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performCustomAccessibilityActionWithLabel
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.datastore.preferences.core.Preferences
@@ -42,6 +43,7 @@ import org.robolectric.annotation.Config
 /** Songs Quick Links, profile sort modes, invalid-score fallback and Shop pulses on Robolectric. */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w411dp-h891dp-xxhdpi")
+@OptIn(androidx.compose.ui.test.ExperimentalTestApi::class)
 class SongsParityUiTest {
     @get:Rule
     val rule = createAndroidComposeRule<ComponentActivity>()
@@ -156,8 +158,8 @@ class SongsParityUiTest {
         settle()
         rule.onNodeWithTag("fst.songs.sort.form").performScrollToNode(hasTestTag("fst.songs.sort.maxdistance"))
         click("fst.songs.sort.maxdistance")
-        rule.onNodeWithTag("fst.songs.sort.form").performScrollToNode(hasTestTag("fst.songs.sort.priority.0.down"))
-        click("fst.songs.sort.priority.0.down")
+        rule.onNodeWithTag("fst.songs.sort.form").performScrollToNode(hasTestTag("fst.songs.sort.priority.0"))
+        rule.onNodeWithTag("fst.songs.sort.priority.0").performCustomAccessibilityActionWithLabel("Move down")
         click("fst.songs.sort.done")
         waitForTag("fst.songs.max-score.s-alpha", unmerged = true)
         waitForTag("fst.songs.section.maxdistance.100")

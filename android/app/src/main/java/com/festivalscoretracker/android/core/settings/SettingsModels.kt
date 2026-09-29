@@ -23,7 +23,7 @@ enum class MetadataField(val token: String, val label: String) {
     Stars("stars", "Stars"),
     Season("seasonachieved", "Season Achieved"),
     Intensity("intensity", "Intensity"),
-    Difficulty("difficulty", "Game Difficulty"),
+    Difficulty("difficulty", "Difficulty"),
     LastPlayed("lastplayed", "Last Played"),
     ;
 

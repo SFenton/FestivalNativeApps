@@ -78,28 +78,3 @@ data class LicenseManifest(
 }
 
 // endregion
-
-// region Bundled assets
-
-/**
- * A bundled first-party asset acknowledgement.
- *
- * @property id Stable ID.
- * @property name Display name.
- * @property detail Attribution.
- */
-data class BundledAsset(val id: String, val name: String, val detail: String)
-
-/** Bundled assets (no third-party album art is ever bundled; AGENTS.md). */
-object BundledAssets {
-    /** Every bundled asset acknowledgement. */
-    val all: List<BundledAsset> = listOf(
-        BundledAsset(
-            "instrument-icons",
-            "Instrument Icons",
-            "First-party instrument iconography from Festival Score Tracker, bundled as vector drawables.",
-        ),
-    )
-}
-
-// endregion

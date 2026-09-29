@@ -17,6 +17,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performCustomAccessibilityActionWithLabel
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -52,6 +53,7 @@ import org.robolectric.annotation.Config
 /** Settings, Licenses, first-run and notifications journeys on a phone window (Robolectric, synthetic fixtures). */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w411dp-h891dp-xxhdpi")
+@OptIn(androidx.compose.ui.test.ExperimentalTestApi::class)
 class SettingsUiTest {
     @get:Rule
     val rule = createAndroidComposeRule<ComponentActivity>()
@@ -108,6 +110,13 @@ class SettingsUiTest {
         settle()
     }
 
+    /** Reorder rows have no arrow buttons (web look); TalkBack's custom actions move them. */
+    private fun moveRow(tag: String, action: String) {
+        rule.onNodeWithTag("fst.settings.list").performScrollToNode(hasTestTag(tag))
+        rule.onNodeWithTag(tag).performCustomAccessibilityActionWithLabel(action)
+        settle()
+    }
+
     private val settingsTab = DebugLaunch(section = FestivalSection.Settings, stillBackground = true)
 
     @Test
@@ -116,9 +125,9 @@ class SettingsUiTest {
         waitForTag("fst.settings.list")
         tap("fst.settings.show-instrument-icons")
         tap("fst.settings.enable-visual-order")
-        tap("fst.settings.song-row-order.0.down")
+        moveRow("fst.settings.song-row-order.0", "Move down")
         tap("fst.settings.path-default-view.text")
-        tap("fst.settings.path-column-order.4.up")
+        moveRow("fst.settings.path-column-order.4", "Move up")
         tap("fst.settings.filter-invalid-scores")
         rule.onNodeWithTag("fst.settings.list").performScrollToNode(hasTestTag("fst.settings.leeway"))
         rule.onNodeWithTag("fst.settings.leeway").performSemanticsAction(SemanticsActions.SetProgress) { it(2.5f) }
@@ -198,7 +207,10 @@ class SettingsUiTest {
         rule.onNodeWithTag("fst.licenses.row.com.squareup.okhttp3:okhttp").performSemanticsAction(SemanticsActions.OnClick)
         waitForTag("fst.licenses.text")
         rule.onNodeWithText("Apache License", substring = true).assertExists()
-        rule.onNodeWithTag("fst.licenses.list").performScrollToNode(hasTestTag("fst.licenses.asset.instrument-icons"))
+        // Centred Close dismisses the sheet; the Bundled Assets section is gone (batch 6.17).
+        rule.onNodeWithTag("fst.licenses.close").performSemanticsAction(SemanticsActions.OnClick)
+        waitGone("fst.licenses.detail")
+        assertTrue(rule.onAllNodesWithText("Bundled Assets").fetchSemanticsNodes().isEmpty())
     }
 
     @Test
@@ -215,7 +227,19 @@ class SettingsUiTest {
         settle()
         rule.onNodeWithTag("fst.first-run.skip").performClick()
         waitGone("fst.first-run.dialog")
-        // Dismissed slides never show again on the next visit.
+        // Only the two displayed slides count as seen (batch 6.7): the next visit shows the other four.
+        rule.onNodeWithTag("fst.nav.tab.settings").performClick()
+        waitForTag("fst.settings.list")
+        rule.onNodeWithTag("fst.nav.tab.songs").performClick()
+        waitForTag("fst.first-run.dialog")
+        assertEquals("Slide 1 of 4", rule.onNodeWithTag("fst.first-run.position").fetchSemanticsNode().config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.StateDescription))
+        repeat(3) {
+            rule.onNodeWithTag("fst.first-run.next").performClick()
+            settle()
+        }
+        rule.onNodeWithTag("fst.first-run.done").performClick()
+        waitGone("fst.first-run.dialog")
+        // Every slide seen now: nothing on the next visit.
         rule.onNodeWithTag("fst.nav.tab.settings").performClick()
         waitForTag("fst.settings.list")
         rule.onNodeWithTag("fst.nav.tab.songs").performClick()

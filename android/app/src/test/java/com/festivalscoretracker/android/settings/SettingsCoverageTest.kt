@@ -11,7 +11,6 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.AppContainer
-import com.festivalscoretracker.android.core.licenses.BundledAssets
 import com.festivalscoretracker.android.core.licenses.LicenseManifest
 import com.festivalscoretracker.android.core.licenses.LicensedPackage
 import com.festivalscoretracker.android.core.model.FestivalApiException
@@ -93,7 +92,6 @@ class SettingsLogicCoverageTest {
         assertEquals("https://ok", manifest.packages[0].url)
         assertTrue(manifest.text(manifest.packages[1]).contains("mit text") && manifest.text(manifest.packages[1]).contains("apache"))
         assertEquals("Maven · g:a 1", LicensedPackage("g", "a", "1", "n", listOf("MIT")).subtitle)
-        assertEquals(1, BundledAssets.all.size)
     }
 }
 
