@@ -6,6 +6,10 @@ import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.notifications.ImprovementNotification
 import com.festivalscoretracker.android.core.notifications.NotificationDestination
 import com.festivalscoretracker.android.core.notifications.NotificationEventPayload
+import com.festivalscoretracker.android.core.notifications.NotificationFlagKind
+import com.festivalscoretracker.android.core.notifications.NotificationMedia
+import com.festivalscoretracker.android.core.notifications.NotificationMediaRules
+import com.festivalscoretracker.android.core.notifications.NotificationMessagePart
 import com.festivalscoretracker.android.core.notifications.NotificationPayload
 import com.festivalscoretracker.android.core.notifications.NotificationRouting
 import com.festivalscoretracker.android.core.notifications.NotificationSeenStore
@@ -95,6 +99,75 @@ class NotificationsTest {
             "player_fc_achieved" to "Full Combo", "player_gold_stars_achieved" to "Gold Stars", "player_stars_improved" to "Stars Up",
             "player_difficulty_bumped" to "Difficulty Up", "player_fc_count_improved" to "Progress",
         ).forEach { (kind, flag) -> assertEquals(flag, NotificationText.flag(kind)) }
+    }
+
+    @Test
+    fun mediaFollowsTheWebRail() {
+        val art = "https://cdn.example/alpha.jpg"
+        // Resolved art alone, art over an instrument grid for multi-chart rows, else the chart icon.
+        assertEquals(NotificationMedia.Song(art), NotificationMediaRules.media(item("a", "player_score_pb"), art))
+        val multi = item(
+            "b", "player_fc_achieved",
+            payload = NotificationPayload(
+                coalescedEvents = listOf(NotificationEventPayload("player_fc_achieved", "Solo_Drums"), NotificationEventPayload("player_fc_achieved", "Solo_Guitar")),
+                coalescedInstruments = listOf("Solo_Bass", "Not_A_Chart"),
+            ),
+        )
+        val grid = NotificationMediaRules.media(multi, art) as NotificationMedia.SongInstrumentGrid
+        assertEquals(listOf(Instrument.Lead, Instrument.Bass, Instrument.Drums), grid.instruments)
+        assertEquals("Affected instruments: Lead, Bass, Drums", grid.label)
+        assertEquals(NotificationMedia.SoloInstrument(Instrument.Drums), NotificationMediaRules.media(item("c", "player_score_pb", instrument = "Solo_Drums"), null))
+        assertEquals(NotificationMedia.SoloInstrument(Instrument.Lead), NotificationMediaRules.media(item("d", "player_total_score_improved", instrument = null), " "))
+        // Shop songs: art when known, else the Lead icon (web `DEFAULT_INSTRUMENT`), never a grid.
+        assertEquals(NotificationMedia.Song(art), NotificationMediaRules.media(item("e", "service_new_shop_song", instrument = null), art))
+        assertEquals(NotificationMedia.SoloInstrument(Instrument.Lead), NotificationMediaRules.media(item("f", "service_new_shop_song"), null))
+        // format() carries the media through.
+        assertEquals(NotificationMedia.Song(art), NotificationText.format(item("g", "player_score_pb"), "Alpha Tune", art).media)
+    }
+
+    @Test
+    fun messagesBoldTheWebsEmphasisTerms() {
+        val pb = NotificationText.format(item("a", "player_score_pb", newNumeric = 123456.0), "Alpha Tune")
+        assertEquals(NotificationFlagKind.NewHighScore, pb.flagKind)
+        assertEquals(
+            listOf(
+                NotificationMessagePart("You set a new personal best on "), NotificationMessagePart("Lead", true), NotificationMessagePart(" for "),
+                NotificationMessagePart("Alpha Tune", true), NotificationMessagePart(" with "), NotificationMessagePart("123,456", true),
+                NotificationMessagePart(" points."),
+            ),
+            pb.messageParts,
+        )
+        assertEquals(pb.message, pb.messageParts.joinToString("") { it.text })
+        // Fallback wording ("this song", "your new rank") is never bold.
+        val first = NotificationText.format(item("b", "player_first_score", newNumeric = 5.0), null)
+        assertEquals(listOf("Lead", "5"), first.messageParts.filter { it.emphasis }.map { it.text })
+        val stars = NotificationText.format(item("c", "player_stars_improved", oldNumeric = 4.0, newNumeric = 5.0), "Alpha Tune")
+        assertTrue(stars.messageParts.any { it.emphasis && it.text == "4 to 5 stars" })
+        val fc = NotificationText.format(item("d", "player_fc_achieved"), "Alpha Tune")
+        assertTrue(fc.messageParts.any { it.emphasis && it.text == "Full Combo" })
+        val gold = NotificationText.format(item("e", "player_gold_stars_achieved"), "Alpha Tune")
+        assertTrue(gold.messageParts.any { it.emphasis && it.text == "gold stars" })
+        val bump = NotificationText.format(item("f", "player_difficulty_bumped", oldNumeric = 3.0, newNumeric = 4.0), "Alpha Tune")
+        assertEquals(listOf("Lead", "Alpha Tune", "3", "4"), bump.messageParts.filter { it.emphasis }.map { it.text })
+        val shop = NotificationText.format(
+            item("g", "service_new_shop_song", payload = NotificationPayload(songTitle = "Shop Tune", artist = "Band X")), null,
+        )
+        assertEquals(listOf("Shop Tune", "Band X"), shop.messageParts.filter { it.emphasis }.map { it.text })
+        assertNull(shop.flagKind)
+        assertEquals(listOf(NotificationMessagePart("plain")), NotificationText.emphasize("plain", listOf("", "this song", "absent")))
+        NotificationFlagKind.entries.forEach { assertEquals(it.label, NotificationText.flag(kindFor(it))) }
+    }
+
+    private fun kindFor(kind: NotificationFlagKind) = when (kind) {
+        NotificationFlagKind.Improvement -> "mystery"
+        NotificationFlagKind.FirstPlay -> "player_first_score"
+        NotificationFlagKind.NewHighScore -> "player_score_pb"
+        NotificationFlagKind.FullCombo -> "player_fc_achieved"
+        NotificationFlagKind.RankUp -> "player_song_rank_improved"
+        NotificationFlagKind.GoldStars -> "player_gold_stars_achieved"
+        NotificationFlagKind.StarsUp -> "player_stars_improved"
+        NotificationFlagKind.DifficultyUp -> "player_difficulty_bumped"
+        NotificationFlagKind.Progress -> "player_fc_count_improved"
     }
 
     @Test
@@ -228,6 +301,7 @@ class NotificationsTest {
             load = { if (fail) throw FestivalApiException.HttpStatus(500) else NotificationsEnvelope(sourceRunId = if (generated) 1 else null, items = feed) },
             seenStore = store,
             songTitle = { if (it == "s-alpha") "Alpha Tune" else null },
+            artwork = { if (it.songId == "s-alpha") "https://cdn.example/alpha.jpg" else null },
             clock = { now },
             scope = vmScope,
         )
@@ -241,6 +315,7 @@ class NotificationsTest {
         assertEquals(2, vm.unreadCount.value)
         assertEquals("1h ago", loaded.newRows.first().timeText)
         assertTrue(loaded.newRows.first().accessibleText.startsWith("Unread. Alpha Tune · Lead."))
+        assertEquals(NotificationMedia.Song("https://cdn.example/alpha.jpg"), loaded.newRows.first().presentation.media)
 
         val destination = vm.activate(loaded.newRows.first())
         advanceUntilIdle()

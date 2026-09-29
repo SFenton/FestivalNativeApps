@@ -23,6 +23,7 @@ data class NotificationEventPayload(val eventKind: String? = null, val instrumen
  * Typed subset of the notification `payload` object.
  *
  * @property coalescedEvents Coalesced sub-events.
+ * @property coalescedInstruments Every chart the coalesced row touches.
  * @property songTitle Shop song title (`service_new_shop_song` has no account).
  * @property artist Shop song artist.
  * @property albumArt Shop song art reference.
@@ -30,6 +31,7 @@ data class NotificationEventPayload(val eventKind: String? = null, val instrumen
 @Serializable
 data class NotificationPayload(
     val coalescedEvents: List<NotificationEventPayload>? = null,
+    val coalescedInstruments: List<String>? = null,
     val songTitle: String? = null,
     val artist: String? = null,
     val albumArt: String? = null,
@@ -218,7 +220,102 @@ object NotificationRouting {
 
 // endregion
 
+// region Media
+
+/**
+ * The 64 dp leading media of a row (web `NotificationMedia`, player feed): album art when the
+ * catalogue resolves the song, art over a small instrument grid when the row touches several
+ * charts, else the chart's instrument icon. Combo media (band/combo rankings) is not used by
+ * the player feed natives read.
+ */
+sealed interface NotificationMedia {
+    /**
+     * Album art only.
+     *
+     * @property artUrl Absolute artwork URL.
+     */
+    data class Song(val artUrl: String) : NotificationMedia
+
+    /**
+     * Album art above a two-column grid of the affected instruments.
+     *
+     * @property artUrl Absolute artwork URL.
+     * @property instruments Affected charts in canonical order.
+     */
+    data class SongInstrumentGrid(val artUrl: String, val instruments: List<Instrument>) : NotificationMedia {
+        /** TalkBack label ("Affected instruments: Lead, Bass"). */
+        val label: String get() = "Affected instruments: " + instruments.joinToString(", ") { it.label }
+    }
+
+    /**
+     * One instrument icon (no resolved art).
+     *
+     * @property instrument Chart (Lead when the row names none, like the web).
+     */
+    data class SoloInstrument(val instrument: Instrument) : NotificationMedia
+}
+
+/** Media rules (web `useProfileNotificationsFeed.notificationMedia` / shop-song mapping). */
+object NotificationMediaRules {
+    /**
+     * Charts a row touches: `coalescedInstruments`, the coalesced events' charts and the row's
+     * own, deduplicated in canonical chart order (web `notificationSurfaceInstruments`).
+     *
+     * @param item Notification.
+     * @return Instruments.
+     */
+    fun surfaceInstruments(item: ImprovementNotification): List<Instrument> {
+        val keys = item.payload?.coalescedInstruments.orEmpty() +
+            NotificationRouting.events(item).mapNotNull { it.instrument } + listOfNotNull(item.instrument)
+        val present = keys.mapNotNull(Instrument::fromWireId).toSet()
+        return Instrument.entries.filter { it in present }
+    }
+
+    /**
+     * The row's media.
+     *
+     * @param item Notification.
+     * @param artUrl Resolved absolute album-art URL (catalogue first, shop payload second), if any.
+     * @return Media.
+     */
+    fun media(item: ImprovementNotification, artUrl: String?): NotificationMedia {
+        val art = artUrl?.takeIf { it.isNotBlank() }
+        if (item.eventKind == "service_new_shop_song") {
+            return art?.let(NotificationMedia::Song) ?: NotificationMedia.SoloInstrument(Instrument.Lead)
+        }
+        val instruments = surfaceInstruments(item)
+        return when {
+            art != null && instruments.size > 1 -> NotificationMedia.SongInstrumentGrid(art, instruments)
+            art != null -> NotificationMedia.Song(art)
+            else -> NotificationMedia.SoloInstrument(item.parsedInstrument ?: Instrument.Lead)
+        }
+    }
+}
+
+// endregion
+
 // region Text
+
+/** Flag kinds and their web labels (`notifications.flags.*`); colours live in the UI. */
+enum class NotificationFlagKind(val label: String) {
+    Improvement("Improvement"),
+    FirstPlay("First Play"),
+    NewHighScore("New High Score"),
+    FullCombo("Full Combo"),
+    RankUp("Rank Up"),
+    GoldStars("Gold Stars"),
+    StarsUp("Stars Up"),
+    DifficultyUp("Difficulty Up"),
+    Progress("Progress"),
+}
+
+/**
+ * One run of message text; emphasized runs are bold (web `NotificationMessagePart`).
+ *
+ * @property text Text.
+ * @property emphasis Bold.
+ */
+data class NotificationMessagePart(val text: String, val emphasis: Boolean = false)
 
 /**
  * A row ready for display.
@@ -229,6 +326,9 @@ object NotificationRouting {
  * @property flag Title Case flag label, or null for shop songs.
  * @property detectedAt Detection time.
  * @property destination Navigation target, if any.
+ * @property messageParts [message] split into plain and emphasized runs.
+ * @property flagKind Kind behind [flag] (drives the pill colour), or null for shop songs.
+ * @property media Leading media.
  */
 data class NotificationPresentation(
     val id: String,
@@ -237,6 +337,9 @@ data class NotificationPresentation(
     val flag: String?,
     val detectedAt: Instant,
     val destination: NotificationDestination?,
+    val messageParts: List<NotificationMessagePart> = listOf(NotificationMessagePart(message)),
+    val flagKind: NotificationFlagKind? = null,
+    val media: NotificationMedia = NotificationMedia.SoloInstrument(Instrument.Lead),
 )
 
 /**
@@ -276,21 +379,32 @@ object NotificationText {
         "player_gold_stars_achieved", "player_fc_achieved", "player_difficulty_bumped",
     )
 
+    /** Fallback wording never emphasized (web `FALLBACK_EMPHASIS_TERMS`). */
+    private val fallbackTerms = setOf("this song", "a new score", "your new rank", "more", "a higher difficulty", "this instrument")
+
     /**
      * Format a row.
      *
      * @param item Notification.
      * @param songTitle Catalogue title for the song, when resolved.
+     * @param artUrl Absolute album-art URL for the row's song, when resolved.
      * @return Presentation.
      */
-    fun format(item: ImprovementNotification, songTitle: String?): NotificationPresentation {
+    fun format(item: ImprovementNotification, songTitle: String?, artUrl: String? = null): NotificationPresentation {
         val destination = NotificationRouting.destination(item)
+        val media = NotificationMediaRules.media(item, artUrl)
         if (item.eventKind == "service_new_shop_song") {
             val shopTitle = trimmed(item.payload?.songTitle) ?: trimmed(songTitle) ?: "New Song"
             val artist = trimmed(item.payload?.artist) ?: "Unknown Artist"
+            val parts = listOf(
+                NotificationMessagePart(shopTitle, emphasis = true),
+                NotificationMessagePart(" by "),
+                NotificationMessagePart(artist, emphasis = true),
+                NotificationMessagePart(" has been added to the Item Shop."),
+            )
             return NotificationPresentation(
-                item.notificationGuid, "New Song · $shopTitle - $artist", "$shopTitle by $artist has been added to the Item Shop.",
-                null, item.detectedInstant, destination,
+                item.notificationGuid, "New Song · $shopTitle - $artist", parts.joinToString("") { it.text },
+                null, item.detectedInstant, destination, parts, null, media,
             )
         }
         val instrumentLabel = item.parsedInstrument?.label
@@ -298,9 +412,60 @@ object NotificationText {
         var message = templates[item.eventKind]?.let { fill(it, item, song, instrumentLabel ?: "this instrument") + "." }
             ?: "New improvement detected."
         if (item.eventKind == "player_first_score") message = message.dropLast(1) + " and started at ${rank(item.newRank)}."
+        val kind = flagKind(item.eventKind)
         return NotificationPresentation(
-            item.notificationGuid, title(item, songTitle, instrumentLabel), message, flag(item.eventKind), item.detectedInstant, destination,
+            item.notificationGuid, title(item, songTitle, instrumentLabel), message, kind.label, item.detectedInstant, destination,
+            emphasize(message, emphasisTerms(item, song, instrumentLabel)), kind, media,
         )
+    }
+
+    /**
+     * Words bolded in a player message (web `emphasisTermsForEvent`): the substituted values,
+     * the song for song events, and the achievement wording.
+     */
+    private fun emphasisTerms(item: ImprovementNotification, song: String, instrument: String?): List<String> = buildList {
+        add(number(item.newNumeric, "a new score"))
+        add(rank(item.oldRank))
+        add(rank(item.newRank))
+        instrument?.let(::add)
+        if (item.eventKind in playerSongKinds) add(song)
+        when (item.eventKind) {
+            "player_gold_stars_achieved" -> add("gold stars")
+            "player_fc_achieved" -> add("Full Combo")
+            "player_stars_improved" -> add("${number(item.oldNumeric, "more")} to ${number(item.newNumeric, "more")} stars")
+            "player_difficulty_bumped" -> add(number(item.oldNumeric, "a higher difficulty"))
+        }
+    }
+
+    /**
+     * Split text into plain and emphasized runs, longest term first (web `emphasizeText`).
+     *
+     * @param text Message.
+     * @param terms Candidate terms; blanks and fallback wording are ignored.
+     * @return Runs, adjacent runs of the same weight merged.
+     */
+    fun emphasize(text: String, terms: List<String>): List<NotificationMessagePart> {
+        val candidates = terms.map(String::trim).filter { it.isNotEmpty() && it !in fallbackTerms && it in text }
+            .distinct().sortedByDescending(String::length)
+        if (candidates.isEmpty()) return listOf(NotificationMessagePart(text))
+        val parts = mutableListOf<NotificationMessagePart>()
+        fun append(chunk: String, emphasis: Boolean) {
+            val last = parts.lastOrNull()
+            if (last != null && last.emphasis == emphasis) parts[parts.lastIndex] = last.copy(text = last.text + chunk)
+            else parts += NotificationMessagePart(chunk, emphasis)
+        }
+        var index = 0
+        while (index < text.length) {
+            val term = candidates.firstOrNull { text.startsWith(it, index) }
+            if (term != null) {
+                append(term, true)
+                index += term.length
+            } else {
+                append(text[index].toString(), false)
+                index += 1
+            }
+        }
+        return parts
     }
 
     private fun title(item: ImprovementNotification, songTitle: String?, instrumentLabel: String?): String {
@@ -320,16 +485,24 @@ object NotificationText {
      * @param eventKind Event kind.
      * @return Label.
      */
-    fun flag(eventKind: String): String = when {
-        eventKind == "player_first_score" -> "First Play"
-        eventKind == "player_score_pb" -> "New High Score"
-        eventKind == "player_fc_achieved" -> "Full Combo"
-        "rank_improved" in eventKind -> "Rank Up"
-        eventKind == "player_gold_stars_achieved" -> "Gold Stars"
-        eventKind == "player_stars_improved" -> "Stars Up"
-        eventKind == "player_difficulty_bumped" -> "Difficulty Up"
-        eventKind == "player_total_score_improved" || eventKind == "player_fc_count_improved" -> "Progress"
-        else -> "Improvement"
+    fun flag(eventKind: String): String = flagKind(eventKind).label
+
+    /**
+     * Flag kind (web `flagKind`).
+     *
+     * @param eventKind Event kind.
+     * @return Kind.
+     */
+    fun flagKind(eventKind: String): NotificationFlagKind = when {
+        eventKind == "player_first_score" -> NotificationFlagKind.FirstPlay
+        eventKind == "player_score_pb" -> NotificationFlagKind.NewHighScore
+        eventKind == "player_fc_achieved" -> NotificationFlagKind.FullCombo
+        "rank_improved" in eventKind -> NotificationFlagKind.RankUp
+        eventKind == "player_gold_stars_achieved" -> NotificationFlagKind.GoldStars
+        eventKind == "player_stars_improved" -> NotificationFlagKind.StarsUp
+        eventKind == "player_difficulty_bumped" -> NotificationFlagKind.DifficultyUp
+        eventKind == "player_total_score_improved" || eventKind == "player_fc_count_improved" -> NotificationFlagKind.Progress
+        else -> NotificationFlagKind.Improvement
     }
 
     private fun fill(template: String, item: ImprovementNotification, song: String, instrument: String): String = template

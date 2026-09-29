@@ -3,6 +3,7 @@ package com.festivalscoretracker.android.presentation.notifications
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.festivalscoretracker.android.core.model.SelectedPlayer
+import com.festivalscoretracker.android.core.notifications.ImprovementNotification
 import com.festivalscoretracker.android.core.notifications.NotificationDestination
 import com.festivalscoretracker.android.core.notifications.NotificationPresentation
 import com.festivalscoretracker.android.core.notifications.NotificationSeenStore
@@ -91,6 +92,7 @@ sealed interface NotificationsState {
  * @param load Feed read for an account.
  * @param seenStore Seen-state persistence.
  * @param songTitle Catalogue title lookup (null until the catalogue loads).
+ * @param artwork Absolute album-art URL for a row (catalogue art, else the shop payload's), if any.
  * @param clock Current time for relative labels.
  * @param scope Scope for loads (the view model scope by default).
  */
@@ -99,6 +101,7 @@ class NotificationsViewModel(
     private val load: suspend (String) -> NotificationsEnvelope,
     private val seenStore: NotificationSeenStore,
     private val songTitle: suspend (String) -> String? = { null },
+    private val artwork: suspend (ImprovementNotification) -> String? = { null },
     private val clock: () -> Instant = Instant::now,
     scope: CoroutineScope? = null,
 ) : ViewModel() {
@@ -192,7 +195,7 @@ class NotificationsViewModel(
         val now = clock()
         val rows = feed.items.orEmpty().sortedByDescending { it.detectedInstant }.map { item ->
             val title = item.songId?.let { songTitle(it) }
-            NotificationRow(NotificationText.format(item, title), item.notificationGuid !in seen, NotificationText.relativeTime(item.detectedInstant, now))
+            NotificationRow(NotificationText.format(item, title, artwork(item)), item.notificationGuid !in seen, NotificationText.relativeTime(item.detectedInstant, now))
         }
         val (fresh, older) = rows.partition { it.unread }
         unreadFlow.value = fresh.size

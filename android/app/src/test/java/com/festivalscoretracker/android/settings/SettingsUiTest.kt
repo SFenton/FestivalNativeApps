@@ -4,6 +4,10 @@ import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import com.festivalscoretracker.android.ui.notifications.NotificationMediaKind
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -250,8 +254,14 @@ class SettingsUiTest {
         }
         rule.onNodeWithTag("fst.shell.notifications").performClick()
         waitForTag("fst.notifications.row.n-song")
-        rule.onNodeWithText("New", useUnmergedTree = true).assertExists()
+        // Web section heading (upper case on screen, spoken as written).
+        rule.onNodeWithText("NEW", useUnmergedTree = true).assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("New")))
         rule.onNodeWithText("Alpha Tune · Lead", useUnmergedTree = true).assertExists()
+        // No catalogue art for this song in the fixture: the media rail falls back to the instrument icon.
+        rule.onNodeWithTag("fst.notifications.row.n-song").assert(SemanticsMatcher.expectValue(NotificationMediaKind, "soloInstrument"))
+        rule.onNodeWithTag("fst.notifications.row.n-song").assert(
+            SemanticsMatcher("open hint") { node -> node.config.getOrNull(SemanticsProperties.ContentDescription)?.single()?.endsWith("Open notification.") == true },
+        )
         rule.onNodeWithTag("fst.notifications.row.n-total").performSemanticsAction(SemanticsActions.OnClick) // no destination: stays open
         settle()
         rule.onNodeWithTag("fst.notifications.row.n-song").performSemanticsAction(SemanticsActions.OnClick)

@@ -1,6 +1,7 @@
 package com.festivalscoretracker.android.ui.notifications
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
@@ -18,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
@@ -32,31 +36,46 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsPropertyKey
+import androidx.compose.ui.semantics.SemanticsPropertyReceiver
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.compose.AsyncImage
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.nav.FullRankingsRoute
 import com.festivalscoretracker.android.core.nav.LeaderboardsRoute
 import com.festivalscoretracker.android.core.nav.SongDetailRoute
 import com.festivalscoretracker.android.core.notifications.NotificationDestination
+import com.festivalscoretracker.android.core.notifications.NotificationFlagKind
+import com.festivalscoretracker.android.core.notifications.NotificationMedia
+import com.festivalscoretracker.android.core.notifications.NotificationMessagePart
 import com.festivalscoretracker.android.presentation.notifications.NotificationRow
 import com.festivalscoretracker.android.presentation.notifications.NotificationsState
 import com.festivalscoretracker.android.presentation.notifications.NotificationsViewModel
 import com.festivalscoretracker.android.ui.common.FestivalLoading
+import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.common.rememberRevealed
+import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.popupTestTags
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 
@@ -145,8 +164,12 @@ fun NotificationsSheet(viewModel: NotificationsViewModel, onDismiss: () -> Unit,
             is NotificationsState.Failed -> ServiceStatusInline(
                 current.issue, "Notifications unavailable", null, viewModel::refresh, Modifier.padding(16.dp).testTag("fst.notifications.failed"),
             )
-            is NotificationsState.Empty -> Message(current.body, "fst.notifications.empty", title = "No notifications available")
-            is NotificationsState.Loaded -> LazyColumn(Modifier.fillMaxWidth().testTag("fst.notifications.list"), contentPadding = PaddingValues(bottom = 24.dp)) {
+            is NotificationsState.Empty -> EmptyState(current.body)
+            is NotificationsState.Loaded -> LazyColumn(
+                Modifier.fillMaxWidth().testTag("fst.notifications.list"),
+                contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
                 val olderOffset = if (current.newRows.isNotEmpty()) current.newRows.size + 1 else 0
                 if (current.newRows.isNotEmpty()) {
                     item(key = "new") { Box(Modifier.festivalFadeIn(revealed)) { SectionTitle("New") } }
@@ -172,53 +195,174 @@ private fun activate(viewModel: NotificationsViewModel, row: NotificationRow, on
     onNavigate(destination.route())
 }
 
+/** Web section heading: small, semibold, upper case, 74% white. */
 @Composable
 private fun SectionTitle(text: String) {
     Text(
-        text,
-        style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.Bold,
-        color = BrandTokens.textSecondary,
-        modifier = Modifier.padding(start = 24.dp, top = 12.dp, bottom = 4.dp).semantics { heading() },
+        text.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = Color.White.copy(alpha = 0.74f),
+        modifier = Modifier
+            .padding(start = 2.dp, top = 8.dp, bottom = 2.dp)
+            .semantics {
+                heading()
+                contentDescription = text
+            },
     )
 }
 
+/** Web flag colours (`MobileNotificationsModal.FLAG_COLORS`). */
+internal fun NotificationFlagKind.color(): Color = when (this) {
+    NotificationFlagKind.Improvement -> Color(0xFF4B5563)
+    NotificationFlagKind.FirstPlay -> Color(0xFF6D28D9)
+    NotificationFlagKind.NewHighScore -> Color(0xFF0F766E)
+    NotificationFlagKind.FullCombo -> Color(0xFF7C2D12)
+    NotificationFlagKind.RankUp -> Color(0xFF1D4ED8)
+    NotificationFlagKind.GoldStars -> Color(0xFF92400E)
+    NotificationFlagKind.StarsUp -> Color(0xFFBE123C)
+    NotificationFlagKind.DifficultyUp -> Color(0xFF047857)
+    NotificationFlagKind.Progress -> Color(0xFF4338CA)
+}
+
+/** Media kind exposed to tests (the row clears its children's semantics). */
+internal val NotificationMediaKind = SemanticsPropertyKey<String>("NotificationMediaKind")
+
+/** Semantics accessor for [NotificationMediaKind]. */
+internal var SemanticsPropertyReceiver.notificationMediaKind by NotificationMediaKind
+
+/**
+ * One web-style notification card: 64 dp media rail, marquee title, message with bold
+ * values, coloured flag pill, and a trailing unread dot above the chevron. The relative time
+ * is spoken but not drawn (the web row shows none).
+ */
 @Composable
 private fun NotificationItem(row: NotificationRow, onClick: () -> Unit) {
     val presentation = row.presentation
     val navigable = presentation.destination != null
+    val shape = RoundedCornerShape(10.dp)
     Row(
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 64.dp)
-            .clickable(enabled = true, onClick = onClick)
-            .padding(horizontal = 24.dp, vertical = 10.dp)
+            .clip(shape)
+            .background(BrandTokens.surfaceSubtle, shape)
+            .border(1.dp, BORDER_SUBTLE, shape)
+            .clickable(onClick = onClick)
+            .padding(10.dp)
             .testTag("fst.notifications.row.${row.id}")
             .clearAndSetSemantics {
-                contentDescription = row.accessibleText
+                contentDescription = row.accessibleText + if (navigable) " Open notification." else ""
+                notificationMediaKind = presentation.media.kindName
                 if (navigable) role = Role.Button
             },
     ) {
-        Box(Modifier.size(10.dp).background(if (row.unread) BrandTokens.gold else androidx.compose.ui.graphics.Color.Transparent, CircleShape))
-        Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(presentation.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = Modifier.weight(1f))
-                Text(row.timeText, style = MaterialTheme.typography.labelSmall, color = BrandTokens.textMuted, modifier = Modifier.padding(start = 8.dp))
-            }
-            Text(presentation.message, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary)
-            presentation.flag?.let {
+        MediaRail(presentation.media)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            FestivalMarqueeText(presentation.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(presentation.messageParts.toAnnotated(), style = MaterialTheme.typography.bodySmall, color = Color.White)
+            val kind = presentation.flagKind
+            if (kind != null) {
                 Text(
-                    it,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = BrandTokens.textPrimary,
-                    modifier = Modifier.padding(top = 2.dp).background(BrandTokens.accentPurple.copy(alpha = 0.5f), RoundedCornerShape(6.dp)).padding(horizontal = 8.dp, vertical = 2.dp),
+                    kind.label,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White,
+                    modifier = Modifier
+                        .background(kind.color(), RoundedCornerShape(8.dp))
+                        .border(2.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
                 )
             }
         }
-        if (navigable) Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = BrandTokens.textSecondary)
+        if (row.unread || navigable) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.width(20.dp)) {
+                if (row.unread) Box(Modifier.size(9.dp).background(UNREAD_DOT, CircleShape))
+                if (navigable) {
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = Color.White.copy(alpha = 0.72f), modifier = Modifier.size(18.dp))
+                }
+            }
+        }
     }
 }
+
+/** Test-visible name of a media kind. */
+private val NotificationMedia.kindName: String
+    get() = when (this) {
+        is NotificationMedia.Song -> "song"
+        is NotificationMedia.SongInstrumentGrid -> "songInstrumentGrid"
+        is NotificationMedia.SoloInstrument -> "soloInstrument"
+    }
+
+/** Web media rail: 64 dp square; art 54 dp (44 dp above an icon grid), or a 36 dp instrument icon. */
+@Composable
+private fun MediaRail(media: NotificationMedia) {
+    when (media) {
+        is NotificationMedia.Song -> Box(Modifier.size(64.dp), contentAlignment = Alignment.Center) { RowArt(media.artUrl, 54) }
+        is NotificationMedia.SoloInstrument -> Box(Modifier.size(64.dp), contentAlignment = Alignment.Center) {
+            InstrumentIcon(media.instrument, size = 36.dp, decorative = true)
+        }
+        is NotificationMedia.SongInstrumentGrid -> Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.width(64.dp),
+        ) {
+            RowArt(media.artUrl, 44)
+            media.instruments.chunked(2).forEach { pair ->
+                Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    pair.forEach { InstrumentIcon(it, size = 18.dp, decorative = true) }
+                }
+            }
+        }
+    }
+}
+
+/** Decorative album art through the shared in-process Coil loader. */
+@Composable
+private fun RowArt(url: String, size: Int) {
+    AsyncImage(
+        model = url,
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = Modifier.size(size.dp).clip(RoundedCornerShape(8.dp)).background(BrandTokens.surfaceMuted),
+    )
+}
+
+/** Message runs with the web's bold values. */
+private fun List<NotificationMessagePart>.toAnnotated(): AnnotatedString = buildAnnotatedString {
+    forEach { part ->
+        if (part.emphasis) withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(part.text) } else append(part.text)
+    }
+}
+
+/** Web empty state: muted bell-off glyph, bold title, short centred body. */
+@Composable
+private fun EmptyState(body: String) {
+    Column(
+        Modifier.fillMaxWidth().heightIn(min = 240.dp).padding(horizontal = 12.dp, vertical = 24.dp).testTag("fst.notifications.empty"),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
+    ) {
+        Icon(Icons.Outlined.NotificationsOff, contentDescription = null, tint = Color.White.copy(alpha = 0.72f), modifier = Modifier.size(48.dp))
+        Text(
+            "No notifications available",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 4.dp).semantics { heading() },
+        )
+        Text(body, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.68f), textAlign = TextAlign.Center, modifier = Modifier.widthIn(max = 240.dp))
+    }
+}
+
+/** Web `borderSubtle`. */
+private val BORDER_SUBTLE = Color(0xFF1E2A3A)
+
+/** Web unread dot (`#facc15`). */
+private val UNREAD_DOT = Color(0xFFFACC15)
 
 @Composable
 private fun Message(body: String, tag: String, title: String? = null, action: (@Composable () -> Unit)? = null) {

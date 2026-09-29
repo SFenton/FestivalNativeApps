@@ -277,6 +277,10 @@ private fun FestivalShell(
             load = { container.api.playerNotifications(it) },
             seenStore = container.notificationSeen,
             songTitle = { id -> runCatching { container.api.catalog().catalog.songs.firstOrNull { it.songId == id }?.title }.getOrNull() },
+            artwork = { item ->
+                val art = item.songId?.let { id -> runCatching { container.api.catalog().catalog.songs.firstOrNull { it.songId == id }?.albumArt }.getOrNull() }
+                container.api.artworkUrl(art ?: item.payload?.albumArt)
+            },
         )
     }
 
