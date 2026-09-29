@@ -172,6 +172,9 @@ class SuggestionsViewModelTest {
         val state = vm.uiState.value
         assertFalse(Instrument.Bass in state.visibleInstruments)
         assertTrue(state.cards.none { it.category.instrument == Instrument.Bass })
+        // Operator 6.37: mixed categories drop the hidden chart's rows, and no row shows it.
+        assertTrue(state.cards.flatMap { it.rows }.none { it.presentation.instrument == Instrument.Bass })
+        assertTrue(state.cards.flatMap { it.rows }.flatMap { it.presentation.chips }.none { it.instrument == Instrument.Bass })
     }
 
     @Test

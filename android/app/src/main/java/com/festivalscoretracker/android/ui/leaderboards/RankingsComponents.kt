@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.KeyboardDoubleArrowRight
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -125,19 +126,22 @@ private fun RankingRowLayout(
                 if (route == null) stateDescription = "Profile unavailable"
             },
     ) {
+        // Web `RankingEntry` `isPlayer`: every text in the selected player's row is bold.
+        val weight = if (isSelected) FontWeight.Bold else null
         Text(
             RankingFormatting.rankLabel(rank),
             style = MaterialTheme.typography.bodyMedium,
+            fontWeight = weight,
             color = BrandTokens.textPrimary,
             maxLines = 1,
             modifier = Modifier.widthIn(min = 44.dp),
         )
-        Text(name, style = MaterialTheme.typography.bodyLarge, color = BrandTokens.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        Text(songs, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary, maxLines = 1)
+        Text(name, style = MaterialTheme.typography.bodyLarge, fontWeight = weight, color = BrandTokens.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Text(songs, style = MaterialTheme.typography.bodyMedium, fontWeight = weight, color = BrandTokens.textSecondary, maxLines = 1)
         Column(horizontalAlignment = Alignment.End) {
-            Text(rating, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, color = RatingBlue, maxLines = 1)
+            Text(rating, style = MaterialTheme.typography.bodyLarge, fontWeight = weight ?: FontWeight.SemiBold, color = RatingBlue, maxLines = 1)
             if (bayesian != null) {
-                Text(bayesian, style = MaterialTheme.typography.labelSmall, color = BrandTokens.textSecondary, maxLines = 1)
+                Text(bayesian, style = MaterialTheme.typography.labelSmall, fontWeight = weight, color = BrandTokens.textSecondary, maxLines = 1)
             }
         }
     }
@@ -205,6 +209,21 @@ fun BandRankingRow(entry: BandRankingEntry, metric: BandRankingMetric, isSelecte
         onOpen = onOpen,
         tag = "fst.band-rankings.row.${entry.key}",
     )
+}
+
+// endregion
+
+// region Separators
+
+/**
+ * A hairline between rows grouped in one card (operator batch 6, 6.5: cards with several
+ * entries separate them), inset to the rows' text.
+ *
+ * @param modifier Modifier.
+ */
+@Composable
+fun RowSeparator(modifier: Modifier = Modifier) {
+    HorizontalDivider(modifier.padding(horizontal = 8.dp), thickness = 1.dp, color = BrandTokens.glassBorder)
 }
 
 // endregion
@@ -290,10 +309,10 @@ fun SpotlightUnrankedRow(message: String, tag: String) {
 
 /**
  * « ‹ page / total › » (First, Previous, Next, Last), shared by every paginated board,
- * drawn as a floating pill (the web's floating paginator; Material 3 floating
- * toolbar shape) that the board anchors above the bottom chrome. The page text is a
- * polite live region ("Page 2 of 34,760"); First/Last collapse on very narrow
- * windows. Every target is at least 48 dp.
+ * drawn like the web's floating paginator: each button its own frosted circle and
+ * the page label its own frosted pill, in a row the board anchors above the bottom
+ * chrome. The page text is a polite live region ("Page 2 of 34,760"); First/Last
+ * collapse on very narrow windows. Every target is at least 48 dp.
  *
  * @param page Current one-based page.
  * @param totalPages Page count.
@@ -304,43 +323,70 @@ fun SpotlightUnrankedRow(message: String, tag: String) {
 @Composable
 fun RankingsPager(page: Int, totalPages: Int, idPrefix: String, onChange: (Int) -> Unit, modifier: Modifier = Modifier) {
     val grouping = remember { NumberFormat.getIntegerInstance() }
-    val showEnds = LocalConfiguration.current.screenWidthDp >= 360
-    Surface(
-        shape = CircleShape,
-        color = BrandTokens.cardBackground.copy(alpha = 0.96f),
-        border = BorderStroke(1.dp, BrandTokens.glassBorder),
-        shadowElevation = 6.dp,
+    // Five 48 dp buttons and the label need ~370 dp: First/Last drop below 400 dp windows.
+    val showEnds = LocalConfiguration.current.screenWidthDp >= 400
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
         modifier = modifier.testTag("$idPrefix.pager"),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 4.dp)) {
-            if (showEnds) {
-                IconButton(onClick = { onChange(1) }, enabled = page > 1, modifier = Modifier.testTag("$idPrefix.page-first")) {
-                    Icon(Icons.Filled.KeyboardDoubleArrowLeft, contentDescription = "First page")
-                }
-            }
-            IconButton(onClick = { onChange(page - 1) }, enabled = page > 1, modifier = Modifier.testTag("$idPrefix.page-previous")) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous page")
-            }
+        if (showEnds) {
+            PagerButton(Icons.Filled.KeyboardDoubleArrowLeft, "First page", "$idPrefix.page-first", page > 1) { onChange(1) }
+        }
+        PagerButton(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Previous page", "$idPrefix.page-previous", page > 1) { onChange(page - 1) }
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = PagerSurface,
+            border = BorderStroke(1.dp, BrandTokens.glassBorder),
+            shadowElevation = 4.dp,
+        ) {
             Text(
                 "${grouping.format(page)} / ${grouping.format(totalPages)}",
                 style = MaterialTheme.typography.labelLarge,
                 color = BrandTokens.textPrimary,
+                maxLines = 1,
                 modifier = Modifier
-                    .padding(horizontal = 8.dp)
+                    .heightIn(min = 48.dp)
+                    .padding(horizontal = 14.dp, vertical = 14.dp)
                     .testTag("$idPrefix.page-info")
                     .semantics {
                         contentDescription = "Page ${grouping.format(page)} of ${grouping.format(totalPages)}"
                         liveRegion = LiveRegionMode.Polite
                     },
             )
-            IconButton(onClick = { onChange(page + 1) }, enabled = page < totalPages, modifier = Modifier.testTag("$idPrefix.page-next")) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next page")
-            }
-            if (showEnds) {
-                IconButton(onClick = { onChange(totalPages) }, enabled = page < totalPages, modifier = Modifier.testTag("$idPrefix.page-last")) {
-                    Icon(Icons.Filled.KeyboardDoubleArrowRight, contentDescription = "Last page")
-                }
-            }
+        }
+        PagerButton(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Next page", "$idPrefix.page-next", page < totalPages) { onChange(page + 1) }
+        if (showEnds) {
+            PagerButton(Icons.Filled.KeyboardDoubleArrowRight, "Last page", "$idPrefix.page-last", page < totalPages) { onChange(totalPages) }
+        }
+    }
+}
+
+/** Opaque frosted fill for the floating pager, legible over rows scrolling beneath it. */
+private val PagerSurface: Color get() = BrandTokens.cardBackground.copy(alpha = 0.96f)
+
+/**
+ * One frosted circular pager button (web `PaginatorButton`): 48 dp, dimmed when disabled.
+ *
+ * @param icon Glyph.
+ * @param label Accessible name.
+ * @param tag Test tag.
+ * @param enabled Whether it can be pressed.
+ * @param onClick Action.
+ */
+@Composable
+private fun PagerButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tag: String, enabled: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        shape = CircleShape,
+        color = PagerSurface,
+        border = BorderStroke(1.dp, BrandTokens.glassBorder),
+        shadowElevation = 4.dp,
+        modifier = Modifier.size(48.dp).testTag(tag).semantics { contentDescription = label },
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = if (enabled) BrandTokens.textPrimary else BrandTokens.textDisabled)
         }
     }
 }

@@ -155,6 +155,7 @@ private fun LazyListScope.rankingRows(
                     entries.isEmpty() -> Text("No ranked players yet.", color = BrandTokens.textPrimary, modifier = Modifier.padding(8.dp))
                     else -> entries.forEachIndexed { index, entry ->
                         Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
+                            if (index > 0) RowSeparator(Modifier.align(Alignment.TopCenter))
                             AccountRankingRow(
                                 entry = entry,
                                 metric = metric,

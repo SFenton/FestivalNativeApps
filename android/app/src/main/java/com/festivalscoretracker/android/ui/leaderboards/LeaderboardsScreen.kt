@@ -205,12 +205,18 @@ private fun OverviewList(
     }
 }
 
+/**
+ * The Bands section title above the Duos · Trios · Quads cards: one step larger than
+ * their card headers (operator batch 6, 6.8), so it reads as their parent.
+ *
+ * @param onBrowse Open Band Rankings.
+ */
 @Composable
 private fun BandsHeader(onBrowse: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
         Text(
             "Bands",
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             color = BrandTokens.textPrimary,
             modifier = Modifier.weight(1f).semantics { heading() },
@@ -308,6 +314,7 @@ private fun InstrumentCard(instrument: Instrument, viewModel: LeaderboardsViewMo
                     }
                     entries.forEachIndexed { index, entry ->
                         Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
+                            if (index > 0) RowSeparator(Modifier.align(Alignment.TopCenter))
                             AccountRankingRow(
                                 entry = entry,
                                 metric = metric,
@@ -398,6 +405,7 @@ private fun BandCard(bandType: BandType, viewModel: LeaderboardsViewModel, metri
                     }
                     entries.forEachIndexed { index, entry ->
                         Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
+                            if (index > 0) RowSeparator(Modifier.align(Alignment.TopCenter))
                             BandRankingRow(entry, bandMetric, entry.includes(selected), RankingNavigation.bandRoute(entry, bandType), navigate)
                         }
                     }
