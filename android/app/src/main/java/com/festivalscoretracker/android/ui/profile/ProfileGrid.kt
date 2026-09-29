@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.profile.ProfileColumns
 import com.festivalscoretracker.android.core.profile.ProfileGridSpec
 import com.festivalscoretracker.android.core.rivals.ColumnSpec
-import com.festivalscoretracker.android.ui.common.rememberScreenReaderOn
+import com.festivalscoretracker.android.ui.common.rememberSingleColumn
 import kotlin.math.roundToInt
 
 // region Fold-aware grid
@@ -80,9 +80,9 @@ fun ProfileGrid(
     val grid = bounds?.let { (start, width) ->
         ProfileColumns.resolve(start, width, hinges, with(density) { minColumn.roundToPx() }, gutter, maxColumns)
     } ?: ProfileGridSpec(ColumnSpec(listOf(0), gutter), splitAtFold = false)
-    // One column under TalkBack (see rememberScreenReaderOn): no side-by-side cards to skip.
-    val screenReader = rememberScreenReaderOn()
-    val cells = remember(grid.spec, bounds == null, screenReader) { if (bounds == null || screenReader) StaggeredGridCells.Fixed(1) else ProfileCells(grid.spec) }
+    // One column under TalkBack or at large text (see rememberSingleColumn).
+    val singleColumn = rememberSingleColumn()
+    val cells = remember(grid.spec, bounds == null, singleColumn) { if (bounds == null || singleColumn) StaggeredGridCells.Fixed(1) else ProfileCells(grid.spec) }
     LazyVerticalStaggeredGrid(
         columns = cells,
         state = state,
@@ -97,7 +97,7 @@ fun ProfileGrid(
             }
             .testTag("fst.player.available"),
     ) {
-        content(grid.splitAtFold && !screenReader)
+        content(grid.splitAtFold && !singleColumn)
     }
 }
 

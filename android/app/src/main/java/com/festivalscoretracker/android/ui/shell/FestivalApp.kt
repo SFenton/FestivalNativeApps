@@ -515,7 +515,7 @@ private fun FestivalShell(
                         container = container,
                         shellViewModel = shellViewModel,
                         settings = settings,
-                        twoPane = AdaptiveLayoutPolicy.showsTwoPanes(widthDp, verticalHinge != null),
+                        twoPane = AdaptiveLayoutPolicy.showsTwoPanes(widthDp, verticalHinge != null, density.fontScale),
                         hingeSplit = verticalHinge != null,
                         listPaneWidth = AdaptiveLayoutPolicy.listPaneWidth(
                             contentWidthDp,

@@ -36,4 +36,14 @@ fun rememberScreenReaderOn(): Boolean {
     return enabled
 }
 
+/**
+ * Whether multi-column content grids and hinge splits fall back to one column: while a
+ * screen reader runs ([rememberScreenReaderOn]) or at large font scales ([isLargeText]),
+ * where a half-width column wrapped names a few letters per line.
+ *
+ * @return True when content should use one column.
+ */
+@Composable
+fun rememberSingleColumn(): Boolean = rememberScreenReaderOn() || isLargeText()
+
 // endregion

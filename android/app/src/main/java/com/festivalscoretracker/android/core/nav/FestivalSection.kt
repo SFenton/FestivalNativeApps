@@ -146,10 +146,16 @@ object AdaptiveLayoutPolicy {
      * @param widthDp **Window** width in dp (Material's expanded class), not the
      *   content width left after a rail.
      * @param separatingHinge Whether a vertical separating fold splits the window.
+     * @param fontScale User font scale. From [LARGE_TEXT_SCALE] a fold no longer forces two
+     *   panes and the width must reach the expanded class in text-scaled dp (a 200% list pane
+     *   beside the hinge wrapped titles a few letters per line).
      * @return True for expanded widths or a separating vertical hinge.
      */
-    fun showsTwoPanes(widthDp: Int, separatingHinge: Boolean): Boolean =
-        separatingHinge || widthDp >= EXPANDED_WIDTH_DP
+    fun showsTwoPanes(widthDp: Int, separatingHinge: Boolean, fontScale: Float = 1f): Boolean =
+        if (fontScale >= LARGE_TEXT_SCALE) widthDp / fontScale >= EXPANDED_WIDTH_DP else separatingHinge || widthDp >= EXPANDED_WIDTH_DP
+
+    /** Font scale from which layouts reflow for large text (`ui.common.LARGE_TEXT_SCALE`). */
+    const val LARGE_TEXT_SCALE = 1.3f
 
     /**
      * Width of the list pane: the hinge's leading edge when a vertical fold

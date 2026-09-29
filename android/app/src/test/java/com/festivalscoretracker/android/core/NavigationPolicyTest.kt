@@ -87,6 +87,11 @@ class NavigationPolicyTest {
         assertTrue(AdaptiveLayoutPolicy.showsTwoPanes(840, false))
         assertTrue(AdaptiveLayoutPolicy.showsTwoPanes(700, true))
         assertFalse(AdaptiveLayoutPolicy.showsTwoPanes(700, false))
+        // Large text: a fold alone no longer splits; the width must hold the text-scaled panes.
+        assertFalse(AdaptiveLayoutPolicy.showsTwoPanes(673, true, fontScale = 2f))
+        assertFalse(AdaptiveLayoutPolicy.showsTwoPanes(1280, false, fontScale = 2f))
+        assertTrue(AdaptiveLayoutPolicy.showsTwoPanes(1280, false, fontScale = 1.3f))
+        assertTrue(AdaptiveLayoutPolicy.showsTwoPanes(700, true, fontScale = 1.15f))
         assertEquals(400, AdaptiveLayoutPolicy.listPaneWidth(1000, null))
         assertEquals(320, AdaptiveLayoutPolicy.listPaneWidth(700, null))
         assertEquals(440, AdaptiveLayoutPolicy.listPaneWidth(1400, null))

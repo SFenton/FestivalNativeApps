@@ -61,7 +61,7 @@ import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.common.rememberRevealed
-import com.festivalscoretracker.android.ui.common.rememberScreenReaderOn
+import com.festivalscoretracker.android.ui.common.rememberSingleColumn
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.ViewFullLeaderboardButton
@@ -96,12 +96,12 @@ fun LeaderboardsScreen(viewModel: LeaderboardsViewModel, isRoot: Boolean) {
     val listState = rememberLazyListState()
     val density = LocalDensity.current
     val windowWidthDp = with(density) { currentWindowSize().width.toDp().value.toInt() }
-    // One column under TalkBack (see rememberScreenReaderOn): no side-by-side cards to skip.
-    val screenReader = rememberScreenReaderOn()
-    val folded = !screenReader && currentWindowAdaptiveInfo().windowPosture.hingeList.any { it.isSeparating && it.isVertical }
+    // One column under TalkBack or at large text (see rememberSingleColumn).
+    val singleColumn = rememberSingleColumn()
+    val folded = !singleColumn && currentWindowAdaptiveInfo().windowPosture.hingeList.any { it.isSeparating && it.isVertical }
     val scrolled by remember(listState) { derivedStateOf { listState.canScrollBackward } }
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val columns = if (screenReader) 1 else LeaderboardsLayoutPolicy.columns(maxWidth.value.toInt(), folded)
+        val columns = if (singleColumn) 1 else LeaderboardsLayoutPolicy.columns(maxWidth.value.toInt(), folded)
         val layout = remember(ready, instruments, selected, columns, folded) {
             if (ready) OverviewLayout(instruments, showHistory = selected != null && instruments.isNotEmpty(), columns, pairHistory = folded) else null
         }
