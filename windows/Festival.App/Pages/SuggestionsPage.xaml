@@ -29,8 +29,8 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!-- Title and the Filter action (web: top-right pill). -->
-        <Grid Margin="0,0,12,0">
+        <!-- Title and the Filter action (web: top-right pill); hidden behind the spinner, then faded in with the cards. -->
+        <Grid Margin="0,0,12,0" Visibility="{x:Bind ViewModel.ShowHeader, Mode=OneWay}" controls:FadeIn.OnShow="True">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -62,7 +62,8 @@
                                        AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.suggestions.filter.title" />
                             <ScrollViewer Grid.Row="1" Padding="16,0,16,0">
                                 <StackPanel Spacing="8" Padding="0,0,0,12">
-                                    <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="True"
+                                    <!-- Web Accordions start collapsed. -->
+                                    <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                               AutomationProperties.AutomationId="fst.suggestions.filter.instruments">
                                         <Expander.Header>
                                             <StackPanel Padding="0,8">
@@ -100,23 +101,20 @@
                                         <ItemsControl ItemsSource="{x:Bind ViewModel.FilterDraft.TypeToggles}" ItemTemplate="{StaticResource TypeToggleTemplate}" />
                                     </Expander>
 
-                                    <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
-                                              IsEnabled="{x:Bind ViewModel.FilterDraft.HasInstruments, Mode=OneWay}"
-                                              AutomationProperties.AutomationId="fst.suggestions.filter.instrument-specific">
-                                        <Expander.Header>
-                                            <StackPanel Padding="0,8">
-                                                <TextBlock Text="Instrument-Specific" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                                <TextBlock Text="Select an instrument to filter its suggestion types individually." Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" FontSize="12" />
-                                            </StackPanel>
-                                        </Expander.Header>
-                                        <StackPanel Spacing="8">
-                                            <ComboBox Header="Instrument" HorizontalAlignment="Stretch"
-                                                      ItemsSource="{x:Bind ViewModel.FilterDraft.InstrumentChoices, Mode=OneWay}"
-                                                      SelectedIndex="{x:Bind ViewModel.FilterDraft.SelectedInstrumentIndex, Mode=TwoWay}"
-                                                      AutomationProperties.AutomationId="fst.suggestions.filter.instrument-picker" />
-                                            <ItemsControl ItemsSource="{x:Bind ViewModel.FilterDraft.InstrumentTypeToggles}" ItemTemplate="{StaticResource TypeToggleTemplate}" />
+<!-- Instrument-Specific (web ModalSection + deferSelection InstrumentSelector): pick a chart, its switches expand. -->
+                                    <StackPanel Spacing="8" Padding="0,8,0,0" Visibility="{x:Bind ViewModel.FilterDraft.HasInstruments, Mode=OneWay}"
+                                                AutomationProperties.AutomationId="fst.suggestions.filter.instrument-specific">
+                                        <StackPanel>
+                                            <TextBlock Text="Instrument-Specific" Style="{StaticResource BodyStrongTextBlockStyle}" AutomationProperties.HeadingLevel="Level3" />
+                                            <TextBlock Text="Select an instrument to filter its suggestion types individually." Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" FontSize="12" />
                                         </StackPanel>
-                                    </Expander>
+                                        <controls:InstrumentSelector x:Name="InstrumentPicker" DeferSelection="True" IdPrefix="fst.suggestions.filter.instrument-picker"
+                                                                     SelectionChanged="OnFilterInstrumentChanged">
+                                            <controls:InstrumentSelector.DetailContent>
+                                                <ItemsControl Margin="0,8,0,0" ItemsSource="{x:Bind ViewModel.FilterDraft.InstrumentTypeToggles}" ItemTemplate="{StaticResource TypeToggleTemplate}" />
+                                            </controls:InstrumentSelector.DetailContent>
+                                        </controls:InstrumentSelector>
+                                    </StackPanel>
                                 </StackPanel>
                             </ScrollViewer>
                             <!-- Switches apply live; Reset restores the defaults. Light dismiss / Esc closes. -->

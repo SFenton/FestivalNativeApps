@@ -13,7 +13,7 @@
 | Filter persistence as its own file `%LOCALAPPDATA%\FestivalScoreTracker\suggestions-filter.json` (untouched filter = no file; corrupt/oversize = defaults) | `Festival.Core/Data/SuggestionFilterStore.cs` |
 | Row metadata by category key (web `getRowLayout`: rival, UNFC accuracy, season, percentile tier, stars, instrument chips) and Narrator names | `Festival.Core/Domain/SuggestionRowPresentation.cs` |
 | Page model: web batching (10 first, 6 per trigger, endless `resetForEndless` remix, 1,000-category cap + Start New Mix), one generator per (player, catalogue, score publication), rivals fetched in parallel and spliced when they answer, filter applied without regenerating | `Festival.Core/ViewModels/SuggestionsViewModel.cs`, `SuggestionsFilterDraft.cs` |
-| Page: virtualized `ListView` of Fluent cards; third-from-last realized card loads the next batch; filter `DropDownButton` flyout (Instruments / General / Instrument-Specific expanders; switches apply live, Reset only; gold tint when active). Each card's title, description and category instrument (36 epx) sit above the card; rows follow the web `CategoryCard` (10 × 24 epx padding, separators between rows only, 34 epx instrument chips with 20 epx icons, 20 epx star images for star-gain categories, marquee titles on hover/focus); cards stagger in | `Festival.App/Pages/SuggestionsPage.xaml(.cs)`, `Festival.App/Controls/SuggestionSongRow.cs` |
+| Page: virtualized `ListView` of Fluent cards; third-from-last realized card loads the next batch; filter `DropDownButton` flyout (Instruments / General expanders, collapsed like the web accordions; Instrument-Specific uses the web **Instrument Selector** with `DeferSelection`, nothing selected on opening, the chart's type switches expanding under it; switches apply live, Reset only; gold tint when active). The title and Filter action stay hidden behind the spinner until the first cards are ready, then fade in with them (web `headerStagger`, batch 6.41). Each card's title, description and category instrument (36 epx) sit above the card; rows follow the web `CategoryCard` (10 × 24 epx padding, separators between rows only, 34 epx instrument chips with 20 epx icons, 20 epx star images for star-gain categories, marquee titles on hover/focus); cards stagger in | `Festival.App/Pages/SuggestionsPage.xaml(.cs)`, `Festival.App/Controls/SuggestionSongRow.cs` |
 
 States: no player, loading, syncing (202), failed (catalogue or profile; Retry), empty (no suggestions / filtered with Reset Filters), loaded, end-of-mix footer. Rows push Song Detail with the row's (or category's) chart.
 
@@ -27,6 +27,7 @@ States: no player, loading, syncing (202), failed (catalogue or profile; Retry),
 
 - Accuracy stays in expanded units (0–1,000,000) inside the generator, like Apple; `SuggestionSongItem.Percent` is 0–100.
 - The filter is a separate file rather than an `AppSettings` field so it does not widen the shared settings model; Settings' future "Reset" should also delete it (open issue).
+- The filter follows Settings' visible instruments (batch 6.37): hidden charts are not offered, an open filter rebuilds at once when Settings change, and toggles left off on a hidden chart don't count toward the gold accent, the filtered-empty message or Reset (`SuggestionFilterSettings.IsActiveFor`); they return when the chart is shown again.
 - A filter that disables every type skips generation entirely (nothing could show) instead of spinning the generator.
 - Art: one retry on a failed fetch, and a stale `Unloaded` (WinUI re-parenting) no longer cancels a row's in-flight art load.
 
@@ -38,8 +39,8 @@ States: no player, loading, syncing (202), failed (catalogue or profile; Retry),
 
 - Compact (500 px): the shell keeps the `NavigationView` pane expanded, leaving ~350 px of content (shell lane).
 - Filter reset is not wired into Settings' Reset; no first-run slides; no scroll restoration across launches (the page and its mix are cached for the session).
-- UI automation journeys (FlaUI) for the live filter and incremental loading are not yet written; `uiwin.py scroll` fails when other lanes' windows occlude the app.
+- Journey `tools/windows/journeys/paths-suggestions.json` covers the filter's Instrument Selector; incremental loading is not yet automated; `uiwin.py scroll` fails when other lanes' windows occlude the app.
 
 ## IDs
 
-`fst.suggestions.{filter-button,list,loading,syncing,choose-profile,error,no-results,reset-filters,start-new-mix}`, `fst.suggestions.category.<key>[.<mix>]`, `fst.suggestions.row.<songId|songId|Solo_X>`, `fst.suggestions.filter.{form,title,instruments,general,instrument-specific,instrument-picker,instrument.<Solo_X>,type.<type>,type.<Solo_X>.<type>,reset}`.
+`fst.suggestions.{filter-button,list,loading,syncing,choose-profile,error,no-results,reset-filters,start-new-mix}`, `fst.suggestions.category.<key>[.<mix>]`, `fst.suggestions.row.<songId|songId|Solo_X>`, `fst.suggestions.filter.{form,title,instruments,general,instrument-specific,instrument-picker.{<Solo_X>,compact,previous,next},instrument.<Solo_X>,type.<type>,type.<Solo_X>.<type>,reset}`.

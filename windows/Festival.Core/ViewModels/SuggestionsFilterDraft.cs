@@ -88,9 +88,12 @@ public sealed partial class SuggestionsFilterDraft : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
     private SuggestionFilterSettings draft;
 
-    /// <summary>Index of the instrument whose per-type switches are shown.</summary>
+    /// <summary>
+    /// Instrument whose per-type switches are shown (the Instrument Selector's selection; none on every opening, like the
+    /// web's <c>deferSelection</c> selector).
+    /// </summary>
     [ObservableProperty]
-    private int selectedInstrumentIndex;
+    private Instrument? selectedInstrument;
 
     /// <summary>Instrument visibility switches (Settings-visible charts).</summary>
     public ObservableCollection<SuggestionFilterToggle> InstrumentToggles { get; } = [];
@@ -101,12 +104,8 @@ public sealed partial class SuggestionsFilterDraft : ObservableObject
     /// <summary>Per-type switches for <see cref="SelectedInstrument"/>.</summary>
     public ObservableCollection<SuggestionFilterToggle> InstrumentTypeToggles { get; } = [];
 
-    /// <summary>Labels for the instrument picker.</summary>
-    public IReadOnlyList<string> InstrumentChoices => instruments.Select(i => i.Label()).ToList();
-
-    /// <summary>Instrument for the per-type section, if any is visible.</summary>
-    public Instrument? SelectedInstrument =>
-        SelectedInstrumentIndex >= 0 && SelectedInstrumentIndex < instruments.Count ? instruments[SelectedInstrumentIndex] : null;
+    /// <summary>Settings-visible charts offered by the Instrument Selector (refreshed by <see cref="Begin"/>).</summary>
+    public IReadOnlyList<Instrument> Instruments => instruments;
 
     /// <summary>Whether any instrument is visible in Settings.</summary>
     public bool HasInstruments => instruments.Count > 0;
@@ -122,7 +121,7 @@ public sealed partial class SuggestionsFilterDraft : ObservableObject
     {
         IsLive = false;
         instruments = owner.VisibleInstruments;
-        OnPropertyChanged(nameof(InstrumentChoices));
+        OnPropertyChanged(nameof(Instruments));
         OnPropertyChanged(nameof(HasInstruments));
         Draft = owner.Filter;
         InstrumentToggles.Clear();
@@ -135,8 +134,8 @@ public sealed partial class SuggestionsFilterDraft : ObservableObject
             TypeToggles.Add(new SuggestionFilterToggle(type.Label(), type.FilterDescription(), "",
                 $"fst.suggestions.filter.type.{type.Key()}", Draft.IsGlobalEnabled(type),
                 on => Draft = Draft.WithGlobalType(type, on, instruments)));
-        SelectedInstrumentIndex = instruments.Count > 0 ? Math.Clamp(SelectedInstrumentIndex, 0, instruments.Count - 1) : -1;
-        RebuildInstrumentTypes();
+        if (SelectedInstrument is null) RebuildInstrumentTypes();
+        else SelectedInstrument = null;
         IsLive = true;
     }
 
@@ -144,7 +143,7 @@ public sealed partial class SuggestionsFilterDraft : ObservableObject
     [RelayCommand(CanExecute = nameof(CanReset))]
     private void Reset() => Draft = SuggestionFilterSettings.Default;
 
-    private bool CanReset() => Draft.IsActive;
+    private bool CanReset() => Draft.IsActiveFor(owner.VisibleInstruments);
 
     partial void OnDraftChanged(SuggestionFilterSettings value)
     {
@@ -156,13 +155,13 @@ public sealed partial class SuggestionsFilterDraft : ObservableObject
         if (IsLive && CanApply) owner.ApplyFilter(value);
     }
 
-    partial void OnSelectedInstrumentIndexChanged(int value) => RebuildInstrumentTypes();
+    partial void OnSelectedInstrumentChanged(Instrument? value) => RebuildInstrumentTypes();
 
+    /// <summary>Rebuilds the per-type switches for the selected instrument (none while nothing is selected).</summary>
     private void RebuildInstrumentTypes()
     {
         InstrumentTypeToggles.Clear();
-        OnPropertyChanged(nameof(SelectedInstrument));
-        if (SelectedInstrument is not { } instrument) return;
+        if (SelectedInstrument is not { } instrument || !instruments.Contains(instrument)) return;
         foreach (var type in SuggestionCategoryTypeInfo.All)
             InstrumentTypeToggles.Add(new SuggestionFilterToggle(type.Label(), type.FilterDescription(), "",
                 $"fst.suggestions.filter.type.{instrument.ServiceId()}.{type.Key()}", Draft.IsTypeEnabled(type, instrument),

@@ -117,7 +117,7 @@ public sealed partial class SuggestionsViewModel : ObservableObject
 
     /// <summary>Page phase.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowNoPlayer), nameof(ShowLoading), nameof(ShowSyncing), nameof(ShowError), nameof(ShowEmpty), nameof(ShowList), nameof(EmptyMessage))]
+    [NotifyPropertyChangedFor(nameof(ShowNoPlayer), nameof(ShowLoading), nameof(ShowSyncing), nameof(ShowError), nameof(ShowEmpty), nameof(ShowList), nameof(EmptyMessage), nameof(ShowHeader))]
     private SuggestionsPhase phase;
 
     /// <summary>Applied filter.</summary>
@@ -133,8 +133,17 @@ public sealed partial class SuggestionsViewModel : ObservableObject
     [ObservableProperty]
     private bool reachedLimit;
 
-    /// <summary>Whether a non-default filter is applied (accent on the filter button).</summary>
-    public bool IsFilterActive => Filter.IsActive;
+    /// <summary>
+    /// Whether the applied filter hides something a Settings-visible chart could show (accent on the filter button);
+    /// toggles left on instruments hidden in Settings don't count.
+    /// </summary>
+    public bool IsFilterActive => Filter.IsActiveFor(VisibleInstruments);
+
+    /// <summary>
+    /// Title and Filter action: hidden behind the spinner until content is ready, then faded in with the first cards
+    /// (web <c>headerStagger</c> during <c>LoadPhase.Loading</c>), so the page never appears half-built.
+    /// </summary>
+    public bool ShowHeader => Phase != SuggestionsPhase.Loading;
 
     /// <summary>Choose Profile prompt.</summary>
     public bool ShowNoPlayer => Phase == SuggestionsPhase.NoPlayer;
@@ -423,6 +432,9 @@ public sealed partial class SuggestionsViewModel : ObservableObject
                 else
                 {
                     OnPropertyChanged(nameof(VisibleInstruments));
+                    OnPropertyChanged(nameof(IsFilterActive));
+                    // An open filter follows Settings at once (instrument list, selector and switch states).
+                    if (FilterDraft.IsLive) FilterDraft.Begin();
                     Refilter();
                 }
                 break;

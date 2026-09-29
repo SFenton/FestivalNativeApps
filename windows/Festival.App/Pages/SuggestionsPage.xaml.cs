@@ -24,6 +24,7 @@ public sealed partial class SuggestionsPage : Page
         ViewModel.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(SuggestionsViewModel.IsFilterActive)) UpdateFilterTint();
+            if (e.PropertyName == nameof(SuggestionsViewModel.VisibleInstruments)) SyncInstrumentPicker();
             if (e.PropertyName == nameof(SuggestionsViewModel.Phase) && ViewModel.ShowList) PerfLog.Mark("suggestions-rendered");
         };
         Loaded += (_, _) => UpdateFilterTint();
@@ -64,7 +65,23 @@ public sealed partial class SuggestionsPage : Page
     /// <summary>Starts a draft from the applied filter.</summary>
     /// <param name="sender">Flyout.</param>
     /// <param name="e">Unused.</param>
-    private void OnFilterOpening(object sender, object e) => ViewModel.FilterDraft.Begin();
+    private void OnFilterOpening(object sender, object e)
+    {
+        ViewModel.FilterDraft.Begin();
+        SyncInstrumentPicker();
+    }
+
+    /// <summary>Shows the draft's Settings-visible charts and selection in the Instrument Selector.</summary>
+    private void SyncInstrumentPicker()
+    {
+        InstrumentPicker.Instruments = ViewModel.FilterDraft.Instruments.ToList();
+        InstrumentPicker.Selected = ViewModel.FilterDraft.SelectedInstrument;
+    }
+
+    /// <summary>Instrument Selector pick: shows that chart's per-type switches (none when cleared).</summary>
+    /// <param name="sender">Selector.</param>
+    /// <param name="instrument">New selection.</param>
+    private void OnFilterInstrumentChanged(object? sender, Instrument? instrument) => ViewModel.FilterDraft.SelectedInstrument = instrument;
 
     /// <summary>Clears the filter from the empty state.</summary>
     /// <param name="sender">Button.</param>

@@ -230,15 +230,18 @@ public sealed class SuggestionsViewModelTests
         draft.Begin();
         Assert.Equal(InstrumentInfo.All.Count, draft.InstrumentToggles.Count);
         Assert.Equal(SuggestionCategoryTypeInfo.All.Count, draft.TypeToggles.Count);
-        Assert.Equal(SuggestionCategoryTypeInfo.All.Count, draft.InstrumentTypeToggles.Count);
+        Assert.Empty(draft.InstrumentTypeToggles); // nothing selected on opening (web deferSelection)
+        Assert.Null(draft.SelectedInstrument);
         Assert.True(draft.HasInstruments);
-        Assert.Equal("Lead", draft.InstrumentChoices[0]);
+        Assert.Equal(Instrument.Lead, draft.Instruments[0]);
         Assert.False(draft.CanApply);
         Assert.False(draft.ResetCommand.CanExecute(null));
 
         // Turn every type off except Unplayed: each switch applies (and persists) at once.
         foreach (var toggle in draft.TypeToggles.Where(t => t.Label != "Unplayed")) toggle.IsOn = false;
         Assert.False(draft.CanApply);
+        draft.SelectedInstrument = Instrument.Lead;
+        Assert.Equal(SuggestionCategoryTypeInfo.All.Count, draft.InstrumentTypeToggles.Count);
         Assert.All(draft.InstrumentTypeToggles.Where(t => t.Label != "Unplayed"), t => Assert.False(t.IsOn));
         Assert.True(model.IsFilterActive);
         Assert.Equal(SuggestionCategoryTypeInfo.All.Count - 1, harness.Store.SaveCount);
@@ -252,8 +255,7 @@ public sealed class SuggestionsViewModelTests
 
         // Per-instrument toggle re-enables the global switch.
         draft.Begin();
-        draft.SelectedInstrumentIndex = 1;
-        Assert.Equal(Instrument.Bass, draft.SelectedInstrument);
+        draft.SelectedInstrument = Instrument.Bass;
         var nearFc = draft.InstrumentTypeToggles.First(t => t.Label == "Near FC");
         nearFc.IsOn = true;
         Assert.True(draft.TypeToggles.First(t => t.Label == "Near FC").IsOn);
@@ -267,6 +269,55 @@ public sealed class SuggestionsViewModelTests
         var saves = harness.Store.SaveCount;
         model.ApplyFilter(SuggestionFilterSettings.Default);
         Assert.Equal(saves, harness.Store.SaveCount);
+    }
+
+    [Fact]
+    public async Task FilterFollowsSettingsVisibleInstruments()
+    {
+        var harness = new Harness();
+        var model = harness.Model();
+        await model.LoadAsync();
+        var draft = model.FilterDraft;
+        draft.Begin();
+        draft.SelectedInstrument = Instrument.Karaoke;
+        Assert.NotEmpty(draft.InstrumentTypeToggles);
+        draft.InstrumentToggles.First(t => t.Label == "Karaoke").IsOn = false;
+        Assert.True(model.IsFilterActive);
+        Assert.True(draft.ResetCommand.CanExecute(null));
+
+        // Hiding Karaoke in Settings removes it from the open filter at once and clears the accent it caused.
+        var changes = new List<string?>();
+        model.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
+        harness.Session.UpdateSettings(s => s.WithInstrumentVisible(Instrument.Karaoke, false));
+        Assert.DoesNotContain(Instrument.Karaoke, draft.Instruments);
+        Assert.DoesNotContain(draft.InstrumentToggles, t => t.Label == "Karaoke");
+        Assert.Null(draft.SelectedInstrument);
+        Assert.Empty(draft.InstrumentTypeToggles);
+        Assert.False(model.IsFilterActive);
+        Assert.Contains(nameof(SuggestionsViewModel.IsFilterActive), changes);
+        Assert.False(draft.ResetCommand.CanExecute(null));
+        Assert.Equal("Play a few songs and suggestions will appear here.", model.EmptyMessage);
+
+        // A selection that is no longer visible shows no switches.
+        draft.SelectedInstrument = Instrument.Karaoke;
+        Assert.Empty(draft.InstrumentTypeToggles);
+
+        // Showing it again restores the saved toggle and the accent.
+        harness.Session.UpdateSettings(s => s.WithInstrumentVisible(Instrument.Karaoke, true));
+        Assert.False(draft.InstrumentToggles.First(t => t.Label == "Karaoke").IsOn);
+        Assert.True(model.IsFilterActive);
+    }
+
+    [Fact]
+    public async Task HeaderHidesWhileLoading()
+    {
+        var harness = new Harness();
+        var model = harness.Model();
+        Assert.Equal(SuggestionsPhase.Loading, model.Phase);
+        Assert.False(model.ShowHeader);
+        await model.LoadAsync();
+        Assert.True(model.ShowList);
+        Assert.True(model.ShowHeader);
     }
 
     [Fact]

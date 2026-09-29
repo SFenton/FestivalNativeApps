@@ -55,6 +55,19 @@ public sealed class SuggestionFilterSettings : IEquatable<SuggestionFilterSettin
     /// <summary>Whether any toggle differs from its default (drives the filter button's accent).</summary>
     public bool IsActive => instrumentOff.Count > 0 || globalTypeOff.Count > 0 || perInstrumentTypeOff.Count > 0;
 
+    /// <summary>
+    /// Whether a toggle that can change what shows differs from its default, given the charts visible in Settings: an
+    /// instrument (or its per-type row) hidden in Settings no longer counts, so hiding it there clears the accent.
+    /// </summary>
+    /// <param name="appVisible">Instruments enabled in Settings.</param>
+    /// <returns><see langword="true"/> when the filter hides something that could otherwise show.</returns>
+    public bool IsActiveFor(IEnumerable<Instrument> appVisible)
+    {
+        if (globalTypeOff.Count > 0) return true;
+        var visible = appVisible.Select(i => i.ServiceId()).ToHashSet(StringComparer.Ordinal);
+        return instrumentOff.Any(visible.Contains) || perInstrumentTypeOff.Any(k => visible.Contains(k[..k.IndexOf('|', StringComparison.Ordinal)]));
+    }
+
     /// <summary>Settings-visible charts intersected with this filter's instrument toggles.</summary>
     /// <param name="appVisible">Instruments enabled in Settings.</param>
     /// <returns>Instruments that may surface suggestions.</returns>

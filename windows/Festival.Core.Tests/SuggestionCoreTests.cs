@@ -409,6 +409,21 @@ public sealed class SuggestionCoreTests
     }
 
     [Fact]
+    public void FilterActivityIgnoresInstrumentsHiddenInSettings()
+    {
+        Instrument[] visible = [Instrument.Lead, Instrument.Bass];
+        var filter = SuggestionFilterSettings.Default;
+        Assert.False(filter.IsActiveFor(visible));
+        filter = filter.WithInstrument(Instrument.Karaoke, false)
+            .WithInstrumentType(SuggestionCategoryType.NearFC, Instrument.Drums, false, [Instrument.Drums, Instrument.Lead]);
+        Assert.True(filter.IsActive);
+        Assert.False(filter.IsActiveFor(visible));
+        Assert.True(filter.IsActiveFor([Instrument.Karaoke]));
+        Assert.True(filter.IsActiveFor([Instrument.Drums]));
+        Assert.True(SuggestionFilterSettings.Default.WithGlobalType(SuggestionCategoryType.Unplayed, false, []).IsActiveFor([]));
+    }
+
+    [Fact]
     public void FilterRoundTripsAndRejectsCorruptData()
     {
         var filter = SuggestionFilterSettings.Default.WithInstrument(Instrument.Karaoke, false)
