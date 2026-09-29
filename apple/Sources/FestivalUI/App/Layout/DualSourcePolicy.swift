@@ -11,7 +11,15 @@ import SwiftUI
 /// sits exactly on the fold (the division reserved region), so nothing interactive lands
 /// on the crease. Flat, the same two regions split proportionally, so folding and
 /// unfolding only move the divider. Every other pose shows the primary content alone.
+///
+/// **Shelved** (operator, 2026-09-28: "I'd rather just have portrait layout, even in
+/// not-fully-open mode"). ``isEnabled`` is false, so `DeviceLayout` never produces
+/// `.dualSource`: every `DualSourceLayout` renders its primary alone, rows push, and
+/// the section set and list/detail follow the pre-dual rules. Flip the flag to revisit.
 enum DualSourcePolicy {
+    /// Single switch for the whole dual-source feature (default off).
+    static let isEnabled = false
+
     /// Where the two regions divide.
     enum Mode: Sendable, Equatable {
         /// One region: the page's primary content only.

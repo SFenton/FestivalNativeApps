@@ -70,24 +70,35 @@ private enum Duo {
     #expect(layout.usesRegularSectionSet)
 }
 
-/// Unfolded portrait: the system returns to horizontal bars (no vertical-bar edge), and
-/// pages stack two regions instead of list/detail columns; compact section set.
+/// Unfolded portrait: the system returns to horizontal bars (no vertical-bar edge);
+/// list/detail and the regular section set, as in landscape (dual-source shelved).
 @Test func unfoldedPortraitReturnsToTabBar() {
     let layout = DeviceLayout.resolve(LayoutSignals(
         size: Duo.innerPortrait, widthClass: .regular, verticalBarEdge: nil, hinge: .fullyOpen
     ))
     #expect(layout.pose == .unfolded)
     #expect(layout.sectionChrome == .tabBar)
-    #expect(layout.contentArrangement == .dualSource)
-    #expect(!layout.usesRegularSectionSet)
+    #expect(layout.contentArrangement == .listDetail)
+    #expect(layout.usesRegularSectionSet)
 }
 
-/// Partially open in portrait: the fold runs across the screen; two stacked regions.
-@Test func partiallyFoldedPortraitStacksRegions() {
+/// Operator 2026-09-28: half-open portrait is the normal portrait layout too.
+@Test func partiallyFoldedPortraitIsNormalPortrait() {
+    let layout = DeviceLayout.resolve(LayoutSignals(
+        size: Duo.innerPortrait, widthClass: .regular, hinge: .partiallyOpen,
+        divisions: [CGRect(x: 0, y: 463, width: 669, height: 25)]
+    ))
+    #expect(!DualSourcePolicy.isEnabled)
+    #expect(layout.contentArrangement == .listDetail)
+    #expect(layout.usesRegularSectionSet)
+}
+
+/// Shelved path (flag on): the fold runs across the screen; two stacked regions.
+@Test func partiallyFoldedPortraitStacksRegionsWhenEnabled() {
     let fold = CGRect(x: 0, y: 463, width: 669, height: 25)
     let layout = DeviceLayout.resolve(LayoutSignals(
         size: Duo.innerPortrait, widthClass: .regular, hinge: .partiallyOpen, divisions: [fold]
-    ))
+    ), dualSource: true)
     #expect(layout.pose == .partiallyFolded)
     #expect(layout.orientation == .portrait)
     #expect(layout.contentArrangement == .dualSource)
@@ -107,13 +118,13 @@ private enum Duo {
 
 /// Other portrait windows never stack regions: iPhone, folded Duo, iPad sidebar.
 @Test func onlyDuoInnerPortraitStacksRegions() {
-    let iPhone = DeviceLayout.resolve(LayoutSignals(size: CGSize(width: 402, height: 874), widthClass: .compact))
+    let iPhone = DeviceLayout.resolve(LayoutSignals(size: CGSize(width: 402, height: 874), widthClass: .compact), dualSource: true)
     let folded = DeviceLayout.resolve(LayoutSignals(
         size: Duo.outerPortrait, widthClass: .compact, verticalBarEdge: .trailing, hinge: .closed
-    ))
+    ), dualSource: true)
     let iPadPortrait = DeviceLayout.resolve(LayoutSignals(
         size: CGSize(width: 834, height: 1194), widthClass: .regular, hinge: .fullyOpen, usesSidebarShell: true
-    ))
+    ), dualSource: true)
     #expect(iPhone.contentArrangement == .stack)
     #expect(folded.contentArrangement == .stack)
     #expect(iPadPortrait.contentArrangement == .listDetail)

@@ -12,12 +12,12 @@ import Testing
 private let halfFoldPortrait = DeviceLayout.resolve(LayoutSignals(
     size: CGSize(width: 669, height: 951), widthClass: .regular,
     hinge: .partiallyOpen, divisions: [CGRect(x: 0, y: 463, width: 669, height: 25)]
-))
+), dualSource: true)
 
 /// iPhone Duo inner display, portrait, flat.
 private let unfoldedPortrait = DeviceLayout.resolve(LayoutSignals(
     size: CGSize(width: 669, height: 951), widthClass: .regular, hinge: .fullyOpen
-))
+), dualSource: true)
 
 /// iPhone Duo outer display, portrait.
 private let folded = DeviceLayout.resolve(LayoutSignals(

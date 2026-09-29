@@ -6,7 +6,8 @@ import Testing
 
 // MARK: - Fixtures
 
-/// iPhone Duo windows (points; `.agents/platforms/apple/duo.md`). The portrait fold is
+/// Shelved dual-source path (`DualSourcePolicy.isEnabled` is false): fixtures resolve
+/// with `dualSource: true`. iPhone Duo windows (points; `.agents/platforms/apple/duo.md`). The portrait fold is
 /// representative: a horizontal division across the middle of the inner display.
 private enum DualLayouts {
     static let innerPortraitFold = CGRect(x: 0, y: 463, width: 669, height: 25)
@@ -15,10 +16,10 @@ private enum DualLayouts {
         size: CGSize(width: 669, height: 951), widthClass: .regular,
         safeAreaInsets: EdgeInsets(top: 44, leading: 0, bottom: 20, trailing: 0),
         hinge: .partiallyOpen, divisions: [innerPortraitFold]
-    ))
+    ), dualSource: true)
     static let unfoldedPortrait = DeviceLayout.resolve(LayoutSignals(
         size: CGSize(width: 669, height: 951), widthClass: .regular, hinge: .fullyOpen
-    ))
+    ), dualSource: true)
     static let unfoldedLandscape = DeviceLayout.resolve(LayoutSignals(
         size: CGSize(width: 951, height: 669), widthClass: .regular,
         verticalBarEdge: .trailing, hinge: .fullyOpen
@@ -134,7 +135,7 @@ func dualSourceNeedsRoom(height: CGFloat) {
         safeAreaInsets: EdgeInsets(top: 0, leading: 0, bottom: 34, trailing: 84),
         verticalBarEdge: .trailing, hinge: .closed
     )
-    let layout = DeviceLayout.resolve(DebugDuoPose.halfPortrait.apply(to: observed))
+    let layout = DeviceLayout.resolve(DebugDuoPose.halfPortrait.apply(to: observed), dualSource: true)
     let fold = try #require(layout.foldFrame)
     #expect(fold.midY == 339)
     #expect(layout.pose == .partiallyFolded)
@@ -149,7 +150,7 @@ func dualSourceNeedsRoom(height: CGFloat) {
     let observed = LayoutSignals(
         size: CGSize(width: 466, height: 678), widthClass: .compact, verticalBarEdge: .trailing, hinge: .closed
     )
-    let layout = DeviceLayout.resolve(DebugDuoPose.unfoldedPortrait.apply(to: observed))
+    let layout = DeviceLayout.resolve(DebugDuoPose.unfoldedPortrait.apply(to: observed), dualSource: true)
     #expect(layout.pose == .unfolded)
     #expect(DualSourcePolicy.mode(layout) == .proportional)
 }
@@ -158,4 +159,23 @@ func dualSourceNeedsRoom(height: CGFloat) {
 @Test func debugPoseIgnoresUnmeasuredWindow() {
     let observed = LayoutSignals(size: .zero, widthClass: .compact)
     #expect(DebugDuoPose.halfPortrait.apply(to: observed) == observed)
+}
+
+// MARK: - Shelved by default
+
+/// Operator 2026-09-28: with the default (flag off) the portrait debug overrides and
+/// the inner display in portrait resolve to a normal single-region layout.
+@Test func dualSourceShelvedByDefault() {
+    #expect(!DualSourcePolicy.isEnabled)
+    let observed = LayoutSignals(
+        size: CGSize(width: 466, height: 678), widthClass: .compact, verticalBarEdge: .trailing, hinge: .closed
+    )
+    for pose in [DebugDuoPose.halfPortrait, .unfoldedPortrait] {
+        #expect(DualSourcePolicy.mode(DeviceLayout.resolve(pose.apply(to: observed))) == .single)
+    }
+    let innerHalf = DeviceLayout.resolve(LayoutSignals(
+        size: CGSize(width: 669, height: 951), widthClass: .regular, hinge: .partiallyOpen,
+        divisions: [CGRect(x: 0, y: 463, width: 669, height: 25)]
+    ))
+    #expect(DualSourcePolicy.mode(innerHalf) == .single)
 }

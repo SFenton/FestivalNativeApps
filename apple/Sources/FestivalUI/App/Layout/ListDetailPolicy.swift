@@ -74,11 +74,9 @@ enum ListDetailPolicy {
 
     /// Whether a window shows list/detail pages as two columns.
     ///
-    /// Only an iPhone Duo inner display in landscape qualifies for now (unfolded, or
-    /// partially folded like a book). In portrait the inner display stacks two regions
-    /// instead (``DeviceLayout/ContentArrangement/dualSource``, `DualSourceLayout`): two
-    /// ~330 pt columns crossed by a horizontal fold read worse than one full-width
-    /// stack with a related second source below it. A large iPhone in landscape is
+    /// Only an iPhone Duo inner display qualifies for now (unfolded or partially
+    /// folded, either orientation; the shelved dual-source arrangement would replace it
+    /// in portrait, ``DualSourcePolicy/isEnabled``). A large iPhone in landscape is
     /// regular width but keeps its iPhone layout (`pose == .standard`); iPad
     /// (`.standard`, sidebar shell) joins in the iPadOS phase, which must first decide
     /// how this nests in its sections sidebar.
