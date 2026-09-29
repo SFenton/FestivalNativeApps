@@ -147,8 +147,11 @@ public static class Async
         }
     }
 
-    /// <summary>Polls until a condition holds (bounded).</summary>
-    public static async Task Until(Func<bool> condition, int timeoutMs = 3000)
+    /// <summary>
+    /// Polls until a condition holds (bounded). The bound is generous: passing tests return as soon as the condition
+    /// holds, and a 3 s bound flaked GlobalSearch once while the whole suite ran under coverage on a loaded host.
+    /// </summary>
+    public static async Task Until(Func<bool> condition, int timeoutMs = 10_000)
     {
         var start = Environment.TickCount64;
         while (!condition())
