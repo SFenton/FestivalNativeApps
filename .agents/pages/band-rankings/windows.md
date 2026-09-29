@@ -20,3 +20,7 @@ Fixture: `windows/reports/screenshots/band-rankings-wide.png`; journey steps in 
 ## Open
 
 - No selected-band pinned row (no selected-band identity on Windows) and no band-combo filter.
+
+## Two columns
+
+From a 1100 epx page the rankings keep a 560 epx column and the chosen band's Band Detail (`BandsDetailPage` in `DetailFrame`, `fst.band-rankings.detail-pane`) fills the rest (operator 2026-09-28: two populated columns, never an empty detail). It starts on the first openable row, follows row clicks (`IRouteHost`) and survives paging while that band is listed; its row gets `LeaderboardsRankingRow.IsCurrent`. Below 1100 epx, or without openable rows, the page is one 1100 epx column. Journey: `tools/windows/journeys/split-panes.json`.

@@ -11,6 +11,12 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
+        <!-- Wide pages (>= 1100 epx) show the list beside the chosen rival's detail (operator 2026-09-28: two populated
+             columns, never an empty detail). ApplySplit sets the widths. -->
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition x:Name="ListColumn" Width="*" />
+            <ColumnDefinition x:Name="DetailColumn" Width="0" />
+        </Grid.ColumnDefinitions>
 
         <Grid x:Name="Header" Padding="24,12,24,8" ColumnSpacing="12" MaxWidth="960" HorizontalAlignment="Stretch">
             <Grid.ColumnDefinitions>
@@ -27,7 +33,7 @@
         </Grid>
 
         <ListView x:Name="RivalList" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="56" Grid.Row="1" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" MaxWidth="960"
-                  SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnRivalClick" Padding="24,0,24,32"
+                  SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnRivalClick" SelectionChanged="OnRivalSelectionChanged" Padding="24,0,24,32"
                   ContainerContentChanging="OnContainerContentChanging"
                   Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}"
                   AutomationProperties.Name="Rivals" AutomationProperties.AutomationId="fst.all-rivals.list">
@@ -48,5 +54,9 @@
         </ListView>
 
         <controls:RivalPageStates Grid.Row="1" Page="{x:Bind ViewModel}" />
+
+        <Frame x:Name="DetailFrame" Grid.Column="1" Grid.RowSpan="2" Visibility="Collapsed"
+               IsNavigationStackEnabled="False" AutomationProperties.Name="Rival details"
+               AutomationProperties.AutomationId="fst.all-rivals.detail-pane" />
     </Grid>
 </Page>

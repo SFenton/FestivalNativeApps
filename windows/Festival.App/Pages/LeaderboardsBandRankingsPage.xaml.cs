@@ -1,6 +1,10 @@
 using System.ComponentModel;
+using Festival.App.Controls;
 using Festival.App.Services;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Navigation;
@@ -8,13 +12,28 @@ using Microsoft.UI.Xaml.Navigation;
 namespace Festival.App.Pages;
 
 #region Band rankings page
-/// <summary>Paginated band rankings with band-size and Rank By switchers.</summary>
-public sealed partial class LeaderboardsBandRankingsPage : Page
+/// <summary>
+/// Paginated band rankings with band-size and Rank By switchers; at wide widths the chosen band's detail fills a second
+/// column (like Full Rankings).
+/// </summary>
+public sealed partial class LeaderboardsBandRankingsPage : Page, IRouteHost
 {
+    /// <summary>Page width from which the rankings and a band's detail sit side by side.</summary>
+    public const double SplitWidth = LeaderboardsFullRankingsPage.SplitWidth;
+
+    /// <summary>Rankings column width in the split layout.</summary>
+    private const double SplitListWidth = 560;
+
     private int shownPage;
+    private bool split;
+    private AppRoute.Band? detailRoute;
 
     /// <summary>Creates the page.</summary>
-    public LeaderboardsBandRankingsPage() => InitializeComponent();
+    public LeaderboardsBandRankingsPage()
+    {
+        InitializeComponent();
+        SizeChanged += (_, e) => ApplySplit(e.NewSize.Width >= SplitWidth);
+    }
 
     /// <summary>Page model (set on navigation).</summary>
     public BandRankingsViewModel ViewModel { get; private set; } = null!;
@@ -46,10 +65,87 @@ public sealed partial class LeaderboardsBandRankingsPage : Page
     /// <param name="e">Changed property.</param>
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName is nameof(BandRankingsViewModel.Rows) or nameof(BandRankingsViewModel.ShowRows)) EnsureSplitSelection();
         if (e.PropertyName != nameof(BandRankingsViewModel.Rows) || ViewModel.Page == shownPage) return;
         shownPage = ViewModel.Page;
         Scroller.ChangeView(null, 0, null, true);
     }
+
+    #region Split layout
+    /// <summary>
+    /// List + Band Detail columns (never an empty detail): the page drops its 1100 epx cap, the rankings keep a fixed
+    /// column and the band fills the rest. Below the width, or without openable rows, it is one centred column again.
+    /// </summary>
+    /// <param name="wanted">Whether the page is wide enough.</param>
+    private void ApplySplit(bool wanted)
+    {
+        var on = wanted && ViewModel is { ShowRows: true } && ViewModel.Rows.Any(r => r.Route is not null);
+        if (on == split) return;
+        split = on;
+        PageRoot.MaxWidth = on ? double.PositiveInfinity : 1100;
+        ListColumn.Width = on ? new GridLength(SplitListWidth) : new GridLength(1, GridUnitType.Star);
+        DetailColumn.Width = on ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        DetailFrame.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        if (on)
+        {
+            EnsureSplitSelection();
+            return;
+        }
+        detailRoute = null;
+        DetailFrame.Content = null;
+        MarkCurrentRows();
+    }
+
+    /// <summary>Keeps a band showing: the current one if still on this page, else the first openable row.</summary>
+    private void EnsureSplitSelection()
+    {
+        if (!split)
+        {
+            ApplySplit(ActualWidth >= SplitWidth);
+            return;
+        }
+        var routes = ViewModel.Rows.Select(r => r.Route).OfType<AppRoute.Band>().ToList();
+        if (!ViewModel.ShowRows || routes.Count == 0)
+        {
+            ApplySplit(false);
+            return;
+        }
+        Show(routes.FirstOrDefault(r => r == detailRoute) ?? routes[0]);
+    }
+
+    /// <inheritdoc />
+    public bool TryShow(AppRoute route)
+    {
+        if (!split || route is not AppRoute.Band band) return false;
+        Show(band);
+        return true;
+    }
+
+    /// <summary>Opens a band in the detail column (once per band) and marks its row.</summary>
+    /// <param name="route">Band route.</param>
+    private void Show(AppRoute.Band route)
+    {
+        if (route == detailRoute && DetailFrame.Content is not null) return;
+        detailRoute = route;
+        DetailFrame.Navigate(typeof(BandsDetailPage), route, new SuppressNavigationTransitionInfo());
+        MarkCurrentRows();
+    }
+
+    /// <summary>Marks a realized row whose band shows in the detail column.</summary>
+    /// <param name="sender">Repeater.</param>
+    /// <param name="args">Row.</param>
+    private void OnRowPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
+    {
+        if (args.Element is LeaderboardsRankingRow row) row.IsCurrent = split && row.Route == detailRoute;
+    }
+
+    /// <summary>Re-marks every realized row.</summary>
+    private void MarkCurrentRows()
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(RowsRepeater); i++)
+            if (VisualTreeHelper.GetChild(RowsRepeater, i) is LeaderboardsRankingRow row) row.IsCurrent = split && row.Route == detailRoute;
+    }
+    #endregion
 
     /// <summary>Builds band-size radio items.</summary>
     /// <param name="sender">Menu.</param>

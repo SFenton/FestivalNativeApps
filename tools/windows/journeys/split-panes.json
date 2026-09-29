@@ -1,0 +1,46 @@
+[
+  {
+    "name": "band-rankings-split-wide",
+    "route": "/leaderboards/bands/Band_Duets",
+    "preset": "wide",
+    "steps": [
+      "waitfor:id=fst.band-rankings.page-info@20",
+      "waitfor:id=fst.band-rankings.detail-pane@10",
+      "waitfor:id=fst.band.title@20",
+      "wait:1",
+      "shot:{shots}/band-rankings-split-wide.png@screen"
+    ]
+  },
+  {
+    "name": "band-rankings-single-medium",
+    "route": "/leaderboards/bands/Band_Duets",
+    "preset": "medium",
+    "steps": [
+      "waitfor:id=fst.band-rankings.page-info@20",
+      "shot:{shots}/band-rankings-medium.png@screen"
+    ]
+  },
+  {
+    "name": "all-rivals-split-wide",
+    "route": "/rivals/all",
+    "preset": "wide",
+    "extra": {"FST_DEBUG_PROFILE": "fixture-player-1:Demo Player"},
+    "steps": [
+      "waitfor:id=fst.all-rivals.list@20",
+      "waitfor:id=fst.all-rivals.detail-pane@10",
+      "waitfor:id=fst.rival-detail.title@20",
+      "wait:1",
+      "shot:{shots}/all-rivals-split-wide.png@screen"
+    ]
+  },
+  {
+    "name": "all-rivals-single-medium",
+    "route": "/rivals/all",
+    "preset": "medium",
+    "extra": {"FST_DEBUG_PROFILE": "fixture-player-1:Demo Player"},
+    "steps": [
+      "waitfor:id=fst.all-rivals.list@20",
+      "shot:{shots}/all-rivals-medium.png@screen"
+    ]
+  }
+]
