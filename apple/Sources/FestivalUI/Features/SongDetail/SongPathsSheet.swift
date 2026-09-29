@@ -311,8 +311,16 @@ struct SongPathsSheet: View {
                     .font(.body)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            // The five fret cells need ~116pt, more than a fifth of a phone card, so the
+            // Note column gets its own full-width line (it overflowed into an
+            // unreadable strip that failed the contrast audit); the other columns keep
+            // the saved Settings order.
+            let order = SettingsOrder.decode(pathColumnOrderRaw) as [PathColumnKey]
+            if order.contains(.note) {
+                column(.note, row: row)
+            }
             metrics {
-                ForEach(SettingsOrder.decode(pathColumnOrderRaw) as [PathColumnKey]) { key in
+                ForEach(order.filter { $0 != .note }) { key in
                     column(key, row: row)
                 }
             }

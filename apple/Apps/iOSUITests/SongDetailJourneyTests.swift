@@ -534,6 +534,59 @@ final class SongDetailJourneyTests: XCTestCase {
         SongsUITestSupport.record(app, name: "song-detail-empty-bass-header")
     }
 
+    /// Operator rule: changing the score-history sort scrolls back to the top, and the
+    /// sort applies live (no Apply button).
+    ///
+    /// - Throws: A missing history entry point, a sort that needs Apply, or a list that
+    ///   stays scrolled after re-sorting.
+    @MainActor
+    func testHistorySortAppliesLiveAndScrollsToTop() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = FestivalApp.makeApp([
+            "FST_UI_TEST_RESET_SONG_CARDS": "1",
+            "FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1",
+            "FST_API_BASE_URL": "http://127.0.0.1:8765",
+        ])
+        // Large text makes two history rows taller than the screen, so there is
+        // something to scroll away from.
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName",
+            UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+        ]
+        app.launch()
+        let song = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(song.waitForExistence(timeout: 15))
+        song.tap()
+        let history = app.buttons["fst.song-detail.history.Solo_Guitar"]
+        XCTAssertTrue(history.waitForExistence(timeout: 15))
+        for _ in 0..<20 where !history.isHittable {
+            app.swipeUp()
+        }
+        history.tap()
+        let firstRow = app.descendants(matching: .any)
+            .matching(identifier: "fst.history.row.0").firstMatch
+        XCTAssertTrue(firstRow.waitForExistence(timeout: 15))
+        for _ in 0..<4 { app.swipeUp() }
+        let scrolledAway = !firstRow.isHittable
+        XCTAssertTrue(scrolledAway, "Precondition: the first history row should scroll away")
+        let open = app.buttons["fst.history.sort.open"]
+        XCTAssertTrue(open.waitForExistence(timeout: 10))
+        open.tap()
+        XCTAssertFalse(app.buttons["fst.history.sort.apply"].exists, "Sort must apply live")
+        let date = app.buttons.matching(NSPredicate(format: "label == %@", "Date")).firstMatch
+        XCTAssertTrue(date.waitForExistence(timeout: 10))
+        date.tap()
+        app.buttons["fst.history.sort.done"].tap()
+        XCTAssertTrue(open.waitForExistence(timeout: 10))
+        let atTop = NSPredicate(format: "hittable == true")
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [expectation(for: atTop, evaluatedWith: firstRow)], timeout: 10),
+            .completed, "Re-sorting did not scroll back to the top (scrolled away: \(scrolledAway))"
+        )
+        SongsUITestSupport.record(app, name: "history-sort-scrolled-to-top")
+    }
+
     /// Traverse Songs, Detail and page two, then verify landscape layout survives.
     ///
     /// - Throws: An XCTest failure for missing accessible actions or screen state.

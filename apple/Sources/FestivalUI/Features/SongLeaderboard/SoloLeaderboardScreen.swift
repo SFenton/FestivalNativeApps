@@ -18,6 +18,8 @@ struct SoloLeaderboardScreen: View {
     @State private var page: Int
     @State private var state: LoadState
     @State private var lastRequest: RequestKey?
+    /// First staggered reveal of this page finished; recycled rows then appear instantly.
+    @State private var staggerSettled = false
 
     enum LoadState {
         case loading
@@ -36,6 +38,12 @@ struct SoloLeaderboardScreen: View {
             page: page, publicationRevision: session.publicationRevision,
             leeway: filterInvalidScores ? (leeway * 10).rounded() / 10 : nil
         )
+    }
+
+    /// Identity of the rows currently shown (page + first row), for the stagger gate.
+    private var loadedRowsKey: String? {
+        guard case let .loaded(payload) = state else { return nil }
+        return "\(page):\(payload.leaderboard.entries.first?.accountId ?? "")"
     }
 
     /// Carry an explicit deep-link page into this screen before cached history.
@@ -84,7 +92,7 @@ struct SoloLeaderboardScreen: View {
                                 .listRowInsets(EdgeInsets())
                                 .listRowBackground(Color.clear)
                         }
-                        ForEach(payload.leaderboard.entries) { entry in
+                        ForEach(Array(payload.leaderboard.entries.enumerated()), id: \.element.id) { index, entry in
                             let isSelectedRow = isSelectedAccount(entry.accountId)
                             NavigationLink(value: playerRoute(for: entry)) {
                                 SongLeaderboardEntryRow(entry: entry)
@@ -97,6 +105,7 @@ struct SoloLeaderboardScreen: View {
                                         }
                                     }
                             }
+                            .detailStaggeredFadeIn(index: index, settled: staggerSettled)
                             .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
@@ -130,6 +139,14 @@ struct SoloLeaderboardScreen: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .task(id: loadedRowsKey) {
+            guard case let .loaded(payload) = state else { return }
+            staggerSettled = false
+            await FadeStagger.settle(afterRevealing: payload.leaderboard.entries.count) {
+                staggerSettled = true
+            }
+        }
+        .detailFadeTestSafe()
         .festivalBackground(.song(song.albumArt), session: session)
         .navigationTitle(song.title)
         .toolbar {

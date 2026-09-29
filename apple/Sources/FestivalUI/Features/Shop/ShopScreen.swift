@@ -34,6 +34,8 @@ struct ShopScreen: View {
     @State private var state = LoadState.loading
     @State private var retryRevision = 0
     @State private var loadedKey: RequestKey?
+    /// First staggered reveal finished; recycled rows then appear without fading.
+    @State private var staggerSettled = false
 
     private enum LoadState {
         case loading
@@ -77,9 +79,16 @@ struct ShopScreen: View {
                 }
             case let .loaded(snapshot):
                 shopContent(snapshot)
-                    .detailFadeInOnAppear()
             }
         }
+        .task(id: loadedKey) {
+            guard case let .loaded(snapshot) = state else { return }
+            staggerSettled = false
+            await FadeStagger.settle(afterRevealing: snapshot.payload.sortedSongs.count) {
+                staggerSettled = true
+            }
+        }
+        .detailFadeTestSafe()
         .festivalBackground(.carousel, session: session, visible: isVisible)
         .navigationTitle("Item Shop")
         .toolbar {
@@ -223,8 +232,9 @@ struct ShopScreen: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 6) {
                     shopDisclosures(snapshot)
-                    ForEach(snapshot.payload.sortedSongs) { offer in
+                    ForEach(Array(snapshot.payload.sortedSongs.enumerated()), id: \.element.id) { index, offer in
                         offerCard(offer, snapshot: snapshot, grid: false)
+                            .detailStaggeredFadeIn(index: index, settled: staggerSettled)
                     }
                 }
                 .padding(.horizontal, 16)
@@ -238,8 +248,9 @@ struct ShopScreen: View {
                         columns: [GridItem(.adaptive(minimum: 210), spacing: 12)],
                         spacing: 12
                     ) {
-                        ForEach(snapshot.payload.sortedSongs) { offer in
+                        ForEach(Array(snapshot.payload.sortedSongs.enumerated()), id: \.element.id) { index, offer in
                             offerCard(offer, snapshot: snapshot, grid: true)
+                                .detailStaggeredFadeIn(index: index, settled: staggerSettled)
                         }
                     }
                 }

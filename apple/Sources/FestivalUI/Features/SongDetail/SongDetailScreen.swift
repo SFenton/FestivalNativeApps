@@ -166,6 +166,7 @@ struct SongDetailScreen: View {
             .padding(16)
         }
         .quickLinks(quickLinks, title: "Quick Links", sections: quickLinkSections)
+        .detailFadeTestSafe()
         .festivalBackground(.song(song.albumArt), session: session)
         .navigationTitle(song.title)
         .toolbar {

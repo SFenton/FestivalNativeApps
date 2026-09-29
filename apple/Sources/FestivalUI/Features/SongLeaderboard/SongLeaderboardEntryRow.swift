@@ -106,29 +106,31 @@ struct SongLeaderboardEntryRow: View {
         // Only the outline is skewed, and it is drawn inside the badge's frame, so the
         // accessibility frame stays the shared column slot (XCUITest column checks).
         let shape = GoldSkewBadgeShape(skewed: fullCombo && compact)
-        return Text(text)
-            .font(fullCombo ? .body.bold().italic() : .body)
-            .foregroundStyle(fullCombo ? BrandTokens.gold : FestivalText.primary)
-            .lineLimit(compact ? 1 : nil)
-            .minimumScaleFactor(0.8)
-            .fixedSize(horizontal: false, vertical: !compact)
-            .frame(
-                width: compact ? accuracyTextWidth + 16 : nil,
-                height: compact ? accuracyPillHeight : nil
-            )
-            // Outline drawn in the background (behind the text) and the full-rect fill
-            // last: an inset `strokeBorder` overlay became the element's accessibility
-            // frame (94pt instead of the 96pt slot) and split the badge column.
-            .background {
-                ZStack {
-                    if fullCombo {
-                        shape.strokeBorder(BrandTokens.gold, lineWidth: 2)
-                    }
-                    shape.fill(fill)
+        let width: CGFloat? = compact ? accuracyTextWidth + 16 : nil
+        let height: CGFloat? = compact ? accuracyPillHeight : nil
+        // The outline/fill is a hidden sibling of the text, not a modifier on it: any
+        // shape attached to the Text (overlay or background) became its accessibility
+        // frame (94pt instead of the 96pt slot) and split the badge column.
+        return ZStack {
+            ZStack {
+                shape.fill(fill)
+                if fullCombo {
+                    shape.strokeBorder(BrandTokens.gold, lineWidth: 2)
                 }
             }
-            .accessibilityLabel(spoken)
-            .accessibilityIdentifier("fst.score.accuracy.\(entry.accountId)")
+            .accessibilityHidden(true)
+            Text(text)
+                .font(fullCombo ? .body.bold().italic() : .body)
+                .foregroundStyle(fullCombo ? BrandTokens.gold : FestivalText.primary)
+                .lineLimit(compact ? 1 : nil)
+                .minimumScaleFactor(0.8)
+                .fixedSize(horizontal: false, vertical: !compact)
+                .frame(width: width, height: height)
+                .padding(compact ? 0 : 4)
+                .accessibilityLabel(spoken)
+                .accessibilityIdentifier("fst.score.accuracy.\(entry.accountId)")
+        }
+        .frame(width: width, height: height)
     }
 
     /// The web's `GOLD_SKEW` (`skewX(-8deg)`) about the badge's vertical centre.

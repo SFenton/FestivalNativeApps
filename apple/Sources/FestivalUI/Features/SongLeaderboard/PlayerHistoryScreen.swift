@@ -15,6 +15,12 @@ struct PlayerHistoryScreen: View {
     @State private var state: LoadState = .loading
     @State private var sortMode: PlayerScoreSortMode = .score
     @State private var sortAscending = false
+    /// First staggered reveal finished; recycled rows then appear instantly.
+    @State private var staggerSettled = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Scroll target at the top of the history list (the chart row).
+    private static let topAnchor = "fst.history.top"
     @State private var sortSheetPresented = false
     @State private var lastRequest: RequestKey?
 
@@ -77,6 +83,7 @@ struct PlayerHistoryScreen: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .detailFadeTestSafe()
         .festivalBackground(.song(song.albumArt), session: session)
         .navigationTitle(song.title)
         .toolbar {
@@ -149,6 +156,7 @@ struct PlayerHistoryScreen: View {
                     description: Text("No score history for this instrument.")
                 )
             } else {
+                ScrollViewReader { proxy in
                 List {
                     if payload.isStale {
                         FreshnessDisclosure(
@@ -163,6 +171,7 @@ struct PlayerHistoryScreen: View {
                     PlayerHistoryChart(entries: sorted, highScoreIndex: highScoreIndex)
                         .listRowInsets(EdgeInsets())
                         .listRowBackground(Color.clear)
+                        .id(Self.topAnchor)
                     ForEach(Array(sorted.enumerated()), id: \.element.changedAt) { index, entry in
                         PlayerHistoryRow(entry: entry, isHighScore: index == highScoreIndex)
                             .padding(12)
@@ -172,14 +181,32 @@ struct PlayerHistoryScreen: View {
                                     : BrandTokens.cardBackground,
                                 in: RoundedRectangle(cornerRadius: 12)
                             )
+                            .detailStaggeredFadeIn(index: index, settled: staggerSettled)
                             .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                             .accessibilityElement(children: .combine)
+                            .accessibilityIdentifier("fst.history.row.\(index)")
                     }
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
+                // Operator rule: changing the sort scrolls back to the top of the
+                // re-sorted list.
+                .onChange(of: PlayerHistorySortKey(mode: sortMode, ascending: sortAscending)) { _, _ in
+                    if reduceMotion {
+                        proxy.scrollTo(Self.topAnchor, anchor: .top)
+                    } else {
+                        withAnimation { proxy.scrollTo(Self.topAnchor, anchor: .top) }
+                    }
+                }
+                .task(id: entries.count) {
+                    staggerSettled = false
+                    await FadeStagger.settle(afterRevealing: entries.count) {
+                        staggerSettled = true
+                    }
+                }
+                }
             }
         }
     }
@@ -256,4 +283,10 @@ struct PlayerHistoryRow: View {
                 + (isHighScore ? ", personal best" : "")
         )
     }
+}
+
+/// Sort state compared as one value, so a mode or direction change scrolls to the top once.
+struct PlayerHistorySortKey: Equatable {
+    let mode: PlayerScoreSortMode
+    let ascending: Bool
 }
