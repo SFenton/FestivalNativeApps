@@ -1,5 +1,7 @@
 package com.festivalscoretracker.android.ui.shop
 
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.ShoppingCart
 import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.rememberRevealed
@@ -362,7 +364,12 @@ private fun ShopListRow(item: ShopOfferItem, artUrl: String?, pulse: () -> Float
                 IconButton(
                     onClick = onOfficial,
                     modifier = Modifier.heightIn(min = 48.dp).testTag("fst.shop.external.${offer.songId}"),
-                ) { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = "Open ${offer.title} in the Fortnite Item Shop") }
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.ShoppingCart, contentDescription = "Open ${offer.title} in the Fortnite Item Shop", modifier = Modifier.size(20.dp))
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, modifier = Modifier.size(18.dp))
+                    }
+                }
             }
         }
     }

@@ -144,7 +144,6 @@ class SongsUiTest {
         rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.history.Solo_Guitar"))
         rule.onNodeWithTag("fst.song-detail.your-rank.Solo_Guitar").assertExists()
 
-        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.paths.open"))
         click("fst.song-detail.paths.open")
         waitForTag("fst.paths.karaoke-warning")
         click("fst.paths.warning.never")

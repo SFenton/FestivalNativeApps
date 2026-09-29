@@ -103,7 +103,9 @@ class SongsParityTest {
         assertTrue(noChart.sortPaused!!.contains("needs a single-instrument filter"))
 
         val hasFc = base.copy(sort = SongSortMode.HasFC)
-        assertTrue(SongListPipeline.run(hasFc.copy(hasPlayer = false), sorter).sortPaused!!.contains("until a player is selected"))
+        val anonymous = SongListPipeline.run(hasFc.copy(hasPlayer = false), sorter)
+        assertNull(anonymous.sortPaused)
+        assertEquals(SongSortMode.Title, anonymous.effectiveSort)
         assertTrue(SongListPipeline.run(hasFc.copy(scores = null), sorter).sortPaused!!.contains("same update"))
 
         val live = SongListPipeline.run(hasFc, sorter)

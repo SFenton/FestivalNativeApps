@@ -112,7 +112,6 @@ class SongsDrawUiTest {
     fun pathsImageDecodesAndDraws() {
         launch(DebugLaunch(songQuery = "s-alpha", stillBackground = true))
         waitForTag("fst.song-detail.list")
-        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.paths.open"))
         rule.onNodeWithTag("fst.song-detail.paths.open").performSemanticsAction(SemanticsActions.OnClick)
         waitForTag("fst.paths.image")
         waitForTag("fst.paths.zoom-in")

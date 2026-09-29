@@ -398,9 +398,9 @@ data class SongListInputs(
  * @property sections Scrubber sections (Title/Artist/Year only).
  * @property headers In-list bucket headers, also the Quick Links targets.
  * @property effectiveSort Sort actually applied (a paused sort shows Title order).
- * @property sortPaused Why a saved sort is paused.
+ * @property sortPaused Why a saved sort is paused (none for a player sort while no player is selected).
  * @property shopFilterPaused Why a saved Shop filter is paused.
- * @property scoreFilterPaused Why saved player filters are paused.
+ * @property scoreFilterPaused Why saved player filters are paused (none while no player is selected).
  * @property filtersApplied Whether any filter actually narrowed the pipeline.
  * @property sortChart Chart score sorts compared, when any.
  */
@@ -454,9 +454,12 @@ object SongListPipeline {
         val context = SongBucketContext(effective, chart, input.offers.orEmpty(), sortScores, input.nowEpochMillis)
         val (ordered, headers) = if (effective.usesSectionIndex) sorted to emptyList() else SongQuickLinkBuckets.group(sorted, context)
         val applied = filter.isActive || (input.shopFilter.isActive && shopPaused == null) || (scoped.isActive && scorePaused == null)
+        // Without a player, player-dependent choices simply don't apply (web shows no notice).
+        val sortNotice = sortPaused.takeUnless { !input.hasPlayer && input.sort.needsScores }
+        val scoreNotice = scorePaused.takeIf { input.hasPlayer }
         return SongListResult(
             ordered, SongSectionIndex.sections(ordered, effective), headers, effective,
-            sortPaused, shopPaused, scorePaused, applied,
+            sortNotice, shopPaused, scoreNotice, applied,
             sortChart = if (effective.needsChart || effective == SongSortMode.HasFC) chart else null,
         )
     }

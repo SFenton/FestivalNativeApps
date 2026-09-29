@@ -1,5 +1,12 @@
 package com.festivalscoretracker.android.ui.songdetail
 
+import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
+import com.festivalscoretracker.android.core.format.DifficultyMeterSpec
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.material3.IconButton
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.BoxWithConstraints
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.rememberRevealed
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -158,7 +165,7 @@ fun SongDetailScreen(
         when (val state = songState) {
             LoadState.Loading -> LoadingView("Loading song", Modifier.padding(padding))
             is LoadState.Failed -> ServiceStatusView(state.issue, "Song unavailable", state.countdown, viewModel::retry, contentPadding = padding)
-            is LoadState.Loaded -> SongDetailContent(state.value, viewModel, extras, artworkUrl(state.value.albumArt), padding, onOpenPaths, revealed)
+            is LoadState.Loaded -> SongDetailContent(state.value, viewModel, extras, artworkUrl(state.value.albumArt), padding, onOpenPaths, revealed, embedded)
         }
     }
     if (embedded) {
@@ -166,7 +173,19 @@ fun SongDetailScreen(
         val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         body(PaddingValues(top = statusTop + 8.dp, bottom = shell.bottomPadding.calculateBottomPadding()))
     } else {
-        FestivalScreen(title = song?.title ?: "Song", isRoot = false, content = body)
+        // Paths lives in the dock (floating toolbar on phones, top bar elsewhere), like the web.
+        FestivalScreen(
+            title = song?.title ?: "Song",
+            isRoot = false,
+            actions = {
+                if (song != null && extras.pathInstruments.isNotEmpty()) {
+                    IconButton(onClick = { onOpenPaths(song) }, modifier = Modifier.testTag("fst.song-detail.paths.open")) {
+                        Icon(Icons.Filled.Route, contentDescription = "View Paths")
+                    }
+                }
+            },
+            content = body,
+        )
     }
 }
 
@@ -179,6 +198,7 @@ private fun SongDetailContent(
     padding: PaddingValues,
     onOpenPaths: (Song) -> Unit,
     revealed: Boolean,
+    embedded: Boolean,
 ) {
     val navigate = LocalShellActions.current.navigate
     val charted = Instrument.entries.filter(song::supports)
@@ -188,11 +208,11 @@ private fun SongDetailContent(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.fillMaxSize().testTag("fst.song-detail.list"),
     ) {
-        item(key = "header") { Box(Modifier.festivalFadeIn(revealed)) { SongHeader(song, artUrl) } }
-        item(key = "actions") { HeaderActions(song, extras, onOpenPaths) }
+        // Web order: pinned compact header, actions, intensity, instrument leaderboards, band leaderboards.
+        stickyHeader(key = "header") { Box(Modifier.festivalFadeIn(revealed)) { SongHeader(song, artUrl) } }
+        item(key = "actions") { HeaderActions(song, extras, onOpenPaths, showPaths = embedded) }
         item(key = "intensity-header") { SectionHeader("Intensity") }
         item(key = "intensity") { IntensityCard(song, charted) }
-        item(key = "bands") { BandLinks(song, navigate) }
         itemsIndexed(cards, key = { _, chart -> chart.wireId }) { index, instrument ->
             val state by viewModel.preview(song, instrument).collectAsStateWithLifecycle()
             Column(Modifier.festivalFadeIn(revealed, fadeInStagger(index + 1))) {
@@ -200,36 +220,47 @@ private fun SongDetailContent(
                 PreviewCard(song, instrument, state, viewModel, extras, navigate)
             }
         }
+        item(key = "bands") { BandLinks(song, navigate) }
     }
 }
 
+/**
+ * The compact header pinned while the page scrolls (web Song Detail header): art,
+ * title and "artist · year · length", marqueeing when they overflow.
+ */
 @Composable
 private fun SongHeader(song: Song, artUrl: String?) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.padding(top = 8.dp)) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(BrandTokens.appBackground.copy(alpha = 0.94f), RoundedCornerShape(12.dp))
+            .padding(vertical = 8.dp)
+            .testTag("fst.song-detail.header"),
+    ) {
         AsyncImage(
             model = artUrl,
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.size(112.dp).clip(RoundedCornerShape(12.dp)).background(BrandTokens.surfaceMuted),
+            modifier = Modifier.size(56.dp).clip(RoundedCornerShape(10.dp)).background(BrandTokens.surfaceMuted),
         )
-        Column(Modifier.weight(1f)) {
-            Text(song.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = Modifier.semantics { heading() })
-            Text(song.subtitle, style = MaterialTheme.typography.bodyLarge, color = BrandTokens.textSecondary)
-            song.album?.takeIf { it.isNotBlank() }?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary)
-            }
+        Column(Modifier.weight(1f).semantics(mergeDescendants = true) { heading() }) {
+            FestivalMarqueeText(song.title, style = MaterialTheme.typography.titleLarge, color = BrandTokens.textPrimary, fontWeight = FontWeight.Bold)
+            FestivalMarqueeText(song.subtitle, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textSecondary)
         }
     }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun HeaderActions(song: Song, extras: SongDetailExtras, onOpenPaths: (Song) -> Unit) {
+private fun HeaderActions(song: Song, extras: SongDetailExtras, onOpenPaths: (Song) -> Unit, showPaths: Boolean) {
     val hasShop = extras.shopUrl != null
-    if (extras.pathInstruments.isEmpty() && !hasShop && !extras.shopError) return
+    val paths = showPaths && extras.pathInstruments.isNotEmpty()
+    if (!paths && !hasShop && !extras.shopError) return
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (extras.pathInstruments.isNotEmpty()) {
+            if (paths) {
                 FilledTonalButton(onClick = { onOpenPaths(song) }, modifier = Modifier.testTag("fst.song-detail.paths.open")) {
                     Icon(Icons.Filled.Route, contentDescription = null, modifier = Modifier.size(18.dp))
                     Text("Paths", modifier = Modifier.padding(start = 6.dp))
@@ -246,20 +277,47 @@ private fun HeaderActions(song: Song, extras: SongDetailExtras, onOpenPaths: (So
     }
 }
 
+/**
+ * Intensity for every charted instrument: a two-column icon grid on compact widths
+ * (web), a labelled list on wider panes. Each cell is one TalkBack stop naming the
+ * instrument and its level.
+ */
 @Composable
 private fun IntensityCard(song: Song, charted: List<Instrument>) {
     GlassCard(Modifier.fillMaxWidth().testTag("fst.song-detail.intensity")) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            charted.forEach { instrument ->
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.semantics(mergeDescendants = true) { }) {
-                    InstrumentIcon(instrument, keyboard = song.usesKeyboardIcon, size = 28.dp)
-                    Text(instrument.label, color = BrandTokens.textSecondary, modifier = Modifier.weight(1f).padding(start = 10.dp))
-                    DifficultyMeter(song.difficulty?.chartedValue(instrument) ?: Double.NaN)
+        BoxWithConstraints(Modifier.padding(12.dp)) {
+            val grid = maxWidth < INTENSITY_GRID_MAX_WIDTH
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                charted.chunked(if (grid) 2 else 1).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        row.forEach { instrument ->
+                            val raw = song.difficulty?.chartedValue(instrument) ?: Double.NaN
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("fst.song-detail.intensity.${instrument.wireId}")
+                                    .clearAndSetSemantics { contentDescription = "${instrument.label}, ${DifficultyMeterSpec.accessibilityLabel(raw, raw = true)}" },
+                            ) {
+                                InstrumentIcon(instrument, keyboard = song.usesKeyboardIcon, size = 28.dp, decorative = true)
+                                if (grid) {
+                                    Spacer(Modifier.weight(1f))
+                                } else {
+                                    Text(instrument.label, color = BrandTokens.textPrimary, modifier = Modifier.weight(1f).padding(start = 10.dp))
+                                }
+                                DifficultyMeter(raw)
+                            }
+                        }
+                        if (row.size == 1 && grid) Spacer(Modifier.weight(1f))
+                    }
                 }
             }
         }
     }
 }
+
+/** Widths below this show the intensity icon grid (M3 compact). */
+private val INTENSITY_GRID_MAX_WIDTH = 600.dp
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -328,7 +386,7 @@ private fun PreviewCard(
                 is LoadState.Loaded -> Column(Modifier.festivalFadeIn(rowsRevealed)) {
                     val entries = preview.value.leaderboard.entries
                     if (entries.isEmpty()) {
-                        Text("No scores yet", color = BrandTokens.textSecondary, modifier = Modifier.padding(16.dp))
+                        Text("No scores recorded yet", color = BrandTokens.textPrimary, modifier = Modifier.padding(16.dp))
                     } else {
                         entries.forEach { entry ->
                             PreviewRow(
@@ -436,14 +494,14 @@ fun ScoreRow(entry: LeaderboardEntry, showStars: Boolean = false) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
-        AccuracyBadge(entry)
         Text(
             ScoreFormatting.score(entry.score),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
             color = BrandTokens.textPrimary,
-            modifier = Modifier.padding(start = 10.dp),
+            modifier = Modifier.padding(end = 10.dp),
         )
+        AccuracyBadge(entry)
         if (showStars) {
             Box(Modifier.padding(start = 10.dp).width(STAR_COLUMN_DP.dp), contentAlignment = Alignment.CenterEnd) {
                 StarRating(entry.stars ?: 0, Modifier.testTag("fst.stars"), size = 20.dp)
@@ -465,11 +523,13 @@ private fun AccuracyBadge(entry: LeaderboardEntry) {
         tint != null -> Color(0xFF000000 or tint.toLong()).copy(alpha = 0.25f)
         else -> Color.Transparent
     }
+    val text = "${ScoreFormatting.accuracy(accuracy)}%"
     Text(
-        if (fullCombo) "FC ${ScoreFormatting.accuracy(accuracy)}%" else "${ScoreFormatting.accuracy(accuracy)}%",
+        text,
         style = MaterialTheme.typography.labelMedium,
         color = if (fullCombo) BrandTokens.gold else BrandTokens.textPrimary,
         modifier = Modifier
+            .semantics { contentDescription = if (fullCombo) "Full combo, $text" else "Accuracy $text" }
             .clip(RoundedCornerShape(6.dp))
             .background(background)
             .padding(horizontal = 6.dp, vertical = 2.dp),

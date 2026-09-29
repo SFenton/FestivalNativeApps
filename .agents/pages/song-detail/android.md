@@ -15,6 +15,8 @@
 - Preview rows open the player (`RankingNavigation.playerRoute`); rows with no account read **Unknown User** and are not interactive.
 - Paths sheet: see [chopt-paths/android.md](../../controls/chopt-paths/android.md).
 
+- PWA gap fixes (2026-09-28): a compact header (56 dp art, marquee title and "artist · year · length", no album line) is pinned as a sticky header; **View Paths** is a dock action (floating toolbar on phones, top bar elsewhere; the button stays in the header actions inside the two-pane detail); intensity is a two-column icon grid below 600 dp (label in each cell's TalkBack text); order is intensity → instrument leaderboards → band leaderboards; score rows show the score, then the accuracy badge (gold for FC, "Full combo" spoken); an empty chart reads "No scores recorded yet". The full board's header is an instrument switcher (menu of visible charted instruments).
+
 ## Open
 
 Selected-player history chart on the page, promoted band previews, scrolling to an initial instrument, Quick Links (Song Detail is not a lazy list of sections yet).

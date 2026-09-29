@@ -251,7 +251,9 @@ class SongsCoreTest {
         assertEquals(listOf("a"), SongListPipeline.run(base, sorter).songs.map { it.songId })
         fun reason(input: SongListInputs) = SongListPipeline.run(input, sorter).scoreFilterPaused!!
         assertTrue(reason(base.copy(visible = setOf(Instrument.Bass))).contains("hidden in Settings"))
-        assertTrue(reason(base.copy(hasPlayer = false)).contains("until a player is selected"))
+        // No player: the filters don't apply and there's no notice (web).
+        assertNull(SongListPipeline.run(base.copy(hasPlayer = false), sorter).scoreFilterPaused)
+        assertEquals(4, SongListPipeline.run(base.copy(hasPlayer = false), sorter).songs.size)
         // Filter Invalid Scores no longer pauses: the scores are already the effective (next valid) ones.
         assertNull(SongListPipeline.run(base.copy(filterInvalidScores = true), sorter).scoreFilterPaused)
         assertTrue(reason(base.copy(scores = null)).contains("same update"))

@@ -223,6 +223,27 @@ class SongsParityUiTest {
         assertTrue(transport.sent("/api/leaderboard/s-alpha/Solo_Guitar").all { it.url.contains("leeway=1.0") })
     }
 
+    @Test
+    fun songLeaderboardHeaderSwitchesInstrument() {
+        launch(DebugLaunch(route = SongLeaderboardRoute("s-alpha", "Solo_Guitar", 1), stillBackground = true))
+        waitForTag("fst.song-leaderboard.list")
+        waitForTag("fst.song-leaderboard.instrument")
+        click("fst.song-leaderboard.instrument")
+        waitForTag("fst.song-leaderboard.instrument.Solo_Bass")
+        click("fst.song-leaderboard.instrument.Solo_Bass")
+        rule.waitUntil(10_000) { settle(100); transport.sent("/api/leaderboard/s-alpha/Solo_Bass").isNotEmpty() }
+    }
+
+    @Test
+    fun songDetailPinsACompactHeaderAndGridsIntensity() {
+        launch(DebugLaunch(songQuery = "s-alpha", stillBackground = true))
+        waitForTag("fst.song-detail.header")
+        waitForTag("fst.song-detail.intensity.Solo_Guitar", unmerged = true)
+        waitForTag("fst.song-detail.paths.open")
+        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.bands"))
+        assertTrue(exists("fst.song-detail.header"))
+    }
+
     private fun androidx.compose.ui.test.SemanticsNodeInteraction.assertExistsWithText(fragment: String) {
         val config = fetchSemanticsNode().config.toString()
         assertTrue(config, config.contains(fragment))
