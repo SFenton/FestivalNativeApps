@@ -160,7 +160,9 @@ private func pathContentPixels(_ image: CGImage) -> (
         #expect((1...3).contains(scale))
         #expect(abs(CGFloat(image.height) / size.height - scale) < 0.02)
         let pixels = nativeHostedControlPixels(image)
-        #expect(pixels.bright > 20 && pixels.selected > 40)
+        // Selectors are menu pickers in a bottom row now (no blue selected segment);
+        // require painted white labels and no placeholder surface.
+        #expect(pixels.bright > 20)
         #expect(pixels.placeholder == 0)
         snapshots.append(try nativeHostedPNG(
             image, filename: "paths-\(name).png",
@@ -212,7 +214,7 @@ private func pathContentPixels(_ image: CGImage) -> (
 
     let textImage = try await loaded(.text, size: CGSize(width: 820, height: 1180))
     let textPixels = nativeHostedControlPixels(textImage)
-    #expect(textPixels.bright > 20 && textPixels.selected > 40)
+    #expect(textPixels.bright > 20)
     #expect(await transport.recordedPaths()
         .contains("/api/paths/fixture-pulse/Solo_Guitar/expert/data"))
     _ = try nativeHostedPNG(
@@ -222,7 +224,7 @@ private func pathContentPixels(_ image: CGImage) -> (
 
     let image = try await loaded(.image, size: CGSize(width: 390, height: 844))
     let imagePixels = nativeHostedControlPixels(image)
-    #expect(imagePixels.bright > 20 && imagePixels.selected > 40)
+    #expect(imagePixels.bright > 20)
     #expect(await transport.recordedPaths()
         .contains("/api/paths/fixture-pulse/Solo_Guitar/expert"))
     _ = try nativeHostedPNG(

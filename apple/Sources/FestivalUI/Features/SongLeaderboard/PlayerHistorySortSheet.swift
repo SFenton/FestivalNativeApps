@@ -9,37 +9,31 @@ import FestivalDesign
 /// sort mode (date/score/accuracy/season) and ascending/descending direction.
 struct PlayerHistorySortSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var draftMode: PlayerScoreSortMode
-    @State private var draftAscending: Bool
-    @State private var discardPending = false
-    let mode: PlayerScoreSortMode
-    let ascending: Bool
+    @State private var mode: PlayerScoreSortMode
+    @State private var ascending: Bool
     let onApply: (PlayerScoreSortMode, Bool) -> Void
 
-    /// Start from the currently applied sort.
+    /// Start from the currently applied sort; every change applies immediately.
     ///
     /// - Parameters:
     ///   - mode: Applied sort key.
     ///   - ascending: Applied direction.
-    ///   - onApply: Commit both draft fields together after explicit confirmation.
+    ///   - onApply: Called with both fields on every change (live apply, operator
+    ///     2026-09-28: no Cancel/Apply for this sheet).
     init(
         mode: PlayerScoreSortMode, ascending: Bool,
         onApply: @escaping (PlayerScoreSortMode, Bool) -> Void
     ) {
-        self.mode = mode
-        self.ascending = ascending
         self.onApply = onApply
-        _draftMode = State(initialValue: mode)
-        _draftAscending = State(initialValue: ascending)
+        _mode = State(initialValue: mode)
+        _ascending = State(initialValue: ascending)
     }
-
-    private var hasChanges: Bool { draftMode != mode || draftAscending != ascending }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    Picker("Mode", selection: $draftMode) {
+                    Picker("Mode", selection: $mode) {
                         ForEach(PlayerScoreSortMode.allCases) { choice in
                             Text(choice.label).tag(choice)
                         }
@@ -52,7 +46,7 @@ struct PlayerHistorySortSheet: View {
                     Text("Choose which property to sort your score history by.")
                 }
                 Section {
-                    Picker("Direction", selection: $draftAscending) {
+                    Picker("Direction", selection: $ascending) {
                         Text("Ascending").tag(true)
                         Text("Descending").tag(false)
                     }
@@ -61,17 +55,17 @@ struct PlayerHistorySortSheet: View {
                 } header: {
                     Text("Sort Direction")
                 } footer: {
-                    Text(draftAscending
+                    Text(ascending
                         ? "Ascending (oldest first, low-high)"
                         : "Descending (newest first, high-low)")
                 }
                 Section {
                     Button("Reset Sort Settings") {
-                        draftMode = .score
-                        draftAscending = false
+                        mode = .score
+                        ascending = false
                     }
                     .font(.body)
-                    .tint(BrandTokens.textPrimary)
+                    .tint(FestivalText.primary)
                     .accessibilityIdentifier("fst.history.sort.reset")
                 }
             }
@@ -79,34 +73,17 @@ struct PlayerHistorySortSheet: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
             #endif
-            // Paired Cancel/Apply modal: `.cancellationAction` leading,
-            // `.confirmationAction` trailing (app modal standard, operator
-            // 2026-09-28) — replaces a custom `safeAreaInset` footer.
+            // Live apply: changes take effect as they are made; one Done closes.
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        if hasChanges { discardPending = true } else { dismiss() }
-                    }
-                    .accessibilityIdentifier("fst.history.sort.cancel")
-                }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Apply") {
-                        onApply(draftMode, draftAscending)
-                        dismiss()
-                    }
-                    .disabled(!hasChanges)
-                    .accessibilityIdentifier("fst.history.sort.apply")
+                    Button("Done") { dismiss() }
+                        .accessibilityIdentifier("fst.history.sort.done")
                 }
             }
+            .onChange(of: mode) { _, newMode in onApply(newMode, ascending) }
+            .onChange(of: ascending) { _, newAscending in onApply(mode, newAscending) }
         }
         // festivalSheet(.compact) is already applied by the presenting call site
         // (PlayerHistoryScreen.swift) — do not double-apply it here.
-        .alert("Discard Sort Changes", isPresented: $discardPending) {
-            Button("Continue Editing", role: .cancel) {}
-            Button("Discard Changes", role: .destructive) { dismiss() }
-        } message: {
-            Text("Are you sure you want to discard your sort changes?")
-        }
-        .interactiveDismissDisabled()
     }
 }

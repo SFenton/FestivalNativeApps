@@ -226,7 +226,7 @@ struct SongScorePreview: View {
             .foregroundStyle(FestivalText.primary)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .festivalFadeInOnAppear()
+            .detailFadeInOnAppear()
         } else {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(displayed.enumerated()), id: \.offset) { index, entry in
@@ -253,7 +253,7 @@ struct SongScorePreview: View {
                         )
                 }
             }
-            .festivalFadeInOnAppear()
+            .detailFadeInOnAppear()
         }
     }
 

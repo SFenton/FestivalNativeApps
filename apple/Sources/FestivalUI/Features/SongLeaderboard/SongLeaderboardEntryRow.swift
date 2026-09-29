@@ -116,10 +116,15 @@ struct SongLeaderboardEntryRow: View {
                 width: compact ? accuracyTextWidth + 16 : nil,
                 height: compact ? accuracyPillHeight : nil
             )
-            .background(fill, in: shape)
-            .overlay {
-                if fullCombo {
-                    shape.strokeBorder(BrandTokens.gold, lineWidth: 2)
+            // Outline drawn in the background (behind the text) and the full-rect fill
+            // last: an inset `strokeBorder` overlay became the element's accessibility
+            // frame (94pt instead of the 96pt slot) and split the badge column.
+            .background {
+                ZStack {
+                    if fullCombo {
+                        shape.strokeBorder(BrandTokens.gold, lineWidth: 2)
+                    }
+                    shape.fill(fill)
                 }
             }
             .accessibilityLabel(spoken)

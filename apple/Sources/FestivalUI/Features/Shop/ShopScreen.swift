@@ -77,7 +77,7 @@ struct ShopScreen: View {
                 }
             case let .loaded(snapshot):
                 shopContent(snapshot)
-                    .festivalFadeInOnAppear()
+                    .detailFadeInOnAppear()
             }
         }
         .festivalBackground(.carousel, session: session, visible: isVisible)

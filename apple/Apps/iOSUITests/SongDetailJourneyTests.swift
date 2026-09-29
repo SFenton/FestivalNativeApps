@@ -33,9 +33,9 @@ final class SongDetailJourneyTests: XCTestCase {
             warning.buttons["OK"].tap()
         }
 
-        let display = app.segmentedControls["fst.paths.display"]
+        let display = pathsMenu("fst.paths.display", in: app)
         XCTAssertTrue(display.waitForExistence(timeout: 10))
-        display.buttons["Image"].tap()
+        choose("Image", in: display, app: app)
         let image = app.images["fst.paths.image"]
         XCTAssertTrue(image.waitForExistence(timeout: 15))
         if UIDevice.current.userInterfaceIdiom == .phone {
@@ -58,7 +58,7 @@ final class SongDetailJourneyTests: XCTestCase {
         zoomOut.tap()
         XCTAssertTrue(zoom.isEnabled)
 
-        display.buttons["Text"].tap()
+        choose("Text", in: display, app: app)
         let summary = app.staticTexts["fst.paths.text-summary"]
         XCTAssertTrue(summary.waitForExistence(timeout: 15))
         XCTAssertEqual(summary.label, "Two synthetic Expert activations")
@@ -72,18 +72,18 @@ final class SongDetailJourneyTests: XCTestCase {
         }
         SongsUITestSupport.record(app, name: "song-path-expert-text")
 
-        let difficulty = app.segmentedControls["fst.paths.difficulty"]
-        XCTAssertTrue(difficulty.buttons["Expert"].isSelected)
-        difficulty.buttons["Hard"].tap()
+        let difficulty = pathsMenu("fst.paths.difficulty", in: app)
+        XCTAssertTrue(menuShows("Expert", difficulty), "Difficulty: \(difficulty.label)")
+        choose("Hard", in: difficulty, app: app)
         for _ in 0..<40 {
             if summary.label.contains("Hard") { break }
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         }
         XCTAssertEqual(summary.label, "Two synthetic Hard activations")
-        difficulty.buttons["Medium"].tap()
+        choose("Medium", in: difficulty, app: app)
         XCTAssertTrue(app.staticTexts["Path unavailable"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["Retry"].exists)
-        difficulty.buttons["Expert"].tap()
+        choose("Expert", in: difficulty, app: app)
         XCTAssertTrue(summary.waitForExistence(timeout: 15))
         for _ in 0..<40 {
             if summary.label.contains("Expert") { break }
@@ -147,9 +147,9 @@ final class SongDetailJourneyTests: XCTestCase {
         if warning.waitForExistence(timeout: 2) {
             warning.buttons["OK"].tap()
         }
-        let display = app.segmentedControls["fst.paths.display"]
+        let display = pathsMenu("fst.paths.display", in: app)
         XCTAssertTrue(display.waitForExistence(timeout: 10))
-        XCTAssertTrue(display.buttons[changed].isSelected)
+        XCTAssertTrue(menuShows(changed, display), "View: \(display.label)")
         if changed == "Text" {
             XCTAssertTrue(app.staticTexts["fst.paths.text-summary"]
                 .waitForExistence(timeout: 15))
@@ -227,7 +227,7 @@ final class SongDetailJourneyTests: XCTestCase {
             return true
         }
         warning.buttons["OK"].tap()
-        let display = app.segmentedControls["fst.paths.display"]
+        let display = pathsMenu("fst.paths.display", in: app)
         XCTAssertTrue(display.waitForExistence(timeout: 10))
         app.buttons["fst.paths.close"].tap()
 
@@ -643,4 +643,45 @@ final class SongDetailJourneyTests: XCTestCase {
         SongsUITestSupport.record(app, name: "solo-largest-text-page2")
     }
 
+
+    // MARK: - Paths menu helpers
+
+    /// The Paths sheet's bottom-row menu picker with this identifier.
+    ///
+    /// - Parameters:
+    ///   - identifier: `fst.paths.instrument` / `.difficulty` / `.display`.
+    ///   - app: Running app.
+    /// - Returns: The picker element (a menu button).
+    @MainActor
+    private func pathsMenu(_ identifier: String, in app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+    }
+
+    /// Whether a menu picker currently shows this option.
+    ///
+    /// - Parameters:
+    ///   - option: Option title.
+    ///   - menu: Menu picker element.
+    /// - Returns: True when its label or value names the option.
+    @MainActor
+    private func menuShows(_ option: String, _ menu: XCUIElement) -> Bool {
+        menu.label.contains(option) || ((menu.value as? String)?.contains(option) ?? false)
+    }
+
+    /// Open a menu picker and pick an option.
+    ///
+    /// - Parameters:
+    ///   - option: Option title to tap.
+    ///   - menu: Menu picker element.
+    ///   - app: Running app.
+    @MainActor
+    private func choose(_ option: String, in menu: XCUIElement, app: XCUIApplication) {
+        XCTAssertTrue(menu.waitForExistence(timeout: 10))
+        menu.tap()
+        let item = app.buttons.matching(
+            NSPredicate(format: "label == %@ AND identifier != %@", option, menu.identifier)
+        ).firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 5), "Menu option \(option) missing")
+        item.tap()
+    }
 }

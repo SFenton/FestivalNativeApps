@@ -46,10 +46,10 @@ struct SongPathsSheet: View {
         )
     }
 
-    private var zoomLayout: AnyLayout {
+    private var selectorLayout: AnyLayout {
         dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(spacing: 10))
-            : AnyLayout(HStackLayout(spacing: 12))
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 8))
     }
 
     /// Reset controls for each opening without changing the Settings default.
@@ -75,51 +75,13 @@ struct SongPathsSheet: View {
     }
 
     var body: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 12) {
-                Text("Paths")
-                    .font(.title2.bold())
-                    .foregroundStyle(FestivalText.primary)
-                    .accessibilityAddTraits(.isHeader)
-                Spacer()
-                Button {
-                    dismiss()
-                } label: {
-                    Label("Close", systemImage: "xmark")
-                        .font(.body)
-                        .foregroundStyle(FestivalText.primary)
-                        .padding(.horizontal, 12)
-                        .frame(minHeight: 44)
-                        .background(
-                            BrandTokens.cardBackground,
-                            in: Capsule()
-                        )
-                }
-                .buttonStyle(HighContrastPagerStyle())
-                .accessibilityIdentifier("fst.paths.close")
-            }
-            Picker("Instrument", selection: $instrument) {
-                ForEach(instruments) { choice in
-                    Text(choice.label).tag(choice)
-                }
-            }
-            .pickerStyle(.menu)
-            .accessibilityIdentifier("fst.paths.instrument")
-            Picker("Difficulty", selection: $difficulty) {
-                ForEach(PathDifficulty.allCases) { choice in
-                    Text(choice.label).tag(choice)
-                }
-            }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("fst.paths.difficulty")
-            Picker("Display", selection: $display) {
-                ForEach(PathDisplayMode.allCases) { choice in
-                    Text(choice.label).tag(choice)
-                }
-            }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("fst.paths.display")
+        // Web-like layout: one compact title row, the path image/table filling the
+        // sheet, and a compact selector row at the bottom (operator audit 2026-09-28).
+        VStack(spacing: 10) {
+            topBar
             pathContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            selectorRow
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -142,6 +104,94 @@ struct SongPathsSheet: View {
         .interactiveDismissDisabled()
     }
 
+    // MARK: - Compact chrome
+
+    /// One row: title, image zoom controls (image mode only) and an icon Close.
+    private var topBar: some View {
+        HStack(spacing: 8) {
+            Text("Paths")
+                .font(.headline)
+                .foregroundStyle(FestivalText.primary)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 8)
+            if case .image = state {
+                zoomButton(
+                    "Zoom out", symbol: "minus.magnifyingglass", enabled: zoom > 1
+                ) {
+                    setZoom(zoom / 1.5)
+                }
+                .accessibilityIdentifier("fst.paths.zoom-out")
+                Text("\(Int(zoom * 100))%")
+                    .font(.subheadline)
+                    .monospacedDigit()
+                    .foregroundStyle(FestivalText.primary)
+                zoomButton(
+                    "Zoom in", symbol: "plus.magnifyingglass", enabled: zoom < 3
+                ) {
+                    setZoom(zoom * 1.5)
+                }
+                .accessibilityIdentifier("fst.paths.zoom-in")
+            }
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(FestivalText.primary)
+                    .frame(width: 44, height: 44)
+                    .background(BrandTokens.cardBackground, in: Circle())
+            }
+            .buttonStyle(HighContrastPagerStyle())
+            .accessibilityLabel("Close")
+            .accessibilityIdentifier("fst.paths.close")
+        }
+    }
+
+    /// Instrument, difficulty and view menus in one compact bottom row (web's
+    /// bottom pickers).
+    private var selectorRow: some View {
+        selectorLayout {
+            selectorMenu {
+                Picker("Instrument", selection: $instrument) {
+                    ForEach(instruments) { choice in
+                        Text(choice.label).tag(choice)
+                    }
+                }
+            }
+            .accessibilityIdentifier("fst.paths.instrument")
+            selectorMenu {
+                Picker("Difficulty", selection: $difficulty) {
+                    ForEach(PathDifficulty.allCases) { choice in
+                        Text(choice.label).tag(choice)
+                    }
+                }
+            }
+            .accessibilityIdentifier("fst.paths.difficulty")
+            selectorMenu {
+                Picker("View", selection: $display) {
+                    ForEach(PathDisplayMode.allCases) { choice in
+                        Text(choice.label).tag(choice)
+                    }
+                }
+            }
+            .accessibilityIdentifier("fst.paths.display")
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// Menu-style picker on a compact glass capsule.
+    ///
+    /// - Parameter picker: The picker to present as a menu.
+    /// - Returns: Capsule-backed menu picker at least 44pt tall.
+    private func selectorMenu<P: View>(@ViewBuilder _ picker: () -> P) -> some View {
+        picker()
+            .pickerStyle(.menu)
+            .tint(FestivalText.primary)
+            .font(.body)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .festivalGlassCapsule(.control, interactive: true)
+    }
+
     /// Render the independent image/text state with honest freshness and errors.
     @ViewBuilder
     private var pathContent: some View {
@@ -157,22 +207,6 @@ struct SongPathsSheet: View {
         case let .image(payload):
             VStack(spacing: 8) {
                 freshness(publicationId: payload.publicationId)
-                zoomLayout {
-                    zoomButton(
-                        "Zoom out", symbol: "minus.magnifyingglass", enabled: zoom > 1
-                    ) {
-                        setZoom(zoom / 1.5)
-                    }
-                    .accessibilityIdentifier("fst.paths.zoom-out")
-                    Text("\(Int(zoom * 100))%")
-                        .monospacedDigit()
-                    zoomButton(
-                        "Zoom in", symbol: "plus.magnifyingglass", enabled: zoom < 3
-                    ) {
-                        setZoom(zoom * 1.5)
-                    }
-                    .accessibilityIdentifier("fst.paths.zoom-in")
-                }
                 imageScroll(payload.image)
             }
         case let .text(payload):
@@ -216,19 +250,16 @@ struct SongPathsSheet: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            Label(title, systemImage: symbol)
-                .font(.body)
+            Image(systemName: symbol)
+                .font(.body.weight(.semibold))
                 .foregroundStyle(
                     enabled ? FestivalText.primary : FestivalText.disabled
                 )
-                .padding(.horizontal, 10)
-                .frame(minHeight: 44)
-                .background(
-                    BrandTokens.cardBackground,
-                    in: Capsule()
-                )
+                .frame(width: 44, height: 44)
+                .background(BrandTokens.cardBackground, in: Circle())
         }
         .buttonStyle(HighContrastPagerStyle())
+        .accessibilityLabel(title)
         .disabled(!enabled)
     }
 
