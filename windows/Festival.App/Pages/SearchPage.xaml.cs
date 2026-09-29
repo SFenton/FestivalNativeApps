@@ -1,3 +1,4 @@
+using Festival.App.Controls;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -120,6 +121,7 @@ public sealed partial class SearchPage : Page, IPageFind
         if (args.InRecycleQueue || args.Item is not GlobalSongResult song) return;
         AutomationProperties.SetName(args.ItemContainer, song.AccessibleName);
         AutomationProperties.SetAutomationId(args.ItemContainer, "fst.global-search.result.song");
+        if (args.ItemContainer.ContentTemplateRoot is UIElement root) RowSeparators.Apply(root, args.ItemIndex);
     }
 
     /// <summary>Names player rows for UI Automation.</summary>
@@ -130,6 +132,7 @@ public sealed partial class SearchPage : Page, IPageFind
         if (args.InRecycleQueue || args.Item is not GlobalPlayerResult player) return;
         AutomationProperties.SetName(args.ItemContainer, player.AccessibleName);
         AutomationProperties.SetAutomationId(args.ItemContainer, "fst.global-search.result.player");
+        if (args.ItemContainer.ContentTemplateRoot is UIElement root) RowSeparators.Apply(root, args.ItemIndex);
     }
 }
 #endregion

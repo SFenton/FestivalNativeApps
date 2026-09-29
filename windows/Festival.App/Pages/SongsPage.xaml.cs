@@ -134,6 +134,7 @@ public sealed partial class SongsPage : Page
             var secondary = (Panel)root.FindName("Secondary");
             secondary.Children.Clear();
             secondary.Visibility = Visibility.Collapsed;
+            Grid.SetRowSpan((FrameworkElement)root.FindName("ArtHost"), 1);
             AutomationProperties.SetName(container, row.Announcement);
             AutomationProperties.SetAutomationId(container, $"fst.songs.row.{row.Song.SongId}");
             ((ShopPulseRing)root.FindName("ShopRing")).Apply(row.Pulse);
@@ -180,7 +181,9 @@ public sealed partial class SongsPage : Page
             if (row.ScoreState is { } state)
                 trailing.Children.Add(new TextBlock { Text = state, Style = (Style)Application.Current.Resources["FSTSecondaryTextStyle"], VerticalAlignment = VerticalAlignment.Center });
         }
-        secondary.Visibility = secondary.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        var wrapped = secondary.Children.Count > 0;
+        secondary.Visibility = wrapped ? Visibility.Visible : Visibility.Collapsed;
+        Grid.SetRowSpan((FrameworkElement)card.FindName("ArtHost"), wrapped ? 2 : 1);
     }
 
     /// <summary>Loads a row thumbnail unless the container is recycled first.</summary>

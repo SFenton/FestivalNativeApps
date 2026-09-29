@@ -46,10 +46,18 @@
                                    AutomationProperties.AutomationId="fst.global-search.section.songs" />
                         <TextBlock Text="{x:Bind ViewModel.SongsFailedText}" Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap"
                                    Visibility="{x:Bind ViewModel.SongsFailed, Mode=OneWay}" />
-                        <Border Style="{StaticResource FSTCardStyle}" Padding="4" Visibility="{x:Bind ViewModel.HasSongRows, Mode=OneWay}">
+                        <Border Style="{StaticResource FSTRowsCardStyle}" Visibility="{x:Bind ViewModel.HasSongRows, Mode=OneWay}">
                             <ListView x:Name="SongsList" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="56" ItemsSource="{x:Bind ViewModel.Songs, Mode=OneWay}" SelectionMode="None"
                                       IsItemClickEnabled="True" ItemClick="OnSongClick" ContainerContentChanging="OnSongContainer"
                                       ScrollViewer.VerticalScrollMode="Disabled" AutomationProperties.Name="Songs">
+                                <ListView.ItemContainerStyle>
+                                    <Style TargetType="ListViewItem" BasedOn="{StaticResource FSTCardListViewItemStyle}" />
+                                </ListView.ItemContainerStyle>
+                                <ListView.Resources>
+                                    <!-- The hover/press fill covers the whole row, card edge to card edge (operator batch 6.2). -->
+                                    <StaticResource x:Key="ListViewItemBackgroundPointerOver" ResourceKey="FSTRowHoverBrush" />
+                                    <StaticResource x:Key="ListViewItemBackgroundPressed" ResourceKey="FSTRowPressedBrush" />
+                                </ListView.Resources>
                                 <ListView.ItemTemplate>
                                     <DataTemplate x:DataType="domain:GlobalSongResult">
                                         <Grid ColumnSpacing="12" Padding="0,6">
@@ -57,6 +65,8 @@
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
+                                            <Border x:Name="RowSeparator" Grid.ColumnSpan="2" Height="1" VerticalAlignment="Top" Margin="0,-6,0,0"
+                                                    Background="{ThemeResource FSTRowSeparatorBrush}" Visibility="Collapsed" />
                                             <controls:SongArt Art="{x:Bind Art}" />
                                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                                 <controls:MarqueeText Text="{x:Bind Title}" TextStyle="{StaticResource FSTMarqueeTitleStyle}" />
@@ -77,10 +87,18 @@
                                       Width="28" Height="28" HorizontalAlignment="Left" Margin="0,8"
                                       AutomationProperties.Name="Searching players"
                                       AutomationProperties.AutomationId="fst.global-search.players-loading" />
-                        <Border Style="{StaticResource FSTCardStyle}" Padding="4" Visibility="{x:Bind ViewModel.HasPlayerRows, Mode=OneWay}">
+                        <Border Style="{StaticResource FSTRowsCardStyle}" Visibility="{x:Bind ViewModel.HasPlayerRows, Mode=OneWay}">
                             <ListView x:Name="PlayersList" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="48" ItemsSource="{x:Bind ViewModel.Players, Mode=OneWay}" SelectionMode="None"
                                       IsItemClickEnabled="True" ItemClick="OnPlayerClick" ContainerContentChanging="OnPlayerContainer"
                                       ScrollViewer.VerticalScrollMode="Disabled" AutomationProperties.Name="Players">
+                                <ListView.ItemContainerStyle>
+                                    <Style TargetType="ListViewItem" BasedOn="{StaticResource FSTCardListViewItemStyle}" />
+                                </ListView.ItemContainerStyle>
+                                <ListView.Resources>
+                                    <!-- The hover/press fill covers the whole row, card edge to card edge (operator batch 6.2). -->
+                                    <StaticResource x:Key="ListViewItemBackgroundPointerOver" ResourceKey="FSTRowHoverBrush" />
+                                    <StaticResource x:Key="ListViewItemBackgroundPressed" ResourceKey="FSTRowPressedBrush" />
+                                </ListView.Resources>
                                 <ListView.ItemTemplate>
                                     <DataTemplate x:DataType="domain:GlobalPlayerResult">
                                         <Grid ColumnSpacing="12" Padding="0,6">
@@ -88,6 +106,8 @@
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
+                                            <Border x:Name="RowSeparator" Grid.ColumnSpan="2" Height="1" VerticalAlignment="Top" Margin="0,-6,0,0"
+                                                    Background="{ThemeResource FSTRowSeparatorBrush}" Visibility="Collapsed" />
                                             <PersonPicture Width="36" Height="36" DisplayName="{x:Bind DisplayName}"
                                                            AutomationProperties.AccessibilityView="Raw" />
                                             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">

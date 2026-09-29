@@ -18,7 +18,7 @@ public sealed partial class LeaderboardsSkeleton : StackPanel
     public LeaderboardsSkeleton()
     {
         Spacing = 10;
-        Padding = new Thickness(8, 6, 8, 6);
+        Padding = new Thickness(12, 6, 12, 6);
         AutomationProperties.SetAccessibilityView(this, AccessibilityView.Raw);
         var brush = (Brush)Application.Current.Resources["FSTSurfaceMutedBrush"];
         for (var i = 0; i < 5; i++)

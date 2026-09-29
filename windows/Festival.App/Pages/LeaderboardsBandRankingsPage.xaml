@@ -60,10 +60,10 @@
                      Visibility="{x:Bind ViewModel.IsRefreshing, Mode=OneWay}" AutomationProperties.Name="Loading page" />
         <ScrollViewer x:Name="Scroller" Grid.Row="1" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
                       AutomationProperties.AutomationId="fst.band-rankings.list">
-            <Border Style="{StaticResource FSTCardStyle}" Padding="8" Margin="0,4,0,0" VerticalAlignment="Top">
-                <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="56">
+            <Border Style="{StaticResource FSTRowsCardStyle}" Margin="0,4,0,0" VerticalAlignment="Top">
+                <ItemsRepeater XYFocusKeyboardNavigation="Enabled" controls:RowSeparators.Enabled="True" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="56">
                     <ItemsRepeater.Layout>
-                        <StackLayout Spacing="2" />
+                        <StackLayout Spacing="0" />
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="vm:BandRankingRowViewModel">

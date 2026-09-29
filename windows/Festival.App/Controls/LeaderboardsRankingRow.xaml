@@ -4,29 +4,34 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <!--
         One rankings row (account or band): rank, name, songs subtitle, rating (+ Bayesian value).
-        The whole row is the target (no chevron); the selected player's row gets the accent fill and border.
+        The whole row is the target (no chevron); the selected player's row gets the accent fill and border and bold text
+        (web RankingEntry isPlayer). A hairline separates it from the row above inside a card (RowSeparators).
     -->
-    <Button x:Name="RowButton" Click="OnClick" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
-            Padding="8,6" MinHeight="44" CornerRadius="6" BorderThickness="1"
-            Background="Transparent" BorderBrush="Transparent">
-        <Grid ColumnSpacing="12">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" MinWidth="36" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <TextBlock x:Name="RankText" VerticalAlignment="Center" HorizontalAlignment="Right"
-                       Style="{StaticResource FSTSecondaryTextStyle}" />
-            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                <TextBlock x:Name="NameText" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
-                <TextBlock x:Name="SongsText" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
-                           Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-            </StackPanel>
-            <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right">
-                <TextBlock x:Name="RatingText" Style="{StaticResource BodyStrongTextBlockStyle}" HorizontalAlignment="Right" />
-                <TextBlock x:Name="BayesianText" Style="{StaticResource CaptionTextBlockStyle}" HorizontalAlignment="Right"
-                           Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-            </StackPanel>
-        </Grid>
-    </Button>
+    <Grid>
+        <Button x:Name="RowButton" Click="OnClick" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                Padding="12,6" MinHeight="44" CornerRadius="6" BorderThickness="1"
+                Background="Transparent" BorderBrush="Transparent">
+            <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition x:Name="RankColumn" Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <!-- Left-aligned in a width shared by ranks of the same length (web computeRankWidth), so names align. -->
+                <TextBlock x:Name="RankText" VerticalAlignment="Center" HorizontalAlignment="Left" TextWrapping="NoWrap" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock x:Name="NameText" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                    <TextBlock x:Name="SongsText" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                               Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                </StackPanel>
+                <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right">
+                    <TextBlock x:Name="RatingText" Style="{StaticResource BodyStrongTextBlockStyle}" HorizontalAlignment="Right" />
+                    <TextBlock x:Name="BayesianText" Style="{StaticResource CaptionTextBlockStyle}" HorizontalAlignment="Right"
+                               Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                </StackPanel>
+            </Grid>
+        </Button>
+        <Border x:Name="Separator" Height="1" VerticalAlignment="Top" Margin="12,0" Visibility="Collapsed"
+                Background="{ThemeResource FSTRowSeparatorBrush}" IsHitTestVisible="False" />
+    </Grid>
 </UserControl>

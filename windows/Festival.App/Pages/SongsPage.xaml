@@ -261,7 +261,7 @@
                         </ListView.GroupStyle>
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="vm:SongRowItem">
-                                <Grid x:Name="Card" MinHeight="64" Padding="10,8,14,8" ColumnSpacing="12" RowSpacing="6" CornerRadius="8"
+                                <Grid x:Name="Card" MinHeight="64" Padding="10,8,14,8" ColumnSpacing="12" CornerRadius="8"
                                       BorderThickness="1" Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="44" />
@@ -272,7 +272,10 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
-                                    <Border Grid.RowSpan="2" Width="44" Height="44" CornerRadius="6" VerticalAlignment="Center"
+                                    <!-- Spans the wrapped second row only while it has content (SongsPage.BuildTrailing): a Grid shares a spanning
+                                         child's height across Auto rows, so an empty second row got half the art's height
+                                         as dead space under anonymous rows (operator batch 6.3). -->
+                                    <Border x:Name="ArtHost" Width="44" Height="44" CornerRadius="6" VerticalAlignment="Center"
                                             Background="{StaticResource FSTSurfaceMutedBrush}">
                                         <Image x:Name="Art" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
                                     </Border>
@@ -281,7 +284,7 @@
                                         <controls:MarqueeText x:Name="SubtitleText" Text="{x:Bind Subtitle}" TextStyle="{StaticResource SongSubtitleStyle}" />
                                     </StackPanel>
                                     <StackPanel x:Name="Trailing" Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" />
-                                    <controls:FlowPanel x:Name="Secondary" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Visibility="Collapsed" />
+                                    <controls:FlowPanel x:Name="Secondary" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,6,0,0" Visibility="Collapsed" />
                                     <!-- Pulsing Item Shop ring over the card edge (green in Shop, gold New, red Leaving). -->
                                     <controls:ShopPulseRing x:Name="ShopRing" Grid.RowSpan="2" Grid.ColumnSpan="3" Margin="-11,-9,-15,-9" />
                                 </Grid>

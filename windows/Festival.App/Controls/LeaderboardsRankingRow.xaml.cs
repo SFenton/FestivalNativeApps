@@ -10,8 +10,17 @@ namespace Festival.App.Controls;
 /// A rankings row for either an account (<see cref="RankingRowViewModel"/>) or a band (<see cref="BandRankingRowViewModel"/>).
 /// Set in code rather than x:Bind so one lightweight control serves both row types inside virtualized repeaters.
 /// </summary>
-public sealed partial class LeaderboardsRankingRow : UserControl
+public sealed partial class LeaderboardsRankingRow : UserControl, ISeparatedRow
 {
+    /// <summary>Rank column width per character, epx (web <c>Layout.rankCharWidth</c>).</summary>
+    private const double RankCharWidth = 8.5;
+
+    /// <summary>Narrowest rank column ("#1" to "#10" share it), epx.</summary>
+    private const double MinRankWidth = 28;
+
+    private bool separatorWanted;
+    private bool selected;
+
     /// <summary>Row model: <see cref="RankingRowViewModel"/> or <see cref="BandRankingRowViewModel"/>.</summary>
     public static readonly DependencyProperty RowProperty = DependencyProperty.Register(
         nameof(Row), typeof(object), typeof(LeaderboardsRankingRow), new PropertyMetadata(null, (d, _) => ((LeaderboardsRankingRow)d).Update()));
@@ -28,6 +37,16 @@ public sealed partial class LeaderboardsRankingRow : UserControl
     {
         get => GetValue(RowProperty);
         set => SetValue(RowProperty, value);
+    }
+
+    /// <inheritdoc />
+    public bool ShowSeparator
+    {
+        set
+        {
+            separatorWanted = value;
+            UpdateSeparator();
+        }
     }
 
     /// <summary>Destination for the current row.</summary>
@@ -73,6 +92,14 @@ public sealed partial class LeaderboardsRankingRow : UserControl
         BayesianText.Visibility = bayesian.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         AutomationProperties.SetName(RowButton, announcement);
         AutomationProperties.SetAutomationId(RowButton, automationId);
+        // Ranks of equal length share a width, so names line up down a card or page (web computeRankWidth).
+        RankColumn.MinWidth = Math.Max(MinRankWidth, Math.Ceiling(rank.Length * RankCharWidth));
+        // The selected player's row is bold throughout (web RankingEntry isPlayer; operator batch 6.42).
+        var weight = selected ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.Normal;
+        RankText.FontWeight = NameText.FontWeight = SongsText.FontWeight = BayesianText.FontWeight = weight;
+        RatingText.FontWeight = selected ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.SemiBold;
+        this.selected = selected;
+        UpdateSeparator();
         if (selected)
         {
             var accent = (Windows.UI.Color)Application.Current.Resources["FSTAccentPurpleColor"];
@@ -87,6 +114,10 @@ public sealed partial class LeaderboardsRankingRow : UserControl
             RowButton.BorderBrush = RowButton.Background;
         }
     }
+
+    /// <summary>Shows the hairline above a non-first row, except over the selected row's own accent border.</summary>
+    private void UpdateSeparator() =>
+        Separator.Visibility = separatorWanted && !selected ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>Opens the player profile or Band Detail.</summary>
     /// <param name="sender">Button.</param>

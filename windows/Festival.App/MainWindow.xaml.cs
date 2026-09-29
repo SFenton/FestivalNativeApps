@@ -228,7 +228,11 @@ public sealed partial class MainWindow : Window
     private void OnFrameNavigated()
     {
         var frame = frames.GetValueOrDefault(current);
-        AppTitleBar.IsBackButtonEnabled = frame?.CanGoBack == true;
+        // Back shows only when there is somewhere to go (like Windows 11 Settings), so the chrome never shows a gray
+        // disabled arrow (operator batch 6.6: Back, the pane toggle and the title are white).
+        var canGoBack = frame?.CanGoBack == true;
+        AppTitleBar.IsBackButtonEnabled = canGoBack;
+        AppTitleBar.IsBackButtonVisible = canGoBack;
         if (frame is not null) TrackRoutes(frame);
         UpdateWindowTitle();
         QueueFirstRun();

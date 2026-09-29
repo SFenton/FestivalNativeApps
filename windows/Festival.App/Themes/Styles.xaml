@@ -12,6 +12,11 @@
             <!-- Mutated at runtime to opaque when Windows transparency effects are off. -->
             <SolidColorBrush x:Key="FSTCardSurfaceBrush" Color="#C7121826" />
             <SolidColorBrush x:Key="FSTCardStrokeBrush" Color="#14FFFFFF" />
+            <!-- Hairline between the rows of a multi-row card (operator batch 6.5) and the row hover/press fills, which
+                 cover the whole row from card edge to card edge (6.2). -->
+            <SolidColorBrush x:Key="FSTRowSeparatorBrush" Color="#1FFFFFFF" />
+            <SolidColorBrush x:Key="FSTRowHoverBrush" Color="#1AFFFFFF" />
+            <SolidColorBrush x:Key="FSTRowPressedBrush" Color="#0FFFFFFF" />
             <SolidColorBrush x:Key="FSTSectionHeaderBrush" Color="#FFFFFFFF" />
             <!-- Pinned page headers (Song Detail): the web headerFrosted tint, near-opaque instead of a per-frame blur. -->
             <SolidColorBrush x:Key="FSTPinnedHeaderBrush" Color="#F70B0318" />
@@ -36,6 +41,12 @@
             <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="Transparent" />
             <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent" />
             <SolidColorBrush x:Key="NavigationViewContentGridBorderBrush" Color="Transparent" />
+            <!-- Title-bar chrome over the dimmed artwork is white, active or not (operator batch 6.6): the WinUI TitleBar
+                 otherwise grays its title and glyphs while the window is inactive. -->
+            <SolidColorBrush x:Key="TitleBarForegroundBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="TitleBarDeactivatedForegroundBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="TitleBarBackButtonForeground" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="TitleBarPaneToggleButtonForeground" Color="#FFFFFFFF" />
             <!-- Accent (primary) buttons use the brand purple (web accentPurple #7C3AED), not the Windows accent colour:
                  Paths, "View all", Apply-free dialogs' primary actions. Contrast themes keep the system colours. -->
             <SolidColorBrush x:Key="AccentButtonBackground" Color="#FF7C3AED" />
@@ -51,6 +62,9 @@
         <ResourceDictionary x:Key="HighContrast">
             <SolidColorBrush x:Key="FSTCardSurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="FSTCardStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FSTRowSeparatorBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
+            <SolidColorBrush x:Key="FSTRowHoverBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="FSTRowPressedBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTSectionHeaderBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTPinnedHeaderBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="FSTSecondaryTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
@@ -66,6 +80,10 @@
     <Thickness x:Key="NavigationViewMinimalContentGridBorderThickness">0</Thickness>
     <CornerRadius x:Key="NavigationViewContentGridCornerRadius">0</CornerRadius>
     <CornerRadius x:Key="NavigationViewMinimalContentGridCornerRadius">0</CornerRadius>
+
+    <!-- The title bar's search, bell and avatar keep full opacity while the window is inactive (it often sits inactive
+         beside a game; operator batch 6.6). -->
+    <x:Double x:Key="TitleBarDeactivatedOpacity">1</x:Double>
 
     <services:InverseVisibilityConverter x:Key="FSTInverseVisibility" />
 
@@ -89,6 +107,20 @@
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
         <Setter Property="Padding" Value="16" />
+    </Style>
+
+    <!-- A card of rows (Leaderboards, Search results): a 4 epx inset so each row's hover fill spans the card, rows carry
+         their own 12 epx side padding (operator batch 6.4: no double inset) and hairlines between them. -->
+    <Style x:Key="FSTRowsCardStyle" TargetType="Border" BasedOn="{StaticResource FSTCardStyle}">
+        <Setter Property="Padding" Value="4" />
+    </Style>
+
+    <!-- ListView rows inside a rows card: no item margin, 12 epx sides, the brand hover/press fills over the whole row. -->
+    <Style x:Key="FSTCardListViewItemStyle" TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="MinHeight" Value="0" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
     </Style>
 
     <!-- White Title Case section header (Apple FestivalSectionHeader equivalent). -->

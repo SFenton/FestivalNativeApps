@@ -71,10 +71,10 @@
                      Visibility="{x:Bind ViewModel.IsRefreshing, Mode=OneWay}" AutomationProperties.Name="Loading page" />
         <ScrollViewer x:Name="Scroller" Grid.Row="1" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
                       AutomationProperties.AutomationId="fst.full-rankings.list">
-            <Border Style="{StaticResource FSTCardStyle}" Padding="8" Margin="0,4,0,0" VerticalAlignment="Top">
-                <ItemsRepeater XYFocusKeyboardNavigation="Enabled" x:Name="RowsRepeater" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}">
+            <Border Style="{StaticResource FSTRowsCardStyle}" Margin="0,4,0,0" VerticalAlignment="Top">
+                <ItemsRepeater XYFocusKeyboardNavigation="Enabled" controls:RowSeparators.Enabled="True" x:Name="RowsRepeater" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}">
                     <ItemsRepeater.Layout>
-                        <StackLayout Spacing="2" />
+                        <StackLayout Spacing="0" />
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="vm:RankingRowViewModel">
@@ -92,7 +92,7 @@
         <controls:ServiceStatusView Grid.Row="1" Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
                                     Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}" />
 
-        <Border Grid.Row="2" Style="{StaticResource FSTCardStyle}" Padding="8"
+        <Border Grid.Row="2" Style="{StaticResource FSTRowsCardStyle}"
                 Visibility="{x:Bind ViewModel.Spotlight.IsVisible, Mode=OneWay}">
             <controls:LeaderboardsSpotlight Spotlight="{x:Bind ViewModel.Spotlight, Mode=OneWay}"
                                             IdPrefix="fst.full-rankings.spotlight-footer"

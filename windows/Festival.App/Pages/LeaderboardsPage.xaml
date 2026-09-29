@@ -79,12 +79,12 @@
                                 <!-- Header above the card (web RankingCard cardLabel): instrument icon and name only (the Rank By
                                      button already names the metric). -->
                                 <controls:CardHeader Title="{x:Bind Title}" IconFile="{x:Bind IconFile}" TitleAutomationId="{x:Bind AutomationId}" />
-                                <Border Style="{StaticResource FSTCardStyle}">
-                                    <StackPanel Spacing="8">
+                                <Border Style="{StaticResource FSTRowsCardStyle}">
+                                    <StackPanel Spacing="4">
                                         <controls:LeaderboardsSkeleton Visibility="{x:Bind IsLoading, Mode=OneWay}" />
-                                        <TextBlock Text="{x:Bind EmptyText}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}"
+                                        <TextBlock Text="{x:Bind EmptyText}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}" Margin="12,8"
                                                    Style="{StaticResource FSTSecondaryTextStyle}" />
-                                        <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8"
+                                        <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8" Margin="12,8"
                                                     AutomationProperties.AutomationId="fst.service-status.inline">
                                             <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                             <TextBlock Text="{x:Bind Status.Message, Mode=OneWay}" TextWrapping="Wrap" />
@@ -93,9 +93,9 @@
                                             <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
                                         </StackPanel>
                                         <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}"
-                                                       controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="40">
+                                                       controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="40" controls:RowSeparators.Enabled="True">
                                             <ItemsRepeater.Layout>
-                                                <StackLayout Spacing="2" />
+                                                <StackLayout Spacing="0" />
                                             </ItemsRepeater.Layout>
                                             <ItemsRepeater.ItemTemplate>
                                                 <DataTemplate x:DataType="vm:RankingRowViewModel">
@@ -105,7 +105,7 @@
                                         </ItemsRepeater>
                                         <controls:LeaderboardsSpotlight Spotlight="{x:Bind Spotlight}" IdPrefix="{x:Bind SpotlightAutomationId}"
                                                                         Visibility="{x:Bind ShowRows, Mode=OneWay}" />
-                                        <Button Content="{x:Bind ViewAllText, Mode=OneWay}" Tag="{x:Bind}" Click="OnViewAll" Style="{StaticResource FSTViewAllButtonStyle}"
+                                        <Button Content="{x:Bind ViewAllText, Mode=OneWay}" Tag="{x:Bind}" Click="OnViewAll" Style="{StaticResource FSTViewAllButtonStyle}" Margin="8,4,8,8"
                                                 Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName}"
                                                 AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
                                     </StackPanel>
@@ -131,12 +131,12 @@
                             <StackPanel Spacing="8">
                                 <!-- Band-size header above the card: name only, no icon (web band RankingCard). -->
                                 <controls:CardHeader Title="{x:Bind Title}" TitleAutomationId="{x:Bind AutomationId}" />
-                                <Border Style="{StaticResource FSTCardStyle}">
-                                    <StackPanel Spacing="8">
+                                <Border Style="{StaticResource FSTRowsCardStyle}">
+                                    <StackPanel Spacing="4">
                                         <controls:LeaderboardsSkeleton Visibility="{x:Bind IsLoading, Mode=OneWay}" />
-                                        <TextBlock Text="{x:Bind EmptyText}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}"
+                                        <TextBlock Text="{x:Bind EmptyText}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}" Margin="12,8"
                                                    Style="{StaticResource FSTSecondaryTextStyle}" />
-                                        <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8"
+                                        <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8" Margin="12,8"
                                                     AutomationProperties.AutomationId="fst.service-status.inline">
                                             <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                             <TextBlock Text="{x:Bind Status.Message, Mode=OneWay}" TextWrapping="Wrap" />
@@ -145,9 +145,9 @@
                                             <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}" />
                                         </StackPanel>
                                         <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}"
-                                                       controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="40">
+                                                       controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="40" controls:RowSeparators.Enabled="True">
                                             <ItemsRepeater.Layout>
-                                                <StackLayout Spacing="2" />
+                                                <StackLayout Spacing="0" />
                                             </ItemsRepeater.Layout>
                                             <ItemsRepeater.ItemTemplate>
                                                 <DataTemplate x:DataType="vm:BandRankingRowViewModel">
@@ -155,7 +155,7 @@
                                                 </DataTemplate>
                                             </ItemsRepeater.ItemTemplate>
                                         </ItemsRepeater>
-                                        <Button Content="{x:Bind ViewAllText, Mode=OneWay}" Tag="{x:Bind}" Click="OnViewAll" Style="{StaticResource FSTViewAllButtonStyle}"
+                                        <Button Content="{x:Bind ViewAllText, Mode=OneWay}" Tag="{x:Bind}" Click="OnViewAll" Style="{StaticResource FSTViewAllButtonStyle}" Margin="8,4,8,8"
                                                 Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName}"
                                                 AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
                                     </StackPanel>
