@@ -46,7 +46,10 @@
     "name": "suggestions-filter",
     "route": "/suggestions",
     "preset": "medium",
-    "extra": {"FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player", "FST_DEBUG_SUGGESTIONS_SEED": "7"},
+    "extra": {
+      "FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player",
+      "FST_DEBUG_SUGGESTIONS_SEED": "7"
+    },
     "steps": [
       "waitfor:id=fst.suggestions.list@20",
       "wait:1.5",
@@ -61,6 +64,49 @@
       "waitfor:id=fst.suggestions.filter.type.Solo_Bass.nearFC@5",
       "wait:0.5",
       "shot:{shots}/suggestions-filter.png",
+      "key:esc"
+    ]
+  },
+  {
+    "name": "suggestions-compact",
+    "route": "/suggestions",
+    "preset": "compact",
+    "extra": {
+      "FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player",
+      "FST_DEBUG_SUGGESTIONS_SEED": "7"
+    },
+    "steps": [
+      "waitfor:id=fst.suggestions.list@20",
+      "wait:1.5",
+      "shot:{shots}/suggestions-compact.png"
+    ]
+  },
+  {
+    "name": "suggestions-wide",
+    "route": "/suggestions",
+    "preset": "wide",
+    "extra": {
+      "FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player",
+      "FST_DEBUG_SUGGESTIONS_SEED": "7"
+    },
+    "steps": [
+      "waitfor:id=fst.suggestions.list@20",
+      "wait:1.5",
+      "shot:{shots}/suggestions-wide.png"
+    ]
+  },
+  {
+    "name": "paths-image-medium",
+    "route": "/songs/fixture-pulse",
+    "preset": "medium",
+    "steps": [
+      "waitfor:id=fst.song-detail.paths@20",
+      "invoke:id=fst.song-detail.paths",
+      "waitfor:id=fst.paths.warning@10",
+      "key:enter",
+      "waitfor:id=fst.paths.image@15",
+      "wait:1",
+      "shot:{shots}/paths-medium.png@screen",
       "key:esc"
     ]
   }
