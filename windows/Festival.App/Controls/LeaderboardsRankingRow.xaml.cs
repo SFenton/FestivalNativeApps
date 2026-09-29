@@ -20,6 +20,7 @@ public sealed partial class LeaderboardsRankingRow : UserControl, ISeparatedRow
 
     private bool separatorWanted;
     private bool selected;
+    private bool current;
 
     /// <summary>Row model: <see cref="RankingRowViewModel"/> or <see cref="BandRankingRowViewModel"/>.</summary>
     public static readonly DependencyProperty RowProperty = DependencyProperty.Register(
@@ -48,6 +49,24 @@ public sealed partial class LeaderboardsRankingRow : UserControl, ISeparatedRow
             UpdateSeparator();
         }
     }
+
+    /// <summary>
+    /// Whether this row's destination is showing in the page's detail column (list + detail layout): a subtle fill so the
+    /// list shows which player the detail belongs to. The selected player's own accent wins.
+    /// </summary>
+    public bool IsCurrent
+    {
+        get => current;
+        set
+        {
+            if (current == value) return;
+            current = value;
+            ApplyFill();
+        }
+    }
+
+    /// <summary>The row's destination (a player profile or Band Detail), if it has one.</summary>
+    public AppRoute? Route => route;
 
     /// <summary>Destination for the current row.</summary>
     private AppRoute? route;
@@ -100,19 +119,21 @@ public sealed partial class LeaderboardsRankingRow : UserControl, ISeparatedRow
         RatingText.FontWeight = selected ? Microsoft.UI.Text.FontWeights.Bold : Microsoft.UI.Text.FontWeights.SemiBold;
         this.selected = selected;
         UpdateSeparator();
+        ApplyFill();
+    }
+
+    /// <summary>Accent fill and border for the selected player, a subtle fill for the row shown in a detail column.</summary>
+    private void ApplyFill()
+    {
         if (selected)
         {
             var accent = (Windows.UI.Color)Application.Current.Resources["FSTAccentPurpleColor"];
             RowButton.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0x2E, accent.R, accent.G, accent.B));
             RowButton.BorderBrush = (Brush)Application.Current.Resources["FSTAccentPurpleBrush"];
+            return;
         }
-        else
-        {
-            RowButton.ClearValue(Control.BackgroundProperty);
-            RowButton.ClearValue(Control.BorderBrushProperty);
-            RowButton.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-            RowButton.BorderBrush = RowButton.Background;
-        }
+        RowButton.Background = current ? (Brush)Application.Current.Resources["FSTRowHoverBrush"] : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+        RowButton.BorderBrush = current ? (Brush)Application.Current.Resources["FSTCardStrokeBrush"] : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
     }
 
     /// <summary>Shows the hairline above a non-first row, except over the selected row's own accent border.</summary>
@@ -124,7 +145,10 @@ public sealed partial class LeaderboardsRankingRow : UserControl, ISeparatedRow
     /// <param name="e">Unused.</param>
     private void OnClick(object sender, RoutedEventArgs e)
     {
-        if (route is not null) MainWindow.Instance?.Navigate(route);
+        if (route is null) return;
+        for (DependencyObject? node = this; node is not null; node = VisualTreeHelper.GetParent(node))
+            if (node is IRouteHost host && host.TryShow(route)) return;
+        MainWindow.Instance?.Navigate(route);
     }
 }
 #endregion

@@ -40,3 +40,7 @@ Fixture: `windows/reports/screenshots/full-rankings-{medium,compact,selected-wid
 ## Pager (operator batch 6.30)
 
 `Controls/LeaderboardsPager` follows the web `Paginator` + `LeaderboardPaginationFooter`: round 40 epx card-surface buttons (double chevrons for first/last, single for previous/next) either side of a small "page / total" badge, no plate behind them. The selected player's row sits in its own rows card directly above it. Shared by Full Rankings, Band Rankings and song leaderboards.
+
+## Two columns (wide)
+
+From a 1100 epx page the rankings keep a 560 epx column and the chosen player's profile (`PlayerProfilePage` in `DetailFrame`, `fst.full-rankings.detail-pane`) fills the rest (operator 2026-09-28: two populated columns, never an empty detail). The profile starts on the selected player's row when it is on the page, else the first row; it follows row clicks (rows ask an `IRouteHost` ancestor before pushing) and survives paging while that player is still listed. The shown player's row gets a subtle fill (`LeaderboardsRankingRow.IsCurrent`). Below 1100 epx, or without rows, the page is the single 1100 epx column again. Band Rankings and Rivals stay single-column for now.

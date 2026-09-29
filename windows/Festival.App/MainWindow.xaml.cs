@@ -500,6 +500,17 @@ public interface IPageBack
     bool TryGoBack();
 }
 
+/// <summary>
+/// A page that can show a row's destination itself (the detail column of a list + detail layout) instead of pushing it.
+/// </summary>
+public interface IRouteHost
+{
+    /// <summary>Shows the route in place.</summary>
+    /// <param name="route">Row destination.</param>
+    /// <returns><see langword="true"/> when handled; otherwise the caller navigates.</returns>
+    bool TryShow(AppRoute route);
+}
+
 /// <summary>Pages that replace the carousel with a static song cover (Song Detail, leaderboards).</summary>
 public interface IBackdropPage
 {

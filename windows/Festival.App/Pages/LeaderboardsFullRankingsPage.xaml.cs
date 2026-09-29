@@ -1,5 +1,9 @@
 using System.ComponentModel;
+using Festival.App.Controls;
 using Festival.App.Services;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -9,12 +13,24 @@ namespace Festival.App.Pages;
 
 #region Full rankings page
 /// <summary>Paginated global rankings with instrument and Rank By switchers and the pinned selected-player row.</summary>
-public sealed partial class LeaderboardsFullRankingsPage : Page
+public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
 {
+    /// <summary>Page width from which the rankings and a profile sit side by side.</summary>
+    public const double SplitWidth = 1100;
+
+    /// <summary>Rankings column width in the split layout.</summary>
+    private const double SplitListWidth = 560;
+
     private int shownPage;
+    private bool split;
+    private string? detailAccountId;
 
     /// <summary>Creates the page.</summary>
-    public LeaderboardsFullRankingsPage() => InitializeComponent();
+    public LeaderboardsFullRankingsPage()
+    {
+        InitializeComponent();
+        SizeChanged += (_, e) => ApplySplit(e.NewSize.Width >= SplitWidth);
+    }
 
     /// <summary>Page model (set on navigation).</summary>
     public FullRankingsViewModel ViewModel { get; private set; } = null!;
@@ -50,6 +66,7 @@ public sealed partial class LeaderboardsFullRankingsPage : Page
     /// <param name="e">Changed property.</param>
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName is nameof(FullRankingsViewModel.Rows) or nameof(FullRankingsViewModel.ShowRows)) EnsureSplitSelection();
         if (e.PropertyName != nameof(FullRankingsViewModel.Rows) || ViewModel.Page == shownPage) return;
         shownPage = ViewModel.Page;
         Scroller.ChangeView(null, 0, null, true);
@@ -61,6 +78,88 @@ public sealed partial class LeaderboardsFullRankingsPage : Page
                 row.StartBringIntoView(new Microsoft.UI.Xaml.BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = false });
         });
     }
+
+    #region Split layout
+    /// <summary>
+    /// List + profile columns (never an empty detail): the page drops its 1100 epx cap, the rankings keep a fixed column
+    /// and the profile fills the rest. Below the width, or without rows, it is the single centred column again.
+    /// </summary>
+    /// <param name="wanted">Whether the page is wide enough.</param>
+    private void ApplySplit(bool wanted)
+    {
+        var on = wanted && ViewModel is { ShowRows: true } && ViewModel.Rows.Any(r => r.Route is not null);
+        if (on == split) return;
+        split = on;
+        PageRoot.MaxWidth = on ? double.PositiveInfinity : 1100;
+        ListColumn.Width = on ? new GridLength(SplitListWidth) : new GridLength(1, GridUnitType.Star);
+        DetailColumn.Width = on ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        DetailFrame.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+        if (on)
+        {
+            EnsureSplitSelection();
+            return;
+        }
+        detailAccountId = null;
+        DetailFrame.Content = null;
+        MarkCurrentRows();
+    }
+
+    /// <summary>Keeps a profile showing: the current player if still on this page, else the selected player's row, else the first.</summary>
+    private void EnsureSplitSelection()
+    {
+        if (!split)
+        {
+            ApplySplit(ActualWidth >= SplitWidth);
+            return;
+        }
+        var rows = ViewModel.Rows.Where(r => r.Route is not null).ToList();
+        if (!ViewModel.ShowRows || rows.Count == 0)
+        {
+            ApplySplit(false);
+            return;
+        }
+        var target = rows.FirstOrDefault(r => r.Entry.AccountId == detailAccountId) ?? rows.FirstOrDefault(r => r.IsSelected) ?? rows[0];
+        Show((AppRoute.Player)target.Route!);
+    }
+
+    /// <inheritdoc />
+    public bool TryShow(AppRoute route)
+    {
+        if (!split || route is not AppRoute.Player player) return false;
+        Show(player);
+        return true;
+    }
+
+    /// <summary>Opens a profile in the detail column (once per player) and marks its row.</summary>
+    /// <param name="route">Player route.</param>
+    private void Show(AppRoute.Player route)
+    {
+        if (route.AccountId == detailAccountId && DetailFrame.Content is not null) return;
+        detailAccountId = route.AccountId;
+        DetailFrame.Navigate(typeof(PlayerProfilePage), route, new SuppressNavigationTransitionInfo());
+        MarkCurrentRows();
+    }
+
+    /// <summary>Marks a realized row whose player shows in the detail column.</summary>
+    /// <param name="sender">Repeater.</param>
+    /// <param name="args">Row.</param>
+    private void OnRowPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
+    {
+        if (args.Element is LeaderboardsRankingRow row) row.IsCurrent = split && IsCurrent(row);
+    }
+
+    /// <summary>Re-marks every realized row.</summary>
+    private void MarkCurrentRows()
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(RowsRepeater); i++)
+            if (VisualTreeHelper.GetChild(RowsRepeater, i) is LeaderboardsRankingRow row) row.IsCurrent = split && IsCurrent(row);
+    }
+
+    /// <summary>Whether a row's player is the one in the detail column.</summary>
+    /// <param name="row">Row.</param>
+    /// <returns><see langword="true"/> for the shown player.</returns>
+    private bool IsCurrent(LeaderboardsRankingRow row) => row.Route is AppRoute.Player p && p.AccountId == detailAccountId;
+    #endregion
 
     /// <summary>Builds instrument radio items (Settings-visible charts plus the current one).</summary>
     /// <param name="sender">Menu.</param>
