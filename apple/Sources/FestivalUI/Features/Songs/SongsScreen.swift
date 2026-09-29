@@ -417,6 +417,9 @@ struct SongsScreen: View {
         }
         .festivalProvidesRootTrailingItems()
         .festivalRootChrome(session: session, providesTrailingItems: true)
+        // With Filter/Sort/Quick Links in the bar the inline title had no room and read
+        // "…"; the section bar names the place instead (Back still says "Songs").
+        .modifier(InlineTitleRemoval(removed: toolsInBar))
         .sheet(isPresented: $sortPresented) {
             SongsSortSheet(
                 mode: sortMode, ascending: sortAscending,
@@ -1371,19 +1374,31 @@ private struct ScrolledAwayTracker: ViewModifier {
     }
 }
 
-/// iOS 26: the current Songs section title in a bar above the List. `safeAreaBar` keeps
-/// it out of the scrolling content and extends the system scroll-edge effect beneath it,
-/// set to `.hard` so rows end at the bar's edge (operator batch 7: no odd backing, no rows
-/// under the title). Earlier systems keep the List's pinned headers.
+/// iOS 26: the current Songs section title in a bar above the List (`safeAreaBar`, so it
+/// stays out of the scrolling content). The List is masked at the bar's bottom edge, so
+/// rows end exactly there with no backing behind the title (operator batch 7); a hard
+/// scroll-edge effect was tried and dimmed the large title and drew a dark band.
+/// Earlier systems keep the List's pinned headers.
 private struct SongsSectionBar: ViewModifier {
     /// Spoken title, nil without groups.
     let label: String?
     /// Visible title.
     let visibleLabel: String?
+    /// The List's top edge and the bar's bottom edge, in global coordinates.
+    @State private var listTop: CGFloat = 0
+    @State private var barBottom: CGFloat = 0
 
     func body(content: Content) -> some View {
         if #available(iOS 26.0, macOS 26.0, *), let label, let visibleLabel {
             content
+                .environment(\.defaultMinListRowHeight, 0)
+                .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { listTop = $0 }
+                .mask(alignment: .top) {
+                    VStack(spacing: 0) {
+                        Color.clear.frame(height: max(0, barBottom - listTop))
+                        Color.black
+                    }
+                }
                 .safeAreaBar(edge: .top, spacing: 0) {
                     Text(visibleLabel)
                         .font(.subheadline.bold())
@@ -1391,11 +1406,28 @@ private struct SongsSectionBar: ViewModifier {
                         .padding(.horizontal, 20)
                         .padding(.vertical, 6)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: {
+                            barBottom = $0
+                        }
                         .accessibilityLabel(label)
                         .accessibilityAddTraits(.isHeader)
                         .accessibilityIdentifier("fst.songs.section-bar")
                 }
-                .scrollEdgeEffectStyle(.hard, for: .top)
+        } else {
+            content
+        }
+    }
+}
+
+/// Removes the inline navigation title while the Songs tools occupy the bar (iOS 18+).
+private struct InlineTitleRemoval: ViewModifier {
+    let removed: Bool
+
+    func body(content: Content) -> some View {
+        // One branch per OS (never per state): switching branches would rebuild the
+        // List and lose its scroll position.
+        if #available(iOS 18.0, macOS 15.0, *) {
+            content.toolbar(removing: removed ? .title : nil)
         } else {
             content
         }
