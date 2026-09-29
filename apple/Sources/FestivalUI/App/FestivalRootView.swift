@@ -20,6 +20,9 @@ public struct FestivalRootView: View {
     @State private var rootProfilePresented = false
     /// Global search sheet (opened from the tab accessory, a toolbar button, ⌘K or ⌘F).
     @State private var globalSearchPresented = false
+    #if DEBUG && os(iOS)
+    @State private var motionReport = DebugMotionReport()
+    #endif
     @AppStorage("fst.settings.showLead") private var showLead = true
     @AppStorage("fst.settings.showBass") private var showBass = true
     @AppStorage("fst.settings.showDrums") private var showDrums = true
@@ -148,6 +151,16 @@ public struct FestivalRootView: View {
             }
             .tint(moreContrast || systemContrast == .increased
                 ? BrandTokens.textPrimary : BrandTokens.accentBlue)
+            #if DEBUG && os(iOS)
+            .overlay { DebugMotionReportView(report: motionReport) }
+            .onAppear {
+                DebugMotionScript.start(session: session, report: motionReport, hooks: .init(
+                    push: { paths[selected, default: []].append($0) },
+                    pop: { _ = paths[selected]?.popLast() },
+                    select: { select($0) }
+                ))
+            }
+            #endif
         }
         .publishesDeviceLayout(usesSidebarShell: !usesDrawer)
     }
