@@ -66,6 +66,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
@@ -109,6 +110,9 @@ import com.festivalscoretracker.android.core.search.PxRect
 import com.festivalscoretracker.android.core.search.SearchDestination
 import com.festivalscoretracker.android.core.search.ShellShortcut
 import com.festivalscoretracker.android.core.settings.AppSettings
+import com.festivalscoretracker.android.core.shell.ListDetailLayout
+import com.festivalscoretracker.android.core.shell.ListDetailPolicy
+import com.festivalscoretracker.android.core.shell.ListHead
 import com.festivalscoretracker.android.core.shell.ProfileRoutePolicy
 import com.festivalscoretracker.android.data.notifications.playerNotifications
 import com.festivalscoretracker.android.data.serviceinfo.serviceInfo
@@ -124,8 +128,11 @@ import com.festivalscoretracker.android.ui.bands.bandsDestinations
 import com.festivalscoretracker.android.ui.common.ComingSoonScreen
 import com.festivalscoretracker.android.ui.common.FLOATING_TOOLBAR_HEIGHT_DP
 import com.festivalscoretracker.android.ui.common.FLOATING_TOOLBAR_MARGIN_DP
+import com.festivalscoretracker.android.ui.common.FestivalEmptyState
+import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FloatingToolbar
 import com.festivalscoretracker.android.ui.common.FloatingToolbarHost
+import com.festivalscoretracker.android.ui.common.FloatingToolbarScrollState
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.SearchChrome
 import com.festivalscoretracker.android.ui.common.ShellActions
@@ -376,6 +383,13 @@ private fun FestivalShell(
     // floating toolbar, web bottom dock); wider windows keep them in the top app bar.
     val floatingToolbar = remember { FloatingToolbarHost() }
     val usesFloatingToolbar = !AdaptiveLayoutPolicy.isRegularWidth(widthDp)
+    // M3 "exit always": the toolbar slides away while content scrolls toward its end and back
+    // when it scrolls back; never hidden under TalkBack; shown again on every navigation.
+    val toolbarScroll = remember { FloatingToolbarScrollState() }
+    val touchExploration = rememberTouchExplorationEnabled()
+    toolbarScroll.hiddenOffsetPx = with(density) { (FLOATING_TOOLBAR_HEIGHT_DP + FLOATING_TOOLBAR_MARGIN_DP).dp.toPx() }
+    toolbarScroll.enabled = !touchExploration
+    LaunchedEffect(stack.lastOrNull()?.id, touchExploration) { toolbarScroll.reset() }
     val bottomPadding = PaddingValues(
         end = safeEnd,
         bottom = when {
@@ -485,6 +499,7 @@ private fun FestivalShell(
                 Box(
                     Modifier
                         .fillMaxSize()
+                        .then(if (usesFloatingToolbar) Modifier.nestedScroll(toolbarScroll.connection) else Modifier)
                         .onGloballyPositioned {
                             contentLeftPx = it.positionInWindow().x.toInt()
                             contentWidthPx = it.size.width
@@ -510,6 +525,7 @@ private fun FestivalShell(
                             Modifier
                                 .align(Alignment.BottomEnd)
                                 .padding(end = FLOATING_TOOLBAR_MARGIN_DP.dp, bottom = FLOATING_TOOLBAR_MARGIN_DP.dp),
+                            scroll = toolbarScroll,
                         )
                     }
                 }
@@ -570,6 +586,24 @@ private fun FestivalShell(
     )
 }
 
+/**
+ * Whether TalkBack-style explore-by-touch is on, updated live.
+ *
+ * @return True while touch exploration is enabled.
+ */
+@Composable
+private fun rememberTouchExplorationEnabled(): Boolean {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val manager = remember(context) { context.getSystemService(android.view.accessibility.AccessibilityManager::class.java) }
+    var enabled by remember { mutableStateOf(manager?.isTouchExplorationEnabled == true) }
+    DisposableEffect(manager) {
+        val listener = android.view.accessibility.AccessibilityManager.TouchExplorationStateChangeListener { enabled = it }
+        manager?.addTouchExplorationStateChangeListener(listener)
+        onDispose { manager?.removeTouchExplorationStateChangeListener(listener) }
+    }
+    return enabled
+}
+
 /** Permanent drawer width on large windows. */
 private const val PERMANENT_DRAWER_WIDTH_DP = 280
 
@@ -608,37 +642,37 @@ private fun FestivalNavHost(
     val api = container.api
     NavHost(navController = navController, startDestination = SongsTab, modifier = Modifier.fillMaxSize()) {
         composable<SongsTab> {
+            // Last song the user picked (on any width), restored whenever the window splits.
             var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
-            // M3 list-detail: an expanded window without a separating fold keeps the list full
-            // width until a song is picked (no big empty detail pane); a book-posture fold always
-            // splits at the hinge, with a slim prompt in the empty end pane. Back closes the detail.
-            val showDetail = twoPane && (selectedId != null || hingeSplit)
-            BackHandler(enabled = twoPane && selectedId != null) { selectedId = null }
-            if (twoPane) {
-                // One call site for the list in both states, so its scroll position survives a pick.
-                Row(Modifier.fillMaxSize()) {
-                    Box(if (showDetail) Modifier.width(listPaneWidth.dp) else Modifier.weight(1f)) {
-                        SongsRoute(container, shellViewModel, settings, onSongClick = { selectedId = it.songId }, selectedSongId = selectedId)
-                    }
-                    if (showDetail) {
-                        VerticalDivider(color = BrandTokens.glassBorder)
-                        Box(Modifier.weight(1f).fillMaxHeight().testTag("fst.songs.detail-pane")) {
-                            val id = selectedId
-                            if (id == null) {
-                                Text(
-                                    "Select a song",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = BrandTokens.textSecondary,
-                                    modifier = Modifier.align(Alignment.Center).testTag("fst.songs.detail-placeholder"),
-                                )
-                            } else {
-                                SongDetailRouteScreen(container, shellViewModel, settings, id, embedded = true)
-                            }
+            var head by remember { mutableStateOf(ListHead()) }
+            // Two populated columns whenever the width allows (operator 2026-09-28): the last
+            // pick, else the list's first row; never an empty "Select a song" pane.
+            val layout = ListDetailPolicy.layout(twoPane, hingeSplit, selectedId, head)
+            val split = layout as? ListDetailLayout.Split
+            // One call site for the list in every state, so its scroll position survives a split.
+            Row(Modifier.fillMaxSize()) {
+                Box(if (split != null) Modifier.width(listPaneWidth.dp) else Modifier.weight(1f)) {
+                    SongsRoute(
+                        container, shellViewModel, settings,
+                        onSongClick = {
+                            selectedId = it.songId
+                            if (!twoPane) navController.navigate(SongDetailRoute(it.songId))
+                        },
+                        selectedSongId = split?.detailId,
+                        onListHead = { loaded, first -> head = ListHead(loaded, first) },
+                    )
+                }
+                if (split != null) {
+                    VerticalDivider(color = BrandTokens.glassBorder)
+                    Box(Modifier.weight(1f).fillMaxHeight().testTag("fst.songs.detail-pane"), contentAlignment = Alignment.Center) {
+                        val id = split.detailId
+                        when {
+                            id != null -> SongDetailRouteScreen(container, shellViewModel, settings, id, embedded = true)
+                            head.loaded -> FestivalEmptyState("No songs", Modifier.fillMaxSize().testTag("fst.songs.detail-empty"))
+                            else -> FestivalLoading("Loading songs")
                         }
                     }
                 }
-            } else {
-                SongsRoute(container, shellViewModel, settings, onSongClick = { navController.navigate(SongDetailRoute(it.songId)) })
             }
         }
         composable<SongDetailRoute> { entry ->

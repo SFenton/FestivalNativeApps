@@ -244,7 +244,8 @@ private fun rememberQuickLinks(scroller: QuickLinkScroller, title: String, secti
     val controller = remember(scroller, title) { QuickLinksController(scroller, title, scope, activationPx) }
     controller.sections = QuickLinks.ordered(sections)
     controller.indexOf = indexOf
-    controller.animate = !LocalFestivalAccessibility.current.reduceMotion
+    // Quick Links teleport to the section like the web (operator batch 7.15), never an animated scroll.
+    controller.animate = false
     LaunchedEffect(controller) {
         snapshotFlow { scroller.layout() }.collect(controller::onLayout)
     }

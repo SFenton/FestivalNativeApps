@@ -216,14 +216,14 @@ private fun activate(viewModel: NotificationsViewModel, row: NotificationRow, on
     onNavigate(destination.route())
 }
 
-/** Web section heading: small, semibold, upper case, 74% white. */
+/** Web section heading: small, semibold, upper case, white (operator batch 7.20). */
 @Composable
 private fun SectionTitle(text: String) {
     Text(
         text.uppercase(),
         style = MaterialTheme.typography.labelSmall,
         fontWeight = FontWeight.SemiBold,
-        color = Color.White.copy(alpha = 0.74f),
+        color = Color.White,
         modifier = Modifier
             .padding(start = 2.dp, top = 8.dp, bottom = 2.dp)
             .semantics {
@@ -302,7 +302,7 @@ private fun NotificationItem(row: NotificationRow, onClick: () -> Unit) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.width(20.dp)) {
                 if (row.unread) Box(Modifier.size(9.dp).background(UNREAD_DOT, CircleShape))
                 if (navigable) {
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = Color.White.copy(alpha = 0.72f), modifier = Modifier.size(18.dp))
+                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                 }
             }
         }

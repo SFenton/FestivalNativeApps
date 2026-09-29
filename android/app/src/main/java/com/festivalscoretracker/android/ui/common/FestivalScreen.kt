@@ -177,7 +177,8 @@ fun FestivalScreen(
                     val global: @Composable RowScope.() -> Unit = {
                         GlobalSearchEntry(shell.search)
                         shell.notifications?.invoke()
-                        if (isRoot) ProfileAvatarButton(shell.selectedPlayer, shell.openProfile)
+                        // Every page, pushed pages included (operator batch 7.12).
+                        ProfileAvatarButton(shell.selectedPlayer, shell.openProfile)
                     }
                     if (shell.floatingToolbar == null) {
                         AdaptiveTopBarActions(inlineActions, onPageWidth = { pageActionsWidth = it }, page = actions, global = global)

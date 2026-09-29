@@ -15,6 +15,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -22,6 +23,10 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.testTag
@@ -84,6 +89,53 @@ fun FloatingToolbarContent(content: @Composable RowScope.() -> Unit) {
 
 // endregion
 
+// region Hide on scroll
+
+/**
+ * M3 floating-toolbar "exit always" scroll behaviour: the toolbar slides off the bottom edge as
+ * content scrolls toward its end and slides back as soon as it scrolls back, following the
+ * finger. Attach [connection] (a nested-scroll connection) to an ancestor of the scrolling
+ * pages; only [offsetPx] changes, and it is read in the toolbar's graphics layer, so scrolling
+ * never recomposes the toolbar. Disabled while [enabled] is false (TalkBack: a hidden toolbar
+ * would be unreachable by explore-by-touch).
+ */
+@Stable
+class FloatingToolbarScrollState {
+    /** Current downward offset in pixels (0 = fully shown). */
+    var offsetPx by mutableFloatStateOf(0f)
+        private set
+
+    /** Offset that fully hides the toolbar (its height plus the bottom margin). */
+    var hiddenOffsetPx by mutableFloatStateOf(0f)
+
+    /** Whether scrolling may hide the toolbar. */
+    var enabled by mutableStateOf(true)
+
+    /**
+     * Follow one scroll step.
+     *
+     * @param consumedY Pixels the content scrolled (negative = toward the end of the content).
+     */
+    fun onScrolled(consumedY: Float) {
+        offsetPx = if (!enabled) 0f else (offsetPx - consumedY).coerceIn(0f, hiddenOffsetPx)
+    }
+
+    /** Show the toolbar again at once (new page, accessibility on). */
+    fun reset() {
+        offsetPx = 0f
+    }
+
+    /** Nested-scroll connection feeding [onScrolled] with the scroll the content consumed. */
+    val connection: NestedScrollConnection = object : NestedScrollConnection {
+        override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+            onScrolled(consumed.y)
+            return Offset.Zero
+        }
+    }
+}
+
+// endregion
+
 // region Toolbar
 
 /** Floating toolbar height (M3 Expressive). */
@@ -97,9 +149,10 @@ const val FLOATING_TOOLBAR_MARGIN_DP = 16
  *
  * @param host Registered content.
  * @param modifier Placement (bottom centre of the content area).
+ * @param scroll Hide-on-scroll state; null keeps the toolbar fixed.
  */
 @Composable
-fun FloatingToolbar(host: FloatingToolbarHost, modifier: Modifier = Modifier) {
+fun FloatingToolbar(host: FloatingToolbarHost, modifier: Modifier = Modifier, scroll: FloatingToolbarScrollState? = null) {
     val content = host.current ?: return
     // A page whose actions are all conditional (or none) registers empty content: measure it but
     // place nothing, so no empty pill draws or blocks touches.
@@ -111,6 +164,7 @@ fun FloatingToolbar(host: FloatingToolbarHost, modifier: Modifier = Modifier) {
         border = BorderStroke(1.dp, BrandTokens.glassBorder),
         shadowElevation = 6.dp,
         modifier = modifier
+            .then(if (scroll != null) Modifier.graphicsLayer { translationY = scroll.offsetPx } else Modifier)
             .layout { measurable, constraints ->
                 val placeable = measurable.measure(constraints)
                 if (hasContent) layout(placeable.width, placeable.height) { placeable.place(0, 0) } else layout(0, 0) {}

@@ -191,7 +191,8 @@ class SettingsUiTest {
         assertTrue(transport.sent("/api/service-info").all { request -> request.headers.keys.none { it.lowercase().startsWith("x-fst-selected") || it.lowercase() == "x-api-key" } })
         rule.onNodeWithTag("fst.settings.list").performScrollToNode(hasTestTag("fst.settings.service-version"))
         rule.waitUntil(10_000) { settle(100); rule.onAllNodesWithText("9.9.9").fetchSemanticsNodes().isNotEmpty() }
-        rule.onNodeWithTag("fst.quick-links.open").performClick()
+        // The list scrolled, so the floating toolbar slid away (hide-on-scroll); activate it semantically.
+        rule.onNodeWithTag("fst.quick-links.open").performSemanticsAction(SemanticsActions.OnClick)
         waitForTag("fst.quick-links.item.reset")
         rule.onNodeWithTag("fst.quick-links.item.reset").performSemanticsAction(SemanticsActions.OnClick)
         waitForTag("fst.settings.reset")
@@ -337,8 +338,9 @@ class ExpandedSettingsUiTest {
         rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.settings.licenses").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("fst.settings.licenses").performSemanticsAction(SemanticsActions.OnClick)
         rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.licenses.list").fetchSemanticsNodes().isNotEmpty() }
-        // Nothing open: full-width list, no empty detail pane.
-        assertTrue(rule.onAllNodesWithTag("fst.licenses.detail-pane").fetchSemanticsNodes().isEmpty())
+        // Nothing open: the first package fills the detail pane (two populated columns).
+        rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.licenses.text").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("fst.licenses.detail-pane").assertExists()
         rule.onNodeWithTag("fst.licenses.list").performScrollToNode(hasTestTag("fst.licenses.row.com.squareup.okhttp3:okhttp"))
         rule.onNodeWithTag("fst.licenses.row.com.squareup.okhttp3:okhttp").performSemanticsAction(SemanticsActions.OnClick)
         rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.licenses.text").fetchSemanticsNodes().isNotEmpty() }

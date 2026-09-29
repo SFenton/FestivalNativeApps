@@ -1,6 +1,5 @@
 package com.festivalscoretracker.android.ui.settings
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -63,6 +62,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.licenses.LicenseManifest
 import com.festivalscoretracker.android.core.licenses.LicensedPackage
+import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import com.festivalscoretracker.android.ui.common.FestivalLoadGate
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.festivalSheetTop
@@ -98,16 +98,16 @@ fun LicensesScreen(loadManifest: (suspend () -> LicenseManifest)? = null) {
     val density = LocalDensity.current
     BoxWithConstraints(Modifier.fillMaxSize().then(split.modifier)) {
         val hinge = split.value
-        // List-detail on a book-posture hinge, or on a wide page once a package is open (the
-        // list stays full width until then); a sheet otherwise. Back closes the open pane.
+        // List-detail on a book-posture hinge or a wide page, always populated (operator
+        // 2026-09-28): the package picked last, else the first one; a sheet otherwise.
         val wide = hinge != null || maxWidth >= LICENSE_DETAIL_PANE_MIN_WIDTH
-        val detailPane = hinge != null || (wide && openId != null)
-        BackHandler(enabled = wide && openId != null) { openId = null }
         FestivalScreen(title = "Licenses", isRoot = false, scrolled = scrolled) { padding ->
             // Shared load gate (batch 6.41): spinner until the manifest is read, then the rows stagger in.
             FestivalLoadGate(ready = manifest != null, modifier = Modifier.fillMaxSize(), label = "Loading licenses") {
             val current = manifest ?: return@FestivalLoadGate
             val open = current.packages.firstOrNull { it.id == openId }
+            val shown = open ?: current.packages.firstOrNull()?.takeIf { wide }
+            val detailPane = wide && (shown != null || hinge != null)
             Row(Modifier.fillMaxSize()) {
                 LazyColumn(
                     state = listState,
@@ -131,7 +131,7 @@ fun LicensesScreen(loadManifest: (suspend () -> LicenseManifest)? = null) {
                         )
                     }
                     itemsIndexed(current.packages, key = { _, item -> item.id }) { index, item ->
-                        PackageRow(item, index, current.packages.size, selected = detailPane && item.id == openId, Modifier.staggered(index + 1)) { openId = item.id }
+                        PackageRow(item, index, current.packages.size, selected = detailPane && item.id == shown?.id, Modifier.staggered(index + 1)) { openId = item.id }
                     }
                 }
                 if (detailPane) {
@@ -143,10 +143,10 @@ fun LicensesScreen(loadManifest: (suspend () -> LicenseManifest)? = null) {
                             .padding(start = 16.dp, end = 16.dp, bottom = padding.calculateBottomPadding())
                             .testTag("fst.licenses.detail-pane"),
                     ) {
-                        if (open == null) {
-                            Text("Select a package to read its license.", color = BrandTokens.textSecondary, modifier = Modifier.align(Alignment.Center).testTag("fst.licenses.detail-placeholder"))
+                        if (shown == null) {
+                            FestivalEmptyState("No packages", Modifier.fillMaxSize().testTag("fst.licenses.detail-empty"))
                         } else {
-                            LicenseDetail(open, current.text(open), Modifier.fillMaxSize().verticalScroll(rememberScrollState()))
+                            LicenseDetail(shown, current.text(shown), Modifier.fillMaxSize().verticalScroll(rememberScrollState()))
                         }
                     }
                 }
