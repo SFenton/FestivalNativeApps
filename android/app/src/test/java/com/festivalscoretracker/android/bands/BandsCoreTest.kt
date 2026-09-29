@@ -319,4 +319,12 @@ class BandsCoreTest {
     }
 
     // endregion
+
+    @Test
+    fun bandQuickLinksMatchTheWeb() {
+        val links = com.festivalscoretracker.android.core.bands.BandQuickLinks.sections()
+        assertEquals(listOf("members", "summary", "statistics", "rank-history", "songs"), links.map { it.id })
+        assertEquals(listOf("Members", "Summary", "Statistics", "Rank History", "Songs"), links.map { it.title })
+        assertEquals(listOf("Members", "Band Summary", "Band Statistics", "Band Rank History", "Band Songs"), links.map { it.accessibleTitle })
+    }
 }

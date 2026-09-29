@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.bands
 
+import androidx.compose.ui.test.assertIsNotDisplayed
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
@@ -196,12 +197,34 @@ class BandsUiTest {
     }
 
     @Test
+    fun bandDetailQuickLinksJumpBetweenSections() {
+        launch(duoRoute)
+        waitForTag("fst.band.members-section")
+        waitForTag("fst.quick-links.open")
+        click("fst.quick-links.open")
+        waitForTag("fst.quick-links.sheet")
+        listOf("members", "summary", "statistics", "rank-history", "songs").forEach { waitForTag("fst.quick-links.item.$it") }
+        click("fst.quick-links.item.songs")
+        rule.waitUntil(10_000) { settle(100); !exists("fst.quick-links.sheet") }
+        // The page jumped: the header's members section is off screen, the songs section on it.
+        rule.onNodeWithTag("fst.band.songs-section", useUnmergedTree = true).assertIsDisplayed()
+        rule.onNodeWithTag("fst.band.members-section", useUnmergedTree = true).assertIsNotDisplayed()
+        click("fst.quick-links.open")
+        waitForTag("fst.quick-links.item.members")
+        click("fst.quick-links.item.members")
+        rule.waitUntil(10_000) { settle(100); !exists("fst.quick-links.sheet") }
+        rule.onNodeWithTag("fst.band.members-section", useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    @Test
     @Config(qualifiers = "w1280dp-h800dp-mdpi")
     fun expandedBandDetailSplitsIntoPanes() {
         launch(duoRoute)
         waitForTag("fst.band.pane.leading")
         assertTrue(exists("fst.band.pane.trailing"))
         waitForTag("fst.band.history-chart")
+        // Both panes show every section: no Quick Links.
+        assertTrue(!exists("fst.quick-links.open"))
     }
 
     // endregion

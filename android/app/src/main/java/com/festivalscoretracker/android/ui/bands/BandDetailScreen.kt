@@ -1,6 +1,7 @@
 package com.festivalscoretracker.android.ui.bands
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -57,6 +59,7 @@ import com.festivalscoretracker.android.core.bands.BandDetailProjection
 import com.festivalscoretracker.android.core.bands.BandFormatting
 import com.festivalscoretracker.android.core.bands.BandLayout
 import com.festivalscoretracker.android.core.bands.BandMember
+import com.festivalscoretracker.android.core.bands.BandQuickLinks
 import com.festivalscoretracker.android.core.bands.BandRankHistoryResponse
 import com.festivalscoretracker.android.core.bands.BandRankingMetric
 import com.festivalscoretracker.android.core.bands.BandSongRow
@@ -79,6 +82,9 @@ import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.SectionHeader
+import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
+import com.festivalscoretracker.android.ui.quicklinks.ScrollQuickLinkSections
+import com.festivalscoretracker.android.ui.quicklinks.rememberScrollQuickLinks
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 
 // region Screen
@@ -99,7 +105,16 @@ fun BandDetailScreen(viewModel: BandDetailViewModel, routeName: String?, artwork
     val detail = (detailState as? LoadState.Loaded)?.value
     val title = detail?.let { BandMember.joinNames(it.displayMembers) } ?: routeName?.takeIf { it.isNotBlank() } ?: "Band"
     val revealed = rememberRevealed(detail != null)
-    FestivalScreen(title = "Band", isRoot = false, modifier = Modifier.testTag("fst.band.screen")) { padding ->
+    // Quick Links (web BandPage) while the page is one scrolling column; two panes show everything side by side.
+    val scroll = rememberScrollState()
+    var twoPane by remember { mutableStateOf(false) }
+    val (quickLinks, anchors) = rememberScrollQuickLinks(scroll, "Quick Links", if (detail != null && !twoPane) BandQuickLinks.sections() else emptyList())
+    FestivalScreen(
+        title = "Band",
+        isRoot = false,
+        modifier = Modifier.testTag("fst.band.screen"),
+        actions = { QuickLinksAction(quickLinks, windowWidthDp().toInt()) },
+    ) { padding ->
         val type = viewModel.bandType
         when {
             type == null -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
@@ -114,7 +129,7 @@ fun BandDetailScreen(viewModel: BandDetailViewModel, routeName: String?, artwork
                 val failed = detailState as LoadState.Failed
                 ServiceStatusView(failed.issue, "Band Not Found", failed.countdown, viewModel::retry, Modifier.testTag("fst.band.error"), padding)
             }
-            detail != null -> BandDetailContent(viewModel, detail, type, title, padding, revealed, artworkUrl, onNavigate)
+            detail != null -> BandDetailContent(viewModel, detail, type, title, padding, revealed, artworkUrl, onNavigate, scroll, anchors) { twoPane = it }
         }
     }
 }
@@ -129,6 +144,9 @@ private fun BandDetailContent(
     revealed: Boolean,
     artworkUrl: (String?) -> String?,
     onNavigate: (AppRoute) -> Unit,
+    scroll: ScrollState,
+    anchors: ScrollQuickLinkSections,
+    onTwoPane: (Boolean) -> Unit,
 ) {
     val metric by viewModel.metric.collectAsStateWithLifecycle()
     val history by viewModel.history.collectAsStateWithLifecycle()
@@ -138,20 +156,26 @@ private fun BandDetailContent(
     val summary = remember(detail, type) { BandDetailProjection.summary(detail, type) }
     val statistics = remember(detail, type, metric, bestSong) { BandDetailProjection.statistics(detail, type, metric, bestSong) }
     var contentLeft by remember { mutableFloatStateOf(0f) }
+    var singlePane by remember { mutableStateOf(true) }
+    val mark: (String) -> Modifier = { id -> if (singlePane) with(anchors) { Modifier.section(id) } else Modifier }
     val leading: @Composable ColumnScope.() -> Unit = {
         BandPageHeader(title, "${type.label} · ${BandFormatting.appearances(detail.songsPlayed)}", "fst.band")
-        MembersSection(detail.displayMembers, onNavigate)
-        SectionHeader("Band Summary", Modifier.testTag("fst.band.summary-section"))
-        StatGrid(summary, onNavigate)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            SectionHeader("Band Statistics", Modifier.weight(1f).testTag("fst.band.statistics-section"))
-            RankByMenu(metric, viewModel::selectMetric)
+        Column(mark("members")) { MembersSection(detail.displayMembers, onNavigate) }
+        Column(mark("summary")) {
+            SectionHeader("Band Summary", Modifier.testTag("fst.band.summary-section"))
+            StatGrid(summary, onNavigate)
         }
-        StatGrid(statistics, onNavigate)
+        Column(mark("statistics")) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SectionHeader("Band Statistics", Modifier.weight(1f).testTag("fst.band.statistics-section"))
+                RankByMenu(metric, viewModel::selectMetric)
+            }
+            StatGrid(statistics, onNavigate)
+        }
     }
     val trailing: @Composable ColumnScope.() -> Unit = {
-        HistorySection(history, metric, viewModel::retryHistory)
-        SongsSections(songs, title, artworkUrl, viewModel::retrySongs, onNavigate)
+        Column(mark("rank-history")) { HistorySection(history, metric, viewModel::retryHistory) }
+        Column(mark("songs")) { SongsSections(songs, title, artworkUrl, viewModel::retrySongs, onNavigate) }
     }
     BoxWithConstraints(
         Modifier
@@ -159,6 +183,8 @@ private fun BandDetailContent(
             .onGloballyPositioned { contentLeft = it.positionInWindow().x },
     ) {
         val panes = BandLayout.panes(windowWidthDp(), maxWidth.value, rememberBandHinge(contentLeft, maxWidth))
+        singlePane = !panes.twoPane
+        LaunchedEffect(panes.twoPane) { onTwoPane(panes.twoPane) }
         val scrollPadding = Modifier.padding(start = 16.dp, end = 16.dp)
         val bottom = padding.calculateBottomPadding() + 24.dp
         if (panes.twoPane) {
@@ -179,7 +205,8 @@ private fun BandDetailContent(
                 Column(
                     Modifier
                         .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
+                        .then(with(anchors) { Modifier.viewport() })
+                        .verticalScroll(scroll)
                         .padding(top = padding.calculateTopPadding())
                         .then(scrollPadding)
                         .testTag("fst.band.content"),

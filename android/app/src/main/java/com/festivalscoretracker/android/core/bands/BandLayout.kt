@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.core.bands
 
+import com.festivalscoretracker.android.core.quicklinks.QuickLinkSection
 import kotlin.math.max
 import kotlin.math.min
 
@@ -125,6 +126,27 @@ object BandLayout {
         }
         return Grid(fit, EDGE, EDGE, GUTTER)
     }
+}
+
+// endregion
+
+// region Quick Links
+
+/** Band Detail Quick Links (web `BandPage` `quickLinks`). */
+object BandQuickLinks {
+    /**
+     * Web order and labels: Members, Summary, Statistics, Rank History, Songs (short labels,
+     * full landmark names for TalkBack).
+     *
+     * @return Sections.
+     */
+    fun sections(): List<QuickLinkSection> = listOf(
+        QuickLinkSection("members", "Members", icon = "people"),
+        QuickLinkSection("summary", "Summary", icon = "list", spokenTitle = "Band Summary"),
+        QuickLinkSection("statistics", "Statistics", icon = "chart", spokenTitle = "Band Statistics"),
+        QuickLinkSection("rank-history", "Rank History", icon = "trophy", spokenTitle = "Band Rank History"),
+        QuickLinkSection("songs", "Songs", icon = "music", spokenTitle = "Band Songs"),
+    )
 }
 
 // endregion

@@ -239,7 +239,7 @@ fun rememberQuickLinks(gridState: LazyStaggeredGridState, title: String, section
     rememberQuickLinks(remember(gridState) { StaggeredScroller(gridState) }, title, sections, indexOf)
 
 @Composable
-private fun rememberQuickLinks(scroller: QuickLinkScroller, title: String, sections: List<QuickLinkSection>, indexOf: (String) -> Int?): QuickLinksController {
+internal fun rememberQuickLinks(scroller: QuickLinkScroller, title: String, sections: List<QuickLinkSection>, indexOf: (String) -> Int?): QuickLinksController {
     val scope = rememberCoroutineScope()
     val activationPx = with(LocalDensity.current) { 16.dp.toPx() }
     val controller = remember(scroller, title) { QuickLinksController(scroller, title, scope, activationPx) }
