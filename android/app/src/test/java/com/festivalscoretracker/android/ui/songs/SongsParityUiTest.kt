@@ -101,6 +101,8 @@ class SongsParityUiTest {
         waitForTag("fst.songs.section.duration.1to2")
         assertTrue(exists("fst.songs.section.duration.4to5"))
         assertTrue(!exists("fst.songs.section-index"))
+        // The toolbar registers Quick Links a frame after the sections exist (full-suite flake).
+        waitForTag("fst.quick-links.open")
         click("fst.quick-links.open")
         waitForTag("fst.quick-links.sheet")
         waitForTag("fst.quick-links.item.duration:4to5")
