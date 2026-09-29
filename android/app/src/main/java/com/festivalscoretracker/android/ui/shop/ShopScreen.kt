@@ -397,7 +397,8 @@ private fun ShopGridCard(item: ShopOfferItem, artUrl: String?, pulse: () -> Floa
             Text(offer.artist, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary, maxLines = oneLineUnlessLarge(), overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
         }
         if (item.highlight == ShopHighlight.LeavingTomorrow) {
-            ShopBadgeLabel(ShopHighlight.LeavingTomorrow, offer.songId, Modifier.align(Alignment.TopEnd).padding(10.dp))
+            // The card's description already says "Leaving Tomorrow".
+            ShopBadgeLabel(ShopHighlight.LeavingTomorrow, offer.songId, Modifier.align(Alignment.TopEnd).padding(10.dp).clearAndSetSemantics { })
         }
         if (item.officialUrl != null) Box(Modifier.size(0.dp).testTag("fst.shop.external.${offer.songId}"))
     }
