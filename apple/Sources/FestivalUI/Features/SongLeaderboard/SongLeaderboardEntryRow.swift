@@ -109,11 +109,7 @@ struct SongLeaderboardEntryRow: View {
         let width: CGFloat? = compact ? accuracyTextWidth + 16 : nil
         let height: CGFloat? = compact ? accuracyPillHeight : nil
         return ZStack {
-            // A `Color.clear` fill is dropped from rendering, which left the inset gold
-            // stroke as the only drawn path and shrank the reported accessibility frame
-            // by 1pt a side (94pt vs the 96pt column). A near-invisible fill keeps the
-            // full slot drawn without changing the web's transparent look.
-            shape.fill(fullCombo ? Color.black.opacity(0.001) : fill)
+            shape.fill(fill)
             if fullCombo {
                 shape.strokeBorder(BrandTokens.gold, lineWidth: 2)
             }
@@ -126,6 +122,9 @@ struct SongLeaderboardEntryRow: View {
                 .padding(compact ? 0 : 4)
         }
         .frame(width: width, height: height)
+        // The reported frame follows the drawn shapes (the 1pt-inset gold stroke gave
+        // 94pt); pin it to the full slot.
+        .contentShape(.accessibility, Rectangle())
         // One element for the whole slot: its frame is exactly the fixed column (a
         // shape or a short "FC" text inside must never define the reported frame).
         .accessibilityElement(children: .ignore)
