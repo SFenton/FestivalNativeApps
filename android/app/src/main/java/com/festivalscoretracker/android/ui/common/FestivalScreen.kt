@@ -27,12 +27,19 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
@@ -123,6 +130,16 @@ fun FestivalScreen(
 ) {
     val shell = LocalShellActions.current
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    // Page actions move to a ⋮ overflow menu when the title would truncate at this pane width
+    // (a list pane can be far narrower than the window), and return once the pane is wider.
+    var widthPx by remember { mutableIntStateOf(0) }
+    var collapsedAtPx by remember(title) { mutableStateOf<Int?>(null) }
+    var pageActionsWidth by remember { mutableIntStateOf(0) }
+    var titleTruncated by remember { mutableStateOf(false) }
+    val inlineActions = TopBarActionFit.inline(widthPx, collapsedAtPx)
+    LaunchedEffect(titleTruncated, pageActionsWidth, widthPx) {
+        collapsedAtPx = TopBarActionFit.afterTitleLayout(titleTruncated, inlineActions, pageActionsWidth > 0, widthPx, collapsedAtPx)
+    }
     // Compact windows: screen actions + search float over the bottom bar (web bottom dock).
     if (shell.floatingToolbar != null) {
         FloatingToolbarContent {
@@ -132,13 +149,22 @@ fun FestivalScreen(
     }
     Scaffold(
         modifier = modifier
+            .onSizeChanged { widthPx = it.width }
             .nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0),
         topBar = {
             TopAppBar(
                 modifier = Modifier.testTag("fst.nav.top-bar"),
-                title = { Text(title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = {
+                    Text(
+                        title,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        onTextLayout = { titleTruncated = it.hasVisualOverflow || (it.lineCount > 0 && it.isLineEllipsized(0)) },
+                    )
+                },
                 navigationIcon = {
                     when {
                         !isRoot -> IconButton(onClick = shell.back, modifier = Modifier.testTag("fst.nav.back")) {
@@ -150,12 +176,16 @@ fun FestivalScreen(
                     }
                 },
                 actions = {
-                    if (shell.floatingToolbar == null) {
-                        actions()
-                        GlobalSearchEntry(shell.search)
+                    val global: @Composable RowScope.() -> Unit = {
+                        if (shell.floatingToolbar == null) GlobalSearchEntry(shell.search)
+                        shell.notifications?.invoke()
+                        if (isRoot) ProfileAvatarButton(shell.selectedPlayer, shell.openProfile)
                     }
-                    shell.notifications?.invoke()
-                    if (isRoot) ProfileAvatarButton(shell.selectedPlayer, shell.openProfile)
+                    if (shell.floatingToolbar == null) {
+                        AdaptiveTopBarActions(inlineActions, onPageWidth = { pageActionsWidth = it }, page = actions, global = global)
+                    } else {
+                        global()
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = if (scrolled) BrandTokens.surfaceFrosted else Color.Transparent,
