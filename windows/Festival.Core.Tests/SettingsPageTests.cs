@@ -98,15 +98,15 @@ public class SettingsPageTests
     public void Shop_HidingKeepsHighlightPreference()
     {
         var (vm, store, _) = Create();
-        Assert.True(vm.HighlightShopItems && vm.CanToggleShopHighlight);
-        vm.HighlightShopItems = false;
+        Assert.True(!vm.DisableShopHighlighting && vm.CanToggleShopHighlight);
+        vm.DisableShopHighlighting = true;
         Assert.True(store.Current.DisableShopHighlighting);
         vm.HideShop = true;
         Assert.False(vm.CanToggleShopHighlight);
         Assert.True(vm.HideShop);
-        Assert.False(vm.HighlightShopItems);
+        Assert.True(vm.DisableShopHighlighting);
         vm.HideShop = false;
-        Assert.False(vm.HighlightShopItems);
+        Assert.True(vm.DisableShopHighlighting);
     }
 
     [Fact]

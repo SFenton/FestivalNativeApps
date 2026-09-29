@@ -78,20 +78,6 @@
                     </Border>
                 </Grid>
 
-                <TextBlock Text="Profile" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
-                <Border Style="{StaticResource FSTCardStyle}">
-                    <Grid ColumnSpacing="12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="{x:Bind ViewModel.ProfileText, Mode=OneWay}" VerticalAlignment="Center" />
-                        <Button Grid.Column="1" Content="Deselect Player" Command="{x:Bind ViewModel.DeselectPlayerCommand}"
-                                Visibility="{x:Bind ViewModel.HasPlayer, Mode=OneWay}"
-                                AutomationProperties.AutomationId="fst.settings.deselect-player" />
-                    </Grid>
-                </Border>
-
                 <!-- App Settings -->
                 <StackPanel controls:QuickLinkAnchor.Id="app-settings">
                     <TextBlock Text="App Settings" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
@@ -103,7 +89,7 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center">
+                                <StackPanel VerticalAlignment="Center" Spacing="4">
                                     <TextBlock Text="Show Instrument Icons" Style="{StaticResource SettingTitleStyle}" />
                                     <TextBlock Text="Display instrument icons on each song row showing which parts have leaderboard scores or FCs." Style="{StaticResource SettingDescriptionStyle}" />
                                 </StackPanel>
@@ -116,7 +102,7 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center">
+                                <StackPanel VerticalAlignment="Center" Spacing="4">
                                     <TextBlock Text="Enable Independent Song Row Visual Order" Style="{StaticResource SettingTitleStyle}" />
                                     <TextBlock Text="When enabled, the metadata display order on song rows is controlled separately from sort priority. When disabled, metadata follows sort priority order." Style="{StaticResource SettingDescriptionStyle}" />
                                 </StackPanel>
@@ -129,7 +115,7 @@
                                       AutomationProperties.Name="Song Row Visual Order"
                                       AutomationProperties.AutomationId="fst.settings.song-row-order">
                                 <Expander.Header>
-                                    <StackPanel Padding="0,8">
+                                    <StackPanel Padding="0,8" Spacing="4">
                                         <TextBlock Text="Song Row Visual Order" Style="{StaticResource SettingTitleStyle}" />
                                         <TextBlock Text="{x:Bind ViewModel.VisualOrderSummary, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}" />
                                     </StackPanel>
@@ -140,12 +126,38 @@
                                     <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.SongRowOrder, Mode=OneWay}" ItemTemplate="{StaticResource ReorderRowTemplate}" />
                                 </StackPanel>
                             </Expander>
+                            <!-- Web: title, description, then Image/Text radio buttons (not a dropdown). -->
+                            <StackPanel Spacing="4" Padding="0,8">
+                                <TextBlock Text="CHOpt Path Default View" Style="{StaticResource SettingTitleStyle}" />
+                                <TextBlock Text="Choose whether CHOpt paths open as an image or text table by default." Style="{StaticResource SettingDescriptionStyle}" />
+                                <RadioButtons SelectedIndex="{x:Bind ViewModel.PathDefaultViewIndex, Mode=TwoWay}" Margin="0,4,0,0"
+                                              AutomationProperties.Name="CHOpt Path Default View"
+                                              AutomationProperties.AutomationId="fst.settings.path-default-view">
+                                    <RadioButton Content="Image" AutomationProperties.AutomationId="fst.settings.path-default-view.image" />
+                                    <RadioButton Content="Text" AutomationProperties.AutomationId="fst.settings.path-default-view.text" />
+                                </RadioButtons>
+                            </StackPanel>
+                            <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                      AutomationProperties.Name="CHOpt Text Path Column Order"
+                                      AutomationProperties.AutomationId="fst.settings.path-column-order">
+                                <Expander.Header>
+                                    <StackPanel Padding="0,8" Spacing="4">
+                                        <TextBlock Text="CHOpt Text Path Column Order" Style="{StaticResource SettingTitleStyle}" />
+                                        <TextBlock Text="{x:Bind ViewModel.PathColumnSummary, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}" />
+                                    </StackPanel>
+                                </Expander.Header>
+                                <StackPanel>
+                                    <TextBlock Text="Choose the order columns appear in the CHOpt text path view."
+                                               Style="{StaticResource SettingDescriptionStyle}" Margin="0,0,0,8" />
+                                    <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.PathColumnOrder, Mode=OneWay}" ItemTemplate="{StaticResource ReorderRowTemplate}" />
+                                </StackPanel>
+                            </Expander>
                             <Grid ColumnSpacing="12" MinHeight="56">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center">
+                                <StackPanel VerticalAlignment="Center" Spacing="4">
                                     <TextBlock Text="Filter Invalid Scores" Style="{StaticResource SettingTitleStyle}" />
                                     <TextBlock Text="Hide song scores that exceed the mathematical maximum by more than the leeway percentage." Style="{StaticResource SettingDescriptionStyle}" />
                                 </StackPanel>
@@ -167,38 +179,7 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="CHOpt Path Default View" Style="{StaticResource SettingTitleStyle}" />
-                                    <TextBlock Text="Choose whether CHOpt paths open as an image or text table by default." Style="{StaticResource SettingDescriptionStyle}" />
-                                </StackPanel>
-                                <ComboBox Grid.Column="1" VerticalAlignment="Center" MinWidth="120" SelectedIndex="{x:Bind ViewModel.PathDefaultViewIndex, Mode=TwoWay}"
-                                          AutomationProperties.Name="CHOpt Path Default View"
-                                          AutomationProperties.AutomationId="fst.settings.path-default-view">
-                                    <x:String>Image</x:String>
-                                    <x:String>Text</x:String>
-                                </ComboBox>
-                            </Grid>
-                            <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
-                                      AutomationProperties.Name="CHOpt Text Path Column Order"
-                                      AutomationProperties.AutomationId="fst.settings.path-column-order">
-                                <Expander.Header>
-                                    <StackPanel Padding="0,8">
-                                        <TextBlock Text="CHOpt Text Path Column Order" Style="{StaticResource SettingTitleStyle}" />
-                                        <TextBlock Text="{x:Bind ViewModel.PathColumnSummary, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}" />
-                                    </StackPanel>
-                                </Expander.Header>
-                                <StackPanel>
-                                    <TextBlock Text="Choose the order columns appear in the CHOpt text path view."
-                                               Style="{StaticResource SettingDescriptionStyle}" Margin="0,0,0,8" />
-                                    <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.PathColumnOrder, Mode=OneWay}" ItemTemplate="{StaticResource ReorderRowTemplate}" />
-                                </StackPanel>
-                            </Expander>
-                            <Grid ColumnSpacing="12" MinHeight="56">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center">
+                                <StackPanel VerticalAlignment="Center" Spacing="4">
                                     <TextBlock Text="Enable Experimental Leaderboard Ranks" Style="{StaticResource SettingTitleStyle}" />
                                     <TextBlock Text="Enable this to see more ranking mechanisms in the Leaderboards page. Not yet available." Style="{StaticResource SettingDescriptionStyle}" />
                                 </StackPanel>
@@ -222,7 +203,7 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center">
+                                <StackPanel VerticalAlignment="Center" Spacing="4">
                                     <TextBlock Text="Tap Diagnostics" Style="{StaticResource SettingTitleStyle}" />
                                     <TextBlock Text="Capture recent taps, hit targets, routes, and shell state in a local diagnostic buffer on this device." Style="{StaticResource SettingDescriptionStyle}" />
                                 </StackPanel>
@@ -235,7 +216,7 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center">
+                                <StackPanel VerticalAlignment="Center" Spacing="4">
                                     <TextBlock Text="Upload Tap Telemetry" Style="{StaticResource SettingTitleStyle}" />
                                     <TextBlock Text="{x:Bind ViewModel.TapTelemetryDescription, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}" />
                                 </StackPanel>
@@ -260,27 +241,27 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="Hide Item Shop" Style="{StaticResource SettingTitleStyle}" />
-                                    <TextBlock Text="Also hides its navigation entry. Your highlight preference is kept." Style="{StaticResource SettingDescriptionStyle}" />
+                                <StackPanel VerticalAlignment="Center" Spacing="4">
+                                    <TextBlock Text="Disable Item Shop Highlighting" Style="{StaticResource SettingTitleStyle}" />
+                                    <TextBlock Text="Turn off green, gold, and red pulsing Item Shop highlights." Style="{StaticResource SettingDescriptionStyle}" />
                                 </StackPanel>
-                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" MinWidth="0" Width="52" IsOn="{x:Bind ViewModel.HideShop, Mode=TwoWay}"
-                                              AutomationProperties.Name="Hide Item Shop"
-                                              AutomationProperties.AutomationId="fst.settings.hide-shop" />
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" MinWidth="0" Width="52" IsOn="{x:Bind ViewModel.DisableShopHighlighting, Mode=TwoWay}"
+                                              IsEnabled="{x:Bind ViewModel.CanToggleShopHighlight, Mode=OneWay}"
+                                              AutomationProperties.Name="Disable Item Shop Highlighting"
+                                              AutomationProperties.AutomationId="fst.settings.shop-highlights" />
                             </Grid>
                             <Grid ColumnSpacing="12" MinHeight="56">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="Highlight Shop Items" Style="{StaticResource SettingTitleStyle}" />
-                                    <TextBlock Text="Pulse songs that are in the Item Shop on the Songs page." Style="{StaticResource SettingDescriptionStyle}" />
+                                <StackPanel VerticalAlignment="Center" Spacing="4">
+                                    <TextBlock Text="Hide Item Shop" Style="{StaticResource SettingTitleStyle}" />
+                                    <TextBlock Text="Hide all Item Shop UI elements including navigation, buttons, and sort options." Style="{StaticResource SettingDescriptionStyle}" />
                                 </StackPanel>
-                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" MinWidth="0" Width="52" IsOn="{x:Bind ViewModel.HighlightShopItems, Mode=TwoWay}"
-                                              IsEnabled="{x:Bind ViewModel.CanToggleShopHighlight, Mode=OneWay}"
-                                              AutomationProperties.Name="Highlight Shop Items"
-                                              AutomationProperties.AutomationId="fst.settings.shop-highlights" />
+                                <ToggleSwitch Grid.Column="1" Style="{StaticResource SettingSwitchStyle}" MinWidth="0" Width="52" IsOn="{x:Bind ViewModel.HideShop, Mode=TwoWay}"
+                                              AutomationProperties.Name="Hide Item Shop"
+                                              AutomationProperties.AutomationId="fst.settings.hide-shop" />
                             </Grid>
                         </StackPanel>
                     </Border>
@@ -330,7 +311,7 @@
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <StackPanel VerticalAlignment="Center">
+                                        <StackPanel VerticalAlignment="Center" Spacing="4">
                                             <TextBlock Text="{x:Bind Label}" />
                                             <TextBlock Text="{x:Bind Description, Mode=OneWay}" Style="{StaticResource SettingDescriptionStyle}"
                                                        Visibility="{x:Bind IsEnabled, Mode=OneWay, Converter={StaticResource FSTInverseVisibility}}" />
@@ -376,7 +357,7 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center">
+                                <StackPanel VerticalAlignment="Center" Spacing="4">
                                     <TextBlock Text="Increase Contrast" Style="{StaticResource SettingTitleStyle}" />
                                     <TextBlock Text="Brighter secondary text and stronger card outlines." Style="{StaticResource SettingDescriptionStyle}" />
                                 </StackPanel>
@@ -388,7 +369,7 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center">
+                                <StackPanel VerticalAlignment="Center" Spacing="4">
                                     <TextBlock Text="Reduce Transparency" Style="{StaticResource SettingTitleStyle}" />
                                     <TextBlock Text="Replaces translucent cards with solid surfaces." Style="{StaticResource SettingDescriptionStyle}" />
                                 </StackPanel>
@@ -400,7 +381,7 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center">
+                                <StackPanel VerticalAlignment="Center" Spacing="4">
                                     <TextBlock Text="Hide Artwork (Save Data)" Style="{StaticResource SettingTitleStyle}" />
                                     <TextBlock Text="Skips album art downloads and shows the brand background." Style="{StaticResource SettingDescriptionStyle}" />
                                 </StackPanel>
@@ -469,7 +450,7 @@
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <StackPanel VerticalAlignment="Center">
+                                        <StackPanel VerticalAlignment="Center" Spacing="4">
                                             <TextBlock Text="{x:Bind Label}" />
                                             <TextBlock Text="{x:Bind Detail}" Style="{StaticResource SettingDescriptionStyle}" />
                                         </StackPanel>

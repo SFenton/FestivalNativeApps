@@ -19,6 +19,8 @@
             <SolidColorBrush x:Key="FSTDeemphasisTextBrush" Color="#FFD7DEE8" />
             <SolidColorBrush x:Key="FSTMeterFilledBrush" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="FSTMeterEmptyBrush" Color="#FF666666" />
+            <!-- Loading indicators are white/neutral, never the accent (audit 6; web loader spinner). -->
+            <SolidColorBrush x:Key="FSTLoadingBrush" Color="#FFFFFFFF" />
             <!--
                 Shell chrome over the artwork backdrop (MainWindow): the docked pane and the content area are transparent,
                 so the backdrop's dim scrim is the only layer (no Mica, no LayerFill, no 1 px content border). The pane
@@ -52,6 +54,7 @@
             <SolidColorBrush x:Key="FSTDeemphasisTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTMeterFilledBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTMeterEmptyBrush" Color="{ThemeResource SystemColorGrayTextColor}" />
+            <SolidColorBrush x:Key="FSTLoadingBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 
@@ -66,6 +69,14 @@
     <!-- MenuFlyout presenters are UIA Menus and need a name (Axe); the invoking button already names the choice. -->
     <Style TargetType="MenuFlyoutPresenter">
         <Setter Property="AutomationProperties.Name" Value="Options" />
+    </Style>
+
+    <!-- Every ProgressRing/ProgressBar is white (neutral) rather than accent-coloured, with no caption beside it. -->
+    <Style TargetType="ProgressRing">
+        <Setter Property="Foreground" Value="{ThemeResource FSTLoadingBrush}" />
+    </Style>
+    <Style TargetType="ProgressBar">
+        <Setter Property="Foreground" Value="{ThemeResource FSTLoadingBrush}" />
     </Style>
 
     <!-- Fluent card: 8 px corner radius, 1 px stroke, 16 px padding. -->

@@ -37,18 +37,6 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Raised when the page should present a first-run replay.</summary>
     public event EventHandler<FirstRunPageKey>? ReplayRequested;
 
-    #region Profile
-    /// <summary>Selected player name, or a prompt.</summary>
-    public string ProfileText => session.SelectedPlayer is { } p ? p.DisplayName : "No player selected";
-
-    /// <summary>Whether a player is selected.</summary>
-    public bool HasPlayer => session.HasPlayer;
-
-    /// <summary>Deselects the player.</summary>
-    [RelayCommand]
-    private void DeselectPlayer() => session.DeselectPlayer();
-    #endregion
-
     #region App settings
     /// <summary>Show Instrument Icons.</summary>
     public bool ShowInstrumentIcons
@@ -109,7 +97,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     public string LeewayDescription =>
         $"This slider controls a percentage value that allows for some expanded range of scores to still be valid. For example, a CHOpt path with a max score of 100k and {ScoreLeeway.Format(Leeway)} leeway will allow the app to accept scores up to {ScoreLeeway.MaxEffectiveScore(Leeway).ToString("N0", CultureInfo.GetCultureInfo("en-US"))} as “valid”.";
 
-    /// <summary>CHOpt path default view (0 Image, 1 Text) for a ComboBox.</summary>
+    /// <summary>CHOpt path default view (0 Image, 1 Text) for the RadioButtons.</summary>
     public int PathDefaultViewIndex
     {
         get => (int)session.Settings.PathDefaultView;
@@ -155,11 +143,11 @@ public sealed partial class SettingsViewModel : ObservableObject
         set => session.UpdateSettings(s => s with { HideShop = value });
     }
 
-    /// <summary>Highlight Shop Items (the inverse of the stored disable flag; kept while the Shop is hidden).</summary>
-    public bool HighlightShopItems
+    /// <summary>Disable Item Shop Highlighting (web wording and polarity; kept while the Shop is hidden).</summary>
+    public bool DisableShopHighlighting
     {
-        get => !session.Settings.DisableShopHighlighting;
-        set => session.UpdateSettings(s => s with { DisableShopHighlighting = !value });
+        get => session.Settings.DisableShopHighlighting;
+        set => session.UpdateSettings(s => s with { DisableShopHighlighting = value });
     }
 
     /// <summary>Whether highlighting can change (not while the Shop is hidden).</summary>

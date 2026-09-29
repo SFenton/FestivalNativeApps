@@ -471,12 +471,11 @@ public class SettingsViewModelTests
     }
 
     [Fact]
-    public void AccessibilityProfileAndAbout()
+    public void AccessibilityAndAbout()
     {
         var store = new InMemorySettingsStore(new AppSettings { SelectedPlayer = new SelectedPlayer("acc", "Jane") });
         var session = new FestivalSession(new FakeService().Client(), store);
         var vm = new SettingsViewModel(session);
-        Assert.Equal(("Jane", true), (vm.ProfileText, vm.HasPlayer));
         Assert.Equal("https://festivalscoretracker.com", vm.ServiceOrigin);
         var changes = new List<string?>();
         vm.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
@@ -486,8 +485,6 @@ public class SettingsViewModelTests
         Assert.True(vm.ReduceMotion && vm.DisableAnimatedArtwork && vm.SaveData);
         Assert.True(store.Current.ReduceMotion && store.Current.DisableAnimatedArtwork && store.Current.SaveData);
         Assert.Contains("", changes);
-        vm.DeselectPlayerCommand.Execute(null);
-        Assert.Equal(("No player selected", false), (vm.ProfileText, vm.HasPlayer));
         session.Catalog = null;
     }
 }

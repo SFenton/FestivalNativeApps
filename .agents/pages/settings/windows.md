@@ -15,10 +15,9 @@
 
 | Section | Controls (`fst.settings.*`) | Notes |
 |---|---|---|
-| Profile | `deselect-player` | Kept from the first Windows slice; not a web section, no quick link |
-| App Settings | `show-instrument-icons`, `enable-visual-order`, `song-row-order` (Expander with Move up/down rows), `filter-invalid-scores`, `leeway` (Slider −5…+5, step 0.1, thumb and header show `+1.0%`), `path-default-view`, `path-column-order`, `experimental-ranks` (disabled; sanitized to off) | Consumers: Songs/Song Detail/Paths lanes read the fields; this page only writes |
+| App Settings (first, as on the web; no Profile section — deselect lives in the title-bar profile flyout) | `show-instrument-icons`, `enable-visual-order`, `song-row-order` (Expander with Move up/down rows), `path-default-view` (`RadioButtons` Image/Text under the description, `.image`/`.text`, like the web's radio rows), `path-column-order`, `filter-invalid-scores`, `leeway` (Slider −5…+5, step 0.1, thumb and header show `+1.0%`), `experimental-ranks` (disabled; sanitized to off) | Consumers: Songs/Song Detail/Paths lanes read the fields; this page only writes |
 | Diagnostics (Debug build only) | `tap-diagnostics`, `tap-telemetry` (requires diagnostics; turning diagnostics off clears it) | No collector reads them yet |
-| Item Shop | `hide-shop`, `shop-highlights` (disabled while hidden; value retained) | `AppSettings.ShopHighlightEnabled` is the effective flag; Shop nav visibility is the Songs lane's |
+| Item Shop | `shop-highlights` (web wording **Disable Item Shop Highlighting**; disabled while hidden; value retained), `hide-shop` | `AppSettings.ShopHighlightEnabled` is the effective flag; Shop nav visibility is the Songs lane's |
 | Show Instruments | `instrument.<serviceId>` | Last visible chart cannot be turned off |
 | Show Instrument Metadata | `metadata.<field>` (`last-played`) | Anonymous: only Intensity enabled (as on iPhone); all may be off |
 | Accessibility (native) | `reduce-motion`, `disable-artwork-animation`, `more-contrast`, `less-transparency`, `save-data` | Additive only. Increase Contrast whitens secondary text and strengthens card strokes; Reduce Transparency makes cards opaque (`MainWindow.Settings.cs`, `ApplyTransparency`) |
@@ -30,7 +29,7 @@
 
 ## Decisions
 
-- Windows 11 Settings-card layout: title + description left, bare right-aligned control. Bare `ToggleSwitch`es need a **local** `MinWidth="0" Width="52"`; the default style's 154-epx `MinWidth` otherwise reserves On/Off text space.
+- Windows 11 Settings-card layout: title + description left (4 epx apart), bare right-aligned control. Bare `ToggleSwitch`es need a **local** `MinWidth="0" Width="52"`; the default style's 154-epx `MinWidth` otherwise reserves On/Off text space.
 - Reorder uses Expanders with numbered rows and Move up/Move down buttons (keyboard/Narrator friendly) instead of drag-only lists.
 - Quick Links: header menu or wide pane, see [quick-links/windows.md](../../controls/quick-links/windows.md).
 - Not ported: Service Progress (`/api/service-info` not allowlisted), profile name refresh (POST), ZIP export, mouse light trails / mobile header buttons (no equivalent chrome).
