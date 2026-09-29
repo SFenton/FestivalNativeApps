@@ -8,6 +8,7 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performCustomAccessibilityActionWithLabel
@@ -250,6 +251,41 @@ class SongsParityUiTest {
         settle()
         assertFalse(exists("fst.song-detail.header"))
         assertEquals(1, rule.onAllNodes(hasText("Alpha Tune") and hasAnyAncestor(hasTestTag("fst.nav.top-bar"))).fetchSemanticsNodes().size)
+    }
+
+    /**
+     * Operator 6.12 (production Winterfest Wish, Lead): with Filter Invalid Scores the
+     * preview is the service's leeway board (few valid rows, raw Epic ranks like the web),
+     * the selected player's next valid score follows it, and over-threshold history rows
+     * are dropped from the song's score history.
+     */
+    @Test
+    fun filterInvalidScoresUsesTheLeewayBoardAndDropsInvalidHistory() {
+        transport.on("/api/leaderboard/s-alpha/Solo_Guitar", headers = mapOf("X-FST-Publication-Id" to "7")) { request ->
+            if (request.url.contains("leeway=")) {
+                """{"songId":"s-alpha","instrument":"Solo_Guitar","count":2,"totalEntries":12438,"localEntries":2,"entries":[
+                  {"accountId":"${Fixtures.ACCOUNT_B}","displayName":"Valid One","score":89000,"rank":55942,"localRank":1,"accuracy":980000,"isFullCombo":false},
+                  {"accountId":"0123456789abcdef0123456789abcdee","displayName":"Valid Two","score":88000,"rank":65259,"localRank":2,"accuracy":990000,"isFullCombo":false}]}"""
+            } else {
+                Fixtures.leaderboard("s-alpha")
+            }
+        }
+        transport.on("/api/player/${Fixtures.ACCOUNT_A}/history") {
+            """{"accountId":"${Fixtures.ACCOUNT_A}","count":2,"history":[
+              {"songId":"s-alpha","instrument":"Solo_Guitar","newScore":95198,"newRank":42,"accuracy":987000,"isFullCombo":true,"changedAt":"2024-08-02T00:00:00Z"},
+              {"songId":"s-alpha","instrument":"Solo_Guitar","newScore":80000,"newRank":60,"accuracy":950000,"isFullCombo":false,"changedAt":"2024-07-02T00:00:00Z"}]}"""
+        }
+        launch(DebugLaunch(profile = player, songQuery = "s-alpha", stillBackground = true), prefs(booleanPreferencesKey(SettingsRegistry.FILTER_INVALID_SCORES) to true))
+        waitForTag("fst.song-detail.list")
+        assertTrue(transport.sent("/api/leaderboard/s-alpha/Solo_Guitar").all { it.url.contains("leeway=") })
+        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.view-all.Solo_Guitar"))
+        waitForTag("fst.song-detail.preview-row.Solo_Guitar.${Fixtures.ACCOUNT_B}")
+        assertEquals(1, rule.onAllNodesWithText("#55,942", useUnmergedTree = true).fetchSemanticsNodes().size)
+        // History: 95,198 exceeds 90,000 × 1.01, so only the 80,000 row is listed.
+        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.history"))
+        waitForTag("fst.song-detail.history.top.0")
+        assertEquals(0, rule.onAllNodesWithTag("fst.song-detail.history.top.1").fetchSemanticsNodes().size)
+        assertTrue(rule.onNodeWithTag("fst.song-detail.history.top.0").fetchSemanticsNode().config.toString().contains("80,000"))
     }
 
     private fun androidx.compose.ui.test.SemanticsNodeInteraction.assertExistsWithText(fragment: String) {
