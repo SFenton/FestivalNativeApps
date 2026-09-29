@@ -17,6 +17,7 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
     private readonly FestivalSession session;
     private int version;
     private bool attached;
+    private double? loadedLeeway;
     private List<LeaderboardEntry> entries = [];
 
     /// <summary>Creates the page model for a route.</summary>
@@ -121,8 +122,14 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
             attached = true;
         }
         if (session.HasPlayer) _ = session.LoadSelectedProfileAsync();
-        return State is LoadState.Idle or LoadState.Failed ? LoadAsync() : Task.CompletedTask;
+        return State is LoadState.Idle or LoadState.Failed || LeewayChanged ? LoadAsync() : Task.CompletedTask;
     }
+
+    /// <summary>The <c>leeway</c> query for the current settings (rounded to the slider's 0.1 step), or none when off.</summary>
+    private double? CurrentLeeway => session.Settings.FilterInvalidScores ? Math.Round(session.Settings.Leeway, 1) : null;
+
+    /// <summary>Whether shown rows were read with a different Filter Invalid Scores leeway than the current one.</summary>
+    private bool LeewayChanged => State is LoadState.Loaded or LoadState.Empty && CurrentLeeway != loadedLeeway;
 
     /// <summary>Stops following the session (page left).</summary>
     public void Deactivate()
@@ -153,10 +160,10 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
         {
             var catalog = await session.LoadCatalogAsync();
             Song = catalog.Songs.FirstOrDefault(s => s.SongId == SongId) ?? throw new FestivalApiException(FestivalApiErrorKind.HttpStatus, 404);
-            var settings = session.Settings;
-            double? leeway = settings.FilterInvalidScores ? Math.Round(settings.Leeway, 1) : null;
+            var leeway = CurrentLeeway;
             var board = await session.Api.GetLeaderboardAsync(SongId, Instrument, requestedPage, LeaderboardPaging.PageSize, leeway);
             if (request != version) return;
+            loadedLeeway = leeway;
             var pages = board.PageCount(LeaderboardPaging.PageSize);
             var corrected = LeaderboardPaging.Corrected(requestedPage, pages);
             if (corrected != requestedPage)
@@ -230,7 +237,8 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
     {
         var relevant = e.PropertyName is nameof(FestivalSession.Settings) or nameof(FestivalSession.SelectedProfile) or
             nameof(FestivalSession.SelectedProfileStatus);
-        if (relevant && State is LoadState.Loaded or LoadState.Empty) ApplySelection();
+        if (e.PropertyName == nameof(FestivalSession.Settings) && LeewayChanged) _ = LoadAsync();
+        else if (relevant && State is LoadState.Loaded or LoadState.Empty) ApplySelection();
     }
 }
 
