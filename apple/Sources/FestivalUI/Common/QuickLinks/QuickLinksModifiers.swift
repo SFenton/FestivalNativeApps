@@ -186,10 +186,13 @@ struct QuickLinksContainerModifier: ViewModifier {
     private func correctAndSettle(
         _ proxy: ScrollViewProxy, target: String, initialFloor: Duration
     ) async {
-        if initialFloor > .zero {
-            try? await Task.sleep(for: initialFloor)
+        // Let one layout pass realize a lazily estimated target before re-targeting.
+        try? await Task.sleep(for: initialFloor > .zero ? initialFloor : .milliseconds(60))
+        var instant = Transaction()
+        instant.disablesAnimations = true
+        withTransaction(instant) {
+            proxy.scrollTo(target, anchor: .top)
         }
-        proxy.scrollTo(target, anchor: .top)
         var lastFrame = controller.currentFrame(for: target)
         var stableStreak = 0
         // Bounded so a target that can never stabilize (e.g. removed mid-poll)
@@ -198,6 +201,13 @@ struct QuickLinksContainerModifier: ViewModifier {
         while ContinuousClock.now < deadline {
             try? await Task.sleep(for: .milliseconds(50))
             let frame = controller.currentFrame(for: target)
+            // A target not realized yet has no frame: keep waiting rather than
+            // settling on the section above it.
+            if frame == nil {
+                stableStreak = 0
+                lastFrame = nil
+                continue
+            }
             if frame == lastFrame {
                 stableStreak += 1
                 if stableStreak >= 2 { break }

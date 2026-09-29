@@ -364,9 +364,16 @@ struct FestivalDrawer: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityHint("Opens your profile")
                 .accessibilityIdentifier("fst.shell.drawer.view-profile")
-                Button("Deselect") { deselectPending = true }
-                    .buttonStyle(.bordered)
-                    .tint(.red)
+                // Web `btnDanger`: a solid red button with white text.
+                Button { deselectPending = true } label: {
+                    Text("Deselect")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(FestivalText.primary)
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 36)
+                        .background(BrandTokens.statusRed, in: Capsule())
+                }
+                    .buttonStyle(.plain)
                     .accessibilityLabel("Deselect Profile")
                     .accessibilityIdentifier("fst.shell.drawer.deselect-profile")
             }

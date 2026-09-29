@@ -995,7 +995,11 @@ struct SongsScreen: View {
                         )
                     }
                 }
-                .modifier(ScrolledAwayTracker { scrolled in
+                .modifier(ScrolledAwayTracker { offset in
+                    // Hysteresis: moving the tools into the bar (and removing the inline
+                    // title) shifts the content inset, which flipped a single threshold
+                    // back and forth forever (main thread busy in UI tests).
+                    let scrolled = SongsScrollState.scrolled(offset: offset, wasScrolled: listScrolled)
                     if listScrolled != scrolled { listScrolled = scrolled }
                     let moved = scrolled && actionsInDock && session.selectedPlayer != nil
                     guard moved != toolsInBar else { return }
@@ -1372,21 +1376,41 @@ private extension SongShopSectionKind {
 
 /// Keep anonymous catalogue and Shop sorting as an Apply/Reset/Discard draft.
 
-/// Reports whether a scroll view has moved away from its top (iOS 18+; always false
-/// before, so older systems keep the floating tools).
+/// Reports how far a scroll view has moved from its top, rounded to whole points
+/// (iOS 18+; nothing before, so older systems keep the floating tools).
 private struct ScrolledAwayTracker: ViewModifier {
-    let changed: (Bool) -> Void
+    let changed: (Double) -> Void
 
     func body(content: Content) -> some View {
         if #available(iOS 18.0, macOS 15.0, *) {
-            content.onScrollGeometryChange(for: Bool.self) { geometry in
-                geometry.contentOffset.y + geometry.contentInsets.top > 24
-            } action: { _, scrolled in
-                changed(scrolled)
+            content.onScrollGeometryChange(for: Double.self) { geometry in
+                Double(geometry.contentOffset.y + geometry.contentInsets.top).rounded()
+            } action: { _, offset in
+                changed(offset)
             }
         } else {
             content
         }
+    }
+}
+
+/// When the Songs list counts as scrolled away from its top.
+enum SongsScrollState {
+    /// Offset past which the list becomes scrolled.
+    static let enter: Double = 40
+    /// Offset below which it is back at the top.
+    static let leave: Double = 4
+
+    /// Scrolled state with hysteresis.
+    ///
+    /// - Parameters:
+    ///   - offset: Distance from the top in points.
+    ///   - wasScrolled: The current state.
+    /// - Returns: The new state; between the thresholds it keeps `wasScrolled`.
+    static func scrolled(offset: Double, wasScrolled: Bool) -> Bool {
+        if offset > enter { return true }
+        if offset < leave { return false }
+        return wasScrolled
     }
 }
 

@@ -102,3 +102,12 @@ struct ProfileIdentityActionTests {
         #expect(ProfileIdentityAction.deselect.shortTitle == "Deselect")
     }
 }
+
+/// The Songs scrolled state holds between its thresholds, so an inset change caused by
+/// moving the tools into the bar cannot flip it back and forth.
+@Test func songsScrollStateHasHysteresis() {
+    #expect(!SongsScrollState.scrolled(offset: 20, wasScrolled: false))
+    #expect(SongsScrollState.scrolled(offset: 41, wasScrolled: false))
+    #expect(SongsScrollState.scrolled(offset: 20, wasScrolled: true))
+    #expect(!SongsScrollState.scrolled(offset: 3, wasScrolled: true))
+}
