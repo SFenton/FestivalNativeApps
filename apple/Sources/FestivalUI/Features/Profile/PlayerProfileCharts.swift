@@ -96,11 +96,15 @@ struct PlayerRankHistoryCard: View {
                 EmptyView()
             case let .loaded(points):
                 FestivalGlassSection("Rank History", subtitle: "Ranking progression over the past 30 days.") {
-                    RankHistoryCharts(
-                        points: points, instrument: instrument,
-                        motion: ChartMotion(system: systemReduceMotion, app: appReduceMotion),
-                        initialChartWidth: RankHistoryCharts.chartWidth(forCardWidth: cardWidth)
-                    )
+                    NearViewport {
+                        RankHistoryPlaceholder(label: "\(title) below")
+                    } content: {
+                        RankHistoryCharts(
+                            points: points, instrument: instrument,
+                            motion: ChartMotion(system: systemReduceMotion, app: appReduceMotion),
+                            initialChartWidth: RankHistoryCharts.chartWidth(forCardWidth: cardWidth)
+                        )
+                    }
                 }
                 .festivalFadeIn(isLoaded: true)
                 .accessibilityIdentifier("fst.player.rank-history.\(instrument.rawValue)")
@@ -142,6 +146,50 @@ struct PlayerRankHistoryCard: View {
             guard !Task.isCancelled else { return false }
             phase = .failed(ServiceIssue(error))
             return false
+        }
+    }
+}
+
+/// Builds `content` only once its placeholder comes within about a screen of the
+/// viewport, then keeps it (a one-way latch).
+///
+/// The player page is an eager `VStack` (Quick Links discovers its sections in tree
+/// order), so every instrument's Swift Charts used to be built in the same pass as the
+/// page itself, right as the push landed: on a profile with every instrument played
+/// that stalled the main thread for most of a second, freezing the push and delaying
+/// the fade-ins. Placeholders have the content's exact footprint, so the swap never
+/// moves anything.
+struct NearViewport<Placeholder: View, Content: View>: View {
+    /// Global distance below the top of the screen within which content is built.
+    static var reach: CGFloat { 1_700 }
+
+    private let placeholder: Placeholder
+    private let content: () -> Content
+    @State private var isNear = false
+
+    /// Create a deferred region.
+    ///
+    /// - Parameters:
+    ///   - placeholder: Same-size stand-in drawn until the region is near the viewport.
+    ///   - content: The expensive content.
+    init(@ViewBuilder placeholder: () -> Placeholder, @ViewBuilder content: @escaping () -> Content) {
+        self.placeholder = placeholder()
+        self.content = content
+    }
+
+    var body: some View {
+        Group {
+            if isNear {
+                content()
+            } else {
+                placeholder
+            }
+        }
+        .onGeometryChange(for: Bool.self, of: { proxy in
+            let frame = proxy.frame(in: .global)
+            return frame.minY < Self.reach && frame.maxY > -Self.reach
+        }) { near in
+            if near, !isNear { isNear = true }
         }
     }
 }
@@ -526,10 +574,17 @@ struct PlayerPercentileChartCard: View {
     var body: some View {
         if !buckets.isEmpty {
             FestivalGlassSection(title, subtitle: "Songs by leaderboard placement") {
-                PercentileBandsChart(
-                    buckets: buckets, instrument: instrument,
-                    motion: ChartMotion(system: systemReduceMotion, app: appReduceMotion)
-                )
+                // Built only near the viewport: a player page has up to nine of these,
+                // and rendering them all with the page stalled the push (see
+                // `NearViewport`). The placeholder has the chart's exact height.
+                NearViewport {
+                    Color.clear.frame(height: PercentileBandsChart.height(bucketCount: buckets.count))
+                } content: {
+                    PercentileBandsChart(
+                        buckets: buckets, instrument: instrument,
+                        motion: ChartMotion(system: systemReduceMotion, app: appReduceMotion)
+                    )
+                }
             }
             .accessibilityIdentifier("fst.player.percentiles.\(instrument.rawValue)")
             .quickLinkSection(QuickLinkSection(
@@ -554,6 +609,12 @@ struct PercentileBandsChart: View {
     let instrument: Instrument
     let motion: ChartMotion
 
+    /// Plot height: 28 pt per band plus insets.
+    ///
+    /// - Parameter bucketCount: Non-empty bands.
+    /// - Returns: The chart's fixed height.
+    static func height(bucketCount: Int) -> CGFloat { CGFloat(bucketCount) * 28 + 8 }
+
     var body: some View {
         Chart(buckets) { bucket in
             BarMark(
@@ -576,7 +637,7 @@ struct PercentileBandsChart: View {
                     .foregroundStyle(FestivalText.deemphasized)
             }
         }
-        .frame(height: CGFloat(buckets.count) * 28 + 8)
+        .frame(height: Self.height(bucketCount: buckets.count))
         .animation(motion.animation, value: buckets)
         .accessibilityChartDescriptor(PercentileDescriptor(buckets: buckets, instrument: instrument))
     }
