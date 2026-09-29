@@ -6,7 +6,10 @@ tool writes kernel key events (``Meta`` + ``→``, TalkBack's "next item" in its
 default new keymap) to the emulator's hardware keyboard as root. TalkBack's own
 log (log level raised to verbose in its preferences) records each utterance;
 the walk collects the text spoken for every accessibility-focus event until
-focus stops moving or comes back to the first item. Everything runs in one
+focus stops moving or comes back to the first item. A focused text field keeps
+the key chord (TalkBack gives it input focus and the IME), so from a text field
+the walk hides the IME and steps on with a real one-finger swipe right, written
+as multi-touch events to the display's touchscreen. Everything runs in one
 ``device.py`` emulator lock hold (≤300 s). UIAutomator is never used during the
 walk: its UiAutomation connection suspends TalkBack and resets focus.
 
@@ -45,12 +48,25 @@ TALKBACK_PREFS = f"/data/user_de/0/{TALKBACK_PACKAGE}/shared_prefs/{TALKBACK_PAC
 #: Emulator keyboard with the generic key layout (``qwerty2`` has no Meta mapping).
 KEYBOARD = "AT Translated Set 2 keyboard"
 
+#: Touchscreen of logical display 0 on the FST emulators.
+TOUCHSCREEN = "virtio_input_multi_touch_1"
+
 #: Device path of the "next item" key chord.
 REMOTE_CHORD = "/data/local/tmp/fst-talkback-next.bin"
 
+#: Device path prefix of the swipe-right frames (``<prefix><n>.bin``).
+REMOTE_SWIPE = "/data/local/tmp/fst-talkback-swipe"
+
 #: Linux input codes.
-EV_SYN, EV_KEY = 0, 1
-KEY_LEFTMETA, KEY_RIGHT = 125, 106
+EV_SYN, EV_KEY, EV_ABS = 0, 1, 3
+KEY_LEFTMETA, KEY_RIGHT, BTN_TOUCH = 125, 106, 330
+ABS_MT_SLOT, ABS_MT_POSITION_X, ABS_MT_POSITION_Y, ABS_MT_TRACKING_ID, ABS_MT_PRESSURE = 0x2F, 0x35, 0x36, 0x39, 0x3A
+
+#: Multi-touch axis range of the emulator touchscreens.
+TOUCH_MAX = 32767
+
+#: Seconds between swipe frames (the whole swipe takes about 0.1 s).
+SWIPE_FRAME_S = 0.012
 
 #: ``Speaking fragment text="…"`` lines of a focus event.
 SPEAKING = re.compile(r'Speaking fragment text="(?P<text>.*)", utteranceId=.*?event=(?P<event>.*)$')
@@ -66,6 +82,34 @@ def next_item_chord() -> bytes:
     syn = input_event(EV_SYN, 0, 0)
     return (input_event(EV_KEY, KEY_LEFTMETA, 1) + syn + input_event(EV_KEY, KEY_RIGHT, 1) + syn
             + input_event(EV_KEY, KEY_RIGHT, 0) + syn + input_event(EV_KEY, KEY_LEFTMETA, 0) + syn)
+
+
+def swipe_right_frames(steps: int = 8, y: float = 0.5) -> list[bytes]:
+    """One-finger swipe right across the middle 30–75 % of the screen, one chunk per frame.
+
+    Frame 0 puts the finger down (slot 0, tracking ID, position, pressure,
+    ``BTN_TOUCH``), frames 1…``steps`` move it, and the last frame lifts it
+    (tracking ID −1). Coordinates are in the touchscreen's 0…32767 range.
+    """
+    syn = input_event(EV_SYN, 0, 0)
+    x0, x1, ty = int(TOUCH_MAX * 0.3), int(TOUCH_MAX * 0.75), int(TOUCH_MAX * y)
+    frames = [input_event(EV_ABS, ABS_MT_SLOT, 0) + input_event(EV_ABS, ABS_MT_TRACKING_ID, 77)
+              + input_event(EV_ABS, ABS_MT_POSITION_X, x0) + input_event(EV_ABS, ABS_MT_POSITION_Y, ty)
+              + input_event(EV_ABS, ABS_MT_PRESSURE, 60) + input_event(EV_KEY, BTN_TOUCH, 1) + syn]
+    frames += [input_event(EV_ABS, ABS_MT_POSITION_X, x0 + (x1 - x0) * step // steps) + syn
+               for step in range(1, steps + 1)]
+    frames.append(input_event(EV_ABS, ABS_MT_TRACKING_ID, -1) + input_event(EV_KEY, BTN_TOUCH, 0) + syn)
+    return frames
+
+
+def swipe_script(touchscreen: str, count: int) -> str:
+    """Root shell script that writes the ``count`` pushed swipe frames with a short pause between."""
+    return "; ".join(f"cat {REMOTE_SWIPE}{index}.bin > {touchscreen}; sleep {SWIPE_FRAME_S}" for index in range(count))
+
+
+def is_text_field(utterance: str) -> bool:
+    """Whether TalkBack announced an editable text field (which keeps the key chord)."""
+    return "Edit box" in utterance
 
 
 def input_device(getevent_output: str, name: str) -> str | None:
@@ -117,8 +161,11 @@ def markdown(name: str, items: list[str]) -> str:
 # region Walk
 
 
-def prepare_talkback(dev: device.Device) -> str:
-    """Verbose TalkBack logging, the key chord on the device; return the keyboard's event path."""
+def prepare_talkback(dev: device.Device) -> tuple[str, str]:
+    """Verbose TalkBack logging, the key chord and swipe frames on the device.
+
+    Returns the keyboard's event path and the root script that swipes right.
+    """
     prefs = dev.shell(f"su 0 cat {TALKBACK_PREFS}", check=False)
     if "<map>" in prefs and 'name="pref_log_level">2<' not in prefs:
         with tempfile.TemporaryDirectory() as tmp:
@@ -127,24 +174,40 @@ def prepare_talkback(dev: device.Device) -> str:
             dev.adb("push", str(local), "/data/local/tmp/fst-talkback-prefs.xml", cap=30)
         dev.shell(f"su 0 sh -c 'cat /data/local/tmp/fst-talkback-prefs.xml > {TALKBACK_PREFS}'", check=False)
         dev.shell(f"su 0 am force-stop {TALKBACK_PACKAGE}", check=False)
+    frames = swipe_right_frames()
     with tempfile.TemporaryDirectory() as tmp:
         chord = Path(tmp) / "chord.bin"
         chord.write_bytes(next_item_chord())
         dev.adb("push", str(chord), REMOTE_CHORD, cap=30)
+        for index, frame in enumerate(frames):
+            local = Path(tmp) / f"swipe{index}.bin"
+            local.write_bytes(frame)
+            dev.adb("push", str(local), f"{REMOTE_SWIPE}{index}.bin", cap=30)
     dev.shell(f"pm grant {TALKBACK_PACKAGE} android.permission.POST_NOTIFICATIONS", check=False)
-    keyboard = input_device(dev.shell("getevent -pl", check=False), KEYBOARD)
-    if not keyboard:
-        raise device.DeviceError(f"no {KEYBOARD} input device")
-    return keyboard
+    devices = dev.shell("getevent -pl", check=False)
+    keyboard, touchscreen = input_device(devices, KEYBOARD), input_device(devices, TOUCHSCREEN)
+    if not keyboard or not touchscreen:
+        raise device.DeviceError(f"no {KEYBOARD} or {TOUCHSCREEN} input device")
+    return keyboard, swipe_script(touchscreen, len(frames))
 
 
-def walk(dev: device.Device, keyboard: str, limit: int) -> list[str]:
-    """Press "next item" until focus stops moving or wraps; return what TalkBack said."""
+def walk(dev: device.Device, keyboard: str, swipe: str, limit: int) -> list[str]:
+    """Press "next item" until focus stops moving or wraps; return what TalkBack said.
+
+    From a text field it hides the IME (Back, only while the IME shows) and
+    swipes right instead, since the field keeps the key chord.
+    """
     dev.adb("logcat", "-c", cap=30)
     heard: list[str] = []
     stalls = 0
     for _ in range(limit):
-        dev.shell(f"su 0 sh -c 'cat {REMOTE_CHORD} > {keyboard}'", check=False)
+        if heard and is_text_field(heard[-1]):
+            if "mInputShown=true" in dev.shell("dumpsys input_method", check=False):
+                dev.shell("input keyevent KEYCODE_BACK", check=False)
+                time.sleep(0.5)
+            dev.shell(f"su 0 sh -c '{swipe}'", check=False)
+        else:
+            dev.shell(f"su 0 sh -c 'cat {REMOTE_CHORD} > {keyboard}'", check=False)
         time.sleep(0.8)
         now = focus_utterances(dev.adb("logcat", "-d", "-v", "brief", cap=30).stdout)
         if len(now) == len(heard):
@@ -196,7 +259,7 @@ def run(args: argparse.Namespace) -> int:
     with device._lock(args, f"talkback-walk {args.name} {args.avd}") as lock:
         dev = device._booted(args, lock)
         device._prepare(dev, args)
-        keyboard = prepare_talkback(dev)
+        keyboard, swipe = prepare_talkback(dev)
         if not args.no_launch:
             device._launch(dev, args)
             time.sleep(args.wait)
@@ -206,7 +269,7 @@ def run(args: argparse.Namespace) -> int:
         device.run_step(dev, args.avd, "talkback", "on")
         time.sleep(3)
         try:
-            items = walk(dev, keyboard, args.max)
+            items = walk(dev, keyboard, swipe, args.max)
             if args.shot:
                 dev.screenshot(out / f"{args.name}.png")
         finally:

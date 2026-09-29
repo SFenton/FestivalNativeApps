@@ -31,6 +31,26 @@ class TalkBackWalkTests(unittest.TestCase):
         keys = [e for e in events if e[0] == tw.EV_KEY]
         self.assertEqual(keys, [(1, 125, 1), (1, 106, 1), (1, 106, 0), (1, 125, 0)])
 
+    def test_swipe_right_frames_touch_down_move_up(self):
+        frames = tw.swipe_right_frames(steps=4)
+        self.assertEqual(len(frames), 6)
+
+        def decode(chunk):
+            return [struct.unpack("<qqHHi", chunk[i:i + 24])[2:] for i in range(0, len(chunk), 24)]
+
+        self.assertIn((tw.EV_KEY, tw.BTN_TOUCH, 1), decode(frames[0]))
+        self.assertIn((tw.EV_ABS, tw.ABS_MT_TRACKING_ID, -1), decode(frames[-1]))
+        xs = [e[2] for f in frames for e in decode(f) if e[:2] == (tw.EV_ABS, tw.ABS_MT_POSITION_X)]
+        self.assertEqual(xs, sorted(xs))
+        self.assertTrue(xs[0] < tw.TOUCH_MAX // 2 < xs[-1])
+
+    def test_swipe_script_and_text_field(self):
+        script = tw.swipe_script("/dev/input/event2", 2)
+        self.assertEqual(script.count("> /dev/input/event2"), 2)
+        self.assertIn(f"{tw.REMOTE_SWIPE}1.bin", script)
+        self.assertTrue(tw.is_text_field("Editing. Edit box. Search songs"))
+        self.assertFalse(tw.is_text_field("Search. Button"))
+
     def test_input_device_by_name(self):
         out = ('add device 1: /dev/input/event13\n  name:     "qwerty2"\n'
                'add device 13: /dev/input/event1\n  name:     "AT Translated Set 2 keyboard"\n')
