@@ -35,7 +35,7 @@ public struct QuickLinksToolbarItem: ToolbarContent {
     }
 
     public var body: some ToolbarContent {
-        if !inDock {
+        if !inDock || controller.prefersToolbar {
             ToolbarItem(placement: placement) {
                 QuickLinksMenu(controller: controller)
             }

@@ -45,6 +45,10 @@ public final class QuickLinksController {
     /// Whether the page should show its "Jump to Section" entry point.
     public var isAvailable: Bool { QuickLinks.isAvailable(sectionCount: sections.count) }
 
+    /// Show the menu as a navigation-bar item even where page tools float above the tab
+    /// bar (Songs moves its tools into the bar once scrolled, operator batch 7).
+    public var prefersToolbar = false
+
     /// The active section, if any.
     public var activeSection: QuickLinkSection? {
         sections.first { $0.id == activeID }

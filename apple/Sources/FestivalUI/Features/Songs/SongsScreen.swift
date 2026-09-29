@@ -38,6 +38,10 @@ struct SongsScreen: View {
     /// When the catalogue first arrived; rows fade in only shortly after it.
     @State private var fadeLoadedAt: Date?
     @State private var quickLinks = QuickLinksController()
+    /// Scrolled away from the top with a profile selected: Filter/Sort/Quick Links move
+    /// from the floating dock into the navigation bar (operator batch 7), and back at
+    /// the top.
+    @State private var toolsInBar = false
     @Environment(\.openProfile) private var openProfile
     @Environment(\.deviceLayout) private var deviceLayout
     /// True where Filter/Sort live in the iPhone bottom dock instead of the toolbar.
@@ -387,17 +391,18 @@ struct SongsScreen: View {
         // FAB dock (operator, 2026-09-28); toolbar items elsewhere (Duo rail, iPad, Mac).
         .festivalTabAccessory(
             token: filterDockToken, order: DockOrder.filter, accessibilityID: "fst.songs.filter",
-            isEnabled: canPresentFilter
+            isEnabled: canPresentFilter && !toolsInBar
         ) {
             filterAction.frame(minWidth: 44, minHeight: 44)
         }
         .festivalTabAccessory(
-            token: sortDockToken, order: DockOrder.sort, accessibilityID: "fst.songs.sort"
+            token: sortDockToken, order: DockOrder.sort, accessibilityID: "fst.songs.sort",
+            isEnabled: !toolsInBar
         ) {
             sortAction.frame(minWidth: 44, minHeight: 44)
         }
         .toolbar {
-            if !actionsInDock {
+            if !actionsInDock || toolsInBar {
                 ToolbarItemGroup(placement: Self.pageActionPlacement) {
                     sortAction
                     if canPresentFilter {
@@ -507,6 +512,12 @@ struct SongsScreen: View {
         // (`normalizeSongSettings`). The Songs instrument is not saved across launches,
         // so a saved player sort is normalized on appear too.
         .onChange(of: instrument) { _, _ in normalizePlayerSort() }
+        .onChange(of: session.selectedPlayer == nil) { _, anonymous in
+            if anonymous && toolsInBar {
+                toolsInBar = false
+                quickLinks.prefersToolbar = false
+            }
+        }
         .onAppear { normalizePlayerSort() }
         .task(id: searchText) {
             do {
@@ -942,6 +953,14 @@ struct SongsScreen: View {
                     }
                 }
                 .listStyle(.plain)
+                .modifier(ScrolledAwayTracker { scrolled in
+                    let moved = scrolled && actionsInDock && session.selectedPlayer != nil
+                    guard moved != toolsInBar else { return }
+                    withAnimation(.snappy(duration: 0.3)) {
+                        toolsInBar = moved
+                        quickLinks.prefersToolbar = moved
+                    }
+                })
                 .accessibilityIdentifier("fst.songs.list")
                 .scrollContentBackground(.hidden)
                 // Reserve room for the trailing section-index scrubber so its glass
@@ -1257,3 +1276,21 @@ private extension SongShopSectionKind {
 }
 
 /// Keep anonymous catalogue and Shop sorting as an Apply/Reset/Discard draft.
+
+/// Reports whether a scroll view has moved away from its top (iOS 18+; always false
+/// before, so older systems keep the floating tools).
+private struct ScrolledAwayTracker: ViewModifier {
+    let changed: (Bool) -> Void
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, macOS 15.0, *) {
+            content.onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.contentOffset.y + geometry.contentInsets.top > 24
+            } action: { _, scrolled in
+                changed(scrolled)
+            }
+        } else {
+            content
+        }
+    }
+}
