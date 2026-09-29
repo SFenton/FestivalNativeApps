@@ -95,7 +95,7 @@ VK = {
 
 #: Step verbs understood by ``drive``: verb -> argument shape.
 STEP_VERBS = {
-    "click": "selector", "rightclick": "selector", "invoke": "selector",
+    "click": "selector", "rightclick": "selector", "hover": "selector", "invoke": "selector",
     "toggle": "selector", "select": "selector", "expand": "selector",
     "collapse": "selector", "focus": "selector", "waitfor": "selector",
     "type": "text", "key": "keys", "scroll": "scroll", "wait": "seconds",
@@ -112,7 +112,7 @@ def parse_selector(text: str) -> dict:
     """Parse a UIA selector.
 
     Forms: ``id=<AutomationId>``, ``name=<Name>``, ``class=<ClassName>`` or
-    ``<x>,<y>`` (window-relative physical pixels, ``click``/``rightclick`` only).
+    ``<x>,<y>`` (window-relative physical pixels, ``click``/``rightclick``/``hover`` only).
 
     Args:
         text: Selector text.
@@ -189,7 +189,7 @@ def parse_step(step: str) -> dict:
         result["selector"] = parse_selector(selector)
         if wait:
             result["timeout"] = float(wait)
-        if result["selector"]["kind"] == "xy" and verb not in ("click", "rightclick"):
+        if result["selector"]["kind"] == "xy" and verb not in ("click", "rightclick", "hover"):
             raise ValueError(f"{verb} needs an element selector, not coordinates")
     elif shape == "keys":
         result["vk"] = parse_keys(arg)

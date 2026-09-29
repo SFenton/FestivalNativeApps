@@ -437,7 +437,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     #region Drive
 
     /// <summary>Steps that send real mouse/keyboard input and so need the target in front.</summary>
-    private static readonly HashSet<string> InputVerbs = ["click", "rightclick", "type", "key", "scroll", "tabwalk"];
+    private static readonly HashSet<string> InputVerbs = ["click", "rightclick", "hover", "type", "key", "scroll", "tabwalk"];
 
     private JsonNode Drive(Window window, JsonArray steps)
     {
@@ -470,6 +470,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 break;
             case "rightclick":
                 Click(window, step, MouseButton.Right);
+                break;
+            case "hover":
+                Mouse.MoveTo(ScreenPoint(window, step));
                 break;
             case "invoke":
                 var target = Find(window, step);
@@ -533,20 +536,15 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         Thread.Sleep(150);
     }
 
-    private void Click(Window window, JsonObject step, MouseButton button)
+    private void Click(Window window, JsonObject step, MouseButton button) => Mouse.Click(ScreenPoint(window, step), button);
+
+    /// <summary>Screen point of a step's selector: window-relative coordinates or the element's clickable point.</summary>
+    private Point ScreenPoint(Window window, JsonObject step)
     {
         var selector = step["selector"]!.AsObject();
-        Point point;
-        if ((string)selector["kind"]! == "xy")
-        {
-            var bounds = Native.VisibleBounds(window.Properties.NativeWindowHandle.Value);
-            point = new Point(bounds.X + (int)selector["x"]!, bounds.Y + (int)selector["y"]!);
-        }
-        else
-        {
-            point = Find(window, step).GetClickablePoint();
-        }
-        Mouse.Click(point, button);
+        if ((string)selector["kind"]! != "xy") return Find(window, step).GetClickablePoint();
+        var bounds = Native.VisibleBounds(window.Properties.NativeWindowHandle.Value);
+        return new Point(bounds.X + (int)selector["x"]!, bounds.Y + (int)selector["y"]!);
     }
 
     internal AutomationElement Find(Window window, JsonObject step)

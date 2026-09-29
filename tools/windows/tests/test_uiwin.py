@@ -42,6 +42,8 @@ class StepTests(unittest.TestCase):
 
     def test_coordinates_only_for_clicks(self):
         self.assertEqual(u.parse_step("click:5,6")["selector"]["kind"], "xy")
+        self.assertEqual(u.parse_step("hover:5,6")["selector"]["kind"], "xy")
+        self.assertEqual(u.parse_step("hover:id=fst.songs.list")["selector"]["kind"], "id")
         with self.assertRaises(ValueError):
             u.parse_step("invoke:5,6")
 
@@ -235,7 +237,7 @@ class OcclusionRobustnessTests(unittest.TestCase):
         # isolation is restored when the request ends.
         source = (u.DRIVER_DIR / "Program.cs").read_text(encoding="utf-8")
         verbs = source.split("InputVerbs = [", 1)[1].split("]", 1)[0]
-        for verb in ("click", "rightclick", "type", "key", "scroll"):
+        for verb in ("click", "rightclick", "hover", "type", "key", "scroll"):
             self.assertIn(f'"{verb}"', verbs)
         self.assertIn("RestoreIsolated();", source.split("finally", 1)[1][:200])
         self.assertIn('"front" => Front(', source)
