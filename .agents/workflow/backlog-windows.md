@@ -12,7 +12,11 @@
 | Notification badge at real 100% / 200% DPI | win-chrome | Only 150% verified |
 | GlobalSearch test flaked once under load | win-polish | |
 | `contracts/product.json` still lists `fst.song-detail.shop-badge` | win-polish | Chip removed |
-| FST-win-pwa leftovers | win-pwa report | Fill in when its report lands |
+| Songs section headers now scroll away (win-pwa); operator wants **sticky headers with no rows visible beneath** | Operator batch 5 | |
+| Leaderboards Spotlight still shows a "Loading your rank…" caption | win-pwa | Remove caption |
+| First-run demos approximate the web's; What's New launch-order UIA journey | win-pwa | |
+| PWA gaps 18–19: background motion curve/route art swap; route entrance motion parity | win-pwa | |
+| Release/AOT journey pass for the new pages | win-pwa | |
 | Two populated columns (list + detail with an auto-selected first/last item) when the window is wide enough — Songs, Rankings, Rivals; never an empty detail pane | Operator 2026-09-28 | Mirrors Android foldables/Duo/iPad |
 | Expanded NavigationView pane: consider the Android rule — no app title in the pane header, first item aligned with page content top, transparent pane over the animated background | Operator 2026-09-28 (Android tablet) | Cross-platform check |
 
