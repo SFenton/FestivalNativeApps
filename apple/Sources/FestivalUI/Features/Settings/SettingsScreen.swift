@@ -207,6 +207,7 @@ struct SettingsScreen: View {
                     detail: "Hide scores that exceed the CHOpt maximum by more than the leeway."
                 )
             }
+            .accessibilityIdentifier("fst.settings.filter-invalid-scores")
             if filterInvalidScores {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Max Score Leeway: \(ScoreFormatting.leeway(leeway))")
