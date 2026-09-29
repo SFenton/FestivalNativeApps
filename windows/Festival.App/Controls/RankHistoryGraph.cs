@@ -223,6 +223,7 @@ public sealed partial class RankHistoryGraph : Grid
             Canvas.SetTop(rect, PlotHeight - inset - height);
             shapes.Children.Add(rect);
             var date = new TextBlock { Text = page.Points[i].AxisLabel, FontSize = 11, Foreground = text, Width = slot, TextAlignment = TextAlignment.Center };
+            AutomationProperties.SetAccessibilityView(date, AccessibilityView.Raw);
             Canvas.SetLeft(date, X(bar.X) - slot / 2);
             dates.Children.Add(date);
         }
@@ -281,6 +282,8 @@ public sealed partial class RankHistoryGraph : Grid
     private static TextBlock Label(string value, double y, double width, TextAlignment alignment, double left, Brush brush)
     {
         var label = new TextBlock { Text = value, FontSize = 12, Foreground = brush, Width = width, TextAlignment = alignment };
+        // Raw on the label panel alone still exposes its children; the chart's summary name carries the values.
+        AutomationProperties.SetAccessibilityView(label, AccessibilityView.Raw);
         Canvas.SetTop(label, y - 9);
         Canvas.SetLeft(label, left);
         return label;

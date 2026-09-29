@@ -76,6 +76,13 @@ Start Narrator (Ctrl+Win+Enter), launch a fixture build (`python tools/windows/a
 7. **Settings**: every toggle reads its label and state; "Reset" confirmation dialog traps focus until closed.
 8. **First run** (`--first-run=force`): the dialog reads its page title; Esc closes it.
 
+Added after win-a11y (win-shell2, win-detail2, win-next; run these too):
+
+9. **Songs Filter** (with a player): Enter on Filter → "Filter Songs" heading. Tab reads "Global Score & FC Toggles, button, collapsed"; Enter expands and each switch reads its label ("Missing Scores, toggle switch, off"). "Individual Score & FC Toggles" is a heading; each chart group reads "Lead, button, collapsed". In "Selected Instrument Filters" the selector reads "Previous instrument", "Lead, toggle button", "Next instrument"; after choosing Lead, "Season / Percentile / Stars / Song Intensity, button, collapsed". Inside Percentile: "Select All Percentile, hyperlink", "Clear All Percentile, hyperlink", then "Top 1%, toggle switch, on". Star rows read "Gold Stars" … "1 Star"; intensity rows "Intensity 1 of 7" …. Each change updates the list behind the flyout (the gold Filter button tint is not announced). Esc returns focus to Filter.
+10. **Two columns** (window ≥ 1100 epx page width): on Songs, Full Rankings, Band Rankings and All Rivals, Narrator reads the list, then the detail region ("Song details" / "Player profile" / "Band details" / "Rival details"); arrowing through All Rivals or Songs changes the detail without moving focus out of the list.
+11. **Paths** on a song with Karaoke: the "Some Instruments Unavailable" dialog reads first (OK / Don't Show Again), then the Paths dialog; Esc returns focus to Paths.
+12. **Song Detail Score History** (with a player): "Score History" heading, "Select a bar to see more score details."; each bar reads its date, season, score and accuracy.
+
 Record anything Narrator skips or misreads in [windows-accessibility.md](windows-accessibility.md) under Open issues.
 
 ## Performance

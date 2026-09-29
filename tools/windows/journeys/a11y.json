@@ -207,6 +207,28 @@
     "tabs": 12
   },
   {
+    "name": "songs-filter",
+    "tab": "songs",
+    "profile": "fixture-player-1:Demo Player",
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@20"
+    ],
+    "after_ready": [
+      "invoke:id=fst.songs.filter",
+      "waitfor:id=fst.songs.filter.reset@5",
+      "scroll:id=fst.songs.filter.score-sections,-40",
+      "invoke:id=fst.songs.filter.instrument.compact@5",
+      "waitfor:id=fst.songs.filter.percentile@5",
+      "expand:id=fst.songs.filter.percentile",
+      "wait:0.5"
+    ],
+    "teardown": [
+      "key:esc",
+      "wait:0.5"
+    ],
+    "tabs": 20
+  },
+  {
     "name": "notifications-flyout",
     "tab": "songs",
     "profile": "fixture-player-1:Demo Player",

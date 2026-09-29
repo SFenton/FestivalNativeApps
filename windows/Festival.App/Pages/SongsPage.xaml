@@ -181,7 +181,7 @@
                                     <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.FilterDraft.ShowScoreFilters, Mode=OneWay}">
                                         <!-- Web Accordions start collapsed. -->
                                         <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
-                                                  AutomationProperties.AutomationId="fst.songs.filter.score.global">
+                                                  AutomationProperties.Name="Global Score &amp; FC Toggles" AutomationProperties.AutomationId="fst.songs.filter.score.global">
                                             <Expander.Header>
                                                 <StackPanel Padding="0,8">
                                                     <TextBlock Text="Global Score &amp; FC Toggles" Style="{StaticResource BodyStrongTextBlockStyle}" />
@@ -226,7 +226,7 @@
                                     </StackPanel>
 
                                     <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
-                                              AutomationProperties.AutomationId="fst.songs.filter.shop">
+                                              AutomationProperties.Name="Item Shop" AutomationProperties.AutomationId="fst.songs.filter.shop">
                                         <Expander.Header>
                                             <StackPanel Padding="0,8">
                                                 <TextBlock Text="Item Shop" Style="{StaticResource BodyStrongTextBlockStyle}" />

@@ -101,6 +101,7 @@ public abstract partial class PlayerLineChart : Grid
         {
             plot.Children.Add(new Line { X1 = 0, X2 = width, Y1 = Y(tick.Y), Y2 = Y(tick.Y), Stroke = grid, StrokeThickness = 1 });
             var label = new TextBlock { Text = tick.Label, FontSize = 12, Foreground = secondary, Width = Gutter - 8, TextAlignment = TextAlignment.Right };
+            AutomationProperties.SetAccessibilityView(label, AccessibilityView.Raw);
             Canvas.SetTop(label, Y(tick.Y) - 9);
             labels.Children.Add(label);
         }
