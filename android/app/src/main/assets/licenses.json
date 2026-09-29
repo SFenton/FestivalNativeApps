@@ -341,6 +341,16 @@
    "version": "1.16.0"
   },
   {
+   "artifact": "core-splashscreen",
+   "group": "androidx.core",
+   "licenses": [
+    "Apache-2.0"
+   ],
+   "name": "SplashScreen",
+   "url": "https://developer.android.com/jetpack/androidx/releases/core#1.0.1",
+   "version": "1.0.1"
+  },
+  {
    "artifact": "core-viewtree",
    "group": "androidx.core",
    "licenses": [

@@ -5,4 +5,12 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
+
+    <!-- Launch: SplashScreen API (all API levels via core-splashscreen), the app icon on the
+         brand background #1A0830 like the installed PWA's splash, then Theme.Festival. -->
+    <style name="Theme.Festival.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/festival_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher</item>
+        <item name="postSplashScreenTheme">@style/Theme.Festival</item>
+    </style>
 </resources>

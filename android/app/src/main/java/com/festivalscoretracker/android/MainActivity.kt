@@ -9,6 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.core.search.ShellShortcuts
 import com.festivalscoretracker.android.ui.shell.FestivalApp
@@ -21,6 +22,8 @@ class MainActivity : ComponentActivity() {
     private val shortcuts = ShellShortcutBridge()
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // SplashScreen API: icon on #1A0830 (Theme.Festival.Starting), dismissed on the first frame.
+        installSplashScreen()
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
