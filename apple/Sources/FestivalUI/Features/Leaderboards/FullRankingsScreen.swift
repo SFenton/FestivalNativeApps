@@ -278,10 +278,10 @@ struct FullRankingsScreen: View {
             }
         } label: {
             if layout.sectionChrome.isVerticalBar {
-                InstrumentIcon(instrument, size: 20)
+                RankingsSwitcherInstrumentIcon(instrument: instrument)
             } else {
                 RankingsSwitcherPillLabel(title: instrument.label, showsTitle: showsTitle) {
-                    InstrumentIcon(instrument, size: 28)
+                    RankingsSwitcherInstrumentIcon(instrument: instrument)
                 }
             }
         }

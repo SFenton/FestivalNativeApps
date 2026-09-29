@@ -141,8 +141,7 @@ struct BandRankingsScreen: View {
             } else {
                 RankingsSwitcherPillLabel(title: bandType.label, showsTitle: showsTitle) {
                     Image(systemName: "person.3.fill")
-                        .font(.body)
-                        .frame(width: 28, height: 28)
+                        .font(.title3)
                 }
             }
         }

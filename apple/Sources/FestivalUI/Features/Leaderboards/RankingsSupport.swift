@@ -588,6 +588,24 @@ struct RankingsGlassPager: View {
     }
 }
 
+/// Instrument artwork for a board switcher (toolbar menu or floating pill), sized so
+/// its visible disc matches the height of the SF Symbols beside it.
+///
+/// The artwork's white disc fills about 84% of its square (the dark ring vanishes on
+/// dark glass), and toolbar symbols such as the rank-by `arrow.up.arrow.down` draw
+/// about 20 pt tall at the default size. A 24 pt square (scaled with Dynamic Type)
+/// therefore renders at the symbol's height; the surrounding pill grows sideways
+/// rather than shrinking the icon (operator, 2026-09-28, Duo toolbar).
+struct RankingsSwitcherInstrumentIcon: View {
+    let instrument: Instrument
+    @ScaledMetric(relativeTo: .body) private var size: CGFloat = 24
+
+    var body: some View {
+        InstrumentIcon(instrument, size: size)
+            .fixedSize()
+    }
+}
+
 /// Glass pill label for a board switcher menu in ``RankingsFloatingBar``: the
 /// board's icon, plus its name when there is room (web instrument pill).
 struct RankingsSwitcherPillLabel<Icon: View>: View {
