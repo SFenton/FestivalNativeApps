@@ -8,9 +8,11 @@ total times, all inside one ``device.py`` emulator lock hold (≤300 s).
 
 The FST emulators render with SwiftShader (CPU), so *total* frame times include
 software GPU work and overstate a real device. The **UI-thread** time
-(``Vsync`` → ``SyncQueued``: input, animation, composition, measure/layout and
-draw recording) is the app's own main-thread cost and is the number to watch
-for per-frame recomposition or main-thread image decoding.
+(``HandleInputStart`` → ``SyncQueued``: input, animation, composition,
+measure/layout and draw recording) is the app's own main-thread cost and is the
+number to watch for per-frame recomposition or main-thread image decoding;
+``wait`` (``Vsync`` → ``HandleInputStart``) is time the main thread spent on
+other messages or starved of CPU before the frame started.
 
 Usage::
 
@@ -114,12 +116,26 @@ def percentile(values: list[float], fraction: float) -> float:
 def frame_metrics(rows: list[dict[str, int]]) -> dict[str, float]:
     """UI-thread and total frame-time percentiles plus over-budget counts.
 
-    UI thread = ``SyncQueued - Vsync``; total = ``FrameCompleted - IntendedVsync``
+    UI thread = ``SyncQueued - HandleInputStart`` (the frame's own main-thread work);
+    ``wait`` = ``HandleInputStart - Vsync`` (the main thread was busy with other messages,
+    such as lazy-list prefetch, or starved of CPU); total = ``FrameCompleted - IntendedVsync``
     (nanoseconds in the dump, milliseconds here).
     """
-    ui = [(r["SyncQueued"] - r["Vsync"]) / 1e6 for r in rows if r.get("SyncQueued", 0) > r.get("Vsync", 0) > 0]
+    ui = [(r["SyncQueued"] - r["HandleInputStart"]) / 1e6 for r in rows if r.get("SyncQueued", 0) > r.get("HandleInputStart", 0) > 0]
     total = [(r["FrameCompleted"] - r["IntendedVsync"]) / 1e6 for r in rows if r.get("FrameCompleted", 0) > r.get("IntendedVsync", 0) > 0]
+    # UI-thread phases: input + animation callbacks (Compose recomposition runs in the
+    # Choreographer animation phase), traversal (measure/layout), draw recording.
+    phases = {
+        "anim": ("HandleInputStart", "PerformTraversalsStart"),
+        "layout": ("PerformTraversalsStart", "DrawStart"),
+        "draw": ("DrawStart", "SyncQueued"),
+        "wait": ("Vsync", "HandleInputStart"),
+    }
     metrics: dict[str, float] = {"frames": float(len(rows))}
+    for name, (start, end) in phases.items():
+        values = [(r[end] - r[start]) / 1e6 for r in rows if r.get(end, 0) >= r.get(start, 0) > 0]
+        metrics[f"{name}_p50_ms"] = round(percentile(values, 0.5), 2)
+        metrics[f"{name}_p90_ms"] = round(percentile(values, 0.9), 2)
     for name, values in (("ui", ui), ("total", total)):
         for fraction in (0.5, 0.9, 0.99):
             metrics[f"{name}_p{int(fraction * 100)}_ms"] = round(percentile(values, fraction), 2)
@@ -130,9 +146,11 @@ def frame_metrics(rows: list[dict[str, int]]) -> dict[str, float]:
 
 
 def summary_line(name: str, metrics: dict[str, float]) -> str:
-    """One Markdown table row: name, frames, UI p50/p90/p99/max, UI over 8.33 ms, total p50/p90."""
+    """One Markdown table row: name, frames, UI p50/p90/p99/max, UI over 8.33 ms, phase p90s, total p50/p90."""
     return (f"| {name} | {metrics['frames']:.0f} | {metrics['ui_p50_ms']} / {metrics['ui_p90_ms']} / "
             f"{metrics['ui_p99_ms']} / {metrics['ui_max_ms']} | {metrics['ui_over_8.33ms']:.0f} | "
+            f"{metrics.get('anim_p90_ms', 0)} / {metrics.get('layout_p90_ms', 0)} / {metrics.get('draw_p90_ms', 0)} | "
+            f"{metrics.get('wait_p50_ms', 0)} / {metrics.get('wait_p90_ms', 0)} | "
             f"{metrics['total_p50_ms']} / {metrics['total_p90_ms']} |")
 
 # endregion

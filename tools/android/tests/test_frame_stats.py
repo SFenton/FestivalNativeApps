@@ -13,7 +13,7 @@ HEADER = "Flags,IntendedVsync,Vsync,HandleInputStart,SyncQueued,SyncStart,FrameC
 def row(flags: int, intended: int, ui_ms: float, total_ms: float) -> str:
     """One framestats CSV line (ns) with the given UI-thread and total times."""
     vsync = intended + 1_000
-    return (f"{flags},{intended},{vsync},{vsync},{vsync + int(ui_ms * 1e6)},"
+    return (f"{flags},{intended},{vsync},{vsync + 1},{vsync + 1 + int(ui_ms * 1e6)},"
             f"{vsync + int(ui_ms * 1e6) + 10},{intended + int(total_ms * 1e6)},")
 
 
@@ -57,6 +57,8 @@ class FrameStatsTests(unittest.TestCase):
         self.assertEqual(metrics["ui_over_8.33ms"], 1)
         self.assertEqual(metrics["total_over_16.67ms"], 1)
         self.assertIn("| x | 2 |", fs.summary_line("x", metrics))
+        # Phases: the fixture frames have no animation/traversal marks, so input→… is 0.
+        self.assertIn("anim_p90_ms", metrics)
 
     def test_merge_and_percentile(self):
         seen = {}
