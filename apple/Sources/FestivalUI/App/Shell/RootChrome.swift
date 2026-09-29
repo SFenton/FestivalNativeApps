@@ -40,6 +40,9 @@ extension EnvironmentValues {
     @Entry var openProfile = OpenProfileAction(handler: {})
     /// Opens the hamburger drawer; nil where the platform shows a permanent sidebar.
     @Entry var openDrawer: OpenDrawerAction? = nil
+    /// The shared session, so pushed pages' shared chrome (the persistent avatar) can
+    /// read the selected profile; nil outside the root shell.
+    @Entry var festivalSession: FestivalSession? = nil
 }
 
 // MARK: - Rail overflow ranking

@@ -397,8 +397,11 @@ extension View {
 /// Implementation of `globalSearchToolbarItem()`.
 struct GlobalSearchToolbarItem: ViewModifier {
     @Environment(\.openGlobalSearch) private var openGlobalSearch
+    @Environment(\.openProfile) private var openProfile
+    @Environment(\.festivalSession) private var session
     /// A root screen pushed as a page (Leaderboards from the drawer) already ends its
-    /// toolbar with `FestivalRootTrailingItems`, whose Search would otherwise appear twice.
+    /// toolbar with `FestivalRootTrailingItems`, whose Search and avatar would otherwise
+    /// appear twice.
     @State private var pageProvidesSearch = false
 
     func body(content: Content) -> some View {
@@ -408,6 +411,13 @@ struct GlobalSearchToolbarItem: ViewModifier {
                 if let openGlobalSearch, !pageProvidesSearch {
                     ToolbarItem(placement: .primaryAction) {
                         GlobalSearchButton { openGlobalSearch() }
+                    }
+                }
+                // The profile avatar stays top-right on every pushed page too (operator
+                // batch 7), after Search; root screens carry it in their own trailing items.
+                if let session, !pageProvidesSearch {
+                    ToolbarItem(placement: .primaryAction) {
+                        RootProfileButton(session: session) { openProfile() }
                     }
                 }
             }

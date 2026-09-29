@@ -244,6 +244,7 @@ public struct FestivalRootView: View {
             #endif
         }
         .environment(\.openProfile, OpenProfileAction { rootProfilePresented = true })
+        .environment(\.festivalSession, session)
         .environment(\.openDrawer, usesDrawer ? OpenDrawerAction { openDrawer() } : nil)
         .environment(\.openGlobalSearch, OpenGlobalSearchAction { globalSearchPresented = true })
         // Player-page stat tiles (Lane AP3): push on this tab, or show Songs filtered.
