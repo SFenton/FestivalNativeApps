@@ -70,3 +70,7 @@ Apply the three lines above. Mirror the web ids, labels and order from the [spec
 
 - On Leaderboards the system places the Quick Links button in the same trailing capsule as Rank By and the profile avatar. Lane A may want `festivalRootChrome`'s spacer to separate the profile bubble from page actions.
 - No hosted or XCUITest coverage yet (UX-test phase). Rotor and haptics are unverified on device.
+
+## Instant jumps (operator batch 7, Lane A3)
+
+Jumps "teleport": `scrollTo` runs in a transaction with animations disabled, with or without Reduce Motion, then `correctAndSettle` re-targets once for lazily built rows. `QuickLinksController.prefersToolbar` lets a page show the menu as a bar item even where page tools float (Songs once scrolled).

@@ -10,3 +10,10 @@ Source: `FortniteFestivalWeb/src/components/notifications/MobileNotificationsMod
 - Simplified vs. web this pass — see `spec.md`'s "Native client contract": player-only feed (no bands), a finite ported subset of `notificationText.ts`'s copy templates instead of the full formatter, tap/dismiss-based seen state instead of scroll-visibility tracking, and the badge only refreshes on profile-selection change or sheet close (no live WebSocket push).
 - IDs: `fst.shell.notifications` (bell, under the existing `fst.shell.*` → app-navigation family), `fst.notifications.row.<guid>`, `fst.notifications.empty`.
 - Tests: `PlayerNotificationTests.swift` (Core) covers ranking-metric mapping, destination resolution and text formatting including the unknown-kind fallback. `NotificationSeenStoreTests.swift` (`FestivalUITests`) covers unread derivation, per-account isolation and idempotent marking against an isolated `UserDefaults` suite. `PlayerHistoryNotificationsRenderTests.swift` hosts the real sheet against a keyless fixture feed and writes a PNG when `FST_HISTORY_RENDER_OUT` is set.
+
+## Operator batch 7 (Lane A3)
+
+- Rows fade only during the first reveal (`FadeStagger` settle): List recycling while scrolling back up no longer re-fades them.
+- "New" / "Older" headers are white (`FestivalText.primary`, no uppercase).
+- Web trailing column: 20pt wide, chevron centred vertically (white 72%), 9pt yellow `#FACC15` unread dot with a 2pt ring, centred 24pt above the chevron.
+- Close is the shared native `FestivalSheetCloseItem` (`fst.notifications.close`).
