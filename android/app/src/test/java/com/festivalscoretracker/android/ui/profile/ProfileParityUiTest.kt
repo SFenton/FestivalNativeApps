@@ -210,7 +210,7 @@ class ProfileParityUiTest {
         journey.launch(
             DebugLaunch(profile = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"), route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true),
         )
-        journey.waitForTag("fst.player.deselect")
+        journey.waitForTag("fst.player.overview")
         journey.scrollTo("fst.player.tile.Solo_Guitar.global-rank")
         journey.tap("fst.player.tile.Solo_Guitar.global-rank")
         rule.waitUntil(10_000) {

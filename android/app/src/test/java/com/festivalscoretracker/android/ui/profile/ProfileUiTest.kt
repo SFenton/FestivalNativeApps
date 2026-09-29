@@ -54,8 +54,10 @@ class ProfileUiTest {
         on("/api/player/${Fixtures.ACCOUNT_B}/history", status = 404) { "{}" }
     }
 
+    private lateinit var container: AppContainer
+
     private fun launch(debug: DebugLaunch = DebugLaunch(stillBackground = true)) {
-        val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = store)
+        container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = store)
         rule.setContent { FestivalApp(container, debug) }
         settle()
     }
@@ -111,7 +113,7 @@ class ProfileUiTest {
         // Select stays on the page and adds the profile tabs.
         rule.onNodeWithTag("fst.player.available").performScrollToNode(hasTestTag("fst.player.select"))
         tap("fst.player.select")
-        waitForTag("fst.player.deselect")
+        waitGone("fst.player.select")
         waitForTag("fst.nav.tab.statistics")
         assertEquals(0, rule.onAllNodesWithText("This Is Me").fetchSemanticsNodes().size)
         assertEquals(1, transport.sent("/api/player/${Fixtures.ACCOUNT_A}").size)
@@ -119,13 +121,13 @@ class ProfileUiTest {
         // Statistics shows the same selected profile without another read.
         tap("fst.nav.tab.statistics")
         waitForTag("fst.statistics")
-        waitForTag("fst.player.deselect")
+        waitForTag("fst.player.overview")
+        // Operator 7.12: Deselect lives in the drawer (web sidebar), not on the page.
+        assertEquals(0, rule.onAllNodesWithText("Deselect Profile").fetchSemanticsNodes().size)
         assertEquals(1, transport.sent("/api/player/${Fixtures.ACCOUNT_A}").size)
 
-        // Deselect is confirmed; the Statistics tab then disappears.
-        tap("fst.player.deselect")
-        waitForTag("fst.player.deselect-confirm")
-        tap("fst.player.deselect-confirm.ok")
+        // Deselecting (from the drawer) removes the Statistics tab.
+        runBlocking { container.settings.setSelectedPlayer(null) }
         waitGone("fst.nav.tab.statistics")
         transport.requests.forEach { request ->
             RequestGate.validateKeyless(request)
@@ -144,7 +146,7 @@ class ProfileUiTest {
         waitGone("fst.player.switch-confirm")
         tap("fst.player.select")
         tap("fst.player.switch-confirm.ok")
-        waitForTag("fst.player.deselect")
+        waitGone("fst.player.select")
 
         rule.onNodeWithTag("fst.nav.back").performClick()
         settle()

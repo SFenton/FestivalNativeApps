@@ -43,6 +43,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.festivalscoretracker.android.ui.common.festivalSheetTop
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.rivals.RivalRoutes
@@ -243,7 +244,7 @@ fun FindRivalSheet(
     onSelect: (SelectedPlayer) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = BrandTokens.cardBackground, modifier = Modifier.testTag("fst.rivals.find.sheet")) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = BrandTokens.cardBackground, modifier = Modifier.festivalSheetTop().testTag("fst.rivals.find.sheet")) {
         Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 24.dp)) {
             SectionHeader(RivalText.FIND_RIVAL)
             val query by searchViewModel.query.collectAsStateWithLifecycle()

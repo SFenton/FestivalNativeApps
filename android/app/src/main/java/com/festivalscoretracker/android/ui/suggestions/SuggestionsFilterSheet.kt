@@ -40,6 +40,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.festivalscoretracker.android.ui.common.festivalSheetTop
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.suggestions.SuggestionCategoryType
 import com.festivalscoretracker.android.core.suggestions.SuggestionFilterSettings
@@ -82,7 +83,7 @@ fun SuggestionsFilterSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = BrandTokens.cardBackground,
-        modifier = Modifier.semantics { testTagsAsResourceId = true },
+        modifier = Modifier.festivalSheetTop().semantics { testTagsAsResourceId = true },
     ) {
         // Pinned header: Done stays reachable however far the form scrolls.
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {

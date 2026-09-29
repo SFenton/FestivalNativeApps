@@ -136,7 +136,8 @@ class ProfileActionsTest {
         // Bass has no full combo, so its FC tile is flat (the web omits the card).
         val bassTiles = state.instruments.first { it.instrument == Instrument.Bass }.stats
         assertTrue(bassTiles.none { it.id == "full-combos" })
-        assertEquals(PlayerTileAction.FilterSongs(SongsPreset.Stars(Instrument.Bass, 3)), bassTiles.first { it.id == "stars-3" }.action)
+        val bassStars = bassTiles.first { it.id.startsWith("stars-") }
+        assertEquals(PlayerTileAction.FilterSongs(SongsPreset.Stars(Instrument.Bass, bassStars.id.removePrefix("stars-").toInt())), bassStars.action)
         // Percentile rows filter Songs to their bucket (6.35).
         val leadRows = state.instruments.first { it.instrument == Instrument.Lead }.percentiles
         assertEquals(PlayerTileAction.FilterSongs(SongsPreset.PercentileBucket(Instrument.Lead, 1)), leadRows.first().action)

@@ -53,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.festivalscoretracker.android.ui.common.festivalSheetTop
 import com.festivalscoretracker.android.core.format.ScoreFormatting
 import com.festivalscoretracker.android.core.profile.PlayerScoreSortMode
 import com.festivalscoretracker.android.presentation.profile.HistoryPhase
@@ -145,7 +146,7 @@ fun PlayerHistoryScreen(viewModel: PlayerHistoryViewModel) {
         }
     }
     if (sorting) {
-        ModalBottomSheet(onDismissRequest = { sorting = false }, containerColor = BrandTokens.cardBackground, modifier = Modifier.testTag("fst.history.sort")) {
+        ModalBottomSheet(onDismissRequest = { sorting = false }, containerColor = BrandTokens.cardBackground, modifier = Modifier.festivalSheetTop().testTag("fst.history.sort")) {
             SortSheet(
                 mode = state.sortMode,
                 ascending = state.ascending,

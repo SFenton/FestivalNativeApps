@@ -105,15 +105,13 @@ class ProfileDeviceJourneyTest {
     }
 
     @Test
-    fun selectDeselectAndSwitchStayOnThePage() {
+    fun selectStaysOnThePage() {
         launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
         tap("fst.player.select")
-        waitForTag("fst.player.deselect")
+        waitForTag("fst.nav.tab.statistics")
         waitForTag("fst.player.overview")
         assertNothingStraddles("fst.player.header", "fst.player.overview", "fst.player.instrument.Solo_Guitar", "fst.player.instrument.Solo_Bass")
-        tap("fst.player.deselect")
-        tap("fst.player.deselect-confirm.ok")
-        waitForTag("fst.player.select")
+        // Operator 7.12: no page-header Deselect (the drawer owns it, like the web sidebar).
         waitForTag("fst.player")
     }
 
@@ -124,7 +122,7 @@ class ProfileDeviceJourneyTest {
         rule.onNodeWithText("Switch to This Profile").assertIsDisplayed()
         tap("fst.player.select")
         tap("fst.player.switch-confirm.ok")
-        waitForTag("fst.player.deselect")
+        waitForTag("fst.nav.tab.statistics")
         waitForTag("fst.player")
     }
 
@@ -142,7 +140,7 @@ class ProfileDeviceJourneyTest {
     @Test
     fun topSongsAndQuickLinks() {
         launch(DebugLaunch(profile = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"), route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
-        waitForTag("fst.player.deselect")
+        waitForTag("fst.player.overview")
         scrollTo("fst.player.top-songs")
         scrollTo("fst.player.top-song.Solo_Guitar.s-alpha")
         assertNothingStraddles("fst.player.top-songs", "fst.player.top-songs.Solo_Guitar", "fst.player.top-song.Solo_Guitar.s-alpha")

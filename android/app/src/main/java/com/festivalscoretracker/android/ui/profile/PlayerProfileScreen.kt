@@ -159,7 +159,7 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
 /**
  * The shared player-profile body: header with identity actions, Overview, one card
  * per Settings-visible chart (stats, global rank, rank history, percentiles), top and
- * bottom five songs per chart and the Bands link. Select/Switch/Deselect never
+ * bottom five songs per chart and the Bands link. Select/Switch never
  * navigate away; stat tiles and song rows do (web `withProfileSwitch`).
  *
  * @param viewModel Page model.
@@ -233,7 +233,7 @@ private fun LoadedProfile(
                 when (row) {
                     ProfileRow.Header -> Header(state, onSelect = {
                         if (state.identity == PlayerIdentityAction.Switch) confirm = PlayerIdentityAction.Switch else viewModel.select()
-                    }, onDeselect = { confirm = PlayerIdentityAction.Deselect })
+                    })
                     ProfileRow.Overview -> Column(Modifier.testTag("fst.player.overview")) {
                         SectionHeader("Overview")
                         StatGrid(state.overview, "overview", state::canRun, onAction)
@@ -272,14 +272,6 @@ private fun LoadedProfile(
             onConfirm = { confirm = null; viewModel.select() },
             onDismiss = { confirm = null },
         )
-        PlayerIdentityAction.Deselect -> ConfirmDialog(
-            title = "Deselect Profile?",
-            text = "Scores and profile-only content will be hidden; app Settings stay saved.",
-            confirmLabel = "Deselect",
-            tag = "fst.player.deselect-confirm",
-            onConfirm = { confirm = null; viewModel.deselect() },
-            onDismiss = { confirm = null },
-        )
         else -> Unit
     }
     pendingAction?.let { action ->
@@ -300,7 +292,7 @@ private fun LoadedProfile(
 // region Header
 
 @Composable
-private fun Header(state: PlayerProfileUiState, onSelect: () -> Unit, onDeselect: () -> Unit) {
+private fun Header(state: PlayerProfileUiState, onSelect: () -> Unit) {
     GlassCard(Modifier.fillMaxWidth().testTag("fst.player.header")) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -332,12 +324,6 @@ private fun Header(state: PlayerProfileUiState, onSelect: () -> Unit, onDeselect
                     onClick = onSelect,
                     modifier = Modifier.padding(top = 12.dp).heightIn(min = 48.dp).testTag("fst.player.select"),
                 ) { Text(state.selectLabel) }
-                PlayerIdentityAction.Deselect -> Button(
-                    onClick = onDeselect,
-                    // Web `btnDanger`: status red fill, white text.
-                    colors = ButtonDefaults.buttonColors(containerColor = BrandTokens.statusRed, contentColor = BrandTokens.textPrimary),
-                    modifier = Modifier.padding(top = 12.dp).heightIn(min = 48.dp).testTag("fst.player.deselect"),
-                ) { Text("Deselect Profile") }
                 else -> Unit
             }
             state.identityNotice?.let { notice ->
