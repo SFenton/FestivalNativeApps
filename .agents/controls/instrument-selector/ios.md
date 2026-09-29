@@ -1,0 +1,8 @@
+# Instrument selector — iPhone notes
+
+> **What:** the Apple implementation of the shared instrument selector and where it is used. **Read when:** changing `Design/InstrumentSelector.swift` or adopting it. Behavior: [spec.md](spec.md).
+
+- Rules: `FestivalCore/InstrumentSelection.swift` (pure: available/hidden, effective selection, button state precedence selected > disabled > muted, full-row and centre presses, web auto-compact width rule, cycling with wrap/skip, deferred preview). Tests: `InstrumentSelectionTests`.
+- View: `InstrumentSelector` (`Design/InstrumentSelector.swift`, Lane AP5): `.filter` / `.graph` looks, `compact: Bool?` (nil measures), `deferSelection`, `keyboardIcon` (song `sig == "Keyboard"`), optional `panel`, and a `required:` convenience over a non-optional binding. The row is drawn as an overlay of a full-width 64 pt slot whose measured width picks compact mode, so a nine-instrument row can never widen the page (it did once, overflowing Song Detail). Reduce Motion (system or app) removes the panel/selection animation. IDs: `<prefix>.<Instrument rawValue>`, `<prefix>.previous`, `<prefix>.next`, `<prefix>.centre`.
+- On an iPhone (358 pt content) five or more instruments go compact, exactly like the web's `ResizeObserver` rule.
+- Used on: Song Detail Score History (graph look, required; `fst.song-detail.history.instrument`), Paths (accordion behind the instrument toggle, required, Karaoke hidden; `fst.paths.instrument-selector`), Suggestions filter instrument-specific section (deferred; `fst.suggestions.filter.instrument-picker`). The player profile has no instrument switcher on the web (its Rank History cards are one instrument each), so none is added. Songs filter (Lane A3) and Full Rankings' instrument pill may adopt it.

@@ -31,7 +31,9 @@ Source: `FortniteFestivalWeb/src/pages/suggestions/SuggestionsPage.tsx`, `.../su
 
 ## IDs
 
-`fst.suggestions.filter-button`, `fst.suggestions.choose-profile`, `fst.suggestions.syncing`, `fst.suggestions.loading`, `fst.suggestions.no-results`, `fst.suggestions.list`, `fst.suggestions.start-new-mix`, `fst.suggestions.category.<key>`, `fst.suggestions.row.<songId or songId|instrument>`, `fst.suggestions.filter.{title,form,instrument.<X>,type.<type>,type.<X>.<type>,instrument-picker,reset,cancel,apply}`.
+`fst.suggestions.filter-button`, `fst.suggestions.choose-profile`, `fst.suggestions.syncing`, `fst.suggestions.loading`, `fst.suggestions.no-results`, `fst.suggestions.list`, `fst.suggestions.start-new-mix`, `fst.suggestions.category.<key>`, `fst.suggestions.row.<songId or songId|instrument>`, `fst.suggestions.filter.{title,form,instrument.<X>,type.<type>,type.<X>.<type>,instrument-picker.<X|previous|next|centre>,reset,done}`.
+
+**Filter instruments (operator batch 6.37, Lane AP5):** the sheet lists only instruments enabled in Settings (the root's `visibleInstruments`), each Instruments row with its instrument icon (web `ToggleRow` label), and says so in the section subtitle. The Instrument-Specific section uses the shared `InstrumentSelector` in deferred mode (web): nothing selected on open, the chosen instrument's category toggles expand below it; a selection hidden in Settings meanwhile counts as none.
 
 ## Tests
 
