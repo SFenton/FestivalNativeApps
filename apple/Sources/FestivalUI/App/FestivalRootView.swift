@@ -616,7 +616,7 @@ struct DebugLaunchRoute {
         case "leaderboards": route = .leaderboards
         case "fullRankings":
             route = .fullRankings(
-                instrument: arg.flatMap(Instrument.init(rawValue:)) ?? .lead, rankBy: "adjusted"
+                instrument: arg.flatMap(Instrument.init(rawValue:)) ?? .lead, rankBy: "totalscore"
             )
         case "bandRankings": route = .bandRankings(bandType: arg ?? "Band_Duets")
         case "shop": route = .shop
