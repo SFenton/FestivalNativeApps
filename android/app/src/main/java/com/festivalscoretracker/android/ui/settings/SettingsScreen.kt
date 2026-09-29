@@ -1,6 +1,8 @@
 package com.festivalscoretracker.android.ui.settings
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -12,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,8 +22,10 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.DragIndicator
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
@@ -41,13 +46,21 @@ import androidx.compose.material3.adaptive.currentWindowSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -60,6 +73,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.BuildConfig
 import com.festivalscoretracker.android.core.firstrun.FirstRunPageKey
@@ -552,8 +566,12 @@ private fun NavigationRow(title: String, description: String, tag: String, onCli
 }
 
 /**
- * Numbered reorder list with Move up / Move down buttons and matching
- * TalkBack custom actions (keyboard- and screen-reader-friendly, like Windows).
+ * Numbered reorder list (web CHOpt column order): a drag handle per row, like the web's ⋮⋮
+ * handles, plus Move up / Move down buttons and matching TalkBack custom actions as the
+ * keyboard- and screen-reader-friendly alternative (like Windows).
+ *
+ * Dragging a handle lifts the row and moves it one slot each time it passes half a row height;
+ * each step goes through [onMove], so the order persists as the finger moves.
  *
  * @param labels Items in order.
  * @param tag Test-tag prefix.
@@ -561,29 +579,79 @@ private fun NavigationRow(title: String, description: String, tag: String, onCli
  */
 @Composable
 internal fun ReorderList(labels: List<String>, tag: String, onMove: (Int, Int) -> Unit) {
+    var dragging by remember { mutableStateOf<String?>(null) }
+    var dragIndex by remember { mutableIntStateOf(-1) }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    val rowHeights = remember { mutableStateMapOf<String, Int>() }
+    val latestMove by rememberUpdatedState(onMove)
+    val count = labels.size
     Column(Modifier.fillMaxWidth().testTag(tag)) {
         labels.forEachIndexed { index, label ->
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-                    .testTag("$tag.$index")
-                    .semantics {
-                        contentDescription = "$label, position ${index + 1} of ${labels.size}"
-                        customActions = buildList {
-                            if (index > 0) add(CustomAccessibilityAction("Move up") { onMove(index, -1); true })
-                            if (index < labels.lastIndex) add(CustomAccessibilityAction("Move down") { onMove(index, 1); true })
+            key(label) {
+                val lifted = dragging == label
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .onSizeChanged { rowHeights[label] = it.height }
+                        .zIndex(if (lifted) 1f else 0f)
+                        .graphicsLayer {
+                            translationY = if (lifted) dragOffset else 0f
+                            shadowElevation = if (lifted) 8.dp.toPx() else 0f
                         }
-                    },
-            ) {
-                Text("${index + 1}.", color = BrandTokens.textMuted, modifier = Modifier.widthIn(min = 28.dp))
-                Text(label, color = BrandTokens.textPrimary, modifier = Modifier.weight(1f))
-                IconButton(onClick = { onMove(index, -1) }, enabled = index > 0, modifier = Modifier.testTag("$tag.$index.up")) {
-                    Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Move $label up")
-                }
-                IconButton(onClick = { onMove(index, 1) }, enabled = index < labels.lastIndex, modifier = Modifier.testTag("$tag.$index.down")) {
-                    Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Move $label down")
+                        .background(if (lifted) BrandTokens.surfaceMuted else Color.Transparent, RoundedCornerShape(8.dp))
+                        .testTag("$tag.$index")
+                        .semantics {
+                            contentDescription = "$label, position ${index + 1} of ${labels.size}"
+                            customActions = buildList {
+                                if (index > 0) add(CustomAccessibilityAction("Move up") { onMove(index, -1); true })
+                                if (index < labels.lastIndex) add(CustomAccessibilityAction("Move down") { onMove(index, 1); true })
+                            }
+                        },
+                ) {
+                    Icon(
+                        Icons.Filled.DragIndicator,
+                        contentDescription = null,
+                        tint = BrandTokens.textSecondary,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .padding(12.dp)
+                            .testTag("$tag.$index.handle")
+                            .pointerInput(label) {
+                                detectDragGestures(
+                                    onDragStart = {
+                                        dragging = label
+                                        dragIndex = index
+                                        dragOffset = 0f
+                                    },
+                                    onDragEnd = { dragging = null; dragOffset = 0f },
+                                    onDragCancel = { dragging = null; dragOffset = 0f },
+                                    onDrag = { change, amount ->
+                                        change.consume()
+                                        dragOffset += amount.y
+                                        val half = (rowHeights[label] ?: return@detectDragGestures) / 2f
+                                        if (dragOffset > half && dragIndex < count - 1) {
+                                            latestMove(dragIndex, 1)
+                                            dragIndex += 1
+                                            dragOffset -= half * 2
+                                        } else if (dragOffset < -half && dragIndex > 0) {
+                                            latestMove(dragIndex, -1)
+                                            dragIndex -= 1
+                                            dragOffset += half * 2
+                                        }
+                                    },
+                                )
+                            },
+                    )
+                    Text("${index + 1}.", color = BrandTokens.textSecondary, modifier = Modifier.widthIn(min = 28.dp))
+                    Text(label, color = BrandTokens.textPrimary, modifier = Modifier.weight(1f))
+                    IconButton(onClick = { onMove(index, -1) }, enabled = index > 0, modifier = Modifier.testTag("$tag.$index.up")) {
+                        Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Move $label up")
+                    }
+                    IconButton(onClick = { onMove(index, 1) }, enabled = index < labels.lastIndex, modifier = Modifier.testTag("$tag.$index.down")) {
+                        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Move $label down")
+                    }
                 }
             }
         }
