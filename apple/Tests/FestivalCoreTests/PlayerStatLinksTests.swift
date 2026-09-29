@@ -45,8 +45,8 @@ private func busySavedState() -> SongsSavedState {
     #expect(saved.playerFilter == SongPlayerScoreFilter(hasScores: [.bass], hasFCs: [.lead, .drums]))
     #expect(saved.instrument == .lead)
     #expect(saved.filterInShop && saved.filterLeavingTomorrow)
-    // Native Songs has no Score sort yet: reset to the Title default, not a stale sort.
-    #expect(saved.sortMode == .title && saved.sortAscending)
+    // Web `instFCsUpdater`: Score ascending.
+    #expect(saved.sortMode == .score && saved.sortAscending)
 }
 
 @Test func instrumentPresetForAHiddenChartShowsAllInstrumentsAndSavesNoHiddenCheck() {

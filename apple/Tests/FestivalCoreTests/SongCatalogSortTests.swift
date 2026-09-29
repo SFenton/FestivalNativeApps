@@ -50,13 +50,14 @@ private func sortingSongs() throws -> [Song] {
     ]}
     """.utf8)
     let songs = try JSONDecoder().decode(SongsResponse.self, from: bytes).songs
-    for mode in SongSortMode.allCases where mode != .shop {
+    for mode in SongSortMode.catalogueModes where mode != .shop {
         #expect(try SongCatalogSort.sorted(songs, mode: mode, ascending: true).map(\.songId)
                 == ["m", "a", "z"])
         #expect(try SongCatalogSort.sorted(songs, mode: mode, ascending: false).map(\.songId)
                 == ["z", "a", "m"])
     }
-    #expect(SongSortMode(rawValue: "score") == nil)
+    #expect(SongSortMode(rawValue: "percentage") == nil)
+    #expect(SongSortMode(rawValue: "score") == .score)
     #expect(SongSortMode(rawValue: "shop") == .shop)
 }
 

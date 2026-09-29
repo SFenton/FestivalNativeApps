@@ -18,9 +18,15 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
     public private(set) var hasScores: Set<Instrument>
     public private(set) var missingFCs: Set<Instrument>
     public private(set) var hasFCs: Set<Instrument>
+    /// Hidden star buckets (``SongStarsBucket/keys``) on the Songs instrument; empty
+    /// shows every bucket (web `starsFilter` entries set to `false`).
+    public private(set) var excludedStars: Set<Int>
+    /// Hidden percentile buckets (``SongPercentileBucket/keys``) on the Songs
+    /// instrument (web `percentileFilter` entries set to `false`).
+    public private(set) var excludedPercentiles: Set<Int>
 
     private enum CodingKeys: String, CodingKey {
-        case missingScores, hasScores, missingFCs, hasFCs
+        case missingScores, hasScores, missingFCs, hasFCs, excludedStars, excludedPercentiles
     }
 
     /// Start with independent chart sets, including an inactive empty default.
@@ -30,19 +36,121 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
     ///   - hasScores: Charted instruments requiring a positive score.
     ///   - missingFCs: Charted instruments without an explicit full-combo flag.
     ///   - hasFCs: Charted instruments with an explicit full-combo flag.
+    ///   - excludedStars: Hidden star buckets on the Songs instrument (unknown keys dropped).
+    ///   - excludedPercentiles: Hidden percentile buckets on the Songs instrument
+    ///     (unknown keys dropped).
     public init(
         missingScores: Set<Instrument> = [], hasScores: Set<Instrument> = [],
-        missingFCs: Set<Instrument> = [], hasFCs: Set<Instrument> = []
+        missingFCs: Set<Instrument> = [], hasFCs: Set<Instrument> = [],
+        excludedStars: Set<Int> = [], excludedPercentiles: Set<Int> = []
     ) {
         self.missingScores = missingScores
         self.hasScores = hasScores
         self.missingFCs = missingFCs
         self.hasFCs = hasFCs
+        self.excludedStars = excludedStars.intersection(SongStarsBucket.keys)
+        self.excludedPercentiles = excludedPercentiles.intersection(SongPercentileBucket.keys)
     }
 
     public var isActive: Bool {
         !missingScores.isEmpty || !hasScores.isEmpty
             || !missingFCs.isEmpty || !hasFCs.isEmpty
+            || hasBucketChecks
+    }
+
+    /// Whether a stars or percentile bucket is hidden. These checks read the Songs
+    /// instrument's score only, so they apply only while Songs shows one instrument
+    /// (the web skips them without one, keeping the saved choice).
+    public var hasBucketChecks: Bool {
+        !excludedStars.isEmpty || !excludedPercentiles.isEmpty
+    }
+
+    // MARK: - Stars and percentile buckets
+
+    /// Whether a star bucket is shown.
+    ///
+    /// - Parameter key: One of ``SongStarsBucket/keys``.
+    /// - Returns: False once the bucket is hidden.
+    public func includesStars(_ key: Int) -> Bool { !excludedStars.contains(key) }
+
+    /// Whether a percentile bucket is shown.
+    ///
+    /// - Parameter key: One of ``SongPercentileBucket/keys``.
+    /// - Returns: False once the bucket is hidden.
+    public func includesPercentile(_ key: Int) -> Bool { !excludedPercentiles.contains(key) }
+
+    /// Show or hide one star bucket.
+    ///
+    /// - Parameters:
+    ///   - key: One of ``SongStarsBucket/keys``; other values are ignored.
+    ///   - included: New value.
+    /// - Returns: The updated filter.
+    public func settingStars(_ key: Int, included: Bool) -> Self {
+        guard SongStarsBucket.keys.contains(key) else { return self }
+        var updated = self
+        if included { updated.excludedStars.remove(key) } else { updated.excludedStars.insert(key) }
+        return updated
+    }
+
+    /// Show or hide one percentile bucket.
+    ///
+    /// - Parameters:
+    ///   - key: One of ``SongPercentileBucket/keys``; other values are ignored.
+    ///   - included: New value.
+    /// - Returns: The updated filter.
+    public func settingPercentile(_ key: Int, included: Bool) -> Self {
+        guard SongPercentileBucket.keys.contains(key) else { return self }
+        var updated = self
+        if included { updated.excludedPercentiles.remove(key) } else { updated.excludedPercentiles.insert(key) }
+        return updated
+    }
+
+    /// The web's Select All / Clear All for the star buckets.
+    ///
+    /// - Parameter included: True shows every bucket, false hides every bucket.
+    /// - Returns: The updated filter.
+    public func settingAllStars(included: Bool) -> Self {
+        var updated = self
+        updated.excludedStars = included ? [] : Set(SongStarsBucket.keys)
+        return updated
+    }
+
+    /// The web's Select All / Clear All for the percentile buckets.
+    ///
+    /// - Parameter included: True shows every bucket, false hides every bucket.
+    /// - Returns: The updated filter.
+    public func settingAllPercentiles(included: Bool) -> Self {
+        var updated = self
+        updated.excludedPercentiles = included ? [] : Set(SongPercentileBucket.keys)
+        return updated
+    }
+
+    /// Show only one star bucket (web `buildStarFilter`), clearing the percentile buckets.
+    ///
+    /// - Parameter key: The star bucket to keep.
+    /// - Returns: The updated filter.
+    public func showingOnlyStars(_ key: Int) -> Self {
+        var updated = self
+        updated.excludedStars = Set(SongStarsBucket.keys).subtracting([key])
+        return updated
+    }
+
+    /// Show only one percentile bucket (web `buildPercentileFilter`).
+    ///
+    /// - Parameter key: The percentile threshold to keep.
+    /// - Returns: The updated filter.
+    public func showingOnlyPercentile(_ key: Int) -> Self {
+        var updated = self
+        updated.excludedPercentiles = Set(SongPercentileBucket.keys).subtracting([key])
+        return updated
+    }
+
+    /// The filter without any stars or percentile bucket choice (web `cleanFilters`).
+    public var clearingBuckets: Self {
+        var updated = self
+        updated.excludedStars = []
+        updated.excludedPercentiles = []
+        return updated
     }
 
     /// Check one source toggle without conflating scored with full combo.
@@ -126,18 +234,22 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
             missingScores: missingScores.intersection(visibleInstruments),
             hasScores: hasScores.intersection(visibleInstruments),
             missingFCs: missingFCs.intersection(visibleInstruments),
-            hasFCs: hasFCs.intersection(visibleInstruments)
+            hasFCs: hasFCs.intersection(visibleInstruments),
+            excludedStars: excludedStars,
+            excludedPercentiles: excludedPercentiles
         )
     }
 
-    /// Apply OR across charted instruments and AND within each chart's independent checks.
+    /// Apply OR across charted instruments and AND within each chart's independent checks,
+    /// then (with one Songs instrument) the stars and percentile buckets.
     ///
     /// - Parameters:
     ///   - songs: Search- and chart-filtered catalogue rows.
     ///   - scoresBySong: Available, matching-publication selected-player index; nil is unavailable.
     ///   - visibleInstruments: Settings-enabled solo charts.
     ///   - selectedInstrument: Optional active Songs chart filter.
-    /// - Returns: Rows matching at least one active chart, preserving source order.
+    /// - Returns: Rows matching at least one active chart and every bucket check,
+    ///   preserving source order.
     /// - Throws: `FestivalAPIError.invalidPlayerProfile` when active checks lack scores.
     public func filtered(
         _ songs: [Song],
@@ -153,8 +265,33 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
                     || scoped.missingFCs.contains(chart)
                     || scoped.hasFCs.contains(chart))
         }
-        guard !charts.isEmpty else { return songs }
+        // Bucket checks read one chart: only with a visible Songs instrument (web
+        // `effectiveInstrument != null`).
+        let bucketChart = hasBucketChecks
+            ? selectedInstrument.flatMap { visibleInstruments.contains($0) ? $0 : nil } : nil
+        guard !charts.isEmpty || bucketChart != nil else { return songs }
         guard let scoresBySong else { throw FestivalAPIError.invalidPlayerProfile }
+        let chartMatched = charts.isEmpty ? songs : scoped.chartFiltered(songs, charts: charts, scoresBySong: scoresBySong)
+        // The web also skips bucket checks for a player with no scores at all.
+        guard let bucketChart, !scoresBySong.isEmpty else { return chartMatched }
+        return chartMatched.filter { song in
+            let score = scoresBySong[song.songId]?[bucketChart]
+            return includesStars(SongStarsBucket.key(for: score))
+                && includesPercentile(SongPercentileBucket.key(for: score))
+        }
+    }
+
+    /// The four per-chart checks, OR across `charts`.
+    ///
+    /// - Parameters:
+    ///   - songs: Rows to filter.
+    ///   - charts: Charts with at least one active check.
+    ///   - scoresBySong: Selected-player index.
+    /// - Returns: Rows matching at least one chart.
+    private func chartFiltered(
+        _ songs: [Song], charts: [Instrument], scoresBySong: [String: [Instrument: PlayerScore]]
+    ) -> [Song] {
+        let scoped = self
         return songs.filter { song in
             charts.contains { chart in
                 guard song.supports(chart) else { return false }
@@ -214,15 +351,23 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
         let scored = try fields.decode([Instrument].self, forKey: .hasScores)
         let missingCombo = try fields.decode([Instrument].self, forKey: .missingFCs)
         let combos = try fields.decode([Instrument].self, forKey: .hasFCs)
+        // Added later (stars/percentile filters): absent in older saved filters.
+        let stars = try fields.decodeIfPresent([Int].self, forKey: .excludedStars) ?? []
+        let percentiles = try fields.decodeIfPresent([Int].self, forKey: .excludedPercentiles) ?? []
         guard Set(missing).count == missing.count,
               Set(scored).count == scored.count,
               Set(missingCombo).count == missingCombo.count,
-              Set(combos).count == combos.count else {
+              Set(combos).count == combos.count,
+              Set(stars).count == stars.count,
+              Set(percentiles).count == percentiles.count,
+              stars.allSatisfy(SongStarsBucket.keys.contains),
+              percentiles.allSatisfy(SongPercentileBucket.keys.contains) else {
             throw FestivalAPIError.invalidSongFilter
         }
         self.init(
             missingScores: Set(missing), hasScores: Set(scored),
-            missingFCs: Set(missingCombo), hasFCs: Set(combos)
+            missingFCs: Set(missingCombo), hasFCs: Set(combos),
+            excludedStars: Set(stars), excludedPercentiles: Set(percentiles)
         )
     }
 
@@ -236,5 +381,12 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
         try fields.encode(Instrument.allCases.filter(hasScores.contains), forKey: .hasScores)
         try fields.encode(Instrument.allCases.filter(missingFCs.contains), forKey: .missingFCs)
         try fields.encode(Instrument.allCases.filter(hasFCs.contains), forKey: .hasFCs)
+        // Omitted when empty so filters without bucket choices keep their older bytes.
+        if !excludedStars.isEmpty {
+            try fields.encode(excludedStars.sorted(), forKey: .excludedStars)
+        }
+        if !excludedPercentiles.isEmpty {
+            try fields.encode(excludedPercentiles.sorted(), forKey: .excludedPercentiles)
+        }
     }
 }

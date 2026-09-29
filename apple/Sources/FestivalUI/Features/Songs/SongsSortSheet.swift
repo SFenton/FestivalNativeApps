@@ -13,6 +13,8 @@ struct SongsSortSheet: View {
     let ascending: Bool
     let showShop: Bool
     let shopAvailable: Bool
+    /// Selected-player sorts offered for the one Songs instrument (empty hides them).
+    let playerModes: [SongSortMode]
     let onApply: (SongSortMode, Bool) -> Void
 
     /// Start every presentation from the currently applied sort preference.
@@ -22,16 +24,20 @@ struct SongsSortSheet: View {
     ///   - ascending: Applied direction.
     ///   - showShop: False when Settings hides the entire Shop feature.
     ///   - shopAvailable: True only after receiving a validated public feed.
+    ///   - playerModes: Score/Percentile/Stars sorts offered with a selected player and
+    ///     one Songs instrument (web "Filtered Instrument Sort Mode"); empty hides them.
     ///   - onApply: Commits the mode and direction; called on every change.
     init(
         mode: SongSortMode, ascending: Bool,
         showShop: Bool = false, shopAvailable: Bool = false,
+        playerModes: [SongSortMode] = [],
         onApply: @escaping (SongSortMode, Bool) -> Void
     ) {
         self.mode = mode
         self.ascending = ascending
         self.showShop = showShop
         self.shopAvailable = shopAvailable
+        self.playerModes = playerModes
         self.onApply = onApply
         _draftMode = State(initialValue: mode)
         _draftAscending = State(initialValue: ascending)
@@ -39,18 +45,31 @@ struct SongsSortSheet: View {
 
     /// A choice the list can actually use (Item Shop needs a visible, loaded feed).
     private var isApplicable: Bool {
-        draftMode != .shop || (showShop && shopAvailable)
+        if draftMode.isPlayerChartMode { return playerModes.contains(draftMode) }
+        return draftMode != .shop || (showShop && shopAvailable)
+    }
+
+    /// One of two pickers sharing the draft mode: each shows a checkmark only for its
+    /// own group's modes.
+    ///
+    /// - Parameter player: True for the selected-player group.
+    /// - Returns: A binding that is nil while the other group's mode is chosen.
+    private func modeBinding(player: Bool) -> Binding<SongSortMode?> {
+        Binding(
+            get: { draftMode.isPlayerChartMode == player ? draftMode : nil },
+            set: { if let choice = $0 { draftMode = choice } }
+        )
     }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    Picker("Sort By", selection: $draftMode) {
-                        ForEach(SongSortMode.allCases.filter {
+                    Picker("Sort By", selection: modeBinding(player: false)) {
+                        ForEach(SongSortMode.catalogueModes.filter {
                             showShop || $0 != .shop
                         }) { choice in
-                            Text(choice.label).tag(choice)
+                            Text(choice.label).tag(SongSortMode?.some(choice))
                                 .disabled(choice == .shop && !shopAvailable)
                         }
                     }
@@ -70,6 +89,23 @@ struct SongsSortSheet: View {
                     }
                 } header: {
                     FestivalSectionHeader("Sort Mode")
+                }
+                if !playerModes.isEmpty {
+                    Section {
+                        Picker("Instrument Sort", selection: modeBinding(player: true)) {
+                            ForEach(playerModes) { choice in
+                                Text(choice.label).tag(SongSortMode?.some(choice))
+                            }
+                        }
+                        .pickerStyle(.inline)
+                        .labelsHidden()
+                        .accessibilityIdentifier("fst.songs.sort.player-mode")
+                    } header: {
+                        FestivalSectionHeader(
+                            "Filtered Instrument Sort Mode",
+                            subtitle: "Filtering to a single instrument enables more sort options."
+                        )
+                    }
                 }
                 Section {
                     SortDirectionControl(ascending: $draftAscending)

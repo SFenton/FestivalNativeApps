@@ -1,14 +1,29 @@
 import Foundation
 
-/// Catalogue and public-Shop sort modes that work without a selected profile.
+/// Songs sort modes: catalogue and public-Shop modes that work without a selected
+/// profile, then the web's selected-player modes for one instrument
+/// (`INSTRUMENT_SORT_MODES`; only Score, Percentile and Stars are ported).
 public enum SongSortMode: String, CaseIterable, Codable, Sendable, Identifiable {
     case title
     case artist
     case year
     case duration
     case shop
+    case score
+    case percentile
+    case stars
 
     public var id: String { rawValue }
+
+    /// Modes offered without a selected instrument (web `sort.mode` section).
+    public static let catalogueModes: [SongSortMode] = [.title, .artist, .year, .duration, .shop]
+
+    /// Selected-player modes offered once Songs shows a single instrument (web
+    /// "Filtered Instrument Sort Mode", in the web's order).
+    public static let playerChartModes: [SongSortMode] = [.score, .percentile, .stars]
+
+    /// Whether the mode orders rows by the selected player's score on one chart.
+    public var isPlayerChartMode: Bool { Self.playerChartModes.contains(self) }
 
     /// Name the available sort without implying profile-only data exists.
     ///
@@ -20,6 +35,9 @@ public enum SongSortMode: String, CaseIterable, Codable, Sendable, Identifiable 
         case .year: "Year"
         case .duration: "Duration"
         case .shop: "Item Shop"
+        case .score: "Score"
+        case .percentile: "Percentile"
+        case .stars: "Stars"
         }
     }
 }
@@ -125,16 +143,25 @@ public enum SongCatalogSort {
     ///   - mode: Public catalogue or Item Shop sorting field selected by the user.
     ///   - ascending: Reverse all fields and title ties when false.
     ///   - shopSongIds: Validated public Shop membership, required for `.shop` even when empty.
+    ///   - chartScores: The selected player's scores on the Songs instrument, by song ID,
+    ///     from an available score index matching the catalogue; required for the
+    ///     player modes (``SongSortMode/isPlayerChartMode``) even when empty.
     /// - Returns: New array in the requested order, leaving its input unchanged.
-    /// - Throws: `FestivalAPIError.invalidShop` if Shop sorting has no validated feed.
+    /// - Throws: `FestivalAPIError.invalidShop` if Shop sorting has no validated feed;
+    ///   `FestivalAPIError.invalidPlayerProfile` if a player mode has no score index.
     public static func sorted(
         _ songs: [Song], mode: SongSortMode, ascending: Bool,
-        shopSongIds: Set<String>? = nil
+        shopSongIds: Set<String>? = nil,
+        chartScores: [String: PlayerScore]? = nil
     ) throws -> [Song] {
         guard mode != .shop || shopSongIds != nil else {
             throw FestivalAPIError.invalidShop
         }
+        guard !mode.isPlayerChartMode || chartScores != nil else {
+            throw FestivalAPIError.invalidPlayerProfile
+        }
         let membership = shopSongIds ?? []
+        let scores = chartScores ?? [:]
         return songs.sorted { left, right in
             let primary: ComparisonResult
             switch mode {
@@ -150,6 +177,10 @@ public enum SongCatalogSort {
                 primary = compare(
                     membership.contains(right.songId) ? 1 : 0,
                     membership.contains(left.songId) ? 1 : 0
+                )
+            case .score, .percentile, .stars:
+                primary = SongScoreSortKey.compare(
+                    scores[left.songId], scores[right.songId], mode: mode
                 )
             }
             let title = left.title.localizedCompare(right.title)
@@ -226,6 +257,32 @@ public enum SongCatalogSort {
                 sections[index].songs.append(song)
             } else {
                 sections.append(SongYearSection(decade: decade, songs: [song]))
+            }
+        }
+        return sections
+    }
+
+    /// Group rows sorted by a player mode into the web's quick-link buckets
+    /// (`songQuickLinks.ts` `getScoreBucket` / `getPercentileBucket` / `getStarsBucket`).
+    ///
+    /// - Parameters:
+    ///   - sortedSongs: Songs already ordered by `mode`.
+    ///   - mode: ``SongSortMode/score``, ``SongSortMode/percentile`` or ``SongSortMode/stars``.
+    ///   - chartScores: The same score map the sort used.
+    /// - Returns: Nonempty buckets in first-seen order; empty for other modes.
+    public static func scoreSections(
+        _ sortedSongs: [Song], mode: SongSortMode, chartScores: [String: PlayerScore]
+    ) -> [SongScoreSection] {
+        guard mode.isPlayerChartMode else { return [] }
+        var sections: [SongScoreSection] = []
+        for song in sortedSongs {
+            let bucket = SongScoreSection.bucket(for: chartScores[song.songId], mode: mode)
+            if let index = sections.firstIndex(where: { $0.key == bucket.key }) {
+                sections[index].songs.append(song)
+            } else {
+                sections.append(SongScoreSection(
+                    key: bucket.key, label: bucket.label, spokenLabel: bucket.spoken, songs: [song]
+                ))
             }
         }
         return sections

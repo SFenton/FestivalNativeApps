@@ -16,6 +16,8 @@ struct SongsFilterSheet: View {
   @State private var draftPlayerFilter: SongPlayerScoreFilter
   @State private var draftInstrument: Instrument?
   @State private var scoreSectionsExpanded: Bool
+  @State private var percentileExpanded: Bool
+  @State private var starsExpanded: Bool
   @State private var applyError: String?
   let applied: SongShopFilter
   let appliedPlayerFilter: SongPlayerScoreFilter
@@ -73,6 +75,8 @@ struct SongsFilterSheet: View {
     _scoreSectionsExpanded = State(
       initialValue: appliedPlayerFilter.scoped(to: visibleInstruments).isActive
     )
+    _percentileExpanded = State(initialValue: !appliedPlayerFilter.excludedPercentiles.isEmpty)
+    _starsExpanded = State(initialValue: !appliedPlayerFilter.excludedStars.isEmpty)
   }
 
   private var draft: SongShopFilter {
@@ -196,6 +200,9 @@ struct SongsFilterSheet: View {
               }
             }
           }
+          if selectedPlayer && draftInstrument != nil {
+            bucketSections
+          }
           Section("Item Shop") {
             Toggle("In Shop", isOn: $draftInShop)
               .disabled(!canEnableShop)
@@ -253,6 +260,94 @@ struct SongsFilterSheet: View {
     // Many collapsible sections (instrument, score/FC, Shop): fixed large detent
     // rather than a partial height that would clip mid-section.
     .festivalSheet(.large)
+  }
+
+  // MARK: - Percentile and stars (one instrument)
+
+  /// The web's Percentile and Stars accordions, shown once Songs shows one instrument
+  /// (they read that chart's score). Each has Select All / Clear All.
+  @ViewBuilder private var bucketSections: some View {
+    Section {
+      DisclosureGroup(isExpanded: $percentileExpanded) {
+        bulkActions(
+          id: "percentile",
+          all: { draftPlayerFilter = draftPlayerFilter.settingAllPercentiles(included: true) },
+          none: { draftPlayerFilter = draftPlayerFilter.settingAllPercentiles(included: false) }
+        )
+        ForEach(SongPercentileBucket.keys, id: \.self) { key in
+          Toggle(SongPercentileBucket.label(key), isOn: percentileBinding(key))
+            .disabled(!canEnableScores)
+            .accessibilityIdentifier("fst.songs.filter.percentile.\(key)")
+        }
+      } label: {
+        bucketLabel("Percentile", hint: "Show or hide songs based on their leaderboard ranking bracket.")
+      }
+      .accessibilityIdentifier("fst.songs.filter.percentile")
+    }
+    Section {
+      DisclosureGroup(isExpanded: $starsExpanded) {
+        bulkActions(
+          id: "stars",
+          all: { draftPlayerFilter = draftPlayerFilter.settingAllStars(included: true) },
+          none: { draftPlayerFilter = draftPlayerFilter.settingAllStars(included: false) }
+        )
+        ForEach(SongStarsBucket.keys, id: \.self) { key in
+          Toggle(isOn: starsBinding(key)) {
+            if key == 0 {
+              Text(SongStarsBucket.label(key))
+            } else {
+              StarRating(stars: key)
+                .accessibilityHidden(true)
+            }
+          }
+          .accessibilityLabel(SongStarsBucket.label(key))
+          .disabled(!canEnableScores)
+          .accessibilityIdentifier("fst.songs.filter.stars.\(key)")
+        }
+      } label: {
+        bucketLabel("Stars", hint: "Filter songs by the number of stars on your high score.")
+      }
+      .accessibilityIdentifier("fst.songs.filter.stars")
+    }
+  }
+
+  /// An accordion title with the web's hint line beneath.
+  private func bucketLabel(_ title: String, hint: String) -> some View {
+    VStack(alignment: .leading, spacing: 2) {
+      Text(title)
+        .foregroundStyle(FestivalText.primary)
+      Text(hint)
+        .font(.footnote)
+        .foregroundStyle(FestivalText.primary)
+    }
+    .accessibilityElement(children: .combine)
+  }
+
+  /// The web's `BulkActions` row (Select All / Clear All).
+  private func bulkActions(id: String, all: @escaping () -> Void, none: @escaping () -> Void) -> some View {
+    HStack(spacing: 12) {
+      Button("Select All", action: all)
+        .accessibilityIdentifier("fst.songs.filter.\(id).select-all")
+      Button("Clear All", action: none)
+        .accessibilityIdentifier("fst.songs.filter.\(id).clear-all")
+    }
+    .buttonStyle(.borderless)
+    .tint(FestivalText.primary)
+    .disabled(!canEnableScores)
+  }
+
+  private func percentileBinding(_ key: Int) -> Binding<Bool> {
+    Binding(
+      get: { draftPlayerFilter.includesPercentile(key) },
+      set: { draftPlayerFilter = draftPlayerFilter.settingPercentile(key, included: $0) }
+    )
+  }
+
+  private func starsBinding(_ key: Int) -> Binding<Bool> {
+    Binding(
+      get: { draftPlayerFilter.includesStars(key) },
+      set: { draftPlayerFilter = draftPlayerFilter.settingStars(key, included: $0) }
+    )
   }
 
   /// Apply the current choices immediately when the list can use them.

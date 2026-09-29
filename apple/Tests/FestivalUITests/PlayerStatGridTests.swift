@@ -59,7 +59,7 @@ import FestivalDesign
     let reloaded = SongsPresetStore.load(from: defaults, instrument: saved.instrument)
     #expect(reloaded == saved)
     #expect(reloaded.playerFilter == SongPlayerScoreFilter(hasScores: [.bass], hasFCs: [.lead]))
-    #expect(reloaded.sortMode == .title && reloaded.sortAscending && reloaded.filterInShop)
+    #expect(reloaded.sortMode == .score && reloaded.sortAscending && reloaded.filterInShop)
 }
 
 @MainActor

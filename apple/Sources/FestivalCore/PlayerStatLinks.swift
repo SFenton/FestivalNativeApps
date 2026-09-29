@@ -5,9 +5,8 @@ import Foundation
 /// The saved Songs state a player-page stat link rewrites before showing Songs: the
 /// subset of the web `SongSettings` the native Songs tab can express today.
 ///
-/// Stars, percentile, season and difficulty filters and the Score/Stars/Percentile
-/// sorts are not ported to native Songs yet, so the web presets that need them have no
-/// native link (see ``PlayerStatLink``).
+/// Season and difficulty filters are not ported to native Songs yet; the stars and
+/// percentile buckets live in ``SongPlayerScoreFilter``.
 public struct SongsSavedState: Equatable, Sendable {
     /// Songs instrument filter (the root-owned `songsInstrument`); nil shows every chart.
     public var instrument: Instrument?
@@ -19,7 +18,7 @@ public struct SongsSavedState: Equatable, Sendable {
     public var filterInShop: Bool
     /// `fst.songs.filterLeavingTomorrow`.
     public var filterLeavingTomorrow: Bool
-    /// `SongPlayerScoreFilter.storageKey`.
+    /// `SongPlayerScoreFilter.storageKey` (chart checks plus stars/percentile buckets).
     public var playerFilter: SongPlayerScoreFilter
 
     /// Create a saved Songs state; the defaults are the Songs tab's own defaults.
@@ -57,19 +56,28 @@ public enum SongsFilterPreset: Hashable, Sendable {
     /// check set on every Settings-visible chart, no instrument, Title ascending.
     case overall(SongScoreFilterKind, visible: Set<Instrument>)
     /// An instrument's "Songs Played" or "FCs": that chart becomes the Songs
-    /// instrument, its own four checks are cleared and one is set; other charts' checks
-    /// and the Shop filters are kept (web `cleanFilters`).
-    ///
-    /// The web also sorts by Score ascending. Native Songs has no Score sort yet, so
-    /// the preset resets to Title ascending, the Songs default, rather than keeping an
-    /// unrelated saved sort (for example Item Shop grouping).
+    /// instrument, its own four checks and the stars/percentile buckets are cleared and
+    /// one check is set; other charts' checks and the Shop filters are kept (web
+    /// `cleanFilters`), sorted by Score ascending (web `instSongsPlayedUpdater` /
+    /// `instFCsUpdater`).
     case instrument(SongScoreFilterKind, Instrument)
+    /// An instrument's Gold / 5…1 Stars tile: only that star bucket shown (`6` is gold),
+    /// sorted by Stars ascending (web `instStarsUpdater`).
+    case stars(Instrument, starKey: Int)
+    /// An instrument's "Percentile" tile (web `instPercentileUpdater`), or with
+    /// `scoredOnly` its "Songs Played" percentile tile (`instPercentileWithScoresUpdater`,
+    /// which also sets Has Scores): sorted by Percentile ascending.
+    case percentile(Instrument, scoredOnly: Bool)
+    /// A percentile table row: only that bucket shown; the saved sort mode is kept and
+    /// the direction becomes ascending (web `instPercentileBucketUpdater`).
+    case percentileBucket(Instrument, percentile: Int)
 
     /// The Songs instrument filter this preset shows.
     public var instrument: Instrument? {
         switch self {
         case .overall: nil
-        case let .instrument(_, instrument): instrument
+        case let .instrument(_, instrument), let .stars(instrument, _),
+             let .percentile(instrument, _), let .percentileBucket(instrument, _): instrument
         }
     }
 
@@ -89,20 +97,58 @@ public enum SongsFilterPreset: Hashable, Sendable {
                 playerFilter: SongPlayerScoreFilter().settingAll(kind, visibleInstruments: charts, enabled: true)
             )
         case let .instrument(kind, instrument):
-            var next = current
-            let cleared = SongScoreFilterKind.allCases.reduce(current.playerFilter) {
-                $0.setting($1, for: instrument, enabled: false)
+            return cleaned(current, instrument, visibleInstruments: visibleInstruments, sort: .score) {
+                $0.setting(kind, for: instrument, enabled: true)
             }
-            // Other charts' saved checks, hidden ones included, stay as they were (like
-            // the Songs filter sheet); a chart hidden since the tile was drawn gets no
-            // new, invisible check.
-            next.playerFilter = visibleInstruments.contains(instrument)
-                ? cleared.setting(kind, for: instrument, enabled: true) : cleared
-            next.instrument = visibleInstruments.contains(instrument) ? instrument : nil
+        case let .stars(instrument, starKey):
+            return cleaned(current, instrument, visibleInstruments: visibleInstruments, sort: .stars) {
+                $0.showingOnlyStars(starKey)
+            }
+        case let .percentile(instrument, scoredOnly):
+            return cleaned(current, instrument, visibleInstruments: visibleInstruments, sort: .percentile) {
+                scoredOnly ? $0.setting(.hasScores, for: instrument, enabled: true) : $0
+            }
+        case let .percentileBucket(instrument, percentile):
+            return cleaned(current, instrument, visibleInstruments: visibleInstruments, sort: nil) {
+                $0.showingOnlyPercentile(percentile)
+            }
+        }
+    }
+
+    /// The web's `cleanFilters(s, inst)` plus a tile's own choice: clear the chart's
+    /// four checks and the stars/percentile buckets, keep other charts' checks (hidden
+    /// ones included, like the filter sheet) and the Shop filters, then add `choice`.
+    ///
+    /// A chart hidden since the tile was drawn gets no new, invisible choice: Songs
+    /// shows every instrument, sorted by Title.
+    ///
+    /// - Parameters:
+    ///   - current: Saved Songs state.
+    ///   - instrument: The tile's chart.
+    ///   - visibleInstruments: Settings-visible charts.
+    ///   - sort: The preset's sort (ascending), or nil to keep the saved mode.
+    ///   - choice: The tile's filter on the cleaned value.
+    /// - Returns: The state to save.
+    private func cleaned(
+        _ current: SongsSavedState, _ instrument: Instrument, visibleInstruments: Set<Instrument>,
+        sort: SongSortMode?, choice: (SongPlayerScoreFilter) -> SongPlayerScoreFilter
+    ) -> SongsSavedState {
+        var next = current
+        let cleared = SongScoreFilterKind.allCases.reduce(current.playerFilter.clearingBuckets) {
+            $0.setting($1, for: instrument, enabled: false)
+        }
+        guard visibleInstruments.contains(instrument) else {
+            next.playerFilter = cleared
+            next.instrument = nil
             next.sortMode = .title
             next.sortAscending = true
             return next
         }
+        next.playerFilter = choice(cleared)
+        next.instrument = instrument
+        if let sort { next.sortMode = sort }
+        next.sortAscending = true
+        return next
     }
 }
 
@@ -137,10 +183,11 @@ public enum PlayerStatLink: Hashable, Sendable {
 /// | Overview Songs Played | Songs, `hasScores` on every visible chart | ``SongsFilterPreset/overall(_:visible:)`` |
 /// | Overview Full Combos | Songs, `hasFCs` on every visible chart | ``SongsFilterPreset/overall(_:visible:)`` |
 /// | Overview / instrument Best Rank | Song Detail (`?instrument=`) | ``PlayerStatLink/songDetail(songId:instrument:)`` |
-/// | Instrument Songs Played / FCs | Songs, that chart, Score sort | ``SongsFilterPreset/instrument(_:_:)`` (Title sort) |
+/// | Instrument Songs Played / FCs | Songs, that chart, Score sort | ``SongsFilterPreset/instrument(_:_:)`` |
 /// | Instrument Total Score Rank | Full rankings, Total Score | ``PlayerStatLink/fullRankings(_:rankBy:)`` |
-/// | Gold / 5…1 Stars | Songs stars filter, Stars sort | none: native Songs has no stars filter |
-/// | Percentile / percentile rows | Songs percentile sort / filter | none: native Songs has neither |
+/// | Gold / 5…1 Stars | Songs stars filter, Stars sort | ``SongsFilterPreset/stars(_:starKey:)`` |
+/// | Percentile / Songs Played percentile | Songs Percentile sort (+ Has Scores) | ``SongsFilterPreset/percentile(_:scoredOnly:)`` |
+/// | Percentile table row | Songs percentile bucket filter | ``SongsFilterPreset/percentileBucket(_:percentile:)`` |
 public enum PlayerStatLinks {
     /// The web's un-experimental ranking metric (`DEFAULT_METRICS`).
     public static let defaultRankBy = "totalscore"
@@ -184,6 +231,37 @@ public enum PlayerStatLinks {
     /// - Returns: The Songs filter link.
     public static func instrumentFullCombos(_ instrument: Instrument) -> PlayerStatLink {
         .songs(.instrument(.hasFCs, instrument))
+    }
+
+    /// Instrument Gold / 5…1 Stars tile (shown only when its count is non-zero).
+    ///
+    /// - Parameters:
+    ///   - instrument: Chart.
+    ///   - starKey: 6 for Gold Stars, else 5…1 (``PlayerStarBreakdown/countCards``).
+    /// - Returns: The Songs filter link.
+    public static func instrumentStars(_ instrument: Instrument, starKey: Int) -> PlayerStatLink {
+        .songs(.stars(instrument, starKey: starKey))
+    }
+
+    /// Instrument "Percentile" tile, or with `scoredOnly` its "Songs Played" percentile
+    /// tile (the web's average-percentile card).
+    ///
+    /// - Parameters:
+    ///   - instrument: Chart.
+    ///   - scoredOnly: Also require a score (web `instPercentileWithScoresUpdater`).
+    /// - Returns: The Songs filter link.
+    public static func instrumentPercentile(_ instrument: Instrument, scoredOnly: Bool = false) -> PlayerStatLink {
+        .songs(.percentile(instrument, scoredOnly: scoredOnly))
+    }
+
+    /// A percentile table row (`PlayerPercentileRow`).
+    ///
+    /// - Parameters:
+    ///   - instrument: Chart.
+    ///   - percentile: The row's threshold (``SongPercentileBucket/thresholds``).
+    /// - Returns: The Songs filter link.
+    public static func percentileBucket(_ instrument: Instrument, percentile: Int) -> PlayerStatLink {
+        .songs(.percentileBucket(instrument, percentile: percentile))
     }
 
     /// Instrument "Best Rank".

@@ -300,7 +300,7 @@ struct SongsScreen: View {
                     SongSearch.matches(song, query: settledSearch)
                         && (instrument.map(song.supports) ?? true)
                 }
-                let effectiveMode: SongSortMode = sortPausedMessage == nil ? sortMode : .title
+                let effectiveMode = effectiveSortMode
                 let membership = shopOffersForCurrentSongs.map { offers in
                     Set(offers.keys)
                 }
@@ -318,7 +318,9 @@ struct SongsScreen: View {
                     )
                     return try SongCatalogSort.sorted(
                         filtered, mode: effectiveMode, ascending: sortAscending,
-                        shopSongIds: membership
+                        shopSongIds: membership,
+                        chartScores: effectiveMode.isPlayerChartMode
+                            ? chartScores(for: payload) : nil
                     )
                 }
                 switch sorted {
@@ -411,7 +413,8 @@ struct SongsScreen: View {
         .sheet(isPresented: $sortPresented) {
             SongsSortSheet(
                 mode: sortMode, ascending: sortAscending,
-                showShop: !hideShop, shopAvailable: shopOffersForCurrentSongs != nil
+                showShop: !hideShop, shopAvailable: shopOffersForCurrentSongs != nil,
+                playerModes: playerSortModesOffered
             ) { mode, order in
                 sortMode = mode
                 sortAscending = order
@@ -499,6 +502,11 @@ struct SongsScreen: View {
                 self.instrument = nil
             }
         }
+        // Player sorts need one instrument: without one the web resets to Title A–Z
+        // (`normalizeSongSettings`). The Songs instrument is not saved across launches,
+        // so a saved player sort is normalized on appear too.
+        .onChange(of: instrument) { _, _ in normalizePlayerSort() }
+        .onAppear { normalizePlayerSort() }
         .task(id: searchText) {
             do {
                 try await Task.sleep(for: .milliseconds(250))
@@ -552,7 +560,11 @@ struct SongsScreen: View {
         let scoreLabel = scoreCount > 0
             ? "\(scoreCount) player score \(scoreCount == 1 ? "check" : "checks")"
             : nil
-        let selected = (labels + [scoreLabel].compactMap { $0 })
+        let bucketLabels = [
+            appliedPlayerScoreFilter?.excludedPercentiles.isEmpty == false ? "Percentile filter" : nil,
+            appliedPlayerScoreFilter?.excludedStars.isEmpty == false ? "Stars filter" : nil,
+        ].compactMap { $0 }
+        let selected = (labels + [scoreLabel].compactMap { $0 } + bucketLabels)
             .joined(separator: ", ")
         let status = selected.isEmpty ? "No filters" : selected
         if shopFilterPausedMessage != nil {
@@ -587,8 +599,9 @@ struct SongsScreen: View {
          String(appliedPlayerScoreFilter?.isActive == true)]
     }
 
-    /// Keep a saved Shop sort visible when its source is hidden or unavailable.
+    /// Keep a saved Shop or player sort visible when its source is hidden or unavailable.
     private var sortPausedMessage: String? {
+        if sortMode.isPlayerChartMode { return playerSortPausedMessage }
         guard sortMode == .shop else { return nil }
         if hideShop {
             return "Item Shop sort paused while Shop is hidden. Showing title order; "
@@ -603,6 +616,69 @@ struct SongsScreen: View {
                 + "Showing title order; retry Item Shop status if unavailable."
         }
         return nil
+    }
+
+    /// Why a saved Score/Percentile/Stars sort cannot order the rows right now (never
+    /// by treating an unavailable or mismatched score index as "no scores").
+    private var playerSortPausedMessage: String? {
+        let name = sortMode.label
+        // No instrument: normalized to Title on appear / change, not a pause.
+        guard instrument != nil else { return nil }
+        if session.selectedPlayer == nil {
+            return "\(name) sort paused until a player is selected. "
+                + "Showing title order; your preference is saved."
+        }
+        if filterInvalidScores {
+            return "\(name) sort paused while Filter Invalid Scores is enabled. "
+                + "Published raw scores cannot replace validated score variants."
+        }
+        if !scoreFilterAvailable {
+            return "\(name) sort paused until selected scores and songs share the current "
+                + "publication. Showing title order; your preference is saved."
+        }
+        return nil
+    }
+
+    /// The sort actually applied: Title while the saved sort is paused, or while a
+    /// player sort waits for its normalization without an instrument.
+    private var effectiveSortMode: SongSortMode {
+        if sortPausedMessage != nil { return .title }
+        if sortMode.isPlayerChartMode && instrument == nil { return .title }
+        return sortMode
+    }
+
+    /// Selected-player sorts the Sort sheet offers: only with a selected player and
+    /// one Songs instrument, and only those whose row metadata Settings shows (web
+    /// `SortModal` hides a mode whose metadata is hidden).
+    private var playerSortModesOffered: [SongSortMode] {
+        guard instrument != nil, session.selectedPlayer != nil else { return [] }
+        return SongSortMode.playerChartModes.filter { mode in
+            switch mode {
+            case .score: metadataScore
+            case .percentile: metadataPercentile
+            case .stars: metadataStars
+            default: false
+            }
+        }
+    }
+
+    /// The selected player's scores on the Songs instrument, only from an available
+    /// score index observed with this catalogue (nil otherwise: never a newer index).
+    ///
+    /// - Parameter payload: The retained catalogue.
+    /// - Returns: Scores by song ID, or nil without one instrument or a matching index.
+    private func chartScores(for payload: CatalogPayload) -> [String: PlayerScore]? {
+        guard let instrument,
+              session.hasCurrentPlayerScores(forCatalogue: payload.observedPublicationId)
+        else { return nil }
+        return session.selectedPlayerScores.compactMapValues { $0[instrument] }
+    }
+
+    /// Reset a player sort to Title A–Z once Songs shows every instrument.
+    private func normalizePlayerSort() {
+        guard instrument == nil, sortMode.isPlayerChartMode else { return }
+        sortMode = .title
+        sortAscending = true
     }
 
     /// Avoid installing an empty accessibility node for an absent warning group.
@@ -807,6 +883,11 @@ struct SongsScreen: View {
             ? SongCatalogSort.durationSections(visible) : nil
         let yearSections = effectiveMode == .year
             ? SongCatalogSort.yearSections(visible) : nil
+        let scoreSections = effectiveMode.isPlayerChartMode
+            ? chartScores(for: payload).map {
+                SongCatalogSort.scoreSections(visible, mode: effectiveMode, chartScores: $0)
+            }
+            : nil
         // Stagger only while the rows that just loaded first appear.
         let fadeOrder: [String: Int] = fadeWindowOpen
             ? Dictionary(
@@ -817,7 +898,8 @@ struct SongsScreen: View {
             : [:]
         let groups = listGroups(
             indexSections: showsIndex ? indexSections : nil, shopSections: shopSections,
-            durationSections: durationSections, yearSections: yearSections
+            durationSections: durationSections, yearSections: yearSections,
+            scoreSections: scoreSections
         )
         return ScrollViewReader { scrollProxy in
             ZStack(alignment: .trailing) {
@@ -911,6 +993,8 @@ struct SongsScreen: View {
         /// Scroll target: the scrubber's `Int` section id, or the quick-link id.
         let id: AnyHashable
         let label: String
+        /// VoiceOver label when it differs from `label` ("5 stars" for "5★").
+        var spokenLabel: String?
         let accessibilityID: String
         /// Quick Links entry for sorts without the scrubber (Year, Duration, Shop).
         let quickLink: QuickLinkSection?
@@ -919,11 +1003,13 @@ struct SongsScreen: View {
 
     /// Group the sorted rows for the active sort (nil: an ungrouped list).
     ///
-    /// Title/Artist use the A–Z scrubber; Year (decades), Duration (one-minute buckets)
-    /// and Item Shop use Quick Links (`.agents/controls/quick-links/ios.md`).
+    /// Title/Artist use the A–Z scrubber; Year (decades), Duration (one-minute buckets),
+    /// Item Shop and the Score/Percentile/Stars sorts use Quick Links
+    /// (`.agents/controls/quick-links/ios.md`).
     private func listGroups(
         indexSections: [SongSection]?, shopSections: [SongShopSection]?,
-        durationSections: [SongDurationSection]?, yearSections: [SongYearSection]?
+        durationSections: [SongDurationSection]?, yearSections: [SongYearSection]?,
+        scoreSections: [SongScoreSection]? = nil
     ) -> [SongListGroup]? {
         if let indexSections {
             return indexSections.map {
@@ -951,6 +1037,13 @@ struct SongsScreen: View {
         if let yearSections, yearSections.count > 1 {
             return yearSections.map { bucketed("year", $0.id, $0.label, $0.songs) }
         }
+        if let scoreSections, scoreSections.count > 1 {
+            return scoreSections.map { section in
+                var group = bucketed("score", section.key, section.label, section.songs)
+                group.spokenLabel = section.spokenLabel == section.label ? nil : section.spokenLabel
+                return group
+            }
+        }
         return nil
     }
 
@@ -969,6 +1062,7 @@ struct SongsScreen: View {
                 Rectangle().fill(BrandTokens.glassBorder).frame(height: 1)
             }
             .listRowInsets(EdgeInsets())
+            .accessibilityLabel(group.spokenLabel ?? group.label)
             .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier(group.accessibilityID)
         if let link = group.quickLink {
@@ -1097,7 +1191,7 @@ struct SongsScreen: View {
             instrument.map(song.supports) ?? true
         }
         let ordered = (try? SongCatalogSort.sorted(
-            filtered, mode: sortMode == .shop ? .title : sortMode,
+            filtered, mode: sortMode == .shop || sortMode.isPlayerChartMode ? .title : sortMode,
             ascending: sortAscending
         )) ?? filtered
         let artworkPaths = ordered.prefix(Self.artworkPrimeCount)

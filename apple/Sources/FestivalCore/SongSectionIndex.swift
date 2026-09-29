@@ -42,7 +42,7 @@ public enum SongSectionIndex {
         case .title: key = { firstLetter($0.title) }
         case .artist: key = { firstLetter($0.artist) }
         // Year uses decade sections and Quick Links instead (operator, 2026-09-28).
-        case .year, .duration, .shop: return []
+        case .year, .duration, .shop, .score, .percentile, .stars: return []
         }
         var result: [SongSection] = []
         var currentLabel: String?
