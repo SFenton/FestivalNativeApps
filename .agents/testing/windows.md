@@ -58,6 +58,8 @@ Per-page results (page × check × status) and open gaps: [windows-accessibility
 - Axe scans every top-level window of the process (`_N_of_M.a11ytest` per window); `.a11ytest` files are zips whose `el.snapshot` holds per-element `ScanResults` (Status 3 = fail), readable in Accessibility Insights.
 - "Focusable sibling elements must not have the same Name" fires wherever cards repeat rows (the same player atop several charts): wrap each card in `Controls/AccessibleGroup` (a named UIA `Group`), which also makes Narrator announce the card on entry.
 - Buttons whose content is a panel (icon + `TextBlock`) get no UIA name: set `AutomationProperties.Name` (Axe "Name must not be null").
+- System modes change the operator's real desktop. The runner writes the previous values to `~/.fst-locks/uiwin/a11y-sysset-restore.json` before changing anything and replays a leftover file at the start of its next hold, so a killed run cannot leave a contrast theme on for other lanes. Still prefer letting a mode run finish.
+- `--exe debug|release|aot` runs the matrix on a publish in automation mode (same as `uiwin.py launch`).
 - Text size is read by apps at launch; `text-*` modes set it before launching, so the running operator desktop only changes for new windows.
 
 ### Narrator manual script (operator)
@@ -84,6 +86,6 @@ Record anything Narrator skips or misreads in [windows-accessibility.md](windows
 
 | Item | Value |
 |---|---|
-| Core tests | 905 passing |
-| Core coverage (all folders, async bodies and lambdas measured) | 98.92% lines, 94.0% branches (logic 99.41%, UX 98.30%; 905 tests, 2026-09-28) |
+| Core tests | 913 passing |
+| Core coverage (all folders, async bodies and lambdas measured) | 98.92% lines, 94.0% branches (logic 99.41%, UX 98.30%; 913 tests, 2026-09-28) |
 | Screenshots | committed only from fixture mode ([strategy](strategy.md) keeps live screenshots out of the repo) |
