@@ -34,7 +34,7 @@ public sealed record SongShopFilter(
 #endregion
 
 #region Player score filter
-/// <summary>The four independent per-chart checks (source <c>FilterModal</c>).</summary>
+/// <summary>The independent per-chart checks (source <c>FilterModal</c>).</summary>
 public enum SongScoreFilterKind
 {
     /// <summary>No positive score.</summary>
@@ -45,6 +45,11 @@ public enum SongScoreFilterKind
     MissingFCs,
     /// <summary>An explicit full-combo flag.</summary>
     HasFCs,
+    /// <summary>
+    /// A raw score over the chart's CHOpt maximum plus leeway (web <c>overThreshold</c>); only while Filter Invalid Scores
+    /// is on, where it shows that chart's raw invalid scores instead of their valid fallbacks.
+    /// </summary>
+    OverThreshold,
 }
 
 /// <summary>Labels for <see cref="SongScoreFilterKind"/>.</summary>
@@ -52,6 +57,12 @@ public static class SongScoreFilterKindInfo
 {
     /// <summary>All kinds in form order.</summary>
     public static IReadOnlyList<SongScoreFilterKind> All { get; } = Enum.GetValues<SongScoreFilterKind>();
+
+    /// <summary>The kinds the filter form offers: Over CHOpt Threshold only while Filter Invalid Scores is on (web).</summary>
+    /// <param name="filterInvalidScores">Filter Invalid Scores setting.</param>
+    /// <returns>Kinds in form order.</returns>
+    public static IReadOnlyList<SongScoreFilterKind> Offered(bool filterInvalidScores) =>
+        filterInvalidScores ? All : [.. All.Where(k => k != SongScoreFilterKind.OverThreshold)];
 
     /// <summary>Title Case label.</summary>
     /// <param name="kind">Kind.</param>
@@ -61,6 +72,7 @@ public static class SongScoreFilterKindInfo
         SongScoreFilterKind.MissingScores => "Missing Scores",
         SongScoreFilterKind.HasScores => "Has Scores",
         SongScoreFilterKind.MissingFCs => "Missing FCs",
+        SongScoreFilterKind.OverThreshold => "Over CHOpt Threshold",
         _ => "Has FCs",
     };
 }
@@ -68,7 +80,8 @@ public static class SongScoreFilterKindInfo
 /// <summary>One chart's score facts used by filters and status chips.</summary>
 /// <param name="Score">Score (0 or absent row = no score).</param>
 /// <param name="IsFullCombo">Explicit FC flag (never inferred from accuracy).</param>
-public readonly record struct ChartScoreFacts(long Score, bool? IsFullCombo);
+/// <param name="OverThreshold">The score shown is a raw score over the CHOpt maximum plus leeway (Over CHOpt Threshold view).</param>
+public readonly record struct ChartScoreFacts(long Score, bool? IsFullCombo, bool OverThreshold = false);
 
 /// <summary>
 /// Selected-player predicates: AND within one chart's checks, OR across active charts. Bounded and typed so they
@@ -87,6 +100,8 @@ public sealed record SongPlayerScoreFilter
     [JsonPropertyName("missingFCs")] public IReadOnlyList<Instrument> MissingFCs { get; set; } = [];
     /// <summary>Charts with an explicit FC.</summary>
     [JsonPropertyName("hasFCs")] public IReadOnlyList<Instrument> HasFCs { get; set; } = [];
+    /// <summary>Charts showing only raw scores over the CHOpt threshold (applies only with Filter Invalid Scores on).</summary>
+    [JsonPropertyName("overThreshold")] public IReadOnlyList<Instrument> OverThreshold { get; set; } = [];
     /// <summary>Hidden season buckets on the selected instrument (0 = no score).</summary>
     [JsonPropertyName("excludedSeasons")] public IReadOnlyList<int> ExcludedSeasons { get; set; } = [];
     /// <summary>Hidden percentile buckets (<see cref="SongBuckets.PercentileKeys"/>).</summary>
@@ -133,7 +148,7 @@ public sealed record SongPlayerScoreFilter
         return new SongPlayerScoreFilter
         {
             MissingScores = Charts(saved.MissingScores), HasScores = Charts(saved.HasScores),
-            MissingFCs = Charts(saved.MissingFCs), HasFCs = Charts(saved.HasFCs),
+            MissingFCs = Charts(saved.MissingFCs), HasFCs = Charts(saved.HasFCs), OverThreshold = Charts(saved.OverThreshold),
             ExcludedSeasons = Keys(saved.ExcludedSeasons), ExcludedPercentiles = Keys(saved.ExcludedPercentiles),
             ExcludedStars = Keys(saved.ExcludedStars),
         };
@@ -200,9 +215,19 @@ public sealed record SongPlayerScoreFilter
             SongScoreFilterKind.MissingScores => this with { MissingScores = ordered },
             SongScoreFilterKind.HasScores => this with { HasScores = ordered },
             SongScoreFilterKind.MissingFCs => this with { MissingFCs = ordered },
+            SongScoreFilterKind.OverThreshold => this with { OverThreshold = ordered },
             _ => this with { HasFCs = ordered },
         };
     }
+
+    /// <summary>
+    /// The filter as it applies under the current Filter Invalid Scores setting: Over CHOpt Threshold checks are inactive
+    /// (kept saved) while it is off, like the web.
+    /// </summary>
+    /// <param name="filterInvalidScores">Filter Invalid Scores setting.</param>
+    /// <returns>Effective filter.</returns>
+    public SongPlayerScoreFilter Effective(bool filterInvalidScores) =>
+        filterInvalidScores || OverThreshold.Count == 0 ? this : this with { OverThreshold = [] };
 
     /// <summary>Whether every visible chart has a check (the source's global switch).</summary>
     /// <param name="kind">Check.</param>
@@ -228,6 +253,7 @@ public sealed record SongPlayerScoreFilter
         HasScores = [.. HasScores.Where(visible.Contains)],
         MissingFCs = [.. MissingFCs.Where(visible.Contains)],
         HasFCs = [.. HasFCs.Where(visible.Contains)],
+        OverThreshold = [.. OverThreshold.Where(visible.Contains)],
     };
 
     /// <summary>
@@ -280,7 +306,9 @@ public sealed record SongPlayerScoreFilter
         var hasFc = HasFCs.Contains(chart);
         var scoreMatches = !(missing || has) || (missing && !scored) || (has && scored);
         var comboMatches = !(missingFc || hasFc) || (missingFc && !fullCombo) || (hasFc && fullCombo);
-        return scoreMatches && comboMatches;
+        // Web: passes only when the shown (raw) score is positive and over the CHOpt maximum plus leeway.
+        var overMatches = !OverThreshold.Contains(chart) || (scored && facts!.Value.OverThreshold);
+        return scoreMatches && comboMatches && overMatches;
     }
 
     /// <summary>The list for one check.</summary>
@@ -291,26 +319,28 @@ public sealed record SongPlayerScoreFilter
         SongScoreFilterKind.MissingScores => MissingScores,
         SongScoreFilterKind.HasScores => HasScores,
         SongScoreFilterKind.MissingFCs => MissingFCs,
+        SongScoreFilterKind.OverThreshold => OverThreshold,
         _ => HasFCs,
     };
 
-    /// <summary>All four lists.</summary>
+    /// <summary>All five lists.</summary>
     /// <returns>Lists in kind order.</returns>
-    private IEnumerable<IReadOnlyList<Instrument>> Lists() => [MissingScores, HasScores, MissingFCs, HasFCs];
+    private IEnumerable<IReadOnlyList<Instrument>> Lists() => [MissingScores, HasScores, MissingFCs, HasFCs, OverThreshold];
 
     /// <summary>Content equality for every list.</summary>
     /// <param name="other">Other filter.</param>
     /// <returns><see langword="true"/> when every list matches.</returns>
     public bool Equals(SongPlayerScoreFilter? other) =>
         other is not null && MissingScores.SequenceEqual(other.MissingScores) && HasScores.SequenceEqual(other.HasScores) &&
-        MissingFCs.SequenceEqual(other.MissingFCs) && HasFCs.SequenceEqual(other.HasFCs) &&
+        MissingFCs.SequenceEqual(other.MissingFCs) && HasFCs.SequenceEqual(other.HasFCs) && OverThreshold.SequenceEqual(other.OverThreshold) &&
         ExcludedSeasons.SequenceEqual(other.ExcludedSeasons) && ExcludedPercentiles.SequenceEqual(other.ExcludedPercentiles) &&
         ExcludedStars.SequenceEqual(other.ExcludedStars);
 
     /// <summary>Hash consistent with <see cref="Equals(SongPlayerScoreFilter?)"/>.</summary>
     /// <returns>Hash code.</returns>
     public override int GetHashCode() => HashCode.Combine(
-        MissingScores.Count, HasScores.Count, MissingFCs.Count, HasFCs.Count, ExcludedSeasons.Count, ExcludedPercentiles.Count, ExcludedStars.Count);
+        MissingScores.Count, HasScores.Count, MissingFCs.Count, HasFCs.Count + 31 * OverThreshold.Count, ExcludedSeasons.Count, ExcludedPercentiles.Count,
+        ExcludedStars.Count);
 }
 #endregion
 

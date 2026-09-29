@@ -63,15 +63,17 @@ public sealed record SongInstrumentBadge(Instrument Instrument, SongInstrumentSt
 /// <summary>When chips show and how each status is derived.</summary>
 public static class SongInstrumentStatusPolicy
 {
-    /// <summary>Chips need an available, matching index, icons on, no single-chart filter and invalid-score filtering off.</summary>
+    /// <summary>
+    /// Chips need an available, matching index, icons on and no single-chart filter. Under Filter Invalid Scores they show
+    /// the resolved (valid fallback) scores, like the web.
+    /// </summary>
     /// <param name="hasPlayer">A player is selected.</param>
     /// <param name="scoresAvailable">Publication-matched 200 scores are loaded.</param>
     /// <param name="iconsEnabled">Show Instrument Icons.</param>
     /// <param name="instrumentFilter">Single-chart filter, if any.</param>
-    /// <param name="filterInvalidScores">Filter Invalid Scores.</param>
     /// <returns><see langword="true"/> when chips replace metadata.</returns>
-    public static bool ShowsChips(bool hasPlayer, bool scoresAvailable, bool iconsEnabled, Instrument? instrumentFilter, bool filterInvalidScores) =>
-        hasPlayer && scoresAvailable && iconsEnabled && instrumentFilter is null && !filterInvalidScores;
+    public static bool ShowsChips(bool hasPlayer, bool scoresAvailable, bool iconsEnabled, Instrument? instrumentFilter) =>
+        hasPlayer && scoresAvailable && iconsEnabled && instrumentFilter is null;
 
     /// <summary>One status per visible chart, in service order.</summary>
     /// <param name="song">Catalogue row.</param>

@@ -73,7 +73,9 @@ public class SongListFilterTests
         Assert.False(new SongPlayerScoreFilter { HasScores = [Instrument.Lead, Instrument.Lead] }.IsValid);
         Assert.False(new SongPlayerScoreFilter { HasFCs = [(Instrument)42] }.IsValid);
         Assert.False(new SongPlayerScoreFilter { MissingFCs = null! }.IsValid);
-        Assert.Equal(["Missing Scores", "Has Scores", "Missing FCs", "Has FCs"], SongScoreFilterKindInfo.All.Select(k => k.Label()));
+        Assert.Equal(["Missing Scores", "Has Scores", "Missing FCs", "Has FCs", "Over CHOpt Threshold"], SongScoreFilterKindInfo.All.Select(k => k.Label()));
+        Assert.Equal(4, SongScoreFilterKindInfo.Offered(false).Count);
+        Assert.Equal(5, SongScoreFilterKindInfo.Offered(true).Count);
         Assert.False(SongPlayerScoreFilter.None.Equals(null));
     }
 
@@ -193,7 +195,9 @@ public class SongListPipelineTests
         Assert.Null(Run().ScoreFilterPaused);
         Assert.Contains("hidden in Settings", Run(visible: [Instrument.Bass]).ScoreFilterPaused);
         Assert.Contains("until a player", Run(player: false).ScoreFilterPaused);
-        Assert.Contains("Filter Invalid Scores", Run(invalid: true).ScoreFilterPaused);
+        // Filter Invalid Scores resolves scores upstream (SongScoreSource) instead of pausing the filters.
+        Assert.Null(Run(invalid: true).ScoreFilterPaused);
+        Assert.Equal(1, Run(invalid: true).Count);
         Assert.Contains("same update", Run(scores: false).ScoreFilterPaused);
         Assert.Equal(4, Run(scores: false).Count);
     }
@@ -210,12 +214,11 @@ public class SongRowProjectionTests
     [Fact]
     public void Chips_StatusRulesAndVisibility()
     {
-        Assert.True(SongInstrumentStatusPolicy.ShowsChips(true, true, true, null, false));
-        Assert.False(SongInstrumentStatusPolicy.ShowsChips(true, true, true, Instrument.Lead, false));
-        Assert.False(SongInstrumentStatusPolicy.ShowsChips(true, true, false, null, false));
-        Assert.False(SongInstrumentStatusPolicy.ShowsChips(true, false, true, null, false));
-        Assert.False(SongInstrumentStatusPolicy.ShowsChips(true, true, true, null, true));
-        Assert.False(SongInstrumentStatusPolicy.ShowsChips(false, true, true, null, false));
+        Assert.True(SongInstrumentStatusPolicy.ShowsChips(true, true, true, null));
+        Assert.False(SongInstrumentStatusPolicy.ShowsChips(true, true, true, Instrument.Lead));
+        Assert.False(SongInstrumentStatusPolicy.ShowsChips(true, true, false, null));
+        Assert.False(SongInstrumentStatusPolicy.ShowsChips(true, false, true, null));
+        Assert.False(SongInstrumentStatusPolicy.ShowsChips(false, true, true, null));
 
         var facts = new Dictionary<Instrument, ChartScoreFacts> { [Instrument.Lead] = new(10, true), [Instrument.Bass] = new(0, true), [Instrument.Drums] = new(5, false) };
         var badges = SongInstrumentStatusPolicy.Badges(Song, [Instrument.Drums, Instrument.Lead, Instrument.Bass, Instrument.Vocals],
@@ -363,7 +366,9 @@ public class SongsViewModelPlayerTests
         session.UpdateSettings(s => s with { SongFilter = SongFilter.None, VisibleInstruments = [Instrument.Drums] });
         Assert.Equal("No Drums chart", Row(vm, "s3").ScoreState);
         session.UpdateSettings(s => s with { FilterInvalidScores = true, VisibleInstruments = InstrumentInfo.All });
-        Assert.Equal("Scores paused while Filter Invalid Scores is on", Row(vm, "s1").ScoreState);
+        // Filter Invalid Scores shows resolved scores (web substitution) instead of pausing the row.
+        Assert.Null(Row(vm, "s1").ScoreState);
+        Assert.Equal(MetadataField.Score, Row(vm, "s1").Metadata[0].Kind);
     }
 
     [Fact]

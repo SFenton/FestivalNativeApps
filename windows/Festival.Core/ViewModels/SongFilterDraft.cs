@@ -25,11 +25,16 @@ public sealed partial class SongFilterDraft : ObservableObject
             new("In the Shop", "Songs that are available in the Item Shop today.", "fst.songs.filter.in-shop", () => InShop, v => InShop = v),
             new("Leaving Tomorrow", "Songs that are leaving the Item Shop tomorrow.", "fst.songs.filter.leaving", () => LeavingTomorrow, v => LeavingTomorrow = v),
         ];
-        GlobalRows = [.. SongScoreFilterKindInfo.All.Select(kind => new FilterToggleRow(
+        GlobalRows = BuildGlobalRows();
+    }
+
+    /// <summary>The global switches offered under the current Filter Invalid Scores setting (web <c>FilterModal</c>).</summary>
+    /// <returns>Rows in form order.</returns>
+    private List<FilterToggleRow> BuildGlobalRows() =>
+        [.. SongScoreFilterKindInfo.Offered(session.Settings.FilterInvalidScores).Select(kind => new FilterToggleRow(
             kind.Label(), GlobalDescription(kind), "fst.songs.filter.score.global." + KindId(kind),
             () => ScoreFilter.AllVisible(kind, session.Settings.VisibleInstruments),
             v => ScoreFilter = ScoreFilter.WithAll(kind, session.Settings.VisibleInstruments, v)))];
-    }
 
     /// <summary>Whether changes commit immediately (set once <see cref="Begin"/> finishes loading).</summary>
     public bool IsLive { get; private set; }
@@ -78,7 +83,7 @@ public sealed partial class SongFilterDraft : ObservableObject
     public bool HasInstrument => SelectedInstrument is not null;
 
     /// <summary>Global Score &amp; FC switches (all visible charts at once).</summary>
-    public List<FilterToggleRow> GlobalRows { get; }
+    public List<FilterToggleRow> GlobalRows { get; private set; }
 
     /// <summary>Individual Score &amp; FC groups, one per visible chart.</summary>
     public List<ScoreFilterChartRow> ScoreRows { get; private set; } = [];
@@ -121,12 +126,14 @@ public sealed partial class SongFilterDraft : ObservableObject
         InShop = applied.ShopFilter.InShop;
         LeavingTomorrow = applied.ShopFilter.LeavingTomorrow;
         ScoreFilter = applied.PlayerScoreFilter.IsValid ? applied.PlayerScoreFilter : SongPlayerScoreFilter.None;
-        ScoreRows = [.. applied.VisibleInstruments.Select(i => new ScoreFilterChartRow(this, i))];
+        GlobalRows = BuildGlobalRows();
+        ScoreRows = [.. applied.VisibleInstruments.Select(i => new ScoreFilterChartRow(this, i, applied.FilterInvalidScores))];
         BucketSections = [.. SongBuckets.All
             .Where(kind => session.HasPlayer || !kind.IsPlayerScoped())
             .Select(kind => new FilterBucketSection(this, kind, kind.Keys(AvailableSeasons())))];
         foreach (var row in ShopRows) row.IsEnabled = ShopEnabled;
         OnPropertyChanged(nameof(Instruments));
+        OnPropertyChanged(nameof(GlobalRows));
         OnPropertyChanged(nameof(ScoreRows));
         OnPropertyChanged(nameof(BucketSections));
         OnPropertyChanged(nameof(ShopEnabled));
@@ -231,6 +238,7 @@ public sealed partial class SongFilterDraft : ObservableObject
         SongScoreFilterKind.MissingScores => "Songs missing scores on any visible instrument.",
         SongScoreFilterKind.HasScores => "Songs with scores on any visible instrument.",
         SongScoreFilterKind.MissingFCs => "Songs missing FCs on any visible instrument.",
+        SongScoreFilterKind.OverThreshold => "Songs with scores above the configured CHOpt max score threshold in app settings.",
         _ => "Songs with FCs on any visible instrument.",
     };
 
@@ -242,6 +250,7 @@ public sealed partial class SongFilterDraft : ObservableObject
         SongScoreFilterKind.MissingScores => "missing-scores",
         SongScoreFilterKind.HasScores => "has-scores",
         SongScoreFilterKind.MissingFCs => "missing-fcs",
+        SongScoreFilterKind.OverThreshold => "over-threshold",
         _ => "has-fcs",
     };
 }
@@ -312,12 +321,13 @@ public sealed class ScoreFilterChartRow
     /// <summary>Creates the group.</summary>
     /// <param name="draft">Owning draft.</param>
     /// <param name="instrument">Chart.</param>
-    public ScoreFilterChartRow(SongFilterDraft draft, Instrument instrument)
+    /// <param name="filterInvalidScores">Filter Invalid Scores setting (offers the Over CHOpt Threshold switch).</param>
+    public ScoreFilterChartRow(SongFilterDraft draft, Instrument instrument, bool filterInvalidScores = false)
     {
         Instrument = instrument;
         var name = instrument.Label();
         var id = "fst.songs.filter.score.chart." + instrument.ToString().ToLowerInvariant() + ".";
-        Toggles = [.. SongScoreFilterKindInfo.All.Select(kind => new FilterToggleRow(
+        Toggles = [.. SongScoreFilterKindInfo.Offered(filterInvalidScores).Select(kind => new FilterToggleRow(
             ChartLabel(kind, name), ChartDescription(kind, name), id + SongFilterDraft.KindId(kind),
             () => draft.Get(kind, instrument), v => draft.Set(kind, instrument, v)))];
     }
@@ -334,7 +344,7 @@ public sealed class ScoreFilterChartRow
     /// <summary>Group AutomationId.</summary>
     public string AutomationId => "fst.songs.filter.score.chart." + Instrument.ToString().ToLowerInvariant();
 
-    /// <summary>The four switches.</summary>
+    /// <summary>The switches (four, plus Over CHOpt Threshold under Filter Invalid Scores).</summary>
     public List<FilterToggleRow> Toggles { get; }
 
     /// <summary>Web <c>filter.instrument*</c> label.</summary>
@@ -346,6 +356,7 @@ public sealed class ScoreFilterChartRow
         SongScoreFilterKind.MissingScores => $"Missing {name} Scores",
         SongScoreFilterKind.HasScores => $"Has {name} Scores",
         SongScoreFilterKind.MissingFCs => $"Missing {name} FCs",
+        SongScoreFilterKind.OverThreshold => $"{name} Over CHOpt Threshold",
         _ => $"Has {name} FCs",
     };
 
@@ -358,6 +369,7 @@ public sealed class ScoreFilterChartRow
         SongScoreFilterKind.MissingScores => $"Songs missing scores on {name}.",
         SongScoreFilterKind.HasScores => $"Songs with scores on {name}.",
         SongScoreFilterKind.MissingFCs => $"Songs missing FCs on {name}.",
+        SongScoreFilterKind.OverThreshold => $"Songs with {name} scores above the configured CHOpt max score threshold in app settings.",
         _ => $"Songs with FCs on {name}.",
     };
 }

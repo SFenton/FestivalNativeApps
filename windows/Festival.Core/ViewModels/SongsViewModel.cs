@@ -254,7 +254,7 @@ public sealed partial class SongsViewModel : ObservableObject
             return;
         }
 
-        var scores = SongScoreSource.For(session);
+        var scores = SongScoreSource.ForSongs(session, catalog.Songs);
         var offers = settings.HideShop ? null : session.ShopOffersForCatalog;
         var result = SongListPipeline.Run(new SongListInputs
         {
@@ -303,7 +303,7 @@ public sealed partial class SongsViewModel : ObservableObject
 public sealed class SongRowProjector(AppSettings settings, int? currentSeason, IReadOnlyDictionary<string, ShopSong>? offers, SongScoreSource scores)
 {
     private readonly bool chips = SongInstrumentStatusPolicy.ShowsChips(
-        scores.HasPlayer, scores.Available, settings.ShowInstrumentIcons, settings.SongFilter.Instrument, settings.FilterInvalidScores);
+        scores.HasPlayer, scores.Available, settings.ShowInstrumentIcons, settings.SongFilter.Instrument);
 
     private readonly Instrument? metadataChart = settings.SongFilter.Instrument ?? settings.VisibleInstruments.FirstOrDefault();
 
@@ -327,12 +327,12 @@ public sealed class SongRowProjector(AppSettings settings, int? currentSeason, I
                 Chips = SongInstrumentStatusPolicy.Badges(song, settings.VisibleInstruments, chart => scores.Facts!(song.SongId, chart)),
             };
         }
-        if (!scores.Available || settings.FilterInvalidScores || metadataChart is not { } chart)
+        if (!scores.Available || metadataChart is not { } chart)
         {
             return new SongRowItem(song)
             {
                 Highlight = highlight, InShop = inShop, Chart = filterRaw is null ? null : filterChart, ChartRaw = filterRaw,
-                ScoreState = settings.FilterInvalidScores && scores.Available ? "Scores paused while Filter Invalid Scores is on" : scores.RowState,
+                ScoreState = scores.RowState,
             };
         }
         var detail = scores.Detail!(song.SongId, chart);

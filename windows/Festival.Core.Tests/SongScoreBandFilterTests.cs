@@ -99,7 +99,8 @@ public class SongsScoreBandTests
         Assert.Equal(3, vm.ResultCount);
 
         session.UpdateSettings(s => s with { SongFilter = new SongFilter(Instrument.Lead), FilterInvalidScores = true });
-        Assert.Contains(vm.Notices, n => n.StartsWith("Player score filters paused while Filter Invalid Scores", StringComparison.Ordinal));
+        // Filter Invalid Scores no longer pauses player filters: scores resolve to valid fallbacks (web substitution).
+        Assert.DoesNotContain(vm.Notices, n => n.StartsWith("Player score filters paused", StringComparison.Ordinal));
         session.UpdateSettings(s => s with { FilterInvalidScores = false });
         session.DeselectPlayer();
         Assert.False(session.Settings.PlayerScoreFilter.IsActive);

@@ -189,7 +189,7 @@
                                                                Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" FontSize="12" />
                                                 </StackPanel>
                                             </Expander.Header>
-                                            <ItemsControl ItemsSource="{x:Bind ViewModel.FilterDraft.GlobalRows}" ItemTemplate="{StaticResource FilterToggleTemplate}" IsTabStop="False" />
+                                            <ItemsControl ItemsSource="{x:Bind ViewModel.FilterDraft.GlobalRows, Mode=OneWay}" ItemTemplate="{StaticResource FilterToggleTemplate}" IsTabStop="False" />
                                         </Expander>
 
                                         <StackPanel Padding="0,8,0,0">

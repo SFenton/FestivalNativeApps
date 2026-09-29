@@ -30,7 +30,10 @@ public sealed record SongListInputs
     public bool ShopPublicationMismatch { get; init; }
     /// <summary>Whether a player is selected.</summary>
     public bool HasPlayer { get; init; }
-    /// <summary>Filter Invalid Scores setting (raw scores cannot stand in for valid-score variants).</summary>
+    /// <summary>
+    /// Filter Invalid Scores setting: <see cref="Scores"/>/<see cref="Details"/> are then already resolved to valid scores
+    /// (<see cref="InvalidScorePolicy"/>), and Over CHOpt Threshold checks apply only while it is on.
+    /// </summary>
     public bool FilterInvalidScores { get; init; }
     /// <summary>Per-chart score facts for a matching, available index; <see langword="null"/> when unavailable.</summary>
     public Func<string, Instrument, ChartScoreFacts?>? Scores { get; init; }
@@ -77,7 +80,7 @@ public static class SongListPipeline
         // Web checkSeason/checkPct/checkStars apply only with an instrument selected; paused like the score checks.
         var chart = input.Filter.ScopedTo(input.Visible).Instrument;
         var scorePaused = ScorePauseReason(input, chart);
-        var scoped = input.PlayerFilter.ScopedTo(input.Visible);
+        var scoped = input.PlayerFilter.Effective(input.FilterInvalidScores).ScopedTo(input.Visible);
         var playerApplies = scoped.AppliesTo(chart);
         if (scorePaused is null && playerApplies)
             rows = scoped.Filter(rows, input.Scores!, input.Visible, chart, input.Details);
@@ -344,13 +347,12 @@ public static class SongListPipeline
     /// <returns>Readable notice, or <see langword="null"/> when they apply (or none are set).</returns>
     private static string? ScorePauseReason(SongListInputs input, Instrument? chart)
     {
-        if (!input.PlayerFilter.AppliesTo(chart)) return null;
-        if (!input.PlayerFilter.ScopedTo(input.Visible).AppliesTo(chart))
+        var filter = input.PlayerFilter.Effective(input.FilterInvalidScores);
+        if (!filter.AppliesTo(chart)) return null;
+        if (!filter.ScopedTo(input.Visible).AppliesTo(chart))
             return "Player score filters paused while their instruments are hidden in Settings. Your choices are saved.";
         if (!input.HasPlayer) return "Player score filters paused until a player is selected.";
-        if (input.FilterInvalidScores)
-            return "Player score filters paused while Filter Invalid Scores is on. Published raw scores can't stand in for validated scores.";
-        if (input.Scores is null || (chart is not null && input.PlayerFilter.HasBucketChecks && input.Details is null))
+        if (input.Scores is null || (chart is not null && filter.HasBucketChecks && input.Details is null))
             return "Player score filters paused until the player's scores and songs are from the same update. Showing songs without score filters.";
         return null;
     }
