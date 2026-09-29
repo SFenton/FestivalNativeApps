@@ -59,6 +59,7 @@ public static class FirstRunPages
             AppSection.Leaderboards => FirstRunPageKey.Leaderboards,
             AppSection.Rivals => FirstRunPageKey.Rivals,
             AppSection.Statistics => FirstRunPageKey.Statistics,
+            AppSection.Shop => FirstRunPageKey.Shop,
             _ => null,
         },
         AppRoute.SongDetail => FirstRunPageKey.SongInfo,

@@ -45,7 +45,12 @@ public sealed partial class FirstRunDemo : UserControl
     {
         Content = root;
         AutomationProperties.SetAccessibilityView(this, AccessibilityView.Raw);
-        Loaded += (_, _) => { Motion.Changed += OnMotionChanged; UpdateTimer(); };
+        Loaded += (_, _) =>
+        {
+            Motion.Changed += OnMotionChanged;
+            if (UsesFallbackPool) Build();
+            UpdateTimer();
+        };
         Unloaded += (_, _) =>
         {
             Motion.Changed -= OnMotionChanged;
@@ -71,6 +76,16 @@ public sealed partial class FirstRunDemo : UserControl
             active = value;
             UpdateTimer();
         }
+    }
+
+    /// <summary>Whether the rows come from the text fallback pool while a catalogue could now supply real songs.</summary>
+    private bool UsesFallbackPool => songs.Count > 0 && songs[0].Art is null && FirstRunDemos.SongPool(App.Session.Catalog?.Songs)[0].Art is not null;
+
+    /// <summary>Rebuilds with the current catalogue, keeping the timer state.</summary>
+    private void Rebuild()
+    {
+        Build();
+        UpdateTimer();
     }
 
     /// <summary>Whether a demo exists for the slide (otherwise the static illustration shows).</summary>
@@ -593,7 +608,12 @@ public sealed partial class FirstRunDemo : UserControl
         {
             timer = DispatcherQueue.CreateTimer();
             timer.Interval = FirstRunDemos.Cycle;
-            timer.Tick += (_, _) => advance?.Invoke(step++);
+            timer.Tick += (_, _) =>
+            {
+                // A carousel can open before the catalogue arrives: switch from the fallback pool to real songs then.
+                if (UsesFallbackPool) Rebuild();
+                else advance?.Invoke(step++);
+            };
         }
         if (!timer.IsRunning) timer.Start();
     }

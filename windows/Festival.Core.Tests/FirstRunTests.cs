@@ -329,6 +329,7 @@ public class FirstRunTests
         { AppSection.Leaderboards, null, FirstRunPageKey.Leaderboards },
         { AppSection.Rivals, null, FirstRunPageKey.Rivals },
         { AppSection.Statistics, null, FirstRunPageKey.Statistics },
+        { AppSection.Shop, null, FirstRunPageKey.Shop },
         { AppSection.Settings, null, null },
         { AppSection.Songs, new AppRoute.SongDetail("s"), FirstRunPageKey.SongInfo },
         { AppSection.Songs, new AppRoute.PlayerHistory("s", Instrument.Lead), FirstRunPageKey.PlayerHistory },
