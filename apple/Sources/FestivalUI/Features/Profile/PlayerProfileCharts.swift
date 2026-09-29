@@ -11,8 +11,8 @@ import FestivalDesign
 //   one combined chart of Total Score bars plus a reversed global-rank line, with the
 //   rank projected onto the value scale (`RankHistoryChartScale`), a swipeable window
 //   and the web's four pagination buttons (`RankHistoryPaging`).
-// - Percentiles: the web's percentile *table* (`PlayerPercentileTable.tsx`), drawn
-//   as a horizontal bar chart of the same "Top N%" bands.
+// - Percentiles: the web's percentile table (`PlayerPercentileTable.swift`); the Duo
+//   carousel alone draws the same "Top N%" bands as a bar chart.
 //
 // Both are glass cards following the instrument's own stats card (never nested
 // glass), each registers a depth-1 Quick Link under its instrument, exposes an
@@ -45,7 +45,8 @@ struct PlayerRankHistoryCard: View {
     let accountId: String
     let instrument: Instrument
 
-    private enum Phase {
+    /// The history read's states (also the page's preload result).
+    enum Phase {
         case loading
         case failed(ServiceIssue)
         case loaded([PlayerRankHistorySnapshot])
@@ -58,11 +59,29 @@ struct PlayerRankHistoryCard: View {
         let publicationRevision: Int
     }
 
-    @State private var phase = Phase.loading
+    @State private var phase: Phase
     @State private var retryRevision = 0
     /// `LoadKey` whose read succeeded. `.task(id:)` restarts on every reappearance (Back
     /// from a pushed page), which used to reset to loading and collapse the card.
     @State private var loadedKey: LoadKey?
+    /// The page already read this history: the first `.task` adopts it without a request.
+    private let hasPreload: Bool
+
+    /// Create the card.
+    ///
+    /// - Parameters:
+    ///   - session: Shared app session.
+    ///   - accountId: Viewed account.
+    ///   - instrument: Played, Settings-visible chart.
+    ///   - preloaded: The page's finished history read (web `PlayerPage` gates on its
+    ///     data before any content appears), or nil to read here.
+    init(session: FestivalSession, accountId: String, instrument: Instrument, preloaded: Phase? = nil) {
+        self.session = session
+        self.accountId = accountId
+        self.instrument = instrument
+        _phase = State(initialValue: preloaded ?? .loading)
+        if case .loading? = preloaded { hasPreload = false } else { hasPreload = preloaded != nil }
+    }
     /// This card's width, known from the placeholder before the chart exists.
     @State private var cardWidth: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
@@ -120,6 +139,10 @@ struct PlayerRankHistoryCard: View {
         .task(id: loadKey) {
             guard loadedKey != loadKey else { return }
             let key = loadKey
+            if hasPreload, loadedKey == nil, retryRevision == 0 {
+                loadedKey = key
+                return
+            }
             if await load(resetting: loadedKey?.accountId != key.accountId), !Task.isCancelled {
                 loadedKey = key
             }
@@ -561,53 +584,10 @@ struct RankHistoryCharts: View {
     }
 }
 
-// MARK: - PlayerPercentileChartCard
+// MARK: - PercentileBandsChart
 
-/// One instrument's leaderboard-placement distribution: how many songs rank in the
-/// top 1%, 2%, … 100%. Hidden when no score has a known placement.
-struct PlayerPercentileChartCard: View {
-    let buckets: [PlayerPercentileBucket]
-    let instrument: Instrument
-    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
-    @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
-
-    private var title: String { "\(instrument.label) Percentiles" }
-
-    var body: some View {
-        if !buckets.isEmpty {
-            FestivalGlassSection(title, subtitle: "Songs by leaderboard placement") {
-                // Built only near the viewport: a player page has up to nine of these,
-                // and rendering them all with the page stalled the push (see
-                // `NearViewport`). The placeholder has the chart's exact height.
-                NearViewport {
-                    Color.clear.frame(height: PercentileBandsChart.height(bucketCount: buckets.count))
-                } content: {
-                    PercentileBandsChart(
-                        buckets: buckets, instrument: instrument,
-                        motion: ChartMotion(system: systemReduceMotion, app: appReduceMotion)
-                    )
-                }
-            }
-            // `.contain` first, or the identifier replaces every tile's own.
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("fst.player.percentiles.\(instrument.rawValue)")
-            .quickLinkSection(QuickLinkSection(
-                id: "percentiles:\(instrument.rawValue)", title: "Percentiles",
-                icon: .system("chart.bar.xaxis"), depth: 1, spokenTitle: title
-            ))
-        }
-    }
-
-    /// "Top N%", the web's `PercentilePill` text.
-    ///
-    /// - Parameter bucket: One non-empty band.
-    /// - Returns: Axis and VoiceOver category label.
-    nonisolated static func label(_ bucket: PlayerPercentileBucket) -> String {
-        "Top \(bucket.topPercent)%"
-    }
-}
-
-/// The bare "Top N%" bar chart inside `PlayerPercentileChartCard` (no glass).
+/// The "Top N%" bar chart used by the iPhone Duo graphs carousel (`PlayerPercentilePage`);
+/// the stacked page shows the web's percentile table instead (`PlayerPercentileTableCard`).
 struct PercentileBandsChart: View {
     let buckets: [PlayerPercentileBucket]
     let instrument: Instrument
@@ -623,7 +603,7 @@ struct PercentileBandsChart: View {
         Chart(buckets) { bucket in
             BarMark(
                 x: .value("Songs", bucket.count),
-                y: .value("Placement", PlayerPercentileChartCard.label(bucket))
+                y: .value("Placement", PlayerPercentileTableCard.label(bucket))
             )
             .foregroundStyle(bucket.topPercent <= 5 ? BrandTokens.gold : BrandTokens.accentBlue)
             .cornerRadius(3)
@@ -699,7 +679,7 @@ struct PercentileDescriptor: AXChartDescriptorRepresentable {
     let instrument: Instrument
 
     func makeChartDescriptor() -> AXChartDescriptor {
-        let labels = buckets.map(PlayerPercentileChartCard.label)
+        let labels = buckets.map(PlayerPercentileTableCard.label)
         let total = buckets.reduce(0) { $0 + $1.count }
         let xAxis = AXCategoricalDataAxisDescriptor(title: "Placement", categoryOrder: labels)
         let yAxis = AXNumericDataAxisDescriptor(
@@ -709,7 +689,7 @@ struct PercentileDescriptor: AXChartDescriptorRepresentable {
         let series = AXDataSeriesDescriptor(
             name: "Songs", isContinuous: false,
             dataPoints: buckets.map {
-                AXDataPoint(x: PlayerPercentileChartCard.label($0), y: Double($0.count))
+                AXDataPoint(x: PlayerPercentileTableCard.label($0), y: Double($0.count))
             }
         )
         return AXChartDescriptor(

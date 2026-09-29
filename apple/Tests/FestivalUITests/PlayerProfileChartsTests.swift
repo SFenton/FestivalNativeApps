@@ -153,9 +153,27 @@ private func chartPixels<Content: View>(_ chart: Content) throws -> CGImage {
     #expect(nativeHostedControlPixels(image).selected > 20, "Wider bands should be accent blue")
     _ = try nativeHostedPNG(image, filename: "profile-percentiles.png", environment: "FST_PROFILE_RENDER_OUT")
 
-    #expect(try await fittedHeight(PlayerPercentileChartCard(buckets: buckets, instrument: .lead)) > 100)
-    #expect(try await fittedHeight(PlayerPercentileChartCard(buckets: [], instrument: .lead)) < 1)
-    #expect(PlayerPercentileChartCard.label(buckets[0]) == "Top 1%")
+}
+
+@MainActor
+@Test func percentileTableShowsOneRowPerBandAndHidesWhenEmpty() async throws {
+    let buckets = [
+        PlayerPercentileBucket(topPercent: 1, count: 3),
+        PlayerPercentileBucket(topPercent: 10, count: 5),
+        PlayerPercentileBucket(topPercent: 50, count: 2),
+    ]
+    let linked = PlayerPercentileTableCard(
+        buckets: buckets, instrument: .lead, linkFilter: { $0 }, onSelect: { _ in }
+    )
+    // Header plus three 44 pt rows.
+    #expect(try await fittedHeight(linked) > 150)
+    #expect(try await fittedHeight(PlayerPercentileTableCard(
+        buckets: [], instrument: .lead, linkFilter: { $0 }, onSelect: { _ in }
+    )) < 1)
+    #expect(PlayerPercentileTableCard.label(buckets[0]) == "Top 1%")
+    // Every row links to Songs filtered to its band (web `instPercentileBucketUpdater`).
+    #expect(PlayerStatLinks.percentileBucket(.lead, percentile: 10)
+        == .songs(.percentileBucket(.lead, percentile: 10)))
 }
 
 // MARK: - Accessibility and motion

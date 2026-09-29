@@ -97,9 +97,7 @@ import FestivalDesign
         StatTile(id: "global-rank", label: "Global Rank", value: "#0,000", isPlaceholder: true),
     ]
     let host = nativeHostedView(
-        FestivalGlassSection("Overview") {
-            PlayerStatGrid(tiles: tiles, scope: "overview", onSelect: { _ in })
-        }
+        PlayerStatGrid(tiles: tiles, scope: "overview", onSelect: { _ in })
         .padding(16)
         .background(BrandTokens.appBackground)
         .preferredColorScheme(.dark),

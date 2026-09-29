@@ -34,12 +34,17 @@ enum PlayerProfilePhase {
 /// the Statistics tab root for the selected player (`StatisticsScreen`) — the web
 /// renders both from the same `PlayerPage` component (`App.tsx:95-105`).
 ///
-/// Only the keyless, side-effect-free `GET /api/player/{accountId}` compact-score
-/// read is used (`FestivalSession.viewPlayer(accountId:)`). Per-instrument global
-/// ranks, the percentile table and the rank-history chart all require the
-/// player-stats GET, which `.agents/controls/profile-selection.md` documents as
-/// **not** unconditionally read-only (it can compute and store missing tiers), so
-/// this screen never calls it; those sections are left out rather than faked.
+/// Reads only pure, keyless GETs: the compact scores (`GET /api/player/{accountId}`),
+/// then, in parallel for every played visible instrument, its rankings-board row and
+/// 30-day rank history. Never the player-stats GET, which
+/// `.agents/controls/profile-selection/spec.md` documents as **not** unconditionally
+/// read-only; its stats are computed client-side.
+///
+/// Like the web `PlayerPage`, nothing but a spinner shows until those reads settle;
+/// then the page fades in and its cards stagger (operator batch 6.41), so ranks and
+/// charts never pop into a half-drawn page. Layout follows the web's flat item list:
+/// every stat is its own card; per instrument the header, the Rank History card, the
+/// stat cards and the Percentiles table card follow each other (batch 6.18/6.26).
 struct PlayerProfileContent: View {
     let session: FestivalSession
     let accountId: String
@@ -69,6 +74,10 @@ struct PlayerProfileContent: View {
     @State private var deselectPending = false
     @State private var actionError: String?
     @State private var quickLinks = QuickLinksController()
+    /// Each played instrument's ranking read, finished before the page appears.
+    @State private var rankPreloads: [Instrument: InstrumentStatsCard.Phase] = [:]
+    /// Each played instrument's rank-history read, finished before the page appears.
+    @State private var historyPreloads: [Instrument: PlayerRankHistoryCard.Phase] = [:]
     @Environment(\.deviceLayout) private var layout
     @Environment(\.playerStatNavigator) private var navigator
     @AppStorage("fst.settings.showLead") private var showLead = true
@@ -270,6 +279,12 @@ struct PlayerProfileContent: View {
                     .festivalFadeIn(isLoaded: true, index: 0)
                 overallSection(payload)
                     .festivalFadeIn(isLoaded: true, index: 1)
+                FestivalSectionHeader(
+                    "Instrument Statistics",
+                    subtitle: "A quick look at \(displayName)'s overall Festival statistics per instrument."
+                )
+                .padding(.horizontal, 4)
+                .festivalFadeIn(isLoaded: true, index: 2)
                 if layout.widthClass == .regular {
                     // Two flexible columns on a regular-width window (Duo unfolded,
                     // iPad): each instrument's stats card and charts read as one
@@ -278,20 +293,17 @@ struct PlayerProfileContent: View {
                     LazyVGrid(columns: instrumentGridColumns, alignment: .leading, spacing: 20) {
                         ForEach(Array(visibleInstruments.enumerated()), id: \.element) { index, instrument in
                             instrumentTile(payload, instrument: instrument)
-                                .festivalFadeIn(isLoaded: true, index: index + 2)
+                                .festivalFadeIn(isLoaded: true, index: index + 3)
                         }
                     }
                 } else {
                     ForEach(Array(visibleInstruments.enumerated()), id: \.element) { index, instrument in
-                        VStack(alignment: .leading, spacing: 20) {
-                            instrumentSection(payload, instrument: instrument)
-                            instrumentCharts(payload, instrument: instrument)
-                        }
-                        .festivalFadeIn(isLoaded: true, index: index + 2)
+                        instrumentTile(payload, instrument: instrument)
+                            .festivalFadeIn(isLoaded: true, index: index + 3)
                     }
                 }
                 bandsLink
-                    .festivalFadeIn(isLoaded: true, index: visibleInstruments.count + 2)
+                    .festivalFadeIn(isLoaded: true, index: visibleInstruments.count + 3)
             }
             .padding(16)
         }
@@ -438,9 +450,12 @@ struct PlayerProfileContent: View {
     private func overallSection(_ payload: PlayerProfilePayload) -> some View {
         let visible = Set(visibleInstruments)
         let stats = payload.profile.overallStats(visibleInstruments: visible)
-        FestivalGlassSection("Overview") {
-            // Web `buildOverallSummaryItems`: Songs Played and Full Combos filter Songs,
-            // Best Rank opens its song; Gold Stars and Avg Accuracy are plain.
+        // Web `buildOverallSummaryItems`: every stat its own card (no card around the
+        // grid). Songs Played and Full Combos filter Songs, Best Rank opens its song;
+        // Gold Stars and Avg Accuracy are plain.
+        VStack(alignment: .leading, spacing: 8) {
+            FestivalSectionHeader("Global Statistics")
+                .padding(.horizontal, 4)
             PlayerStatGrid(tiles: [
                 StatTile(
                     id: "songs-played", label: "Songs Played", value: stats.songsPlayed.formatted(),
@@ -475,7 +490,9 @@ struct PlayerProfileContent: View {
     private func instrumentSection(_ payload: PlayerProfilePayload, instrument: Instrument) -> some View {
         let stats = payload.profile.instrumentStats(instrument)
         // Instrument header above its card, never inside it (web `InstrumentHeader` MD).
-        VStack(alignment: .leading, spacing: 8) {
+        // Web `buildInstrumentStatsItems` order: header, (empty state), Rank History
+        // card, one card per stat, then the Percentiles table card.
+        VStack(alignment: .leading, spacing: 12) {
             InstrumentSectionHeader(instrument, size: .medium)
             if stats.songsPlayed == 0 {
                 FestivalGlassSection {
@@ -483,11 +500,24 @@ struct PlayerProfileContent: View {
                         .accessibilityIdentifier("fst.player.instrument-empty.\(instrument.rawValue)")
                 }
             } else {
+                if !DualSourcePolicy.isActive(layout) {
+                    PlayerRankHistoryCard(
+                        session: session, accountId: accountId, instrument: instrument,
+                        preloaded: historyPreloads[instrument]
+                    )
+                }
                 InstrumentStatsCard(
                     session: session, accountId: accountId, instrument: instrument,
                     tiles: instrumentTiles(payload, stats: stats),
+                    preloaded: rankPreloads[instrument],
                     linkFilter: tileLink, onSelect: open
                 )
+                if !DualSourcePolicy.isActive(layout) {
+                    PlayerPercentileTableCard(
+                        buckets: payload.profile.percentileBuckets(instrument), instrument: instrument,
+                        linkFilter: tileLink, onSelect: open
+                    )
+                }
             }
         }
         // `.contain` first, or the identifier replaces every tile's own.
@@ -499,8 +529,8 @@ struct PlayerProfileContent: View {
     }
 
     /// The web `buildInstrumentStatsItems` tiles before its rank cards, in its order:
-    /// Songs Played and FCs (filter Songs), star counts (non-zero only; plain, since
-    /// native Songs has no stars filter yet), Avg Accuracy, Avg Stars, Best Rank (song).
+    /// Songs Played and FCs (filter Songs), star counts (non-zero only; Songs stars
+    /// filter + Stars sort), Avg Accuracy, Avg Stars, Best Rank (song).
     ///
     /// - Parameters:
     ///   - payload: Current validated profile read.
@@ -526,7 +556,8 @@ struct PlayerProfileContent: View {
         tiles += stars.countCards.map { card in
             StatTile(
                 id: "stars-\(card.stars)", label: card.label, value: card.count.formatted(),
-                tint: card.stars == 6 ? BrandTokens.gold : nil
+                tint: card.stars == 6 ? BrandTokens.gold : nil,
+                link: tileLink(PlayerStatLinks.instrumentStars(instrument, starKey: card.stars))
             )
         }
         tiles += [
@@ -546,38 +577,15 @@ struct PlayerProfileContent: View {
         [GridItem(.flexible(), spacing: 20), GridItem(.flexible(), spacing: 20)]
     }
 
-    /// One dashboard tile: an instrument's stats card followed by its charts,
-    /// grouped so the regular-width grid places both in the same column together.
+    /// One instrument's block: header, Rank History, stat cards and Percentiles (each
+    /// its own card). Split around the Duo fold, the graphs live in the bottom region.
     ///
     /// - Parameters:
     ///   - payload: Current validated profile read.
     ///   - instrument: Settings-visible solo chart.
     @ViewBuilder
     private func instrumentTile(_ payload: PlayerProfilePayload, instrument: Instrument) -> some View {
-        VStack(alignment: .leading, spacing: 20) {
-            instrumentSection(payload, instrument: instrument)
-            instrumentCharts(payload, instrument: instrument)
-        }
-    }
-
-    // MARK: Graphs
-
-    /// The instrument's rank-history and percentile graphs, as separate glass cards
-    /// after its stats card (`PlayerProfileCharts.swift`); none for an unplayed chart,
-    /// matching the web's empty-instrument block.
-    ///
-    /// - Parameters:
-    ///   - payload: Current validated profile read.
-    ///   - instrument: Settings-visible solo chart.
-    @ViewBuilder
-    private func instrumentCharts(_ payload: PlayerProfilePayload, instrument: Instrument) -> some View {
-        // Split around the Duo fold, the graphs live in the bottom region instead.
-        if !DualSourcePolicy.isActive(layout), payload.profile.instrumentStats(instrument).songsPlayed > 0 {
-            PlayerRankHistoryCard(session: session, accountId: accountId, instrument: instrument)
-            PlayerPercentileChartCard(
-                buckets: payload.profile.percentileBuckets(instrument), instrument: instrument
-            )
-        }
+        instrumentSection(payload, instrument: instrument)
     }
 
     // MARK: Bands
@@ -631,13 +639,24 @@ struct PlayerProfileContent: View {
 
     // MARK: Load
 
-    /// Read the public profile without selecting or persisting it.
+    /// Read the public profile without selecting or persisting it, then (in parallel)
+    /// every played visible instrument's ranking and rank history, and only then show
+    /// the page (web `PlayerPage` `dataReady`).
     private func load() async {
         phase = .loading
         do {
             let payload = try await session.viewPlayer(accountId: accountId)
             try Task.checkCancellation()
-            phase = payload.state == .syncing ? .syncing : .available(payload)
+            guard payload.state != .syncing else {
+                phase = .syncing
+                return
+            }
+            let played = visibleInstruments.filter { payload.profile.instrumentStats($0).songsPlayed > 0 }
+            let extras = await ProfileExtrasLoader.load(session: session, accountId: accountId, instruments: played)
+            try Task.checkCancellation()
+            rankPreloads = extras.ranks
+            historyPreloads = extras.histories
+            phase = .available(payload)
         } catch is CancellationError {
             return
         } catch let error as URLError where error.code == .cancelled {

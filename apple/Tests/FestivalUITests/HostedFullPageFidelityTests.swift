@@ -62,7 +62,7 @@ import Testing
     let image = try await nativeHostedSettle(
         // Stat tiles are single accessibility elements labelled in Title Case (their
         // caption is only drawn uppercase).
-        host, untilText: ["Fixture Player 1", "Overview", "Songs Played", "Avg Accuracy"]
+        host, untilText: ["Fixture Player 1", "Global Statistics", "Songs Played", "Avg Accuracy"]
     )
     _ = try nativeHostedPNG(image, filename: "player-profile.png", environment: "FST_PROFILE_RENDER_OUT")
     assertRendersContent(

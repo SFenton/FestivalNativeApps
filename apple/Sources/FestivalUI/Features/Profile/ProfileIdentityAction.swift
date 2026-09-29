@@ -54,6 +54,9 @@ enum ProfileIdentityAction: Hashable {
 
     /// Select and Switch are the page's primary action; Deselect is secondary.
     var isProminent: Bool { self != .deselect }
+
+    /// Deselect is drawn red, like the web's danger button.
+    var isDestructive: Bool { self == .deselect }
 }
 
 // MARK: - Header button
@@ -75,24 +78,23 @@ struct ProfileIdentityToolbarItem: ToolbarContent {
         }
     }
 
-    /// A short text button: prominent (accent) for Select/Switch, plain for Deselect.
+    /// A short text button: prominent accent blue for Select/Switch, prominent red for
+    /// Deselect (web `btnDanger`, `Colors.statusRed`, white text; operator batch 6.18).
     @ViewBuilder private var button: some View {
         let base = Button {
             perform(action)
         } label: {
             Text(action.shortTitle)
                 .font(.body.weight(.semibold))
+                .foregroundStyle(isEnabled ? Color.white : FestivalText.disabled)
         }
         .accessibilityLabel(action.title)
         // A distinct identifier while disabled, so journeys waiting for the action
         // never tap the placeholder.
         .accessibilityIdentifier(isEnabled ? action.accessibilityIdentifier : action.accessibilityIdentifier + ".pending")
         .disabled(!isEnabled)
-        if action.isProminent {
-            base.buttonStyle(.borderedProminent).tint(BrandTokens.accentBlue)
-        } else {
-            base.tint(FestivalText.primary)
-        }
+        base.buttonStyle(.borderedProminent)
+            .tint(action.isDestructive ? BrandTokens.statusRed : BrandTokens.accentBlue)
     }
 
     private var placement: ToolbarItemPlacement {

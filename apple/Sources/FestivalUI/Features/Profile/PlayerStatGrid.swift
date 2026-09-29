@@ -25,8 +25,9 @@ struct StatTile: Identifiable {
 
 // MARK: - Grid
 
-/// Stat tiles in an adaptive grid: two columns on iPhone, three or four as the card
-/// widens (``StatGridColumns``). Clickable tiles show an in-tile chevron.
+/// Stat tiles in an adaptive grid: two columns on iPhone, three or four as the page
+/// widens (``StatGridColumns``). Every tile is its own glass card (web `StatBox` in a
+/// `frostedCard`); clickable tiles show an in-tile chevron.
 ///
 /// A custom `Layout`, not a `LazyVGrid`: it reads the proposed width in the same layout
 /// pass, so the first frame already has its final column count and row heights (no
@@ -132,7 +133,7 @@ struct PlayerStatTileView: View {
             .accessibilityIdentifier(identifier)
         } else {
             content(showsChevron: false)
-                .background(StatTileBackground(isPressed: false))
+                .modifier(StatTileSurface(isPressed: false))
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(tile.label)
                 .accessibilityValue(spokenValue)
@@ -174,7 +175,7 @@ struct PlayerStatTileView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.vertical, 10)
+        .padding(.vertical, 14)
         .padding(.horizontal, 22)
         .overlay(alignment: .trailing) {
             if showsChevron {
@@ -185,7 +186,7 @@ struct PlayerStatTileView: View {
                     .accessibilityHidden(true)
             }
         }
-        .contentShape(RoundedRectangle(cornerRadius: StatTileBackground.cornerRadius))
+        .contentShape(RoundedRectangle(cornerRadius: StatTileSurface.cornerRadius))
     }
 
     /// VoiceOver hint naming where a tile goes.
@@ -201,14 +202,21 @@ struct PlayerStatTileView: View {
     }
 }
 
-/// Flat tile fill inside the instrument's glass card (never glass on glass).
-struct StatTileBackground: View {
+/// Each tile is its own glass card, like the web's one `frostedCard` per `StatBox`
+/// (operator batch 6: no big card around the grid). Pressed, a 4% white wash (web
+/// `clickablePressed`).
+struct StatTileSurface: ViewModifier {
     static let cornerRadius: CGFloat = 14
     let isPressed: Bool
 
-    var body: some View {
-        RoundedRectangle(cornerRadius: Self.cornerRadius)
-            .fill(Color.white.opacity(isPressed ? 0.12 : 0.05))
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
+                    .fill(Color.white.opacity(isPressed ? 0.06 : 0))
+                    .allowsHitTesting(false)
+            }
+            .festivalGlass(.card, cornerRadius: Self.cornerRadius)
     }
 }
 
@@ -216,7 +224,7 @@ struct StatTileBackground: View {
 struct StatTileButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .background(StatTileBackground(isPressed: configuration.isPressed))
+            .modifier(StatTileSurface(isPressed: configuration.isPressed))
             .scaleEffect(configuration.isPressed ? 0.985 : 1)
             .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
     }
