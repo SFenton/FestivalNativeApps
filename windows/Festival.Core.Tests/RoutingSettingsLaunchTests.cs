@@ -318,6 +318,10 @@ public class LaunchAndBackgroundTests
             Assert.InRange(p.ToScale, 1.0, 1.18);
             Assert.InRange(Math.Max(Math.Max(Math.Abs(p.FromX), Math.Abs(p.ToX)), Math.Max(Math.Abs(p.FromY), Math.Abs(p.ToY))), 0, 18);
         });
+        // Web MOTION_PRESETS, drawn like CSS scale() translate(): the pan moves the scaled layer.
+        Assert.Equal(new MotionPreset(1.18, 1.18, 18, 0, -18, 0), ArtworkCarousel.Presets[2]);
+        Assert.Equal(21.24, ArtworkCarousel.Presets[2].VisualFrom.X, 6);
+        Assert.Equal(16.52, ArtworkCarousel.Presets[7].VisualTo.Y, 6);
         Assert.Equal((5.0, 1.0, 6.0, 0.7), (ArtworkCarousel.Dwell.TotalSeconds, ArtworkCarousel.Crossfade.TotalSeconds, ArtworkCarousel.Drift.TotalSeconds, ArtworkCarousel.DimOpacity));
     }
 }

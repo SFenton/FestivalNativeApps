@@ -50,7 +50,14 @@ public static class ArtworkPlaybackPolicy
 /// <param name="FromY">Start Y offset.</param>
 /// <param name="ToX">End X offset (|x| ≤ 18).</param>
 /// <param name="ToY">End Y offset (|y| ≤ 18).</param>
-public readonly record struct MotionPreset(double FromScale, double ToScale, double FromX, double FromY, double ToX, double ToY);
+public readonly record struct MotionPreset(double FromScale, double ToScale, double FromX, double FromY, double ToX, double ToY)
+{
+    /// <summary>Start offset as drawn: CSS <c>scale(s) translate(x, y)</c> moves the scaled layer by s·x, s·y.</summary>
+    public (double X, double Y) VisualFrom => (FromX * FromScale, FromY * FromScale);
+
+    /// <summary>End offset as drawn (see <see cref="VisualFrom"/>).</summary>
+    public (double X, double Y) VisualTo => (ToX * ToScale, ToY * ToScale);
+}
 #endregion
 
 #region Carousel
@@ -73,19 +80,19 @@ public sealed class ArtworkCarousel
     /// <summary>Failures tolerated per pool before rotation stops.</summary>
     public const int FailureBudget = 5;
 
-    /// <summary>Ten zoom/pan presets.</summary>
+    /// <summary>The web's ten zoom/pan presets (<c>AnimatedBackground.tsx</c> <c>MOTION_PRESETS</c>, PWA gap 18).</summary>
     public static IReadOnlyList<MotionPreset> Presets { get; } =
     [
-        new(1.00, 1.12, 0, 0, -12, -8),
-        new(1.12, 1.00, -12, 8, 0, 0),
-        new(1.04, 1.16, 10, 0, -10, 0),
-        new(1.16, 1.04, 0, -14, 0, 14),
-        new(1.02, 1.18, -18, 0, 12, -6),
-        new(1.10, 1.02, 14, 10, -6, -4),
-        new(1.00, 1.10, 0, 12, 0, -12),
-        new(1.18, 1.06, 8, -8, -8, 8),
-        new(1.06, 1.14, -8, -12, 16, 6),
-        new(1.08, 1.00, 18, -4, 0, 0),
+        new(1.00, 1.12, 0, 0, 0, 0), // Zoom in
+        new(1.12, 1.00, 0, 0, 0, 0), // Zoom out
+        new(1.18, 1.18, 18, 0, -18, 0), // Pan left
+        new(1.18, 1.18, -18, 0, 18, 0), // Pan right
+        new(1.18, 1.18, 0, 18, 0, -18), // Pan up
+        new(1.18, 1.18, 0, -18, 0, 18), // Pan down
+        new(1.18, 1.18, -14, -14, 14, 14), // Diagonal ↘
+        new(1.18, 1.18, 14, -14, -14, 14), // Diagonal ↙
+        new(1.18, 1.18, -14, 14, 14, -14), // Diagonal ↗
+        new(1.18, 1.18, 14, 14, -14, -14), // Diagonal ↖
     ];
 
     private readonly List<string> covers;

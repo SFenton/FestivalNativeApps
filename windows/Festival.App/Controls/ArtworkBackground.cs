@@ -239,8 +239,10 @@ public sealed partial class ArtworkBackground : Grid
             incoming.StartAnimation("Scale", scale);
 
             var offset = compositor.CreateVector3KeyFrameAnimation();
-            offset.InsertKeyFrame(0, baseOffset + new Vector3((float)preset.FromX, (float)preset.FromY, 0));
-            offset.InsertKeyFrame(1, baseOffset + new Vector3((float)preset.ToX, (float)preset.ToY, 0), DriftEasing());
+            var (fromX, fromY) = preset.VisualFrom;
+            var (toX, toY) = preset.VisualTo;
+            offset.InsertKeyFrame(0, baseOffset + new Vector3((float)fromX, (float)fromY, 0));
+            offset.InsertKeyFrame(1, baseOffset + new Vector3((float)toX, (float)toY, 0), DriftEasing());
             offset.Duration = ArtworkCarousel.Drift;
             incoming.StartAnimation("Offset", offset);
         }

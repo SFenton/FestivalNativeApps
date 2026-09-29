@@ -7,7 +7,7 @@
 - One `ArtworkBackground` (a `Grid` hosting a child `ContainerVisual`) sits behind the section frames inside the `NavigationView` content area, so tab switches and pushes never restart it.
 - Visual tree: two carousel `SpriteVisual` slots, one song-cover sprite, one black dim sprite (0.7). Slots **and the dim sprite** are oversized by a 24 px bleed so ≤18 px pans never show an edge and DPI rounding of the host size can never leave an undimmed row or column.
 - Every 5 s a `DispatcherQueueTimer` loads the next cover (bounded byte cache → `LoadedImageSurface` decoded at ≤1024 px) and crossfades it in above the old slot. The old surface is disposed after the fade.
-- Motion is `KeyFrameAnimation`s on the composition thread: opacity crossfade (1 s, 60 steps/s) and zoom/pan drift (6 s, one of ten presets, **30 steps/s**). The step easing lets the compositor skip frames where nothing changed, so the cost doesn't scale with the display refresh rate. `--drift-fps N` overrides (0 = continuous).
+- Motion is `KeyFrameAnimation`s on the composition thread: opacity crossfade (1 s, 60 steps/s) and zoom/pan drift (6 s, one of the web's ten `MOTION_PRESETS`, translation scaled like CSS `scale() translate()`, **30 steps/s**). The step easing lets the compositor skip frames where nothing changed, so the cost doesn't scale with the display refresh rate. `--drift-fps N` overrides (0 = continuous).
 - Song Detail: `ShowSong` fades the static cover in (0.5 s, opacity only) and freezes the carousel (animations stopped at their current frame); returning starts the next crossfade and drift at once. Motion is stopped rather than `AnimationController.Pause`d, so an unseen window holds no running composition animation.
 
 ## Policy (`ArtworkPlaybackPolicy`)

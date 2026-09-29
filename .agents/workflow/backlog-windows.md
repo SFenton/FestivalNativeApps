@@ -7,16 +7,22 @@
 | Item | Source | Notes |
 |---|---|---|
 | Operator Narrator walkthrough (script in [windows.md](../testing/windows.md)); contrast-theme status/chip colour decision | win-a11y | Needs the operator |
-| Band rank history is still a list → combined bar+line chart with paging | win-polish | |
-| Leaderboards wide preset: 4 Axe viewport-edge clipping findings | win-polish | Clean at 1440×880/920 |
-| Notification badge at real 100% / 200% DPI | win-chrome | Only 150% verified |
-| GlobalSearch test flaked once under load | win-polish | |
-| `contracts/product.json` still lists `fst.song-detail.shop-badge` | win-polish | Chip removed |
-| Songs section headers now scroll away (win-pwa); operator wants **sticky headers with no rows visible beneath** | Operator batch 5 | |
-| Leaderboards Spotlight still shows a "Loading your rank…" caption | win-pwa | Remove caption |
-| First-run demos approximate the web's; What's New launch-order UIA journey | win-pwa | |
-| PWA gaps 18–19: background motion curve/route art swap; route entrance motion parity | win-pwa | |
-| Release/AOT journey pass for the new pages | win-pwa | |
-| Two populated columns (list + detail with an auto-selected first/last item) when the window is wide enough — Songs, Rankings, Rivals; never an empty detail pane | Operator 2026-09-28 | Mirrors Android foldables/Duo/iPad |
-| Expanded NavigationView pane: consider the Android rule — no app title in the pane header, first item aligned with page content top, transparent pane over the animated background | Operator 2026-09-28 (Android tablet) | Cross-platform check |
+| Notification badge at real 100% / 200% DPI | win-chrome | Only 150% verified; the host has no 100%/200% display (needs a monitor or remote session at that scale) |
 
+## Done
+
+| Item | Where |
+|---|---|
+| Band rank history chart (bar + line, paging) | win-shell2 |
+| Leaderboards wide preset Axe clipping | win-next a11y pass ([windows-accessibility](../testing/windows-accessibility.md)) |
+| GlobalSearch players-freeze flake | win-next `ad9cad99`: status reported before the state settles |
+| Stale `fst.song-detail.shop-badge` in `contracts/product.json` | win-next `6a4a1033` |
+| Sticky Songs section headers without show-through | win-shell2 |
+| Leaderboards Spotlight "Loading your rank…" caption | win-polish (ring only; UIA name kept) |
+| First-run demos; What's New launch-order journey | win-pwa / win-shell2 (`tools/windows/journeys/whats-new.json`) |
+| PWA gaps 18–19 (background presets, entrance motion) | win-next (web `MOTION_PRESETS`) / win-polish (`FadeIn`) |
+| Release/AOT journey pass for the new pages | win-shell2 `65525206` |
+| Two populated columns: Songs, Full Rankings, Band Rankings, All Rivals | win-shell2 / win-next `070f4ea0` (Rivals hub: masonry columns) |
+| Expanded NavigationView pane (no title in the pane, first item aligned with the page title, transparent) | Verified 2026-09-29 (no repro) |
+| Web-parity Songs filter (6.32 / 7.17) | win-next `cd06f0b1` |
+| Paths journeys after `7f45f884` | win-next `cd06f0b1`, `6a4a1033` |
