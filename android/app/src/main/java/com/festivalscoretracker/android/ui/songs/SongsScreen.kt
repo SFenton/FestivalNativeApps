@@ -39,7 +39,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -88,6 +88,7 @@ import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.Song
 import com.festivalscoretracker.android.core.songs.SongFilterDraft
 import com.festivalscoretracker.android.core.songs.SongListHeader
+import com.festivalscoretracker.android.core.songs.SongRowModel
 import com.festivalscoretracker.android.core.songs.SongSection
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.SongsUiState
@@ -146,8 +147,9 @@ fun SongsScreen(
     val listed = state.catalog is LoadState.Loaded && !state.invalidSavedFilter
     val leading = 1 + state.notices.size
     val linkSections = remember(state.headers, listed) { if (listed) state.headers.map { it.quickLink } else emptyList() }
+    // Headers are their own (sticky) items, so a header's list index counts the headers before it.
     val quickLinks = rememberQuickLinks(listState, state.quickLinksTitle, linkSections) { id ->
-        state.headers.firstOrNull { it.id == id }?.let { leading + it.firstIndex }
+        state.headers.indexOfFirst { it.id == id }.takeIf { it >= 0 }?.let { ordinal -> leading + state.headers[ordinal].firstIndex + ordinal }
     }
     val density = LocalDensity.current
     val windowWidthDp = with(density) { currentWindowSize().width.toDp().value.toInt() }
@@ -306,7 +308,6 @@ private fun SongList(
     onWarning: (InvalidScoreWarning) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    val headersByIndex = remember(state.headers) { state.headers.associateBy { it.firstIndex } }
     val leading = 1 + state.notices.size
     val showIndex = state.sections.size > 1
     val pulse = rememberShopPulse(active = state.rows.any { it.pulse != null || it.warning != null })
@@ -336,13 +337,22 @@ private fun SongList(
             }
             // Web full-page EmptyState, vertically centred in the viewport (6.33).
             if (state.rows.isEmpty()) festivalEmptyStateItem(state.emptyMessage, subtitle = "Try adjusting your search or filters.", tag = "fst.songs.empty")
-            itemsIndexed(state.rows, key = { _, row -> row.song.songId }, contentType = { _, _ -> "song" }) { index, row ->
-                Column {
-                    headersByIndex[index]?.let { BucketHeader(it) }
-                    SongRow(
-                        row, artworkUrl(row.song.albumArt), selected = row.song.songId == selectedSongId, pulse = pulse, breathe = breathe,
-                        onWarning = row.warning?.let { shown -> { onWarning(shown) } },
-                    ) { onSongClick(row.song) }
+            val songRow: @Composable (SongRowModel) -> Unit = { row ->
+                SongRow(
+                    row, artworkUrl(row.song.albumArt), selected = row.song.songId == selectedSongId, pulse = pulse, breathe = breathe,
+                    onWarning = row.warning?.let { shown -> { onWarning(shown) } },
+                ) { onSongClick(row.song) }
+            }
+            if (state.headers.isEmpty()) {
+                items(state.rows, key = { it.song.songId }, contentType = { "song" }) { songRow(it) }
+            } else {
+                // Bucket headers stick under the top bar on an opaque strip, so rows never show through.
+                val first = state.headers.first().firstIndex
+                if (first > 0) items(state.rows.subList(0, first), key = { it.song.songId }, contentType = { "song" }) { songRow(it) }
+                state.headers.forEachIndexed { ordinal, header ->
+                    val end = state.headers.getOrNull(ordinal + 1)?.firstIndex ?: state.rows.size
+                    stickyHeader(key = "header:${header.id}", contentType = "header") { BucketHeader(header) }
+                    items(state.rows.subList(header.firstIndex, end), key = { it.song.songId }, contentType = { "song" }) { songRow(it) }
                 }
             }
         }
@@ -442,8 +452,18 @@ private fun currentSection(listState: LazyListState, sections: List<SongSection>
 
 @Composable
 private fun BucketHeader(header: SongListHeader) {
-    SectionHeader(header.label, Modifier.testTag(header.testTag).semantics { contentDescription = header.spoken })
+    SectionHeader(
+        header.label,
+        Modifier
+            .background(STICKY_HEADER_BACKGROUND)
+            .padding(horizontal = 4.dp)
+            .testTag(header.testTag)
+            .semantics { contentDescription = header.spoken },
+    )
 }
+
+/** Opaque strip behind a stuck bucket header (the frosted surface without translucency). */
+private val STICKY_HEADER_BACKGROUND = Color(0xFF121826)
 
 @Composable
 private fun Notice(text: String, index: Int) {
