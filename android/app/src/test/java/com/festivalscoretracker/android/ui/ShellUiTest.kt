@@ -2,6 +2,7 @@ package com.festivalscoretracker.android.ui
 
 import android.os.Looper
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
@@ -150,7 +151,8 @@ class ShellUiTest {
         rule.onNodeWithTag("fst.nav.tab.suggestions").assertIsDisplayed()
         rule.onNodeWithTag("fst.nav.tab.compete").assertIsDisplayed()
         rule.onNodeWithTag("fst.nav.tab.statistics").assertIsDisplayed()
-        rule.onNodeWithContentDescription("Profile: Synthetic Player").assertIsDisplayed()
+        // The top-bar avatar (the closed drawer's profile row carries the same label).
+        rule.onNodeWithTag("fst.nav.profile").assertIsDisplayed().assert(hasContentDescription("Profile: Synthetic Player"))
         rule.onNodeWithTag("fst.songs.filter.open").performClick()
         settle()
         // Phone sheet: the Instrument Selector is compact; ‹ previews Pro Drums, the centre commits it.

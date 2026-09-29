@@ -38,6 +38,10 @@ import com.festivalscoretracker.android.core.shell.DrawerEntry
 import com.festivalscoretracker.android.core.shell.DrawerPolicy
 import com.festivalscoretracker.android.core.shell.DrawerTarget
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import com.festivalscoretracker.android.ui.common.oneLineUnlessLarge
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 
 // region Drawer
 
@@ -110,11 +114,14 @@ fun DrawerContent(
         if (player != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) {
-                    DrawerItem(player.displayName, Icons.Outlined.Person, tag = "fst.nav.drawer.player") {
+                    DrawerItem(player.displayName, Icons.Outlined.Person, tag = "fst.nav.drawer.player", spokenLabel = "Profile: ${player.displayName}") {
                         open(DrawerPolicy.target(DrawerEntry.Statistics, visible))
                     }
                 }
-                TextButton(onClick = onDeselect, modifier = Modifier.heightIn(min = 48.dp).testTag("fst.nav.drawer.deselect")) { Text("Deselect") }
+                TextButton(
+                    onClick = onDeselect,
+                    modifier = Modifier.heightIn(min = 48.dp).testTag("fst.nav.drawer.deselect").semantics { contentDescription = "Deselect profile" },
+                ) { Text("Deselect", Modifier.clearAndSetSemantics { }) }
             }
         } else {
             DrawerItem("Select Profile", Icons.Outlined.PersonAdd, tag = "fst.nav.drawer.select-profile", onClick = onOpenProfile)
@@ -141,10 +148,23 @@ private fun DrawerEntry.icon(): ImageVector = section?.icon() ?: Icons.Outlined.
 private fun DrawerEntry.tag(tabTags: Boolean): String =
     section?.takeIf { tabTags }?.let { "fst.nav.tab.${it.name.lowercase()}" } ?: "fst.nav.drawer.${name.lowercase()}"
 
+/**
+ * One drawer row.
+ *
+ * @param label Visible text (wraps at large font scales).
+ * @param spokenLabel TalkBack label replacing [label] ("Profile: <name>"), or null to read [label].
+ */
 @Composable
-private fun DrawerItem(label: String, icon: ImageVector, selected: Boolean = false, tag: String, onClick: () -> Unit) {
+private fun DrawerItem(label: String, icon: ImageVector, selected: Boolean = false, tag: String, spokenLabel: String? = null, onClick: () -> Unit) {
     NavigationDrawerItem(
-        label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        label = {
+            Text(
+                label,
+                maxLines = oneLineUnlessLarge(),
+                overflow = TextOverflow.Ellipsis,
+                modifier = if (spokenLabel != null) Modifier.clearAndSetSemantics { contentDescription = spokenLabel } else Modifier,
+            )
+        },
         icon = { Icon(icon, contentDescription = null) },
         selected = selected,
         onClick = onClick,
