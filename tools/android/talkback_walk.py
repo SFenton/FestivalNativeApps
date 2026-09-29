@@ -176,12 +176,20 @@ def markdown(name: str, items: list[str]) -> str:
 # region Walk
 
 
-def prepare_talkback(dev: device.Device) -> tuple[str, str]:
+def prepare_talkback(dev: device.Device, avd: str) -> tuple[str, str]:
     """Verbose TalkBack logging, the key chord and swipe frames on the device.
 
+    On an AVD where TalkBack never ran, its preferences file does not exist yet:
+    TalkBack is switched on and off once to create it before the log level is set.
     Returns the keyboard's event path and the root script that swipes right.
     """
     prefs = dev.shell(f"su 0 cat {TALKBACK_PREFS}", check=False)
+    if "<map>" not in prefs:
+        device.run_step(dev, avd, "talkback", "on")
+        time.sleep(5)
+        device.run_step(dev, avd, "talkback", "off")
+        time.sleep(1)
+        prefs = dev.shell(f"su 0 cat {TALKBACK_PREFS}", check=False)
     if "<map>" in prefs and 'name="pref_log_level">2<' not in prefs:
         with tempfile.TemporaryDirectory() as tmp:
             local = Path(tmp) / "prefs.xml"
@@ -275,7 +283,7 @@ def run(args: argparse.Namespace) -> int:
     with device._lock(args, f"talkback-walk {args.name} {args.avd}") as lock:
         dev = device._booted(args, lock)
         device._prepare(dev, args)
-        keyboard, swipe = prepare_talkback(dev)
+        keyboard, swipe = prepare_talkback(dev, args.avd)
         if not args.no_launch:
             device._launch(dev, args)
             time.sleep(args.wait)
