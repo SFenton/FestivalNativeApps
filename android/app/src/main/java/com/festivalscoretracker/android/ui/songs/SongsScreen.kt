@@ -1,22 +1,11 @@
 package com.festivalscoretracker.android.ui.songs
 
-import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.adaptive.currentWindowSize
-import androidx.compose.ui.platform.LocalDensity
-import com.festivalscoretracker.android.core.songs.InvalidScoreWarning
-import com.festivalscoretracker.android.core.songs.SongSortDraft
-import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
-import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
-import com.festivalscoretracker.android.ui.settings.rememberHingeSplit
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -31,6 +20,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -48,13 +38,16 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.adaptive.currentWindowSize
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -65,18 +58,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -86,19 +83,26 @@ import coil3.SingletonImageLoader
 import coil3.request.ImageRequest
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.Song
+import com.festivalscoretracker.android.core.songs.InvalidScoreWarning
 import com.festivalscoretracker.android.core.songs.SongFilterDraft
 import com.festivalscoretracker.android.core.songs.SongListHeader
 import com.festivalscoretracker.android.core.songs.SongRowModel
 import com.festivalscoretracker.android.core.songs.SongSection
+import com.festivalscoretracker.android.core.songs.SongSortDraft
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.SongsUiState
 import com.festivalscoretracker.android.presentation.SongsViewModel
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LoadingView
-import com.festivalscoretracker.android.ui.common.festivalEmptyStateItem
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
+import com.festivalscoretracker.android.ui.common.festivalEmptyStateItem
+import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.SectionHeader
+import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
+import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
+import com.festivalscoretracker.android.ui.settings.rememberHingeSplit
+import com.festivalscoretracker.android.ui.shell.RegisterPageFind
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import kotlinx.coroutines.async
@@ -319,6 +323,15 @@ private fun SongList(
         if (lastShape != null && lastShape != shape) listState.scrollToItem(0)
         lastShape = shape
     }
+    // Ctrl+F focuses the Songs filter (it is the list's first item, so bring it back first).
+    val findFocus = remember { FocusRequester() }
+    RegisterPageFind {
+        scope.launch {
+            listState.scrollToItem(0)
+            withFrameNanos { }
+            runCatching { findFocus.requestFocus() }
+        }
+    }
     Box(Modifier.fillMaxSize()) {
         LazyColumn(
             state = listState,
@@ -331,7 +344,7 @@ private fun SongList(
             verticalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier.fillMaxSize().testTag("fst.songs.list"),
         ) {
-            item(key = "search", contentType = "search") { SearchField(search, onSearchChange) }
+            item(key = "search", contentType = "search") { SearchField(search, onSearchChange, findFocus) }
             state.notices.forEachIndexed { index, notice ->
                 item(key = "notice-$index", contentType = "notice") { Notice(notice, index) }
             }
@@ -476,7 +489,7 @@ private fun Notice(text: String, index: Int) {
 }
 
 @Composable
-private fun SearchField(value: String, onChange: (String) -> Unit) {
+private fun SearchField(value: String, onChange: (String) -> Unit, focus: FocusRequester) {
     TextField(
         value = value,
         onValueChange = onChange,
@@ -497,7 +510,7 @@ private fun SearchField(value: String, onChange: (String) -> Unit) {
             focusedTextColor = BrandTokens.textPrimary,
             unfocusedTextColor = BrandTokens.textPrimary,
         ),
-        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).testTag("fst.songs.search"),
+        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).focusRequester(focus).testTag("fst.songs.search"),
     )
 }
 

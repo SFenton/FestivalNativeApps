@@ -1,6 +1,5 @@
 package com.festivalscoretracker.android.ui.songdetail
 
-import com.festivalscoretracker.android.core.model.LeaderboardEntry
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -14,6 +13,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.festivalscoretracker.android.AppContainer
 import com.festivalscoretracker.android.core.model.Instrument
+import com.festivalscoretracker.android.core.model.LeaderboardEntry
 import com.festivalscoretracker.android.core.model.Song
 import com.festivalscoretracker.android.core.paths.PathCapability
 import com.festivalscoretracker.android.core.settings.AppSettings
@@ -27,8 +27,8 @@ import com.festivalscoretracker.android.data.paths.pathImage
 import com.festivalscoretracker.android.data.songs.leaderboardPage
 import com.festivalscoretracker.android.data.songs.songScoreHistory
 import com.festivalscoretracker.android.presentation.LoadState
-import com.festivalscoretracker.android.presentation.SongDetailViewModel
 import com.festivalscoretracker.android.presentation.ShellViewModel
+import com.festivalscoretracker.android.presentation.SongDetailViewModel
 import com.festivalscoretracker.android.presentation.profile.SelectedProfileState
 import com.festivalscoretracker.android.presentation.songs.InvalidScoreContext
 import com.festivalscoretracker.android.presentation.songs.SongPathsViewModel

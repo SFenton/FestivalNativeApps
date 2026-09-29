@@ -118,6 +118,24 @@ class ProfileParityCoreTest {
     }
 
     @Test
+    fun overThresholdPresetMatchesTheWebUpdater() {
+        val current = SongsFilterState(
+            filter = SongFilter(Instrument.Bass),
+            playerFilter = SongPlayerScoreFilter(hasScores = setOf(Instrument.Lead, Instrument.Drums), excludedSeasons = setOf(3)),
+            sort = SongSortMode.Year,
+            ascending = true,
+        )
+        // instOverThresholdUpdater: that chart, its checks cleaned, Over CHOpt Threshold on, Score descending.
+        val over = SongsPreset.OverThreshold(Instrument.Lead).apply(current)
+        assertEquals(SongFilter(Instrument.Lead), over.filter)
+        assertEquals(setOf(Instrument.Lead), over.playerFilter.overThreshold)
+        assertEquals(setOf(Instrument.Drums), over.playerFilter.hasScores)
+        assertEquals(emptySet<Int>(), over.playerFilter.excludedSeasons)
+        assertEquals(SongSortMode.Score, over.sort)
+        assertFalse(over.ascending)
+    }
+
+    @Test
     fun starPercentileAndBucketPresetsMatchTheWebUpdaters() {
         val current = SongsFilterState(
             filter = SongFilter(Instrument.Bass),

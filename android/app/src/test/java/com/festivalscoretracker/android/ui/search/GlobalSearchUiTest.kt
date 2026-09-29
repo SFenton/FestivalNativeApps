@@ -1,5 +1,8 @@
 package com.festivalscoretracker.android.ui.search
 
+import com.festivalscoretracker.android.core.nav.FestivalSection
+import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.assertIsFocused
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
@@ -230,7 +233,7 @@ class GlobalSearchUiTest {
 
     @Test
     fun keyboardShortcutsAndDebugLaunchOpenSearch() {
-        h.launch(DebugLaunch(stillBackground = true, searchQuery = "alpha", searchScope = SearchScope.Songs))
+        h.launch(DebugLaunch(section = FestivalSection.Settings, stillBackground = true, searchQuery = "alpha", searchScope = SearchScope.Songs))
         h.waitForTag(GlobalSearchTags.RESULT_SONG)
         rule.onNodeWithTag(GlobalSearchTags.scope(SearchScope.Songs)).assertIsSelected()
         rule.onNodeWithTag(GlobalSearchTags.CLOSE).performClick()
@@ -242,6 +245,18 @@ class GlobalSearchUiTest {
         // Ctrl+F with no page find registered falls back to global search.
         rule.runOnIdle { assertTrue(h.shortcuts.dispatch(ShellShortcut.FindInPage)) }
         h.waitForTag(GlobalSearchTags.SURFACE)
+    }
+
+    @Test
+    fun findInPageFocusesTheSongsFilter() {
+        h.launch()
+        h.waitForTag("fst.songs.search")
+        rule.onNodeWithTag("fst.songs.list").performScrollToIndex(3)
+        h.settle()
+        rule.runOnIdle { assertTrue(h.shortcuts.dispatch(ShellShortcut.FindInPage)) }
+        h.waitForTag("fst.songs.search")
+        rule.onNodeWithTag("fst.songs.search").assertIsFocused()
+        assertTrue(rule.onAllNodesWithTag(GlobalSearchTags.SURFACE).fetchSemanticsNodes().isEmpty())
     }
 
     @Test

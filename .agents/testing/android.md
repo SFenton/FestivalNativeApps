@@ -53,6 +53,7 @@
 
 | Last measured | Logic lines | UI lines | Tests |
 |---|---|---|---|
+| master after and-next Song Detail (2026-09-29) | 97.9% | 94.6% | JVM + Robolectric, 666 tests (`SongHistoryCard.kt` 96.7%) |
 | master after and-polish (2026-09-28) | 97.9% | 94.0% | JVM + Robolectric (all lanes) |
 
 - Posture evidence: `tools/android/search_journey.py` drives every FST AVD/posture against a path-logging fixture (screenshots in `android/reports/screenshots/search-*`, `shell-*`).

@@ -3,6 +3,8 @@ package com.festivalscoretracker.android.core.profile
 import com.festivalscoretracker.android.core.model.FestivalApiException
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.ProfileSearchText
+import com.festivalscoretracker.android.core.model.Song
+import com.festivalscoretracker.android.core.songs.InvalidScorePolicy
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -379,6 +381,20 @@ object PlayerStatistics {
         val rows = profile.scores.filter { it.instrument in visible }
         return aggregate(rows, rows.map { it.songId }.toSet().size)
     }
+
+    /**
+     * Raw scores over the CHOpt threshold on one chart (web `overThresholdCount` client
+     * fallback: `score > 0 && !isScoreValid`). Player stats tiers are a blocked read, so
+     * natives always count from the profile.
+     *
+     * @param profile Player profile.
+     * @param instrument Chart.
+     * @param songs Catalogue by ID (CHOpt maxima).
+     * @param leeway Filter Invalid Scores leeway percent.
+     * @return Count.
+     */
+    fun overThresholdCount(profile: PlayerProfileResponse, instrument: Instrument, songs: Map<String, Song>, leeway: Double): Int =
+        profile.scores.count { it.instrument == instrument && it.score > 0 && !InvalidScorePolicy.isValid(it, songs[it.songId], instrument, leeway) }
 
     /**
      * One chart's summary.

@@ -89,7 +89,8 @@ Not shown. The web adds Adjusted/Weighted/FC Rate/Max Score rank tiles only when
 
 ## Gaps
 
-- No Over CHOpt Threshold tile yet (needs the Filter Invalid Scores thresholds on this page); Song Detail opens without the web's `?instrument=` focus (Songs lane route).
+- **Over CHOpt Threshold** tile (web `overThresholdCount`): only while Filter Invalid Scores is on and the count is non-zero, after FCs, red; counted client-side from the profile and catalogue maxima (`PlayerStatistics.overThresholdCount`; the stats tiers the web prefers come from the blocked player-stats read). Tap → Songs on that chart with Over CHOpt Threshold checked, Score descending (`SongsPreset.OverThreshold`, web `instOverThresholdUpdater`).
+- Best Rank tiles and top-song rows open Song Detail with the web `?instrument=` focus (`SongDetailRoute(songId, instrument)`).
 - No family (pad/pro strings/pro drums) Global Statistics cards or embedded player bands: both need player-stats (blocked, [service-safety](../../platforms/service-safety.md)).
 - Rank History has no instrument picker (each card is one chart) and no metric picker; stats ignore the invalid-score leeway filter (as before).
 - Web behaviour was taken from source: the production web player page itself calls player-stats and sync-status, so it is not captured from the installed PWA.

@@ -30,9 +30,7 @@ data class SongsFilterState(
 
 /**
  * A stat tile's Songs filter (web `playerFilterHelpers.ts` and the `*Updater`s in
- * `OverallSummarySection.tsx`/`InstrumentStatsSection.tsx`). Only the presets whose
- * filters the Android Songs page supports exist; the CHOpt-threshold preset waits for
- * the Filter Invalid Scores tile (its count needs the invalid-score thresholds).
+ * `OverallSummarySection.tsx`/`InstrumentStatsSection.tsx`).
  */
 sealed interface SongsPreset {
     /**
@@ -72,6 +70,22 @@ sealed interface SongsPreset {
                 ascending = true,
             )
         }
+    }
+
+    /**
+     * An instrument's "Over CHOpt Threshold" tile (Filter Invalid Scores only): that chart
+     * only, its checks cleared, then Over CHOpt Threshold set, sorted by Score descending
+     * (web `instOverThresholdUpdater`).
+     *
+     * @property instrument Chart.
+     */
+    data class OverThreshold(val instrument: Instrument) : SongsPreset {
+        override fun apply(current: SongsFilterState): SongsFilterState = current.copy(
+            filter = SongFilter(instrument = instrument),
+            playerFilter = cleaned(current.playerFilter, instrument).with(SongScoreFilterKind.OverThreshold, instrument, true),
+            sort = SongSortMode.Score,
+            ascending = false,
+        )
     }
 
     /**

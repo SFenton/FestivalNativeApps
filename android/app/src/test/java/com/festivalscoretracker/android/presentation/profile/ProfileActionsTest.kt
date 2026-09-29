@@ -7,6 +7,7 @@ import com.festivalscoretracker.android.core.model.Song
 import com.festivalscoretracker.android.core.nav.FullRankingsRoute
 import com.festivalscoretracker.android.core.nav.SongDetailRoute
 import com.festivalscoretracker.android.core.nav.SongsTab
+import com.festivalscoretracker.android.core.profile.StatTints
 import com.festivalscoretracker.android.core.profile.PlayerInstrumentRanking
 import com.festivalscoretracker.android.core.profile.PlayerInstrumentRankingPayload
 import com.festivalscoretracker.android.core.profile.PlayerProfilePayload
@@ -50,6 +51,7 @@ class ProfileActionsTest {
     private var header: Int? = 7
     private var catalogFailure: Exception? = null
     private var catalogReads = 0
+    private var leadMaximum: Int? = null
     private var bandsFailure: Exception? = null
     private val bandReads = mutableListOf<String>()
     private val presets = mutableListOf<SongsPreset>()
@@ -78,7 +80,7 @@ class ProfileActionsTest {
         catalog = {
             catalogReads++
             catalogFailure?.let { throw it }
-            listOf(Song("s-alpha", "Alpha Song", "Alpha Artist", year = 2021, albumArt = "alpha.jpg"))
+            listOf(Song("s-alpha", "Alpha Song", "Alpha Artist", year = 2021, albumArt = "alpha.jpg", maxScores = leadMaximum?.let { mapOf("Solo_Guitar" to it) }))
         },
         bands = { account ->
             bandReads += account
@@ -106,6 +108,30 @@ class ProfileActionsTest {
     }
 
     private val lead = SongsPreset.ForInstrument(SongScoreFilterKind.HasScores, Instrument.Lead)
+
+    @Test
+    fun overThresholdTileFollowsFilterInvalidScores() = runTest(main.dispatcher) {
+        // Alpha Lead scores 90,000 on an 86,000 CHOpt maximum (+1% leeway = 86,860): over threshold.
+        leadMaximum = 86_000
+        val vm = viewModel(this, Fixtures.ACCOUNT_A)
+        advanceUntilIdle()
+        fun lead() = vm.state.value.instruments.first { it.instrument == Instrument.Lead }.stats
+        assertTrue(lead().none { it.id == "over-threshold" })
+        settings.value = settings.value?.copy(filterInvalidScores = true)
+        advanceUntilIdle()
+        val tile = lead().first { it.id == "over-threshold" }
+        assertEquals("Over CHOpt Threshold", tile.label)
+        assertEquals("1", tile.value)
+        assertEquals(StatTints.RED, tile.tint)
+        assertEquals(PlayerTileAction.FilterSongs(SongsPreset.OverThreshold(Instrument.Lead)), tile.action)
+        // Web order: after FCs, before the star tiles. Bass (no maximum) gets no tile.
+        assertEquals(listOf("songs-played", "full-combos", "over-threshold"), lead().take(3).map { it.id })
+        assertTrue(vm.state.value.instruments.first { it.instrument == Instrument.Bass }.stats.none { it.id == "over-threshold" })
+        // A leeway wide enough to accept the score drops the tile again.
+        settings.value = settings.value?.copy(leeway = 5.0)
+        advanceUntilIdle()
+        assertTrue(lead().none { it.id == "over-threshold" })
+    }
 
     @Test
     fun tilesCarryTheWebActions() = runTest(main.dispatcher) {

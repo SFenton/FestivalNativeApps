@@ -369,7 +369,7 @@ class PlayerProfileViewModel(
     private val bandsLoad = MutableStateFlow<BandsLoad?>(null)
     private val sectionJobs = mutableMapOf<String, Job>()
     private var sectionKey: String? = null
-    private var memo: Pair<Triple<PlayerProfileResponse, Set<Instrument>, Int>, Pair<List<PlayerStatTile>, List<PlayerInstrumentSection>>>? = null
+    private var memo: Pair<SectionsKey, Pair<List<PlayerStatTile>, List<PlayerInstrumentSection>>>? = null
     private var topMemo: Triple<PlayerProfileResponse, Set<Instrument>, Pair<Map<String, Song>, List<PlayerTopSongs>>>? = null
     private val catalog = MutableStateFlow<Map<String, Song>>(emptyMap())
     private var catalogJob: Job? = null
@@ -686,7 +686,8 @@ class PlayerProfileViewModel(
         val visible = current?.visibleInstruments ?: Instrument.entries.toSet()
         val profile = payload?.profile?.takeIf { phase == ProfilePhase.Loaded }
         if (profile != null) ensureCatalog()
-        val (overview, instruments) = if (profile != null) sections(profile, visible, songs.size) else emptyList<PlayerStatTile>() to emptyList()
+        val leeway = current?.leeway?.takeIf { current.filterInvalidScores }
+        val (overview, instruments) = if (profile != null) sections(SectionsKey(profile, visible, songs, leeway)) else emptyList<PlayerStatTile>() to emptyList()
         val topSongs = if (profile != null) topSongs(profile, visible, songs) else emptyList()
         return PlayerProfileUiState(account, name, isSelected, phase, identity, overview, instruments, error, topSongs)
     }
@@ -701,8 +702,20 @@ class PlayerProfileViewModel(
         bandsLoad.value = null
     }
 
-    private fun sections(profile: PlayerProfileResponse, visible: Set<Instrument>, totalSongs: Int): Pair<List<PlayerStatTile>, List<PlayerInstrumentSection>> {
-        memo?.let { (key, result) -> if (key.first === profile && key.second == visible && key.third == totalSongs) return result }
+    /**
+     * What the stat sections are built from (memo key).
+     *
+     * @property profile Loaded profile.
+     * @property visible Settings-visible charts.
+     * @property songs Catalogue (total songs, CHOpt maxima).
+     * @property leeway Filter Invalid Scores leeway, or null when off (no Over CHOpt Threshold tiles).
+     */
+    private data class SectionsKey(val profile: PlayerProfileResponse, val visible: Set<Instrument>, val songs: Map<String, Song>, val leeway: Double?)
+
+    private fun sections(key: SectionsKey): Pair<List<PlayerStatTile>, List<PlayerInstrumentSection>> {
+        memo?.let { (last, result) -> if (last.profile === key.profile && last.visible == key.visible && last.songs === key.songs && last.leeway == key.leeway) return result }
+        val (profile, visible, songs, leeway) = key
+        val totalSongs = songs.size
         val stats = PlayerStatistics.overall(profile, visible)
         // Web `buildOverallSummaryItems`.
         val overview = listOf(
@@ -729,7 +742,7 @@ class PlayerProfileViewModel(
             PlayerInstrumentSection(
                 instrument = instrument,
                 hasScores = chart.songsPlayed > 0,
-                stats = instrumentTiles(chart, instrument, totalSongs),
+                stats = instrumentTiles(chart, instrument, totalSongs, leeway?.let { PlayerStatistics.overThresholdCount(profile, instrument, songs, it) }),
                 percentiles = PlayerStatistics.percentileBuckets(profile, instrument).map { bucket ->
                     PercentileRow(bucket, PlayerTileAction.FilterSongs(SongsPreset.PercentileBucket(instrument, bucket.topPercent)))
                 },
@@ -737,12 +750,16 @@ class PlayerProfileViewModel(
             )
         }
         val result = overview to instruments
-        memo = Triple(profile, visible, totalSongs) to result
+        memo = key to result
         return result
     }
 
-    /** Web `buildInstrumentStatsItems` tiles before the rank card, in its order. */
-    private fun instrumentTiles(chart: PlayerStats, instrument: Instrument, totalSongs: Int): List<PlayerStatTile> = buildList {
+    /**
+     * Web `buildInstrumentStatsItems` tiles before the rank card, in its order.
+     *
+     * @param overThreshold Scores over the CHOpt threshold (Filter Invalid Scores on), else null.
+     */
+    private fun instrumentTiles(chart: PlayerStats, instrument: Instrument, totalSongs: Int, overThreshold: Int?): List<PlayerStatTile> = buildList {
         add(
             PlayerStatTile(
                 "songs-played",
@@ -761,6 +778,17 @@ class PlayerProfileViewModel(
                     tint = StatTints.GOLD.takeIf { chart.allFullCombos },
                     action = PlayerTileAction.FilterSongs(SongsPreset.ForInstrument(SongScoreFilterKind.HasFCs, instrument)),
                     spokenLabel = "Full Combos",
+                ),
+            )
+        }
+        if (overThreshold != null && overThreshold > 0) {
+            add(
+                PlayerStatTile(
+                    "over-threshold",
+                    "Over CHOpt Threshold",
+                    ProfileFormatting.count(overThreshold.toLong()),
+                    tint = StatTints.RED,
+                    action = PlayerTileAction.FilterSongs(SongsPreset.OverThreshold(instrument)),
                 ),
             )
         }
