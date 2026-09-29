@@ -59,6 +59,30 @@ final class WhatsNewJourneyTests: XCTestCase {
         XCTAssertTrue(close.waitForNonExistence(timeout: 10))
     }
 
+    /// Operator batch 6 (6.14): the full-height What's New closes when its list is pulled
+    /// down past the top and released, and Dismiss is horizontally centred.
+    @MainActor
+    func testWhatsNewPullDownDismisses() throws {
+        continueAfterFailure = false
+        let app = app(["FST_DEBUG_TAB": "settings"])
+        app.launch()
+        let row = app.buttons["fst.settings.whats-new"]
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 20))
+        SongsUITestSupport.reveal(row, in: app, scrollingUp: true)
+        row.tap()
+        let dismiss = app.buttons["fst.whats-new.dismiss"]
+        XCTAssertTrue(dismiss.waitForExistence(timeout: 10))
+        let window = app.windows.firstMatch.frame
+        XCTAssertEqual(dismiss.frame.midX, window.midX, accuracy: 2, "Dismiss is centred")
+        SongsUITestSupport.record(app, name: "whats-new-settings-replay")
+        let start = app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+        start.press(
+            forDuration: 0.05,
+            thenDragTo: app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85))
+        )
+        XCTAssertTrue(dismiss.waitForNonExistence(timeout: 10), "Pulling down did not dismiss")
+    }
+
     /// Service Info shows the fixture's idle worker and last publication; the First Run Guides
     /// rows follow the web order with "Score History".
     @MainActor

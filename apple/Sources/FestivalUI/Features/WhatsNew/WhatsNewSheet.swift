@@ -13,6 +13,8 @@ import FestivalDesign
 /// behind it, and the background is opaque. Dismiss sits in an opaque bottom bar
 /// (`safeAreaInset(.bottom)` over `cardBackground` with a hairline), so the list scrolls
 /// **above** it and never shows beneath it. Close stays in the standard toolbar position.
+/// A full-screen cover has no system swipe-to-dismiss, so pulling the list down past its top
+/// and letting go dismisses it too (operator batch 6, item 6.14; iOS 18+).
 struct WhatsNewSheet: View {
     /// App version shown after the title, like the web's `What's New · 0.1.133`.
     let version: String
@@ -35,6 +37,7 @@ struct WhatsNewSheet: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 12)
             }
+            .modifier(PullDownToDismiss(action: onDismiss))
             .safeAreaInset(edge: .bottom, spacing: 0) { dismissBar }
             .background(BrandTokens.cardBackground)
             .navigationTitle(Self.title(version: version))
@@ -87,6 +90,54 @@ struct WhatsNewSheet: View {
     /// - Returns: Title text.
     static func title(version: String) -> String {
         version.isEmpty ? "What's New" : "What's New · \(version)"
+    }
+}
+
+// MARK: - Pull down to dismiss
+
+/// Dismiss when a scroll view is pulled down past its top by ``threshold`` points and
+/// released, standing in for the swipe-down a sheet gets for free.
+///
+/// Uses iOS/macOS 18 scroll geometry and phase observation; a no-op before that, where Close
+/// and Dismiss remain.
+struct PullDownToDismiss: ViewModifier {
+    /// Overscroll distance that counts as a deliberate pull.
+    static let threshold: CGFloat = 80
+
+    let action: () -> Void
+    @State private var maxPull: CGFloat = 0
+    @State private var fired = false
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, macOS 15.0, *) {
+            content
+                .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                    -(geometry.contentOffset.y + geometry.contentInsets.top)
+                } action: { _, pull in
+                    maxPull = max(maxPull, pull)
+                }
+                .onScrollPhaseChange { oldPhase, newPhase in
+                    if newPhase == .interacting {
+                        maxPull = 0
+                    } else if oldPhase == .interacting {
+                        if Self.shouldDismiss(pull: maxPull), !fired {
+                            fired = true
+                            action()
+                        }
+                        maxPull = 0
+                    }
+                }
+        } else {
+            content
+        }
+    }
+
+    /// Whether a released pull dismisses.
+    ///
+    /// - Parameter pull: Largest overscroll above the top during the drag, in points.
+    /// - Returns: True at or past ``threshold``.
+    static func shouldDismiss(pull: CGFloat) -> Bool {
+        pull >= threshold
     }
 }
 
