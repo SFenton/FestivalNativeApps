@@ -31,6 +31,10 @@
 7. **Sheets apply immediately.** Songs Filter and Sort have no Cancel/Apply: every change applies, and a trailing **Done** closes the standard `festivalSheet` modal.
 8. The tab bar does not minimize on scroll (`.never` was needed only for the accessory; nothing collapses it now).
 
+9. **Header legibility:** every page gets `TopEdgeScrim` (`Common/Chrome/PageChrome.swift`): iOS 26 `scrollEdgeEffectStyle(.soft, for: .top)` plus a dark gradient behind the bar region over the artwork (the gradient alone before 26). Collapsed inline titles are 20 pt semibold, Dynamic Type scaled (`NavigationTitleStyle`).
+10. **Bell only with a selected profile**; Search and the avatar always show. On a 375 pt-wide iPhone a tab root carries at most drawer + page action + Search + bell + avatar; titles collapse inline beside them rather than truncating (large titles sit below the bar).
+11. **Sheets open at the large detent** (`festivalSheet`, both presets); `.compact` can still be dragged down to medium.
+
 ## Decisions per page
 
 | Page | Header (iPhone) | Floating tools (iPhone) | Duo vertical bar, iPad, Mac |

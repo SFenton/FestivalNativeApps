@@ -12,7 +12,7 @@
 
 Operator (2026-09-28): "Global search button should be in header" (web: the header has search + profile). Earlier passes put Search in the tab-bar accessory; that was withdrawn.
 
-`GlobalSearchSheet`: full-height sheet, inline title "Search", `.searchable` drawer field focused on open, scope bar, trailing Close. `.searchPresentationToolbarBehavior(.avoidHidingContent)` (iOS 17.1+) keeps the title and Close visible while the field is active (operator bug: they disappeared). A result closes the sheet, then pushes on the presenting section (Back returns there).
+`GlobalSearchSheet`: large sheet, inline title "Search", trailing Close, then its own `GlobalSearchField` (`fst.global-search.field`: magnifier, text, inline clear; focused on open) and the scope bar; the hint or "No results found." is centred in the space below. Not `.searchable`: while active it hid the sheet's title and Close and added a second X beside the field (operator bugs). A result closes the sheet, then pushes on the presenting section (Back returns there).
 
 ### Why not the system search tab or the accessory
 
