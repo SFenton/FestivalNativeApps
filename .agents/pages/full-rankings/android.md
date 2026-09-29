@@ -7,8 +7,8 @@
 - `FullRankingsRoute(instrument, rankBy, page)` (defaults `totalscore`, page 1; unknown values fall back). 25-row pages of `GET /api/rankings/{instrument}?rankBy=&page=&pageSize=25`; page count `ceil(totalAccounts / 25)` (≥ 1); an out-of-range page is corrected once totals arrive; a newer request cancels an older one so a superseded page never lands.
 - **Route follows the board** (spec native correction): `SyncRouteArguments` writes the current instrument, metric and page back into the back-stack entry's `SavedStateHandle`, and the entry is decoded with `savedStateHandle.toRoute()`, so Back to the board and a recreated entry (process death) restore the same page. Debug deep link: `fullRankings:<instrument>[:<page>]`.
 - Title "<Instrument> Leaderboards" (web `renderPageTitle`) with "N ranked players" above the rows (android-gaps #15); the instrument (current chart icon → menu of Settings-visible charts plus the current one) and Rank By (sort icon → metric menu) are **screen actions** (`TopBarChoiceAction`; the instrument icon is 24 dp, the same height as the Rank By glyph). Switching either returns to page 1 and shows the skeleton; paging keeps the previous page visible under a progress bar.
-- Selected player: highlighted in place and scrolled into view when on the page; otherwise an anchored "your rank" card above the pager from the per-instrument own-row read, with **Your Page** (`LeaderboardPaging.pageForRank`) — a native addition, the web footer only links to the profile. Loading, "Not yet ranked" and inline-failure states in the same card.
-- Shared pager (`RankingsPager`, android-gaps #13): a floating pill « ‹ page / total › » (four 48 dp buttons, polite live region "Page 2 of 34,760"); « and » drop below 360 dp. Rows are one line like the overview and fade in per page (`festivalFadeIn`).
+- Selected player: highlighted in place (bold, 6.42) and scrolled into view when on the page; otherwise the web's fixed player footer: their full-width row (opening the profile) in an anchored card above the pager, from the per-instrument own-row read, in the same measured columns and inset as the rows (operator 7.9; the earlier native **Your Page** button was dropped because it narrowed the row). Loading, "Not yet ranked" and inline-failure states in the same card. Rows have hairline separators (6.5) and chevrons (7.3).
+- Shared pager (`RankingsPager`, android-gaps #13, operator 6.30/7.4): the web `Paginator` — separate frosted 48 dp circle buttons « ‹ › » around a frosted "page / total" pill (polite live region "Page 2 of 34,760"); « and » drop below 400 dp windows. The Rank History charts use the same buttons. Rows are one line like the overview and fade in per page (`festivalFadeIn`).
 - Anonymous rows: "Unknown User", not interactive ([spec live quirk](spec.md#live-data-quirk-2026-09-28)).
 
 ## Control placement (decision, 2026-09-28)
@@ -27,7 +27,7 @@
 
 ## IDs
 
-`fst.full-rankings.list`, `.population`, `.instrument-menu` (items `.instrument-menu.<n>`), `.bottom-bar` (anchored footer + pager), `.supporting-pane` (hinge only), `.pager`, `.page-first|page-previous|page-info|page-next|page-last`, `.spotlight-footer`, `.spotlight-footer.loading`, `.spotlight-footer.unranked`, `.spotlight-jump`, shared `fst.rankings.rank-by-menu` (items `fst.rankings.rank-by.<metric>`), `fst.rankings.row.<accountId>`.
+`fst.full-rankings.list`, `.population`, `.instrument-menu` (items `.instrument-menu.<n>`), `.bottom-bar` (anchored footer + pager), `.supporting-pane` (hinge only), `.pager`, `.page-first|page-previous|page-info|page-next|page-last`, `.spotlight-footer`, `.spotlight-footer.loading`, `.spotlight-footer.unranked`, shared `fst.rankings.rank-by-menu` (items `fst.rankings.rank-by.<metric>`), `fst.rankings.row.<accountId>`.
 
 ## Open
 

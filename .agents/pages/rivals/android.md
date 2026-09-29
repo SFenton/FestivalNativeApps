@@ -13,7 +13,7 @@
 
 - Reads are **unpinned** (`FestivalApi.readUnpinned` + `ServiceEndpoint.Feature(pinned = false)`, like Apple's `fetchJSON`): Rivals is outside the catalogue publication contract. Rules: [service-safety](../../platforms/service-safety.md).
 - `RivalsRepository` (`AppContainer.rivals`) caches successes in-process for 120 s (the service `max-age`, 64 entries); failures are never cached. Several detail scopes are read concurrently and merged (web `fetchCombinedRivalDetail`); one failing scope still shows the rest.
-- A 503 freeze uses the shared `RetryingLoader`: inline countdown per card, full-page `ServiceStatusView` when every read of the tab failed.
+- A 503 freeze uses the shared `RetryingLoader`: inline countdown per card, full-page `ServiceStatusView` when every read of the tab failed. A read already loaded in the last 10 minutes keeps showing when a newer one is refused by a freeze or 503 (`RivalsRepository.STALE_MILLIS`, operator 7.13; the web keeps a loaded rival through its query cache); first reads and bad data still show the error.
 
 ## Typed scope (no navigation state)
 
@@ -32,7 +32,7 @@ Native correction: the web sends the Settings combo for **every** Song Rivals ro
 
 ## Layout
 
-- Hub (`RivalsTab` at ≥ 600 dp, `RivalsRoute` from the drawer): `PrimaryTabRow` Song Rivals / Leaderboard Rivals (leaderboard reads start on first selection), toolbar Find Rival + Quick Links (`Explore`, jumps to a card). Cards: Common, Combined/Pro Drums Family, then one per visible chart; 3 above + 3 below, See All + "View all rivals". Loaded-empty cards are removed; everything empty → web empty copy.
+- Hub (`RivalsTab` at ≥ 600 dp, `RivalsRoute` from the drawer): `PrimaryTabRow` Song Rivals / Leaderboard Rivals (leaderboard reads start on first selection), toolbar Find Rival + Quick Links (`Explore`, jumps to a card). Cards: Common, Combined/Pro Drums Family, then one per visible chart; 3 above + 3 below, **See All** (bold white with a chevron, shared `SeeAllButton`, 6.22) + the shared purple **View All Rivals** button (6.29). Rival rows truncate names with an ellipsis like the web `RivalRow` (never a marquee, 7.14) and end with an in-card chevron when navigable (7.3). Loaded-empty cards are removed; everything empty → web empty copy.
 - Rows: 4 dp win/lose tint bar, name (anonymous → "Unknown User", not tappable), shared songs, "N songs ahead / N songs behind" pills (web `RivalRow`). One merged TalkBack label with an explicit click action.
 - `AdaptiveCardGrid` (`ui/rivals`): `LazyVerticalStaggeredGrid` with ≥ 360 dp columns (1–3; lists 1–2). With a separating vertical hinge (book/passport half-open) exactly two columns meet at the hinge (`HingeColumns`, unit-tested), so no card straddles the fold. Only WindowManager hinge bounds and the grid's window position are used.
 - Rival Detail: "You vs. Name" + web `rivals.detail.summary`, category cards (5 songs, sentiment-tinted headings, See All → Rivalry), toolbar View Profile + Quick Links. Rivalry: category songs with a native sort menu (Default, Closest Gap, Your/Their Biggest Leads, Title).

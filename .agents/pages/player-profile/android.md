@@ -15,29 +15,31 @@ Never player-stats: overview/instrument stats and percentile buckets are compute
 ## Selected vs viewed
 
 - `SelectedProfileStore` (`AppContainer.selectedProfile`, started by `FestivalApp`) owns the selected player's process-only scores: it reloads on a switch or a publication advance, clears on deselect, drops late reads for a previous account and counts down a scrape freeze. Songs and Suggestions read `state.scoreIndex` + `observedPublicationId` instead of reading again.
-- The page mirrors the store when the shown account is the selected one, else runs its own read. Select seeds the store from the same read (no second GET) and persists through `ShellViewModel.selectPlayer`; Deselect keeps showing the read as a viewed profile.
+- The page mirrors the store when the shown account is the selected one, else runs its own read. Select seeds the store from the same read (no second GET) and persists through `ShellViewModel.selectPlayer`; a deselect (from the drawer) keeps showing the read as a viewed profile.
 
 | Read state | Header |
 |---|---|
-| Selected account | **Deselect Profile** → `AlertDialog` |
+| Selected account | Nothing: Deselect lives in the navigation drawer like the web sidebar (operator 7.12) |
 | Header-verified and current, nothing selected | **Select Profile**, immediate |
 | Another player selected | **Switch to This Profile** → confirmation |
 | No `X-FST-Publication-Id` | "Selection is paused" notice |
 | Publication advanced since the read | "Reload this page before selecting" notice |
 
-None of these navigate. Selecting adds the profile tabs in place; deselecting on the Statistics tab removes that tab, so the shell falls back to Songs (as on Windows).
+None of these navigate. Selecting adds the profile tabs in place; deselecting (drawer) on the Statistics tab removes that tab, so the shell falls back to Songs (as on Windows).
 
 ## Layout
 
 - `ProfileGrid` (`ui/profile/ProfileGrid.kt`): a `LazyVerticalStaggeredGrid` whose columns come from `ProfileColumns` (`core/profile/ProfileLayout.kt`, reusing the Rivals lane's `HingeColumns`): one column per 340 dp (max 3), or one column per panel with the gaps on every separating vertical hinge (book fold half-open; a partly folded tri-fold). When split at a fold, the full-width rows (header, Overview, Top Songs heading, Bands) become single-lane so nothing straddles the hinge; flat folds (unfolded book, FST_TriFold) are not separating and use width rules.
 - Rows (`ProfileSections.rows`, web `PlayerContent.tsx` order): header, Overview, one card per Settings-visible chart, "Top Songs Per Instrument", one top-songs card per chart, Bands link.
-- Header: avatar and name only — selection state shows only through the Select/Switch/Deselect control (the web header has no "This Is Me"/"Public Profile" line).
+- Header: avatar and name only — selection state shows only through the Select/Switch control (the web header has no "This Is Me"/"Public Profile" line).
 - Text is white (`textPrimary`/onSurface) by default; gray (`textSecondary`/`textMuted`) only for de-emphasis: section descriptions, top-song subtitles, history dates, chart axes.
 - Stars use the web's images (`res/drawable-nodpi/star_white.png`, `star_gold.png`) through the shared `ui/design/StarRating` (score-history rows; the "Avg Stars" tile shows five gold stars at a perfect 6, else two trimmed decimals, web `formatClamped2`).
 - Instrument header (icon + name) sits **above** its card, never inside (instrument stats and top songs).
-- Instrument card: stat tiles (`FlowRow`: Songs Played, Full Combos, Gold Stars, 5 Stars, Avg Accuracy, Avg Stars, Best Rank), Global Rank, Rank History (below), Percentiles (horizontal bars, top 5% gold).
+- Separate cards like the web (operator 6.18/6.26, 7.5; never a card inside a card): every stat is its own frosted card (`ui/profile/ProfileStatGrid.kt`, web `StatBox`: value over an uppercase label, centred, chevron on clickable tiles only) in a grid of `StatGridColumns` (2 columns on phones, 3–4 as it widens, rows share their tallest tile's height; Apple AP3). Per chart, in web `buildInstrumentStatsItems` order: header, **Rank History** card, tiles (Songs Played, FCs if > 0, non-zero Gold/5…1 Stars, Avg Accuracy, Avg Stars, Best {Chart} Song Rank, Total Score Rank, Percentile, Songs Played percentile), then the **percentile table** card (web `PlayerPercentileTable`: "PERCENTILE | SONGS" header, "Top N%" pills, hairline row separators). Overview tiles: Songs Played, Full Combos, Gold Stars, Avg Accuracy, Best Song Rank.
+- Tile colours (`StatTints`, web `StatBox` `color`): default #4C7DFF; Songs Played green when every catalogue song is played; FCs gold at 100%; Gold Stars gold; Avg Accuracy red→green (`accuracyColor`), gold at 100% with every chart full-combed; Percentile tiles gold for "Top 1–5%". Percentile (`overallPercentile`: unplayed catalogue songs count as last place) and Songs Played percentile (`avgPercentile`) are web `playerStats.ts` over the compact scores and the in-process catalogue size.
+- Fixed-size loading placeholders (Apple AP3): the Total Score Rank tile is always in the grid (redacted "#0,000" while loading, "—" when unranked or failed, with an inline retry below the grid); the Rank History card holds a 300 dp spinner block until its read lands (no card when the chart has no ranked snapshot, as on the web).
 - Content fades in as it loads, like the web's `FadeIn`, with the shared `ui/common/FadeInOnLoad.kt`: rows use `festivalFadeIn(rememberRevealed(loaded), fadeInStagger(index))` (hoisted above the phase switch so they see the loading → loaded frame); Global Rank tiles, the Rank History chart and band cards fade when their own reads land; score-history subtitle, chart and rows stagger the same way. Instant under Remove animations. Rank and history reads start in the card's `LaunchedEffect`, so unrealized cards read nothing; unplayed charts show a footnote and read nothing.
-- **Rank History** (`ui/profile/RankHistoryCard.kt`, web `RankHistoryChart` + `GraphCard` + `useChartPagination`): one chart with Total Score bars coloured by rank (`rankColor`: red→green by `1 - rank/field`, 80% opacity) and the rank line + dots (#4C7DFF) on the web's padded reversed domain (`getRankHistoryDomain`), score axis left, rank axis right, legend. `RankHistoryWindow` (pure) shows the bars that fit (40 dp slots; the web's 96 px slots beside two axes leave phones one bar); swipe the plot or use ◀◀ ◀ ▶ ▶▶ ("Back one page", "Back one entry", "Forward one entry", "Forward one page", 48 dp) to move; tap a bar to select it (details card, polite live region), tap again to clear; with a selection the buttons move the selection. The five newest snapshots are listed below (newest highlighted). Total Score only (see Experimental metrics).
+- **Rank History** (`ui/profile/RankHistoryCard.kt`, web `RankHistoryChart` + `GraphCard` + `useChartPagination`): its own card with the web's "Rank History" title and hint inside, Total Score bars coloured by rank (`rankColor`: red→green by `1 - rank/field`, 80% opacity) and the rank line + dots (#4C7DFF), score axis left, rank axis right, legend. Axes are the web's Recharts axes (`core/profile/ChartScale.kt`, a port of `recharts-scale`): the rank axis is the fixed domain `getRankHistoryDomain` reversed with whole-number `getTickValuesFixedDomain` ticks — a constant rank is a single-valued domain, one tick and the line through the middle (operator 6.25: SFentonX Lead at #4 every day used to draw "#4" as the top edge); the value axis is `[0, auto]` with `getNiceTickValues` (≈104.8M → 0/30M/60M/90M/120M, labels as web `formatValueTick`). `RankHistoryWindow` (pure) shows the bars that fit in 96 dp slots + 8 dp gaps (web `MIN_BAR_WIDTH`/`BAR_GAP`; two bars on a phone); swipe the plot or use the frosted ◀◀ ◀ ▶ ▶▶ pager (shared with the boards, 48 dp) to move; tap a bar to select it (details card, polite live region), tap again to clear; with a selection the buttons move the selection. The five newest snapshots are listed below without a heading (web). Total Score only (see Experimental metrics).
 - Charts draw `ChartGeometry` output (`core/profile/PlayerCharts.kt`: bar widths/rects, point and label positions) with no logic in the draw lambdas and no per-frame work; each chart is one accessibility element carrying the trend summary.
 
 ## Quick Links
@@ -59,10 +61,13 @@ Tiles carry `PlayerTileAction` (web `StatBox.onClick`); `PlayerProfileViewModel.
 | Tile | Action (web source) |
 |---|---|
 | Overview Songs Played / Full Combos | Reset Songs filters, Title ascending, Has Scores / Has FCs on every visible chart (`songsPlayedUpdater`, `fullCombosUpdater`) |
-| Chart Songs Played / Full Combos (FCs > 0) | That chart only, its checks (incl. Over CHOpt Threshold) and difficulty cleared, then Has Scores / Has FCs, Score ascending; other charts' checks and the Shop filter kept (`cleanFilters` + `instSongsPlayedUpdater`/`instFCsUpdater`) |
-| Best Rank (overview and chart) | Song Detail (`navigateToSongDetail`) |
-| Global Rank (Total Score) | Full Rankings, Total Score (`navigateToLeaderboard`; no page jump yet) |
-| Gold/5 Stars, Avg Accuracy, Avg Stars | Flat: the web's star presets need a Songs stars filter (not ported); Avg Accuracy/Avg Stars are flat on the web too |
+| Chart Songs Played / FCs (FCs > 0) | That chart only, web `cleanFilters` (`SongPlayerScoreFilter.cleanedFor`: its checks, difficulty and every season/percentile/stars bucket cleared; other charts' checks and the Shop filter kept), then Has Scores / Has FCs, Score ascending (`instSongsPlayedUpdater`/`instFCsUpdater`) |
+| Gold / 5…1 Stars | That chart, cleaned, only that star bucket, Stars ascending (`instStarsUpdater`) |
+| Percentile / Songs Played percentile | That chart, cleaned (the second also Has Scores), Percentile ascending (`instPercentileUpdater` / `instPercentileWithScoresUpdater`) |
+| Percentile table row | That chart, cleaned, only that bucket, sort kept, ascending (`instPercentileBucketUpdater`, operator 6.35) |
+| Best Song Rank (overview and chart) | Song Detail (`navigateToSongDetail`) |
+| Total Score Rank | Full Rankings, Total Score, on the page holding the rank (`navigateToLeaderboard` + `getLeaderboardPageForRank`) |
+| Gold Stars (overview), Avg Accuracy, Avg Stars | Flat, as on the web |
 
 Presets are written through the Songs lane's stores (`data/profile/ProfileSongsPresets.kt`: `SongsPreferences.setFilters` + `SettingsRepository.setSongSort`), then the shell switches to the Songs tab (a tab-root route now selects the tab instead of pushing a copy). While selection is paused (unverified/changed publication) Songs tiles are flat; song/rankings tiles still navigate without selecting. The web also clears the Songs search text; Android's search text lives in the Songs view model and is kept.
 
@@ -72,18 +77,19 @@ Not shown. The web adds Adjusted/Weighted/FC Rate/Max Score rank tiles only when
 
 ## IDs
 
-`fst.player`, `fst.player.{loading,syncing,no-profile,retry,available,header,name,select,deselect,identity-notice,action-error,overview,bands,bands-link,bands.loading,bands.empty,bands.view-all,top-songs}`, `fst.player.switch-confirm[.ok|.cancel]`, `fst.player.deselect-confirm[.ok|.cancel]`, `fst.player.action-switch-confirm[.ok|.cancel]`, `fst.player.instrument.<wire>`, `fst.player.instrument-empty.<wire>`, `fst.player.global-rank.<wire>.{loading,unranked,available,error}`, `fst.player.rank-history.<wire>`, `fst.player.rank-history.{plot,detail,back-page,back-entry,forward-entry,forward-page}`, `fst.player.rank-history.row.<yyyy-MM-dd>`, `fst.player.percentiles.<wire>`, `fst.player.tile.<overview|wire|rank.wire>.<label-slug>`, `fst.player.top-songs.<wire>`, `fst.player.top-songs-empty.<wire>`, `fst.player.{top,bottom}-song.<wire>.<songId>`.
+`fst.player`, `fst.player.{loading,syncing,no-profile,retry,available,header,name,select,identity-notice,action-error,overview,bands,bands-link,bands.loading,bands.empty,bands.view-all,top-songs}`, `fst.player.switch-confirm[.ok|.cancel]`, `fst.player.action-switch-confirm[.ok|.cancel]`, `fst.player.instrument.<wire>`, `fst.player.instrument-empty.<wire>`, `fst.player.stats.<wire>`, `fst.player.global-rank.<wire>.error`, `fst.player.rank-history.<wire>[.loading]`, `fst.player.rank-history.{plot,detail,back-page,back-entry,forward-entry,forward-page}`, `fst.player.rank-history.row.<yyyy-MM-dd>`, `fst.player.percentiles.<wire>`, `fst.player.percentile-row.<topPercent>`, `fst.player.tile.<overview|wire>.<tile id>` (ids: `songs-played`, `full-combos`, `gold-stars`, `stars-<6..1>`, `avg-accuracy`, `avg-stars`, `best-rank`, `global-rank`, `percentile`, `songs-played-percentile`), `fst.player.top-songs.<wire>`, `fst.player.top-songs-empty.<wire>`, `fst.player.{top,bottom}-song.<wire>.<songId>`.
 
 ## Tests
 
 - JVM: `core/profile/{PlayerProfileCoreTest,ProfileParityCoreTest}` (top songs, presets, fold columns, sections, chart geometry), `data/profile/{FestivalApiProfileTest,ProfileSongsPresetsTest}`, `presentation/profile/{SelectedProfileStoreTest,ProfileViewModelsTest,ProfileActionsTest}`.
 - Robolectric: `ui/profile/ProfileUiTest` (search → view → select → Statistics → deselect, switch, cold start, history), `ProfileParityUiTest` (Quick Links sheet, top songs, Bands preview/empty, tile → Songs filter, confirmed switch before a tile, paused selection, Global Rank → Full Rankings), `ProfileChartsDrawTest` (`@GraphicsMode(NATIVE)`, draws the window so the Canvas code runs), `ProfileParityExpandedUiTest` (pane at 1280 dp).
 - Device: `androidTest/.../profile/ProfileDeviceJourneyTest` (select/deselect and switch stay on the page, tile → Songs filter, top song → Song Detail, history sort; asserts no card crosses a separating hinge). Run `python tools/android/device.py test com.festivalscoretracker.android.profile.ProfileDeviceJourneyTest --avd FST_Phone` and `--avd FST_Book_Fold --posture half`. `androidTest` shares the JVM tests' synthetic `testing/` fixtures.
-- Fixture screenshots (mock service, synthetic data): `android/reports/screenshots/profile2-*.png`: phone (overview, Quick Links sheet, top songs, rank history, bands, drums, tile → Songs), book fold half-open (split at the hinge) and unfolded, tablet, tri-fold unfolded.
+- JVM also: `core/profile/ChartScaleTest` (recharts-scale values), `RankHistoryWindowTest` (6.25 constant-rank regression).
+- Fixture screenshots (mock service, synthetic data): `android/reports/screenshots/profile3-*.png` (current cards) and `profile2-*.png` (earlier layout, Quick Links, tri-fold).
 
 ## Gaps
 
-- Star tiles stay flat until Songs has a stars filter; no Over CHOpt Threshold, 4/3/2/1-star or Percentile tiles yet (web `InstrumentStatsSection`); Global Rank opens rankings page 1 (Full Rankings has no page argument); Song Detail opens without the web's `?instrument=` focus (Songs lane route).
+- No Over CHOpt Threshold tile yet (needs the Filter Invalid Scores thresholds on this page); Song Detail opens without the web's `?instrument=` focus (Songs lane route).
 - No family (pad/pro strings/pro drums) Global Statistics cards or embedded player bands: both need player-stats (blocked, [service-safety](../../platforms/service-safety.md)).
 - Rank History has no instrument picker (each card is one chart) and no metric picker; stats ignore the invalid-score leeway filter (as before).
 - Web behaviour was taken from source: the production web player page itself calls player-stats and sync-status, so it is not captured from the installed PWA.
