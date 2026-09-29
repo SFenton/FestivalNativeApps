@@ -539,8 +539,8 @@ private fun EmptyChart(instrument: Instrument) {
 
 /**
  * The instrument header above its card (web `InstrumentCard` header): icon, name
- * and the chart's total entries once the preview loads, or "No scores recorded yet"
- * when the chart has none.
+ * and the chart's total entries once the preview loads (nothing for an empty chart,
+ * whose card shows the empty state).
  */
 @Composable
 private fun CardHeader(song: Song, instrument: Instrument, totalEntries: Int?) {
@@ -548,9 +548,10 @@ private fun CardHeader(song: Song, instrument: Instrument, totalEntries: Int?) {
         InstrumentIcon(instrument, keyboard = song.usesKeyboardIcon, size = 32.dp, decorative = true)
         Column(Modifier.padding(start = 10.dp)) {
             Text(instrument.label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)
-            totalEntries?.let {
+            // An empty chart's card already says "No scores recorded yet." (web empty state).
+            totalEntries?.takeIf { it > 0 }?.let {
                 Text(
-                    if (it <= 0) "No scores recorded yet" else "${NumberFormat.getIntegerInstance().format(it)} total entries",
+                    "${NumberFormat.getIntegerInstance().format(it)} total entries",
                     style = MaterialTheme.typography.bodySmall,
                     color = BrandTokens.textSecondary,
                     modifier = Modifier.testTag("fst.song-detail.total.${instrument.wireId}"),
