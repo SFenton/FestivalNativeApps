@@ -87,6 +87,7 @@ import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
 import com.festivalscoretracker.android.ui.quicklinks.ScrollQuickLinkSections
 import com.festivalscoretracker.android.ui.quicklinks.rememberScrollQuickLinks
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import com.festivalscoretracker.android.ui.common.rememberSingleColumn
 
 // region Screen
 
@@ -183,7 +184,9 @@ private fun BandDetailContent(
             .fillMaxSize()
             .onGloballyPositioned { contentLeft = it.positionInWindow().x },
     ) {
-        val panes = BandLayout.panes(windowWidthDp(), maxWidth.value, rememberBandHinge(contentLeft, maxWidth))
+        val hinge = rememberBandHinge(contentLeft, maxWidth)
+        // One column under TalkBack or at large text (rememberSingleColumn).
+        val panes = if (rememberSingleColumn()) BandLayout.panes(0f, maxWidth.value, null) else BandLayout.panes(windowWidthDp(), maxWidth.value, hinge)
         singlePane = !panes.twoPane
         LaunchedEffect(panes.twoPane) { onTwoPane(panes.twoPane) }
         val scrollPadding = Modifier.padding(start = 16.dp, end = 16.dp)

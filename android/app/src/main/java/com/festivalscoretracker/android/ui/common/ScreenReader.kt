@@ -8,6 +8,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import com.festivalscoretracker.android.core.nav.AdaptiveLayoutPolicy
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 
 // region Screen reader
 
@@ -38,12 +41,18 @@ fun rememberScreenReaderOn(): Boolean {
 
 /**
  * Whether multi-column content grids and hinge splits fall back to one column: while a
- * screen reader runs ([rememberScreenReaderOn]) or at large font scales ([isLargeText]),
- * where a half-width column wrapped names a few letters per line.
+ * screen reader runs ([rememberScreenReaderOn]), or at large font scales ([isLargeText])
+ * unless the window stays expanded in text-scaled dp (a 1280 dp tablet at 130%), since a
+ * half-width column at 200% wrapped names a few letters per line.
  *
  * @return True when content should use one column.
  */
 @Composable
-fun rememberSingleColumn(): Boolean = rememberScreenReaderOn() || isLargeText()
+fun rememberSingleColumn(): Boolean {
+    val screenReader = rememberScreenReaderOn()
+    val fontScale = LocalDensity.current.fontScale
+    val widthDp = LocalConfiguration.current.screenWidthDp
+    return screenReader || (isLargeText() && widthDp / fontScale < AdaptiveLayoutPolicy.EXPANDED_WIDTH_DP)
+}
 
 // endregion
