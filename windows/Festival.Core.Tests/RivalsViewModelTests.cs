@@ -89,8 +89,8 @@ public class RivalsViewModelTests
         Assert.True(lead.HasIcon);
         Assert.Equal("instrument_guitar.png", lead.IconFile);
         Assert.Equal("fst.rivals.section.Solo_Guitar", lead.AutomationId);
-        Assert.Equal("See all Lead Rivals", lead.SeeAllName);
-        Assert.Equal("View all Lead Rivals", lead.ViewAllName);
+        Assert.Equal("See All Lead Rivals", lead.SeeAllName);
+        Assert.Equal("View All Lead Rivals", lead.ViewAllName);
         Assert.False(hub.Sections[0].HasIcon);
         Assert.Equal("", hub.Sections[0].IconFile);
         Assert.Equal(new RivalScope.Combo("03"), hub.Sections[1].Rows[0].Route.Scope);
@@ -395,7 +395,7 @@ public class RivalsViewModelTests
             detail.QuickLinkSections.Select(s => s.Id));
         Assert.Equal(detail.Categories[0].Title, detail.QuickLinkSections[0].Title);
         var closest = detail.Categories[0];
-        Assert.Equal("View all 4 songs", closest.SeeAllText);
+        Assert.Equal("View All 4 Songs", closest.SeeAllText);
         Assert.Equal("View 1 song", detail.Categories[1].SeeAllText);
         Assert.Equal(new AppRoute.Rivalry(Rival, "closest_battles", "uwphe", scope), closest.SeeAllRoute);
         Assert.Equal("fst.rival-detail.category.closest_battles", closest.AutomationId);
@@ -435,7 +435,7 @@ public class RivalsViewModelTests
     {
         var fake = new RivalsFakeService();
         var detail = await Loaded(new RivalDetailViewModel(fake.Session(), new AppRoute.RivalDetail(Rival, "Hint")));
-        Assert.Equal("All visible instruments", detail.ScopeLabel);
+        Assert.Equal("All Visible Instruments", detail.ScopeLabel);
         Assert.Equal(1, fake.Count($"/api/player/{Me}/rivals/Solo_Guitar/{Rival}"));
         Assert.Equal(1, fake.Count($"/api/player/{Me}/rivals/Solo_Bass/{Rival}"));
         Assert.Equal("4 shared songs · 2 ahead / 1 behind", detail.Summary);
@@ -446,9 +446,15 @@ public class RivalsViewModelTests
         var partial = await Loaded(new RivalDetailViewModel(session, new AppRoute.RivalDetail(Rival)));
         Assert.Equal(RivalPageState.Loaded, partial.State);
 
+        // Frozen after a successful read (refresh or expiry): the last good detail keeps showing, as on the web (7.13).
         fake.Paths[$"/api/player/{Me}/rivals/Solo_Guitar/{Rival}"] = RivalsFakeService.Frozen;
         session.RivalsCache.Clear();
-        var failed = new RivalDetailViewModel(session, new AppRoute.RivalDetail(Rival, "Hint"));
+        var stale = new RivalDetailViewModel(session, new AppRoute.RivalDetail(Rival, "Hint"));
+        await stale.LoadAsync();
+        Assert.Equal(RivalPageState.Loaded, stale.State);
+
+        // Never loaded in this session: the freeze surfaces with Retry.
+        var failed = new RivalDetailViewModel(fake.Session(RivalsFakeService.Settings(Instrument.Lead, Instrument.Bass)), new AppRoute.RivalDetail(Rival, "Hint"));
         await failed.LoadAsync();
         Assert.Equal(RivalPageState.Failed, failed.State);
         Assert.Equal("Hint", failed.Title);
@@ -470,7 +476,7 @@ public class RivalsViewModelTests
         Assert.Equal(1, fake.Count($"/api/player/{Me}/rivals/03/{Rival}"));
 
         var common = new RivalDetailViewModel(session, new AppRoute.RivalDetail(Rival, null, new RivalScope.FromSettings(RivalSettingsScope.Common)));
-        Assert.Equal("Common Rivals · all visible instruments", common.ScopeLabel);
+        Assert.Equal("Common Rivals · All Visible Instruments", common.ScopeLabel);
     }
 
     [Fact]
@@ -632,6 +638,41 @@ public class RivalsViewModelTests
         Assert.Equal(2, cache.Count);
         pending.SetResult(9);
         Assert.Equal(9, await cache.GetAsync("slow", () => Task.FromResult(0)));
+    }
+    [Fact]
+    public async Task Cache_ServesLastGoodValueDuringAFreeze()
+    {
+        var time = new FakeTimeProvider();
+        var cache = new RivalsReadCache(time, TimeSpan.FromSeconds(10), capacity: 1);
+        Task<int> Frozen() => Task.FromException<int>(new FestivalApiException(FestivalApiErrorKind.PublicReadFrozen, 503, "30", "scrape"));
+        Task<int> Maintenance() => Task.FromException<int>(new FestivalApiException(FestivalApiErrorKind.Unavailable, 503, "30"));
+
+        // Nothing loaded yet: the freeze surfaces.
+        await Assert.ThrowsAsync<FestivalApiException>(() => cache.GetAsync("a", Frozen));
+        Assert.Equal(7, await cache.GetAsync("a", () => Task.FromResult(7)));
+
+        // Expired and refreshed during a freeze (or after an explicit refresh): the last good value stands in.
+        time.Advance(TimeSpan.FromSeconds(11));
+        Assert.Equal(7, await cache.GetAsync("a", Frozen));
+        Assert.Equal(0, cache.Count); // the failed refresh is not cached, so the next read tries again
+        cache.Clear();
+        Assert.Equal(7, await cache.GetAsync("a", Maintenance));
+
+        // Other failures, other types and old values still surface.
+        await Assert.ThrowsAsync<FestivalApiException>(() =>
+            cache.GetAsync<int>("a", () => Task.FromException<int>(new FestivalApiException(FestivalApiErrorKind.Offline))));
+        await Assert.ThrowsAsync<FestivalApiException>(() =>
+            cache.GetAsync<string>("a", () => Task.FromException<string>(new FestivalApiException(FestivalApiErrorKind.PublicReadFrozen, 503))));
+        time.Advance(RivalsReadCache.StaleGrace);
+        await Assert.ThrowsAsync<FestivalApiException>(() => cache.GetAsync("a", Frozen));
+
+        // Bounded: a newer key evicts the oldest fallback.
+        Assert.Equal(1, await cache.GetAsync("b", () => Task.FromResult(1)));
+        Assert.Equal(2, await cache.GetAsync("c", () => Task.FromResult(2)));
+        cache.Clear();
+        await Assert.ThrowsAsync<FestivalApiException>(() => cache.GetAsync("b", Frozen));
+        Assert.Equal(2, await cache.GetAsync("c", Frozen));
+        Assert.Equal(3, await cache.GetAsync("c", () => Task.FromResult(3)));
     }
     #endregion
 }
