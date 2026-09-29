@@ -84,6 +84,12 @@ struct ListDetailStack<Root: View>: View {
                 path: $path, isVisible: isVisible
             ) {
                 root(path.isEmpty)
+                    // Full-width list awaiting its first selection: rows select (the
+                    // detail column opens) instead of pushing and then re-splitting.
+                    .transformEnvironment(\.listDetailSelect) { value in
+                        guard ListDetailPolicy.awaitsSelection(section: section, path: path, layout: layout) else { return }
+                        value = selectAction
+                    }
             }
         case let .split(split):
             splitView(split)
@@ -106,11 +112,10 @@ struct ListDetailStack<Root: View>: View {
             }
         } detail: {
             NavigationStack(path: detailTail) {
+                // `arrangement` only splits with a selection; nothing else to show.
                 Group {
                     if let selection = split.selection {
                         destination(selection).id(selection)
-                    } else {
-                        ListDetailPlaceholder(page: split.page, session: session, isVisible: isVisible)
                     }
                 }
                 .navigationDestination(for: AppRoute.self, destination: destination)
@@ -118,6 +123,14 @@ struct ListDetailStack<Root: View>: View {
         }
         .navigationSplitViewStyle(.balanced)
         .accessibilityIdentifier("fst.nav.list-detail")
+    }
+
+    /// Writes a detail route after the current list (the list/detail row contract).
+    private var selectAction: ListDetailSelectAction {
+        ListDetailSelectAction(section: section) { route in
+            let current = ListDetailPolicy.split(section: section, path: path)?.list ?? []
+            path = ListDetailPolicy.path(settingList: current + [route], in: path, section: section)
+        }
     }
 
     /// Give a list-column page the selection and the select action.
@@ -133,10 +146,7 @@ struct ListDetailStack<Root: View>: View {
     private func listColumn(_ page: some View, split: ListDetailPolicy.Split) -> some View {
         page
             .environment(\.listDetailSelection, split.selection)
-            .environment(\.listDetailSelect, ListDetailSelectAction(section: section) { route in
-                let current = ListDetailPolicy.split(section: section, path: path)?.list ?? []
-                path = ListDetailPolicy.path(settingList: current + [route], in: path, section: section)
-            })
+            .environment(\.listDetailSelect, selectAction)
     }
 
     /// One route's screen, with the section's full path for screens that pop or replace.
@@ -167,32 +177,6 @@ struct ListDetailStack<Root: View>: View {
         } set: { tail in
             path = ListDetailPolicy.path(settingDetailTail: tail, in: path, section: section)
         }
-    }
-}
-
-// MARK: - Empty selection
-
-/// The detail column's quiet "nothing selected" state over the shared background
-/// (no auto-selection, `.agents/design/apple/duo.md`).
-struct ListDetailPlaceholder: View {
-    let page: ListDetailPolicy.ListPage
-    let session: FestivalSession
-    let isVisible: Bool
-
-    /// Title, symbol and hint for each list page.
-    private var copy: (title: String, symbol: String, hint: String) {
-        switch page {
-        case .songs: ("Select a Song", "music.note", "Choose a song from the list to see its details.")
-        case .rankings: ("Select a Player", "person.crop.circle", "Choose a player from the rankings to see their profile.")
-        case .rivals: ("Select a Rival", "person.2", "Choose a rival from the list to compare your scores.")
-        }
-    }
-
-    var body: some View {
-        ContentUnavailableView(copy.title, systemImage: copy.symbol, description: Text(copy.hint))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .festivalBackground(.carousel, session: session, visible: isVisible)
-            .accessibilityIdentifier("fst.nav.detail-placeholder")
     }
 }
 

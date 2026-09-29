@@ -52,6 +52,7 @@ private func hostListDetail(
         List {
             Text("Fixture List Root")
             Text(rootIsTop ? "Root On Top" : "Root Covered")
+            SelectModeProbe()
         }
     }
     .environment(\.deviceLayout, layout)
@@ -63,68 +64,55 @@ private func hostListDetail(
 
 // MARK: - Split vs stack
 
-/// Unfolded, Songs shows the list beside the "Select a Song" placeholder.
+/// Unfolded with nothing selected, Songs is the list alone at full width (no empty
+/// "Select a Song" pane), and its rows select into the detail column.
 @MainActor
-@Test func listDetailSplitShowsListAndPlaceholder() async throws {
+@Test func listDetailUnselectedShowsFullWidthList() async throws {
     let size = CGSize(width: 951, height: 669)
     let (host, window) = hostListDetail(section: .songs, path: [], layout: duoInner, size: size)
     defer { window.orderOut(nil) }
-    let image = try await nativeHostedSettle(host, untilText: ["Fixture List Root", "Select a Song"])
-    _ = try nativeHostedPNG(image, filename: "list-detail-songs-split.png", environment: "FST_SHELL_RENDER_OUT")
+    let image = try await nativeHostedSettle(host, untilText: ["Fixture List Root", "Rows Select"])
+    _ = try nativeHostedPNG(image, filename: "list-detail-songs-unselected.png", environment: "FST_SHELL_RENDER_OUT")
     assertRendersContent(
         host, image: image, minimumNonBackgroundFraction: 0.002, minimumInkFraction: 0.0005,
-        containing: ["Fixture List Root", "Root On Top", "Select a Song"]
+        containing: ["Fixture List Root", "Root On Top", "Rows Select"],
+        notContaining: ["Select a Song"]
     )
 }
 
-/// Folded (and on iPhone), the same section is one stack: no placeholder column.
+/// Folded (and on iPhone), the same section is one stack whose rows push.
 @MainActor
 @Test func listDetailStackOnCompactLayouts() async throws {
     let size = CGSize(width: 466, height: 678)
     for layout in [duoOuter, DeviceLayout.standardPhone] {
         let (host, window) = hostListDetail(section: .songs, path: [], layout: layout, size: size)
         defer { window.orderOut(nil) }
-        let image = try await nativeHostedSettle(
-            host, untilText: ["Fixture List Root"], excluding: ["Select a Song"]
-        )
+        let image = try await nativeHostedSettle(host, untilText: ["Fixture List Root", "Rows Push"])
         assertRendersContent(
             host, image: image, minimumNonBackgroundFraction: 0.002, minimumInkFraction: 0.0005,
             containing: ["Fixture List Root", "Root On Top"],
-            notContaining: ["Select a Song"]
+            notContaining: ["Select a Song", "Rows Select"]
         )
     }
 }
 
-/// Rivals and Leaderboards › Full Rankings use their own placeholder copy; the
-/// Leaderboards overview itself stays one stack even unfolded.
+/// Rivals unselected is also the list alone; the Leaderboards overview (a dashboard,
+/// not a list page) stays one stack whose cards push.
 @MainActor
-@Test func listDetailPlaceholderPerListPage() async throws {
+@Test func listDetailUnselectedPerListPage() async throws {
     let size = CGSize(width: 951, height: 669)
     let (rivalsHost, rivalsWindow) = hostListDetail(section: .rivals, path: [], layout: duoInner, size: size)
     defer { rivalsWindow.orderOut(nil) }
-    try await nativeHostedSettle(rivalsHost, untilText: ["Select a Rival"])
-
-    let rankings = AppRoute.fullRankings(instrument: .lead, rankBy: "adjusted")
-    let (boardHost, boardWindow) = hostListDetail(
-        section: .leaderboards, path: [rankings], layout: duoInner, size: size
-    )
-    defer { boardWindow.orderOut(nil) }
-    try await nativeHostedSettle(boardHost, untilText: ["Select a Player"])
+    try await nativeHostedSettle(rivalsHost, untilText: ["Fixture List Root", "Rows Select"], excluding: ["Select a Rival"])
 
     let (overviewHost, overviewWindow) = hostListDetail(
         section: .leaderboards, path: [], layout: duoInner, size: size
     )
     defer { overviewWindow.orderOut(nil) }
-    let image = try await nativeHostedSettle(
-        overviewHost, untilText: ["Fixture List Root"], excluding: ["Select a Player"]
-    )
-    assertRendersContent(
-        overviewHost, image: image, minimumNonBackgroundFraction: 0.002, minimumInkFraction: 0.0005,
-        notContaining: ["Select a Player", "Select a Rival"]
-    )
+    try await nativeHostedSettle(overviewHost, untilText: ["Fixture List Root", "Rows Push"])
 }
 
-/// A selected detail fills the detail column (no placeholder) while the list root
+/// A selected detail fills the detail column while the list root
 /// stays on top of its own column. Offline and anonymous, Rival Detail shows its own
 /// "No Player Selected" state, which is enough to prove the column hosts the route.
 @MainActor
@@ -138,7 +126,7 @@ private func hostListDetail(
         excluding: ["Select a Rival"]
     )
     _ = try nativeHostedPNG(image, filename: "list-detail-rivals-selected.png", environment: "FST_SHELL_RENDER_OUT")
-    assertRendersContent(host, image: image, notContaining: ["Select a Rival"])
+    assertRendersContent(host, image: image, containing: ["Rows Select"], notContaining: ["Select a Rival"])
 }
 
 // MARK: - Selected row
@@ -170,5 +158,11 @@ private func hostListDetail(
     // Selecting a route no row shows leaves every row plain.
     let other = try await render(selection: .player(accountId: "z", displayName: nil))
     #expect(nativeHostedSignature(plain) == nativeHostedSignature(other))
+}
+
+/// Shows whether list rows would select into the detail column or push.
+private struct SelectModeProbe: View {
+    @Environment(\.listDetailSelect) private var select
+    var body: some View { Text(select == nil ? "Rows Push" : "Rows Select") }
 }
 #endif

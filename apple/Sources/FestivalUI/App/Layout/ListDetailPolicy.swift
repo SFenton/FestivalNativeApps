@@ -141,6 +141,11 @@ enum ListDetailPolicy {
 
     /// Decide stack or split for a section path in a window.
     ///
+    /// Only a selected detail opens the second column: with nothing selected the list
+    /// stays one full-width stack instead of reserving an empty "Select a …" pane
+    /// (operator, 2026-09-28). Rows still select rather than push (``awaitsSelection(section:path:layout:)``),
+    /// so the first selection opens the detail column without a push animation.
+    ///
     /// - Parameters:
     ///   - section: Section owning the path.
     ///   - path: The section's navigation path.
@@ -149,8 +154,24 @@ enum ListDetailPolicy {
     static func arrangement(
         section: FestivalSection, path: [AppRoute], layout: DeviceLayout
     ) -> Arrangement {
-        guard usesSplit(layout), let split = split(section: section, path: path) else { return .stack }
+        guard usesSplit(layout), let split = split(section: section, path: path), split.selection != nil else {
+            return .stack
+        }
         return .split(split)
+    }
+
+    /// Whether a list page is on top of a split-capable window with nothing selected:
+    /// the list is shown full width, and its rows select into a detail column that
+    /// opens on the first selection.
+    ///
+    /// - Parameters:
+    ///   - section: Section owning the path.
+    ///   - path: The section's navigation path.
+    ///   - layout: Published window layout.
+    /// - Returns: True while the next row tap should open the detail column.
+    static func awaitsSelection(section: FestivalSection, path: [AppRoute], layout: DeviceLayout) -> Bool {
+        guard usesSplit(layout), let split = split(section: section, path: path) else { return false }
+        return split.selection == nil
     }
 
     // MARK: Column writes

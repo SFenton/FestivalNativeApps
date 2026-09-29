@@ -237,3 +237,18 @@ private let allRivals = AppRoute.allRivals(scope: .song(instruments: ["Solo_Guit
     // Nothing selected: the placeholder cannot push, so the path is unchanged.
     #expect(ListDetailPolicy.path(settingDetailTail: [board], in: [], section: .songs) == [])
 }
+
+// MARK: - Empty selection
+
+/// With nothing selected the list page is one full-width stack (no empty detail pane)
+/// that awaits a selection; a selection opens the split. Compact never awaits.
+@Test func unselectedListStaysFullWidth() throws {
+    for (section, path) in [(FestivalSection.songs, [AppRoute]()), (.rivals, []), (.leaderboards, [rankings])] {
+        #expect(ListDetailPolicy.arrangement(section: section, path: path, layout: ListDetailLayouts.duoUnfolded) == .stack)
+        #expect(ListDetailPolicy.awaitsSelection(section: section, path: path, layout: ListDetailLayouts.duoUnfolded))
+        #expect(!ListDetailPolicy.awaitsSelection(section: section, path: path, layout: ListDetailLayouts.duoFolded))
+    }
+    #expect(!ListDetailPolicy.awaitsSelection(section: .leaderboards, path: [], layout: ListDetailLayouts.duoUnfolded))
+    let detail = try AppRoute.songDetail(song("a"))
+    #expect(!ListDetailPolicy.awaitsSelection(section: .songs, path: [detail], layout: ListDetailLayouts.duoUnfolded))
+}
