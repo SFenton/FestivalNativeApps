@@ -39,46 +39,54 @@
                  AutomationProperties.AutomationId="fst.shop.song-details-error" />
 
         <Grid Grid.Row="2">
-            <!-- Grid: artwork-first cards (wide windows). -->
+            <!-- Grid: the web's album-art tiles (square, full-bleed art, title/artist scrim; 2-5 columns by width). The tile
+                 opens Song Detail (or the official Item Shop when the song isn't in the catalogue); the cart button is the
+                 secondary purchase action. New/Leaving tiles pulse gold/red like the web's ShopCard. -->
             <ScrollViewer x:Name="GridScroller" Visibility="{x:Bind ViewModel.ShowGrid, Mode=OneWay}" Padding="0,0,12,24"
-                          AutomationProperties.AutomationId="fst.shop.grid">
-                <ItemsRepeater XYFocusKeyboardNavigation="Enabled" x:Name="OfferGrid" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="260" ItemsSource="{x:Bind ViewModel.Offers, Mode=OneWay}"
+                          SizeChanged="OnGridSizeChanged" AutomationProperties.AutomationId="fst.shop.grid">
+                <ItemsRepeater XYFocusKeyboardNavigation="Enabled" TabFocusNavigation="Local" x:Name="OfferGrid" controls:FadeIn.Stagger="True"
+                               controls:FadeIn.RowHeight="220" ItemsSource="{x:Bind ViewModel.Offers, Mode=OneWay}"
                                ElementPrepared="OnGridPrepared" ElementClearing="OnElementClearing">
                     <ItemsRepeater.Layout>
-                        <UniformGridLayout MinItemWidth="200" MinRowSpacing="12" MinColumnSpacing="12" ItemsStretch="Fill" />
+                        <UniformGridLayout x:Name="TileLayout" MinItemWidth="200" MinItemHeight="200" MinRowSpacing="10" MinColumnSpacing="10"
+                                           ItemsStretch="None" MaximumRowsOrColumns="2" />
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="vm:ShopOfferItem">
-                            <Border x:Name="Card" Style="{StaticResource FSTCardStyle}" Padding="8">
-                                <StackPanel Spacing="6">
-                                    <Button x:Name="ArtButton" Padding="0" BorderThickness="0" Background="Transparent"
-                                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Click="OnExternalClick"
-                                            AutomationProperties.Name="{x:Bind ExternalName}" ToolTipService.ToolTip="Open official Item Shop">
-                                        <Grid x:Name="ArtGrid" CornerRadius="6" Background="{StaticResource FSTSurfaceMutedBrush}" SizeChanged="OnArtGridSizeChanged">
-                                            <Image x:Name="Art" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
-                                            <Rectangle AutomationProperties.AccessibilityView="Raw">
-                                                <Rectangle.Fill>
-                                                    <LinearGradientBrush StartPoint="0,0.45" EndPoint="0,1">
-                                                        <GradientStop Color="#00000000" Offset="0" />
-                                                        <GradientStop Color="#D9000000" Offset="1" />
-                                                    </LinearGradientBrush>
-                                                </Rectangle.Fill>
-                                            </Rectangle>
-                                            <StackPanel VerticalAlignment="Bottom" Padding="10" Spacing="2">
-                                                <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" Foreground="White"
-                                                           TextTrimming="CharacterEllipsis" MaxLines="2" TextWrapping="Wrap" />
-                                                <controls:MarqueeText Text="{x:Bind Offer.Artist}" TextStyle="{StaticResource FSTMarqueeSecondaryStyle}" />
-                                            </StackPanel>
-                                            <Border x:Name="BadgePill" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8" Padding="8,3"
-                                                    CornerRadius="10" Visibility="{x:Bind HasBadge}">
-                                                <TextBlock x:Name="BadgeLabel" Text="{x:Bind BadgeText}" FontSize="12" FontWeight="Bold" />
-                                            </Border>
-                                        </Grid>
-                                    </Button>
-                                    <HyperlinkButton Content="View Song Details" Padding="2,4" Click="OnDetailClick"
-                                                     Visibility="{x:Bind HasSongDetail}" />
-                                </StackPanel>
-                            </Border>
+                            <Grid x:Name="Tile" Width="200" Height="200" CornerRadius="8" Background="{StaticResource FSTSurfaceMutedBrush}">
+                                <Button x:Name="TileButton" Padding="0" BorderThickness="0" Background="Transparent" CornerRadius="8"
+                                        HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                        HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Click="OnTileClick"
+                                        AutomationProperties.Name="{x:Bind TileName}">
+                                    <Grid>
+                                        <Image x:Name="Art" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />
+                                        <Rectangle AutomationProperties.AccessibilityView="Raw">
+                                            <Rectangle.Fill>
+                                                <LinearGradientBrush StartPoint="0,0.55" EndPoint="0,1">
+                                                    <GradientStop Color="#00000000" Offset="0" />
+                                                    <GradientStop Color="#CC000000" Offset="1" />
+                                                </LinearGradientBrush>
+                                            </Rectangle.Fill>
+                                        </Rectangle>
+                                        <StackPanel VerticalAlignment="Bottom" Padding="12,12,52,12" Spacing="2">
+                                            <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" Foreground="White"
+                                                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                            <TextBlock Text="{x:Bind Offer.Artist}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="White"
+                                                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Button>
+                                <Border x:Name="BadgePill" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="10" Padding="8,3"
+                                        CornerRadius="10" Visibility="{x:Bind IsLeaving}" IsHitTestVisible="False">
+                                    <TextBlock x:Name="BadgeLabel" Text="{x:Bind BadgeText}" FontSize="12" FontWeight="Bold" />
+                                </Border>
+                                <Button x:Name="ArtButton" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="8" Width="36" Height="36"
+                                        Padding="0" CornerRadius="18" Click="OnExternalClick" Background="#B3121826" BorderThickness="0"
+                                        AutomationProperties.Name="{x:Bind ExternalName}" ToolTipService.ToolTip="Open official Item Shop">
+                                    <FontIcon Glyph="&#xE7BF;" FontSize="16" Foreground="White" />
+                                </Button>
+                                <controls:ShopPulseRing x:Name="ShopRing" />
+                            </Grid>
                         </DataTemplate>
                     </ItemsRepeater.ItemTemplate>
                 </ItemsRepeater>

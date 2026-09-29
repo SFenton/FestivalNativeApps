@@ -40,7 +40,7 @@ public sealed partial class ShopViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasSongDetailsIssue))]
     private string? songDetailsIssue;
 
-    /// <summary>Whether the window is compact (forces the list layout).</summary>
+    /// <summary>Whether the window is compact (forces the album-art grid, as in the installed PWA; no toggle).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowGrid), nameof(ShowList), nameof(CanToggleView))]
     private bool isCompact;
@@ -61,7 +61,7 @@ public sealed partial class ShopViewModel : ObservableObject
     public bool IsHidden => session.Settings.HideShop;
 
     /// <summary>Effective layout is the grid.</summary>
-    public bool ShowGrid => ShowOffers && !IsCompact && session.Settings.ShopViewMode == ShopViewMode.Grid;
+    public bool ShowGrid => ShowOffers && (IsCompact || session.Settings.ShopViewMode == ShopViewMode.Grid);
 
     /// <summary>Effective layout is the list.</summary>
     public bool ShowList => ShowOffers && !ShowGrid;
@@ -167,6 +167,12 @@ public sealed partial class ShopViewModel : ObservableObject
 /// <param name="HasSongDetail">Whether a validated catalogue song exists for an in-app link.</param>
 public sealed record ShopOfferItem(ShopSong Offer, ShopHighlight? Highlight, bool HasSongDetail)
 {
+    /// <summary>Grid tile pulse: gold New, red Leaving Tomorrow (web <c>ShopCard</c>; plain offers don't pulse).</summary>
+    public SongRowShopPulse? Pulse => SongRowShopPulse.For(false, Highlight);
+
+    /// <summary>Accessible name of the tile's primary action (Song Detail when matched, else the official Item Shop).</summary>
+    public string TileName => HasSongDetail ? Announcement : ExternalName;
+
     /// <summary>Title.</summary>
     public string Title => Offer.Title;
 

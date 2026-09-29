@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Festival.App.Controls;
 using Festival.App.Services;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
@@ -11,15 +12,16 @@ namespace Festival.App.Pages;
 
 #region Shop page
 /// <summary>
-/// Item Shop: artwork grid (wide) or compact list (compact windows or the List preference). Each offer opens the
-/// validated official Item Shop link; matched catalogue songs also get an in-app Song Detail action.
+/// Item Shop: the web's album-art grid (always at compact widths) or, by preference on wider windows, a list. Tiles and
+/// rows open Song Detail for catalogue songs; the cart button opens the validated official Item Shop link.
 /// </summary>
 public sealed partial class ShopPage : Page
 {
-    /// <summary>Width below which the list layout is forced.</summary>
+    /// <summary>Width below which the grid is forced and the layout toggle hidden.</summary>
     private const double CompactWidth = 640;
 
     private readonly Dictionary<FrameworkElement, CancellationTokenSource> artLoads = [];
+    private double tileSize = 200;
 
     /// <summary>Creates the page.</summary>
     public ShopPage()
@@ -65,25 +67,47 @@ public sealed partial class ShopPage : Page
     /// <param name="e">Unused.</param>
     private void OnToggleView(object sender, RoutedEventArgs e) => ViewModel.ToggleViewCommand.Execute(null);
 
-    /// <summary>Styles and loads art for a realized grid card.</summary>
+    /// <summary>Styles and loads art for a realized grid tile.</summary>
     /// <param name="sender">Repeater.</param>
     /// <param name="args">Prepared element.</param>
     private void OnGridPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
     {
-        if (args.Element is not Border card || sender.ItemsSourceView?.GetAt(args.Index) is not ShopOfferItem item) return;
-        ApplyBadge(card, item, "BadgePill", "BadgeLabel");
-        card.BorderBrush = BorderFor(item);
-        card.BorderThickness = new Thickness(item.HasBadge ? 2 : 1);
-        AutomationProperties.SetAutomationId((FrameworkElement)card.FindName("ArtButton"), $"fst.shop.external.{item.Offer.SongId}");
-        _ = LoadArtAsync(card, (Image)card.FindName("Art"), item, 280);
+        if (args.Element is not Grid tile || sender.ItemsSourceView?.GetAt(args.Index) is not ShopOfferItem item) return;
+        SizeTile(tile);
+        ApplyBadge(tile, item, "BadgePill", "BadgeLabel");
+        ((ShopPulseRing)tile.FindName("ShopRing")).Apply(item.Pulse);
+        AutomationProperties.SetAutomationId((FrameworkElement)tile.FindName("TileButton"), $"fst.shop.song.{item.Offer.SongId}");
+        AutomationProperties.SetAutomationId((FrameworkElement)tile.FindName("ArtButton"), $"fst.shop.external.{item.Offer.SongId}");
+        var image = (Image)tile.FindName("Art");
+        image.Source = null;
+        _ = LoadArtAsync(tile, image, item, tileSize);
     }
 
-    /// <summary>Keeps grid artwork square at whatever width the layout gives the card.</summary>
-    /// <param name="sender">Art grid.</param>
+    /// <summary>
+    /// Square tiles in the web's 2-5 columns for the scroller's content width (not the repeater's own width, which the
+    /// layout itself sets).
+    /// </summary>
+    /// <param name="sender">Grid scroller.</param>
     /// <param name="e">Size change.</param>
-    private void OnArtGridSizeChanged(object sender, SizeChangedEventArgs e)
+    private void OnGridSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (sender is FrameworkElement art && Math.Abs(art.Height - e.NewSize.Width) > 0.5) art.Height = e.NewSize.Width;
+        var width = e.NewSize.Width - GridScroller.Padding.Left - GridScroller.Padding.Right;
+        var tile = ShopGridMetrics.TileSize(width);
+        TileLayout.MaximumRowsOrColumns = ShopGridMetrics.Columns(width);
+        if (tile == tileSize) return;
+        tileSize = tile;
+        TileLayout.MinItemWidth = tile;
+        TileLayout.MinItemHeight = tile;
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(OfferGrid); i++)
+            if (VisualTreeHelper.GetChild(OfferGrid, i) is FrameworkElement child) SizeTile(child);
+    }
+
+    /// <summary>Gives a tile the current square size (explicit: the layout's Fill stretch rounds columns away).</summary>
+    /// <param name="tile">Tile root.</param>
+    private void SizeTile(FrameworkElement tile)
+    {
+        tile.Width = tileSize;
+        tile.Height = tileSize;
     }
 
     /// <summary>Cancels art for a recycled grid card.</summary>
@@ -161,12 +185,14 @@ public sealed partial class ShopPage : Page
             await Windows.System.Launcher.LaunchUriAsync(uri);
     }
 
-    /// <summary>Opens Song Detail from a grid card.</summary>
-    /// <param name="sender">Hyperlink with an offer context.</param>
+    /// <summary>Tile: Song Detail for a catalogue song, otherwise the official Item Shop.</summary>
+    /// <param name="sender">Tile button with an offer context.</param>
     /// <param name="e">Unused.</param>
-    private void OnDetailClick(object sender, RoutedEventArgs e)
+    private void OnTileClick(object sender, RoutedEventArgs e)
     {
-        if (sender is FrameworkElement { DataContext: ShopOfferItem { HasSongDetail: true } item }) MainWindow.Instance?.Navigate(item.DetailRoute);
+        if (sender is not FrameworkElement { DataContext: ShopOfferItem item }) return;
+        if (item.HasSongDetail) MainWindow.Instance?.Navigate(item.DetailRoute);
+        else OnExternalClick(sender, e);
     }
 
     /// <summary>Opens Song Detail from a list row (when the song is in the catalogue).</summary>

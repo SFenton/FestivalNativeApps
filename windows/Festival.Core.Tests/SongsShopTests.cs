@@ -211,10 +211,12 @@ public class ShopViewModelTests
         Assert.Equal(("Absent", false, true, "Leaving Tomorrow"), (absent.Title, absent.HasSongDetail, absent.IsLeaving, absent.BadgeText));
         Assert.Equal("Absent, Artist x9 · 2020, Leaving Tomorrow", absent.Announcement);
         Assert.Equal("Absent, Artist x9, Open Official Item Shop", absent.ExternalName);
+        Assert.Equal((absent.ExternalName, SongRowShopPulse.Leaving), (absent.TileName, absent.Pulse));
         var beta = vm.Offers[1];
         Assert.True(beta.HasSongDetail);
         Assert.True(beta.HasBadge);
         Assert.Equal(new AppRoute.SongDetail("s2"), beta.DetailRoute);
+        Assert.Equal((beta.Announcement, SongRowShopPulse.New), (beta.TileName, beta.Pulse));
         Assert.False(vm.HasSongDetailsIssue);
         Assert.True(vm.ShowGrid);
         Assert.False(vm.ShowList);
@@ -224,7 +226,7 @@ public class ShopViewModelTests
     }
 
     [Fact]
-    public async Task ViewToggle_PersistsAndCompactForcesList()
+    public async Task ViewToggle_PersistsAndCompactForcesGrid()
     {
         var service = new FakeService();
         SongsWire.Install(service);
@@ -236,9 +238,9 @@ public class ShopViewModelTests
         Assert.Equal(ShopViewMode.List, session.Settings.ShopViewMode);
         Assert.True(vm.ShowList);
         Assert.Equal("Grid View", vm.ToggleLabel);
-        vm.ToggleViewCommand.Execute(null);
         vm.IsCompact = true;
-        Assert.True(vm.ShowList);
+        Assert.True(vm.ShowGrid);
+        Assert.False(vm.ShowList);
         Assert.False(vm.CanToggleView);
     }
 

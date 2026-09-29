@@ -140,3 +140,19 @@ public class SongsShopPulseTests
         Assert.All(vm.Sections.SelectMany(s => s.Rows), r => Assert.Null(r.Pulse));
     }
 }
+
+public class ShopGridMetricsTests
+{
+    [Theory]
+    [InlineData(480, 2, 235)]
+    [InlineData(599, 2, 294)]
+    [InlineData(600, 3, 193)]
+    [InlineData(860, 4, 207)]
+    [InlineData(1100, 5, 212)]
+    [InlineData(0, 2, 1)]
+    public void Columns_AndSquareTiles(double width, int columns, double tile)
+    {
+        Assert.Equal(columns, ShopGridMetrics.Columns(width));
+        Assert.Equal(tile, ShopGridMetrics.TileSize(width));
+    }
+}
