@@ -103,4 +103,62 @@ final class SongsChromeJourneyTests: XCTestCase {
         app.buttons["fst.songs.sort.reset"].tap()
         app.buttons["fst.songs.sort.done"].tap()
     }
+
+    /// Issue #5: with a profile selected, scrolling down and back up near the top froze
+    /// and then crashed the app. Moving Filter/Sort into the bar changed the top inset,
+    /// which flipped the scrolled-away decision back, without end. Every swipe and
+    /// slow drag must leave the app idle, and back at the top the large title, filter
+    /// field, first row and floating tools return.
+    ///
+    /// Needs a catalogue that scrolls: run against `tools/mock_service.py
+    /// --large-catalogue` and pass its URL as `TEST_RUNNER_FST_SONGS_SCROLL_FIXTURE_URL`
+    /// (the default two-song fixture on 8765 has nothing to scroll, so this skips).
+    @MainActor
+    func testScrollingBackToTopNearTheTopStaysResponsive() throws {
+        continueAfterFailure = false
+        let base = ProcessInfo.processInfo.environment["FST_SONGS_SCROLL_FIXTURE_URL"]
+            ?? "http://127.0.0.1:8765"
+        let app = FestivalApp.makeApp([
+            "FST_API_BASE_URL": base,
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1",
+        ])
+        app.launch()
+        XCTAssertTrue(app.buttons["fst.songs.sort"].waitForExistence(timeout: 15))
+        let rail = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.section-index").firstMatch
+        guard rail.waitForExistence(timeout: 3) else {
+            throw XCTSkip("Catalogue too short to scroll; use mock_service.py --large-catalogue.")
+        }
+        func drag(_ from: Double, _ to: Double) {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: from)).press(
+                forDuration: 0.1,
+                thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: to)),
+                withVelocity: .slow, thenHoldForDuration: 0.3
+            )
+        }
+        // The reported path: down a little, then back up to the top.
+        app.swipeUp()
+        app.swipeUp()
+        for _ in 0..<3 { app.swipeDown() }
+        // Slow drags across the threshold just below the collapsed title.
+        drag(0.7, 0.5)
+        drag(0.5, 0.6)
+        drag(0.7, 0.55)
+        drag(0.55, 0.68)
+        drag(0.7, 0.4)
+        drag(0.4, 0.7)
+        // Fast flicks in both directions, ending at the top.
+        for _ in 0..<3 {
+            app.swipeUp()
+            app.swipeDown()
+        }
+        for _ in 0..<4 { app.swipeDown() }
+
+        XCTAssertEqual(app.state, .runningForeground)
+        XCTAssertTrue(app.searchFields["Filter Songs"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.searchFields["Filter Songs"].isHittable, "Large title header did not return")
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-song-1"].isHittable, "First row not shown")
+        XCTAssertTrue(app.buttons["fst.songs.sort"].isHittable, "Floating Sort did not return")
+    }
 }
