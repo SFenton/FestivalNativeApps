@@ -8,18 +8,16 @@ import FestivalDesign
 /// card. The web rotates through several category templates on a timer; this static port shows
 /// the first ("Almost Full Combo"), matching the carousel's "no timers while off-screen" rule.
 struct FirstRunSuggestionsCategoryCardDemo: View {
-    @Environment(\.firstRunSession) private var session
-
     var body: some View {
-        if let session {
-            // The page's real category card (operator batch 7) over live catalogue songs.
-            FirstRunCatalogueSongs { songs, _ in
+        FirstRunCatalogueSongs(count: 2) { songs, session in
+            if let session {
+                // The page's real category card (operator batch 7) over live catalogue songs.
                 SuggestionCategoryCardView(
                     category: SuggestionCategory(
                         key: "unfc_guitar", title: "Almost Full Combo",
                         description: "Songs where you're just a few notes from a full combo.",
                         type: .nearFC, instrument: .lead,
-                        songs: songs.prefix(2).enumerated().map { index, song in
+                        songs: songs.enumerated().map { index, song in
                             SuggestionSongItem(
                                 song: song, instrument: .lead, stars: 5,
                                 percent: 98.6 - Double(index) * 1.3, fullCombo: false
@@ -28,16 +26,17 @@ struct FirstRunSuggestionsCategoryCardDemo: View {
                     ),
                     session: session
                 )
+                .allowsHitTesting(false)
+            } else {
+                approximation(songs)
             }
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-        } else {
-            approximation
         }
+        .accessibilityHidden(true)
     }
 
-    /// Offline stand-in for hosted tests (no session to drive the real card).
-    private var approximation: some View {
+    /// The card's layout while songs load or without a session (hosted tests), with
+    /// redacted placeholder songs rather than invented titles.
+    private func approximation(_ songs: [Song]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Almost Full Combo")
@@ -47,15 +46,15 @@ struct FirstRunSuggestionsCategoryCardDemo: View {
                     .font(.caption)
                     .foregroundStyle(FestivalText.primary)
             }
-            ForEach(Array(FirstRunDemoPool.songs.prefix(2).enumerated()), id: \.element.id) { index, song in
+            ForEach(Array(songs.enumerated()), id: \.element.id) { index, song in
                 HStack(spacing: 12) {
                     InstrumentIcon(.lead, size: 26)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(song.title).font(.subheadline.weight(.semibold))
-                            .foregroundStyle(FestivalText.primary)
                         Text(song.artist).font(.caption)
-                            .foregroundStyle(FestivalText.primary)
                     }
+                    .foregroundStyle(FestivalText.primary)
+                    .firstRunRedacted(song)
                     Spacer(minLength: 0)
                     Text("\(98 - index * 2)%")
                         .font(.caption.weight(.semibold))
@@ -66,7 +65,6 @@ struct FirstRunSuggestionsCategoryCardDemo: View {
         }
         .padding(14)
         .festivalGlass(.card, cornerRadius: 16)
-        .accessibilityHidden(true)
     }
 }
 

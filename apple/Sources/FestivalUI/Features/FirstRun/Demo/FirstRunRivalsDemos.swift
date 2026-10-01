@@ -48,30 +48,38 @@ struct FirstRunRivalsInstrumentsDemo: View {
 // MARK: - rivals-detail
 
 /// Ported from `pages/rivals/firstRun/demo/RivalsDetailDemo.tsx`: one rivalry category's
-/// song-by-song comparison rows. The web cycles categories on a timer; this static port shows
-/// "Closest Battles", matching the carousel's "no timers while off-screen" rule.
+/// song-by-song comparison rows over real catalogue songs (the web's `useDemoSongs`) with its
+/// static rank data. The web cycles categories on a timer; this static port shows "Closest
+/// Battles", matching the carousel's "no timers while off-screen" rule.
 struct FirstRunRivalsDetailDemo: View {
+    private let ranks = FirstRunDemoPool.closestBattles
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Closest Battles").font(.subheadline.weight(.bold)).foregroundStyle(FestivalText.primary)
-            ForEach(FirstRunDemoPool.closestBattles) { comparison in
-                comparisonRow(comparison)
+            FirstRunCatalogueSongs(count: ranks.count) { songs, session in
+                ForEach(Array(songs.enumerated()), id: \.element.id) { index, song in
+                    comparisonRow(song, session: session, ranks: ranks[index % ranks.count])
+                }
             }
         }
         .accessibilityHidden(true)
     }
 
-    private func comparisonRow(_ comparison: FirstRunDemoPool.RivalComparison) -> some View {
+    private func comparisonRow(
+        _ song: Song, session: FestivalSession?, ranks: FirstRunDemoPool.RivalComparison
+    ) -> some View {
         HStack(spacing: 12) {
-            FirstRunAlbumArtPlaceholder()
+            FirstRunSongArt(song: song, session: session)
             VStack(alignment: .leading, spacing: 2) {
-                Text(comparison.title).font(.subheadline.weight(.semibold))
+                MarqueeText(song.title).font(.subheadline.weight(.semibold))
                     .foregroundStyle(FestivalText.primary)
                     .lineLimit(1)
+                    .firstRunRedacted(song)
                 HStack(spacing: 10) {
-                    Label("#\(comparison.userRank)", systemImage: "person.fill")
+                    Label("#\(ranks.userRank)", systemImage: "person.fill")
                         .foregroundStyle(BrandTokens.accentBlue)
-                    Label("#\(comparison.rivalRank)", systemImage: "person.fill.badge.plus")
+                    Label("#\(ranks.rivalRank)", systemImage: "person.fill.badge.plus")
                         .foregroundStyle(BrandTokens.statusRed)
                 }
                 .font(.caption2.weight(.semibold))

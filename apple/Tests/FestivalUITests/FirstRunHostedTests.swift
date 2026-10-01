@@ -135,15 +135,36 @@ import FestivalDesign
 }
 // MARK: - Native Songs demos (operator batch 7)
 
-/// Every Songs slide renders the app's real Songs UI (rows, sheets, tab bar, chips) from the
-/// offline fallback songs when no session is attached.
+/// Every Songs slide renders the app's real Songs UI (rows, sheets, tab bar, chips) without a
+/// session, with redacted placeholder songs instead of invented titles (issue #26).
 @MainActor
 @Test func nativeSongsDemosRenderRealSongsUI() async throws {
-    #expect(Song.firstRunFallback.count == 3)
+    try await renderDemos(FirstRunCatalog.slides(for: .songs).map { (.songs, $0) })
+}
+
+/// Every non-Songs demo that shows songs (Statistics top songs, Rivals detail, Suggestions
+/// card, Item Shop) still renders while the catalogue is loading or unavailable (issue #26).
+@MainActor
+@Test func songDemosRenderPlaceholdersWithoutCatalogue() async throws {
+    let ids: [FirstRunPageKey: Set<String>] = [
+        .statistics: ["statistics-top-songs"],
+        .rivals: ["rivals-detail"],
+        .suggestions: ["suggestions-category-card"],
+        .shop: ["shop-overview", "shop-highlighting", "shop-new-items", "shop-leaving-tomorrow"],
+    ]
+    let slides = ids.keys.sorted { $0.rawValue < $1.rawValue }.flatMap { page in
+        FirstRunCatalog.slides(for: page).filter { ids[page]!.contains($0.id) }.map { (page, $0) }
+    }
+    #expect(slides.count == ids.values.reduce(0) { $0 + $1.count })
+    try await renderDemos(slides)
+}
+
+@MainActor
+private func renderDemos(_ slides: [(FirstRunPageKey, FirstRunSlide)]) async throws {
     let size = CGSize(width: 390, height: 360)
-    for slide in FirstRunCatalog.slides(for: .songs) {
+    for (page, slide) in slides {
         let host = nativeHostedView(
-            FirstRunDemoContent(page: .songs, slide: slide)
+            FirstRunDemoContent(page: page, slide: slide)
                 .padding(20)
                 .frame(width: size.width, height: size.height)
                 .background(BrandTokens.cardBackground)
@@ -152,15 +173,22 @@ import FestivalDesign
         )
         let window = nativeHostedWindow(host, size: size)
         defer { window.orderOut(nil) }
-        host.layoutSubtreeIfNeeded()
-        let image = try nativeHostedImage(host)
+        // macOS draws a system TabView as a thin segmented control, not the iOS tab bar.
+        let minimumInk = slide.id == "songs-navigation" ? 0.0005 : 0.002
+        // Redacted placeholder songs are low-contrast bars, not ink, so they count as content.
+        let painted: (NativeHostedContent) -> Bool = {
+            $0.inkFraction > minimumInk || $0.nonBackgroundFraction > 0.05
+        }
+        // Two identical blank frames before the row stagger starts would otherwise count as
+        // settled, so wait until the demo has painted; looping pulses end it after the grace.
+        let image = try await nativeHostedSettle(host, animationGrace: .milliseconds(400)) {
+            (try? nativeHostedImage(host)).map { painted(nativeHostedContent($0)) } ?? false
+        }
         _ = try nativeHostedPNG(
             image, filename: "first-run-\(slide.id).png", environment: "FST_FIRST_RUN_RENDER_OUT"
         )
         let content = nativeHostedContent(image)
-        // macOS draws a system TabView as a thin segmented control, not the iOS tab bar.
-        let minimumInk = slide.id == "songs-navigation" ? 0.0005 : 0.002
-        #expect(content.inkFraction > minimumInk, "\(slide.id) demo painted nothing: \(content)")
+        #expect(painted(content), "\(slide.id) demo painted nothing: \(content)")
     }
 }
 
