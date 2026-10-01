@@ -452,6 +452,26 @@ SERVICE_INFO_IDLE = {
     "nextScheduledUpdateAt": None,
 }
 
+#: Opt-in ``--service-info-discovery`` body: an update in the registered-band discovery
+#: phase with per-pass lookup counts (``attemptProgress``), for Settings captures.
+SERVICE_INFO_DISCOVERY = {
+    **SERVICE_INFO_IDLE,
+    "currentUpdate": {
+        "status": "updating", "scrapeId": 2, "operationId": "fixture-op-2",
+        "startedAt": "2026-01-02T12:00:00Z", "phase": "PostScrape", "subOperation": None,
+        "phaseId": "post.registered_player_band_discovery", "subphaseId": None,
+        "phasePlanVersion": "fixture", "phaseOrdinal": 5, "phaseAttempt": 1,
+        "unitsKind": "accounts", "unitsCompleted": 1240, "unitsTotal": 5000,
+        "unitsTotalFinal": True, "phasePercent": 24.8,
+        "attemptProgress": {
+            "schemaVersion": 1, "attemptedThisPass": 1310, "retryableUnavailableThisPass": 70,
+        },
+        "lastProgressAt": "2026-01-02T12:10:00Z",
+    },
+    "activeScrapeId": 2,
+    "workerStatus": {"workerKey": "fixture-worker", "status": "online", "rawStatus": "updating"},
+}
+
 
 class FixtureServer(ThreadingHTTPServer):
     """Isolate mock publication and query evidence within one loopback listener."""
@@ -473,6 +493,7 @@ class FixtureServer(ThreadingHTTPServer):
         metadata_edge: bool = False,
         large_rankings: bool = False,
         large_catalogue: bool = False,
+        service_info_discovery: bool = False,
     ) -> None:
         """Create a deterministic, bounded service fixture.
 
@@ -492,6 +513,8 @@ class FixtureServer(ThreadingHTTPServer):
                 `fixture-team-{n}` rows so pagers have many pages; ranks 1–3 are unchanged.
             large_catalogue: Append 108 synthetic `fixture-song-{n}` songs (#, A–Z) to the
                 demo catalogue; their Lead charts serve the generic fixture leaderboard.
+            service_info_discovery: Serve ``SERVICE_INFO_DISCOVERY`` (an update in the
+                registered-band discovery phase) instead of the idle Service Info body.
         """
         if metadata_edge and (
             unpinned or rollover_on_read is not None or rollover_on_command
@@ -512,6 +535,7 @@ class FixtureServer(ThreadingHTTPServer):
         self.metadata_edge = metadata_edge
         self.large_rankings = large_rankings
         self.large_catalogue = large_catalogue
+        self.service_info_discovery = service_info_discovery
         self.rollover_on_read = rollover_on_read
         self.rollover_on_command = rollover_on_command
         self.mismatched_shop_rollover = mismatched_shop_rollover
@@ -528,6 +552,7 @@ class FixtureServer(ThreadingHTTPServer):
             "metadataEdge": metadata_edge,
             "largeRankings": large_rankings,
             "largeCatalogue": large_catalogue,
+            "serviceInfoDiscovery": service_info_discovery,
         }
         self._publication_reads = 0
         self._publication_id = 7
@@ -907,7 +932,8 @@ class FixtureHandler(BaseHTTPRequestHandler):
         elif path == "/api/features":
             self._json(200, {"appManual": False})
         elif path == "/api/service-info":
-            self._json(200, SERVICE_INFO_IDLE)
+            self._json(200, SERVICE_INFO_DISCOVERY if self.fixture.service_info_discovery
+                       else SERVICE_INFO_IDLE)
         elif path == "/api/version":
             self._json(200, {"version": "fixture"})
         elif path == "/api/account/search":
@@ -1786,6 +1812,10 @@ def main() -> None:
         "--large-catalogue", action="store_true",
         help="append 108 synthetic songs (#, A-Z) for scrolling/section-index captures",
     )
+    parser.add_argument(
+        "--service-info-discovery", action="store_true",
+        help="serve an updating Service Info body in the registered-band discovery phase",
+    )
     args = parser.parse_args()
     if not 0 <= args.port <= 65535:
         parser.error("port must be between 0 (OS-assigned) and 65535")
@@ -1820,6 +1850,7 @@ def main() -> None:
         metadata_edge=args.metadata_edge,
         large_rankings=args.large_rankings,
         large_catalogue=args.large_catalogue,
+        service_info_discovery=args.service_info_discovery,
     ) as server:
         print(f"Local test fixture service on 127.0.0.1:{server.server_port}", flush=True)
         server.serve_forever()

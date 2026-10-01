@@ -19,6 +19,7 @@ python3 tools/ios_sim.py drive [--device iphone|ipad|duo|<UDID>] \
 ```
 
 - `--tab`/`--route`/`--env` set the same app-launch environment as `shot` (`FST_DEBUG_TAB`, `FST_DEBUG_ROUTE`, and any extra `FST_*` key), applied when `DriverTests` launches the app.
+- `--env FST_DRIVER_CONTENT_SIZE=<UIContentSizeCategory raw value>` (e.g. `UICTContentSizeCategoryAccessibilityXL`) launches the app at that Dynamic Type size via `-UIPreferredContentSizeCategoryName`, for large-text captures without touching the simulator's global settings. It is a driver control key, not forwarded to the app.
 - `--steps` is `;`-separated; `--steps-file` is newline-separated. Both may be given (file first, then inline); blank lines and `#` comments are dropped.
 - First run builds the UI-test bundle with `build-for-testing` into `apple/DerivedData/lane-driver` (a few minutes, serialized on the build lock below); later runs skip straight to `test-without-building` (well under 30s) unless `Sources/`, `Apps/iOS/`, `Apps/iOSUITests/` or `project.yml` changed since the last build, or `--rebuild` is passed.
 - On success, prints `ok: <path>` / `MISSING: <path>` for every `shot:`/`tree:` step so you know immediately whether an output actually landed.
