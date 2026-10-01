@@ -123,9 +123,9 @@ func nativeHostedImage<Content: View>(_ host: NSHostingView<Content>) throws -> 
             pixelsWide: Int((host.bounds.width * 2).rounded(.up)),
             pixelsHigh: Int((host.bounds.height * 2).rounded(.up)),
             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
-            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+            colorSpaceName: bitmap.colorSpaceName, bytesPerRow: 0, bitsPerPixel: 0
         ))
-        bitmap = scaled.retagged(with: colorSpace) ?? scaled
+        bitmap = scaled.retagging(with: colorSpace) ?? scaled
         bitmap.size = host.bounds.size
     }
     host.cacheDisplay(in: host.bounds, to: bitmap)
