@@ -81,6 +81,23 @@ final class FirstRunJourneyTests: XCTestCase {
         assertCarouselClosed(app)
     }
 
+    /// Issue #4: the carousel carries the same native toolbar "Close" as the Profile search
+    /// sheet (a navigation-bar button labelled "Close", not a small ✕ glyph), and tapping
+    /// it closes the guide.
+    @MainActor
+    func testCloseIsNativeToolbarButton() throws {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launch()
+        let close = app.navigationBars.buttons["fst.first-run.close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 15), "Close lives in the sheet's navigation bar")
+        XCTAssertEqual(close.label, "Close")
+        XCTAssertTrue(close.isHittable)
+        SongsUITestSupport.record(app, name: "first-run-native-close")
+        close.tap()
+        assertCarouselClosed(app)
+    }
+
     /// Swiping the carousel down dismisses it, like any sheet.
     @MainActor
     func testSwipeDownDismissesCarousel() throws {

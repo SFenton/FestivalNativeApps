@@ -10,8 +10,10 @@ import FestivalDesign
 /// Operator batch 6 (item 6.7) / batch 7: the primary **Next/Done** comes first (a
 /// full-width glass-prominent button, the HIG onboarding pattern) with glass **Back** (once
 /// there is a page to go back to) and **Skip** (while pages remain) beneath it; a one-page
-/// guide shows only Done; no arrows; white page dots; Close top-right. Close, swiping down and tapping outside the sheet all dismiss, and only the
-/// pages actually shown are recorded in `viewing` (see ``FirstRunViewing``).
+/// guide shows only Done; no arrows; white page dots; a native toolbar **Close** top-right
+/// (the same `.confirmationAction` button as the Profile search sheet, issue #4). Close,
+/// swiping down and tapping outside the sheet all dismiss, and only the pages actually
+/// shown are recorded in `viewing` (see ``FirstRunViewing``).
 ///
 /// Used both for a page's own onboarding (`.firstRun(page:session:)`) and for a Settings
 /// replay — both supply a different `slides` array and `onFinish` closure.
@@ -30,21 +32,34 @@ struct FirstRunCarouselView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(spacing: 0) {
-            closeRow
-            TabView(selection: $index) {
-                ForEach(Array(slides.enumerated()), id: \.element.id) { position, slide in
-                    FirstRunSlideView(page: page, slide: slide)
-                        .accessibilityFocused($focusedSlide, equals: position)
-                        .tag(position)
+        NavigationStack {
+            VStack(spacing: 0) {
+                TabView(selection: $index) {
+                    ForEach(Array(slides.enumerated()), id: \.element.id) { position, slide in
+                        FirstRunSlideView(page: page, slide: slide)
+                            .accessibilityFocused($focusedSlide, equals: position)
+                            .tag(position)
+                    }
+                }
+                .modifier(FirstRunPageTabStyle())
+                if slides.count > 1 {
+                    FirstRunPageDots(count: slides.count, index: $index, animation: pageAnimation)
+                        .padding(.top, 8)
+                }
+                controls
+            }
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
+            #endif
+            .toolbar {
+                // Same native control as the Profile search sheet (issue #4): a trailing
+                // `.confirmationAction` "Close", the blue glass button on iOS 26.
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Close", action: onFinish)
+                        .accessibilityIdentifier("fst.first-run.close")
                 }
             }
-            .modifier(FirstRunPageTabStyle())
-            if slides.count > 1 {
-                FirstRunPageDots(count: slides.count, index: $index, animation: pageAnimation)
-                    .padding(.top, 8)
-            }
-            controls
         }
         .modifier(FirstRunSheetStyle())
         .onChange(of: index) { _, newValue in
@@ -58,21 +73,6 @@ struct FirstRunCarouselView: View {
     }
 
     private var pageAnimation: Animation? { reduceMotion ? nil : .easeInOut }
-
-    private var closeRow: some View {
-        HStack {
-            Spacer()
-            Button(action: onFinish) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(FestivalText.primary)
-            }
-            .accessibilityLabel("Close")
-            .accessibilityIdentifier("fst.first-run.close")
-        }
-        .padding(.top, 16)
-        .padding(.trailing, 16)
-    }
 
     private var controls: some View {
         let state = FirstRunControls.forPage(index, of: slides.count)
@@ -251,8 +251,8 @@ private struct FirstRunSlideView: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            // Demos vary (a 5-row leaderboard is ~260 pt); give them room below the close
-            // button and clip so nothing ever draws over the sheet chrome.
+            // Demos vary (a 5-row leaderboard is ~260 pt); give them room below the
+            // toolbar's Close and clip so nothing ever draws over the sheet chrome.
             FirstRunDemoContent(page: page, slide: slide)
                 .frame(maxWidth: .infinity, minHeight: 170, idealHeight: 260, maxHeight: 320)
                 .clipped()
