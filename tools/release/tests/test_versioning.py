@@ -3,6 +3,7 @@
 import datetime as dt
 import io
 import json
+import re
 import subprocess
 import tempfile
 import unittest
@@ -302,6 +303,21 @@ class GitFlowTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(json.loads(buf.getvalue())["build"], "7")
         self.assertIn("In this build vs. release 2610.01.03:", out.read_text())
+
+    def test_release_tools_always_name_utf8(self):
+        # Windows runners default to cp1252: "•" in notes became "\ufffd" in Store text (2026-10-01).
+        pattern = re.compile(r"\.(write_text|read_text)\(((?:[^()]|\([^()]*\))*)\)")
+        for path in sorted(Path(v.__file__).parent.glob("*.py")):
+            for match in pattern.finditer(path.read_text(encoding="utf-8")):
+                self.assertIn("encoding", match.group(2), "%s: %s" % (path.name, match.group(0)))
+
+    def test_cli_writes_utf8_notes(self):
+        self._history()
+        root = self.repo.root
+        with redirect_stdout(io.StringIO()):
+            v.main(["--repo", str(root), "whats-new", "--tag", "ios/v2610.01.04", "--released", "2610.01.01",
+                    "--out", str(root / "wn.json"), "--store-notes-out", str(root / "notes.txt")])
+        self.assertTrue((root / "notes.txt").read_bytes().startswith("•".encode("utf-8")))
 
     def test_released_from_tags(self):
         self.repo.tag("windows/v2610.01.01")

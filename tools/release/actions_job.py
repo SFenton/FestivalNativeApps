@@ -175,7 +175,7 @@ def main(argv: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None)
         result = {"platform": args.platform, "command": args.command, "build": args.build,
                   "sha": env.get("GITHUB_SHA"), "dry_run": args.dry_run,
                   "exit_code": fst_release.EXIT_FAIL, "output": {"error": str(err)}}
-    Path(args.out).write_text(json.dumps(result, indent=2) + "\n")
+    Path(args.out).write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     summary_path = env.get("GITHUB_STEP_SUMMARY")
     if summary_path:
         with open(summary_path, "a") as handle:

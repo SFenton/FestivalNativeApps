@@ -153,7 +153,7 @@ def load_credentials(env: Optional[Dict[str, str]] = None) -> Optional[Credentia
     file_cfg: Dict[str, Any] = {}
     path = config_path(env)
     try:
-        loaded = json.loads(path.read_text())
+        loaded = json.loads(path.read_text(encoding="utf-8"))
         if isinstance(loaded, dict):
             file_cfg = loaded
     except (OSError, ValueError):
@@ -397,7 +397,7 @@ def ledger_path(env: Optional[Dict[str, str]] = None) -> Path:
 def read_ledger(path: Path) -> Dict[str, Dict[str, Dict[str, str]]]:
     """Read ``{platform: {build: {version, sha, recorded_at}}}`` (empty when absent/corrupt)."""
     try:
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
     return data if isinstance(data, dict) else {}
@@ -500,7 +500,7 @@ def project_version(group: str, project_yml: Path = PROJECT_YML) -> str:
     """Read ``MARKETING_VERSION`` for the platform's app target from ``apple/project.yml``."""
     target = PLATFORMS[group][2]
     inside = False
-    for line in project_yml.read_text().splitlines():
+    for line in project_yml.read_text(encoding="utf-8").splitlines():
         if re.match(r"^  \S", line):
             inside = line.strip() == target + ":"
         if inside:
@@ -1018,7 +1018,7 @@ def main(argv: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None,
             emit({"released": released_versions(list_versions(client, app_id, asc_platform))})
             return EXIT_OK
         if args.command == "beta-notes":
-            notes = (stdin or sys.stdin).read() if args.notes_stdin else Path(args.notes_file).read_text()
+            notes = (stdin or sys.stdin).read() if args.notes_stdin else Path(args.notes_file).read_text(encoding="utf-8")
             result = beta_notes(client, group, bundle_id, args.build, notes, wait=args.wait)
             if dry_run:
                 result["planned"] = client.planned
@@ -1028,7 +1028,7 @@ def main(argv: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None,
             if args.notes_stdin:
                 notes = (stdin or sys.stdin).read()
             else:
-                notes = Path(args.notes_file).read_text()
+                notes = Path(args.notes_file).read_text(encoding="utf-8")
             baseline: Any = UNCHECKED
             if args.whats_new_baseline is not None:
                 baseline = None if args.whats_new_baseline in ("", "none") else args.whats_new_baseline
