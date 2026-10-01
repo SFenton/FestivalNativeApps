@@ -1,6 +1,6 @@
 # Release machine (App Store Connect pipeline)
 
-> **What:** the native side of the autonomous release machine: CI checks, the iOS archive/upload script, the App Store Connect client, credentials, version/build numbers, What's New, safety and how to enable other platforms. **Read when:** touching `tools/release/**`, `tools/windows/{package_msix.ps1,store_assets.py}`, `.github/workflows/{apple-ci,ios-release-build,windows-release-build,store-release,*-release}.yml`, or diagnosing a blocked/skipped release. Contract owner: `SFenton/festival-report-tracker` `docs/design.md` §2.1, §8, §11 (change both together).
+> **What:** the native side of the autonomous release machine: CI checks, `YYMM.NN` version tags, the iOS archive/upload script, the App Store Connect client, credentials, release notes and the generated What's New, safety and how to enable other platforms. **Read when:** touching `tools/release/**`, `tools/windows/{package_msix.ps1,store_assets.py}`, `.github/workflows/{apple-ci,version-bump,ios-release-build,windows-release-build,store-release,*-release}.yml`, writing release-note trailers, or diagnosing a blocked/skipped release. Contract owner: `SFenton/festival-report-tracker` `docs/design.md` §2.1, §8, §11 (change both together).
 
 ## Architecture
 
@@ -8,10 +8,12 @@
 |---|---|---|
 | Orchestrator | tracker repo, Linux host | Triages issues, merges PRs, decides when to submit; dispatches `store-release` and reads its result. It never holds store credentials or calls a store itself |
 | `apple-ci` | [`apple-ci.yml`](../../.github/workflows/apple-ci.yml) | Required check on PRs and `master`, hosted `xcode-27` runner: xcodegen, release-tool tests, iOS compile, `swift test`, informational coverage + inventory |
-| `ios-release-build` | [`ios-release-build.yml`](../../.github/workflows/ios-release-build.yml) | On `master` pushes touching `apple/**`, `tools/release/**`, `contracts/**`: hosted `xcode-27` runner, `store-release` environment; archive + upload a build |
-| Build script | `tools/release/ios_appstore_build.sh` | xcodegen → `xcodebuild archive` → `-exportArchive` (uploads) → ledger entry |
-| ASC client | `tools/release/fst_release.py` | `ios status\|next-version\|submit\|record-build\|creds` (also `macos …` for ASC `MAC_OS`) |
-| `windows-release-build` | [`windows-release-build.yml`](../../.github/workflows/windows-release-build.yml) | On `master` pushes touching `windows/**`, `contracts/**`, packaging scripts: hosted `windows-latest` builds the unsigned Store MSIX as an artifact ([Windows](#windows-microsoft-store)) |
+| `version-bump` | [`version-bump.yml`](../../.github/workflows/version-bump.yml) | The only automatic entry point: on every `master` push, tags each platform whose app changed with its next `<platform>/v<YYMM.NN>` and dispatches that platform's build ([versions](#versions-notes-and-whats-new)) |
+| `ios-release-build` | [`ios-release-build.yml`](../../.github/workflows/ios-release-build.yml) | `workflow_dispatch` only (`version_tag`, `rebuild_reason`, `dry_run`; master ref): hosted `xcode-27` runner, `store-release` environment; checks out the tag, archives + uploads a build, then the `testflight-notes` job sets its TestFlight "What to Test" |
+| Versions | `tools/release/versioning.py` | `bump`, `describe`, `latest-tag`, `whats-new`, `testflight-notes`: the tag ledger, release-note trailers and generated notes |
+| Build script | `tools/release/ios_appstore_build.sh` | version tag → generated `WhatsNew.json` + notes → xcodegen → `xcodebuild archive` → `-exportArchive` (uploads) → ledger entry |
+| ASC client | `tools/release/fst_release.py` | `ios status\|released-versions\|submit\|beta-notes\|record-build\|creds` (also `macos …` for ASC `MAC_OS`) |
+| `windows-release-build` | [`windows-release-build.yml`](../../.github/workflows/windows-release-build.yml) | `workflow_dispatch` only (`version_tag`; master ref): hosted `windows-latest` checks out the tag, generates What's New and builds the unsigned Store MSIX as an artifact ([Windows](#windows-microsoft-store)) |
 | Store client | `tools/release/fst_store.py` | `fst_release.py windows status\|submit\|record-build` dispatches here (Microsoft Store submission API) |
 | `store-release` | [`store-release.yml`](../../.github/workflows/store-release.yml) | `workflow_dispatch` only (`platform`, `command` status/submit, `build`, `notes_b64`, `request_id`, `dry_run`), hosted `ubuntu-latest`, `store-release` environment (master only). Runs `tools/release/actions_job.py`, which enforces policy and uploads `store-release-result` (`result.json`) |
 | Secrets tool | `tools/release/store_secrets.py` | `status`, `asc`, `ios-p12`, `msstore`: validates and uploads credentials to the `store-release` environment through `gh secret set` stdin |
@@ -29,7 +31,7 @@ Builds, signing, TestFlight uploads and store submissions run only in GitHub-hos
 ## Pipelines
 
 1. PR → `apple-ci` on hosted `xcode-27` (installs xcodegen with Homebrew). Compile and unit tests never boot a simulator. Swift coverage gates and `verify_product.py --strict` do not pass yet ([coverage](../testing/apple/coverage.md)), so those steps are informational.
-2. Merge to `master` → `ios-release-build` writes the ASC key from secrets to `$RUNNER_TEMP`, imports `IOS_DIST_P12_BASE64` into a throwaway keychain (or, without it, sets `FST_ALLOW_CLOUD_SIGNING=1` so Xcode uses cloud-managed distribution signing with an **Admin** key), archives and uploads, then deletes the keychain and key. Exit code 4 (`{"blocked":"missing_signing"}`) becomes a neutral "skipped" job summary, not a failure. `workflow_dispatch` has a `dry_run` input.
+2. Merge to `master` → `version-bump` tags `ios/v<YYMM.NN>` when iOS app files changed and dispatches `ios-release-build` (merges touching no app code build nothing). It writes the ASC key from secrets to `$RUNNER_TEMP`, imports `IOS_DIST_P12_BASE64` into a throwaway keychain (or, without it, sets `FST_ALLOW_CLOUD_SIGNING=1` so Xcode uses cloud-managed distribution signing with an **Admin** key), archives and uploads, then deletes the keychain and key. The `testflight-notes` job then waits (≤45 min) for the build in ASC and sets its TestFlight notes. Exit code 4 (`{"blocked":"missing_signing"}`) becomes a neutral "skipped" job summary, not a failure. `workflow_dispatch` has a `dry_run` input.
 3. The orchestrator dispatches `store-release` with `status`, reads `result.json`, picks the latest `VALID` build newer than `released_sha` (gate-checked), then dispatches `submit` with that build and base64 notes. In Actions, `FST_RELEASE_SHA_FROM_ARTIFACTS=1` maps build numbers to commits through `fst-ios-build_<build>` marker artifacts (uploaded by `ios-release-build`, 90 days) and the MSIX artifact names.
 
 ## `fst_release.py`
@@ -37,8 +39,10 @@ Builds, signing, TestFlight uploads and store submissions run only in GitHub-hos
 | Command | Behavior |
 |---|---|
 | `ios status --json` | `{in_review,state,version,latest_build{version,build,sha,processing_state},released_sha,blocked}`; always the full shape (blocked ⇒ `in_review:false`, exit 4; ASC failure ⇒ `blocked:"asc_error"`, exit 5) |
-| `ios next-version [--json]` | Reuses an editable version (`PREPARE_FOR_SUBMISSION`, `DEVELOPER_REJECTED`, `REJECTED`, `METADATA_REJECTED`); no versions ⇒ project `MARKETING_VERSION`; otherwise patch-bump of the highest of project and all ASC versions |
-| `ios submit --build N (--notes-file F\|--notes-stdin) [--dry-run]` | Refuses (exit 3) when any version or review submission is in review; requires a `VALID`, unexpired build; creates/reuses the editable version, sets en-US What's New, attaches the build, sets `releaseType` from `FST_APPSTORE_RELEASE_TYPE` (default `MANUAL`), creates/reuses a review submission, adds the item, `submitted=true`. `--dry-run` performs GETs only and prints the planned writes |
+| `ios released-versions --json` | `{"released":[…]}`: App Store versions that reached `READY_FOR_SALE`/`READY_FOR_DISTRIBUTION` (or later released states), newest first; the build's What's New sections |
+| `ios next-version [--json]` | Legacy (pre-tag) suggestion; release builds take the version from the tag |
+| `ios beta-notes --build N (--notes-file F\|--notes-stdin) [--wait S]` | Sets the build's en-US TestFlight "What to Test" (≤4000), waiting up to `S` seconds for the build to appear |
+| `ios submit --build N (--notes-file F\|--notes-stdin) [--whats-new-baseline V\|none] [--dry-run]` | Refuses (exit 3) when any version or review submission is in review, or with `refused:"stale_whats_new"` when a version newer than the baseline has been released since the build was made; requires a `VALID`, unexpired build; creates/reuses the editable version, sets en-US What's New, attaches the build, sets `releaseType` from `FST_APPSTORE_RELEASE_TYPE` (default `MANUAL`), creates/reuses a review submission, adds the item, `submitted=true`. `--dry-run` performs GETs only and prints the planned writes |
 | `ios record-build --build N --version V --sha S` | Writes `~/.local/state/fst-release/builds.json` (`FST_RELEASE_LEDGER` overrides) |
 | `ios creds` | Prints key id/issuer/key path (never key material); exit 4 when missing |
 
@@ -55,15 +59,22 @@ In review means version state `WAITING_FOR_REVIEW`, `IN_REVIEW`, `PENDING_APPLE_
 
 Check what is configured with `python3 tools/release/store_secrets.py status` (names only; values are never readable back). Missing credentials never fail the build job: status/submit report `missing_asc_credentials`, the build script reports `missing_signing`.
 
-## Version and build numbers
+## Versions, notes and What's New
 
-- Marketing version: `fst_release.py ios next-version` (fallback: `apple/project.yml`, currently `0.1.0`). Override with `FST_MARKETING_VERSION`.
-- Build number (`CURRENT_PROJECT_VERSION`): `$BUILD_NUMBER`, else `$GITHUB_RUN_NUMBER`, else UTC `yyyymmddHHMM`. ASC requires strictly increasing build numbers per marketing version, so do not mix schemes for one version (a timestamp build followed by a run-number build is rejected).
-- Git SHA: `FST_GIT_SHA` build setting → Info.plist `FSTGitSHA` (default `dev`) and the local ledger. iPhone Settings → App Version appends its first 7 characters (`0.1.0 (42) · 42edc57`); `dev` shows none. ASC cannot return Info.plist values, so in `store-release` `released_sha`/`latest_build.sha` come from the `fst-ios-build_<build>` marker artifact's run head SHA (`sha:null` once the 90-day artifact expires).
+**Versions.** Every platform uses `YYMM.NN`: the UTC year and month of the bump plus a per-platform counter that restarts each month (`2610.01`, `2610.02`, … `2611.01`; `NN` grows past `99` if needed and never goes backwards). The ledger is annotated git tags `<platform>/v<YYMM.NN>` (`ios`, `macos`, `android`, `windows`) on master commits, so no bot commits land on master. The first version is `2610.01` (the request said `2609.01`, but the first bump ran in October 2026 UTC).
 
-## What's New
+- `version-bump.yml` (every master push; serialized, never cancelled) runs `versioning.py bump --head $GITHUB_SHA --push --dispatch`. A platform bumps when files under its app paths changed since its previous tag (`*.md`, `*/WhatsNew.json`, tests and reports are excluded; see `PLATFORMS` in `versioning.py`), and android/macos only while `FST_RELEASE_<ANDROID|MACOS>_ENABLED=true`. A late run for a commit older than the newest tag is skipped (`behind_previous_tag`). If dispatching the build fails, the new tag is deleted so the next push retries. Manual: dispatch with `platform` and `force`.
+- Only a version tag starts a build. Build workflows are `workflow_dispatch`-only and reject anything but `^<platform>/v[0-9]{4}\.[0-9]{2,}$`; they run on the master ref (the environment is master-only) and check out the tag. Tag pushes by `GITHUB_TOKEN` trigger nothing, which is why the bump dispatches explicitly.
+- Store numbers: iOS/macOS `CFBundleShortVersionString=YYMM.NN`, build = `$GITHUB_RUN_NUMBER`. Android `versionName=YYMM.NN`, `versionCode = YYMM*100000 + NN*100 + rebuild` (`-PfstVersionName/-PfstVersionCode`). MSIX `YYMM.NN.<run>.0` (e.g. `2610.1.57.0`; the Store needs four numeric parts). `versioning.py describe --tag T [--build N]` prints them.
+- Git SHA: `FST_GIT_SHA` → Info.plist `FSTGitSHA`; iPhone Settings → App Version appends its first 7 characters. ASC cannot return Info.plist values, so `store-release` maps builds to commits through the `fst-ios-build_<build>` marker artifact (90 days).
 
-Canonical content is the web `changelog.ts`; `FestivalCore/Changelog.swift` mirrors it for the in-app card ([whats-new](../controls/whats-new/ios.md)). The App Store "What's New" text is separate: the orchestrator builds it from tracker issues' `platform_notes`/`release_note` (≤4000 chars, fallback "Bug fixes and improvements.") and passes it to `ios submit`. A first-ever App Store version cannot carry What's New, so it is skipped (`whats_new:"skipped_first_version"`).
+**Release-note trailers.** Notes come from commit-message trailers on the merged commits (merge commits and the commits they bring in): `Release-Note: <text>` applies to every platform whose app the change touched; `Release-Note-iOS|macOS|Android|Windows: <text>` applies to that platform only (even without app-file changes) and replaces the generic note there; `none`/`skip`/`-` suppresses. The tracker writes these from worker `release_note`/`platform_notes` into the PR description and copies them into the merge commit. Never hand-edit `WhatsNew.json` for content.
+
+**TestFlight notes** (`versioning.py testflight-notes`): "Festival Score Tracker iOS YYMM.NN (build N)", then the subjects of this platform's app commits since the previous version tag plus their release notes. The first version says so; a version with no app changes, or a rebuild of the same tag (`rebuild_reason`), says only the version/build number changed.
+
+**In-app What's New and store text** (`versioning.py whats-new`): one `Version YYMM.NN` section per *released* version plus the version being built, each holding only that platform's notes for the commits between the previous released version and it — TestFlight-only intermediate versions fold into the next released one. iOS reads released versions from ASC (`fst_release.py ios released-versions`); Windows/Android read `<platform>/released/<v>` tags, which the tracker creates when it observes a release. The build writes `WhatsNew.json` (`apple/Apps/iOS`, `apple/Apps/macOS`, `android/app/src/main/resources`, `windows/Festival.Core`, embedded) and the store "What's New" text (the newest section). The checked-in files are placeholders for the first version. Clients cap entries at 20, bullets at 40 and 600 characters, and never show an empty changelog ([whats-new](../controls/whats-new/spec.md)).
+
+**Stale baseline.** The build records `whats_new_baseline` (newest released version below it) in its marker artifact. At submit, `actions_job.py` passes it as `--whats-new-baseline`; if a newer version was released in between, ASC is untouched, the result is `refused:"stale_whats_new"` and the job dispatches one rebuild of the same tag (`rebuild_reason=stale_whats_new`, a new build number) unless an `ios-release-build` run is already queued or running. The tracker records `rebuilding` and submits the rebuilt build next. iOS submissions use the marker's `store_notes`; the orchestrator's notes are the fallback for builds without a marker. A first-ever App Store version cannot carry What's New, so it is skipped (`whats_new:"skipped_first_version"`).
 
 ## Open prerequisites
 
@@ -77,13 +88,13 @@ Canonical content is the web `changelog.ts`; `FestivalCore/Changelog.swift` mirr
 
 ## Windows (Microsoft Store)
 
-Builds run on every qualifying `master` push (hosted runner, so the Windows desktop is never used). Submission stays off until the tracker's `release.windows.enabled` is flipped; it then runs in `store-release`.
+Builds run for every `windows/v<YYMM.NN>` tag that `version-bump` creates (hosted runner, so the Windows desktop is never used). Submission stays off until the tracker's `release.windows.enabled` is flipped; it then runs in `store-release`.
 
 | Piece | Detail |
 |---|---|
 | Identity | `windows/store-identity.json` holds Partner Center → Product identity: `packageName` (Package/Identity/Name), `publisher` (`CN=…`), `publisherDisplayName`, `storeId`. Placeholders build artifacts suffixed `_placeholder` that are never submitted |
 | Manifest | `windows/Festival.App/Package.appxmanifest`; only used with `-p:FstMsix=true` (the dev/test `.exe` stays unpackaged). Logos in `Assets/Store/` come from `windows/store/fst-icon-512.png` via `python3 tools/windows/store_assets.py` (`--check` in CI) |
-| Package | `tools/windows/package_msix.ps1 [-AllowPlaceholder] [-OutDir D] [-Version V]` stamps identity and version `<major>.<minor>.<git commit count>.0`, publishes unsigned (the Store signs) and writes `build.json {version, sha, placeholder, package}`. Artifact: `fst-windows-msix_<version>_<sha>[_placeholder]`, kept 30 days |
+| Package | `tools/windows/package_msix.ps1 [-AllowPlaceholder] [-OutDir D] [-Version V]` stamps identity and the tag's version `YYMM.NN.<run>.0` (without `-Version`: `<major>.<minor>.<git commit count>.0`), publishes unsigned (the Store signs) and writes `build.json {version, sha, placeholder, package}`. Artifact: `fst-windows-msix_<version>_<sha>[_placeholder]`, kept 30 days |
 | Credentials | Entra app registration with a client secret, added in Partner Center → Account settings → User management → Microsoft Entra applications with the **Manager** role. `store-release` environment secrets `MSSTORE_TENANT_ID`, `MSSTORE_CLIENT_ID`, `MSSTORE_CLIENT_SECRET`, `MSSTORE_SELLER_ID`, `MSSTORE_APP_ID` (Store ID). Read-only local diagnostics may use `~/.config/fst-release/msstore.json` with lower-case keys (`FST_MSSTORE_CONFIG` overrides). Missing ⇒ `blocked:"missing_store_credentials"` |
 | First submission | Must be completed by hand in Partner Center (age rating, listing, screenshots, the first CI MSIX); until then status is `blocked:"first_submission_required"` |
 
@@ -112,4 +123,4 @@ Set the repository variable `FST_RELEASE_<ANDROID|MACOS>_ENABLED=true` only afte
 
 ## Tests
 
-`python3 -m unittest discover -s tools/release/tests -t .` (JWT/DER, credentials, status, next-version, submit sequence, the Store client, the Actions job policy and `store_secrets.py` with fakes; no network). `python3 tools/windows/store_assets.py --check` verifies the MSIX logos. Script check: `bash -n tools/release/ios_appstore_build.sh` and `tools/release/ios_appstore_build.sh --dry-run`.
+`python3 -m unittest discover -s tools/release/tests -t .` (versions, tags, trailers, What's New and TestFlight notes in throwaway git repos; JWT/DER, credentials, status, next-version, submit sequence, the Store client, the Actions job policy and `store_secrets.py` with fakes; no network). `python3 tools/windows/store_assets.py --check` verifies the MSIX logos. Script check: `bash -n tools/release/ios_appstore_build.sh` and `tools/release/ios_appstore_build.sh --dry-run`.
