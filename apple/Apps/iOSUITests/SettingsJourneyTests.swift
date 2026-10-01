@@ -183,4 +183,38 @@ final class SettingsJourneyTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [settledOff], timeout: 10), .completed)
         SongsUITestSupport.record(app, name: "settings-hide-shop-after-reset")
     }
+
+    /// **Fixed bug (#6):** the iPhone Quick Links menu opens upward from the bottom
+    /// dock, and iOS reversed an `.automatic`-order menu there, so the menu listed
+    /// Settings' sections bottom-to-top. `QuickLinksMenu` now uses `.menuOrder(.fixed)`.
+    /// Rows must stack top-to-bottom in page order, the active section stays checked,
+    /// and choosing a row still jumps to it.
+    @MainActor
+    func testQuickLinksMenuListsSectionsInPageOrder() throws {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launch()
+        let quickLinks = app.buttons["fst.quick-links.open"]
+        XCTAssertTrue(quickLinks.waitForExistence(timeout: 15))
+        quickLinks.tap()
+
+        let pageOrder = [
+            "app-settings", "diagnostics", "accessibility", "item-shop", "show-instruments",
+            "show-metadata", "version", "service-info", "first-run", "licenses", "reset",
+        ]
+        let rows = pageOrder.map { app.buttons["fst.quick-links.item.\($0)"] }
+        XCTAssertTrue(rows[0].waitForExistence(timeout: 10))
+        let tops = rows.map(\.frame.minY)
+        XCTAssertEqual(tops, tops.sorted(), "Quick Links rows are not in page order: \(zip(pageOrder, tops).map { "\($0.0)@\(Int($0.1))" })")
+        XCTAssertLessThan(tops[0], tops[tops.count - 1])
+        XCTAssertTrue(rows[0].isSelected, "The active (first) section is not checked")
+        SongsUITestSupport.record(app, name: "settings-quick-links-menu-order")
+
+        let itemShop = app.buttons["fst.quick-links.item.item-shop"]
+        itemShop.tap()
+        let jumped = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "Item Shop"), object: quickLinks
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [jumped], timeout: 10), .completed)
+    }
 }

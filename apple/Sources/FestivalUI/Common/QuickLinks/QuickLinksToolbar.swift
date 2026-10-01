@@ -73,6 +73,9 @@ public struct QuickLinksMenu: View {
             } label: {
                 Label("Quick Links", systemImage: "list.bullet.indent")
             }
+            // iOS flips `.automatic` menus that open upward (the iPhone bottom dock),
+            // listing sections bottom-to-top; keep page order wherever it opens.
+            .menuOrder(.fixed)
             .tint(BrandTokens.textPrimary)
             .accessibilityLabel("Quick Links")
             .accessibilityValue(controller.activeSection?.title ?? "")
