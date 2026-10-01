@@ -130,17 +130,26 @@ final class SongDetailJourneyTests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(setting.waitForExistence(timeout: 10))
         SongsUITestSupport.reveal(setting, in: app, scrollingUp: false)
-        let original = try XCTUnwrap(setting.value as? String)
+        // Inline accordion: the header speaks "<choice>, Collapsed|Expanded" and expands
+        // in place; options stay on Settings and mark the current one Selected.
+        let collapsedValue = try XCTUnwrap(setting.value as? String)
+        let original = try XCTUnwrap(collapsedValue.components(separatedBy: ", ").first)
         XCTAssertTrue(
-            ["Image", "Text"].contains(original),
-            "Unexpected path picker value \(original); label: \(setting.label)"
+            ["Image", "Text"].contains(original) && collapsedValue.hasSuffix(", Collapsed"),
+            "Unexpected path setting value \(collapsedValue); label: \(setting.label)"
         )
         let changed = original == "Image" ? "Text" : "Image"
         setting.tap()
-        let option = app.buttons[changed]
-        XCTAssertTrue(option.waitForExistence(timeout: 10))
+        XCTAssertEqual(setting.value as? String, "\(original), Expanded")
+        let current = app.buttons["fst.settings.path-default-view.\(original.lowercased())"]
+        XCTAssertTrue(current.waitForExistence(timeout: 10))
+        XCTAssertTrue(current.isSelected)
+        let option = app.buttons["fst.settings.path-default-view.\(changed.lowercased())"]
+        XCTAssertFalse(option.isSelected)
         option.tap()
-        XCTAssertEqual(setting.value as? String, changed)
+        XCTAssertEqual(setting.value as? String, "\(changed), Expanded")
+        XCTAssertTrue(option.isSelected)
+        XCTAssertTrue(app.navigationBars["Settings"].exists, "Choosing must not navigate away")
 
         SongsUITestSupport.rootControl("Songs", app: app).tap()
         let song = app.buttons["fst.songs.row.fixture-pulse"]
@@ -175,9 +184,9 @@ final class SongDetailJourneyTests: XCTestCase {
         }
         SongsUITestSupport.rootControl("Settings", app: app).tap()
         SongsUITestSupport.reveal(setting, in: app, scrollingUp: false)
-        setting.tap()
-        app.buttons[original].tap()
-        XCTAssertEqual(setting.value as? String, original)
+        if (setting.value as? String)?.hasSuffix(", Collapsed") == true { setting.tap() }
+        app.buttons["fst.settings.path-default-view.\(original.lowercased())"].tap()
+        XCTAssertEqual(setting.value as? String, "\(original), Expanded")
     }
 
     /// Warn once per Paths opening until the explicit persistent choice survives cold launch.

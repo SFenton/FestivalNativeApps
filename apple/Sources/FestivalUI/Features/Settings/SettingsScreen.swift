@@ -213,10 +213,12 @@ struct SettingsScreen: View {
             }
             SettingsChoiceRow(
                 title: "CHOpt Path Default View",
+                detail: "Choose whether CHOpt paths open as an image or text table by default.",
                 options: PathDisplayMode.allCases,
                 label: \.label,
                 selection: $pathDefaultView,
-                identifier: "fst.settings.path-default-view"
+                identifier: "fst.settings.path-default-view",
+                animation: reduceMotionAnimation
             )
             reorderBlock(
                 "CHOpt Text Path Column Order",
