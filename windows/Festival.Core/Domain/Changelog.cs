@@ -1,11 +1,12 @@
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
 
 namespace Festival.Core.Domain;
 
 #region Model
 /// <summary>One titled group of changelog bullets (web <c>ChangelogSection</c>, <c>FortniteFestivalWeb/src/changelog.ts</c>).</summary>
-/// <param name="Title">Heading exactly as the web data spells it (upper case).</param>
+/// <param name="Title">Heading as generated (e.g. "Version 2610.01").</param>
 /// <param name="Items">Bullets in web order.</param>
 public sealed record ChangelogSection(string Title, IReadOnlyList<string> Items)
 {
@@ -13,74 +14,126 @@ public sealed record ChangelogSection(string Title, IReadOnlyList<string> Items)
     public string DisplayTitle => Changelog.TitleCase(Title);
 }
 
-/// <summary>One release's sections (web <c>ChangelogEntry</c>).</summary>
-/// <param name="Sections">Sections in web order.</param>
-public sealed record ChangelogEntry(IReadOnlyList<ChangelogSection> Sections);
+/// <summary>One version's sections (web <c>ChangelogEntry</c>).</summary>
+/// <param name="Sections">Sections in display order.</param>
+/// <param name="Version">Windows app version (<c>YYMM.NN</c>), or <see langword="null"/> for unversioned data.</param>
+/// <param name="Released">Whether the version reached the Store (the newest entry is the build itself).</param>
+public sealed record ChangelogEntry(IReadOnlyList<ChangelogSection> Sections, string? Version = null, bool Released = true);
 #endregion
 
 #region Catalogue
 /// <summary>
-/// The "What's New" changelog, copied verbatim from the web so its content hash equals the web's
-/// <c>CURRENT_CHANGELOG_HASH</c> (<c>changelogHash.ts</c>); Apple's <c>Changelog.swift</c> holds the same data. Keep
-/// <see cref="Entries"/> byte-identical to the web and update <see cref="WebHash"/> in the same commit.
+/// The "What's New" changelog: one "Version YYMM.NN" section per released Windows version plus the built one,
+/// generated at release-build time by <c>tools/release/versioning.py whats-new</c> into the embedded
+/// <c>WhatsNew.json</c> (Festival.Core). Content comes from <c>Release-Note-Windows</c>/<c>Release-Note</c> commit
+/// trailers; see <c>.agents/workflow/release-machine.md</c>.
 /// </summary>
 public static class Changelog
 {
-    /// <summary>Web release the entries were copied from.</summary>
-    public const string WebVersion = "0.1.133";
+    /// <summary>Embedded resource name of the generated document.</summary>
+    public const string ResourceName = "WhatsNew.json";
 
-    /// <summary>The web's precomputed hash for <see cref="Entries"/>.</summary>
-    public const string WebHash = "-6p8bh3";
+    /// <summary>Most entries kept.</summary>
+    public const int MaxEntries = 20;
 
-    /// <summary>Entries exactly as the web ships them.</summary>
-    public static IReadOnlyList<ChangelogEntry> Entries { get; } =
-    [
-        new([
-            new("ITEM SHOP", [
-                "Newly released songs in the Item Shop have a gold pulse on Songs Page and Song Details.",
-                "Songs in the Item Shop that aren't leaving tomorrow now have a green pulse, to match the gold/green/red styles of the instrument chips on Songs Page.",
-            ]),
-            new("MOBILE", [
-                "FAB buttons and other dock buttons now animate in for a more visually pleasing experience.",
-                "Fixed a bug in search modal where dismissing the keyboard after results show did not expand results view appropriately.",
-            ]),
-            new("SONG DETAILS", [
-                "Fixed a bug where leaderboard ranks did not reflect the actual Epic leaderboard value in some cases.",
-            ]),
-            new("NOTIFICATIONS", [
-                "Fixed a bug where notification alerts would reset when you re-open the web browser.",
-                "Added support for switching profiles/bands and returning to a different profile/band and seeing the appropriate amount of unread notifications, instead of all of them.",
-            ]),
-            new("RIVALS", [
-                "Improved performance when viewing a Rival for the first time.",
-                "Improved availability of Rivals during scrape.",
-            ]),
-            new("LEADERBOARDS", [
-                "Changed to instrument icons on combo leaderboards instead of \"Lead + ...\" text.",
-                "Updated FAB dock on mobile to match other pages.",
-            ]),
-        ]),
-    ];
+    /// <summary>Most bullets kept per entry.</summary>
+    public const int MaxItems = 40;
+
+    /// <summary>Longest bullet kept, in characters.</summary>
+    public const int MaxItemLength = 600;
+
+    /// <summary>Longest version string kept.</summary>
+    private const int MaxVersionLength = 32;
+
+    /// <summary>Largest document read, in bytes.</summary>
+    private const int MaxDocumentBytes = 256 * 1024;
+
+    /// <summary>Entries bundled with the app (empty when the resource is missing or invalid).</summary>
+    public static IReadOnlyList<ChangelogEntry> Entries { get; } = Load();
 
     /// <summary>Hash of the current entries; What's New shows once per distinct hash.</summary>
     public static string CurrentHash => Hash(Entries);
+
+    /// <summary>Hash of an empty changelog; an empty changelog is never presented.</summary>
+    public static string EmptyHash { get; } = Hash([]);
+
+    /// <summary>Loads and decodes the generated document; any failure yields no entries.</summary>
+    /// <param name="open">Stream factory (defaults to the embedded resource).</param>
+    /// <returns>Entries, newest first.</returns>
+    public static IReadOnlyList<ChangelogEntry> Load(Func<Stream?>? open = null)
+    {
+        try
+        {
+            using var stream = (open ?? (() => typeof(Changelog).Assembly.GetManifestResourceStream(ResourceName)))();
+            if (stream is null) return [];
+            using var buffer = new MemoryStream();
+            stream.CopyTo(buffer);
+            return buffer.Length > MaxDocumentBytes ? [] : Decode(Encoding.UTF8.GetString(buffer.ToArray()));
+        }
+        catch (Exception error) when (error is JsonException or FormatException or IOException)
+        {
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// Decodes <c>{"entries":[{"version":"2610.02","released":true,"items":["…"]}]}</c>, bounded to
+    /// <see cref="MaxEntries"/> entries, <see cref="MaxItems"/> bullets and <see cref="MaxItemLength"/> characters;
+    /// versions without bullets are skipped.
+    /// </summary>
+    /// <param name="text">JSON document.</param>
+    /// <returns>Entries, one "Version X" section each.</returns>
+    /// <exception cref="FormatException">The document is not the expected shape.</exception>
+    /// <exception cref="JsonException">The text is not JSON.</exception>
+    public static IReadOnlyList<ChangelogEntry> Decode(string text)
+    {
+        using var document = JsonDocument.Parse(text);
+        if (document.RootElement.ValueKind != JsonValueKind.Object ||
+            !document.RootElement.TryGetProperty("entries", out var list) || list.ValueKind != JsonValueKind.Array)
+        {
+            throw new FormatException("missing entries");
+        }
+        var entries = new List<ChangelogEntry>();
+        foreach (var entry in list.EnumerateArray().Take(MaxEntries))
+        {
+            if (entry.ValueKind != JsonValueKind.Object ||
+                !entry.TryGetProperty("version", out var versionElement) || versionElement.ValueKind != JsonValueKind.String)
+            {
+                throw new FormatException("entry without version");
+            }
+            var version = versionElement.GetString()!;
+            if (version.Length > MaxVersionLength) version = version[..MaxVersionLength];
+            var released = !entry.TryGetProperty("released", out var releasedElement) || releasedElement.ValueKind != JsonValueKind.False;
+            List<string> items = entry.TryGetProperty("items", out var itemsElement) && itemsElement.ValueKind == JsonValueKind.Array
+                ? [.. itemsElement.EnumerateArray()
+                    .Where(item => item.ValueKind == JsonValueKind.String)
+                    .Select(item => item.GetString()!.Trim())
+                    .Select(item => item.Length > MaxItemLength ? item[..MaxItemLength] : item)
+                    .Where(item => item.Length > 0)
+                    .Take(MaxItems)]
+                : [];
+            if (version.Length == 0 || items.Count == 0) continue;
+            entries.Add(new ChangelogEntry([new ChangelogSection($"Version {version}", items)], version, released));
+        }
+        return entries;
+    }
 
     /// <summary>Minor words kept lower case after the first word of a heading.</summary>
     private static readonly HashSet<string> MinorWords =
         ["a", "an", "and", "as", "at", "by", "for", "in", "of", "on", "or", "the", "to", "vs"];
 
     /// <summary>Entries as natives show them: the deprecated Manual is never advertised; emptied sections are dropped.</summary>
-    /// <param name="entries">Web-identical entries (defaults to <see cref="Entries"/>).</param>
+    /// <param name="entries">Entries (defaults to <see cref="Entries"/>).</param>
     /// <returns>Displayable entries.</returns>
     public static IReadOnlyList<ChangelogEntry> DisplayEntries(IReadOnlyList<ChangelogEntry>? entries = null) =>
     [
         .. (entries ?? Entries)
-            .Select(entry => new ChangelogEntry([
+            .Select(entry => entry with { Sections = [
                 .. entry.Sections
                     .Where(section => !MentionsManual(section.Title))
                     .Select(section => section with { Items = [.. section.Items.Where(item => !MentionsManual(item))] })
                     .Where(section => section.Items.Count > 0),
-            ]))
+            ] })
             .Where(entry => entry.Sections.Count > 0),
     ];
 
@@ -209,9 +262,10 @@ public static class WhatsNewGate
     /// <param name="mode">Mode (after any <see cref="WhatsNewMode.Fresh"/> reset).</param>
     /// <param name="seenHash">Stored dismissal hash, or <see langword="null"/>.</param>
     /// <param name="currentHash">Current changelog hash.</param>
-    /// <returns><see langword="true"/> to present.</returns>
+    /// <returns><see langword="true"/> to present; an empty changelog is never presented.</returns>
     public static bool IsPending(WhatsNewMode mode, string? seenHash, string currentHash) => mode switch
     {
+        _ when currentHash == Changelog.EmptyHash => false,
         WhatsNewMode.Off => false,
         WhatsNewMode.Force => true,
         _ => seenHash != currentHash,

@@ -1,14 +1,73 @@
 using System.Text;
+using System.Text.Json;
 
 namespace Festival.Core.Tests;
 
 public class WhatsNewTests
 {
+    private const string SampleDocument = """
+        {"schema": 1, "platform": "windows", "version": "2610.04", "baseline": "2610.03", "extra": true,
+         "entries": [
+          {"version": "2610.04", "released": false, "items": ["Rivals refresh correctly.", "  ", 5]},
+          {"version": "2610.03", "released": true, "items": ["The Item Shop badge is back.", "Songs load faster."]},
+          {"version": "2610.02", "released": true, "items": []},
+          {"version": "2610.01", "items": ["The first release."]}
+         ]}
+        """;
+
     [Fact]
-    public void Hash_MatchesTheWebsPrecomputedHash()
+    public void Decode_OneVersionSectionPerEntry()
     {
-        Assert.Equal(Changelog.WebHash, Changelog.CurrentHash);
-        Assert.StartsWith("[{\"sections\":[{\"title\":\"ITEM SHOP\",\"items\":[\"Newly released", Changelog.CanonicalJson(Changelog.Entries));
+        var entries = Changelog.Decode(SampleDocument);
+        Assert.Equal(["2610.04", "2610.03", "2610.01"], entries.Select(e => e.Version));
+        Assert.Equal([false, true, true], entries.Select(e => e.Released));
+        var section = Assert.Single(entries[0].Sections);
+        Assert.Equal("Version 2610.04", section.DisplayTitle);
+        Assert.Equal(["Rivals refresh correctly."], section.Items);
+        Assert.StartsWith("[{\"sections\":[{\"title\":\"Version 2610.04\"", Changelog.CanonicalJson(entries));
+    }
+
+    [Fact]
+    public void Decode_BoundsAndRejectsMalformedDocuments()
+    {
+        var many = string.Join(',', Enumerable.Range(0, 50).Select(i =>
+            $$"""{"version":"2610.{{i}}{{new string('9', 40)}}","items":[{{string.Join(',', Enumerable.Repeat($"\"{new string('a', 2000)}\"", 60))}}]}"""));
+        var entries = Changelog.Decode($$"""{"entries":[{{many}}]}""");
+        Assert.Equal(Changelog.MaxEntries, entries.Count);
+        Assert.Equal(Changelog.MaxItems, entries[0].Sections[0].Items.Count);
+        Assert.Equal(Changelog.MaxItemLength, entries[0].Sections[0].Items[0].Length);
+        Assert.Equal(32, entries[0].Version!.Length);
+        foreach (var bad in new[] { "[]", "{}", "{\"entries\":{}}", "{\"entries\":[5]}", "{\"entries\":[{\"items\":[\"a\"]}]}" })
+        {
+            Assert.Throws<FormatException>(() => Changelog.Decode(bad));
+        }
+        Assert.ThrowsAny<JsonException>(() => Changelog.Decode("not json"));
+        Assert.Empty(Changelog.Decode("{\"entries\":[{\"version\":\"\",\"items\":[\"a\"]},{\"version\":\"1\"}]}"));
+    }
+
+    [Fact]
+    public void Load_FallsBackToEmptyAndReadsTheEmbeddedPlaceholder()
+    {
+        Assert.Empty(Changelog.Load(() => null));
+        Assert.Empty(Changelog.Load(() => new MemoryStream("nope"u8.ToArray())));
+        Assert.Empty(Changelog.Load(() => new MemoryStream("{}"u8.ToArray())));
+        Assert.Empty(Changelog.Load(() => new MemoryStream(new byte[300 * 1024])));
+        Assert.Equal(3, Changelog.Load(() => new MemoryStream(Encoding.UTF8.GetBytes(SampleDocument))).Count);
+        var placeholder = Assert.Single(Changelog.Entries);
+        Assert.Equal("2610.01", placeholder.Version);
+        Assert.Equal(Changelog.Hash(Changelog.Entries), Changelog.CurrentHash);
+    }
+
+    [Fact]
+    public void Hash_ChangesWithVersionsAndEmptyIsNeverPending()
+    {
+        var one = Changelog.Decode("""{"entries":[{"version":"2610.01","items":["a"]}]}""");
+        var two = Changelog.Decode("""{"entries":[{"version":"2610.02","items":["a"]},{"version":"2610.01","items":["a"]}]}""");
+        Assert.NotEqual(Changelog.Hash(one), Changelog.Hash(two));
+        // JS: calculateChangelogHash([]) → "[]" → ((91*31)+93).toString(36).
+        Assert.Equal(Changelog.Base36(91 * 31 + 93), Changelog.EmptyHash);
+        Assert.False(WhatsNewGate.IsPending(WhatsNewMode.Force, null, Changelog.EmptyHash));
+        Assert.False(WhatsNewGate.IsPending(WhatsNewMode.Normal, null, Changelog.EmptyHash));
     }
 
     [Theory]
@@ -35,7 +94,11 @@ public class WhatsNewTests
         var entry = Assert.Single(shown);
         Assert.Equal(["SONGS", "OTHER"], entry.Sections.Select(s => s.Title));
         Assert.Equal(["Keep me."], entry.Sections[0].Items);
-        Assert.Equal(Changelog.Entries[0].Sections.Count, Changelog.DisplayEntries()[0].Sections.Count);
+        Assert.Equal(Changelog.Entries, Changelog.DisplayEntries(), new EntryComparer());
+        var versioned = Changelog.DisplayEntries([new([new("Version 2610.02", ["Kept.", "Manual gone."])], "2610.02", false)]);
+        var kept = Assert.Single(versioned);
+        Assert.Equal(("2610.02", false), (kept.Version, kept.Released));
+        Assert.Equal(["Kept."], kept.Sections[0].Items);
     }
 
     [Theory]
@@ -92,5 +155,14 @@ public class WhatsNewTests
         blob.Write(new byte[ChangelogSeenStore.MaxBytes + 1]);
         Assert.Null(store.SeenHash());
         Assert.EndsWith("whats-new.json", ChangelogSeenStore.DefaultPath);
+    }
+
+    private sealed class EntryComparer : IEqualityComparer<ChangelogEntry>
+    {
+        public bool Equals(ChangelogEntry? x, ChangelogEntry? y) =>
+            x is not null && y is not null && x.Version == y.Version && x.Released == y.Released &&
+            Changelog.CanonicalJson([x]) == Changelog.CanonicalJson([y]);
+
+        public int GetHashCode(ChangelogEntry obj) => Changelog.CanonicalJson([obj]).GetHashCode();
     }
 }

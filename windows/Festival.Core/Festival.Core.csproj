@@ -12,6 +12,10 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Generated per release by tools/release/versioning.py whats-new (windows-release-build.yml). -->
+    <EmbeddedResource Include="WhatsNew.json" LogicalName="WhatsNew.json" />
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="Festival.Core.Tests" />
   </ItemGroup>
 </Project>
