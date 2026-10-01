@@ -67,8 +67,13 @@ Canonical content is the web `changelog.ts`; `FestivalCore/Changelog.swift` mirr
 
 ## Open prerequisites
 
-- TODO(orchestrator): the iOS AppIcon asset is still pending (`ASSETCATALOG_COMPILER_APPICON_NAME: ""`), which App Store validation rejects; the app also needs an export-compliance answer (`ITSAppUsesNonExemptEncryption`) and a privacy/metadata record before the first submission.
-- Archiving signs for device family 1 (iPhone) only (`TARGETED_DEVICE_FAMILY=1`) until iPadOS is certified.
+- The App Store iPhone app is iPhone-only (`TARGETED_DEVICE_FAMILY: "1"`) and portrait-locked; iPadOS and macOS ship as separate apps later. `testDuoOuterFourRotations` is skipped until rotation returns for Duo pose work.
+- `AppIcon` is the opaque 1024 px PWA icon, rendered at 2× from `https://festivalscoretracker.com/?pwaIconCapture=1&pwaIconSize=512` (the web `generate-pwa-icons.mjs` route). `ITSAppUsesNonExemptEncryption` is `false` because the app uses only system HTTPS.
+- Before the first review submission, App Store Connect needs the following. App Privacy has no public API; the rest is set once:
+  - App Privacy ("Data Not Collected": the app has no analytics, and Tap Telemetry is DEBUG-only)
+  - Screenshots (one-off uploads, never committed)
+  - Description, keywords, support and privacy URLs
+  - Age rating, price, review contact and content-rights answers
 
 ## Windows (Microsoft Store)
 

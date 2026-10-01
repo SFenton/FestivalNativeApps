@@ -754,6 +754,7 @@ final class FestivalMobileUITests: XCTestCase {
     /// - Throws: A nonrotating simulator window or unreachable fixture control.
     @MainActor
     func testDuoOuterFourRotations() throws {
+        try XCTSkipIf(true, "The App Store iPhone app is portrait-locked (apple/project.yml); restore rotation before Duo pose work")
         continueAfterFailure = false
         addTeardownBlock { XCUIDevice.shared.orientation = .portrait }
         let app = fixtureApp()
