@@ -24,6 +24,15 @@ private struct TintedGlassProbe: View {
     }
 }
 
+/// Whether the test process runs in a virtual machine (`kern.hv_vmm_present`).
+///
+/// - Returns: `true` on VMs such as GitHub-hosted macOS runners.
+private func nativeHostedRunsInVirtualMachine() -> Bool {
+    var value: Int32 = 0
+    var size = MemoryLayout<Int32>.size
+    return sysctlbyname("kern.hv_vmm_present", &value, &size, nil, 0) == 0 && value == 1
+}
+
 /// Pins the root cause of blank full-page captures and proves the harness fix.
 ///
 /// Without the fallback, tinted Liquid Glass anywhere in the tree makes the
@@ -39,7 +48,9 @@ private struct TintedGlassProbe: View {
     let forced = nativeHostedView(TintedGlassProbe(), size: size)
     let forcedWindow = nativeHostedWindow(forced, size: size)
     let forcedImage = try await nativeHostedSettle(forced, untilText: ["Harness Probe Title"])
-    if #available(macOS 26.0, *) {
+    // Hosted CI runners are VMs whose paravirtual GPU composites tinted glass into the capture, so the
+    // limitation only reproduces (and the canary only means something) on physical Macs.
+    if #available(macOS 26.0, *), !nativeHostedRunsInVirtualMachine() {
         #expect(
             nativeHostedContent(realImage).nonBackgroundFraction == 0,
             "Tinted Liquid Glass now captures; revisit NativeHostedRoot's forced fallback"
