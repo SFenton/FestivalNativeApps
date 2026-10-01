@@ -342,6 +342,7 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 
 ## 5. Known issues / decisions
 
+- **Release machine (operator, 2026-09-30):** issues filed in private `SFenton/festival-report-tracker` are triaged and implemented autonomously (Mac worker for Apple surfaces, branch `report/<n>`), merged once `apple-ci` + `inventory` pass, and released by gated pipelines. Only the iOS App Store pipeline is active (blocked on ASC key/Distribution cert); Android/Windows/macOS/iPadOS release workflows are disabled scaffolds. See `.agents/workflow/release-machine.md`.
 - **Operator decision (Duo rail, 2026-09-28):** folded Duo with a profile (5 tabs) keeps **Bell + Profile** visible in the vertical rail; hamburger moves into "…".
 - **Operator decisions (Duo, 2026-09-28):** (1) **UI scripting allowed** for Device Hub poses — operator grants macOS Accessibility permission (agents never change security settings); (2) split Leaderboards/Rivals tabs **only on Duo unfolded + iPad**; large iPhones keep portrait tabs in landscape.
 
@@ -534,4 +535,4 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 | 2026-09-29 | Orchestrator | Rivals fixtures anonymized (real gamertags/account IDs → synthetic; Apple 888 + Windows 1215 tests green; `cad92f3a`); Android LoadGate/EmptyState test IDs registered; song band leaderboard reads (`?accountId=`) recorded as pure reads |
 | 2026-09-29 | Orchestrator | Launched FST-win-unify (7.4/7.7 one leaderboard design + web pager, Over CHOpt filter, HC colours, a11y rerun) and FST-and-a11y2 (TalkBack on passport/tri-fold/tablet + all sheets, 7.4/7.7 check, 200% text, performance pass) |
 | 2026-09-29 | Lane AP5 | Profile/Song Detail/Leaderboards batch 6+7 landed (`85bc94af`…`8db34bd7`): separate stat cards in web order + Percentiles table, percentile/star links, shared `InstrumentSelector` (all web modes; Score History, Paths, Suggestions), Suggestions respect instruments, no "Your score" text, history on the song page (old deep links scroll to it), Paths notes/overdrive, one purple button, bold selected rows, load gate on Profile/Song Detail/Leaderboards, one row design + web pager, truncating names, stable chart paging, chevrons. No-repro 6.8, 6.25. Deferred: rival detail during freeze (needs short in-memory rivals cache like web ~10 min), load gate on Compete/Rivals, Solo audit contrast issue, offscreen-score journey fixture port |
-
+| 2026-09-30 | Orchestrator | Release machine: `tools/release/` (ASC client, iPhone-only archive/upload), `apple-ci` + `ios-release-build` on fst-apple JIT runners, disabled platform scaffolds; first autonomous issue (tracker #3 → PR #1) merged |
