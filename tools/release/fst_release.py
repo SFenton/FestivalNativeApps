@@ -82,7 +82,6 @@ EDITABLE_STATES = frozenset({
 IN_REVIEW_SUBMISSION_STATES = ("WAITING_FOR_REVIEW", "IN_REVIEW")
 
 EXIT_OK, EXIT_FAIL, EXIT_REFUSED, EXIT_BLOCKED, EXIT_ASC_ERROR = 0, 1, 3, 4, 5
-DEFAULT_NOTES = "Bug fixes and improvements."
 WHATS_NEW_LIMIT = 4000
 BETA_NOTES_LIMIT = 4000
 #: ``submit(baseline=...)`` default: skip the What's New staleness check (builds without a marker).
@@ -776,7 +775,10 @@ def submit(client: AscClient, group: str, bundle_id: str, build_number: str,
             return {"submitted": False, "refused": "stale_whats_new", "version": marketing,
                     "build": str(build_number), "baseline": baseline, "current_baseline": current}
 
-    notes = (notes or "").strip() or DEFAULT_NOTES
+    notes = (notes or "").strip()
+    if not notes:
+        return {"submitted": False, "refused": "no_user_facing_changes", "version": marketing,
+                "build": str(build_number)}
     if len(notes) > WHATS_NEW_LIMIT:
         notes = notes[:WHATS_NEW_LIMIT].rstrip()
     has_released = any(version_state(v) in RELEASED_STATES for v in versions)

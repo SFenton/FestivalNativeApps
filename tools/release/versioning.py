@@ -36,6 +36,7 @@ Commands (JSON on stdout, standard library only, Python 3.9+)::
     versioning.py latest-tag --platform ios
     versioning.py whats-new --tag ios/v2610.03.01 --released 2610.01.01,2610.02.01 --out WhatsNew.json
                             [--store-notes-out notes.txt]
+    versioning.py check-notes --base <sha> --head <sha> [--body-file pr.md]
     versioning.py testflight-notes --tag ios/v2610.03.01 --build 57 [--rebuild-reason r]
                                    [--released 2610.01.01] --out notes.txt
 
@@ -60,7 +61,10 @@ from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA = 1
 HISTORY_LIMIT = 10
-DEFAULT_NOTE = "Bug fixes and improvements."
+#: TestFlight wording when every app change since the comparison point opted out with ``Release-Note: none``.
+NO_USER_FACING = "No user-facing changes."
+TITLE_PREFIX_RE = re.compile(r"^\s*\[[^\]]{1,20}\]\s*")
+TITLE_SUFFIX_RE = re.compile(r"\s*\(#\d+\)\s*$")
 TESTFLIGHT_LIMIT = 4000
 STORE_NOTES_LIMIT = 4000
 VERSION_RE = re.compile(r"^(\d{4})\.(\d{2})\.(\d{2})$")
@@ -404,13 +408,27 @@ def changes(git: Git, platform: str, base: Optional[str], head: str) -> List[Cha
     return out
 
 
+def clean_title(text: str) -> str:
+    """A commit/PR title as a note: no ``[Bug]``-style prefix or ``(#12)`` suffix, first letter capitalized."""
+    text = TITLE_SUFFIX_RE.sub("", TITLE_PREFIX_RE.sub("", " ".join(text.split())))
+    return text[:1].upper() + text[1:]
+
+
 def user_notes(git: Git, platform: str, base: Optional[str], head: str) -> List[str]:
-    """User-facing notes in ``(base, head]``, oldest first, de-duplicated case-insensitively."""
+    """User-facing notes in ``(base, head]``, oldest first, de-duplicated case-insensitively.
+
+    Notes come from ``Release-Note`` trailers. An app change with no trailer at all contributes its cleaned
+    title (:func:`clean_title`) so nothing ships as a generic line; ``Release-Note: none`` contributes
+    nothing. The ``check-notes`` PR check keeps untrailered app changes rare.
+    """
     seen = set()
     out = []
     for change in reversed(changes(git, platform, base, head)):
-        for note in change.notes:
-            if note.lower() not in seen:
+        notes = change.notes
+        if not notes and change.app and not change.opted_out and change.subject:
+            notes = [clean_title(change.subject)]
+        for note in notes:
+            if note and note.lower() not in seen:
                 seen.add(note.lower())
                 out.append(note)
     return out
@@ -464,10 +482,9 @@ def whats_new(git: Git, platform: str, version: str, released: Iterable[str]) ->
     initial = str(PLATFORMS[platform]["initial_note"])
     for item in sections:
         older = [v for v in shipped if parse_version(v) < parse_version(item)]
-        if older:
-            items = user_notes(git, platform, tags[older[-1]], tags[item]) or [DEFAULT_NOTE]
-        else:
-            items = [initial]
+        items = user_notes(git, platform, tags[older[-1]], tags[item]) if older else [initial]
+        if not items:
+            continue  # nothing user-facing: no What's New section (and no store update, see store_notes)
         entry: Dict[str, object] = {"version": item, "released": item in shipped, "items": items}
         if item == version and item not in shipped:
             entry["testflight"] = tester_notes(git, platform, version, shipped)
@@ -479,12 +496,16 @@ def whats_new(git: Git, platform: str, version: str, released: Iterable[str]) ->
 
 
 def store_notes(document: Dict[str, object]) -> str:
-    """App Store / Store listing "What's New": the built version's items as bullets."""
+    """App Store / Store listing "What's New": the built version's items as bullets.
+
+    Empty when the built version has nothing user-facing (every app change said ``Release-Note: none``); the
+    store clients then refuse with ``no_user_facing_changes`` instead of shipping a generic line.
+    """
     entries = document.get("entries") or []
     first = entries[0] if entries else None  # type: ignore[index]
-    if not isinstance(first, dict) or first.get("version") != document.get("version"):
-        return DEFAULT_NOTE
-    return bullets(first.get("items") or [DEFAULT_NOTE], STORE_NOTES_LIMIT)
+    if not isinstance(first, dict) or first.get("version") != document.get("version") or not first.get("items"):
+        return ""
+    return bullets(first.get("items"), STORE_NOTES_LIMIT)  # type: ignore[arg-type]
 
 
 def tester_notes(git: Git, platform: str, version: str, released: Iterable[str],
@@ -516,12 +537,7 @@ def tester_notes(git: Git, platform: str, version: str, released: Iterable[str],
 
     def notes_between(base: Optional[str], empty: str) -> List[str]:
         found = [c for c in changes(git, platform, base, current) if c.app or c.notes]
-        notes = user_notes(git, platform, base, current)
-        if notes:
-            return notes
-        if any(c.app and not c.opted_out for c in found):
-            return [DEFAULT_NOTE]
-        return ["No user-facing changes."] if found else [empty]
+        return user_notes(git, platform, base, current) or ([NO_USER_FACING] if found else [empty])
 
     if rebuild_reason:
         since, new = None, ["Rebuild with no %s app changes; only the build number changed (%s)." % (
@@ -569,6 +585,25 @@ def testflight_notes(git: Git, platform: str, version: str, build: str,
     if budget > 20:
         text += "\n\n%s:\n%s" % (second, bullets(notes["vs_release"], budget))  # type: ignore[arg-type]
     return text[:TESTFLIGHT_LIMIT]
+
+
+def notes_check(git: Git, base: str, head: str, body: str = "") -> Dict[str, object]:
+    """PR gate: a change touching any platform's app paths must carry a ``Release-Note`` trailer.
+
+    Args:
+        git: Repository.
+        base: PR base commit; the diff starts at its merge base with ``head``.
+        head: PR head commit.
+        body: PR description (trailers there end up in the merge commit).
+
+    Returns:
+        ``{platforms, has_release_note, ok}``; ``none`` counts as a trailer (an explicit "nothing user-facing").
+    """
+    fork = git("merge-base", base, head).strip()
+    touched = [p for p in PLATFORMS if relevant(p, git.diff_files(fork, head))]
+    messages = [git.message(sha) for sha in git("rev-list", "%s..%s" % (fork, head)).split() if sha]
+    has = any(TRAILER_RE.match(line) for text in messages + [body] for line in text.splitlines())
+    return {"platforms": touched, "has_release_note": has, "ok": bool(has or not touched)}
 
 
 # endregion
@@ -700,6 +735,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--released-from-tags", action="store_true")
     p.add_argument("--out", required=True)
     p.add_argument("--store-notes-out")
+    p = sub.add_parser("check-notes")
+    p.add_argument("--base", required=True)
+    p.add_argument("--head", required=True)
+    p.add_argument("--body-file")
     p = sub.add_parser("testflight-notes")
     p.add_argument("--tag", required=True)
     p.add_argument("--build", required=True)
@@ -743,6 +782,17 @@ def main(argv: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None,
             Path(args.out).write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
             if args.store_notes_out:
                 Path(args.store_notes_out).write_text(store_notes(doc) + "\n", encoding="utf-8")
+        elif args.command == "check-notes":
+            body = Path(args.body_file).read_text(encoding="utf-8") if args.body_file else ""
+            doc = notes_check(git, args.base, args.head, body)
+            print(json.dumps(doc))
+            if not doc["ok"]:
+                print("::error::This change touches %s app code but has no Release-Note trailer. Add "
+                      "'Release-Note: <specific user-facing change>' (or 'Release-Note-<Platform>: …'), or "
+                      "'Release-Note: none' when users see nothing, to the PR description or a commit message."
+                      % ", ".join(doc["platforms"]), file=sys.stderr)
+                return 1
+            return 0
         else:
             platform, version = parse_tag(args.tag)
             released = [v.strip() for v in args.released.split(",") if v.strip()]

@@ -281,17 +281,20 @@ def download_package(run: Runner, repo: str, artifact: Dict[str, Any], dest: Pat
     return packages[0]
 
 
-def artifact_store_notes(dest: Path) -> str:
-    """The release notes the build generated (``build.json`` ``store_notes``; empty when absent)."""
+def artifact_store_notes(dest: Path) -> Optional[str]:
+    """The release notes the build generated (``build.json`` ``store_notes``).
+
+    Returns ``None`` when no marker carries the key (older builds), else its text, which is empty when the
+    build has nothing user-facing.
+    """
     for marker in sorted(dest.rglob("build.json")):
         try:
             doc = json.loads(marker.read_text(encoding="utf-8-sig"))
         except (OSError, ValueError):
             continue
-        text = str(doc.get("store_notes") or "").strip() if isinstance(doc, dict) else ""
-        if text:
-            return text[:RELEASE_NOTES_LIMIT]
-    return ""
+        if isinstance(doc, dict) and "store_notes" in doc:
+            return str(doc.get("store_notes") or "").strip()[:RELEASE_NOTES_LIMIT]
+    return None
 
 
 # endregion
@@ -431,8 +434,7 @@ def submit(client: StoreClient, run: Runner, repo: str, env: Dict[str, str], bui
     Raises:
         Blocked: First submission not done, foreign draft, or the build is not submittable.
     """
-    notes = (notes or "").strip() or fst_release.DEFAULT_NOTES
-    notes = notes[:RELEASE_NOTES_LIMIT]
+    notes = (notes or "").strip()[:RELEASE_NOTES_LIMIT]
     app = application(client)
     if not app.get("lastPublishedApplicationSubmission") and not app.get("pendingApplicationSubmission"):
         raise Blocked("first_submission_required")
@@ -456,7 +458,10 @@ def submit(client: StoreClient, run: Runner, repo: str, env: Dict[str, str], bui
             package = download_package(run, repo, artifact, Path(tmp))
             file_name = package.name
             data = package_zip(package)
-            notes = artifact_store_notes(Path(tmp)) or notes
+            generated = artifact_store_notes(Path(tmp))
+            notes = notes if generated is None else generated
+        if not notes:
+            return {"submitted": False, "refused": "no_user_facing_changes", "build": build}
         created = client.request("POST", "/applications/%s/submissions" % client.creds.app_id)
         submission_id = str(created.get("id") or "<new>")
         upload_url = str(created.pop("fileUploadUrl", "") or "")
