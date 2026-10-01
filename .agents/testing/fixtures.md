@@ -51,3 +51,15 @@ none of these routes previously existed in the fixture server:
 - `GET /api/leaderboard/{songId}/bands/{bandType}?top=&offset=`: `fixture-pulse`/`Band_Duets` returns two ranked entries (reusing `fixture-band-1`/`fixture-band-2`'s rosters, this time with per-member score/accuracy/stars populated, matching `SongBandLeaderboardEntry`); every other song/band-type pair is empty.
 
 A dedicated loopback instance for these lane's XCUITest journeys runs on `127.0.0.1:18790` (started manually, not the shared default `8765`) since the shared `8765` listener predates this lane's `tools/mock_service.py` changes and "never kill a stale service you did not start" forbids restarting it to pick up new code; hosted (non-simulator) tests instead reuse `RivalsMockService`'s `--port 0` launcher, which always starts a fresh process from the current source.
+
+## Showcase server (App Store screenshots)
+
+`tools/appstore_showcase.py` is a separate loopback server (it subclasses `mock_service`'s server and leaves `mock_service.py` unchanged) that serves a deterministic, seeded overlay for the Songs, Suggestions, Statistics, Compete and Rivals tabs. It exists only so App Store screenshots show attractive data without any real account.
+
+- **Epic-only catalogue:** keeps rows whose `artist` is exactly `Epic Games`, minus the licensed-franchise titles in `EXCLUDED_TITLES`. `albumArt` filenames are unchanged, so artwork resolves from Epic's public CDN at runtime and no art is stored. The catalogue is cached **outside the repo** (default `~/.cache/fst-appstore/songs.json`) and never committed.
+- **Synthetic people:** selected player `showcase-player-1` / `StageDiver`, ten fictional rivals and a seeded fictional ranking roster. Scores respect each chart's `maxScores`; ranks, rank history, rivals and song leaderboards derive from one score curve so they agree.
+- **Commands:**
+  - `python3 tools/appstore_showcase.py fetch --out ~/.cache/fst-appstore/songs.json` performs the one keyless `GET /api/songs` (allowlisted in `service-safety.md`).
+  - `python3 tools/appstore_showcase.py check --catalogue <path>` prints a JSON summary and exits nonzero on dangling song references.
+  - `python3 tools/appstore_showcase.py serve --port 18795 --catalogue <path>` starts the loopback listener; launch the app with `FST_API_BASE_URL=http://127.0.0.1:18795 FST_DEBUG_PROFILE=showcase-player-1:StageDiver FST_DEBUG_TAB=<tab>`.
+- Bands (empty but valid), karaoke, path artifacts/Song Detail, band leaderboards and account search are not populated. Requests carrying `X-API-Key` or selected-profile headers are rejected. Tests: `python3 -m unittest tools.tests.test_appstore_showcase`.
