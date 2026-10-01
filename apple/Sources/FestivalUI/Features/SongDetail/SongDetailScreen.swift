@@ -57,6 +57,9 @@ struct SongDetailScreen: View {
 
     private var previewInstruments: [Instrument] { charted.filter(visibleInstruments.contains) }
 
+    /// Whether the Score History section is drawn (a selected player with rows).
+    private var showsScoreHistory: Bool { session.selectedPlayer != nil && !historyEntries.isEmpty }
+
     private struct ShopDetailTaskKey: Equatable {
         let publicationRevision: Int
         let hidden: Bool
@@ -83,15 +86,16 @@ struct SongDetailScreen: View {
         )
     }
 
-    /// Intensity, then one entry per visible leaderboard card, in source order
-    /// (`.agents/controls/quick-links/ios.md`; band/score-history sections are
-    /// not built yet).
+    /// Intensity, Score History (when shown), then one entry per visible leaderboard
+    /// card: the page's top-to-bottom order (`.agents/controls/quick-links/ios.md`;
+    /// band sections are not built yet). Uses the same predicates as the body so the
+    /// menu cannot list a section the page does not draw.
     private var quickLinkSections: [QuickLinkSection] {
         [QuickLinkSection(id: "intensity", title: "Intensity", icon: .system("chart.bar.fill"))]
-            + (historyEntries.isEmpty ? [] : [
+            + (showsScoreHistory ? [
                 QuickLinkSection(id: "score-history", title: "Score History", icon: .system("chart.line.uptrend.xyaxis")),
-            ])
-            + charted.filter(visibleInstruments.contains).map { instrument in
+            ] : [])
+            + previewInstruments.map { instrument in
                 QuickLinkSection(
                     id: "instrument-\(instrument.rawValue)", title: instrument.label,
                     icon: .instrument(instrument)
@@ -265,7 +269,7 @@ struct SongDetailScreen: View {
                 .festivalFadeIn(isLoaded: true, index: 1)
                 .quickLinkSection(id: "intensity", title: "Intensity", symbol: "chart.bar.fill")
 
-                if session.selectedPlayer != nil, !historyEntries.isEmpty {
+                if showsScoreHistory {
                     SongScoreHistorySection(
                         entries: historyEntries, pool: previewInstruments,
                         keyboardIcon: song.usesKeyboardIcon,
