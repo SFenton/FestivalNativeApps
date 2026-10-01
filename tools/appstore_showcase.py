@@ -1620,17 +1620,52 @@ def build_server(catalogue: dict, port: int = 0, *, as_of: date = AS_OF) -> Show
 
 #: App Store capture plan: (file stem, ``FST_DEBUG_TAB``, ``FST_DEBUG_ROUTE``). Rivals has no
 #: iPhone tab, so it is pushed as a route over Compete.
+@dataclass(frozen=True)
+class Shot:
+    """One App Store capture.
+
+    Attributes:
+        stem: Output file stem.
+        tab: ``FST_DEBUG_TAB`` at launch.
+        route: Optional ``FST_DEBUG_ROUTE``.
+        launch_args: Extra app launch arguments (UserDefaults argument domain;
+            never persisted to the app's preferences).
+        steps: ``ios_sim.py drive`` steps run before capturing; when present the
+            page is captured by the UI-test driver instead of ``simctl``.
+    """
+
+    stem: str
+    tab: str
+    route: str | None = None
+    launch_args: tuple[str, ...] = ()
+    steps: tuple[str, ...] = ()
+
+
+# Hide the Pro/Karaoke charts so Songs rows show only the tap instruments
+# (Lead, Bass, Drums, Tap Vocals); keys are SettingsScreen's @AppStorage names.
+TAP_ONLY_ARGS = tuple(
+    arg for name in ("ProLead", "ProBass", "Karaoke", "ProCymbals", "ProDrums")
+    for arg in (f"-fst.settings.show{name}", "<false/>")
+)
+
 SHOTS = (
-    ("01-songs", "songs", None),
-    ("02-suggestions", "suggestions", None),
-    ("03-statistics", "statistics", None),
-    ("04-compete", "compete", None),
-    ("05-rivals", "compete", "rivals"),
+    Shot("01-songs", "songs", launch_args=TAP_ONLY_ARGS),
+    Shot("02-suggestions", "suggestions"),
+    # Jump past the profile header card via Quick Links (scrolls with a .top anchor).
+    Shot("03-statistics", "statistics", steps=(
+        "waitFor:fst.player.overview", "tap:fst.quick-links.open",
+        "tap:fst.quick-links.item.global", "wait:{wait}",
+    )),
+    Shot("04-compete", "compete"),
+    Shot("05-rivals", "compete", "rivals"),
 )
 
 
 def shot_commands(port: int, out_dir: Path, device: str, wait: float) -> list[list[str]]:
-    """Build one ``ios_sim.py shot`` argv per App Store page.
+    """Build one ``ios_sim.py`` argv per App Store page.
+
+    Pages without steps use ``shot`` (``simctl`` launch and framebuffer capture);
+    pages with steps use ``drive`` and end with a driver ``shot:`` step.
 
     Args:
         port: Loopback port of the running showcase server.
@@ -1642,13 +1677,20 @@ def shot_commands(port: int, out_dir: Path, device: str, wait: float) -> list[li
         Argument vectors, in ``SHOTS`` order.
     """
     tool = str(Path(__file__).resolve().parent / "ios_sim.py")
+    env = ["--env", f"FST_API_BASE_URL=http://127.0.0.1:{port}",
+           "--env", f"FST_DEBUG_PROFILE={PLAYER_ID}:{PLAYER_NAME}"]
     commands = []
-    for stem, tab, route in SHOTS:
-        argv = [sys.executable, tool, "shot", "--device", device, "--tab", tab, "--wait", str(wait),
-                "--clean-status-bar", "--env", f"FST_API_BASE_URL=http://127.0.0.1:{port}",
-                "--env", f"FST_DEBUG_PROFILE={PLAYER_ID}:{PLAYER_NAME}", "--out", str(out_dir / f"{stem}.png")]
-        if route:
-            argv[5:5] = ["--route", route]
+    for shot in SHOTS:
+        out = str(out_dir / f"{shot.stem}.png")
+        route = ["--route", shot.route] if shot.route else []
+        if shot.steps:
+            steps = [step.format(wait=wait) for step in shot.steps] + [f"shot:{out}"]
+            argv = [sys.executable, tool, "drive", "--device", device, "--tab", shot.tab, *route,
+                    "--clean-status-bar", "--animate", *env, "--steps", "; ".join(steps)]
+        else:
+            argv = [sys.executable, tool, "shot", "--device", device, "--tab", shot.tab, *route,
+                    "--wait", str(wait), "--clean-status-bar", *env, "--out", out]
+            argv += [f"--launch-arg={arg}" for arg in shot.launch_args]
         commands.append(argv)
     return commands
 

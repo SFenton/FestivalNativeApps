@@ -323,13 +323,43 @@ class ShootTests(unittest.TestCase):
             code = showcase.shoot(synthetic_catalogue(), Path(tmp) / "out", "promax", 1.0, run=fake_run)
         self.assertEqual(code, 0)
         self.assertEqual([s[1] for s in seen], [200] * len(showcase.SHOTS))
-        stems = [Path(a[a.index("--out") + 1]).stem for a, _ in seen]
-        self.assertEqual(stems, [stem for stem, _, _ in showcase.SHOTS])
+
+        def output(argv: list[str]) -> str:
+            if argv[2] == "drive":
+                return argv[argv.index("--steps") + 1].rsplit("shot:", 1)[1]
+            return argv[argv.index("--out") + 1]
+
+        stems = [Path(output(a)).stem for a, _ in seen]
+        self.assertEqual(stems, [shot.stem for shot in showcase.SHOTS])
         rivals = seen[-1][0]
         self.assertEqual(rivals[rivals.index("--route") + 1], "rivals")
         for argv, _ in seen:
             self.assertIn("--clean-status-bar", argv)
             self.assertIn(f"FST_DEBUG_PROFILE={showcase.PLAYER_ID}:{showcase.PLAYER_NAME}", argv)
+
+    def test_songs_shows_only_tap_instruments(self) -> None:
+        """Songs hides every Pro/Karaoke chart via argument-domain defaults; other pages don't."""
+        from pathlib import Path
+
+        commands = {Path(a[a.index("--out") + 1]).stem: a for a in showcase.shot_commands(1, Path("/o"), "promax", 1.0)
+                    if a[2] == "shot"}
+        songs = [a.split("=", 1)[1] for a in commands["01-songs"] if a.startswith("--launch-arg=")]
+        hidden = dict(zip(songs[::2], songs[1::2]))
+        self.assertEqual(set(hidden.values()), {"<false/>"})
+        self.assertEqual(set(hidden), {f"-fst.settings.show{n}" for n in
+                                       ("ProLead", "ProBass", "Karaoke", "ProCymbals", "ProDrums")})
+        for stem in ("02-suggestions", "04-compete", "05-rivals"):
+            self.assertFalse(any(a.startswith("--launch-arg") for a in commands[stem]), stem)
+
+    def test_statistics_scrolls_past_profile_card_before_capture(self) -> None:
+        """Statistics is driven to the Global Statistics quick link, then captured last."""
+        from pathlib import Path
+
+        argv = showcase.shot_commands(1, Path("/o"), "promax", 7.0)[2]
+        self.assertEqual(argv[2], "drive")
+        steps = [s.strip() for s in argv[argv.index("--steps") + 1].split(";")]
+        self.assertEqual(steps, ["waitFor:fst.player.overview", "tap:fst.quick-links.open",
+                                 "tap:fst.quick-links.item.global", "wait:7.0", "shot:/o/03-statistics.png"])
 
     def test_shoot_stops_on_first_failure(self) -> None:
         """A failing capture returns its exit code without running later pages."""

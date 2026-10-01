@@ -991,7 +991,7 @@ def cmd_shot(args: argparse.Namespace) -> int:
             key, _, value = pair.partition("=")
             launch_env[f"SIMCTL_CHILD_{key}"] = value
         with ScreenRecording(udid, args.record, args.display if args.display in DUO_PANELS else None):
-            _run(["xcrun", "simctl", "launch", udid, BUNDLE_ID], env=launch_env)
+            _run(["xcrun", "simctl", "launch", udid, BUNDLE_ID, *(args.launch_arg or [])], env=launch_env)
             for index, out in enumerate(args.out):
                 time.sleep(args.wait if index == 0 else args.interval)
                 Path(out).parent.mkdir(parents=True, exist_ok=True)
@@ -1080,6 +1080,8 @@ def cmd_drive(args: argparse.Namespace) -> int:
             lock.flush()
             boot_exclusive(udid)
             _run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True)
+            if args.clean_status_bar:
+                _run(["xcrun", "simctl", "status_bar", udid, "override", *CLEAN_STATUS_BAR], capture_output=True)
             problem = require_pose(udid, args.pose, args.set_pose)
             if problem:
                 print(problem, file=sys.stderr)
@@ -1391,6 +1393,9 @@ def main(argv: list[str] | None = None) -> int:
     shot.add_argument("--keep", action="store_true", help="leave the app running")
     shot.add_argument("--clean-status-bar", action="store_true",
                       help="override the status bar (9:41, full bars, charged) for marketing captures")
+    shot.add_argument("--launch-arg", action="append",
+                      help="app launch argument (repeatable; use --launch-arg=-key form), e.g. "
+                           "--launch-arg=-fst.settings.showProLead --launch-arg='<false/>'")
     shot.add_argument("--record", help="also record the session to this .mp4 (for remote review)")
     shot.add_argument("--record-tail", type=float, default=3.0,
                       help="seconds to keep recording after the last screenshot (animations)")
@@ -1423,6 +1428,8 @@ def main(argv: list[str] | None = None) -> int:
                        help="iPhone Duo panel to record with --record (default: simctl's first display); "
                             "recordings see transitions that shot: steps cannot")
     drive.add_argument("--env", action="append", help="extra KEY=VALUE app launch environment")
+    drive.add_argument("--clean-status-bar", action="store_true",
+                       help="override the status bar (9:41, full bars, charged) for marketing captures")
     drive.add_argument("--steps", help="';'-separated step script, e.g. 'tap:x; shot:/tmp/a.png'")
     drive.add_argument("--steps-file", help="path to a newline-separated step script")
     drive.add_argument(
