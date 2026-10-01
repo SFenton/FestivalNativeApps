@@ -1,6 +1,6 @@
 # Release machine (App Store Connect pipeline)
 
-> **What:** the native side of the autonomous release machine: CI checks, the iOS archive/upload script, the App Store Connect client, credentials, version/build numbers, What's New, safety and how to enable other platforms. **Read when:** touching `tools/release/**`, `.github/workflows/{apple-ci,ios-release-build,*-release}.yml`, or diagnosing a blocked/skipped release. Contract owner: `SFenton/festival-report-tracker` `docs/design.md` §2.1, §8, §11 (change both together).
+> **What:** the native side of the autonomous release machine: CI checks, the iOS archive/upload script, the App Store Connect client, credentials, version/build numbers, What's New, safety and how to enable other platforms. **Read when:** touching `tools/release/**`, `tools/windows/{package_msix.ps1,store_assets.py}`, `.github/workflows/{apple-ci,ios-release-build,windows-release-build,*-release}.yml`, or diagnosing a blocked/skipped release. Contract owner: `SFenton/festival-report-tracker` `docs/design.md` §2.1, §8, §11 (change both together).
 
 ## Architecture
 
@@ -12,7 +12,9 @@
 | `ios-release-build` | [`ios-release-build.yml`](../../.github/workflows/ios-release-build.yml) | On `master` pushes touching `apple/**`, `tools/release/**`, `contracts/**`: archive + upload a build |
 | Build script | `tools/release/ios_appstore_build.sh` | xcodegen → `xcodebuild archive` → `-exportArchive` (uploads) → ledger entry |
 | ASC client | `tools/release/fst_release.py` | `ios status\|next-version\|submit\|record-build\|creds` (also `macos …` for ASC `MAC_OS`) |
-| Android/Windows/macOS | `android-release.yml`, `windows-release.yml`, `macos-release.yml` | Disabled scaffolds (below) |
+| `windows-release-build` | [`windows-release-build.yml`](../../.github/workflows/windows-release-build.yml) | On `master` pushes touching `windows/**`, `contracts/**`, packaging scripts: hosted `windows-latest` builds the unsigned Store MSIX as an artifact ([Windows](#windows-microsoft-store)) |
+| Store client | `tools/release/fst_store.py` | `fst_release.py windows status\|submit\|record-build` dispatches here (Microsoft Store submission API) |
+| Android/macOS | `android-release.yml`, `macos-release.yml` | Disabled scaffolds (below) |
 
 `native.yml` (hosted Windows/Android unit tests) and `contracts.yml` are unchanged; the required checks are `apple-ci` and `contracts`.
 
@@ -60,16 +62,41 @@ Canonical content is the web `changelog.ts`; `FestivalCore/Changelog.swift` mirr
 - TODO(orchestrator): the iOS AppIcon asset is still pending (`ASSETCATALOG_COMPILER_APPICON_NAME: ""`), which App Store validation rejects; the app also needs an export-compliance answer (`ITSAppUsesNonExemptEncryption`) and a privacy/metadata record before the first submission.
 - Archiving signs for device family 1 (iPhone) only (`TARGETED_DEVICE_FAMILY=1`) until iPadOS is certified.
 
+## Windows (Microsoft Store)
+
+Builds run on every qualifying `master` push. Submission stays off until the tracker's `release.windows.enabled` is flipped (host `linux`: `fst_store.py` and `gh` run there, so the Windows desktop is never used).
+
+| Piece | Detail |
+|---|---|
+| Identity | `windows/store-identity.json` holds Partner Center → Product identity: `packageName` (Package/Identity/Name), `publisher` (`CN=…`), `publisherDisplayName`, `storeId`. Placeholders build artifacts suffixed `_placeholder` that are never submitted |
+| Manifest | `windows/Festival.App/Package.appxmanifest`; only used with `-p:FstMsix=true` (the dev/test `.exe` stays unpackaged). Logos in `Assets/Store/` come from `windows/store/fst-icon-512.png` via `python3 tools/windows/store_assets.py` (`--check` in CI) |
+| Package | `tools/windows/package_msix.ps1 [-AllowPlaceholder] [-OutDir D] [-Version V]` stamps identity and version `<major>.<minor>.<git commit count>.0`, publishes unsigned (the Store signs) and writes `build.json {version, sha, placeholder, package}`. Artifact: `fst-windows-msix_<version>_<sha>[_placeholder]`, kept 30 days |
+| Credentials (Linux) | Entra app registration with a client secret, added in Partner Center → Account settings → User management → Microsoft Entra applications with the **Manager** role. `MSSTORE_TENANT_ID`, `MSSTORE_CLIENT_ID`, `MSSTORE_CLIENT_SECRET`, `MSSTORE_SELLER_ID`, `MSSTORE_APP_ID` (Store ID) or `~/.config/fst-release/msstore.json` with the lower-case keys (`FST_MSSTORE_CONFIG` overrides); missing ⇒ `blocked:"missing_store_credentials"` |
+| First submission | Must be completed by hand in Partner Center (age rating, listing, screenshots, the first CI MSIX); until then status is `blocked:"first_submission_required"` |
+
+`windows status --json` returns the shared status shape. `state` is the pending submission's status (or `Published`), `version` its package version, and `latest_build.build` = `version` = the newest successful master artifact (`processing_state` `VALID`, `PLACEHOLDER_IDENTITY` or `EXPIRED`). `released_sha` comes from the ledger (`WINDOWS`), falling back to artifact names. In review means a pending submission in `CommitStarted`, `PreProcessing`, `Certification`, `PendingPublication`, `Publishing` or `Release`.
+
+`windows submit --build V (--notes-file F|--notes-stdin) [--dry-run] [--publish-mode manual|immediate]`:
+
+- Refuses (exit 3) while a submission is in review.
+- Deletes a failed submission or one it created itself (`msstore-submissions.json` beside the ledger).
+- Blocks on a draft someone else is editing (`foreign_pending_submission`).
+- Requires `V` to be the latest valid artifact, and downloads it with `gh run download`.
+- Clones the last published submission, marks the old packages `PendingDelete`, adds the new one, and sets every listing's release notes (≤1500 characters) and `targetPublishMode`.
+- Uploads the zip to the SAS URL, which is never printed, then commits.
+
+The default mode is **Manual**: certification runs, and the package waits in `PendingPublication` until someone presses *Publish now*. That state counts as in review, so a newer build waits too.
+
 ## Enabling other platforms
 
-Set the repository variable `FST_RELEASE_<ANDROID|WINDOWS|MACOS>_ENABLED=true` only after implementing the TODO steps in the scaffold workflow, then flip `release.<platform>.enabled` in the tracker's `config/machine.json`.
+Set the repository variable `FST_RELEASE_<ANDROID|MACOS>_ENABLED=true` only after implementing the TODO steps in the scaffold workflow, then flip `release.<platform>.enabled` in the tracker's `config/machine.json`. Windows needs only the [prerequisites above](#windows-microsoft-store) plus that tracker flag.
 
 | Platform | Plan |
 |---|---|
 | Android | Gradle Play Publisher with a Play service account secret and upload keystore; internal track first |
-| Windows | MSIX packaging, then Microsoft Store CLI (`msstore`) with Partner Center credentials |
+| Windows | Implemented (MSIX build + Store submission API); see [Windows](#windows-microsoft-store) |
 | macOS | Copy `ios_appstore_build.sh` for `FestivalDesktop`; the client already supports `fst_release.py macos …` (ASC `MAC_OS`, bundle id `com.sfenton.festivalscoretracker.mac`) |
 
 ## Tests
 
-`python3 -m unittest discover -s tools/release/tests -t .` (JWT/DER, credentials, status, next-version, submit sequence with a fake transport; no network). Script check: `bash -n tools/release/ios_appstore_build.sh` and `tools/release/ios_appstore_build.sh --dry-run`.
+`python3 -m unittest discover -s tools/release/tests -t .` (JWT/DER, credentials, status, next-version, submit sequence and the Store client with fake transports; no network). `python3 tools/windows/store_assets.py --check` verifies the MSIX logos. Script check: `bash -n tools/release/ios_appstore_build.sh` and `tools/release/ios_appstore_build.sh --dry-run`.

@@ -9,6 +9,7 @@ orchestrator (``festival-report-tracker``, design §8) drives it over SSH::
     fst_release.py ios submit --build 202609301200 --notes-file notes.txt [--dry-run]
     fst_release.py ios record-build --build 202609301200 --version 0.1.1 --sha <git sha>
     fst_release.py ios creds            # signing helper used by ios_appstore_build.sh
+    fst_release.py windows status --json  # Microsoft Store: dispatched to fst_store.py
 
 ``macos`` is accepted as a second platform group (``MAC_OS``) for the disabled
 macOS pipeline. Credentials come from ``ASC_KEY_ID`` / ``ASC_ISSUER_ID`` /
@@ -743,6 +744,11 @@ def main(argv: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None,
     Returns:
         The process exit code.
     """
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv[:1] == ["windows"]:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import fst_store  # Microsoft Store client shares this entry point and exit codes.
+        return fst_store.main(argv[1:], env=env, stdin=stdin)
     args = build_parser().parse_args(argv)
     env = dict(os.environ) if env is None else env
     group = args.group

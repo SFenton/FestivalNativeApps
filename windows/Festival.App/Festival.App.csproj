@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- WinUI 3 (Windows App SDK) desktop app: unpackaged, self-contained, x64. -->
+  <!-- WinUI 3 (Windows App SDK) desktop app: unpackaged, self-contained, x64. -p:FstMsix=true builds the
+       Microsoft Store MSIX instead (tools/windows/package_msix.ps1). -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows10.0.26100.0</TargetFramework>
@@ -9,7 +10,7 @@
     <AssemblyName>FestivalScoreTracker</AssemblyName>
     <UseWinUI>true</UseWinUI>
     <EnableMsixTooling>true</EnableMsixTooling>
-    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsPackageType Condition="'$(FstMsix)' != 'true'">None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <SelfContained>true</SelfContained>
     <Platforms>x64</Platforms>
@@ -46,6 +47,24 @@
     <Using Include="Festival.Core.Data" />
     <Using Include="Festival.Core.Domain" />
     <Using Include="Festival.Core.ViewModels" />
+  </ItemGroup>
+  <!-- Store package: unsigned (the Store signs it), one x64 .msix, logos from tools/windows/store_assets.py. -->
+  <PropertyGroup Condition="'$(FstMsix)' == 'true'">
+    <GenerateAppxPackageOnBuild>true</GenerateAppxPackageOnBuild>
+    <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
+    <AppxBundle>Never</AppxBundle>
+    <UapAppxPackageBuildMode>StoreUpload</UapAppxPackageBuildMode>
+    <AppxSymbolPackageEnabled>false</AppxSymbolPackageEnabled>
+    <GenerateTestArtifacts>false</GenerateTestArtifacts>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(FstMsix)' == 'true'">
+    <AppxManifest Remove="Package.appxmanifest" />
+    <AppxManifest Include="Package.appxmanifest" />
+    <Content Include="Assets\Store\*.png" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(FstMsix)' != 'true'">
+    <AppxManifest Remove="Package.appxmanifest" />
+    <None Remove="Package.appxmanifest" />
   </ItemGroup>
   <ItemGroup>
     <!-- Brand colours generated from contracts/fluent-tokens.json (read-only; owned by contracts/). -->

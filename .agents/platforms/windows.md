@@ -4,7 +4,7 @@
 
 ## Stack
 
-- **C# / .NET 9 + WinUI 3, Windows App SDK 2.5.1**, unpackaged, self-contained, x64, min Windows 10 19041. C#/WinRT projection pinned to `10.0.26100.87` (trim/AOT-annotated).
+- **C# / .NET 9 + WinUI 3, Windows App SDK 2.5.1**, unpackaged, self-contained, x64, min Windows 10 19041. The Store build adds `-p:FstMsix=true` (unsigned MSIX via `tools/windows/package_msix.ps1`; see [release machine](../workflow/release-machine.md#windows-microsoft-store)). C#/WinRT projection pinned to `10.0.26100.87` (trim/AOT-annotated).
 - MVVM with CommunityToolkit.Mvvm. `Festival.Core` (UI-free, `net9.0`) holds `Data/` (request gate, client, wire models, caches, settings store), `Domain/` (instruments, songs pipeline, routes, settings, launch options, artwork policy) and `ViewModels/`. `Festival.App` holds XAML, controls and thin code-behind.
 - System.Text.Json source generation everywhere (no reflection), so Release can be trimmed or NativeAOT-published.
 - Service access: [service-safety.md](service-safety.md). The single gate is `RequestGate` (GET-only, rejects `X-API-Key`/`x-fst-selected-*`, 30 s deadline, maps 202/304/404/503 + `Retry-After` + freeze reason to `ServiceIssue`). `FestivalApiClient` bootstraps `/api/publication`, pins only when `readyForPinning && pinningEnabled`, reuses ETags within one publication, retries one `publication_changed` 409. `SocketsHttpHandler` has no disk cache; art never goes through `BitmapImage.UriSource` (which would use the WinINet cache).

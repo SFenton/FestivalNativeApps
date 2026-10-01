@@ -1,0 +1,60 @@
+name: windows-release-build
+# Build the unsigned Microsoft Store MSIX from master and keep it as an artifact. Submitting it for
+# certification is done separately by the release orchestrator (`fst_store.py windows submit`), which
+# finds the newest successful run's `fst-windows-msix_<version>_<sha>` artifact. While
+# windows/store-identity.json still holds placeholders the artifact is suffixed `_placeholder` and is
+# never submitted (packaging check only).
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'windows/**'
+      - 'contracts/**'
+      - 'tools/windows/package_msix.ps1'
+      - 'tools/windows/_common.ps1'
+      - '.github/workflows/windows-release-build.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: windows-release-build
+  cancel-in-progress: false
+jobs:
+  windows-release-build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: the MSIX build number is the commit count.
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Store logos are current
+        run: python tools/windows/store_assets.py --check
+      - name: Unpackaged build still compiles
+        run: dotnet build windows/Festival.App/Festival.App.csproj -c Debug -p:Platform=x64 -nologo -clp:NoSummary
+      - name: Package MSIX
+        shell: pwsh
+        run: ./tools/windows/package_msix.ps1 -AllowPlaceholder -OutDir "$env:RUNNER_TEMP\msix"
+      - name: Name artifact
+        id: meta
+        shell: pwsh
+        run: |
+          $build = Get-Content -Raw "$env:RUNNER_TEMP\msix\build.json" | ConvertFrom-Json
+          $suffix = if ($build.placeholder) { '_placeholder' } else { '' }
+          "name=fst-windows-msix_$($build.version)_$($build.sha)$suffix" >> $env:GITHUB_OUTPUT
+          "### Windows MSIX $($build.version)$suffix`n``$($build.package)`` from $($build.sha)" >> $env:GITHUB_STEP_SUMMARY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.name }}
+          path: |
+            ${{ runner.temp }}\msix\*.msix
+            ${{ runner.temp }}\msix\*.msixupload
+            ${{ runner.temp }}\msix\build.json
+          if-no-files-found: error
+          retention-days: 30
