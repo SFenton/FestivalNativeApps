@@ -186,6 +186,40 @@ func duoDrawerAvoidsBarAndCamera(layout: DeviceLayout) {
     #expect(bounds.contains(panel))
 }
 
+// MARK: - Drawer corners
+
+/// The panel follows the display's corners through the system's concentric shape, with a
+/// floor that keeps it concentric with its own rows where no display corner applies.
+@Test func drawerCornersAreConcentricWithAMinimum() {
+    #expect(DrawerCorners.minimumRadius == DrawerCorners.rowRadius + DrawerCorners.contentInset)
+    #expect(DrawerCorners.minimumRadius == 26)
+    if #available(iOS 26.0, macOS 26.0, *) {
+        #expect(DrawerCorners.panelCornerStyle == .concentric(minimum: .fixed(26)))
+        #expect(DrawerCorners.panelCornerStyle != .fixed(DrawerCorners.legacyRadius))
+    }
+}
+
+/// The scrim's cut-out is laid out at the panel's window position in every pose, so its
+/// position-dependent corners match the panel's.
+@Test(arguments: [Layouts.iPhonePortrait] + Layouts.foldedRotations)
+func drawerCutoutSitsOnThePanel(layout: DeviceLayout) {
+    let window = layout.pose == .standard
+        ? CGSize(width: 402, height: 874)
+        : layout.orientation == .portrait ? CGSize(width: 466, height: 678) : CGSize(width: 678, height: 466)
+    let safeArea = layout.pose == .standard
+        ? EdgeInsets(top: 62, leading: 0, bottom: 34, trailing: 0) : layout.overlayInsets
+    let inner = CGSize(
+        width: window.width - safeArea.leading - safeArea.trailing,
+        height: window.height - safeArea.top - safeArea.bottom
+    )
+    let placement = DrawerPlacement.resolve(size: inner, safeArea: safeArea, layout: layout)
+    let cutout = placement.cutoutPadding
+    #expect(placement.scrimInsets.leading + cutout.leading == placement.panelPadding.leading)
+    #expect(placement.scrimInsets.top + cutout.top == placement.panelPadding.top)
+    #expect(placement.scrimInsets.bottom + cutout.bottom == placement.panelPadding.bottom)
+    #expect(cutout.leading >= 0 && cutout.top >= 0 && cutout.bottom >= 0)
+}
+
 // MARK: - Root profile item
 
 /// Vertical bars need a titled symbol; horizontal bars keep the monogram (B1).
