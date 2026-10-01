@@ -75,6 +75,17 @@ enum DrawerMenu {
         DrawerItem(id: "settings", title: "Settings", symbol: "gearshape", intent: .select(.settings)),
     ]
 
+    /// VoiceOver label for the footer's selected-player row.
+    ///
+    /// The row shows only the name (like every other drawer row), so the "Selected
+    /// Player" role is spoken rather than drawn.
+    ///
+    /// - Parameter displayName: Selected player's display name.
+    /// - Returns: The name followed by the row's role.
+    static func selectedPlayerAccessibilityLabel(_ displayName: String) -> String {
+        "\(displayName), Selected Player"
+    }
+
     /// Whether a row names the page on screen, for the current-destination highlight.
     ///
     /// - Parameters:
@@ -337,23 +348,20 @@ struct FestivalDrawer: View {
     @ViewBuilder private var profileSection: some View {
         if let player = session.selectedPlayer {
             // Web: the player's name links to their profile, with Deselect beside it.
+            // Same metrics as `DrawerRow` (avatar in the symbol column, body text) so the
+            // name lines up with the other rows; the "Selected Player" role is spoken only.
             HStack(spacing: 8) {
                 Button {
                     onIntent(.push(.player(
                         accountId: player.accountId, displayName: player.displayName
                     )))
                 } label: {
-                    HStack(spacing: 12) {
-                        ProfileAvatar(name: player.displayName, size: 32)
-                        VStack(alignment: .leading, spacing: 0) {
-                            MarqueeText(player.displayName)
-                                .font(.headline)
-                                .foregroundStyle(FestivalText.primary)
-                                .lineLimit(1)
-                            Text("Selected Player")
-                                .font(.caption)
-                                .foregroundStyle(FestivalText.primary)
-                        }
+                    HStack(spacing: DrawerRow.iconSpacing) {
+                        ProfileAvatar(name: player.displayName, size: DrawerRow.iconWidth)
+                        MarqueeText(player.displayName)
+                            .font(.body)
+                            .foregroundStyle(BrandTokens.textPrimary)
+                            .lineLimit(1)
                         Spacer(minLength: 0)
                     }
                     .padding(.horizontal, 8)
@@ -362,6 +370,7 @@ struct FestivalDrawer: View {
                 }
                 .buttonStyle(DrawerRowStyle())
                 .accessibilityElement(children: .combine)
+                .accessibilityLabel(DrawerMenu.selectedPlayerAccessibilityLabel(player.displayName))
                 .accessibilityHint("Opens your profile")
                 .accessibilityIdentifier("fst.shell.drawer.view-profile")
                 Button("Deselect") { deselectPending = true }
@@ -403,12 +412,17 @@ struct DrawerRow: View {
     var isCurrent = false
     let action: () -> Void
 
+    /// Width of the leading symbol column (the selected-player avatar uses it too).
+    static let iconWidth: CGFloat = 26
+    /// Gap between the leading symbol column and the title.
+    static let iconSpacing: CGFloat = 14
+
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 14) {
+            HStack(spacing: Self.iconSpacing) {
                 Image(systemName: symbol)
                     .font(.body.weight(.medium))
-                    .frame(width: 26)
+                    .frame(width: Self.iconWidth)
                     .foregroundStyle(tint == BrandTokens.textPrimary ? BrandTokens.textSecondary : tint)
                     .accessibilityHidden(true)
                 Text(title)
