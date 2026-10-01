@@ -4,7 +4,7 @@ import Foundation
 
 /// One titled group of changelog bullets: a released app version and its notes.
 public struct ChangelogSection: Sendable, Equatable, Identifiable {
-    /// Heading, e.g. "Version 2610.01".
+    /// Heading, e.g. "Version 2610.01.01".
     public let title: String
     /// Bullet sentences, in release-note order.
     public let items: [String]
@@ -27,7 +27,7 @@ public struct ChangelogSection: Sendable, Equatable, Identifiable {
 
 /// One app version's worth of changelog sections.
 public struct ChangelogEntry: Sendable, Equatable {
-    /// App version (`YYMM.NN`) the notes belong to; nil for ad-hoc entries.
+    /// App version (`YYMM.DD.NN`) the notes belong to; nil for ad-hoc entries.
     public let version: String?
     /// Whether that version had reached the App Store when this build was made (the built
     /// version itself is listed unreleased).

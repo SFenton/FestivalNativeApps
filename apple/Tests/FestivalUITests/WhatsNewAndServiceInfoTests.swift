@@ -255,11 +255,11 @@ private struct Boom: Error {}
 #if os(macOS)
 /// Two versions, as a release build's generated `WhatsNew.json` would list them.
 private let sampleWhatsNewEntries = [
-    ChangelogEntry(version: "2610.02", released: false, sections: [
-        ChangelogSection(title: "Version 2610.02", items: ["Rivals refresh correctly."]),
+    ChangelogEntry(version: "2610.01.02", released: false, sections: [
+        ChangelogSection(title: "Version 2610.01.02", items: ["Rivals refresh correctly."]),
     ]),
-    ChangelogEntry(version: "2610.01", sections: [
-        ChangelogSection(title: "Version 2610.01", items: ["The first release of Festival Score Tracker for iPhone."]),
+    ChangelogEntry(version: "2610.01.01", sections: [
+        ChangelogSection(title: "Version 2610.01.01", items: ["The first release of Festival Score Tracker for iPhone."]),
     ]),
 ]
 
@@ -267,7 +267,7 @@ private let sampleWhatsNewEntries = [
 @Test func whatsNewSheetRendersTitleCaseSectionsAndDismiss() async throws {
     let size = CGSize(width: 402, height: 874)
     let host = nativeHostedView(
-        WhatsNewSheet(version: "2610.02", entries: Changelog.displayEntries(sampleWhatsNewEntries)) {}
+        WhatsNewSheet(version: "2610.01.02", entries: Changelog.displayEntries(sampleWhatsNewEntries)) {}
             .frame(width: size.width, height: size.height)
             .background(BrandTokens.cardBackground)
             .preferredColorScheme(.dark),
@@ -275,7 +275,7 @@ private let sampleWhatsNewEntries = [
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    let expected = ["Version 2610.02", "Version 2610.01", "Dismiss"]
+    let expected = ["Version 2610.01.02", "Version 2610.01.01", "Dismiss"]
     let image = try await nativeHostedSettle(host, untilText: expected)
     _ = try nativeHostedPNG(image, filename: "whats-new.png", environment: "FST_WHATS_NEW_RENDER_OUT")
     assertRendersContent(host, image: image, containing: expected)

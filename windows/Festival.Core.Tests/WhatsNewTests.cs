@@ -6,12 +6,12 @@ namespace Festival.Core.Tests;
 public class WhatsNewTests
 {
     private const string SampleDocument = """
-        {"schema": 1, "platform": "windows", "version": "2610.04", "baseline": "2610.03", "extra": true,
+        {"schema": 1, "platform": "windows", "version": "2610.01.04", "baseline": "2610.01.03", "extra": true,
          "entries": [
-          {"version": "2610.04", "released": false, "items": ["Rivals refresh correctly.", "  ", 5]},
-          {"version": "2610.03", "released": true, "items": ["The Item Shop badge is back.", "Songs load faster."]},
-          {"version": "2610.02", "released": true, "items": []},
-          {"version": "2610.01", "items": ["The first release."]}
+          {"version": "2610.01.04", "released": false, "items": ["Rivals refresh correctly.", "  ", 5]},
+          {"version": "2610.01.03", "released": true, "items": ["The Item Shop badge is back.", "Songs load faster."]},
+          {"version": "2610.01.02", "released": true, "items": []},
+          {"version": "2610.01.01", "items": ["The first release."]}
          ]}
         """;
 
@@ -19,12 +19,12 @@ public class WhatsNewTests
     public void Decode_OneVersionSectionPerEntry()
     {
         var entries = Changelog.Decode(SampleDocument);
-        Assert.Equal(["2610.04", "2610.03", "2610.01"], entries.Select(e => e.Version));
+        Assert.Equal(["2610.01.04", "2610.01.03", "2610.01.01"], entries.Select(e => e.Version));
         Assert.Equal([false, true, true], entries.Select(e => e.Released));
         var section = Assert.Single(entries[0].Sections);
-        Assert.Equal("Version 2610.04", section.DisplayTitle);
+        Assert.Equal("Version 2610.01.04", section.DisplayTitle);
         Assert.Equal(["Rivals refresh correctly."], section.Items);
-        Assert.StartsWith("[{\"sections\":[{\"title\":\"Version 2610.04\"", Changelog.CanonicalJson(entries));
+        Assert.StartsWith("[{\"sections\":[{\"title\":\"Version 2610.01.04\"", Changelog.CanonicalJson(entries));
     }
 
     [Fact]
@@ -54,15 +54,15 @@ public class WhatsNewTests
         Assert.Empty(Changelog.Load(() => new MemoryStream(new byte[300 * 1024])));
         Assert.Equal(3, Changelog.Load(() => new MemoryStream(Encoding.UTF8.GetBytes(SampleDocument))).Count);
         var placeholder = Assert.Single(Changelog.Entries);
-        Assert.Equal("2610.01", placeholder.Version);
+        Assert.Equal("2610.01.01", placeholder.Version);
         Assert.Equal(Changelog.Hash(Changelog.Entries), Changelog.CurrentHash);
     }
 
     [Fact]
     public void Hash_ChangesWithVersionsAndEmptyIsNeverPending()
     {
-        var one = Changelog.Decode("""{"entries":[{"version":"2610.01","items":["a"]}]}""");
-        var two = Changelog.Decode("""{"entries":[{"version":"2610.02","items":["a"]},{"version":"2610.01","items":["a"]}]}""");
+        var one = Changelog.Decode("""{"entries":[{"version":"2610.01.01","items":["a"]}]}""");
+        var two = Changelog.Decode("""{"entries":[{"version":"2610.01.02","items":["a"]},{"version":"2610.01.01","items":["a"]}]}""");
         Assert.NotEqual(Changelog.Hash(one), Changelog.Hash(two));
         // JS: calculateChangelogHash([]) → "[]" → ((91*31)+93).toString(36).
         Assert.Equal(Changelog.Base36(91 * 31 + 93), Changelog.EmptyHash);
@@ -95,9 +95,9 @@ public class WhatsNewTests
         Assert.Equal(["SONGS", "OTHER"], entry.Sections.Select(s => s.Title));
         Assert.Equal(["Keep me."], entry.Sections[0].Items);
         Assert.Equal(Changelog.Entries, Changelog.DisplayEntries(), new EntryComparer());
-        var versioned = Changelog.DisplayEntries([new([new("Version 2610.02", ["Kept.", "Manual gone."])], "2610.02", false)]);
+        var versioned = Changelog.DisplayEntries([new([new("Version 2610.01.02", ["Kept.", "Manual gone."])], "2610.01.02", false)]);
         var kept = Assert.Single(versioned);
-        Assert.Equal(("2610.02", false), (kept.Version, kept.Released));
+        Assert.Equal(("2610.01.02", false), (kept.Version, kept.Released));
         Assert.Equal(["Kept."], kept.Sections[0].Items);
     }
 

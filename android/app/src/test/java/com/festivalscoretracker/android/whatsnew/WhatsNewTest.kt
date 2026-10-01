@@ -31,22 +31,22 @@ class WhatsNewTest {
     // region Changelog
 
     private val sampleDocument = """
-        {"schema": 1, "platform": "android", "version": "2610.04", "baseline": "2610.03", "extra": true,
+        {"schema": 1, "platform": "android", "version": "2610.01.04", "baseline": "2610.01.03", "extra": true,
          "entries": [
-          {"version": "2610.04", "released": false, "items": ["Rivals refresh correctly.", "  "]},
-          {"version": "2610.03", "released": true, "items": ["The Item Shop badge is back.", "Songs load faster."]},
-          {"version": "2610.02", "released": true, "items": []},
-          {"version": "2610.01", "items": ["The first release."]}
+          {"version": "2610.01.04", "released": false, "items": ["Rivals refresh correctly.", "  "]},
+          {"version": "2610.01.03", "released": true, "items": ["The Item Shop badge is back.", "Songs load faster."]},
+          {"version": "2610.01.02", "released": true, "items": []},
+          {"version": "2610.01.01", "items": ["The first release."]}
          ]}
     """.trimIndent()
 
     @Test
     fun decodesOneVersionSectionPerEntry() {
         val entries = Changelog.decode(sampleDocument)
-        assertEquals(listOf("2610.04", "2610.03", "2610.01"), entries.map { it.version })
+        assertEquals(listOf("2610.01.04", "2610.01.03", "2610.01.01"), entries.map { it.version })
         assertEquals(listOf(false, true, true), entries.map { it.released })
-        assertEquals(listOf(ChangelogSection("Version 2610.04", listOf("Rivals refresh correctly."))), entries[0].sections)
-        assertEquals("Version 2610.03", entries[1].sections.single().displayTitle)
+        assertEquals(listOf(ChangelogSection("Version 2610.01.04", listOf("Rivals refresh correctly."))), entries[0].sections)
+        assertEquals("Version 2610.01.03", entries[1].sections.single().displayTitle)
     }
 
     @Test
@@ -66,13 +66,13 @@ class WhatsNewTest {
         assertEquals(emptyList<ChangelogEntry>(), Changelog.load { "nope".byteInputStream() })
         assertEquals(3, Changelog.load { sampleDocument.byteInputStream() }.size)
         // src/main/resources/WhatsNew.json is on the unit-test classpath.
-        assertEquals(listOf("2610.01"), Changelog.entries.map { it.version })
+        assertEquals(listOf("2610.01.01"), Changelog.entries.map { it.version })
     }
 
     @Test
     fun hashChangesWithVersionsAndEmptyIsNeverShown() = runBlocking {
-        val one = Changelog.decode("""{"entries":[{"version":"2610.01","items":["a"]}]}""")
-        val two = Changelog.decode("""{"entries":[{"version":"2610.02","items":["a"]},{"version":"2610.01","items":["a"]}]}""")
+        val one = Changelog.decode("""{"entries":[{"version":"2610.01.01","items":["a"]}]}""")
+        val two = Changelog.decode("""{"entries":[{"version":"2610.01.02","items":["a"]},{"version":"2610.01.01","items":["a"]}]}""")
         assertTrue(Changelog.hash(one) != Changelog.hash(two))
         // JS: calculateChangelogHash([]) → "[]" → ((91*31)+93).toString(36).
         assertEquals(Integer.toString(91 * 31 + 93, 36), Changelog.emptyHash)
@@ -114,8 +114,8 @@ class WhatsNewTest {
         assertEquals(listOf(ChangelogSection("SONGS", listOf("Kept item.", "Manually sorted stays."))), display.single().sections)
         // The shipping changelog has no Manual mentions: displayed verbatim.
         assertEquals(Changelog.entries, Changelog.displayEntries())
-        val versioned = listOf(ChangelogEntry(listOf(ChangelogSection("Version 2610.02", listOf("Kept.", "Manual gone."))), "2610.02", false))
-        assertEquals(listOf(ChangelogEntry(listOf(ChangelogSection("Version 2610.02", listOf("Kept."))), "2610.02", false)), Changelog.displayEntries(versioned))
+        val versioned = listOf(ChangelogEntry(listOf(ChangelogSection("Version 2610.01.02", listOf("Kept.", "Manual gone."))), "2610.01.02", false))
+        assertEquals(listOf(ChangelogEntry(listOf(ChangelogSection("Version 2610.01.02", listOf("Kept."))), "2610.01.02", false)), Changelog.displayEntries(versioned))
     }
 
     // endregion

@@ -6,7 +6,7 @@ namespace Festival.Core.Domain;
 
 #region Model
 /// <summary>One titled group of changelog bullets (web <c>ChangelogSection</c>, <c>FortniteFestivalWeb/src/changelog.ts</c>).</summary>
-/// <param name="Title">Heading as generated (e.g. "Version 2610.01").</param>
+/// <param name="Title">Heading as generated (e.g. "Version 2610.01.01").</param>
 /// <param name="Items">Bullets in web order.</param>
 public sealed record ChangelogSection(string Title, IReadOnlyList<string> Items)
 {
@@ -16,14 +16,14 @@ public sealed record ChangelogSection(string Title, IReadOnlyList<string> Items)
 
 /// <summary>One version's sections (web <c>ChangelogEntry</c>).</summary>
 /// <param name="Sections">Sections in display order.</param>
-/// <param name="Version">Windows app version (<c>YYMM.NN</c>), or <see langword="null"/> for unversioned data.</param>
+/// <param name="Version">Windows app version (<c>YYMM.DD.NN</c>), or <see langword="null"/> for unversioned data.</param>
 /// <param name="Released">Whether the version reached the Store (the newest entry is the build itself).</param>
 public sealed record ChangelogEntry(IReadOnlyList<ChangelogSection> Sections, string? Version = null, bool Released = true);
 #endregion
 
 #region Catalogue
 /// <summary>
-/// The "What's New" changelog: one "Version YYMM.NN" section per released Windows version plus the built one,
+/// The "What's New" changelog: one "Version YYMM.DD.NN" section per released Windows version plus the built one,
 /// generated at release-build time by <c>tools/release/versioning.py whats-new</c> into the embedded
 /// <c>WhatsNew.json</c> (Festival.Core). Content comes from <c>Release-Note-Windows</c>/<c>Release-Note</c> commit
 /// trailers; see <c>.agents/workflow/release-machine.md</c>.
@@ -77,7 +77,7 @@ public static class Changelog
     }
 
     /// <summary>
-    /// Decodes <c>{"entries":[{"version":"2610.02","released":true,"items":["…"]}]}</c>, bounded to
+    /// Decodes <c>{"entries":[{"version":"2610.01.02","released":true,"items":["…"]}]}</c>, bounded to
     /// <see cref="MaxEntries"/> entries, <see cref="MaxItems"/> bullets and <see cref="MaxItemLength"/> characters;
     /// versions without bullets are skipped.
     /// </summary>

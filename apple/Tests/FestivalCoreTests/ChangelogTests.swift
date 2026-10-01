@@ -5,22 +5,22 @@ import Testing
 // MARK: - Generated document
 
 private let sampleDocument = #"""
-{"schema": 1, "platform": "ios", "version": "2610.04", "baseline": "2610.03", "extra": true,
+{"schema": 1, "platform": "ios", "version": "2610.01.04", "baseline": "2610.01.03", "extra": true,
  "entries": [
-  {"version": "2610.04", "released": false, "items": ["Rivals refresh correctly.", "  "]},
-  {"version": "2610.03", "released": true, "items": ["The Item Shop badge is back.", "Songs load faster."]},
-  {"version": "2610.02", "released": true, "items": []},
-  {"version": "2610.01", "items": ["The first release of Festival Score Tracker for iPhone."]}
+  {"version": "2610.01.04", "released": false, "items": ["Rivals refresh correctly.", "  "]},
+  {"version": "2610.01.03", "released": true, "items": ["The Item Shop badge is back.", "Songs load faster."]},
+  {"version": "2610.01.02", "released": true, "items": []},
+  {"version": "2610.01.01", "items": ["The first release of Festival Score Tracker for iPhone."]}
  ]}
 """#
 
 @Test func decodesOneVersionSectionPerEntry() throws {
     let entries = try Changelog.decode(Data(sampleDocument.utf8))
-    #expect(entries.map(\.version) == ["2610.04", "2610.03", "2610.01"])
+    #expect(entries.map(\.version) == ["2610.01.04", "2610.01.03", "2610.01.01"])
     #expect(entries.map(\.released) == [false, true, true])
-    #expect(entries[0].sections == [ChangelogSection(title: "Version 2610.04", items: ["Rivals refresh correctly."])])
+    #expect(entries[0].sections == [ChangelogSection(title: "Version 2610.01.04", items: ["Rivals refresh correctly."])])
     #expect(entries[1].sections[0].items == ["The Item Shop badge is back.", "Songs load faster."])
-    #expect(entries[1].sections[0].displayTitle == "Version 2610.03")
+    #expect(entries[1].sections[0].displayTitle == "Version 2610.01.03")
 }
 
 @Test func decodeBoundsAndRejectsMalformedDocuments() throws {
@@ -62,8 +62,8 @@ private let sampleDocument = #"""
 // MARK: - Hash
 
 @Test func changelogHashChangesWithContent() {
-    let one = [ChangelogEntry(version: "2610.01", sections: [ChangelogSection(title: "Version 2610.01", items: ["y"])])]
-    let two = [ChangelogEntry(version: "2610.02", sections: [ChangelogSection(title: "Version 2610.02", items: ["y"])])]
+    let one = [ChangelogEntry(version: "2610.01.01", sections: [ChangelogSection(title: "Version 2610.01.01", items: ["y"])])]
+    let two = [ChangelogEntry(version: "2610.01.02", sections: [ChangelogSection(title: "Version 2610.01.02", items: ["y"])])]
         + one
     #expect(Changelog.hash(one) != Changelog.hash(two))
     #expect(Changelog.hash([]) == Changelog.emptyHash)
@@ -105,11 +105,11 @@ private let sampleDocument = #"""
     #expect(shown[0].sections.map(\.title) == ["SONGS"])
     #expect(shown[0].sections[0].items == ["Faster rows."])
     #expect(Changelog.mentionsManual("Manually") == false)
-    let versioned = [ChangelogEntry(version: "2610.02", released: false, sections: [
-        ChangelogSection(title: "Version 2610.02", items: ["Faster rows.", "Manual removed."]),
+    let versioned = [ChangelogEntry(version: "2610.01.02", released: false, sections: [
+        ChangelogSection(title: "Version 2610.01.02", items: ["Faster rows.", "Manual removed."]),
     ])]
     let kept = Changelog.displayEntries(versioned)
-    #expect(kept.map(\.version) == ["2610.02"])
+    #expect(kept.map(\.version) == ["2610.01.02"])
     #expect(kept.map(\.released) == [false])
     #expect(kept[0].sections[0].items == ["Faster rows."])
 }
@@ -128,8 +128,8 @@ private func isolatedDefaults() -> UserDefaults {
     let store = ChangelogSeenStore(defaults: defaults)
     #expect(store.load() == nil)
     #expect(store.shouldShow(hash: "abc"))
-    store.markSeen(version: "2610.01", hash: "abc")
-    #expect(store.load() == ChangelogSeenRecord(version: "2610.01", hash: "abc"))
+    store.markSeen(version: "2610.01.01", hash: "abc")
+    #expect(store.load() == ChangelogSeenRecord(version: "2610.01.01", hash: "abc"))
     #expect(store.shouldShow(hash: "abc") == false)
     #expect(store.shouldShow(hash: "other"))
     store.reset()

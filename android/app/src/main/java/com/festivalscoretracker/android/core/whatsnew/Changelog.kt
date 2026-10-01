@@ -12,7 +12,7 @@ import kotlinx.serialization.json.booleanOrNull
 /**
  * One titled group of changelog bullets: a released app version and its notes.
  *
- * @property title Heading, e.g. "Version 2610.01".
+ * @property title Heading, e.g. "Version 2610.01.01".
  * @property items Bullet sentences, in release-note order.
  */
 data class ChangelogSection(val title: String, val items: List<String>) {
@@ -24,7 +24,7 @@ data class ChangelogSection(val title: String, val items: List<String>) {
  * One app version's worth of changelog sections.
  *
  * @property sections Sections in display order.
- * @property version App version (`YYMM.NN`) the notes belong to; null for ad-hoc entries.
+ * @property version App version (`YYMM.DD.NN`) the notes belong to; null for ad-hoc entries.
  * @property released Whether that version was already released when this build was made (the built
  *   version itself is listed unreleased).
  */
