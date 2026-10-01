@@ -17,7 +17,7 @@ public sealed partial class SettingsPage : Page
 #else
         const bool debugBuild = false;
 #endif
-        ViewModel = new SettingsViewModel(App.Session, typeof(App).Assembly.GetName().Version?.ToString(3) ?? "", debugBuild);
+        ViewModel = new SettingsViewModel(App.Session, Festival.Core.Domain.AppVersionInfo.Display(typeof(App).Assembly), debugBuild);
         InitializeComponent();
         QuickLinksMenu.Model = ViewModel.QuickLinks;
         _ = new QuickLinksBinder(Scroller, ViewModel.QuickLinks, () => QuickLinksBinder.ReducedMotion(App.Session.Settings.ReduceMotion));

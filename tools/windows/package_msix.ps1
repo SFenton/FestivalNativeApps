@@ -11,13 +11,16 @@
 .PARAMETER AllowPlaceholder Build even while store-identity.json still has placeholders (CI packaging check);
     the result is marked placeholder and fst_store.py never submits it.
 .PARAMETER Version Override the computed four-part version.
+.PARAMETER DisplayVersion User-facing release version (YYMM.DD.NN) stamped into InformationalVersion, which the app
+    shows in Settings and What's New (the four-part MSIX version cannot keep leading zeros).
 .EXAMPLE
     pwsh tools/windows/package_msix.ps1 -AllowPlaceholder
 #>
 param(
     [string]$OutDir,
     [switch]$AllowPlaceholder,
-    [string]$Version
+    [string]$Version,
+    [string]$DisplayVersion
 )
 . (Join-Path $PSScriptRoot '_common.ps1')
 Initialize-DotnetEnvironment
@@ -56,7 +59,9 @@ try {
 
     if (Test-Path $staging) { Remove-Item -Recurse -Force $staging }
     Stop-App
-    dotnet publish $AppProject -c Release -p:Platform=x64 -p:FstMsix=true "-p:AppxPackageDir=$staging\" -nologo -clp:NoSummary
+    $display = @()
+    if ($DisplayVersion) { $display = @("-p:InformationalVersion=$DisplayVersion", '-p:IncludeSourceRevisionInInformationalVersion=false') }
+    dotnet publish $AppProject -c Release -p:Platform=x64 -p:FstMsix=true "-p:AppxPackageDir=$staging\" @display -nologo -clp:NoSummary
     if ($LASTEXITCODE -ne 0) { throw "MSIX publish failed ($LASTEXITCODE)." }
 } finally {
     [System.IO.File]::WriteAllText($manifestPath, $original)
@@ -68,7 +73,7 @@ if (-not $package) { throw "no .msix/.msixupload produced under $staging" }
 $name = 'FestivalScoreTracker_{0}_x64{1}' -f $Version, $package.Extension
 $final = Join-Path $OutDir $name
 Copy-Item $package.FullName $final -Force
-[ordered]@{ version = $Version; sha = $sha; placeholder = $placeholder; package = $name } |
+[ordered]@{ version = $Version; display_version = $DisplayVersion; sha = $sha; placeholder = $placeholder; package = $name } |
     ConvertTo-Json | Set-Content -Encoding utf8 (Join-Path $OutDir 'build.json')
 Remove-Item -Recurse -Force $staging
 'MSIX {0} ({1:N1} MB){2}: {3}' -f $Version, ((Get-Item $final).Length / 1MB), $(if ($placeholder) { ' [placeholder identity]' } else { '' }), $final

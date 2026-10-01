@@ -62,7 +62,7 @@ public partial class App : Application
             UseCookies = false,
         };
         var http = new HttpClient(handler);
-        http.DefaultRequestHeaders.UserAgent.ParseAdd($"FestivalScoreTracker-Windows/{typeof(App).Assembly.GetName().Version?.ToString(3)}");
+        http.DefaultRequestHeaders.UserAgent.ParseAdd($"FestivalScoreTracker-Windows/{Festival.Core.Domain.AppVersionInfo.Display(typeof(App).Assembly)}");
         var api = new FestivalApiClient(new RequestGate(http), Options.BaseUri);
         ISettingsStore store = new JsonFileSettingsStore(Options.SettingsPath ?? JsonFileSettingsStore.DefaultPath);
         if (Options.InMemorySettings)

@@ -26,7 +26,7 @@ public sealed partial class MainWindow
     private DispatcherQueueTimer? whatsNewTimer;
 
     /// <summary>App version shown in the title and stored on dismissal.</summary>
-    private static string AppVersion => typeof(App).Assembly.GetName().Version?.ToString(3) ?? "";
+    private static string AppVersion => Festival.Core.Domain.AppVersionInfo.Display(typeof(App).Assembly);
 
     /// <summary>Resolves the launch gate and schedules the check (called once from the constructor).</summary>
     private void InitializeWhatsNew()
