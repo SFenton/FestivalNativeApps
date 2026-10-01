@@ -267,11 +267,16 @@ class GitFlowTests(unittest.TestCase):
         text = v.testflight_notes(r.git, "ios", "2610.01.02", "2", released=["2610.01.01"])
         self.assertIn("New since 2610.01.01:\n• %s" % v.DEFAULT_NOTE, text)
         self.assertNotIn("Refactor", text)
+        r.commit("Internal\n\nRelease-Note: none", "apple/Sources/FestivalCore/B.swift")
+        r.tag("ios/v2610.01.04")
+        quiet = v.testflight_notes(r.git, "ios", "2610.01.04", "4", released=["2610.01.01"])
+        self.assertIn("New since 2610.01.02:\n• No user-facing changes.", quiet)
+        self.assertIn("In this build vs. release 2610.01.01:\n• %s" % v.DEFAULT_NOTE, quiet)
         for n in range(60):
             r.commit("c\n\nRelease-Note: Note number %d with a reasonably long sentence about it." % n,
                      "apple/Sources/FestivalCore/A.swift")
-        r.tag("ios/v2610.01.03")
-        long = v.testflight_notes(r.git, "ios", "2610.01.03", "3")
+        r.tag("ios/v2610.01.05")
+        long = v.testflight_notes(r.git, "ios", "2610.01.05", "5")
         self.assertLessEqual(len(long), v.TESTFLIGHT_LIMIT)
         self.assertIn("In this build vs. release (no release yet):", long)
 
