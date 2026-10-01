@@ -1632,6 +1632,7 @@ class Shot:
             never persisted to the app's preferences).
         steps: ``ios_sim.py drive`` steps run before capturing; when present the
             page is captured by the UI-test driver instead of ``simctl``.
+        env: Extra ``KEY=VALUE`` app launch environment for this page only.
     """
 
     stem: str
@@ -1639,6 +1640,7 @@ class Shot:
     route: str | None = None
     launch_args: tuple[str, ...] = ()
     steps: tuple[str, ...] = ()
+    env: tuple[str, ...] = ()
 
 
 # Hide the Pro/Karaoke charts so Songs rows show only the tap instruments
@@ -1652,7 +1654,7 @@ SHOTS = (
     Shot("01-songs", "songs", launch_args=TAP_ONLY_ARGS),
     Shot("02-suggestions", "suggestions"),
     # Jump past the profile header card via Quick Links (scrolls with a .top anchor).
-    Shot("03-statistics", "statistics", steps=(
+    Shot("03-statistics", "statistics", env=("FST_DEBUG_HIDE_PROFILE_HEADER=1",), steps=(
         "waitFor:fst.player.overview", "tap:fst.quick-links.open",
         "tap:fst.quick-links.item.global", "wait:{wait}",
     )),
@@ -1688,13 +1690,14 @@ def shot_commands(port: int, out_dir: Path, device: str, wait: float) -> list[li
     for shot in SHOTS:
         out = str(out_dir / f"{shot.stem}.png")
         route = ["--route", shot.route] if shot.route else []
+        page_env = [arg for pair in shot.env for arg in ("--env", pair)]
         if shot.steps:
             steps = [step.format(wait=wait) for step in shot.steps] + [f"shot:{out}"]
             argv = [sys.executable, tool, "drive", "--device", device, "--tab", shot.tab, *route,
-                    "--clean-status-bar", "--animate", *env, "--steps", "; ".join(steps)]
+                    "--clean-status-bar", "--animate", *env, *page_env, "--steps", "; ".join(steps)]
         else:
             argv = [sys.executable, tool, "shot", "--device", device, "--tab", shot.tab, *route,
-                    "--wait", str(wait), "--clean-status-bar", *env, "--out", out]
+                    "--wait", str(wait), "--clean-status-bar", *env, *page_env, "--out", out]
             argv += [f"--launch-arg={arg}" for arg in shot.launch_args]
         commands.append(argv)
     return commands

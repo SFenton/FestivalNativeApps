@@ -279,6 +279,8 @@ struct PlayerProfileContent: View {
             VStack(alignment: .leading, spacing: 20) {
                 header(payload)
                     .festivalFadeIn(isLoaded: true, index: 0)
+                    // Keeps layout so Quick Links offsets are unchanged.
+                    .opacity(DebugAnimationOverride.hideProfileHeader ? 0 : 1)
                 overallSection(payload)
                     .festivalFadeIn(isLoaded: true, index: 1)
                 FestivalSectionHeader(

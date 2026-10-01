@@ -27,4 +27,16 @@ enum DebugAnimationOverride {
         false
         #endif
     }()
+
+    /// True when `FST_DEBUG_HIDE_PROFILE_HEADER=1` (Debug only): the profile header
+    /// card is laid out but transparent, so App Store captures scrolled to Global
+    /// Statistics don't show it blurred under the navigation bar
+    /// (`tools/appstore_showcase.py`). Release builds always return false.
+    static let hideProfileHeader: Bool = {
+        #if DEBUG
+        ProcessInfo.processInfo.environment["FST_DEBUG_HIDE_PROFILE_HEADER"] == "1"
+        #else
+        false
+        #endif
+    }()
 }

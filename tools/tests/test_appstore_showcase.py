@@ -361,6 +361,16 @@ class ShootTests(unittest.TestCase):
         self.assertEqual(steps, ["waitFor:fst.player.overview", "tap:fst.quick-links.open",
                                  "tap:fst.quick-links.item.global", "wait:7.0", "shot:/o/03-statistics.png"])
 
+    def test_only_statistics_hides_profile_header(self) -> None:
+        """The debug header-hiding flag travels with Statistics and no other page."""
+        from pathlib import Path
+
+        flag = "FST_DEBUG_HIDE_PROFILE_HEADER=1"
+        commands = showcase.shot_commands(1, Path("/o"), "promax", 7.0)
+        self.assertEqual([flag in argv for argv in commands], [False, False, True, False, False])
+        stats = commands[2]
+        self.assertEqual(stats[stats.index(flag) - 1], "--env")
+
     def test_compete_drags_past_overview_button_after_loading(self) -> None:
         """Compete waits for the first leaderboard card, then drags to the Bass header before capturing."""
         from pathlib import Path
