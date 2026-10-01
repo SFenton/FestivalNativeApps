@@ -159,6 +159,11 @@ func selectionKeepsVisibleTabAndPaths(selected: FestivalSection) {
     #expect(DrawerMenu.more.map(\.intent) == [.select(.settings)])
 }
 
+/// The player row draws only the name; VoiceOver still names it the selected player.
+@Test func selectedPlayerRowAccessibilityLabel() {
+    #expect(DrawerMenu.selectedPlayerAccessibilityLabel("Fixture Player") == "Fixture Player, Selected Player")
+}
+
 // MARK: - Avatar and debug routing
 
 /// Monograms skip punctuation and upper-case the first letter or digit.
