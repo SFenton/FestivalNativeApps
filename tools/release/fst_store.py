@@ -6,16 +6,18 @@ Speaks the same contract as ``fst_release.py`` so the release orchestrator
 (``fst_release.py windows ...`` dispatches here)::
 
     fst_store.py status --json
-    fst_store.py submit --build 0.1.912.0 --notes-stdin [--dry-run] [--publish-mode manual]
+    fst_store.py submit --build 0.1.912.0 --notes-stdin [--dry-run]
     fst_store.py record-build --build 0.1.912.0 --version 0.1.912.0 --sha <git sha>
 
 Packages come from the newest successful ``windows-release-build`` run on master
 (artifact ``fst-windows-msix_<version>_<sha>[_placeholder]``, fetched with ``gh``).
 Placeholder-identity builds are reported but never valid for submission. ``submit``
 replaces the package and release notes on a clone of the last published
-submission and commits it with ``targetPublishMode: Manual`` by default: the Store
+submission and commits it with ``targetPublishMode: Manual`` (always): the Store
 certifies it, but nothing goes live until someone presses *Publish now* in
-Partner Center.
+Partner Center. It runs only inside ``store-release.yml`` (``actions_job.py``),
+never from a local machine. Drafts it created are recognized by the
+``[fst-release]`` prefix of ``notesForCertification``, so it keeps no local state.
 
 Credentials come from ``MSSTORE_TENANT_ID`` / ``MSSTORE_CLIENT_ID`` /
 ``MSSTORE_CLIENT_SECRET`` / ``MSSTORE_SELLER_ID`` / ``MSSTORE_APP_ID`` (Store ID)
@@ -66,7 +68,8 @@ IN_REVIEW_STATUSES = frozenset({"CommitStarted", "PreProcessing", "Certification
 FAILED_STATUSES = frozenset({"CommitFailed", "PreProcessingFailed", "CertificationFailed",
                              "PublishFailed", "ReleaseFailed", "Canceled"})
 RELEASE_NOTES_LIMIT = 1500
-PUBLISH_MODES = {"manual": "Manual", "immediate": "Immediate"}
+PUBLISH_MODE = "Manual"
+OWN_MARKER = "[fst-release]"
 
 EXIT_OK = fst_release.EXIT_OK
 EXIT_FAIL = fst_release.EXIT_FAIL
@@ -283,26 +286,12 @@ def download_package(run: Runner, repo: str, artifact: Dict[str, Any], dest: Pat
 # region Submission state
 
 
-def state_path(env: Dict[str, str]) -> Path:
-    """Where submission ids created by this tool are remembered (beside the build ledger)."""
-    return fst_release.ledger_path(env).parent / "msstore-submissions.json"
+def is_own_submission(body: Dict[str, Any]) -> bool:
+    """True when this tool created the submission (its certification notes carry ``OWN_MARKER``).
 
-
-def own_submissions(env: Dict[str, str]) -> List[str]:
-    """Submission ids this tool created (so only its own drafts are ever deleted)."""
-    try:
-        data = json.loads(state_path(env).read_text())
-    except (OSError, ValueError):
-        return []
-    return [str(i) for i in data] if isinstance(data, list) else []
-
-
-def remember_submission(env: Dict[str, str], submission_id: str) -> None:
-    """Append a created submission id (newest 50 kept)."""
-    ids = (own_submissions(env) + [submission_id])[-50:]
-    path = state_path(env)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(ids) + "\n")
+    Stateless on purpose: jobs run on ephemeral Actions runners, so nothing local remembers ids.
+    """
+    return str(body.get("notesForCertification") or "").startswith(OWN_MARKER)
 
 
 def package_version(submission: Dict[str, Any]) -> Optional[str]:
@@ -371,7 +360,7 @@ def collect_status(client: StoreClient, run: Runner, repo: str,
             "latest_build": latest, "released_sha": released_sha, "blocked": None}
 
 
-def _clear_pending(client: StoreClient, env: Dict[str, str], app: Dict[str, Any]) -> Optional[str]:
+def _clear_pending(client: StoreClient, app: Dict[str, Any]) -> Optional[str]:
     """Delete a failed or self-created draft; refuse anything else.
 
     Returns:
@@ -386,22 +375,24 @@ def _clear_pending(client: StoreClient, env: Dict[str, str], app: Dict[str, Any]
     status = str(pending.get("status") or "")
     if status in IN_REVIEW_STATUSES:
         return "refused:" + status
-    if status not in FAILED_STATUSES and str(pending["id"]) not in own_submissions(env):
+    if status not in FAILED_STATUSES and not is_own_submission(pending):
         raise Blocked("foreign_pending_submission")
     client.request("DELETE", "/applications/%s/submissions/%s" % (client.creds.app_id, pending["id"]))
     return None
 
 
-def prepare_submission(body: Dict[str, Any], file_name: str, notes: str, publish_mode: str) -> Dict[str, Any]:
-    """Swap in the new package, release notes and publish mode on a cloned submission."""
+def prepare_submission(body: Dict[str, Any], file_name: str, notes: str, sha: str) -> Dict[str, Any]:
+    """Swap in the new package and release notes on a cloned submission and hold publication (Manual)."""
     packages = []
     for package in body.get("applicationPackages") or []:
         packages.append(dict(package, fileStatus="PendingDelete"))
     packages.append({"fileName": file_name, "fileStatus": "PendingUpload",
                      "minimumDirectXVersion": "None", "minimumSystemRam": "None"})
     body["applicationPackages"] = packages
-    body["targetPublishMode"] = publish_mode
+    body["targetPublishMode"] = PUBLISH_MODE
     body.pop("targetPublishDate", None)
+    body["notesForCertification"] = "%s automated build of commit %s. No sign-in required; the app reads " \
+        "public leaderboard data." % (OWN_MARKER, sha[:12])
     for listing in (body.get("listings") or {}).values():
         base = listing.setdefault("baseListing", {})
         base["releaseNotes"] = notes
@@ -417,8 +408,8 @@ def package_zip(package: Path) -> bytes:
         return handle.read()
 
 
-def submit(client: StoreClient, run: Runner, repo: str, env: Dict[str, str], build: str, notes: str,
-           publish_mode: str = "Manual") -> Dict[str, Any]:
+def submit(client: StoreClient, run: Runner, repo: str, env: Dict[str, str], build: str,
+           notes: str) -> Dict[str, Any]:
     """Create, fill, upload and commit a new submission for MSIX ``build``.
 
     Returns:
@@ -432,7 +423,7 @@ def submit(client: StoreClient, run: Runner, repo: str, env: Dict[str, str], bui
     app = application(client)
     if not app.get("lastPublishedApplicationSubmission") and not app.get("pendingApplicationSubmission"):
         raise Blocked("first_submission_required")
-    refused = _clear_pending(client, env, app)
+    refused = _clear_pending(client, app)
     if refused:
         return {"refused": refused.split(":", 1)[1], "build": build}
 
@@ -457,9 +448,7 @@ def submit(client: StoreClient, run: Runner, repo: str, env: Dict[str, str], bui
         upload_url = str(created.pop("fileUploadUrl", "") or "")
         if not client.dry_run and not upload_url:
             raise StoreError(0, "new submission has no fileUploadUrl")
-        if not client.dry_run:
-            remember_submission(env, submission_id)
-        body = prepare_submission(created, file_name, notes, publish_mode)
+        body = prepare_submission(created, file_name, notes, artifact["sha"])
         path = "/applications/%s/submissions/%s" % (client.creds.app_id, submission_id)
         client.request("PUT", path, body)
         client.upload(upload_url, data)
@@ -468,7 +457,7 @@ def submit(client: StoreClient, run: Runner, repo: str, env: Dict[str, str], bui
     if not client.dry_run:
         fst_release.record_build(fst_release.ledger_path(env), LEDGER_PLATFORM, build, build, artifact["sha"])
     return {"submitted": not client.dry_run, "submission_id": submission_id, "version": build, "build": build,
-            "sha": artifact["sha"], "publish_mode": publish_mode}
+            "sha": artifact["sha"], "publish_mode": PUBLISH_MODE}
 
 
 # endregion
@@ -488,7 +477,6 @@ def build_parser() -> argparse.ArgumentParser:
     notes.add_argument("--notes-file")
     notes.add_argument("--notes-stdin", action="store_true")
     p.add_argument("--dry-run", action="store_true")
-    p.add_argument("--publish-mode", choices=sorted(PUBLISH_MODES), default="manual")
     p = sub.add_parser("record-build")
     p.add_argument("--build", required=True)
     p.add_argument("--version", required=True)
@@ -536,7 +524,7 @@ def main(argv: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None,
             return EXIT_OK
         if args.command == "submit":
             notes = (stdin or sys.stdin).read() if args.notes_stdin else Path(args.notes_file).read_text()
-            result = submit(client, runner, repo, env, args.build, notes, PUBLISH_MODES[args.publish_mode])
+            result = submit(client, runner, repo, env, args.build, notes)
             if dry_run:
                 result["planned"] = client.planned
             emit(result)

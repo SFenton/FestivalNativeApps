@@ -11,6 +11,11 @@ orchestrator (``festival-report-tracker``, design §8) drives it over SSH::
     fst_release.py ios creds            # signing helper used by ios_appstore_build.sh
     fst_release.py windows status --json  # Microsoft Store: dispatched to fst_store.py
 
+The orchestrator never runs it locally for status or submit: ``store-release.yml``
+runs it on a GitHub-hosted runner through ``actions_job.py`` (secrets stay in the
+``store-release`` environment). ``FST_RELEASE_SHA_FROM_ARTIFACTS=1`` maps build
+numbers to commits from ``fst-ios-build_<build>`` artifacts there.
+
 ``macos`` is accepted as a second platform group (``MAC_OS``) for the disabled
 macOS pipeline. Credentials come from ``ASC_KEY_ID`` / ``ASC_ISSUER_ID`` /
 ``ASC_KEY_PATH`` (default ``~/.appstoreconnect/private_keys/AuthKey_<id>.p8``) or
@@ -408,6 +413,29 @@ def ledger_sha(ledger: Dict[str, Any], platform: str, build: Optional[str]) -> O
     return str(sha) if sha else None
 
 
+def artifact_head_sha(name: str, repo: str, runner: Optional[Callable[[List[str]], str]] = None) -> Optional[str]:
+    """Return the commit that produced the newest artifact called ``name`` (``None`` when unknown).
+
+    Used inside GitHub Actions, where the build ledger of the machine that archived the build is not
+    available: ``ios-release-build`` uploads a ``fst-ios-build_<build>`` marker artifact per upload.
+    """
+    def gh(args: List[str]) -> str:
+        proc = subprocess.run(["gh"] + args, capture_output=True, text=True, timeout=120)
+        if proc.returncode != 0:
+            raise RuntimeError("gh api failed: %s" % (proc.stderr or "").strip()[-200:])
+        return proc.stdout
+    query = "repos/%s/actions/artifacts?per_page=5&name=%s" % (repo, urllib.parse.quote(name, safe=""))
+    try:
+        listing = json.loads((runner or gh)(["api", query]) or "{}")
+    except (RuntimeError, ValueError, OSError):
+        return None
+    for artifact in listing.get("artifacts") or []:
+        sha = (artifact.get("workflow_run") or {}).get("head_sha")
+        if artifact.get("name") == name and sha:
+            return str(sha)
+    return None
+
+
 def project_version(group: str, project_yml: Path = PROJECT_YML) -> str:
     """Read ``MARKETING_VERSION`` for the platform's app target from ``apple/project.yml``."""
     target = PLATFORMS[group][2]
@@ -514,8 +542,8 @@ def blocked_status(reason: str) -> Dict[str, Any]:
             "released_sha": None, "blocked": reason}
 
 
-def collect_status(client: AscClient, group: str, bundle_id: str,
-                   ledger: Dict[str, Any]) -> Dict[str, Any]:
+def collect_status(client: AscClient, group: str, bundle_id: str, ledger: Dict[str, Any],
+                   sha_lookup: Optional[Callable[[str], Optional[str]]] = None) -> Dict[str, Any]:
     """Build the design §8 status document.
 
     Args:
@@ -523,6 +551,7 @@ def collect_status(client: AscClient, group: str, bundle_id: str,
         group: ``ios`` or ``macos``.
         bundle_id: App bundle id.
         ledger: Parsed local build ledger (build number -> git SHA).
+        sha_lookup: Fallback build number -> git SHA (artifact markers inside Actions).
 
     Returns:
         ``{in_review, state, version, latest_build, released_sha, blocked}``.
@@ -542,7 +571,8 @@ def collect_status(client: AscClient, group: str, bundle_id: str,
     if builds:
         b = builds[0]
         latest = {"version": b["version"], "build": b["build"],
-                  "sha": ledger_sha(ledger, asc_platform, b["build"]),
+                  "sha": ledger_sha(ledger, asc_platform, b["build"])
+                         or (sha_lookup(b["build"]) if sha_lookup and b["build"] else None),
                   "processing_state": b["processing_state"]}
 
     released_sha = None
@@ -551,7 +581,8 @@ def collect_status(client: AscClient, group: str, bundle_id: str,
         attached = client.get("/v1/appStoreVersions/%s/build" % released["id"])
         data = attached.get("data") or {}
         build_no = (data.get("attributes") or {}).get("version")
-        released_sha = ledger_sha(ledger, asc_platform, build_no)
+        released_sha = ledger_sha(ledger, asc_platform, build_no) or (
+            sha_lookup(build_no) if sha_lookup and build_no else None)
 
     return {"in_review": in_review,
             "state": version_state(current) if current else None,
@@ -773,7 +804,11 @@ def main(argv: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None,
     client = AscClient(creds, transport=transport, dry_run=dry_run, signer=signer)
     try:
         if args.command == "status":
-            emit(collect_status(client, group, bundle_id, read_ledger(ledger_path(env))))
+            lookup = None
+            if env.get("FST_RELEASE_SHA_FROM_ARTIFACTS") == "1":
+                repo = env.get("FST_NATIVE_REPO") or "SFenton/FestivalNativeApps"
+                lookup = lambda build: artifact_head_sha("fst-%s-build_%s" % (group, build), repo)  # noqa: E731
+            emit(collect_status(client, group, bundle_id, read_ledger(ledger_path(env)), sha_lookup=lookup))
             return EXIT_OK
         if args.command == "next-version":
             app_id = resolve_app(client, bundle_id)

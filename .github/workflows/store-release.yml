@@ -1,0 +1,92 @@
+name: store-release
+run-name: store-release ${{ inputs.platform }} ${{ inputs.command }} ${{ inputs.request_id }}
+# The only place store calls happen. The release orchestrator (festival-report-tracker) dispatches this
+# workflow for `status` reads and `submit`s and reads the `store-release-result` artifact (result.json).
+# Credentials live only in the `store-release` environment (master-only). Policy (tools/release/actions_job.py):
+# iOS App Store review submission is refused unless vars.FST_APPSTORE_REVIEW_ENABLED == 'true'; Windows
+# submissions always use Manual publish (certification only, nothing goes live).
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        type: choice
+        options: [ios, windows]
+        required: true
+      command:
+        type: choice
+        options: [status, submit]
+        required: true
+      build:
+        description: Build to submit (iOS build number or Windows MSIX version)
+        type: string
+        default: ''
+      notes_b64:
+        description: Base64 UTF-8 release notes for submit
+        type: string
+        default: ''
+      request_id:
+        description: Orchestrator correlation id (appears in the run name)
+        type: string
+        default: manual
+      dry_run:
+        type: boolean
+        default: false
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: store-release-${{ inputs.platform }}-${{ inputs.command }}
+  cancel-in-progress: false
+jobs:
+  store-release:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: store-release
+    steps:
+      - uses: actions/checkout@v4
+      - name: App Store Connect key
+        env:
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          if [ -n "$ASC_PRIVATE_KEY" ]; then
+            install -d -m 700 "$RUNNER_TEMP/asc"
+            printf '%s\n' "$ASC_PRIVATE_KEY" > "$RUNNER_TEMP/asc/AuthKey.p8"
+            chmod 600 "$RUNNER_TEMP/asc/AuthKey.p8"
+            echo "ASC_KEY_PATH=$RUNNER_TEMP/asc/AuthKey.p8" >> "$GITHUB_ENV"
+          fi
+      - name: Store call
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FST_NATIVE_REPO: ${{ github.repository }}
+          FST_RELEASE_SHA_FROM_ARTIFACTS: '1'
+          FST_RELEASE_LEDGER: ${{ runner.temp }}/ledger/builds.json
+          FST_APPSTORE_REVIEW_ENABLED: ${{ vars.FST_APPSTORE_REVIEW_ENABLED }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          MSSTORE_TENANT_ID: ${{ secrets.MSSTORE_TENANT_ID }}
+          MSSTORE_CLIENT_ID: ${{ secrets.MSSTORE_CLIENT_ID }}
+          MSSTORE_CLIENT_SECRET: ${{ secrets.MSSTORE_CLIENT_SECRET }}
+          MSSTORE_SELLER_ID: ${{ secrets.MSSTORE_SELLER_ID }}
+          MSSTORE_APP_ID: ${{ secrets.MSSTORE_APP_ID }}
+          IN_PLATFORM: ${{ inputs.platform }}
+          IN_COMMAND: ${{ inputs.command }}
+          IN_BUILD: ${{ inputs.build }}
+          IN_NOTES: ${{ inputs.notes_b64 }}
+          IN_DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          args=(--platform "$IN_PLATFORM" --command "$IN_COMMAND" --out "$RUNNER_TEMP/result.json")
+          if [ -n "$IN_BUILD" ]; then args+=(--build "$IN_BUILD"); fi
+          if [ -n "$IN_NOTES" ]; then args+=(--notes-b64 "$IN_NOTES"); fi
+          if [ "$IN_DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+          python3 tools/release/actions_job.py "${args[@]}"
+      - name: Remove key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/asc"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: store-release-result
+          path: ${{ runner.temp }}/result.json
+          if-no-files-found: ignore
+          retention-days: 7

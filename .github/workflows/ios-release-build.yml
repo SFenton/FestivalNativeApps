@@ -1,6 +1,6 @@
 name: ios-release-build
-# Archive master and upload the build to App Store Connect (TestFlight processing). Submitting
-# for review is done separately by the release orchestrator (`fst_release.py ios submit`).
+# Archive, sign and upload master to App Store Connect (TestFlight processing) on a JIT Mac runner. Submitting
+# for review happens only in the store-release workflow (dispatched by the release orchestrator), never locally.
 on:
   push:
     branches: [master]
@@ -50,6 +50,26 @@ jobs:
             echo "\`$(cat "$RUNNER_TEMP/build.json")\`" >> "$GITHUB_STEP_SUMMARY"
           fi
           exit "$code"
+      - name: Build marker
+        id: marker
+        if: success()
+        shell: bash
+        run: |
+          # store-release runs on hosted runners without this Mac's ledger; the marker artifact's run head SHA
+          # maps the uploaded build number to its commit (fst_release.artifact_head_sha).
+          last=$(grep -v '^[[:space:]]*$' "$RUNNER_TEMP/build.json" | tail -n 1)
+          build=$(printf '%s' "$last" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["build"] if d.get("built") and not d.get("dry_run") else "")' 2>/dev/null || true)
+          if [ -n "$build" ]; then
+            mkdir -p "$RUNNER_TEMP/marker" && printf '%s\n' "$last" > "$RUNNER_TEMP/marker/build.json"
+            echo "name=fst-ios-build_$build" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Upload build marker
+        if: success() && steps.marker.outputs.name != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.marker.outputs.name }}
+          path: ${{ runner.temp }}/marker/build.json
+          retention-days: 90
       - name: Upload dSYMs
         if: success()
         uses: actions/upload-artifact@v4

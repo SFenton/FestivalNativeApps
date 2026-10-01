@@ -217,6 +217,15 @@ class StatusTests(TempHome):
             "latest_build": {"version": "1.0.1", "build": "888", "sha": "bbb", "processing_state": "PROCESSING"},
             "released_sha": "aaa", "blocked": None})
 
+    def test_sha_lookup_fills_ledger_gaps(self):
+        routes = standard_routes(
+            [version("V1", "1.0.0", "READY_FOR_SALE", "2026-09-01T00:00:00Z", key="appStoreState")],
+            build=build_doc("B2", "888", "1.0.1", "VALID"))
+        client = fr.AscClient(self.creds(), transport=FakeAsc(routes))
+        doc = fr.collect_status(client, "ios", "com.example", {"IOS": {"777": {"sha": "aaa"}}},
+                                sha_lookup={"888": "ccc"}.get)
+        self.assertEqual((doc["latest_build"]["sha"], doc["released_sha"]), ("ccc", "aaa"))
+
     def test_in_review_states(self):
         for state in ("WAITING_FOR_REVIEW", "IN_REVIEW", "PENDING_APPLE_RELEASE", "PENDING_DEVELOPER_RELEASE"):
             doc = self.status(standard_routes([version("V2", "1.0.1", state, "2026-09-02T00:00:00Z")]))

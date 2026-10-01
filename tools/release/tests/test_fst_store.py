@@ -5,7 +5,7 @@ import json
 import tempfile
 import unittest
 import zipfile
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
@@ -226,15 +226,17 @@ class SubmitTests(Base):
             self.assertEqual(archive.namelist(), ["FestivalScoreTracker_0.1.912.0_x64.msixupload"])
         ledger = fr.read_ledger(Path(self.env["FST_RELEASE_LEDGER"]))
         self.assertEqual(ledger["WINDOWS"]["0.1.912.0"]["sha"], SHA_NEW)
-        self.assertEqual(fs.own_submissions(self.env), ["300"])
+        self.assertTrue(fs.is_own_submission(put))
+        self.assertIn(SHA_NEW[:12], put["notesForCertification"])
 
-    def test_immediate_mode_and_default_notes(self):
+    def test_default_notes_and_no_publish_mode_option(self):
         store = FakeStore(self.submit_routes())
-        code, doc = self.run_cli(["submit", "--build", "0.1.912.0", "--notes-stdin", "--publish-mode",
-                                  "immediate"], store, FakeGh(), stdin="  ")
-        self.assertEqual((code, doc["publish_mode"]), (0, "Immediate"))
+        code, doc = self.run_cli(["submit", "--build", "0.1.912.0", "--notes-stdin"], store, FakeGh(), stdin="  ")
+        self.assertEqual((code, doc["publish_mode"]), (0, "Manual"))
         put = next(c for c in store.calls if c[:2] == ("PUT", API + "/submissions/300"))[2]
         self.assertEqual(put["listings"]["en-us"]["baseListing"]["releaseNotes"], fr.DEFAULT_NOTES)
+        with self.assertRaises(SystemExit), redirect_stderr(io.StringIO()):
+            fs.build_parser().parse_args(["submit", "--build", "1", "--notes-stdin", "--publish-mode", "immediate"])
 
     def test_refuses_while_in_certification(self):
         store = FakeStore(self.submit_routes(pending=submission("200", "Certification")))
@@ -253,8 +255,9 @@ class SubmitTests(Base):
         code, doc = self.run_cli(["submit", "--build", "0.1.912.0", "--notes-stdin"], store, FakeGh())
         self.assertEqual((code, doc), (4, {"blocked": "foreign_pending_submission"}))
         self.assertEqual(store.writes(), [])
-        fs.remember_submission(self.env, "200")
-        store = FakeStore(self.submit_routes(pending=submission("200", "PendingCommit")))
+        own = submission("200", "PendingCommit")
+        own["notesForCertification"] = fs.OWN_MARKER + " automated build"
+        store = FakeStore(self.submit_routes(pending=own))
         code, _ = self.run_cli(["submit", "--build", "0.1.912.0", "--notes-stdin"], store, FakeGh())
         self.assertEqual(code, 0)
         self.assertEqual(store.writes()[0], ("DELETE", API + "/submissions/200"))
@@ -280,7 +283,6 @@ class SubmitTests(Base):
         self.assertTrue(doc["planned"][-1].endswith("/commit"))
         self.assertEqual(store.writes(), [])
         self.assertFalse(any(c[0] == "run" for c in gh.calls))
-        self.assertEqual(fs.own_submissions(self.env), [])
 
     def test_upload_failure_reports_error(self):
         routes = self.submit_routes()
