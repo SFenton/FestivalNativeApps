@@ -49,7 +49,7 @@ Missing credentials never fail the build job: status/submit report `missing_asc_
 
 - Marketing version: `fst_release.py ios next-version` (fallback: `apple/project.yml`, currently `0.1.0`). Override with `FST_MARKETING_VERSION`.
 - Build number (`CURRENT_PROJECT_VERSION`): `$BUILD_NUMBER`, else `$GITHUB_RUN_NUMBER`, else UTC `yyyymmddHHMM`. ASC requires strictly increasing build numbers per marketing version, so do not mix schemes for one version (a timestamp build followed by a run-number build is rejected).
-- Git SHA: `FST_GIT_SHA` build setting → Info.plist `FSTGitSHA` (default `dev`) and the local ledger. ASC cannot return Info.plist values, so `released_sha`/`latest_build.sha` come from the ledger; a build not archived on this Mac has `sha:null`.
+- Git SHA: `FST_GIT_SHA` build setting → Info.plist `FSTGitSHA` (default `dev`) and the local ledger. iPhone Settings → App Version appends its first 7 characters (`0.1.0 (42) · 42edc57`); `dev` shows none. ASC cannot return Info.plist values, so `released_sha`/`latest_build.sha` come from the ledger; a build not archived on this Mac has `sha:null`.
 
 ## What's New
 

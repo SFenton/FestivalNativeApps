@@ -19,7 +19,7 @@
 | Song Row Visual Order | **Enable Independent Song Row Visual Order** shows its list inline, no disclosure (batch 6): `SettingsReorderList` of visible fields (web labels, "Song Intensity"); hidden fields keep their place after a reorder (`SettingsReorder.merging`). Persisted as `fst.settings.songRowVisualOrder`, read by `SongRowView` |
 | CHOpt Text Path Column Order | Inline `SettingsReorderList` over `PathColumnKey`; read by `SongPathsSheet` |
 | Diagnostics (debug-only) | Tap Diagnostics / Tap Telemetry toggles persist behind `#if DEBUG`; no collector reads them yet — wiring only |
-| Version | App Version/build (`Bundle.main`), Build Configuration and Service Version (keyless `/api/version`, read once per visible session; "Unavailable" on failure). **What's New · Show** replays the changelog ([whats-new](../../controls/whats-new/ios.md)) |
+| Version | App Version/build (`Bundle.main`) plus ` · <sha7>` from Info.plist `FSTGitSHA` on release-stamped builds (omitted when missing, `dev` or non-hex; `FestivalCore/AppBuildInfo.swift`, issue #3), Build Configuration and Service Version (keyless `/api/version`, read once per visible session; "Unavailable" on failure). **What's New · Show** replays the changelog ([whats-new](../../controls/whats-new/ios.md)) |
 
 ## Decisions and gotchas
 

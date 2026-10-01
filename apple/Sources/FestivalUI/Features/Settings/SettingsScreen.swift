@@ -527,12 +527,10 @@ struct SettingsScreen: View {
             .formatted()
     }
 
-    /// The app's marketing/build version, e.g. "1.0 (12)".
+    /// The app's marketing/build version plus the release commit, e.g. "1.0 (12) · 42edc57"
+    /// (no commit for `dev` builds; see `AppBuildInfo`).
     private var appVersionText: String {
-        let info = Bundle.main.infoDictionary
-        let short = info?["CFBundleShortVersionString"] as? String ?? "—"
-        let build = info?["CFBundleVersion"] as? String
-        return build.map { "\(short) (\($0))" } ?? short
+        AppBuildInfo.versionText(Bundle.main.infoDictionary)
     }
 
     /// Debug vs Release, useful context when a user reports a bug.
