@@ -53,8 +53,10 @@ class FakeGh:
     """Answers the ``gh api`` / ``gh run download`` calls fst_store makes."""
 
     def __init__(self, artifact="fst-windows-msix_0.1.912.0_%s" % SHA_NEW, expired=False,
-                 history=("fst-windows-msix_0.1.900.0_%s" % SHA_OLD,), package_ext=".msixupload"):
+                 history=("fst-windows-msix_0.1.900.0_%s" % SHA_OLD,), package_ext=".msixupload",
+                 build_json="{}"):
         self.artifact = artifact
+        self.build_json = build_json
         self.expired = expired
         self.history = history
         self.package_ext = package_ext
@@ -74,7 +76,7 @@ class FakeGh:
             dest.mkdir(parents=True, exist_ok=True)
             version = fs.parse_artifact(args[args.index("-n") + 1])["version"]
             (dest / ("FestivalScoreTracker_%s_x64%s" % (version, self.package_ext))).write_bytes(b"MSIX")
-            (dest / "build.json").write_text("{}")
+            (dest / "build.json").write_text(self.build_json)
             return ""
         raise AssertionError("unexpected gh call %r" % (args,))
 
@@ -228,6 +230,15 @@ class SubmitTests(Base):
         self.assertEqual(ledger["WINDOWS"]["0.1.912.0"]["sha"], SHA_NEW)
         self.assertTrue(fs.is_own_submission(put))
         self.assertIn(SHA_NEW[:12], put["notesForCertification"])
+
+    def test_generated_artifact_notes_win(self):
+        store = FakeStore(self.submit_routes())
+        gh = FakeGh(build_json=json.dumps({"version": "0.1.912.0", "store_notes": "• Windows rows load faster."}))
+        code, _ = self.run_cli(["submit", "--build", "0.1.912.0", "--notes-stdin"], store, gh,
+                               stdin="Orchestrator notes")
+        self.assertEqual(code, 0)
+        put = next(c for c in store.calls if c[:2] == ("PUT", API + "/submissions/300"))[2]
+        self.assertEqual(put["listings"]["en-us"]["baseListing"]["releaseNotes"], "• Windows rows load faster.")
 
     def test_default_notes_and_no_publish_mode_option(self):
         store = FakeStore(self.submit_routes())

@@ -281,6 +281,19 @@ def download_package(run: Runner, repo: str, artifact: Dict[str, Any], dest: Pat
     return packages[0]
 
 
+def artifact_store_notes(dest: Path) -> str:
+    """The release notes the build generated (``build.json`` ``store_notes``; empty when absent)."""
+    for marker in sorted(dest.rglob("build.json")):
+        try:
+            doc = json.loads(marker.read_text(encoding="utf-8-sig"))
+        except (OSError, ValueError):
+            continue
+        text = str(doc.get("store_notes") or "").strip() if isinstance(doc, dict) else ""
+        if text:
+            return text[:RELEASE_NOTES_LIMIT]
+    return ""
+
+
 # endregion
 
 # region Submission state
@@ -443,6 +456,7 @@ def submit(client: StoreClient, run: Runner, repo: str, env: Dict[str, str], bui
             package = download_package(run, repo, artifact, Path(tmp))
             file_name = package.name
             data = package_zip(package)
+            notes = artifact_store_notes(Path(tmp)) or notes
         created = client.request("POST", "/applications/%s/submissions" % client.creds.app_id)
         submission_id = str(created.get("id") or "<new>")
         upload_url = str(created.pop("fileUploadUrl", "") or "")

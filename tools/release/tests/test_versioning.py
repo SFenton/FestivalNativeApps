@@ -1,0 +1,279 @@
+"""Unit tests for ``tools/release/versioning.py`` against throwaway git repositories."""
+
+import datetime as dt
+import io
+import json
+import subprocess
+import tempfile
+import unittest
+from contextlib import redirect_stdout
+from pathlib import Path
+
+from tools.release import versioning as v
+
+OCT = dt.datetime(2026, 10, 1, 12, tzinfo=dt.timezone.utc)
+NOV = dt.datetime(2026, 11, 2, 12, tzinfo=dt.timezone.utc)
+
+
+class Repo:
+    """A scratch git repository with helpers for commits, merges and tags."""
+
+    def __init__(self, root: Path) -> None:
+        self.root = root
+        self.run("init", "-q", "-b", "master")
+        self.run("config", "user.email", "t@example.com")
+        self.run("config", "user.name", "T")
+        self.run("config", "commit.gpgsign", "false")
+        self.run("config", "tag.gpgsign", "false")
+        self.git = v.Git(root)
+
+    def run(self, *args: str) -> str:
+        return subprocess.run(["git", "-C", str(self.root)] + list(args), check=True,
+                              capture_output=True, text=True).stdout
+
+    def commit(self, message: str, *paths: str) -> str:
+        for path in paths:
+            target = self.root / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text((target.read_text() if target.exists() else "") + message + "\n")
+            self.run("add", path)
+        self.run("commit", "-q", "--allow-empty", "-m", message)
+        return self.run("rev-parse", "HEAD").strip()
+
+    def tag(self, name: str, ref: str = "HEAD") -> None:
+        self.run("tag", "-a", name, ref, "-m", name)
+
+
+class VersionTests(unittest.TestCase):
+    def test_parse_and_format(self):
+        self.assertEqual(v.parse_version("2610.01"), (2610, 1))
+        self.assertEqual(v.parse_version("2610.100"), (2610, 100))
+        for bad in ("2610.1", "1.0", "2613.01", "2600.01", "2610.00", "abc", ""):
+            self.assertFalse(v.is_version(bad), bad)
+        self.assertEqual(v.format_version(2610, 7), "2610.07")
+        self.assertEqual(v.format_version(2610, 123), "2610.123")
+
+    def test_next_version_resets_monthly_and_never_goes_back(self):
+        self.assertEqual(v.next_version(None, OCT), "2610.01")
+        self.assertEqual(v.next_version("2610.01", OCT), "2610.02")
+        self.assertEqual(v.next_version("2610.99", OCT), "2610.100")
+        self.assertEqual(v.next_version("2610.07", NOV), "2611.01")
+        self.assertEqual(v.next_version("2611.03", OCT), "2611.04")
+        pdt = dt.datetime(2026, 9, 30, 20, tzinfo=dt.timezone(dt.timedelta(hours=-7)))
+        self.assertEqual(v.next_version(None, pdt), "2610.01")  # UTC month
+
+    def test_ordering_is_numeric(self):
+        ordered = sorted(["2610.10", "2610.02", "2611.01", "2610.100", "2609.50"], key=v.parse_version)
+        self.assertEqual(ordered, ["2609.50", "2610.02", "2610.10", "2610.100", "2611.01"])
+
+    def test_tags_and_store_mappings(self):
+        self.assertEqual(v.tag_for("ios", "2610.01"), "ios/v2610.01")
+        self.assertEqual(v.parse_tag("refs/tags/windows/v2610.12"), ("windows", "2610.12"))
+        with self.assertRaises(ValueError):
+            v.parse_tag("ios/released/2610.01")
+        with self.assertRaises(ValueError):
+            v.parse_tag("tvos/v2610.01")
+        self.assertEqual(v.android_version_code("2610.01"), 261000100)
+        self.assertEqual(v.android_version_code("2610.12", 3), 261001203)
+        self.assertLess(v.android_version_code("2610.999", 99), v.android_version_code("2611.01"))
+        self.assertLess(v.android_version_code("9912.999", 99), 2100000000)
+        self.assertEqual(v.msix_version("2610.01", 57), "2610.1.57.0")
+        with self.assertRaises(ValueError):
+            v.msix_version("2610.01", 70000)
+
+
+class PathAndTrailerTests(unittest.TestCase):
+    def test_platform_paths(self):
+        self.assertTrue(v.matches("ios", "apple/Sources/FestivalUI/Songs.swift"))
+        self.assertTrue(v.matches("ios", "apple/Apps/iOS/Info.plist"))
+        self.assertFalse(v.matches("ios", "apple/Apps/macOS/App.swift"))
+        self.assertFalse(v.matches("ios", "apple/Tests/FestivalCoreTests/X.swift"))
+        self.assertFalse(v.matches("ios", "apple/Apps/iOSUITests/X.swift"))
+        self.assertFalse(v.matches("ios", "apple/Sources/README.md"))
+        self.assertFalse(v.matches("ios", "apple/Apps/iOS/WhatsNew.json"))
+        self.assertFalse(v.matches("android", "android/app/src/main/assets/WhatsNew.json"))
+        self.assertTrue(v.matches("macos", "apple/Apps/macOS/App.swift"))
+        self.assertTrue(v.matches("android", "android/app/src/main/java/A.kt"))
+        self.assertFalse(v.matches("android", "android/app/src/test/java/A.kt"))
+        self.assertFalse(v.matches("android", "android/app/src/androidTest/java/A.kt"))
+        self.assertTrue(v.matches("windows", "windows/Festival.Core/Domain/Changelog.cs"))
+        self.assertFalse(v.matches("windows", "windows/Festival.Core.Tests/WhatsNewTests.cs"))
+        self.assertFalse(v.matches("ios", "tools/release/fst_release.py"))
+
+    def test_trailers(self):
+        message = ("Fix rows\n\nBody text.\n\nRelease-Note: Rows load faster.\n"
+                   "release-note-ios: iPhone rows load faster.\nRelease-Note-Android: none\n"
+                   "Release-Note-tvOS: ignored\nRelease-note:\n")
+        self.assertEqual(v.parse_trailers(message), {
+            "*": ["Rows load faster."], "ios": ["iPhone rows load faster."], "android": []})
+
+    def test_merge_subject_uses_pr_title(self):
+        self.assertEqual(v.subject("Merge pull request #4 from a/b\n\nFix the Songs tab\n"), "Fix the Songs tab")
+        self.assertEqual(v.subject("Plain subject\n\nbody"), "Plain subject")
+
+    def test_bullets_respect_limit(self):
+        self.assertEqual(v.bullets(["a", "b"], 100), "• a\n• b")
+        self.assertEqual(v.bullets(["a" * 10, "b"], 13), "• aaaaaaaaaa")
+        self.assertEqual(v.bullets(["a" * 20], 6), "• aaa…")
+
+
+class GitFlowTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.repo = Repo(Path(self.tmp.name))
+        self.repo.commit("Initial app", "apple/Sources/FestivalCore/A.swift", "windows/Festival.Core/A.cs")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_plan_bump_first_then_only_on_app_changes(self):
+        git = self.repo.git
+        plan = v.plan_bump(git, "ios", "HEAD", OCT)
+        self.assertEqual((plan["bump"], plan["reason"], plan["version"]), (True, "first_version", "2610.01"))
+        self.repo.tag("ios/v2610.01")
+        self.assertEqual(v.plan_bump(git, "ios", "HEAD", OCT)["reason"], "already_tagged")
+        self.repo.commit("Docs only", "docs/x.md", "apple/Tests/FestivalCoreTests/T.swift")
+        self.assertEqual(v.plan_bump(git, "ios", "HEAD", OCT)["reason"], "no_app_changes")
+        forced = v.plan_bump(git, "ios", "HEAD", OCT, force=True)
+        self.assertEqual((forced["reason"], forced["version"]), ("forced", "2610.02"))
+        self.repo.commit("Change", "apple/Sources/FestivalUI/B.swift")
+        plan = v.plan_bump(git, "ios", "HEAD", NOV)
+        self.assertEqual((plan["reason"], plan["version"], plan["previous"]), ("app_changed", "2611.01", "2610.01"))
+
+    def test_bump_tags_pushes_and_dispatches(self):
+        calls = []
+        result = v.bump(self.repo.git, ["ios", "windows", "android"], "HEAD", OCT, dispatch=True,
+                        gh_runner=lambda a: calls.append(list(a)) or "")
+        self.assertEqual([b["tag"] for b in result["bumped"]], ["ios/v2610.01", "windows/v2610.01"])
+        self.assertEqual(result["skipped"][0]["reason"], "no_app_files")
+        self.assertEqual(calls[0], ["workflow", "run", "ios-release-build.yml", "--ref", "master",
+                                    "-f", "version_tag=ios/v2610.01"])
+        self.assertEqual(self.repo.git.version_tags("ios"), [("2610.01", "ios/v2610.01")])
+        again = v.bump(self.repo.git, ["ios"], "HEAD", OCT)
+        self.assertEqual(again["bumped"], [])
+
+    def test_late_run_for_older_commit_does_not_bump(self):
+        old = self.repo.git.rev("HEAD")
+        self.repo.commit("Change", "apple/Sources/FestivalUI/B.swift")
+        self.repo.tag("ios/v2610.01")
+        self.assertEqual(v.plan_bump(self.repo.git, "ios", old, OCT)["reason"], "behind_previous_tag")
+
+    def test_failed_dispatch_drops_the_tag(self):
+        def broken(_args):
+            raise RuntimeError("gh down")
+        with self.assertRaises(RuntimeError):
+            v.bump(self.repo.git, ["ios"], "HEAD", OCT, dispatch=True, gh_runner=broken)
+        self.assertEqual(self.repo.git.version_tags("ios"), [])
+        self.assertEqual(v.plan_bump(self.repo.git, "ios", "HEAD", OCT)["reason"], "first_version")
+
+    def _history(self):
+        """2610.01 (released) → 2610.02 (not released) → 2610.03 (released) → 2610.04 (building)."""
+        r = self.repo
+        r.tag("ios/v2610.01")
+        r.commit("Speed up songs\n\nRelease-Note: Songs load faster.", "apple/Sources/FestivalUI/S.swift")
+        r.commit("Windows only\n\nRelease-Note: Windows thing.", "windows/Festival.App/W.cs")
+        r.tag("ios/v2610.02")
+        r.run("checkout", "-q", "-b", "feature")
+        r.commit("Shop badge\n\nRelease-Note-iOS: The Item Shop badge is back.\nRelease-Note: generic",
+                 "apple/Sources/FestivalUI/Shop.swift")
+        r.run("checkout", "-q", "master")
+        r.run("merge", "-q", "--no-ff", "feature", "-m", "Merge pull request #7 from x/feature\n\nShop badge fix")
+        r.tag("ios/v2610.03")
+        r.commit("Tests only\n\nRelease-Note: should not appear", "apple/Tests/FestivalUITests/T.swift")
+        r.commit("Rivals\n\nRelease-Note: Rivals refresh correctly.", "apple/Sources/FestivalUI/R.swift")
+        r.tag("ios/v2610.04")
+
+    def test_whats_new_sections_per_released_version(self):
+        self._history()
+        doc = v.whats_new(self.repo.git, "ios", "2610.04", ["2610.01", "2610.03", "1.0", "2611.01"])
+        self.assertEqual(doc["baseline"], "2610.03")
+        self.assertEqual([e["version"] for e in doc["entries"]], ["2610.04", "2610.03", "2610.01"])
+        self.assertEqual([e["released"] for e in doc["entries"]], [False, True, True])
+        self.assertEqual(doc["entries"][0]["items"], ["Rivals refresh correctly."])
+        # 2610.02 was never released, so its notes fold into 2610.03; the iOS-specific note wins.
+        self.assertEqual(doc["entries"][1]["items"], ["Songs load faster.", "The Item Shop badge is back."])
+        self.assertEqual(doc["entries"][2]["items"], [v.PLATFORMS["ios"]["initial_note"]])
+        self.assertEqual(v.store_notes(doc), "• Rivals refresh correctly.")
+
+    def test_whats_new_first_release_and_released_current(self):
+        self._history()
+        first = v.whats_new(self.repo.git, "ios", "2610.02", [])
+        self.assertIsNone(first["baseline"])
+        self.assertEqual(first["entries"], [{"version": "2610.02", "released": False,
+                                             "items": [v.PLATFORMS["ios"]["initial_note"]]}])
+        shipped = v.whats_new(self.repo.git, "ios", "2610.03", ["2610.01", "2610.03"])
+        self.assertEqual([e["version"] for e in shipped["entries"]], ["2610.03", "2610.01"])
+        self.assertEqual(shipped["baseline"], "2610.01")
+        with self.assertRaises(ValueError):
+            v.whats_new(self.repo.git, "ios", "2610.09", [])
+
+    def test_whats_new_defaults_without_trailers_and_caps_history(self):
+        r = self.repo
+        released = []
+        for n in range(1, 14):
+            r.commit("change %d" % n, "apple/Sources/FestivalCore/A.swift")
+            r.tag("ios/v2610.%02d" % n)
+            released.append("2610.%02d" % n)
+        doc = v.whats_new(r.git, "ios", "2610.13", released)
+        self.assertEqual(len(doc["entries"]), v.HISTORY_LIMIT)
+        self.assertEqual(doc["entries"][0]["items"], [v.DEFAULT_NOTE])
+
+    def test_testflight_notes(self):
+        self._history()
+        git = self.repo.git
+        text = v.testflight_notes(git, "ios", "2610.03", "41")
+        self.assertTrue(text.startswith("Festival Score Tracker iOS 2610.03 (build 41)\nChanges since 2610.02:"))
+        self.assertIn("• Shop badge fix", text)
+        self.assertNotIn("Windows only", text)
+        self.assertIn("Release notes:\n• The Item Shop badge is back.", text)
+        first = v.testflight_notes(git, "ios", "2610.01", "40")
+        self.assertIn("First build numbered 2610.01", first)
+        rebuild = v.testflight_notes(git, "ios", "2610.04", "44", rebuild_reason="stale_whats_new")
+        self.assertIn("Rebuild of 2610.04 with no iOS app changes", rebuild)
+        self.repo.commit("Docs", "docs/a.md")
+        self.repo.tag("ios/v2610.05")
+        self.assertIn("No iOS app changes since 2610.04", v.testflight_notes(git, "ios", "2610.05", "45"))
+
+    def test_released_from_tags(self):
+        self.repo.tag("windows/v2610.01")
+        self.repo.tag("windows/released/2610.01")
+        self.repo.tag("windows/released/junk")
+        self.assertEqual(self.repo.git.released_from_tags("windows"), ["2610.01"])
+
+    def test_cli_round_trip(self):
+        self._history()
+        root = self.repo.root
+        out = root / "wn.json"
+        notes = root / "notes.txt"
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = v.main(["--repo", str(root), "whats-new", "--tag", "ios/v2610.04",
+                           "--released", "2610.01,2610.03", "--out", str(out), "--store-notes-out", str(notes)])
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(out.read_text())["version"], "2610.04")
+        self.assertEqual(notes.read_text(), "• Rivals refresh correctly.\n")
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            v.main(["--repo", str(root), "describe", "--tag", "ios/v2610.04", "--build", "50"])
+        described = json.loads(buf.getvalue())
+        self.assertEqual((described["previous"], described["msix_version"]), ("2610.03", "2610.4.50.0"))
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            self.assertEqual(v.main(["--repo", str(root), "latest-tag", "--platform", "ios"]), 0)
+        self.assertEqual(json.loads(buf.getvalue())["tag"], "ios/v2610.04")
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            self.assertEqual(v.main(["--repo", str(root), "describe", "--tag", "nope"]), 1)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = v.main(["--repo", str(root), "bump", "--enabled", "ios", "--now", "2026-11-01T00:00:00Z"])
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(buf.getvalue())["skipped"][0]["reason"], "already_tagged")
+
+    def test_enabled_platforms(self):
+        self.assertEqual(v.enabled_platforms({}), ["ios", "windows"])
+        self.assertEqual(v.enabled_platforms({"FST_RELEASE_ANDROID_ENABLED": "true"}), ["ios", "android", "windows"])
+
+
+if __name__ == "__main__":
+    unittest.main()

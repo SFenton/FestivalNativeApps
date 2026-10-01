@@ -9,6 +9,9 @@ orchestrator (``festival-report-tracker``, design §8) drives it over SSH::
     fst_release.py ios submit --build 202609301200 --notes-file notes.txt [--dry-run]
     fst_release.py ios record-build --build 202609301200 --version 0.1.1 --sha <git sha>
     fst_release.py ios creds            # signing helper used by ios_appstore_build.sh
+    fst_release.py ios released-versions --json   # What's New history (ios_appstore_build.sh)
+    fst_release.py ios beta-notes --build 57 --notes-file notes.txt --wait 1800
+    fst_release.py ios submit ... --whats-new-baseline 2610.01   # refuse stale What's New
     fst_release.py windows status --json  # Microsoft Store: dispatched to fst_store.py
 
 The orchestrator never runs it locally for status or submit: ``store-release.yml``
@@ -24,7 +27,8 @@ the JSON file ``~/.config/fst-release/asc.json``
 command print ``{"blocked": "missing_asc_credentials"}`` and exit 4.
 
 Exit codes: 0 ok, 1 usage or API failure (``status`` exits 5 with
-``blocked: asc_error``), 3 refused because a version is in review, 4 blocked.
+``blocked: asc_error``), 3 refused (a version is in review, or ``stale_whats_new``:
+a newer version was released after the build's What's New was generated), 4 blocked.
 
 Nothing here ever prints the private key or the signed token.
 """
@@ -33,6 +37,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import io
 import json
 import os
 import re
@@ -43,6 +48,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -65,6 +71,9 @@ IN_REVIEW_STATES = frozenset({
     "PROCESSING_FOR_APP_STORE", "PROCESSING_FOR_DISTRIBUTION",
 })
 RELEASED_STATES = frozenset({"READY_FOR_SALE", "READY_FOR_DISTRIBUTION"})
+#: States of versions that reached customers at some point (the What's New history).
+RELEASED_HISTORY_STATES = RELEASED_STATES | frozenset({
+    "REPLACED_WITH_NEW_VERSION", "REMOVED_FROM_SALE", "DEVELOPER_REMOVED_FROM_SALE"})
 EDITABLE_STATES = frozenset({
     "PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED", "METADATA_REJECTED",
     "INVALID_BINARY", "READY_FOR_REVIEW",
@@ -75,6 +84,9 @@ IN_REVIEW_SUBMISSION_STATES = ("WAITING_FOR_REVIEW", "IN_REVIEW")
 EXIT_OK, EXIT_FAIL, EXIT_REFUSED, EXIT_BLOCKED, EXIT_ASC_ERROR = 0, 1, 3, 4, 5
 DEFAULT_NOTES = "Bug fixes and improvements."
 WHATS_NEW_LIMIT = 4000
+BETA_NOTES_LIMIT = 4000
+#: ``submit(baseline=...)`` default: skip the What's New staleness check (builds without a marker).
+UNCHECKED = object()
 
 # endregion
 
@@ -420,27 +432,68 @@ def ledger_sha(ledger: Dict[str, Any], platform: str, build: Optional[str]) -> O
     return str(sha) if sha else None
 
 
-def artifact_head_sha(name: str, repo: str, runner: Optional[Callable[[List[str]], str]] = None) -> Optional[str]:
-    """Return the commit that produced the newest artifact called ``name`` (``None`` when unknown).
+def _gh_text(args: List[str]) -> str:
+    proc = subprocess.run(["gh"] + args, capture_output=True, text=True, timeout=120)
+    if proc.returncode != 0:
+        raise RuntimeError("gh api failed: %s" % (proc.stderr or "").strip()[-200:])
+    return proc.stdout
 
-    Used inside GitHub Actions, where the build ledger of the machine that archived the build is not
-    available: ``ios-release-build`` uploads a ``fst-ios-build_<build>`` marker artifact per upload.
-    """
-    def gh(args: List[str]) -> str:
-        proc = subprocess.run(["gh"] + args, capture_output=True, text=True, timeout=120)
-        if proc.returncode != 0:
-            raise RuntimeError("gh api failed: %s" % (proc.stderr or "").strip()[-200:])
-        return proc.stdout
+
+def _gh_bytes(args: List[str]) -> bytes:
+    proc = subprocess.run(["gh"] + args, capture_output=True, timeout=120)
+    if proc.returncode != 0:
+        raise RuntimeError("gh api failed: %s" % (proc.stderr or b"").decode("utf-8", "replace").strip()[-200:])
+    return proc.stdout
+
+
+def _newest_artifact(name: str, repo: str, runner: Callable[[List[str]], str]) -> Optional[Dict[str, Any]]:
     query = "repos/%s/actions/artifacts?per_page=5&name=%s" % (repo, urllib.parse.quote(name, safe=""))
     try:
-        listing = json.loads((runner or gh)(["api", query]) or "{}")
+        listing = json.loads(runner(["api", query]) or "{}")
     except (RuntimeError, ValueError, OSError):
         return None
     for artifact in listing.get("artifacts") or []:
-        sha = (artifact.get("workflow_run") or {}).get("head_sha")
-        if artifact.get("name") == name and sha:
-            return str(sha)
+        if artifact.get("name") == name and not artifact.get("expired"):
+            return artifact
     return None
+
+
+def artifact_marker(name: str, repo: str, runner: Optional[Callable[[List[str]], str]] = None,
+                    fetch: Optional[Callable[[List[str]], bytes]] = None) -> Optional[Dict[str, Any]]:
+    """Download the newest ``name`` artifact and return its ``build.json`` (``None`` when unavailable).
+
+    ``ios-release-build`` uploads a ``fst-ios-build_<build>`` marker per upload with the build's version,
+    SHA, version tag, What's New baseline and notes.
+    """
+    artifact = _newest_artifact(name, repo, runner or _gh_text)
+    if artifact is None or not artifact.get("id"):
+        return None
+    try:
+        blob = (fetch or _gh_bytes)(["api", "repos/%s/actions/artifacts/%s/zip" % (repo, artifact["id"])])
+        with zipfile.ZipFile(io.BytesIO(blob)) as archive:
+            data = json.loads(archive.read("build.json").decode("utf-8"))
+    except (RuntimeError, OSError, KeyError, ValueError, zipfile.BadZipFile):
+        return None
+    if not isinstance(data, dict):
+        return None
+    data.setdefault("run_head_sha", (artifact.get("workflow_run") or {}).get("head_sha"))
+    return data
+
+
+def artifact_head_sha(name: str, repo: str, runner: Optional[Callable[[List[str]], str]] = None,
+                      fetch: Optional[Callable[[List[str]], bytes]] = None) -> Optional[str]:
+    """Return the commit a build marker artifact was archived from (``None`` when unknown).
+
+    Used inside GitHub Actions, where the build ledger of the machine that archived the build is not
+    available. The marker's own ``sha`` (the checked-out version tag) wins; markers that cannot be
+    downloaded fall back to the producing run's head SHA.
+    """
+    marker = artifact_marker(name, repo, runner, fetch)
+    if marker and marker.get("sha"):
+        return str(marker["sha"])
+    artifact = _newest_artifact(name, repo, runner or _gh_text)
+    sha = (artifact or {}).get("workflow_run", {}).get("head_sha") if artifact else None
+    return str(sha) if sha else None
 
 
 def project_version(group: str, project_yml: Path = PROJECT_YML) -> str:
@@ -597,6 +650,31 @@ def collect_status(client: AscClient, group: str, bundle_id: str, ledger: Dict[s
             "latest_build": latest, "released_sha": released_sha, "blocked": None}
 
 
+def _version_key(text: str) -> Optional[Tuple[int, ...]]:
+    try:
+        return parse_version(text)
+    except ValueError:
+        return None
+
+
+def released_versions(versions: List[Dict[str, Any]]) -> List[str]:
+    """Version strings that reached customers (current or replaced), highest first."""
+    found = {str((v.get("attributes") or {}).get("versionString") or "") for v in versions
+             if version_state(v) in RELEASED_HISTORY_STATES}
+    keyed = [(k, text) for text in found if text for k in [_version_key(text)] if k is not None]
+    return [text for _k, text in sorted(keyed, reverse=True)]
+
+
+def released_baseline(versions: List[Dict[str, Any]], marketing: str) -> Optional[str]:
+    """The highest released version below ``marketing`` (the What's New baseline), or ``None``."""
+    target = _version_key(marketing)
+    for text in released_versions(versions):
+        key = _version_key(text)
+        if target is None or (key is not None and key < target):
+            return text
+    return None
+
+
 def compute_next_version(versions: List[Dict[str, Any]], project: str) -> Tuple[str, str]:
     """Choose the marketing version for the next build.
 
@@ -649,7 +727,7 @@ RELEASE_TYPES = ("MANUAL", "AFTER_APPROVAL")
 
 
 def submit(client: AscClient, group: str, bundle_id: str, build_number: str,
-           notes: str, release_type: str = "MANUAL") -> Dict[str, Any]:
+           notes: str, release_type: str = "MANUAL", baseline: Any = UNCHECKED) -> Dict[str, Any]:
     """Attach a VALID build to its version and submit it for App Store review.
 
     Sequence: refuse when anything is in review, find the build, create/reuse the
@@ -660,9 +738,12 @@ def submit(client: AscClient, group: str, bundle_id: str, build_number: str,
     Args:
         release_type: ``MANUAL`` (approved versions wait for a human release) or
             ``AFTER_APPROVAL`` (auto-release once review passes).
+        baseline: The released version the build's bundled What's New was generated against
+            (``None`` = no release yet). When given and the store has released a newer version since,
+            nothing is written and ``refused: stale_whats_new`` asks for a rebuild.
 
     Returns:
-        A result document; ``refused`` is set (and nothing written) when in review.
+        A result document; ``refused`` is set (and nothing written) when in review or stale.
 
     Raises:
         Blocked: App record missing.
@@ -689,6 +770,11 @@ def submit(client: AscClient, group: str, bundle_id: str, build_number: str,
     marketing = build["version"]
     if not marketing:
         raise ValueError("build %s has no marketing version" % build_number)
+    if baseline is not UNCHECKED:
+        current = released_baseline(versions, marketing)
+        if current != baseline:
+            return {"submitted": False, "refused": "stale_whats_new", "version": marketing,
+                    "build": str(build_number), "baseline": baseline, "current_baseline": current}
 
     notes = (notes or "").strip() or DEFAULT_NOTES
     if len(notes) > WHATS_NEW_LIMIT:
@@ -742,6 +828,48 @@ def submit(client: AscClient, group: str, bundle_id: str, build_number: str,
             "submission_id": submission_id, "whats_new": whats_new}
 
 
+def beta_notes(client: AscClient, group: str, bundle_id: str, build_number: str, notes: str,
+               wait: float = 0, sleep: Callable[[float], None] = time.sleep,
+               clock: Callable[[], float] = time.monotonic, interval: float = 30) -> Dict[str, Any]:
+    """Set the en-US TestFlight "What to Test" text of one build.
+
+    Args:
+        wait: Seconds to keep polling while the uploaded build is not visible in ASC yet.
+
+    Returns:
+        ``{build, version, beta_notes: "set"}``.
+
+    Raises:
+        ValueError: Empty notes, or the build did not appear within ``wait``.
+    """
+    text = (notes or "").strip()[:BETA_NOTES_LIMIT].rstrip()
+    if not text:
+        raise ValueError("empty TestFlight notes")
+    asc_platform = PLATFORMS[group][0]
+    app_id = resolve_app(client, bundle_id)
+    deadline = clock() + max(0.0, wait)
+    while True:
+        builds = list_builds(client, app_id, asc_platform, limit=5, number=build_number)
+        build = next((b for b in builds if str(b["build"]) == str(build_number)), None)
+        if build is not None:
+            break
+        if clock() >= deadline:
+            raise ValueError("build %s not found" % build_number)
+        sleep(interval)
+    existing = client.get("/v1/builds/%s/betaBuildLocalizations" % build["id"], {"limit": "50"})
+    loc = next((item for item in (existing.get("data") or [])
+                if (item.get("attributes") or {}).get("locale") == "en-US"), None)
+    if loc is not None:
+        client.request("PATCH", "/v1/betaBuildLocalizations/%s" % loc["id"], body={"data": {
+            "type": "betaBuildLocalizations", "id": loc["id"], "attributes": {"whatsNew": text}}})
+    else:
+        client.request("POST", "/v1/betaBuildLocalizations", body={"data": {
+            "type": "betaBuildLocalizations", "attributes": {"locale": "en-US", "whatsNew": text},
+            "relationships": {"build": {"data": {"type": "builds", "id": build["id"]}}}}})
+    return {"build": str(build_number), "version": build["version"], "beta_notes": "set",
+            "dry_run": client.dry_run}
+
+
 # endregion
 
 # region CLI
@@ -758,7 +886,7 @@ def build_parser() -> argparse.ArgumentParser:
     groups = parser.add_subparsers(dest="group", required=True)
     for group in PLATFORMS:
         sub = groups.add_parser(group).add_subparsers(dest="command", required=True)
-        for name in ("status", "next-version", "creds"):
+        for name in ("status", "next-version", "creds", "released-versions"):
             p = sub.add_parser(name)
             p.add_argument("--json", action="store_true")
             p.add_argument("--bundle-id")
@@ -767,6 +895,16 @@ def build_parser() -> argparse.ArgumentParser:
         notes = p.add_mutually_exclusive_group(required=True)
         notes.add_argument("--notes-file")
         notes.add_argument("--notes-stdin", action="store_true")
+        p.add_argument("--dry-run", action="store_true")
+        p.add_argument("--bundle-id")
+        p.add_argument("--whats-new-baseline",
+                       help="released version the build's What's New used ('none' = no release yet)")
+        p = sub.add_parser("beta-notes")
+        p.add_argument("--build", required=True)
+        beta = p.add_mutually_exclusive_group(required=True)
+        beta.add_argument("--notes-file")
+        beta.add_argument("--notes-stdin", action="store_true")
+        p.add_argument("--wait", type=float, default=0, help="seconds to wait for the build to appear")
         p.add_argument("--dry-run", action="store_true")
         p.add_argument("--bundle-id")
         p = sub.add_parser("record-build")
@@ -836,13 +974,27 @@ def main(argv: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None,
             else:
                 print(version)
             return EXIT_OK
+        if args.command == "released-versions":
+            app_id = resolve_app(client, bundle_id)
+            emit({"released": released_versions(list_versions(client, app_id, asc_platform))})
+            return EXIT_OK
+        if args.command == "beta-notes":
+            notes = (stdin or sys.stdin).read() if args.notes_stdin else Path(args.notes_file).read_text()
+            result = beta_notes(client, group, bundle_id, args.build, notes, wait=args.wait)
+            if dry_run:
+                result["planned"] = client.planned
+            emit(result)
+            return EXIT_OK
         if args.command == "submit":
             if args.notes_stdin:
                 notes = (stdin or sys.stdin).read()
             else:
                 notes = Path(args.notes_file).read_text()
+            baseline: Any = UNCHECKED
+            if args.whats_new_baseline is not None:
+                baseline = None if args.whats_new_baseline in ("", "none") else args.whats_new_baseline
             result = submit(client, group, bundle_id, args.build, notes,
-                            env.get("FST_APPSTORE_RELEASE_TYPE") or "MANUAL")
+                            env.get("FST_APPSTORE_RELEASE_TYPE") or "MANUAL", baseline)
             if dry_run:
                 result["planned"] = client.planned
             emit(result)

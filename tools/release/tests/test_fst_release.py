@@ -448,6 +448,123 @@ class SubmitTests(TempHome):
         self.assertEqual(code, 1)
         self.assertIn("ENTITY_ERROR", json.loads(out.getvalue())["error"])
 
+    def test_stale_baseline_refuses_without_writes(self):
+        versions = [version("V2", "1.0.0", "READY_FOR_SALE", "2026-09-02T00:00:00Z")]
+        fake = FakeAsc(self.routes(versions))
+        client = fr.AscClient(self.creds(), transport=fake)
+        result = fr.submit(client, "ios", "com.example", "999", "n", "MANUAL", baseline=None)
+        self.assertEqual(result["refused"], "stale_whats_new")
+        self.assertEqual((result["baseline"], result["current_baseline"]), (None, "1.0.0"))
+        self.assertEqual(fake.writes(), [])
+
+    def test_matching_baseline_submits(self):
+        fake = FakeAsc(self.routes(self.released))
+        client = fr.AscClient(self.creds(), transport=fake)
+        result = fr.submit(client, "ios", "com.example", "999", "n", "MANUAL", baseline="1.0.0")
+        self.assertTrue(result["submitted"])
+
+    def test_cli_baseline_none(self):
+        out = io.StringIO()
+        with redirect_stdout(out):
+            code = fr.main(["ios", "submit", "--build", "999", "--notes-stdin", "--whats-new-baseline", "none"],
+                           env=self.env(), transport=FakeAsc(self.routes(self.released)), stdin=io.StringIO("x"))
+        self.assertEqual((code, json.loads(out.getvalue())["refused"]), (3, "stale_whats_new"))
+
+
+class VersionHistoryTests(unittest.TestCase):
+    def test_released_versions_and_baseline(self):
+        vs = [version("a", "2610.03", "PREPARE_FOR_SUBMISSION", "4"),
+              version("b", "2610.02", "READY_FOR_SALE", "3"),
+              version("c", "2610.01", "REPLACED_WITH_NEW_VERSION", "2"),
+              version("d", "2610.10", "REJECTED", "5"),
+              version("e", "bogus", "READY_FOR_SALE", "1")]
+        self.assertEqual(fr.released_versions(vs), ["2610.02", "2610.01"])
+        self.assertEqual(fr.released_baseline(vs, "2610.03"), "2610.02")
+        self.assertEqual(fr.released_baseline(vs, "2610.02"), "2610.01")
+        self.assertIsNone(fr.released_baseline(vs, "2610.01"))
+        self.assertIsNone(fr.released_baseline([], "2610.01"))
+
+
+class BetaNotesTests(TempHome):
+    def routes(self, builds, locs):
+        seq = list(builds)
+        routes = {("GET", "/v1/apps"): {"data": [{"id": "APP1"}]},
+                  ("GET", "/v1/builds"): lambda q, _b: seq.pop(0) if len(seq) > 1 else seq[0],
+                  ("GET", "/v1/builds/B9/betaBuildLocalizations"): {"data": locs},
+                  ("PATCH", "/v1/betaBuildLocalizations/BL1"): {"data": {"id": "BL1"}},
+                  ("POST", "/v1/betaBuildLocalizations"): {"data": {"id": "BL2"}}}
+        return routes
+
+    def test_waits_for_build_then_creates_localization(self):
+        fake = FakeAsc(self.routes([{"data": []}, build_doc("B9", "57", "2610.01", "PROCESSING")], []))
+        client = fr.AscClient(self.creds(), transport=fake)
+        sleeps = []
+        result = fr.beta_notes(client, "ios", "com.example", "57", " What changed \n", wait=100,
+                               sleep=sleeps.append, clock=lambda: 0.0)
+        self.assertEqual((result["beta_notes"], result["version"], sleeps), ("set", "2610.01", [30]))
+        body = [b for m, p, _q, b, _h in fake.calls if m == "POST"][0]["data"]
+        self.assertEqual(body["attributes"], {"locale": "en-US", "whatsNew": "What changed"})
+        self.assertEqual(body["relationships"]["build"]["data"]["id"], "B9")
+
+    def test_patches_existing_localization(self):
+        locs = [{"id": "BL0", "attributes": {"locale": "fr-FR"}}, {"id": "BL1", "attributes": {"locale": "en-US"}}]
+        fake = FakeAsc(self.routes([build_doc("B9", "57", "2610.01")], locs))
+        fr.beta_notes(fr.AscClient(self.creds(), transport=fake), "ios", "com.example", "57", "x" * 5000)
+        self.assertEqual(fake.writes(), [("PATCH", "/v1/betaBuildLocalizations/BL1")])
+        body = [b for m, p, _q, b, _h in fake.calls if m == "PATCH"][0]
+        self.assertEqual(len(body["data"]["attributes"]["whatsNew"]), fr.BETA_NOTES_LIMIT)
+
+    def test_timeout_and_empty_notes(self):
+        ticks = iter([0.0, 50.0, 200.0])
+        fake = FakeAsc(self.routes([{"data": []}], []))
+        client = fr.AscClient(self.creds(), transport=fake)
+        with self.assertRaises(ValueError):
+            fr.beta_notes(client, "ios", "com.example", "57", "n", wait=100, sleep=lambda _s: None,
+                          clock=lambda: next(ticks))
+        with self.assertRaises(ValueError):
+            fr.beta_notes(client, "ios", "com.example", "57", "  ")
+
+    def test_cli_beta_notes_and_released_versions(self):
+        routes = self.routes([build_doc("B9", "57", "2610.01")], [])
+        routes[("GET", "/v1/apps/APP1/appStoreVersions")] = {"data": [
+            version("V1", "2610.01", "READY_FOR_SALE", "1")]}
+        out = io.StringIO()
+        with redirect_stdout(out):
+            code = fr.main(["ios", "beta-notes", "--build", "57", "--notes-stdin"], env=self.env(),
+                           transport=FakeAsc(routes), stdin=io.StringIO("notes"))
+        self.assertEqual((code, json.loads(out.getvalue())["beta_notes"]), (0, "set"))
+        out = io.StringIO()
+        with redirect_stdout(out):
+            code = fr.main(["ios", "released-versions", "--json"], env=self.env(), transport=FakeAsc(routes))
+        self.assertEqual((code, json.loads(out.getvalue())), (0, {"released": ["2610.01"]}))
+
+
+class MarkerTests(unittest.TestCase):
+    def zip_with(self, doc):
+        import zipfile
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as archive:
+            archive.writestr("build.json", json.dumps(doc))
+        return buf.getvalue()
+
+    def listing(self, args):
+        return json.dumps({"artifacts": [{"id": 7, "name": "fst-ios-build_57",
+                                          "workflow_run": {"head_sha": "h" * 40}}]})
+
+    def test_marker_download_prefers_marker_sha(self):
+        doc = {"built": True, "build": "57", "sha": "s" * 40, "whats_new_baseline": None}
+        fetched = []
+        fetch = lambda args: fetched.append(args) or self.zip_with(doc)  # noqa: E731
+        marker = fr.artifact_marker("fst-ios-build_57", "o/r", self.listing, fetch)
+        self.assertEqual((marker["sha"], marker["run_head_sha"]), ("s" * 40, "h" * 40))
+        self.assertEqual(fetched[0], ["api", "repos/o/r/actions/artifacts/7/zip"])
+        self.assertEqual(fr.artifact_head_sha("fst-ios-build_57", "o/r", self.listing, fetch), "s" * 40)
+
+    def test_bad_zip_falls_back_to_run_head(self):
+        self.assertIsNone(fr.artifact_marker("fst-ios-build_57", "o/r", self.listing, lambda a: b"nope"))
+        self.assertEqual(fr.artifact_head_sha("fst-ios-build_57", "o/r", self.listing, lambda a: b"nope"),
+                         "h" * 40)
+
 
 class LedgerTests(TempHome):
     def test_record_build_cli_roundtrip(self):

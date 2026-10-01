@@ -18,6 +18,12 @@ there). Policy enforced here, independent of the orchestrator:
   wait for a manual release unless ``FST_APPSTORE_RELEASE_TYPE=AFTER_APPROVAL``.
 - Windows ``submit`` always uses Manual publish mode: certification only, never
   a release.
+- iOS ``submit`` reads the build's ``fst-ios-build_<build>`` marker artifact: its
+  generated ``store_notes`` replace the orchestrator's notes, and its
+  ``whats_new_baseline`` must still be the newest released version. Otherwise the
+  store refuses with ``stale_whats_new`` and this job dispatches a rebuild of the
+  same version tag (new build number, regenerated What's New) unless an
+  ``ios-release-build`` run is already queued or running.
 
 The process exits 0 for ok/refused/blocked (the result carries the detail) and
 1 otherwise, so failed jobs stay visible in Actions.
@@ -32,6 +38,7 @@ import io
 import json
 import os
 import re
+import subprocess
 import sys
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -56,27 +63,79 @@ def decode_notes(value: str) -> str:
     return text[:NOTES_LIMIT]
 
 
-def tool_argv(platform: str, command: str, build: Optional[str], dry_run: bool) -> List[str]:
-    """Build the ``fst_release.py`` arguments for one job."""
+REBUILD_WORKFLOW = {"ios": "ios-release-build.yml"}
+UNSET = object()
+
+
+def tool_argv(platform: str, command: str, build: Optional[str], dry_run: bool,
+              baseline: Any = UNSET) -> List[str]:
+    """Build the ``fst_release.py`` arguments for one job (``baseline`` None = no release yet)."""
     if command == "status":
         return [platform, "status", "--json"]
     if not build or not BUILD_RE.match(build):
         raise ValueError("submit needs a numeric --build")
     argv = [platform, "submit", "--build", build, "--notes-stdin"]
+    if baseline is not UNSET:
+        argv += ["--whats-new-baseline", baseline or "none"]
     if dry_run:
         argv.append("--dry-run")
     return argv
 
 
+def default_marker(platform: str, build: str, env: Dict[str, str]) -> Optional[Dict[str, Any]]:
+    """Download the build marker written by the platform's release build (``None`` when absent)."""
+    repo = env.get("FST_NATIVE_REPO") or "SFenton/FestivalNativeApps"
+    return fst_release.artifact_marker("fst-%s-build_%s" % (platform, build), repo)
+
+
+def gh(args: List[str]) -> str:
+    """Run ``gh`` and return stdout (raises ``RuntimeError``)."""
+    proc = subprocess.run(["gh"] + args, capture_output=True, text=True, timeout=120)
+    if proc.returncode != 0:
+        raise RuntimeError("gh %s failed: %s" % (" ".join(args[:2]), (proc.stderr or "").strip()[-300:]))
+    return proc.stdout
+
+
+def dispatch_rebuild(platform: str, marker: Dict[str, Any], runner: Any = None) -> Dict[str, Any]:
+    """Dispatch a rebuild of the marker's version tag unless a build is already queued or running."""
+    workflow = REBUILD_WORKFLOW.get(platform)
+    tag = marker.get("version_tag")
+    if not workflow or not tag:
+        return {"dispatched": False, "reason": "no_version_tag"}
+    run = runner or gh
+    try:
+        for state in ("queued", "in_progress"):
+            active = json.loads(run(["run", "list", "--workflow", workflow, "--status", state,
+                                     "--json", "databaseId", "-L", "5"]) or "[]")
+            if active:
+                return {"dispatched": False, "reason": "build_%s" % state, "version_tag": tag}
+        run(["workflow", "run", workflow, "--ref", "master", "-f", "version_tag=%s" % tag,
+             "-f", "rebuild_reason=stale_whats_new"])
+    except (RuntimeError, ValueError, OSError) as err:
+        return {"dispatched": False, "reason": "error", "error": str(err)[-300:], "version_tag": tag}
+    return {"dispatched": True, "version_tag": tag}
+
+
 def run_job(platform: str, command: str, build: Optional[str], notes: str, dry_run: bool,
-            env: Dict[str, str], main: Any = None) -> Dict[str, Any]:
+            env: Dict[str, str], main: Any = None, marker_lookup: Any = None,
+            runner: Any = None) -> Dict[str, Any]:
     """Apply policy, run the release tool in-process and return the result document."""
     result: Dict[str, Any] = {"platform": platform, "command": command, "build": build,
                               "sha": env.get("GITHUB_SHA"), "dry_run": dry_run}
     if command == "submit" and platform == "ios" and env.get("FST_APPSTORE_REVIEW_ENABLED") != "true":
         result.update(exit_code=fst_release.EXIT_BLOCKED, output={"blocked": "app_store_review_disabled"})
         return result
-    argv = tool_argv(platform, command, build, dry_run)
+    baseline: Any = UNSET
+    marker: Optional[Dict[str, Any]] = None
+    if command == "submit" and platform in REBUILD_WORKFLOW and build and BUILD_RE.match(build):
+        marker = (marker_lookup or default_marker)(platform, build, env)
+        if marker:
+            result["marker"] = {k: marker.get(k) for k in ("version", "version_tag", "sha", "whats_new_baseline")}
+            if "whats_new_baseline" in marker:
+                baseline = marker.get("whats_new_baseline")
+            if str(marker.get("store_notes") or "").strip():
+                notes = str(marker["store_notes"])
+    argv = tool_argv(platform, command, build, dry_run, baseline)
     out = io.StringIO()
     with redirect_stdout(out):
         code = (main or fst_release.main)(argv, env=env, stdin=io.StringIO(notes))
@@ -86,6 +145,8 @@ def run_job(platform: str, command: str, build: Optional[str], notes: str, dry_r
     except ValueError:
         output = {"error": "non-JSON output", "text": text[-500:]}
     result.update(exit_code=code, output=output)
+    if marker and isinstance(output, dict) and output.get("refused") == "stale_whats_new" and not dry_run:
+        result["rebuild"] = dispatch_rebuild(platform, marker, runner)
     return result
 
 
