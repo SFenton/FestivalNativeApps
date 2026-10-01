@@ -79,7 +79,11 @@ struct ServiceInfoRows: Equatable {
     var barPercent: Double??
     var progressText: String?
     var unitsText: String?
-    var lastPublished: String
+    /// Registered-band discovery lookup line under the bar, nil for every other phase.
+    var attemptText: String?
+    /// Last publication row; nil until the first successful read (the web shows only the
+    /// state row while loading or after a failed first read).
+    var lastPublished: String?
     /// Public-read freeze explanation (native addition), nil when reads are live.
     var freezeNotice: String?
 
@@ -95,11 +99,9 @@ struct ServiceInfoRows: Equatable {
     ) -> ServiceInfoRows {
         switch phase {
         case .loading:
-            return ServiceInfoRows(stateDescription: "Loading", processState: .loading,
-                                   lastPublished: "Loading")
+            return ServiceInfoRows(stateDescription: "Loading", processState: .loading)
         case .failed:
-            return ServiceInfoRows(stateDescription: "Failed to load", processState: .stopped,
-                                   lastPublished: "Unavailable")
+            return ServiceInfoRows(stateDescription: "Failed to load", processState: .stopped)
         case let .loaded(snapshot, display):
             let info = snapshot.info
             let updating = info.currentUpdate.status == "updating"
@@ -119,6 +121,7 @@ struct ServiceInfoRows: Equatable {
                 barPercent: showBar ? .some(determinate ? bar?.percent : nil) : nil,
                 progressText: showBar ? ServiceInfoText.progressText(bar) : nil,
                 unitsText: showBar ? ServiceInfoText.unitsText(bar) : nil,
+                attemptText: showBar ? ServiceInfoText.discoveryAttemptText(display) : nil,
                 lastPublished: ServiceInfoText.lastPublished(info, timeZone: timeZone, locale: locale),
                 freezeNotice: ServiceInfoText.freezeNotice(snapshot)
             )
@@ -138,6 +141,7 @@ struct SettingsServiceInfoSection: View {
     let isVisible: Bool
     @State private var model: SettingsServiceInfoModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// Create the section.
     ///
@@ -161,9 +165,12 @@ struct SettingsServiceInfoSection: View {
             if let title = rows.phaseTitle {
                 phaseRow(title: title, rows: rows)
             }
-            SettingLabel(ServiceInfoText.lastPublishedTitle, detail: rows.lastPublished)
-                .accessibilityElement(children: .combine)
-                .accessibilityIdentifier("fst.settings.service-info.last-published")
+            if let lastPublished = rows.lastPublished {
+                SettingLabel(ServiceInfoText.lastPublishedTitle, detail: lastPublished)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("fst.settings.service-info.last-published")
+            }
         }
         .task(id: isVisible) {
             guard isVisible else { return }
@@ -172,39 +179,61 @@ struct SettingsServiceInfoSection: View {
         }
     }
 
+    /// Title and state description with the process state trailing, like the other
+    /// Settings value rows; at accessibility text sizes the state stacks under the label so
+    /// "Leaderboard Service State" is never squeezed into hyphenation.
     private func stateRow(_ rows: ServiceInfoRows) -> some View {
-        HStack(alignment: .center, spacing: 12) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: 12))
+        return layout {
             SettingLabel(ServiceInfoText.serviceStateTitle, detail: rows.stateDescription)
-            Spacer(minLength: 8)
+            if !dynamicTypeSize.isAccessibilitySize {
+                Spacer(minLength: 8)
+            }
             HStack(spacing: 8) {
                 Text(rows.processState.label)
                     .font(.headline)
                     .foregroundStyle(FestivalText.primary)
+                    .fixedSize(horizontal: false, vertical: true)
                 if rows.processState == .loading || rows.processState == .updating {
                     FestivalLoadingView()
                         .controlSize(.small)
                         .accessibilityHidden(true)
                 }
             }
+            .fixedSize(horizontal: !dynamicTypeSize.isAccessibilitySize, vertical: false)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("fst.settings.service-info.state")
     }
 
-    /// The web's phase row: title then the bar alone (percent and units are spoken, not
-    /// printed — `SettingsServiceProgressCard` shows neither).
+    /// The web's phase row: semibold title (`toggleLabel`), the bar a gap-xs below, and the
+    /// registered-band discovery lookup line under it (`toggleDesc`). Percent and units are
+    /// spoken, not printed — `SettingsServiceProgressCard` shows neither.
     private func phaseRow(title: String, rows: ServiceInfoRows) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 4) {
             Text(title)
+                .font(.body.weight(.semibold))
                 .foregroundStyle(FestivalText.primary)
+                .fixedSize(horizontal: false, vertical: true)
             if let barPercent = rows.barPercent {
                 ServiceProgressBar(percent: barPercent, reduceMotion: reduceMotion)
-                    .padding(.top, 2)
+                if let attemptText = rows.attemptText {
+                    Text(attemptText)
+                        .font(.subheadline)
+                        .foregroundStyle(FestivalText.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
-        .accessibilityValue([rows.progressText, rows.unitsText].compactMap { $0 }.joined(separator: ". "))
+        .accessibilityValue(
+            [rows.progressText, rows.unitsText, rows.attemptText].compactMap { $0 }.joined(separator: ". ")
+        )
         .accessibilityIdentifier("fst.settings.service-info.phase")
     }
 }
