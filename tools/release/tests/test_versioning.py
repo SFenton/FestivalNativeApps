@@ -211,7 +211,7 @@ class GitFlowTests(unittest.TestCase):
         self.assertEqual(first["entries"], [{"version": "2610.01.02", "released": False,
                                              "items": [v.PLATFORMS["ios"]["initial_note"]],
                                              "testflight": {"since": "2610.01.01", "new": ["Songs load faster."],
-                                                            "release": None, "vs_release": ["Initial app", "Songs load faster."]}}])
+                                                            "release": None, "vs_release": ["Songs load faster."]}}])
         shipped = v.whats_new(self.repo.git, "ios", "2610.01.03", ["2610.01.01", "2610.01.03"])
         self.assertEqual([e["version"] for e in shipped["entries"]], ["2610.01.03", "2610.01.01"])
         self.assertEqual(shipped["baseline"], "2610.01.01")
@@ -222,13 +222,22 @@ class GitFlowTests(unittest.TestCase):
         r = self.repo
         released = []
         for n in range(1, 14):
-            r.commit("change %d" % n, "apple/Sources/FestivalCore/A.swift")
+            self.merge_pr(n, "[Bug] change %d (#%d)" % (n, n), "apple/Sources/FestivalCore/A%d.swift" % n)
             r.tag("ios/v2610.01.%02d" % n)
             released.append("2610.01.%02d" % n)
         doc = v.whats_new(r.git, "ios", "2610.01.13", released)
         self.assertEqual(len(doc["entries"]), v.HISTORY_LIMIT)
-        # An app change without a trailer contributes its own title, never a generic line.
+        # A merged PR without a trailer contributes its cleaned title, never a generic line.
         self.assertEqual(doc["entries"][0]["items"], ["Change 13"])
+
+    def merge_pr(self, number, title, path, trailer=""):
+        """Merge a one-commit branch the way GitHub does (PR title on the merge commit's second line)."""
+        r = self.repo
+        r.run("checkout", "-q", "-b", "pr%d" % number)
+        r.commit("wip %d" % number, path)
+        r.run("checkout", "-q", "master")
+        message = "Merge pull request #%d from x/pr%d\n\n%s%s" % (number, number, title, trailer)
+        r.run("merge", "-q", "--no-ff", "pr%d" % number, "-m", message)
 
     def test_nothing_user_facing_skips_the_section_and_store_text(self):
         r = self.repo
@@ -256,8 +265,10 @@ class GitFlowTests(unittest.TestCase):
             self.assertNotIn(absent, older)
         unreleased = v.testflight_notes(git, "ios", "2610.01.03", "40")
         self.assertIn("New since 2610.01.02:\n• The Item Shop badge is back.", unreleased)
-        self.assertIn("In this build vs. release (no release yet):\n• Initial app\n• Songs load faster.\n"
+        self.assertIn("In this build vs. release (no release yet):\n• Songs load faster.\n"
                       "• The Item Shop badge is back.", unreleased)
+        # Commits pushed without a trailer (the fixture's "Initial app") never become bullets.
+        self.assertNotIn("Initial app", unreleased)
         first = v.testflight_notes(git, "ios", "2610.01.01", "39")
         self.assertNotIn("New since", first)
         self.assertIn("In this build vs. release (no release yet):", first)
@@ -274,16 +285,20 @@ class GitFlowTests(unittest.TestCase):
     def test_testflight_notes_untrailered_changes_and_limit(self):
         r = self.repo
         r.tag("ios/v2610.01.01")
-        r.commit("Refactor", "apple/Sources/FestivalCore/A.swift")
+        r.commit("Refactor the cache", "apple/Sources/FestivalCore/A.swift")
+        self.merge_pr(5, "[Feature] iOS: rows show ranks (#5)", "apple/Sources/FestivalUI/Rows.swift")
         r.tag("ios/v2610.01.02")
         text = v.testflight_notes(r.git, "ios", "2610.01.02", "2", released=["2610.01.01"])
-        self.assertIn("New since 2610.01.01:\n• Refactor", text)
+        # One bullet per check-in: the untrailered PR by its title, never the direct code commit.
+        self.assertIn("New since 2610.01.01:\n• iOS: rows show ranks\n\n", text)
+        self.assertNotIn("Refactor", text)
+        self.assertNotIn("wip", text)
         self.assertNotIn("Bug fixes and improvements", text)
         r.commit("Internal\n\nRelease-Note: none", "apple/Sources/FestivalCore/B.swift")
         r.tag("ios/v2610.01.04")
         quiet = v.testflight_notes(r.git, "ios", "2610.01.04", "4", released=["2610.01.01"])
         self.assertIn("New since 2610.01.02:\n• No user-facing changes.", quiet)
-        self.assertIn("In this build vs. release 2610.01.01:\n• Refactor", quiet)
+        self.assertIn("In this build vs. release 2610.01.01:\n• iOS: rows show ranks", quiet)
         for n in range(60):
             r.commit("c\n\nRelease-Note: Note number %d with a reasonably long sentence about it." % n,
                      "apple/Sources/FestivalCore/A.swift")
