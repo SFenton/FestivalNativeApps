@@ -21,7 +21,7 @@
 
 ## Rule: stores are touched only from Actions
 
-Builds, signing, TestFlight uploads and store submissions run only in GitHub-hosted Actions jobs; no mesh machine (Linux host, MacBook, Windows host) runs any build/release job, holds signing material for it, or calls a store. iOS archive, signing and upload use the hosted `xcode-27` image (Xcode 27; the default `macos-26` image tops out at Xcode 26.6, which lacks the iOS 27 APIs the app uses). Every store status read and submission uses `store-release` on hosted `ubuntu-latest`. The only credential store is the `store-release` environment (deployment branch policy: `master` only). Public release is off:
+Builds, signing, TestFlight uploads and store submissions run only in GitHub-hosted Actions jobs; no mesh machine (Linux host, MacBook, Windows host) runs any build/release job, holds signing material for it, or calls a store. iOS archive, signing and upload use the hosted `xcode-27` image with Xcode 27.1 selected (the image default 27.0 lacks the iOS 27.1 APIs the app uses; `macos-26` tops out at Xcode 26.6). Every store status read and submission uses `store-release` on hosted `ubuntu-latest`. The only credential store is the `store-release` environment (deployment branch policy: `master` only). Public release is off:
 
 - iOS App Store review submission auto-releases on approval, so `actions_job.py` refuses it (`blocked:"app_store_review_disabled"`) unless the repository variable `FST_APPSTORE_REVIEW_ENABLED=true`.
 - Windows submissions are always Manual publish (certification only).
