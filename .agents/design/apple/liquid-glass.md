@@ -19,7 +19,7 @@ Apple's HIG for iOS 26 puts Liquid Glass on the **navigation/control layer that 
 | Surface | Role | Implementation | Rationale | Pre-26 fallback (iOS 17–25) |
 |---|---|---|---|---|
 | Tab bar (iPhone) | System nav | `TabView { Tab(…) }` in `FestivalRootView` | System Liquid Glass tab bar, minimises and adapts automatically | Classic translucent tab bar (`.tabItem` on iOS 17) |
-| Navigation bar + toolbar items | System nav | `.toolbar { ToolbarItem(…) }`; shared items via `festivalRootChrome(session:)` | System glass capsules; `ToolbarSpacer` separates the profile bubble from page actions | Standard bar buttons, no capsule |
+| Navigation bar + toolbar items | System nav | `.toolbar { ToolbarItem(…) }`; shared items via `festivalRootChrome(session:)` | System glass capsules; `ToolbarSpacer(.fixed)` separates [page actions + Search], the bell and the profile avatar into their own capsules (≤ 3 trailing groups; Duo rail keeps bell + avatar together) | Standard bar buttons, no capsule |
 | Toolbar glyphs | — | White (`BrandTokens.textPrimary`) monochrome SF Symbols | Matches the web header; accent is reserved for *state* (e.g. non-default sort = gold, active filter = accent) | Same |
 | Search field | System control | `.searchable` (Songs "Filter Songs" inline; the global search sheet) | iOS 26 places it in glass automatically | Standard search bar |
 | Header scrim (every page) | Content legibility | `TopEdgeScrim`: 26+ soft top scroll-edge effect + dark top gradient | Keeps titles and the first rows readable over bright artwork | Gradient only |

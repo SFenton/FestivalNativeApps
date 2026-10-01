@@ -76,6 +76,58 @@ enum RootChromeRailItem: CaseIterable, Equatable {
     }
 }
 
+// MARK: - Trailing glass groups
+
+/// A shared trailing item that ``FestivalRootTrailingItems`` places on every tab root.
+enum RootChromeTrailingItem: Equatable {
+    case search
+    case bell
+    case profile
+}
+
+/// How the shared trailing items split into Liquid Glass groups (iOS 26+).
+///
+/// SwiftUI merges adjacent bar items into one glass capsule by default, which drew
+/// the bell and the avatar as a single control. They are independent actions (issue
+/// #14), so horizontal bars separate them with `ToolbarSpacer(.fixed)`. HIG Toolbars
+/// "Item groupings": "generally use no more than three groups" — page actions join
+/// the Search group (no spacer before Search), so the trailing side stays at
+/// [page actions + Search] · bell · profile.
+///
+/// The iPhone Duo vertical bar keeps the bell and profile together: it fits only two
+/// root items plus "…" (`.agents/design/apple/duo.md` "Toolbar rules"), and an extra
+/// gap there could push one of them into the overflow menu.
+enum RootChromeTrailingGroups {
+    /// Whether the bell and the profile avatar get separate glass backgrounds.
+    ///
+    /// - Parameter chrome: Current section chrome.
+    /// - Returns: False only in the system vertical bar.
+    static func separatesBellFromProfile(chrome: DeviceLayout.SectionChrome) -> Bool {
+        !chrome.isVerticalBar
+    }
+
+    /// The glass groups the shared trailing items form, leading to trailing.
+    ///
+    /// - Parameters:
+    ///   - showsSearch: Global search is available.
+    ///   - showsBell: The bell shows (a profile is selected and the page allows it).
+    ///   - chrome: Current section chrome.
+    /// - Returns: One array per glass group, in bar order.
+    static func resolve(
+        showsSearch: Bool, showsBell: Bool, chrome: DeviceLayout.SectionChrome
+    ) -> [[RootChromeTrailingItem]] {
+        var groups: [[RootChromeTrailingItem]] = showsSearch ? [[.search]] : []
+        if !showsBell {
+            groups.append([.profile])
+        } else if separatesBellFromProfile(chrome: chrome) {
+            groups.append(contentsOf: [[.bell], [.profile]])
+        } else {
+            groups.append([.bell, .profile])
+        }
+        return groups
+    }
+}
+
 #if os(iOS)
 @available(iOS 27.0, *)
 private extension ToolbarContent {
@@ -174,10 +226,13 @@ struct FestivalRootChrome: ViewModifier {
 
 // MARK: - Shared trailing items
 
-/// The notifications bell and profile avatar as one glass capsule at the top-right.
+/// Global search, the notifications bell and the profile avatar at the top-right.
 ///
 /// Pages with their own trailing actions list this **last** inside their `.toolbar`
 /// and apply `.festivalProvidesRootTrailingItems()`, so the avatar stays rightmost.
+///
+/// In horizontal bars the bell and avatar are separate glass buttons
+/// (``RootChromeTrailingGroups``); the Duo vertical bar keeps them in one group.
 ///
 /// In the iPhone Duo vertical bar both items stay symbol items (see ``RootProfileButton``)
 /// and carry `visibilityPriority(.high)` (iOS 27+), so page actions overflow into the
@@ -189,11 +244,12 @@ struct FestivalRootTrailingItems: ToolbarContent {
     @Environment(\.openProfile) private var openProfile
     /// Global search: a header button on every layout (operator, 2026-09-28).
     @Environment(\.openGlobalSearch) private var openGlobalSearch
+    @Environment(\.deviceLayout) private var layout
 
     var body: some ToolbarContent {
         #if os(iOS)
         if let openGlobalSearch {
-            // Global search before the bell/avatar capsule (web header order).
+            // Global search before the bell and avatar (web header order).
             ToolbarItem(placement: .topBarTrailing) {
                 GlobalSearchButton { openGlobalSearch() }
             }
@@ -208,6 +264,11 @@ struct FestivalRootTrailingItems: ToolbarContent {
                     .railVisibilityPriority(.bell)
             } else {
                 ToolbarItem(placement: .topBarTrailing) { NotificationsButton(session: session) }
+            }
+            if #available(iOS 26.0, *) {
+                if RootChromeTrailingGroups.separatesBellFromProfile(chrome: layout.sectionChrome) {
+                    ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                }
             }
         }
         if #available(iOS 27.0, *) {

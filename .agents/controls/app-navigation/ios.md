@@ -11,7 +11,8 @@
 
 ## Toolbar order rule (tab roots)
 
-Profile avatar must be the **rightmost** item, with the bell beside it in one glass capsule (web header parity).
+Profile avatar must be the **rightmost** item, with the bell just before it (web header parity).
+The bell and the avatar are **separate glass buttons** in horizontal bars (issue #14, 2026-10-01): SwiftUI merges adjacent bar items into one capsule by default, so `FestivalRootTrailingItems` puts `ToolbarSpacer(.fixed)` between them. The trailing side is then at most three groups — [page actions + Search] · bell · avatar — within HIG Toolbars' "generally use no more than three groups". `RootChromeTrailingGroups` encodes the split (`RootChromeTrailingGroupsTests`); verified at 402 pt and `FST_DEBUG_CANVAS_WIDTH=375` on Songs and Suggestions. The Duo vertical bar keeps them in one group ([duo.md](../../design/apple/duo.md) "Toolbar rules").
 SwiftUI lays out items from an outer `.toolbar` modifier (the root chrome) *before* the page's own items, so:
 
 - A tab root **with** its own trailing actions ends its `.toolbar { … }` with `FestivalRootTrailingItems(session: session)` and applies `.festivalProvidesRootTrailingItems()`; the chrome then adds only the drawer button. Also add the section to `FestivalRootView.rootProvidesTrailingItems` (or pass `festivalRootChrome(…, providesTrailingItems: true)` where the page applies its own chrome, like Songs): the preference alone arrives an update late, so the first pass adds and removes a second bell/avatar.
