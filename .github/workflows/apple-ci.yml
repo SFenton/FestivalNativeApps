@@ -1,0 +1,60 @@
+name: apple-ci
+# Apple unit tests and compile check on a just-in-time runner minted by the release machine's
+# controller (design §11). The job name is the required check name: keep it `apple-ci`.
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: apple-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+env:
+  DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+jobs:
+  apple-ci:
+    name: apple-ci
+    runs-on: ["fst-apple-${{ github.run_id }}-${{ github.run_attempt }}"]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+      - name: Tool paths
+        run: echo "/opt/homebrew/bin" >> "$GITHUB_PATH"
+      - name: Generate the Xcode project
+        working-directory: apple
+        run: xcodegen generate -q
+      - name: Release tool tests
+        run: python3 -m unittest discover -s tools/release/tests -t .
+      - name: Build the iOS app (simulator SDK, compile only)
+        # ios_sim.py serializes the compile on ~/.fst-build.lock and never boots a simulator here.
+        run: python3 tools/ios_sim.py build
+      - name: Swift unit tests (macOS host, no simulator)
+        working-directory: apple
+        run: /usr/bin/lockf -k "$HOME/.fst-build.lock" swift test --parallel --enable-code-coverage
+      - name: Coverage report (informational; gates are not met yet, see testing/apple/coverage.md)
+        continue-on-error: true
+        run: |
+          PRODUCTS="$GITHUB_WORKSPACE/apple/.build/out/Products/Debug"
+          xcrun llvm-cov export \
+            "$PRODUCTS/FestivalCoreTests.xctest/Contents/MacOS/FestivalCoreTests" \
+            --object="$PRODUCTS/FestivalDesignTests.xctest/Contents/MacOS/FestivalDesignTests" \
+            --object="$PRODUCTS/FestivalUITests.xctest/Contents/MacOS/FestivalUITests" \
+            --instr-profile="$PRODUCTS/codecov/default.profdata" --format=text \
+            > "$PRODUCTS/codecov/FestivalApple-merged.json"
+          python3 tools/coverage_gate.py --language swift --report "$PRODUCTS/codecov/FestivalApple-merged.json"
+      - name: Product inventory (informational; --strict fails until every control is certified)
+        continue-on-error: true
+        run: python3 tools/verify_product.py
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apple-ci-coverage
+          path: apple/.build/out/Products/Debug/codecov/*.json
+          if-no-files-found: ignore
+          retention-days: 14

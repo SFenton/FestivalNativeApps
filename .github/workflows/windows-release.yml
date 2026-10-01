@@ -1,0 +1,27 @@
+name: windows-release
+# DISABLED SCAFFOLD. Runs only on manual dispatch and only when the repository variable
+# FST_RELEASE_WINDOWS_ENABLED is 'true'. See .agents/workflow/release-machine.md.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: windows-release
+  cancel-in-progress: false
+jobs:
+  windows-release:
+    if: vars.FST_RELEASE_WINDOWS_ENABLED == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      # TODO(orchestrator): Microsoft Store publishing.
+      #   1. Package the WinUI 3 app as MSIX (signing certificate in secrets or Store-association signing).
+      #   2. Configure the Microsoft Store CLI (`msstore reconfigure` with the Partner Center tenant,
+      #      seller and client IDs plus the client secret as repository secrets).
+      #   3. `msstore publish <package> --appId <store app id>` once nothing is in certification.
+      - name: Not implemented
+        shell: bash
+        run: |
+          echo "windows-release is a scaffold; implement the TODO steps above first." >&2
+          exit 1

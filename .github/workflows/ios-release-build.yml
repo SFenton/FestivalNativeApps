@@ -1,0 +1,60 @@
+name: ios-release-build
+# Archive master and upload the build to App Store Connect (TestFlight processing). Submitting
+# for review is done separately by the release orchestrator (`fst_release.py ios submit`).
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'apple/**'
+      - 'tools/release/**'
+      - 'contracts/**'
+      - '.github/workflows/ios-release-build.yml'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Print the archive/export commands without running them
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: ios-release-build
+  cancel-in-progress: false
+env:
+  DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+jobs:
+  ios-release-build:
+    runs-on: ["fst-apple-${{ github.run_id }}-${{ github.run_attempt }}"]
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+      - name: Tool paths
+        run: echo "/opt/homebrew/bin" >> "$GITHUB_PATH"
+      - name: Archive and upload
+        shell: bash
+        run: |
+          set +e
+          args=()
+          if [ "${{ inputs.dry_run }}" = "true" ]; then args+=(--dry-run); fi
+          tools/release/ios_appstore_build.sh ${args[@]+"${args[@]}"} | tee "$RUNNER_TEMP/build.json"
+          code=${PIPESTATUS[0]}
+          if [ "$code" -eq 4 ]; then
+            echo "### ios-release-build: skipped" >> "$GITHUB_STEP_SUMMARY"
+            echo "skipped: missing signing/ASC credentials on this runner (\`$(cat "$RUNNER_TEMP/build.json")\`)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [ "$code" -eq 0 ]; then
+            echo "### ios-release-build" >> "$GITHUB_STEP_SUMMARY"
+            echo "\`$(cat "$RUNNER_TEMP/build.json")\`" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$code"
+      - name: Upload dSYMs
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-dsyms
+          path: build/release-ios/FestivalMobile.xcarchive/dSYMs
+          if-no-files-found: ignore
+          retention-days: 30

@@ -1,0 +1,28 @@
+name: android-release
+# DISABLED SCAFFOLD. Runs only on manual dispatch and only when the repository variable
+# FST_RELEASE_ANDROID_ENABLED is 'true'. See .agents/workflow/release-machine.md.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+jobs:
+  android-release:
+    if: vars.FST_RELEASE_ANDROID_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      # TODO(orchestrator): Play Console publishing.
+      #   1. Add the Gradle Play Publisher plugin (com.github.triplet.play) to android/app.
+      #   2. Create a Play service account with release permission; store its JSON as the secret
+      #      PLAY_SERVICE_ACCOUNT_JSON and the upload keystore as ANDROID_KEYSTORE_BASE64 + passwords.
+      #   3. Build a signed AAB with a monotonically increasing versionCode (run number) and the
+      #      git SHA, then `bash android/gradlew -p android publishReleaseBundle --track internal`
+      #      and promote via the orchestrator once nothing is in review.
+      - name: Not implemented
+        run: |
+          echo "android-release is a scaffold; implement the TODO steps above first." >&2
+          exit 1

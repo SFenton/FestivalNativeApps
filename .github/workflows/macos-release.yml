@@ -1,0 +1,29 @@
+name: macos-release
+# DISABLED SCAFFOLD. Runs only on manual dispatch and only when the repository variable
+# FST_RELEASE_MACOS_ENABLED is 'true'. See .agents/workflow/release-machine.md.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: macos-release
+  cancel-in-progress: false
+jobs:
+  macos-release:
+    if: vars.FST_RELEASE_MACOS_ENABLED == 'true'
+    runs-on: ["fst-apple-${{ github.run_id }}-${{ github.run_attempt }}"]
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+      # TODO(orchestrator): mirror ios_appstore_build.sh for the FestivalDesktop scheme.
+      #   1. Add tools/release/macos_appstore_build.sh (archive `generic/platform=macOS`, a Mac App Store
+      #      ExportOptions plist, FST_GIT_SHA stamping, `fst_release.py macos record-build`).
+      #   2. Enable CODE_SIGNING_ALLOWED for FestivalDesktop on the command line only.
+      #   3. The orchestrator then uses `fst_release.py macos status|next-version|submit`, which already
+      #      targets ASC platform MAC_OS (bundle id com.sfenton.festivalscoretracker.mac).
+      - name: Not implemented
+        run: |
+          echo "macos-release is a scaffold; implement the TODO steps above first." >&2
+          exit 1
