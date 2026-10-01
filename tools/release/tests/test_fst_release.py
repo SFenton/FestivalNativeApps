@@ -597,3 +597,36 @@ class ErrorDetailTests(unittest.TestCase):
                 {"code": "ENTITY_ERROR.ATTRIBUTE.REQUIRED", "detail": "copyright is required"}]}}}]}
         self.assertEqual(fr._error_detail(payload),
                          "STATE_ERROR: cannot be reviewed [ENTITY_ERROR.ATTRIBUTE.REQUIRED: copyright is required]")
+
+
+class PruneCiCertsTests(TempHome):
+    def routes(self):
+        return {("GET", "/v1/certificates"): {"data": [
+            {"id": "C1", "attributes": {"name": "Apple Development: Created via API", "displayName": "Created via API",
+                                        "certificateType": "DEVELOPMENT"}},
+            {"id": "C2", "attributes": {"name": "Apple Development: Stephen Fenton (AB12CD34EF)",
+                                        "certificateType": "DEVELOPMENT"}},
+            {"id": "C3", "attributes": {"name": "Apple Development: Created via API", "certificateType": "DEVELOPMENT"}},
+            {"id": "C4", "attributes": {"name": "Apple Distribution: Created via API", "certificateType": "DISTRIBUTION"}},
+        ]}, ("DELETE", "/v1/certificates/C1"): (204, None), ("DELETE", "/v1/certificates/C3"): (204, None)}
+
+    def run_prune(self, *extra):
+        transport = FakeAsc(self.routes())
+        out = io.StringIO()
+        with redirect_stdout(out):
+            code = fr.main(["ios", "prune-ci-certs", *extra], env=self.env(), transport=transport)
+        return code, json.loads(out.getvalue()), transport
+
+    def test_revokes_only_api_created_development_certificates(self):
+        code, doc, transport = self.run_prune()
+        self.assertEqual(code, 0)
+        self.assertEqual(doc["revoked"], ["C1", "C3"])
+        self.assertEqual(transport.writes(), [("DELETE", "/v1/certificates/C1"), ("DELETE", "/v1/certificates/C3")])
+        query = transport.calls[0][2]
+        self.assertEqual(query["filter[certificateType]"], fr.DEV_CERT_TYPES)
+        self.assertIn("Apple Development: Stephen Fenton (AB12CD34EF)", doc["names"])
+
+    def test_dry_run_sends_no_deletes(self):
+        code, doc, transport = self.run_prune("--dry-run")
+        self.assertEqual((code, doc["dry_run"], doc["revoked"]), (0, True, ["C1", "C3"]))
+        self.assertEqual(transport.writes(), [])

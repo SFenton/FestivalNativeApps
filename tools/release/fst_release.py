@@ -875,6 +875,40 @@ def beta_notes(client: AscClient, group: str, bundle_id: str, build_number: str,
 # region CLI
 
 
+#: Name App Store Connect gives certificates an API key creates (cloud-signed CI archives).
+CI_CERT_MARKER = "created via api"
+#: Development certificate types an automatic-signing archive can create.
+DEV_CERT_TYPES = "DEVELOPMENT,IOS_DEVELOPMENT,MAC_APP_DEVELOPMENT"
+
+
+def prune_ci_certs(client: AscClient) -> Dict[str, Any]:
+    """Revoke development certificates created through the API (hosted-runner archives).
+
+    Automatic signing on each fresh hosted runner asks App Store Connect for a new development certificate,
+    which accumulate until the account limit blocks archives ("Your account has reached the maximum number
+    of certificates"). Only certificates whose name says "Created via API" are revoked, so personal
+    certificates made in Xcode with an Apple ID are kept; distribution certificates are never touched.
+
+    Returns:
+        ``{development_certificates, names, revoked, dry_run}``; ``names`` lists distinct certificate names
+        (no ids or key material) for the job summary.
+    """
+    payload = client.get("/v1/certificates", {"filter[certificateType]": DEV_CERT_TYPES, "limit": "200",
+                                               "fields[certificates]": "name,displayName,certificateType"})
+    names = set()
+    revoked = []
+    items = payload.get("data") or [] if isinstance(payload, dict) else []
+    for item in items:
+        attrs = item.get("attributes") or {}
+        label = " / ".join(str(attrs[k]) for k in ("name", "displayName") if attrs.get(k))
+        names.add(label)
+        if attrs.get("certificateType") in DEV_CERT_TYPES.split(",") and CI_CERT_MARKER in label.lower():
+            client.request("DELETE", "/v1/certificates/%s" % item["id"])
+            revoked.append(item["id"])
+    return {"development_certificates": len(items), "names": sorted(names), "revoked": revoked,
+            "dry_run": client.dry_run}
+
+
 def emit(document: Dict[str, Any]) -> None:
     """Print one JSON document on stdout."""
     print(json.dumps(document, sort_keys=False))
@@ -907,6 +941,8 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--wait", type=float, default=0, help="seconds to wait for the build to appear")
         p.add_argument("--dry-run", action="store_true")
         p.add_argument("--bundle-id")
+        p = sub.add_parser("prune-ci-certs")
+        p.add_argument("--dry-run", action="store_true")
         p = sub.add_parser("record-build")
         p.add_argument("--build", required=True)
         p.add_argument("--version", required=True)
@@ -973,6 +1009,9 @@ def main(argv: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None,
                 emit({"version": version, "reason": reason, "blocked": None})
             else:
                 print(version)
+            return EXIT_OK
+        if args.command == "prune-ci-certs":
+            emit(prune_ci_certs(client))
             return EXIT_OK
         if args.command == "released-versions":
             app_id = resolve_app(client, bundle_id)
