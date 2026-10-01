@@ -28,6 +28,7 @@ import random
 import re
 import subprocess
 import sys
+import tempfile
 import threading
 import urllib.request
 from dataclasses import dataclass
@@ -1731,6 +1732,159 @@ def shoot(catalogue: dict, out_dir: Path, device: str, wait: float, run=subproce
     return 0
 
 
+@dataclass(frozen=True)
+class WinShot:
+    """One Microsoft Store desktop capture of the WinUI app.
+
+    Attributes:
+        stem: Output file stem.
+        tab: ``--tab`` at launch.
+        visible: ``AppSettings.visibleInstruments`` for this page, or ``None``
+            for the defaults.
+        steps: ``uiwin.py drive`` steps run after launch; when present the page
+            is launched, driven, then captured in three separate commands.
+    """
+
+    stem: str
+    tab: str
+    visible: tuple[str, ...] | None = None
+    steps: tuple[str, ...] = ()
+
+
+#: Windows has no Compete hub, so Leaderboards stands in for it; Rivals is a nav section.
+WIN_SHOTS = (
+    WinShot("01-songs", "songs", visible=("Lead", "Bass", "Drums", "Vocals")),
+    WinShot("02-suggestions", "suggestions"),
+    # UIA Invoke (not mouse clicks): Quick Links → Global Statistics scrolls the header card away.
+    WinShot("03-statistics", "statistics", steps=(
+        "waitfor:id=fst.quick-links.open@30", "wait:{wait}", "invoke:id=fst.quick-links.open",
+        "wait:1", "invoke:id=fst.quick-links.item.global", "wait:2",
+    )),
+    WinShot("04-leaderboards", "leaderboards"),
+    WinShot("05-rivals", "rivals"),
+)
+
+#: Client size in DIPs; at 150% display scaling the captured frame is exactly 1920×1080.
+WIN_SIZE = (1292, 726)
+WIN_PROCESS = "FestivalScoreTracker"
+
+
+def _ps_quote(value: str) -> str:
+    """Quote a string as a PowerShell single-quoted literal."""
+    return "'" + value.replace("'", "''") + "'"
+
+
+def _pwsh(script: Path, **params: object) -> list[str]:
+    """Build a ``pwsh -Command`` argv calling ``script`` with typed parameters.
+
+    ``-File`` cannot bind ``[string[]]`` parameters, so ``-ExtraArgs`` needs ``-Command``.
+
+    Args:
+        script: PowerShell script path.
+        **params: ``True`` becomes a switch, lists/tuples become ``@(...)`` arrays and
+            everything else a quoted literal; ``None``/``False`` are omitted.
+
+    Returns:
+        Argument vector.
+    """
+    parts = ["&", _ps_quote(str(script))]
+    for name, value in params.items():
+        if value is None or value is False:
+            continue
+        if value is True:
+            parts.append(f"-{name}")
+        elif isinstance(value, (list, tuple)):
+            parts.append(f"-{name} @({','.join(_ps_quote(str(v)) for v in value)})")
+        else:
+            parts.append(f"-{name} {_ps_quote(str(value))}")
+    return ["pwsh", "-NoProfile", "-Command", " ".join(parts)]
+
+
+def windows_settings(visible: tuple[str, ...] | None) -> dict:
+    """Return the read-only ``--settings-path`` payload for one page."""
+    settings: dict = {"version": 2}
+    if visible is not None:
+        settings["visibleInstruments"] = list(visible)
+    return settings
+
+
+def windows_shot_commands(port: int, out_dir: Path, settings_dir: Path, wait: float,
+                          size: tuple[int, int] = WIN_SIZE) -> list[list[str]]:
+    """Build the Windows capture argv list (run on ``sfenton-primary`` from a worktree).
+
+    Plain pages use ``screenshot.ps1 -Launch``. Driven pages launch with
+    ``launch.ps1``, run ``uiwin.py drive`` and capture with ``screenshot.ps1``.
+    Every page reads its own ``settings-<stem>.json`` (written by
+    :func:`shoot_windows`; the app never writes a ``--settings-path`` file).
+
+    Args:
+        port: Loopback port of the running showcase server.
+        out_dir: Directory receiving ``<stem>.png`` files.
+        settings_dir: Directory holding the per-page settings files.
+        wait: Seconds to let each page load before capturing or driving.
+        size: Client width and height in DIPs.
+
+    Returns:
+        Argument vectors, in ``WIN_SHOTS`` order.
+    """
+    tools = Path(__file__).resolve().parent
+    screenshot, launch = tools / "windows" / "screenshot.ps1", tools / "windows" / "launch.ps1"
+    commands = []
+    for shot in WIN_SHOTS:
+        out = str(out_dir / f"{shot.stem}.png")
+        extra = ("--base-url", f"http://127.0.0.1:{port}/", "--profile", f"{PLAYER_ID}:{PLAYER_NAME}",
+                 "--settings-path", str(settings_dir / f"settings-{shot.stem}.json"))
+        common = {"Tab": shot.tab, "Width": size[0], "Height": size[1], "ExtraArgs": extra}
+        if not shot.steps:
+            commands.append(_pwsh(screenshot, Launch=True, Out=out, Delay=int(round(wait)),
+                                  MaxKB=100000, **common))
+            continue
+        steps = "; ".join(step.format(wait=wait) for step in shot.steps)
+        commands += [
+            _pwsh(launch, **common),
+            [sys.executable, str(tools / "windows" / "uiwin.py"), "drive", "--process", WIN_PROCESS,
+             "--steps", steps],
+            _pwsh(screenshot, Out=out, MaxKB=100000),
+        ]
+    return commands
+
+
+def shoot_windows(catalogue: dict, out_dir: Path, wait: float, run=subprocess.run,
+                  size: tuple[int, int] = WIN_SIZE) -> int:
+    """Serve the overlay and capture every ``WIN_SHOTS`` page, then stop the app.
+
+    Args:
+        catalogue: Public catalogue envelope.
+        out_dir: Output directory (created if missing).
+        wait: Per-page load wait in seconds.
+        run: Subprocess runner (injected by tests).
+        size: Client width and height in DIPs.
+
+    Returns:
+        0 when every capture succeeded, else the first failing exit code.
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    server = build_server(catalogue, 0)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    common = Path(__file__).resolve().parent / "windows" / "_common.ps1"
+    try:
+        with tempfile.TemporaryDirectory(prefix="fst-winshots-") as tmp:
+            settings_dir = Path(tmp)
+            for shot in WIN_SHOTS:
+                (settings_dir / f"settings-{shot.stem}.json").write_text(
+                    json.dumps(windows_settings(shot.visible)), encoding="utf-8")
+            for argv in windows_shot_commands(server.server_port, out_dir, settings_dir, wait, size):
+                code = run(argv).returncode
+                if code:
+                    return code
+    finally:
+        run(["pwsh", "-NoProfile", "-Command", f". {_ps_quote(str(common))}; Stop-App"])
+        server.shutdown()
+        server.server_close()
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the ``serve``, ``fetch`` or ``check`` command.
 
@@ -1751,7 +1905,10 @@ def main(argv: list[str] | None = None) -> int:
     shoot_cmd.add_argument("--out-dir", required=True)
     shoot_cmd.add_argument("--device", default="promax", help="ios_sim.py alias; promax is the 6.9-inch size")
     shoot_cmd.add_argument("--wait", type=float, default=12.0)
-    for command in (serve, check, shoot_cmd):
+    shoot_win = sub.add_parser("shoot-windows", help="capture the Store pages via tools/windows (sfenton-primary)")
+    shoot_win.add_argument("--out-dir", required=True)
+    shoot_win.add_argument("--wait", type=float, default=12.0)
+    for command in (serve, check, shoot_cmd, shoot_win):
         command.add_argument("--catalogue", default=str(DEFAULT_CATALOGUE))
         command.add_argument("--as-of", default=AS_OF.isoformat(), help="fixed date for history/shop fields")
     args = parser.parse_args(argv)
@@ -1765,6 +1922,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if summary["ok"] else 1
     if args.command == "shoot":
         return shoot(load_catalogue(args.catalogue), Path(args.out_dir).expanduser(), args.device, args.wait)
+    if args.command == "shoot-windows":
+        return shoot_windows(load_catalogue(args.catalogue), Path(args.out_dir).expanduser(), args.wait)
     if not 0 <= args.port <= 65535:
         parser.error("port must be between 0 (OS-assigned) and 65535")
     with build_server(load_catalogue(args.catalogue), args.port, as_of=as_of) as server:

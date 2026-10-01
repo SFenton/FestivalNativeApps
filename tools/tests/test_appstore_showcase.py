@@ -396,3 +396,71 @@ class ShootTests(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             self.assertEqual(showcase.shoot(synthetic_catalogue(), Path(tmp), "promax", 1.0, run=failing), 3)
         self.assertEqual(len(calls), 1)
+
+
+class ShootWindowsTests(unittest.TestCase):
+    """The Windows plan drives tools/windows scripts against a live loopback overlay."""
+
+    def test_plan_launches_with_showcase_profile_and_settings(self) -> None:
+        """Plain pages are one screenshot.ps1 -Launch; Statistics is launch, drive, capture."""
+        from pathlib import Path
+
+        commands = showcase.windows_shot_commands(18795, Path("out"), Path("cfg"), 9.0)
+        self.assertEqual(len(commands), len(showcase.WIN_SHOTS) + 2)
+        launches = [c for c in commands if c[0] == "pwsh" and "--base-url" in c[-1]]
+        self.assertEqual(len(launches), len(showcase.WIN_SHOTS))
+        for argv, shot in zip(launches, showcase.WIN_SHOTS):
+            script = argv[-1]
+            self.assertIn(f"-Tab '{shot.tab}'", script)
+            self.assertIn("'http://127.0.0.1:18795/'", script)
+            self.assertIn(f"'{showcase.PLAYER_ID}:{showcase.PLAYER_NAME}'", script)
+            self.assertIn(f"settings-{shot.stem}.json", script)
+            self.assertIn("-Width '1292' -Height '726'", script)
+        drive = next(c for c in commands if "drive" in c)
+        self.assertEqual(drive[drive.index("--process") + 1], showcase.WIN_PROCESS)
+        steps = drive[drive.index("--steps") + 1]
+        self.assertIn("wait:9.0", steps)
+        self.assertLess(steps.index("fst.quick-links.open"), steps.index("fst.quick-links.item.global"))
+        self.assertNotIn("click:", steps)
+        outputs = [c[-1].split("-Out ", 1)[1].split("'")[1] for c in commands if "-Out " in c[-1]]
+        self.assertEqual([Path(o).stem for o in outputs], [s.stem for s in showcase.WIN_SHOTS])
+
+    def test_only_songs_hides_pro_and_karaoke_charts(self) -> None:
+        """Songs shows the tap instruments; other pages keep default settings."""
+        for shot in showcase.WIN_SHOTS:
+            settings = showcase.windows_settings(shot.visible)
+            self.assertEqual(settings["version"], 2)
+            if shot.stem == "01-songs":
+                self.assertEqual(settings["visibleInstruments"], ["Lead", "Bass", "Drums", "Vocals"])
+            else:
+                self.assertNotIn("visibleInstruments", settings)
+
+    def test_ps_quote_escapes_single_quotes(self) -> None:
+        """PowerShell literals double embedded single quotes."""
+        self.assertEqual(showcase._ps_quote("a'b"), "'a''b'")
+
+    def test_shoot_windows_serves_writes_settings_and_always_stops_app(self) -> None:
+        """Settings files exist during the run; the app is stopped even after a failure."""
+        import json as _json
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from types import SimpleNamespace
+
+        calls: list[list[str]] = []
+
+        def fake_run(argv: list[str]) -> SimpleNamespace:
+            calls.append(argv)
+            if "--base-url" in argv[-1]:
+                script = argv[-1]
+                base = script.split("'--base-url','", 1)[1].split("'", 1)[0]
+                settings = script.split("'--settings-path','", 1)[1].split("'", 1)[0]
+                self.assertIn("version", _json.loads(Path(settings).read_text(encoding="utf-8")))
+                with urllib.request.urlopen(f"{base}api/songs", timeout=5) as response:
+                    self.assertEqual(response.status, 200)
+            return SimpleNamespace(returncode=3 if len(calls) == 2 else 0)
+
+        with TemporaryDirectory() as tmp:
+            code = showcase.shoot_windows(synthetic_catalogue(), Path(tmp) / "out", 1.0, run=fake_run)
+        self.assertEqual(code, 3)
+        self.assertEqual(len(calls), 3)
+        self.assertTrue(calls[-1][-1].endswith("Stop-App"))
