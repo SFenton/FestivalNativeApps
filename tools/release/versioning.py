@@ -369,11 +369,13 @@ def subject(message: str) -> str:
 class Change:
     """One first-parent commit with what it means for a platform."""
 
-    def __init__(self, sha: str, subject_line: str, app: bool, notes: List[str]) -> None:
+    def __init__(self, sha: str, subject_line: str, app: bool, notes: List[str], opted_out: bool = False) -> None:
         self.sha = sha
         self.subject = subject_line
         self.app = app
         self.notes = notes
+        #: The commit's applicable trailer was explicitly ``none`` (nothing user-facing).
+        self.opted_out = opted_out
 
 
 def changes(git: Git, platform: str, base: Optional[str], head: str) -> List[Change]:
@@ -392,13 +394,13 @@ def changes(git: Git, platform: str, base: Optional[str], head: str) -> List[Cha
                 trailers.setdefault(key, []).extend(values)
         app = relevant(platform, git.changed_files(sha))
         if platform in trailers:
-            notes = trailers[platform]
+            notes, opted_out = trailers[platform], not trailers[platform]
         elif app:
-            notes = trailers.get("*", [])
+            notes, opted_out = trailers.get("*", []), "*" in trailers and not trailers["*"]
         else:
-            notes = []
+            notes, opted_out = [], False
         if app or notes:
-            out.append(Change(sha, subject(message), app, notes))
+            out.append(Change(sha, subject(message), app, notes, opted_out))
     return out
 
 
@@ -513,8 +515,13 @@ def tester_notes(git: Git, platform: str, version: str, released: Iterable[str],
                      key=parse_version)
 
     def notes_between(base: Optional[str], empty: str) -> List[str]:
-        found = changes(git, platform, base, current)
-        return user_notes(git, platform, base, current) or ([DEFAULT_NOTE] if any(c.app for c in found) else [empty])
+        found = [c for c in changes(git, platform, base, current) if c.app or c.notes]
+        notes = user_notes(git, platform, base, current)
+        if notes:
+            return notes
+        if any(c.app and not c.opted_out for c in found):
+            return [DEFAULT_NOTE]
+        return ["No user-facing changes."] if found else [empty]
 
     if rebuild_reason:
         since, new = None, ["Rebuild with no %s app changes; only the build number changed (%s)." % (
