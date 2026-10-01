@@ -131,7 +131,7 @@ def load_credentials(env: Optional[Dict[str, str]] = None) -> Optional[Credentia
     values = {name: env.get("MSSTORE_" + name.upper(), "") for name in CREDENTIAL_FIELDS}
     if not all(values.values()):
         try:
-            data = json.loads(config_path(env).read_text())
+            data = json.loads(config_path(env).read_text(encoding="utf-8"))
         except (OSError, ValueError):
             data = {}
         if isinstance(data, dict):
@@ -537,7 +537,7 @@ def main(argv: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None,
             emit(collect_status(client, runner, repo, fst_release.read_ledger(fst_release.ledger_path(env))))
             return EXIT_OK
         if args.command == "submit":
-            notes = (stdin or sys.stdin).read() if args.notes_stdin else Path(args.notes_file).read_text()
+            notes = (stdin or sys.stdin).read() if args.notes_stdin else Path(args.notes_file).read_text(encoding="utf-8")
             result = submit(client, runner, repo, env, args.build, notes)
             if dry_run:
                 result["planned"] = client.planned

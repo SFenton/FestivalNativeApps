@@ -740,16 +740,16 @@ def main(argv: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None,
             if args.released_from_tags:
                 released += git.released_from_tags(platform)
             doc = whats_new(git, platform, version, [v.strip() for v in released])
-            Path(args.out).write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n")
+            Path(args.out).write_text(json.dumps(doc, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
             if args.store_notes_out:
-                Path(args.store_notes_out).write_text(store_notes(doc) + "\n")
+                Path(args.store_notes_out).write_text(store_notes(doc) + "\n", encoding="utf-8")
         else:
             platform, version = parse_tag(args.tag)
             released = [v.strip() for v in args.released.split(",") if v.strip()]
             if args.released_from_tags:
                 released += git.released_from_tags(platform)
             text = testflight_notes(git, platform, version, args.build, args.rebuild_reason, released)
-            Path(args.out).write_text(text + "\n")
+            Path(args.out).write_text(text + "\n", encoding="utf-8")
             doc = {"platform": platform, "version": version, "build": args.build, "chars": len(text)}
     except (ValueError, RuntimeError, OSError) as err:
         print(json.dumps({"error": str(err)}))

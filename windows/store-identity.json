@@ -1,7 +1,7 @@
 {
-  "comment": "Microsoft Store identity from Partner Center > Product management > Product identity. Not secret. Replace every placeholder before the first Store upload; tools/windows/package_msix.ps1 stamps these into Package.appxmanifest.",
-  "packageName": "FST.Placeholder",
-  "publisher": "CN=FST-Placeholder",
-  "publisherDisplayName": "FST Placeholder",
-  "storeId": "PLACEHOLDER"
+  "comment": "Microsoft Store identity from Partner Center > Product management > Product identity. Not secret. tools/windows/package_msix.ps1 stamps these into Package.appxmanifest.",
+  "packageName": "19528StephenFenton.FestivalScoreTracker",
+  "publisher": "CN=4D8DAEBD-8086-446B-B2B1-D329851108F4",
+  "publisherDisplayName": "Stephen Fenton",
+  "storeId": "9NFZ6DHNZ9TC"
 }

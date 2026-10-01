@@ -28,7 +28,7 @@ $ErrorActionPreference = 'Stop'
 
 if (-not $OutDir) { $OutDir = Join-Path $Artifacts 'msix' }
 $identityFile = Join-Path $WindowsRoot 'store-identity.json'
-$identity = Get-Content -Raw $identityFile | ConvertFrom-Json
+$identity = Get-Content -Raw -Encoding utf8 $identityFile | ConvertFrom-Json
 $fields = @($identity.packageName, $identity.publisher, $identity.publisherDisplayName)
 $placeholder = [bool]($fields | Where-Object { -not $_ -or $_ -match 'placeholder' })
 if ($placeholder -and -not $AllowPlaceholder) {
