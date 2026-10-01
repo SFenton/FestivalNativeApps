@@ -34,6 +34,7 @@ Defined in `apple/Apps/iOSUITests/DriverTests.swift` (`DriverStep.parse`):
 | `tapText:<label>` | Tap the first element with an exact label match |
 | `tapXY:<x>,<y>` | Tap a point; both components `<= 1.0` are a normalized fraction of the window, otherwise device points |
 | `swipe:<up\|down\|left\|right>[@id]` | Swipe the whole app, or one element when `@id` is given |
+| `drag:<x1>,<y1>,<x2>,<y2>` | Press, drag slowly between two normalized window points and hold before release: an exact, momentum-free partial scroll (e.g. App Store captures) |
 | `scrollTo:<id>` | Swipe up (up to 12 times) until the element exists and is hittable |
 | `type:<text>` | Type into the current first responder |
 | `wait:<seconds>` | Sleep |

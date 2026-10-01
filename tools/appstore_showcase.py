@@ -1656,7 +1656,12 @@ SHOTS = (
         "waitFor:fst.player.overview", "tap:fst.quick-links.open",
         "tap:fst.quick-links.item.global", "wait:{wait}",
     )),
-    Shot("04-compete", "compete"),
+    # Drag (momentum-free) so the Lead card sits under the collapsed nav bar and
+    # the Leaderboards Overview button is off-screen; load first so layout is final.
+    Shot("04-compete", "compete", steps=(
+        "waitFor:fst.compete.leaderboard-card.Solo_Guitar", "wait:{wait}",
+        "drag:0.5,0.6,0.5,0.43", "wait:2",
+    )),
     Shot("05-rivals", "compete", "rivals"),
 )
 

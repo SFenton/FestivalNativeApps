@@ -348,7 +348,7 @@ class ShootTests(unittest.TestCase):
         self.assertEqual(set(hidden.values()), {"<false/>"})
         self.assertEqual(set(hidden), {f"-fst.settings.show{n}" for n in
                                        ("ProLead", "ProBass", "Karaoke", "ProCymbals", "ProDrums")})
-        for stem in ("02-suggestions", "04-compete", "05-rivals"):
+        for stem in ("02-suggestions", "05-rivals"):
             self.assertFalse(any(a.startswith("--launch-arg") for a in commands[stem]), stem)
 
     def test_statistics_scrolls_past_profile_card_before_capture(self) -> None:
@@ -360,6 +360,16 @@ class ShootTests(unittest.TestCase):
         steps = [s.strip() for s in argv[argv.index("--steps") + 1].split(";")]
         self.assertEqual(steps, ["waitFor:fst.player.overview", "tap:fst.quick-links.open",
                                  "tap:fst.quick-links.item.global", "wait:7.0", "shot:/o/03-statistics.png"])
+
+    def test_compete_drags_past_overview_button_after_loading(self) -> None:
+        """Compete waits for the first leaderboard card, then drags before capturing."""
+        from pathlib import Path
+
+        argv = showcase.shot_commands(1, Path("/o"), "promax", 7.0)[3]
+        self.assertEqual(argv[2], "drive")
+        steps = [s.strip() for s in argv[argv.index("--steps") + 1].split(";")]
+        self.assertEqual(steps, ["waitFor:fst.compete.leaderboard-card.Solo_Guitar", "wait:7.0",
+                                 "drag:0.5,0.6,0.5,0.43", "wait:2", "shot:/o/04-compete.png"])
 
     def test_shoot_stops_on_first_failure(self) -> None:
         """A failing capture returns its exit code without running later pages."""

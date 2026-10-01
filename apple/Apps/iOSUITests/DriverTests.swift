@@ -21,6 +21,9 @@ import UIKit
 ///   a normalized fraction of the app's window; otherwise as device points.
 /// - `swipe:<up|down|left|right>[@identifier]` — swipe the whole app, or one
 ///   element when `@identifier` is given.
+/// - `drag:<x1>,<y1>,<x2>,<y2>` — press, drag slowly between two normalized
+///   window points and hold before release, so the scroll lands exactly
+///   without momentum (a repeatable partial scroll for screenshots).
 /// - `scrollTo:<identifier>` — swipe up on the app (up to 12 times) until the
 ///   element exists and is hittable.
 /// - `type:<text>` — type into the current first responder.
@@ -37,6 +40,7 @@ enum DriverStep {
     case tapText(String)
     case tapXY(Double, Double)
     case swipe(Direction, identifier: String?)
+    case drag(CGVector, CGVector)
     case scrollTo(String)
     case type(String)
     case wait(TimeInterval)
@@ -91,6 +95,12 @@ enum DriverStep {
             let bits = arg.split(separator: "@", maxSplits: 1).map(String.init)
             guard let direction = Direction(rawValue: bits[0]) else { throw ParseError.malformed(raw) }
             return .swipe(direction, identifier: bits.count > 1 ? bits[1] : nil)
+        case "drag":
+            let values = arg.split(separator: ",").compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+            guard values.count == 4, values.allSatisfy({ (0...1).contains($0) }) else {
+                throw ParseError.malformed(raw)
+            }
+            return .drag(CGVector(dx: values[0], dy: values[1]), CGVector(dx: values[2], dy: values[3]))
         case "scrollTo":
             guard !arg.isEmpty else { throw ParseError.malformed(raw) }
             return .scrollTo(arg)
@@ -283,6 +293,10 @@ final class DriverTests: XCTestCase {
             case .left: target.swipeLeft()
             case .right: target.swipeRight()
             }
+        case let .drag(from, to):
+            app.coordinate(withNormalizedOffset: from).press(
+                forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: to),
+                withVelocity: .slow, thenHoldForDuration: 0.5)
         case let .scrollTo(identifier):
             let candidate = app.descendants(matching: .any).matching(identifier: identifier).firstMatch
             var attempts = 0
