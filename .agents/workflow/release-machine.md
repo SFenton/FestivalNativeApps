@@ -7,29 +7,29 @@
 | Piece | Where | Role |
 |---|---|---|
 | Orchestrator | tracker repo, Linux host | Triages issues, merges PRs, decides when to submit; dispatches `store-release` and reads its result. It never holds store credentials or calls a store itself |
-| JIT runner controller | tracker repo (`fstmachine/controller.py`) | Mints a one-job self-hosted runner labelled `fst-apple-<run_id>-<attempt>` for queued jobs |
-| `apple-ci` | [`apple-ci.yml`](../../.github/workflows/apple-ci.yml) | Required check on PRs and `master`: xcodegen, release-tool tests, iOS compile, `swift test`, informational coverage + inventory |
-| `ios-release-build` | [`ios-release-build.yml`](../../.github/workflows/ios-release-build.yml) | On `master` pushes touching `apple/**`, `tools/release/**`, `contracts/**`: archive + upload a build |
+| `apple-ci` | [`apple-ci.yml`](../../.github/workflows/apple-ci.yml) | Required check on PRs and `master`, hosted `xcode-27` runner: xcodegen, release-tool tests, iOS compile, `swift test`, informational coverage + inventory |
+| `ios-release-build` | [`ios-release-build.yml`](../../.github/workflows/ios-release-build.yml) | On `master` pushes touching `apple/**`, `tools/release/**`, `contracts/**`: hosted `xcode-27` runner, `store-release` environment; archive + upload a build |
 | Build script | `tools/release/ios_appstore_build.sh` | xcodegen → `xcodebuild archive` → `-exportArchive` (uploads) → ledger entry |
 | ASC client | `tools/release/fst_release.py` | `ios status\|next-version\|submit\|record-build\|creds` (also `macos …` for ASC `MAC_OS`) |
 | `windows-release-build` | [`windows-release-build.yml`](../../.github/workflows/windows-release-build.yml) | On `master` pushes touching `windows/**`, `contracts/**`, packaging scripts: hosted `windows-latest` builds the unsigned Store MSIX as an artifact ([Windows](#windows-microsoft-store)) |
 | Store client | `tools/release/fst_store.py` | `fst_release.py windows status\|submit\|record-build` dispatches here (Microsoft Store submission API) |
 | `store-release` | [`store-release.yml`](../../.github/workflows/store-release.yml) | `workflow_dispatch` only (`platform`, `command` status/submit, `build`, `notes_b64`, `request_id`, `dry_run`), hosted `ubuntu-latest`, `store-release` environment (master only). Runs `tools/release/actions_job.py`, which enforces policy and uploads `store-release-result` (`result.json`) |
+| Secrets tool | `tools/release/store_secrets.py` | `status`, `asc`, `ios-p12`, `msstore`: validates and uploads credentials to the `store-release` environment through `gh secret set` stdin |
 | Android/macOS | `android-release.yml`, `macos-release.yml` | Disabled scaffolds (below) |
 
 `native.yml` (hosted Windows/Android unit tests) and `contracts.yml` are unchanged; the required checks are `apple-ci` and `contracts`.
 
 ## Rule: stores are touched only from Actions
 
-Builds, signing, TestFlight uploads and store submissions run only in GitHub Actions jobs; nothing releases from a local machine. iOS signing and upload use a JIT Mac runner (Xcode). Every store status read and submission uses `store-release` on a hosted runner. Public release is off:
+Builds, signing, TestFlight uploads and store submissions run only in GitHub-hosted Actions jobs; no mesh machine (Linux host, MacBook, Windows host) runs any build/release job, holds signing material for it, or calls a store. iOS archive, signing and upload use the hosted `xcode-27` image (Xcode 27; the default `macos-26` image tops out at Xcode 26.6, which lacks the iOS 27 APIs the app uses). Every store status read and submission uses `store-release` on hosted `ubuntu-latest`. The only credential store is the `store-release` environment (deployment branch policy: `master` only). Public release is off:
 
 - iOS App Store review submission auto-releases on approval, so `actions_job.py` refuses it (`blocked:"app_store_review_disabled"`) unless the repository variable `FST_APPSTORE_REVIEW_ENABLED=true`.
 - Windows submissions are always Manual publish (certification only).
 
 ## Pipelines
 
-1. PR → `apple-ci` on a JIT Mac runner. Compile and unit tests take `~/.fst-build.lock` (the lock `tools/ios_sim.py` and `tools/lane_integrate.sh` use) and never boot or reset a simulator. Swift coverage gates and `verify_product.py --strict` do not pass yet ([coverage](../testing/apple/coverage.md)), so those steps are informational.
-2. Merge to `master` → `ios-release-build` archives and uploads. Exit code 4 (`{"blocked":"missing_signing"}`) becomes a neutral "skipped" job summary, not a failure. `workflow_dispatch` has a `dry_run` input.
+1. PR → `apple-ci` on hosted `xcode-27` (installs xcodegen with Homebrew). Compile and unit tests never boot a simulator. Swift coverage gates and `verify_product.py --strict` do not pass yet ([coverage](../testing/apple/coverage.md)), so those steps are informational.
+2. Merge to `master` → `ios-release-build` writes the ASC key from secrets to `$RUNNER_TEMP`, imports `IOS_DIST_P12_BASE64` into a throwaway keychain (or, without it, sets `FST_ALLOW_CLOUD_SIGNING=1` so Xcode uses cloud-managed distribution signing with an **Admin** key), archives and uploads, then deletes the keychain and key. Exit code 4 (`{"blocked":"missing_signing"}`) becomes a neutral "skipped" job summary, not a failure. `workflow_dispatch` has a `dry_run` input.
 3. The orchestrator dispatches `store-release` with `status`, reads `result.json`, picks the latest `VALID` build newer than `released_sha` (gate-checked), then dispatches `submit` with that build and base64 notes. In Actions, `FST_RELEASE_SHA_FROM_ARTIFACTS=1` maps build numbers to commits through `fst-ios-build_<build>` marker artifacts (uploaded by `ios-release-build`, 90 days) and the MSIX artifact names.
 
 ## `fst_release.py`
@@ -48,18 +48,18 @@ In review means version state `WAITING_FOR_REVIEW`, `IN_REVIEW`, `PENDING_APPLE_
 
 | Need | Detail |
 |---|---|
-| ASC API key | Admin or App Manager role. Status/submit: `store-release` environment secrets `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_PRIVATE_KEY` (the `.p8` text). Build upload on the Mac runner: env `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_PATH` (default `~/.appstoreconnect/private_keys/AuthKey_<id>.p8`) or `~/.config/fst-release/asc.json` `{key_id, issuer_id, key_path, app_id?}` (`FST_RELEASE_CONFIG` overrides). `*.p8` is git-ignored |
-| Apple Distribution identity | In a dedicated keychain; set `FST_SIGNING_KEYCHAIN` + `FST_SIGNING_KEYCHAIN_PASSWORD_FILE` (script unlocks it and adds it to the search list). Without a local identity the script is blocked unless `FST_ALLOW_CLOUD_SIGNING=1` |
+| ASC API key | Team key with the **Admin** role (cloud-managed signing needs Admin; App Manager suffices only with the p12 below). `store-release` environment secrets `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_PRIVATE_KEY` (the `.p8` text): `store_secrets.py asc --key-id … --issuer-id … --p8 AuthKey_….p8`. The workflows write it to `$RUNNER_TEMP` and export `ASC_KEY_PATH`. `fst_release.py` also reads `~/.config/fst-release/asc.json` for read-only diagnostics; `*.p8` is git-ignored |
+| Apple Distribution identity (optional) | `IOS_DIST_P12_BASE64` + `IOS_DIST_P12_PASSWORD`: `store_secrets.py ios-p12 --p12 dist.p12 --password-file pw` (checks the `.p12` holds exactly one Apple Distribution certificate). Export it from Keychain Access on the Mac's GUI session (macOS refuses private-key export over SSH: "User interaction is not allowed"), copy it to the Linux host, upload, then delete both copies. Without it the job uses cloud-managed signing. The build script reads `FST_SIGNING_KEYCHAIN` + `FST_SIGNING_KEYCHAIN_PASSWORD_FILE`, set by the workflow |
 | App record | Create the app once by hand in App Store Connect with bundle id `com.sfenton.festivalscoretracker.native`; until then status reports `blocked:"app_not_found"` |
 | Team | `3Q9X8JX23S` is passed on the `xcodebuild` command line and in `ExportOptions-appstore.plist`, never in `project.yml` |
 
-Missing credentials never fail the build job: status/submit report `missing_asc_credentials`, the build script reports `missing_signing`.
+Check what is configured with `python3 tools/release/store_secrets.py status` (names only; values are never readable back). Missing credentials never fail the build job: status/submit report `missing_asc_credentials`, the build script reports `missing_signing`.
 
 ## Version and build numbers
 
 - Marketing version: `fst_release.py ios next-version` (fallback: `apple/project.yml`, currently `0.1.0`). Override with `FST_MARKETING_VERSION`.
 - Build number (`CURRENT_PROJECT_VERSION`): `$BUILD_NUMBER`, else `$GITHUB_RUN_NUMBER`, else UTC `yyyymmddHHMM`. ASC requires strictly increasing build numbers per marketing version, so do not mix schemes for one version (a timestamp build followed by a run-number build is rejected).
-- Git SHA: `FST_GIT_SHA` build setting → Info.plist `FSTGitSHA` (default `dev`) and the local ledger. iPhone Settings → App Version appends its first 7 characters (`0.1.0 (42) · 42edc57`); `dev` shows none. ASC cannot return Info.plist values, so `released_sha`/`latest_build.sha` come from the ledger; a build not archived on this Mac has `sha:null`.
+- Git SHA: `FST_GIT_SHA` build setting → Info.plist `FSTGitSHA` (default `dev`) and the local ledger. iPhone Settings → App Version appends its first 7 characters (`0.1.0 (42) · 42edc57`); `dev` shows none. ASC cannot return Info.plist values, so in `store-release` `released_sha`/`latest_build.sha` come from the `fst-ios-build_<build>` marker artifact's run head SHA (`sha:null` once the 90-day artifact expires).
 
 ## What's New
 
@@ -79,7 +79,7 @@ Builds run on every qualifying `master` push (hosted runner, so the Windows desk
 | Identity | `windows/store-identity.json` holds Partner Center → Product identity: `packageName` (Package/Identity/Name), `publisher` (`CN=…`), `publisherDisplayName`, `storeId`. Placeholders build artifacts suffixed `_placeholder` that are never submitted |
 | Manifest | `windows/Festival.App/Package.appxmanifest`; only used with `-p:FstMsix=true` (the dev/test `.exe` stays unpackaged). Logos in `Assets/Store/` come from `windows/store/fst-icon-512.png` via `python3 tools/windows/store_assets.py` (`--check` in CI) |
 | Package | `tools/windows/package_msix.ps1 [-AllowPlaceholder] [-OutDir D] [-Version V]` stamps identity and version `<major>.<minor>.<git commit count>.0`, publishes unsigned (the Store signs) and writes `build.json {version, sha, placeholder, package}`. Artifact: `fst-windows-msix_<version>_<sha>[_placeholder]`, kept 30 days |
-| Credentials | Entra app registration with a client secret, added in Partner Center → Account settings → User management → Microsoft Entra applications with the **Manager** role. `store-release` environment secrets `MSSTORE_TENANT_ID`, `MSSTORE_CLIENT_ID`, `MSSTORE_CLIENT_SECRET`, `MSSTORE_SELLER_ID`, `MSSTORE_APP_ID` (Store ID). Manual runs may use `~/.config/fst-release/msstore.json` with lower-case keys (`FST_MSSTORE_CONFIG` overrides). Missing ⇒ `blocked:"missing_store_credentials"` |
+| Credentials | Entra app registration with a client secret, added in Partner Center → Account settings → User management → Microsoft Entra applications with the **Manager** role. `store-release` environment secrets `MSSTORE_TENANT_ID`, `MSSTORE_CLIENT_ID`, `MSSTORE_CLIENT_SECRET`, `MSSTORE_SELLER_ID`, `MSSTORE_APP_ID` (Store ID). Read-only local diagnostics may use `~/.config/fst-release/msstore.json` with lower-case keys (`FST_MSSTORE_CONFIG` overrides). Missing ⇒ `blocked:"missing_store_credentials"` |
 | First submission | Must be completed by hand in Partner Center (age rating, listing, screenshots, the first CI MSIX); until then status is `blocked:"first_submission_required"` |
 
 `windows status --json` returns the shared status shape. `state` is the pending submission's status (or `Published`), `version` its package version, and `latest_build.build` = `version` = the newest successful master artifact (`processing_state` `VALID`, `PLACEHOLDER_IDENTITY` or `EXPIRED`). `released_sha` comes from the ledger (`WINDOWS`), falling back to artifact names. In review means a pending submission in `CommitStarted`, `PreProcessing`, `Certification`, `PendingPublication`, `Publishing` or `Release`.
@@ -107,4 +107,4 @@ Set the repository variable `FST_RELEASE_<ANDROID|MACOS>_ENABLED=true` only afte
 
 ## Tests
 
-`python3 -m unittest discover -s tools/release/tests -t .` (JWT/DER, credentials, status, next-version, submit sequence, the Store client and the Actions job policy with fakes; no network). `python3 tools/windows/store_assets.py --check` verifies the MSIX logos. Script check: `bash -n tools/release/ios_appstore_build.sh` and `tools/release/ios_appstore_build.sh --dry-run`.
+`python3 -m unittest discover -s tools/release/tests -t .` (JWT/DER, credentials, status, next-version, submit sequence, the Store client, the Actions job policy and `store_secrets.py` with fakes; no network). `python3 tools/windows/store_assets.py --check` verifies the MSIX logos. Script check: `bash -n tools/release/ios_appstore_build.sh` and `tools/release/ios_appstore_build.sh --dry-run`.

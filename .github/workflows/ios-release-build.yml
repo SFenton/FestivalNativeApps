@@ -1,6 +1,8 @@
 name: ios-release-build
-# Archive, sign and upload master to App Store Connect (TestFlight processing) on a JIT Mac runner. Submitting
-# for review happens only in the store-release workflow (dispatched by the release orchestrator), never locally.
+# Archive, sign and upload master to App Store Connect (TestFlight processing) on a GitHub-hosted Xcode 27 runner.
+# Signing material comes only from the `store-release` environment secrets (master-only) and lives in an ephemeral
+# keychain that is deleted after the job. Submitting for review happens only in the store-release workflow
+# (dispatched by the release orchestrator); nothing builds, signs or uploads on a mesh machine.
 on:
   push:
     branches: [master]
@@ -24,14 +26,52 @@ env:
   DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
 jobs:
   ios-release-build:
-    runs-on: ["fst-apple-${{ github.run_id }}-${{ github.run_attempt }}"]
+    runs-on: xcode-27
+    environment: store-release
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
           clean: true
-      - name: Tool paths
-        run: echo "/opt/homebrew/bin" >> "$GITHUB_PATH"
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+      - name: Signing material (ephemeral)
+        shell: bash
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          IOS_DIST_P12_BASE64: ${{ secrets.IOS_DIST_P12_BASE64 }}
+          IOS_DIST_P12_PASSWORD: ${{ secrets.IOS_DIST_P12_PASSWORD }}
+        run: |
+          # Missing secrets are not an error: ios_appstore_build.sh then reports `missing_signing` (exit 4, skipped).
+          set -euo pipefail
+          sec="$RUNNER_TEMP/fst-signing"
+          mkdir -p "$sec" && chmod 700 "$sec"
+          if [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_ISSUER_ID" ] && [ -n "$ASC_PRIVATE_KEY" ]; then
+            printf '%s\n' "$ASC_PRIVATE_KEY" > "$sec/AuthKey.p8"
+            chmod 600 "$sec/AuthKey.p8"
+            { echo "ASC_KEY_ID=$ASC_KEY_ID"; echo "ASC_ISSUER_ID=$ASC_ISSUER_ID"; echo "ASC_KEY_PATH=$sec/AuthKey.p8"; } >> "$GITHUB_ENV"
+          fi
+          if [ -n "$IOS_DIST_P12_BASE64" ]; then
+            kc="$RUNNER_TEMP/fst-signing.keychain-db"
+            kcpw="$(openssl rand -hex 24)"
+            echo "::add-mask::$kcpw"
+            printf '%s' "$kcpw" > "$sec/keychain-password" && chmod 600 "$sec/keychain-password"
+            security create-keychain -p "$kcpw" "$kc"
+            security set-keychain-settings -lut 21600 "$kc"
+            security unlock-keychain -p "$kcpw" "$kc"
+            printf '%s' "$IOS_DIST_P12_BASE64" | base64 --decode > "$sec/dist.p12"
+            security import "$sec/dist.p12" -k "$kc" -f pkcs12 -P "$IOS_DIST_P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$kcpw" "$kc" >/dev/null
+            rm -f "$sec/dist.p12"
+            { echo "FST_SIGNING_KEYCHAIN=$kc"; echo "FST_SIGNING_KEYCHAIN_PASSWORD_FILE=$sec/keychain-password"; } >> "$GITHUB_ENV"
+          else
+            # No distribution certificate secret: let xcodebuild use cloud-managed signing via the (Admin) ASC key.
+            echo "FST_ALLOW_CLOUD_SIGNING=1" >> "$GITHUB_ENV"
+          fi
       - name: Archive and upload
         shell: bash
         run: |
@@ -42,7 +82,7 @@ jobs:
           code=${PIPESTATUS[0]}
           if [ "$code" -eq 4 ]; then
             echo "### ios-release-build: skipped" >> "$GITHUB_STEP_SUMMARY"
-            echo "skipped: missing signing/ASC credentials on this runner (\`$(cat "$RUNNER_TEMP/build.json")\`)" >> "$GITHUB_STEP_SUMMARY"
+            echo "skipped: missing signing/ASC secrets in the store-release environment (\`$(cat "$RUNNER_TEMP/build.json")\`)" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           if [ "$code" -eq 0 ]; then
@@ -55,7 +95,7 @@ jobs:
         if: success()
         shell: bash
         run: |
-          # store-release runs on hosted runners without this Mac's ledger; the marker artifact's run head SHA
+          # store-release runs on a separate hosted runner without this job's ledger; the marker artifact's run head SHA
           # maps the uploaded build number to its commit (fst_release.artifact_head_sha).
           last=$(grep -v '^[[:space:]]*$' "$RUNNER_TEMP/build.json" | tail -n 1)
           build=$(printf '%s' "$last" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["build"] if d.get("built") and not d.get("dry_run") else "")' 2>/dev/null || true)
@@ -78,3 +118,11 @@ jobs:
           path: build/release-ios/FestivalMobile.xcarchive/dSYMs
           if-no-files-found: ignore
           retention-days: 30
+      - name: Remove signing material
+        if: always()
+        shell: bash
+        run: |
+          if [ -f "$RUNNER_TEMP/fst-signing.keychain-db" ]; then
+            security delete-keychain "$RUNNER_TEMP/fst-signing.keychain-db" || true
+          fi
+          rm -rf "$RUNNER_TEMP/fst-signing"
