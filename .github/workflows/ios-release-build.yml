@@ -34,11 +34,12 @@ jobs:
         with:
           clean: true
       - name: Toolchain
-        # The image defaults to Xcode 27.0; the app needs the iOS 27.1 SDK (same Xcode build as the Mac). Repoint
-        # the image's /Applications/Xcode.app alias so every DEVELOPER_DIR pin in tools/ keeps working.
+        # App Store Connect accepts only released Xcode/SDKs: archive with Xcode 27.0 (27A266a). Xcode 27.1 is beta,
+        # so ios_appstore_build.sh compiles out the iOS 27.1 Duo APIs. Switch to Xcode_27.1.app once it ships.
+        # Repoint the /Applications/Xcode.app alias so every DEVELOPER_DIR pin in tools/ keeps working.
         run: |
           test -L /Applications/Xcode.app
-          sudo ln -sfn /Applications/Xcode_27.1.app /Applications/Xcode.app
+          sudo ln -sfn /Applications/Xcode_27.app /Applications/Xcode.app
           sudo xcode-select -s /Applications/Xcode.app
           xcodebuild -version
           brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
