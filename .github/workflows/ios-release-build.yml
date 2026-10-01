@@ -107,6 +107,17 @@ jobs:
             # No distribution certificate secret: let xcodebuild use cloud-managed signing via the (Admin) ASC key.
             echo "FST_ALLOW_CLOUD_SIGNING=1" >> "$GITHUB_ENV"
           fi
+      - name: Revoke CI development certificates (before)
+        if: env.FST_ALLOW_CLOUD_SIGNING == '1' && env.ASC_KEY_PATH != '' && inputs.dry_run != true
+        continue-on-error: true
+        shell: bash
+        run: |
+          # Cloud-signed archives create a development certificate per hosted runner; revoke API-created ones so
+          # the account never reaches Apple's certificate limit (fst_release.prune_ci_certs keeps personal ones).
+          # Use the workflow commit's client (master), not the checked-out version tag's, which may predate it.
+          git show "$GITHUB_SHA:tools/release/fst_release.py" > "$RUNNER_TEMP/fst_release_ci.py"
+          python3 "$RUNNER_TEMP/fst_release_ci.py" ios prune-ci-certs | tee "$RUNNER_TEMP/prune.json"
+          echo "Revoke CI development certificates (before): \`$(cat "$RUNNER_TEMP/prune.json")\`" >> "$GITHUB_STEP_SUMMARY"
       - name: Archive and upload
         shell: bash
         run: |
@@ -154,6 +165,17 @@ jobs:
           path: build/release-ios/FestivalMobile.xcarchive/dSYMs
           if-no-files-found: ignore
           retention-days: 30
+      - name: Revoke CI development certificates (after)
+        if: always() && env.FST_ALLOW_CLOUD_SIGNING == '1' && env.ASC_KEY_PATH != '' && inputs.dry_run != true
+        continue-on-error: true
+        shell: bash
+        run: |
+          # Cloud-signed archives create a development certificate per hosted runner; revoke API-created ones so
+          # the account never reaches Apple's certificate limit (fst_release.prune_ci_certs keeps personal ones).
+          # Use the workflow commit's client (master), not the checked-out version tag's, which may predate it.
+          git show "$GITHUB_SHA:tools/release/fst_release.py" > "$RUNNER_TEMP/fst_release_ci.py"
+          python3 "$RUNNER_TEMP/fst_release_ci.py" ios prune-ci-certs | tee "$RUNNER_TEMP/prune.json"
+          echo "Revoke CI development certificates (after): \`$(cat "$RUNNER_TEMP/prune.json")\`" >> "$GITHUB_STEP_SUMMARY"
       - name: Remove signing material
         if: always()
         shell: bash
