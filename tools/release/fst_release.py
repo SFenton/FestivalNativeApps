@@ -296,9 +296,16 @@ def urllib_transport(method: str, url: str, headers: Dict[str, str],
 
 
 def _error_detail(payload: Any) -> str:
+    """Summarize an ASC error body, including ``meta.associatedErrors`` reasons."""
     if isinstance(payload, dict) and payload.get("errors"):
         first = payload["errors"][0]
-        return "%s: %s" % (first.get("code", "error"), first.get("detail") or first.get("title", ""))
+        detail = "%s: %s" % (first.get("code", "error"), first.get("detail") or first.get("title", ""))
+        associated = ((first.get("meta") or {}).get("associatedErrors") or {})
+        reasons = ["%s: %s" % (e.get("code", "error"), e.get("detail") or e.get("title", ""))
+                   for errs in associated.values() for e in (errs or [])]
+        if reasons:
+            detail += " [" + "; ".join(reasons) + "]"
+        return detail
     return "no error body"
 
 

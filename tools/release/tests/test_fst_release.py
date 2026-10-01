@@ -471,3 +471,12 @@ class LedgerTests(TempHome):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ErrorDetailTests(unittest.TestCase):
+    def test_associated_errors_are_listed(self):
+        payload = {"errors": [{"code": "STATE_ERROR", "detail": "cannot be reviewed", "meta": {
+            "associatedErrors": {"/v1/appStoreVersions/V": [
+                {"code": "ENTITY_ERROR.ATTRIBUTE.REQUIRED", "detail": "copyright is required"}]}}}]}
+        self.assertEqual(fr._error_detail(payload),
+                         "STATE_ERROR: cannot be reviewed [ENTITY_ERROR.ATTRIBUTE.REQUIRED: copyright is required]")
