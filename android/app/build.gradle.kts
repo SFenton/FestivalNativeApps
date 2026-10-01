@@ -17,8 +17,8 @@ android {
         applicationId = "com.festivalscoretracker.android"
         minSdk = 26
         targetSdk = 36
-        // Release builds pass the `android/v<YYMM.NN>` tag's mapping (tools/release/versioning.py describe):
-        // -PfstVersionName=2610.01 -PfstVersionCode=261000100. Local builds keep the development values.
+        // Release builds pass the `android/v<YYMM.DD.NN>` tag's mapping (tools/release/versioning.py describe):
+        // -PfstVersionName=2610.01.01 -PfstVersionCode=261001010. Local builds keep the development values.
         versionCode = (findProperty("fstVersionCode") as String?)?.toInt() ?: 1
         versionName = (findProperty("fstVersionName") as String?) ?: "0.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

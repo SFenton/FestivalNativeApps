@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       version_tag:
-        description: "macos/vYYMM.NN tag created by version-bump.yml (empty = newest)"
+        description: "macos/vYYMM.DD.NN tag created by version-bump.yml (empty = newest)"
         required: false
         default: ""
 permissions:

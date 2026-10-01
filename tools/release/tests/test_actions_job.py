@@ -40,15 +40,15 @@ class RunJobTests(unittest.TestCase):
 
     def test_ios_submit_uses_marker_notes_and_baseline(self):
         fake = FakeMain()
-        marker = {"version": "2610.02", "version_tag": "ios/v2610.02", "sha": "s", "whats_new_baseline": "2610.01",
+        marker = {"version": "2610.01.02", "version_tag": "ios/v2610.01.02", "sha": "s", "whats_new_baseline": "2610.01.01",
                   "store_notes": "• Faster songs."}
         result = aj.run_job("ios", "submit", "57", "orchestrator notes", False,
                             {"FST_APPSTORE_REVIEW_ENABLED": "true"}, main=fake,
                             marker_lookup=lambda p, b, e: marker if (p, b) == ("ios", "57") else None)
         self.assertEqual(fake.calls[0]["argv"], ["ios", "submit", "--build", "57", "--notes-stdin",
-                                                 "--whats-new-baseline", "2610.01"])
+                                                 "--whats-new-baseline", "2610.01.01"])
         self.assertEqual(fake.calls[0]["stdin"], "• Faster songs.")
-        self.assertEqual(result["marker"]["version_tag"], "ios/v2610.02")
+        self.assertEqual(result["marker"]["version_tag"], "ios/v2610.01.02")
         first = dict(marker, whats_new_baseline=None, store_notes="")
         aj.run_job("ios", "submit", "57", "n", False, {"FST_APPSTORE_REVIEW_ENABLED": "true"}, main=fake,
                    marker_lookup=lambda *_a: first)
@@ -57,7 +57,7 @@ class RunJobTests(unittest.TestCase):
 
     def test_stale_refusal_dispatches_one_rebuild(self):
         fake = FakeMain(code=3, doc={"refused": "stale_whats_new"})
-        marker = {"version_tag": "ios/v2610.02", "whats_new_baseline": None}
+        marker = {"version_tag": "ios/v2610.01.02", "whats_new_baseline": None}
         gh_calls = []
 
         def runner(args):
@@ -65,9 +65,9 @@ class RunJobTests(unittest.TestCase):
             return "[]"
         result = aj.run_job("ios", "submit", "57", "n", False, {"FST_APPSTORE_REVIEW_ENABLED": "true"},
                             main=fake, marker_lookup=lambda *_a: marker, runner=runner)
-        self.assertEqual(result["rebuild"], {"dispatched": True, "version_tag": "ios/v2610.02"})
+        self.assertEqual(result["rebuild"], {"dispatched": True, "version_tag": "ios/v2610.01.02"})
         self.assertEqual(gh_calls[-1], ["workflow", "run", "ios-release-build.yml", "--ref", "master",
-                                        "-f", "version_tag=ios/v2610.02", "-f", "rebuild_reason=stale_whats_new"])
+                                        "-f", "version_tag=ios/v2610.01.02", "-f", "rebuild_reason=stale_whats_new"])
         busy = aj.dispatch_rebuild("ios", marker, lambda args: '[{"databaseId": 1}]')
         self.assertEqual(busy["reason"], "build_queued")
         self.assertEqual(aj.dispatch_rebuild("ios", {}, runner)["reason"], "no_version_tag")

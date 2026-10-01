@@ -473,16 +473,16 @@ class SubmitTests(TempHome):
 
 class VersionHistoryTests(unittest.TestCase):
     def test_released_versions_and_baseline(self):
-        vs = [version("a", "2610.03", "PREPARE_FOR_SUBMISSION", "4"),
-              version("b", "2610.02", "READY_FOR_SALE", "3"),
-              version("c", "2610.01", "REPLACED_WITH_NEW_VERSION", "2"),
-              version("d", "2610.10", "REJECTED", "5"),
+        vs = [version("a", "2610.01.03", "PREPARE_FOR_SUBMISSION", "4"),
+              version("b", "2610.01.02", "READY_FOR_SALE", "3"),
+              version("c", "2610.01.01", "REPLACED_WITH_NEW_VERSION", "2"),
+              version("d", "2610.01.10", "REJECTED", "5"),
               version("e", "bogus", "READY_FOR_SALE", "1")]
-        self.assertEqual(fr.released_versions(vs), ["2610.02", "2610.01"])
-        self.assertEqual(fr.released_baseline(vs, "2610.03"), "2610.02")
-        self.assertEqual(fr.released_baseline(vs, "2610.02"), "2610.01")
-        self.assertIsNone(fr.released_baseline(vs, "2610.01"))
-        self.assertIsNone(fr.released_baseline([], "2610.01"))
+        self.assertEqual(fr.released_versions(vs), ["2610.01.02", "2610.01.01"])
+        self.assertEqual(fr.released_baseline(vs, "2610.01.03"), "2610.01.02")
+        self.assertEqual(fr.released_baseline(vs, "2610.01.02"), "2610.01.01")
+        self.assertIsNone(fr.released_baseline(vs, "2610.01.01"))
+        self.assertIsNone(fr.released_baseline([], "2610.01.01"))
 
 
 class BetaNotesTests(TempHome):
@@ -496,19 +496,19 @@ class BetaNotesTests(TempHome):
         return routes
 
     def test_waits_for_build_then_creates_localization(self):
-        fake = FakeAsc(self.routes([{"data": []}, build_doc("B9", "57", "2610.01", "PROCESSING")], []))
+        fake = FakeAsc(self.routes([{"data": []}, build_doc("B9", "57", "2610.01.01", "PROCESSING")], []))
         client = fr.AscClient(self.creds(), transport=fake)
         sleeps = []
         result = fr.beta_notes(client, "ios", "com.example", "57", " What changed \n", wait=100,
                                sleep=sleeps.append, clock=lambda: 0.0)
-        self.assertEqual((result["beta_notes"], result["version"], sleeps), ("set", "2610.01", [30]))
+        self.assertEqual((result["beta_notes"], result["version"], sleeps), ("set", "2610.01.01", [30]))
         body = [b for m, p, _q, b, _h in fake.calls if m == "POST"][0]["data"]
         self.assertEqual(body["attributes"], {"locale": "en-US", "whatsNew": "What changed"})
         self.assertEqual(body["relationships"]["build"]["data"]["id"], "B9")
 
     def test_patches_existing_localization(self):
         locs = [{"id": "BL0", "attributes": {"locale": "fr-FR"}}, {"id": "BL1", "attributes": {"locale": "en-US"}}]
-        fake = FakeAsc(self.routes([build_doc("B9", "57", "2610.01")], locs))
+        fake = FakeAsc(self.routes([build_doc("B9", "57", "2610.01.01")], locs))
         fr.beta_notes(fr.AscClient(self.creds(), transport=fake), "ios", "com.example", "57", "x" * 5000)
         self.assertEqual(fake.writes(), [("PATCH", "/v1/betaBuildLocalizations/BL1")])
         body = [b for m, p, _q, b, _h in fake.calls if m == "PATCH"][0]
@@ -525,9 +525,9 @@ class BetaNotesTests(TempHome):
             fr.beta_notes(client, "ios", "com.example", "57", "  ")
 
     def test_cli_beta_notes_and_released_versions(self):
-        routes = self.routes([build_doc("B9", "57", "2610.01")], [])
+        routes = self.routes([build_doc("B9", "57", "2610.01.01")], [])
         routes[("GET", "/v1/apps/APP1/appStoreVersions")] = {"data": [
-            version("V1", "2610.01", "READY_FOR_SALE", "1")]}
+            version("V1", "2610.01.01", "READY_FOR_SALE", "1")]}
         out = io.StringIO()
         with redirect_stdout(out):
             code = fr.main(["ios", "beta-notes", "--build", "57", "--notes-stdin"], env=self.env(),
@@ -536,7 +536,7 @@ class BetaNotesTests(TempHome):
         out = io.StringIO()
         with redirect_stdout(out):
             code = fr.main(["ios", "released-versions", "--json"], env=self.env(), transport=FakeAsc(routes))
-        self.assertEqual((code, json.loads(out.getvalue())), (0, {"released": ["2610.01"]}))
+        self.assertEqual((code, json.loads(out.getvalue())), (0, {"released": ["2610.01.01"]}))
 
 
 class MarkerTests(unittest.TestCase):

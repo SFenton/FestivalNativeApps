@@ -1,6 +1,6 @@
 name: version-bump
 # The only entry point of the app build/release flow. On every master push, tools/release/versioning.py gives
-# each enabled platform whose app files changed since its previous `<platform>/v<YYMM.NN>` tag a new annotated
+# each enabled platform whose app files changed since its previous `<platform>/v<YYMM.DD.NN>` tag a new annotated
 # tag on the pushed commit, then dispatches that platform's build workflow with the tag. Build workflows have
 # no push trigger, so merges that touch no app code (docs, tests, tooling) never start a build or release.
 # Tags are the version ledger: no bot commits land on master. Documentation:

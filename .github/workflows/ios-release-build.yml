@@ -1,5 +1,5 @@
 name: ios-release-build
-# Archive, sign and upload one `ios/v<YYMM.NN>` version tag to App Store Connect (TestFlight processing) on a
+# Archive, sign and upload one `ios/v<YYMM.DD.NN>` version tag to App Store Connect (TestFlight processing) on a
 # GitHub-hosted Xcode 27 runner. Only version-bump.yml (an app change merged to master) or the store-release
 # stale-What's-New rebuild dispatches it; there is no push trigger. The build generates the in-app What's New
 # from App Store Connect's released versions, and the testflight-notes job sets the build's "What to Test".
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       version_tag:
-        description: Version tag to build (ios/vYYMM.NN); empty = the newest ios/v* tag
+        description: Version tag to build (ios/vYYMM.DD.NN); empty = the newest ios/v* tag
         type: string
         default: ''
       rebuild_reason:
@@ -55,7 +55,7 @@ jobs:
           if [ -z "$tag" ]; then
             tag=$(python3 tools/release/versioning.py latest-tag --platform ios | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag"] or "")')
           fi
-          if ! printf '%s' "$tag" | grep -Eq '^ios/v[0-9]{4}\.[0-9]{2,}$'; then
+          if ! printf '%s' "$tag" | grep -Eq '^ios/v[0-9]{4}\.[0-9]{2}\.[0-9]{2}$'; then
             echo "::error::invalid or missing ios version tag '$tag' (run version-bump first)"; exit 2
           fi
           reason=$(printf '%s' "${REBUILD_REASON:-}" | tr -cd 'A-Za-z0-9_ .-' | cut -c1-80)

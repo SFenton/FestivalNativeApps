@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """App versions, version tags, build notes and generated What's New for every native platform.
 
-Version scheme (operator, 2026-10-01): ``YYMM.NN`` per platform, e.g. ``2610.01``. ``YYMM`` is the UTC
-month of the bump and ``NN`` a per-platform counter that restarts at ``01`` each month (two digits at
-least; ``2610.100`` follows ``2610.99``). Versions live only in annotated git tags ``<platform>/v<version>``
-on the bumped master commit, so bumping never commits to master. Store mappings:
+Version scheme (operator, 2026-10-01): ``YYMM.DD.NN`` per platform, e.g. ``2610.01.01``. ``YYMM.DD`` is
+the UTC date of the bump and ``NN`` a per-platform counter that restarts at ``01`` each day (two digits;
+at most 99 a day). Versions live only in annotated git tags ``<platform>/v<version>`` on the bumped master
+commit, so bumping never commits to master. Store mappings:
 
-- iOS/macOS: ``CFBundleShortVersionString`` = version, ``CFBundleVersion`` = Actions run number.
-- Android: ``versionName`` = version, ``versionCode`` = ``YYMM*100000 + NN*100 + rebuild``.
-- Windows MSIX: ``YYMM.NN.<run number>.0``; the displayed version is still ``YYMM.NN``.
+- iOS/macOS: ``CFBundleShortVersionString`` = version (three integers), ``CFBundleVersion`` = run number.
+- Android: ``versionName`` = version, ``versionCode`` = ``YYMM*100000 + DD*1000 + NN*10 + rebuild``.
+- Windows MSIX: ``YYMM.<DD*100+NN>.<run number>.0`` (16-bit fields); the displayed version is
+  still ``YYMM.DD.NN``.
 
 Only ``version-bump.yml`` (push to master) creates tags, and only for platforms whose app paths changed
 since the platform's previous tag; it then dispatches that platform's build workflow with the tag. Build
@@ -29,11 +30,11 @@ TestFlight "What to Test" instead lists every app commit since the previous vers
 Commands (JSON on stdout, standard library only, Python 3.9+)::
 
     versioning.py bump [--platform ios] [--force] [--push] [--dispatch] [--enabled ios,windows]
-    versioning.py describe --tag ios/v2610.01 [--build 57] [--rebuild 0]
+    versioning.py describe --tag ios/v2610.01.01 [--build 57] [--rebuild 0]
     versioning.py latest-tag --platform ios
-    versioning.py whats-new --tag ios/v2610.03 --released 2610.01,2610.02 --out WhatsNew.json
+    versioning.py whats-new --tag ios/v2610.03.01 --released 2610.01.01,2610.02.01 --out WhatsNew.json
                             [--store-notes-out notes.txt]
-    versioning.py testflight-notes --tag ios/v2610.03 --build 57 [--rebuild-reason r] --out notes.txt
+    versioning.py testflight-notes --tag ios/v2610.03.01 --build 57 [--rebuild-reason r] --out notes.txt
 
 Documentation: .agents/workflow/release-machine.md ("Versions, notes and What's New").
 """
@@ -59,7 +60,7 @@ HISTORY_LIMIT = 10
 DEFAULT_NOTE = "Bug fixes and improvements."
 TESTFLIGHT_LIMIT = 4000
 STORE_NOTES_LIMIT = 4000
-VERSION_RE = re.compile(r"^(\d{4})\.(\d{2,})$")
+VERSION_RE = re.compile(r"^(\d{4})\.(\d{2})\.(\d{2})$")
 TRAILER_RE = re.compile(r"^\s*Release[- ]Notes?(?:-([A-Za-z]+))?\s*:\s*(.*?)\s*$", re.IGNORECASE)
 NONE_NOTES = frozenset({"", "none", "n/a", "na", "-", "skip", "no", "internal"})
 MERGE_SUBJECT_RE = re.compile(r"^Merge (pull request|branch|remote-tracking branch) ")
@@ -117,26 +118,27 @@ TRAILER_PLATFORMS = {
 # region Versions
 
 
-def parse_version(text: str) -> Tuple[int, int]:
-    """Parse ``YYMM.NN`` into ``(yymm, nn)``.
+def parse_version(text: str) -> Tuple[int, int, int]:
+    """Parse ``YYMM.DD.NN`` into ``(yymm, dd, nn)``.
 
     Args:
-        text: Version string such as ``2610.01``.
+        text: Version string such as ``2610.01.01``.
 
     Returns:
-        The comparable ``(yymm, nn)`` pair.
+        The comparable ``(yymm, dd, nn)`` triple.
 
     Raises:
-        ValueError: ``text`` is not a ``YYMM.NN`` version.
+        ValueError: ``text`` is not a ``YYMM.DD.NN`` version.
     """
     found = VERSION_RE.match(text or "")
-    if not found or not 1 <= int(found.group(1)[2:]) <= 12 or int(found.group(2)) < 1:
-        raise ValueError("not a YYMM.NN version: %r" % text)
-    return int(found.group(1)), int(found.group(2))
+    if not found or not 1 <= int(found.group(1)[2:]) <= 12 or not 1 <= int(found.group(2)) <= 31 \
+            or int(found.group(3)) < 1:
+        raise ValueError("not a YYMM.DD.NN version: %r" % text)
+    return int(found.group(1)), int(found.group(2)), int(found.group(3))
 
 
 def is_version(text: str) -> bool:
-    """Return whether ``text`` is a ``YYMM.NN`` version."""
+    """Return whether ``text`` is a ``YYMM.DD.NN`` version."""
     try:
         parse_version(text)
     except ValueError:
@@ -144,9 +146,15 @@ def is_version(text: str) -> bool:
     return True
 
 
-def format_version(yymm: int, nn: int) -> str:
-    """Format ``(yymm, nn)`` as ``YYMM.NN`` (``NN`` zero-padded to two digits)."""
-    return "%04d.%02d" % (yymm, nn)
+def format_version(yymm: int, dd: int, nn: int) -> str:
+    """Format ``(yymm, dd, nn)`` as ``YYMM.DD.NN`` (``DD`` and ``NN`` zero-padded to two digits).
+
+    Raises:
+        ValueError: ``nn`` exceeds the 99 versions a platform may cut per day.
+    """
+    if not 1 <= nn <= 99:
+        raise ValueError("at most 99 versions a day (NN=%d)" % nn)
+    return "%04d.%02d.%02d" % (yymm, dd, nn)
 
 
 def next_version(last: Optional[str], now: _dt.datetime) -> str:
@@ -157,21 +165,21 @@ def next_version(last: Optional[str], now: _dt.datetime) -> str:
         now: Bump time (converted to UTC).
 
     Returns:
-        ``YYMM.01`` in a new month, otherwise ``last`` with ``NN`` + 1. A clock behind ``last``'s month
-        keeps counting in ``last``'s month so versions never go backwards.
+        ``YYMM.DD.01`` on a new day, otherwise ``last`` with ``NN`` + 1. A clock behind ``last``'s day
+        keeps counting on ``last``'s day so versions never go backwards.
     """
     utc = now.astimezone(_dt.timezone.utc) if now.tzinfo else now
-    month = int(utc.strftime("%y%m"))
+    today = (int(utc.strftime("%y%m")), utc.day)
     if last is None:
-        return format_version(month, 1)
-    last_month, last_nn = parse_version(last)
-    if last_month >= month:
-        return format_version(last_month, last_nn + 1)
-    return format_version(month, 1)
+        return format_version(today[0], today[1], 1)
+    yymm, dd, nn = parse_version(last)
+    if (yymm, dd) >= today:
+        return format_version(yymm, dd, nn + 1)
+    return format_version(today[0], today[1], 1)
 
 
 def tag_for(platform: str, version: str) -> str:
-    """Return the version tag name, e.g. ``ios/v2610.01``."""
+    """Return the version tag name, e.g. ``ios/v2610.01.01``."""
     return "%s/v%s" % (platform, version)
 
 
@@ -189,19 +197,26 @@ def parse_tag(tag: str) -> Tuple[str, str]:
 
 
 def android_version_code(version: str, rebuild: int = 0) -> int:
-    """Return the Play ``versionCode``: ``YYMM*100000 + NN*100 + rebuild`` (monotonic for NN < 1000)."""
-    yymm, nn = parse_version(version)
-    if not 0 <= rebuild < 100 or nn >= 1000:
-        raise ValueError("versionCode needs NN < 1000 and rebuild < 100")
-    return yymm * 100000 + nn * 100 + rebuild
+    """Return the Play ``versionCode``: ``YYMM*100000 + DD*1000 + NN*10 + rebuild``.
+
+    Monotonic in the version (``NN`` < 100) and below Play's 2100000000 limit; ``2610.01.01`` is
+    ``261001010``.
+
+    Raises:
+        ValueError: ``rebuild`` is outside 0-9.
+    """
+    yymm, dd, nn = parse_version(version)
+    if not 0 <= rebuild < 10 or nn >= 100:
+        raise ValueError("versionCode needs NN < 100 and rebuild < 10")
+    return yymm * 100000 + dd * 1000 + nn * 10 + rebuild
 
 
 def msix_version(version: str, build: int) -> str:
-    """Return the four-part Store MSIX version ``YYMM.NN.<build>.0`` (each field at most 65535)."""
-    yymm, nn = parse_version(version)
-    if not 0 <= build <= 65535 or nn > 65535:
-        raise ValueError("MSIX fields must be at most 65535")
-    return "%d.%d.%d.0" % (yymm, nn, build)
+    """Return the four-part Store MSIX version ``YYMM.<DD*100+NN>.<build>.0`` (each field at most 65535)."""
+    yymm, dd, nn = parse_version(version)
+    if not 0 <= build <= 65535 or nn >= 100:
+        raise ValueError("MSIX fields must be at most 65535 and NN below 100")
+    return "%d.%d.%d.0" % (yymm, dd * 100 + nn, build)
 
 
 # endregion

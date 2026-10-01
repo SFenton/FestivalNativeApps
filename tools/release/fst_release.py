@@ -11,7 +11,7 @@ orchestrator (``festival-report-tracker``, design §8) drives it over SSH::
     fst_release.py ios creds            # signing helper used by ios_appstore_build.sh
     fst_release.py ios released-versions --json   # What's New history (ios_appstore_build.sh)
     fst_release.py ios beta-notes --build 57 --notes-file notes.txt --wait 1800
-    fst_release.py ios submit ... --whats-new-baseline 2610.01   # refuse stale What's New
+    fst_release.py ios submit ... --whats-new-baseline 2610.01.01   # refuse stale What's New
     fst_release.py windows status --json  # Microsoft Store: dispatched to fst_store.py
 
 The orchestrator never runs it locally for status or submit: ``store-release.yml``

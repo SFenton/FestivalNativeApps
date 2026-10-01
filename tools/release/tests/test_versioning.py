@@ -46,40 +46,48 @@ class Repo:
 
 class VersionTests(unittest.TestCase):
     def test_parse_and_format(self):
-        self.assertEqual(v.parse_version("2610.01"), (2610, 1))
-        self.assertEqual(v.parse_version("2610.100"), (2610, 100))
-        for bad in ("2610.1", "1.0", "2613.01", "2600.01", "2610.00", "abc", ""):
+        self.assertEqual(v.parse_version("2610.01.01"), (2610, 1, 1))
+        self.assertEqual(v.parse_version("2610.31.99"), (2610, 31, 99))
+        for bad in ("2610.01", "2610.1.01", "2610.01.1", "2610.01.100", "1.0", "2613.01.01", "2600.01.01",
+                    "2610.00.01", "2610.32.01", "2610.01.00", "abc", ""):
             self.assertFalse(v.is_version(bad), bad)
-        self.assertEqual(v.format_version(2610, 7), "2610.07")
-        self.assertEqual(v.format_version(2610, 123), "2610.123")
+        self.assertEqual(v.format_version(2610, 1, 7), "2610.01.07")
+        with self.assertRaises(ValueError):
+            v.format_version(2610, 1, 100)
 
-    def test_next_version_resets_monthly_and_never_goes_back(self):
-        self.assertEqual(v.next_version(None, OCT), "2610.01")
-        self.assertEqual(v.next_version("2610.01", OCT), "2610.02")
-        self.assertEqual(v.next_version("2610.99", OCT), "2610.100")
-        self.assertEqual(v.next_version("2610.07", NOV), "2611.01")
-        self.assertEqual(v.next_version("2611.03", OCT), "2611.04")
+    def test_next_version_resets_daily_and_never_goes_back(self):
+        self.assertEqual(v.next_version(None, OCT), "2610.01.01")
+        self.assertEqual(v.next_version("2610.01.01", OCT), "2610.01.02")
+        self.assertEqual(v.next_version("2610.01.07", NOV), "2611.02.01")
+        self.assertEqual(v.next_version("2610.01.07", OCT + dt.timedelta(days=1)), "2610.02.01")
+        self.assertEqual(v.next_version("2611.02.03", OCT), "2611.02.04")
+        with self.assertRaises(ValueError):
+            v.next_version("2610.01.99", OCT)
         pdt = dt.datetime(2026, 9, 30, 20, tzinfo=dt.timezone(dt.timedelta(hours=-7)))
-        self.assertEqual(v.next_version(None, pdt), "2610.01")  # UTC month
+        self.assertEqual(v.next_version(None, pdt), "2610.01.01")  # UTC date
 
     def test_ordering_is_numeric(self):
-        ordered = sorted(["2610.10", "2610.02", "2611.01", "2610.100", "2609.50"], key=v.parse_version)
-        self.assertEqual(ordered, ["2609.50", "2610.02", "2610.10", "2610.100", "2611.01"])
+        ordered = sorted(["2610.10.01", "2610.02.11", "2611.01.01", "2610.02.02", "2609.30.50"],
+                         key=v.parse_version)
+        self.assertEqual(ordered, ["2609.30.50", "2610.02.02", "2610.02.11", "2610.10.01", "2611.01.01"])
 
     def test_tags_and_store_mappings(self):
-        self.assertEqual(v.tag_for("ios", "2610.01"), "ios/v2610.01")
-        self.assertEqual(v.parse_tag("refs/tags/windows/v2610.12"), ("windows", "2610.12"))
+        self.assertEqual(v.tag_for("ios", "2610.01.01"), "ios/v2610.01.01")
+        self.assertEqual(v.parse_tag("refs/tags/windows/v2610.12.03"), ("windows", "2610.12.03"))
+        for bad in ("ios/released/2610.01.01", "tvos/v2610.01.01", "ios/v2610.01"):
+            with self.assertRaises(ValueError):
+                v.parse_tag(bad)
+        self.assertEqual(v.android_version_code("2610.01.01"), 261001010)
+        self.assertEqual(v.android_version_code("2610.12.34", 3), 261012343)
+        self.assertLess(v.android_version_code("2610.01.99", 9), v.android_version_code("2610.02.01"))
+        self.assertLess(v.android_version_code("2610.31.99", 9), v.android_version_code("2611.01.01"))
+        self.assertLess(v.android_version_code("9912.31.99", 9), 2100000000)
         with self.assertRaises(ValueError):
-            v.parse_tag("ios/released/2610.01")
+            v.android_version_code("2610.01.01", 10)
+        self.assertEqual(v.msix_version("2610.01.01", 57), "2610.101.57.0")
+        self.assertEqual(v.msix_version("2610.31.99", 65535), "2610.3199.65535.0")
         with self.assertRaises(ValueError):
-            v.parse_tag("tvos/v2610.01")
-        self.assertEqual(v.android_version_code("2610.01"), 261000100)
-        self.assertEqual(v.android_version_code("2610.12", 3), 261001203)
-        self.assertLess(v.android_version_code("2610.999", 99), v.android_version_code("2611.01"))
-        self.assertLess(v.android_version_code("9912.999", 99), 2100000000)
-        self.assertEqual(v.msix_version("2610.01", 57), "2610.1.57.0")
-        with self.assertRaises(ValueError):
-            v.msix_version("2610.01", 70000)
+            v.msix_version("2610.01.01", 70000)
 
 
 class PathAndTrailerTests(unittest.TestCase):
@@ -129,33 +137,33 @@ class GitFlowTests(unittest.TestCase):
     def test_plan_bump_first_then_only_on_app_changes(self):
         git = self.repo.git
         plan = v.plan_bump(git, "ios", "HEAD", OCT)
-        self.assertEqual((plan["bump"], plan["reason"], plan["version"]), (True, "first_version", "2610.01"))
-        self.repo.tag("ios/v2610.01")
+        self.assertEqual((plan["bump"], plan["reason"], plan["version"]), (True, "first_version", "2610.01.01"))
+        self.repo.tag("ios/v2610.01.01")
         self.assertEqual(v.plan_bump(git, "ios", "HEAD", OCT)["reason"], "already_tagged")
         self.repo.commit("Docs only", "docs/x.md", "apple/Tests/FestivalCoreTests/T.swift")
         self.assertEqual(v.plan_bump(git, "ios", "HEAD", OCT)["reason"], "no_app_changes")
         forced = v.plan_bump(git, "ios", "HEAD", OCT, force=True)
-        self.assertEqual((forced["reason"], forced["version"]), ("forced", "2610.02"))
+        self.assertEqual((forced["reason"], forced["version"]), ("forced", "2610.01.02"))
         self.repo.commit("Change", "apple/Sources/FestivalUI/B.swift")
         plan = v.plan_bump(git, "ios", "HEAD", NOV)
-        self.assertEqual((plan["reason"], plan["version"], plan["previous"]), ("app_changed", "2611.01", "2610.01"))
+        self.assertEqual((plan["reason"], plan["version"], plan["previous"]), ("app_changed", "2611.02.01", "2610.01.01"))
 
     def test_bump_tags_pushes_and_dispatches(self):
         calls = []
         result = v.bump(self.repo.git, ["ios", "windows", "android"], "HEAD", OCT, dispatch=True,
                         gh_runner=lambda a: calls.append(list(a)) or "")
-        self.assertEqual([b["tag"] for b in result["bumped"]], ["ios/v2610.01", "windows/v2610.01"])
+        self.assertEqual([b["tag"] for b in result["bumped"]], ["ios/v2610.01.01", "windows/v2610.01.01"])
         self.assertEqual(result["skipped"][0]["reason"], "no_app_files")
         self.assertEqual(calls[0], ["workflow", "run", "ios-release-build.yml", "--ref", "master",
-                                    "-f", "version_tag=ios/v2610.01"])
-        self.assertEqual(self.repo.git.version_tags("ios"), [("2610.01", "ios/v2610.01")])
+                                    "-f", "version_tag=ios/v2610.01.01"])
+        self.assertEqual(self.repo.git.version_tags("ios"), [("2610.01.01", "ios/v2610.01.01")])
         again = v.bump(self.repo.git, ["ios"], "HEAD", OCT)
         self.assertEqual(again["bumped"], [])
 
     def test_late_run_for_older_commit_does_not_bump(self):
         old = self.repo.git.rev("HEAD")
         self.repo.commit("Change", "apple/Sources/FestivalUI/B.swift")
-        self.repo.tag("ios/v2610.01")
+        self.repo.tag("ios/v2610.01.01")
         self.assertEqual(v.plan_bump(self.repo.git, "ios", old, OCT)["reason"], "behind_previous_tag")
 
     def test_failed_dispatch_drops_the_tag(self):
@@ -167,78 +175,78 @@ class GitFlowTests(unittest.TestCase):
         self.assertEqual(v.plan_bump(self.repo.git, "ios", "HEAD", OCT)["reason"], "first_version")
 
     def _history(self):
-        """2610.01 (released) → 2610.02 (not released) → 2610.03 (released) → 2610.04 (building)."""
+        """2610.01.01 (released) → 2610.01.02 (not released) → 2610.01.03 (released) → 2610.01.04 (building)."""
         r = self.repo
-        r.tag("ios/v2610.01")
+        r.tag("ios/v2610.01.01")
         r.commit("Speed up songs\n\nRelease-Note: Songs load faster.", "apple/Sources/FestivalUI/S.swift")
         r.commit("Windows only\n\nRelease-Note: Windows thing.", "windows/Festival.App/W.cs")
-        r.tag("ios/v2610.02")
+        r.tag("ios/v2610.01.02")
         r.run("checkout", "-q", "-b", "feature")
         r.commit("Shop badge\n\nRelease-Note-iOS: The Item Shop badge is back.\nRelease-Note: generic",
                  "apple/Sources/FestivalUI/Shop.swift")
         r.run("checkout", "-q", "master")
         r.run("merge", "-q", "--no-ff", "feature", "-m", "Merge pull request #7 from x/feature\n\nShop badge fix")
-        r.tag("ios/v2610.03")
+        r.tag("ios/v2610.01.03")
         r.commit("Tests only\n\nRelease-Note: should not appear", "apple/Tests/FestivalUITests/T.swift")
         r.commit("Rivals\n\nRelease-Note: Rivals refresh correctly.", "apple/Sources/FestivalUI/R.swift")
-        r.tag("ios/v2610.04")
+        r.tag("ios/v2610.01.04")
 
     def test_whats_new_sections_per_released_version(self):
         self._history()
-        doc = v.whats_new(self.repo.git, "ios", "2610.04", ["2610.01", "2610.03", "1.0", "2611.01"])
-        self.assertEqual(doc["baseline"], "2610.03")
-        self.assertEqual([e["version"] for e in doc["entries"]], ["2610.04", "2610.03", "2610.01"])
+        doc = v.whats_new(self.repo.git, "ios", "2610.01.04", ["2610.01.01", "2610.01.03", "1.0", "2611.02.01"])
+        self.assertEqual(doc["baseline"], "2610.01.03")
+        self.assertEqual([e["version"] for e in doc["entries"]], ["2610.01.04", "2610.01.03", "2610.01.01"])
         self.assertEqual([e["released"] for e in doc["entries"]], [False, True, True])
         self.assertEqual(doc["entries"][0]["items"], ["Rivals refresh correctly."])
-        # 2610.02 was never released, so its notes fold into 2610.03; the iOS-specific note wins.
+        # 2610.01.02 was never released, so its notes fold into 2610.01.03; the iOS-specific note wins.
         self.assertEqual(doc["entries"][1]["items"], ["Songs load faster.", "The Item Shop badge is back."])
         self.assertEqual(doc["entries"][2]["items"], [v.PLATFORMS["ios"]["initial_note"]])
         self.assertEqual(v.store_notes(doc), "• Rivals refresh correctly.")
 
     def test_whats_new_first_release_and_released_current(self):
         self._history()
-        first = v.whats_new(self.repo.git, "ios", "2610.02", [])
+        first = v.whats_new(self.repo.git, "ios", "2610.01.02", [])
         self.assertIsNone(first["baseline"])
-        self.assertEqual(first["entries"], [{"version": "2610.02", "released": False,
+        self.assertEqual(first["entries"], [{"version": "2610.01.02", "released": False,
                                              "items": [v.PLATFORMS["ios"]["initial_note"]]}])
-        shipped = v.whats_new(self.repo.git, "ios", "2610.03", ["2610.01", "2610.03"])
-        self.assertEqual([e["version"] for e in shipped["entries"]], ["2610.03", "2610.01"])
-        self.assertEqual(shipped["baseline"], "2610.01")
+        shipped = v.whats_new(self.repo.git, "ios", "2610.01.03", ["2610.01.01", "2610.01.03"])
+        self.assertEqual([e["version"] for e in shipped["entries"]], ["2610.01.03", "2610.01.01"])
+        self.assertEqual(shipped["baseline"], "2610.01.01")
         with self.assertRaises(ValueError):
-            v.whats_new(self.repo.git, "ios", "2610.09", [])
+            v.whats_new(self.repo.git, "ios", "2610.01.09", [])
 
     def test_whats_new_defaults_without_trailers_and_caps_history(self):
         r = self.repo
         released = []
         for n in range(1, 14):
             r.commit("change %d" % n, "apple/Sources/FestivalCore/A.swift")
-            r.tag("ios/v2610.%02d" % n)
-            released.append("2610.%02d" % n)
-        doc = v.whats_new(r.git, "ios", "2610.13", released)
+            r.tag("ios/v2610.01.%02d" % n)
+            released.append("2610.01.%02d" % n)
+        doc = v.whats_new(r.git, "ios", "2610.01.13", released)
         self.assertEqual(len(doc["entries"]), v.HISTORY_LIMIT)
         self.assertEqual(doc["entries"][0]["items"], [v.DEFAULT_NOTE])
 
     def test_testflight_notes(self):
         self._history()
         git = self.repo.git
-        text = v.testflight_notes(git, "ios", "2610.03", "41")
-        self.assertTrue(text.startswith("Festival Score Tracker iOS 2610.03 (build 41)\nChanges since 2610.02:"))
+        text = v.testflight_notes(git, "ios", "2610.01.03", "41")
+        self.assertTrue(text.startswith("Festival Score Tracker iOS 2610.01.03 (build 41)\nChanges since 2610.01.02:"))
         self.assertIn("• Shop badge fix", text)
         self.assertNotIn("Windows only", text)
         self.assertIn("Release notes:\n• The Item Shop badge is back.", text)
-        first = v.testflight_notes(git, "ios", "2610.01", "40")
-        self.assertIn("First build numbered 2610.01", first)
-        rebuild = v.testflight_notes(git, "ios", "2610.04", "44", rebuild_reason="stale_whats_new")
-        self.assertIn("Rebuild of 2610.04 with no iOS app changes", rebuild)
+        first = v.testflight_notes(git, "ios", "2610.01.01", "40")
+        self.assertIn("First build numbered 2610.01.01", first)
+        rebuild = v.testflight_notes(git, "ios", "2610.01.04", "44", rebuild_reason="stale_whats_new")
+        self.assertIn("Rebuild of 2610.01.04 with no iOS app changes", rebuild)
         self.repo.commit("Docs", "docs/a.md")
-        self.repo.tag("ios/v2610.05")
-        self.assertIn("No iOS app changes since 2610.04", v.testflight_notes(git, "ios", "2610.05", "45"))
+        self.repo.tag("ios/v2610.01.05")
+        self.assertIn("No iOS app changes since 2610.01.04", v.testflight_notes(git, "ios", "2610.01.05", "45"))
 
     def test_released_from_tags(self):
-        self.repo.tag("windows/v2610.01")
-        self.repo.tag("windows/released/2610.01")
+        self.repo.tag("windows/v2610.01.01")
+        self.repo.tag("windows/released/2610.01.01")
         self.repo.tag("windows/released/junk")
-        self.assertEqual(self.repo.git.released_from_tags("windows"), ["2610.01"])
+        self.assertEqual(self.repo.git.released_from_tags("windows"), ["2610.01.01"])
 
     def test_cli_round_trip(self):
         self._history()
@@ -247,20 +255,20 @@ class GitFlowTests(unittest.TestCase):
         notes = root / "notes.txt"
         buf = io.StringIO()
         with redirect_stdout(buf):
-            code = v.main(["--repo", str(root), "whats-new", "--tag", "ios/v2610.04",
-                           "--released", "2610.01,2610.03", "--out", str(out), "--store-notes-out", str(notes)])
+            code = v.main(["--repo", str(root), "whats-new", "--tag", "ios/v2610.01.04",
+                           "--released", "2610.01.01,2610.01.03", "--out", str(out), "--store-notes-out", str(notes)])
         self.assertEqual(code, 0)
-        self.assertEqual(json.loads(out.read_text())["version"], "2610.04")
+        self.assertEqual(json.loads(out.read_text())["version"], "2610.01.04")
         self.assertEqual(notes.read_text(), "• Rivals refresh correctly.\n")
         buf = io.StringIO()
         with redirect_stdout(buf):
-            v.main(["--repo", str(root), "describe", "--tag", "ios/v2610.04", "--build", "50"])
+            v.main(["--repo", str(root), "describe", "--tag", "ios/v2610.01.04", "--build", "50"])
         described = json.loads(buf.getvalue())
-        self.assertEqual((described["previous"], described["msix_version"]), ("2610.03", "2610.4.50.0"))
+        self.assertEqual((described["previous"], described["msix_version"]), ("2610.01.03", "2610.104.50.0"))
         buf = io.StringIO()
         with redirect_stdout(buf):
             self.assertEqual(v.main(["--repo", str(root), "latest-tag", "--platform", "ios"]), 0)
-        self.assertEqual(json.loads(buf.getvalue())["tag"], "ios/v2610.04")
+        self.assertEqual(json.loads(buf.getvalue())["tag"], "ios/v2610.01.04")
         buf = io.StringIO()
         with redirect_stdout(buf):
             self.assertEqual(v.main(["--repo", str(root), "describe", "--tag", "nope"]), 1)

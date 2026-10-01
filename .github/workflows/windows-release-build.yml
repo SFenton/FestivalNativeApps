@@ -1,6 +1,6 @@
 name: windows-release-build
-# Build the unsigned Microsoft Store MSIX for one `windows/v<YYMM.NN>` version tag (MSIX version
-# YYMM.NN.<run number>.0) and keep it as an artifact. Only version-bump.yml dispatches it (an app change merged
+# Build the unsigned Microsoft Store MSIX for one `windows/v<YYMM.DD.NN>` version tag (MSIX version
+# YYMM.<DD*100+NN>.<run number>.0) and keep it as an artifact. Only version-bump.yml dispatches it (an app change merged
 # to master). The build generates the in-app What's New (WhatsNew.json) and the Store release notes
 # (build.json `store_notes`, preferred by `fst_store.py submit`). Submitting it for
 # certification is done separately by the release orchestrator (`fst_store.py windows submit`), which
@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       version_tag:
-        description: Version tag to build (windows/vYYMM.NN); empty = the newest windows/v* tag
+        description: Version tag to build (windows/vYYMM.DD.NN); empty = the newest windows/v* tag
         type: string
         default: ''
 permissions:
@@ -46,7 +46,7 @@ jobs:
           if [ -z "$tag" ]; then
             tag=$(python tools/release/versioning.py latest-tag --platform windows | python -c 'import json,sys; print(json.load(sys.stdin)["tag"] or "")')
           fi
-          if ! printf '%s' "$tag" | grep -Eq '^windows/v[0-9]{4}\.[0-9]{2,}$'; then
+          if ! printf '%s' "$tag" | grep -Eq '^windows/v[0-9]{4}\.[0-9]{2}\.[0-9]{2}$'; then
             echo "::error::invalid or missing windows version tag '$tag' (run version-bump first)"; exit 2
           fi
           git -c advice.detachedHead=false checkout -q "refs/tags/$tag"
@@ -55,7 +55,7 @@ jobs:
           # Released versions come from windows/released/<version> tags (written when a release is observed).
           python tools/release/versioning.py whats-new --tag "$tag" --released-from-tags \
             --out windows/Festival.Core/WhatsNew.json --store-notes-out "$RUNNER_TEMP/notes/store-notes.txt"
-          { echo "FST_VERSION_TAG=$tag"; echo "FST_MSIX_VERSION=$msix"; } >> "$GITHUB_ENV"
+          { echo "FST_VERSION_TAG=$tag"; echo "FST_VERSION=${tag#windows/v}"; echo "FST_MSIX_VERSION=$msix"; } >> "$GITHUB_ENV"
           echo "Building $tag as MSIX $msix at $(git rev-parse HEAD)"
       - name: Store logos are current
         run: python tools/windows/store_assets.py --check
@@ -63,7 +63,7 @@ jobs:
         run: dotnet build windows/Festival.App/Festival.App.csproj -c Debug -p:Platform=x64 -nologo -clp:NoSummary
       - name: Package MSIX
         shell: pwsh
-        run: ./tools/windows/package_msix.ps1 -AllowPlaceholder -Version $env:FST_MSIX_VERSION -OutDir "$env:RUNNER_TEMP\msix"
+        run: ./tools/windows/package_msix.ps1 -AllowPlaceholder -Version $env:FST_MSIX_VERSION -DisplayVersion $env:FST_VERSION -OutDir "$env:RUNNER_TEMP\msix"
       - name: Name artifact
         id: meta
         shell: pwsh

@@ -7,7 +7,7 @@
 #   {"built":true,"version":"…","build":"…","sha":"…","version_tag":"ios/v…",
 #    "whats_new_baseline":…,"store_notes":"…","testflight_notes":"…"}   success
 #   {"blocked":"missing_signing"}                                      exit 4 (CI maps this to a neutral skip)
-# The version comes from the `ios/v<YYMM.NN>` tag on HEAD (tools/release/versioning.py); the
+# The version comes from the `ios/v<YYMM.DD.NN>` tag on HEAD (tools/release/versioning.py); the
 # build generates apple/Apps/iOS/WhatsNew.json from the released-version history in App Store
 # Connect before archiving.
 # Everything else (xcodebuild output, progress) goes to stderr. --dry-run prints every

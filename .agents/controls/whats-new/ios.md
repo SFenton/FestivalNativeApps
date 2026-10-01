@@ -6,7 +6,7 @@
 
 | Piece | File | Notes |
 |---|---|---|
-| Data + hash + seen store | `FestivalCore/Changelog.swift` | `Changelog.entries` decoded from the bundled `Apps/iOS/WhatsNew.json` (generated per release build; checked-in placeholder `2610.01`), `decode(_:)` bounds it; `hash(_:)` reproduces `calculateChangelogHash`; `emptyHash` never shows; `displayEntries` drops Manual; `ChangelogSeenStore` (`fst.changelog.seen.v1`, ≤1 KB, empty/oversized hash → unseen) |
+| Data + hash + seen store | `FestivalCore/Changelog.swift` | `Changelog.entries` decoded from the bundled `Apps/iOS/WhatsNew.json` (generated per release build; checked-in placeholder `2610.01.01`), `decode(_:)` bounds it; `hash(_:)` reproduces `calculateChangelogHash`; `emptyHash` never shows; `displayEntries` drops Manual; `ChangelogSeenStore` (`fst.changelog.seen.v1`, ≤1 KB, empty/oversized hash → unseen) |
 | Sheet | `Features/WhatsNew/WhatsNewSheet.swift` | `NavigationStack` inline title `What's New · <CFBundleShortVersionString>`, opaque `cardBackground` (page, nav bar, `presentationBackground`), bullets as primary text, **Dismiss** in an opaque `safeAreaInset(.bottom)` bar with a hairline (the list ends above it), toolbar ✕ |
 | Launch gate | `Features/WhatsNew/WhatsNewModifier.swift` | `.whatsNew(session:)` over `WhatsNewLauncher.shared` (tests inject their own); resolves once per process; waits `settleDelay` (700 ms) so the launch page's `.firstRun` claims first, then claims `FirstRunCenter` slot `whats-new`; re-checks whenever `activeKey` returns to nil; `onDismiss` stores `{version, hash}` and releases the slot |
 | Root hook | `App/FestivalRootView.swift` | One additive `.whatsNew(session: session)` line after the global-search sheet |
