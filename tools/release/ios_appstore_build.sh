@@ -176,7 +176,7 @@ fi
 mkdir -p "$NOTES_DIR"
 python3 "$VERSIONING_PY" --repo "$ROOT" whats-new --tag "$VERSION_TAG" --released "$RELEASED" \
   --out "$WHATS_NEW_JSON" --store-notes-out "$NOTES_DIR/store-notes.txt" >&2
-TF_ARGS=(--tag "$VERSION_TAG" --build "$BUILD_NUMBER" --out "$NOTES_DIR/testflight-notes.txt")
+TF_ARGS=(--tag "$VERSION_TAG" --build "$BUILD_NUMBER" --released "$RELEASED" --out "$NOTES_DIR/testflight-notes.txt")
 if [ -n "${FST_REBUILD_REASON:-}" ]; then TF_ARGS+=(--rebuild-reason "$FST_REBUILD_REASON"); fi
 python3 "$VERSIONING_PY" --repo "$ROOT" testflight-notes "${TF_ARGS[@]}" >&2
 log "version $MARKETING_VERSION ($VERSION_TAG) build $BUILD_NUMBER sha $GIT_SHA released [${RELEASED}]"

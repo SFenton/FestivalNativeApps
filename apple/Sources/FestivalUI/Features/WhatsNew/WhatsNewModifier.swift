@@ -149,6 +149,7 @@ struct WhatsNewLaunchModifier: ViewModifier {
     var launcher: WhatsNewLauncher = .shared
 
     @State private var presented = false
+    @State private var distribution: AppDistribution = .appStore
 
     func body(content: Content) -> some View {
         content
@@ -160,13 +161,15 @@ struct WhatsNewLaunchModifier: ViewModifier {
             .whatsNewPresentation(isPresented: $presented, onDismiss: { launcher.finish(in: session.firstRunCenter) }) {
                 WhatsNewSheet(
                     version: WhatsNewGate.appVersion(),
-                    entries: Changelog.displayEntries()
+                    entries: Changelog.displayEntries(distribution: distribution)
                 ) { presented = false }
             }
     }
 
     /// Wait for the launch carousel to claim the slot, then present if nothing else holds it.
     @MainActor private func presentWhenSettled() async {
+        // Resolved on every launch so Settings' replay can read `AppDistribution.resolved`.
+        distribution = await AppDistribution.current()
         guard launcher.resolveIfNeeded(), !presented else { return }
         try? await Task.sleep(for: WhatsNewGate.settleDelay)
         guard !presented, launcher.claim(in: session.firstRunCenter) else { return }
