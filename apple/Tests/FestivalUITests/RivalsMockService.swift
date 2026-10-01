@@ -34,6 +34,25 @@ enum RivalsMockServiceError: Error {
     case unreadableOutput
 }
 
+/// Resumes a continuation at most once (the ready line and the timeout race).
+private final class ResumeOnce: @unchecked Sendable {
+    private let lock = NSLock()
+    private var resumed = false
+
+    /// Resumes `continuation` with `result` unless an earlier call already resumed it.
+    ///
+    /// - Parameters:
+    ///   - continuation: The launch continuation.
+    ///   - result: The value or error to deliver.
+    func resume(_ continuation: CheckedContinuation<URL, Error>, with result: Result<URL, Error>) {
+        lock.lock()
+        let first = !resumed
+        resumed = true
+        lock.unlock()
+        if first { continuation.resume(with: result) }
+    }
+}
+
 /// Launches `tools/mock_service.py` as a real loopback process for the Rivals/
 /// Compete hosted snapshot tests, and reuses it for every test in the process.
 ///
@@ -100,24 +119,28 @@ actor RivalsMockService {
         fst_rivalsMockProcess = process
 
         let handle = stdout.fileHandleForReading
-        return try await withThrowingTaskGroup(of: URL.self) { group in
-            group.addTask {
-                let data = handle.availableData
-                guard let text = String(data: data, encoding: .utf8),
-                      let port = Self.parsePort(from: text) else {
-                    throw RivalsMockServiceError.unreadableOutput
+        // The ready-line read blocks, so it runs on a Dispatch thread rather than the Swift
+        // cooperative pool: parallel hosted render tests can occupy every pool thread on small CI
+        // machines, which previously starved the read until the timeout fired.
+        let gate = ResumeOnce()
+        do {
+            return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
+                DispatchQueue.global().async {
+                    let data = handle.availableData
+                    guard let text = String(data: data, encoding: .utf8),
+                          let port = Self.parsePort(from: text) else {
+                        gate.resume(continuation, with: .failure(RivalsMockServiceError.unreadableOutput))
+                        return
+                    }
+                    gate.resume(continuation, with: .success(URL(string: "http://127.0.0.1:\(port)")!))
                 }
-                return URL(string: "http://127.0.0.1:\(port)")!
+                DispatchQueue.global().asyncAfter(deadline: .now() + .seconds(60)) {
+                    gate.resume(continuation, with: .failure(RivalsMockServiceError.timedOut))
+                }
             }
-            group.addTask {
-                try await Task.sleep(for: .seconds(15))
-                throw RivalsMockServiceError.timedOut
-            }
-            guard let result = try await group.next() else {
-                throw RivalsMockServiceError.timedOut
-            }
-            group.cancelAll()
-            return result
+        } catch {
+            process.terminate()
+            throw error
         }
     }
 

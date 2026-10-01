@@ -42,7 +42,21 @@ jobs:
         run: python3 tools/ios_sim.py build
       - name: Swift unit tests (macOS host, no simulator)
         working-directory: apple
+        # Hosted render tests write their captures here; they are uploaded when a test fails.
+        run: |
+          system_profiler SPDisplaysDataType | grep -iE "resolution|retina|scale" || true
+          mkdir -p "$RUNNER_TEMP/renders"
+          for v in BANDS COMPETE DUO FILTER FIRST_RUN HISTORY LEADERBOARDS LICENSES PATH PROFILE RIVALS SECTION_INDEX SETTINGS SHELL SHOP SONG_ROW SONGS SORT SUGGESTIONS WHATS_NEW; do echo "FST_${v}_RENDER_OUT=$RUNNER_TEMP/renders" >> "$GITHUB_ENV"; done
+      - name: Run swift test
+        working-directory: apple
         run: swift test --parallel --enable-code-coverage
+      - name: Upload hosted render captures
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apple-ci-renders
+          path: ${{ runner.temp }}/renders
+          retention-days: 7
       - name: Coverage report (informational; gates are not met yet, see testing/apple/coverage.md)
         continue-on-error: true
         run: |
