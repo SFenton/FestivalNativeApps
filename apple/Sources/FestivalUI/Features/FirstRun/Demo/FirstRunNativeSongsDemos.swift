@@ -5,28 +5,64 @@ import FestivalDesign
 // MARK: - Session plumbing
 
 extension EnvironmentValues {
-    /// The app session a first-run carousel was opened from, so Songs demos can show the
-    /// real Songs rows (live catalogue songs and their artwork). Nil in hosted tests and
-    /// previews, where demos fall back to ``Song/firstRunFallback``.
+    /// The app session a first-run carousel was opened from, so song demos can show real
+    /// catalogue songs and their artwork. Nil in hosted tests and previews, where demos show
+    /// redacted ``FirstRunDemoSongs/placeholders(count:)``.
     @Entry var firstRunSession: FestivalSession?
 }
 
-/// Supplies up to three real catalogue songs (the web demos switch to catalogue songs once
-/// loaded), falling back to offline stand-ins. The catalogue read is the app's cached,
-/// keyless `/api/songs`; nothing new is requested when Songs already loaded it.
+/// Supplies real catalogue songs to a first-run demo, as the web's `useDemoSongs` /
+/// `useItemShopDemoSongs` do (selection rules: ``FirstRunDemoSongs/pick(from:count:preferring:)``).
+///
+/// Until the catalogue answers, or when it can't, the content receives redacted placeholders
+/// and a nil session so no real-row view is driven by a stand-in; demos never invent titles.
+/// The catalogue read is the app's cached, keyless `/api/songs`; the Item Shop source only
+/// reuses an already-loaded Shop feed from the same observed publication and never fetches one.
 struct FirstRunCatalogueSongs<Content: View>: View {
+    /// Where preferred songs come from.
+    enum Source {
+        /// Catalogue songs with artwork, Epic Games songs first.
+        case catalogue
+        /// Current Item Shop songs first, then `catalogue` songs.
+        case itemShop
+    }
+
     @Environment(\.firstRunSession) private var session
-    @State private var songs = Song.firstRunFallback
-    @ViewBuilder let content: ([Song], FestivalSession?) -> Content
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var live: [Song]?
+    private let count: Int
+    private let source: Source
+    private let content: ([Song], FestivalSession?) -> Content
+
+    /// - Parameters:
+    ///   - count: Maximum rows the demo shows.
+    ///   - source: Song preference order.
+    ///   - content: Builds the demo from songs (placeholders while not live) and the session
+    ///     (nil while not live).
+    init(
+        count: Int = 3, source: Source = .catalogue,
+        @ViewBuilder content: @escaping ([Song], FestivalSession?) -> Content
+    ) {
+        self.count = count
+        self.source = source
+        self.content = content
+    }
 
     var body: some View {
-        content(songs, session)
-            .task {
-                guard let session,
-                      let payload = try? await session.catalog() else { return }
-                let live = payload.catalog.songs.filter { $0.albumArt != nil }.prefix(3)
-                if live.count == 3 { songs = Array(live) }
-            }
+        content(live ?? FirstRunDemoSongs.placeholders(count: count), live == nil ? nil : session)
+            .task { await load() }
+    }
+
+    private func load() async {
+        guard live == nil, let session, let payload = try? await session.catalog() else { return }
+        var preferred: [String] = []
+        if source == .itemShop, let shop = session.currentShop,
+           shop.observedPublicationId == payload.observedPublicationId {
+            preferred = shop.sortedSongs.map(\.songId)
+        }
+        let picked = FirstRunDemoSongs.pick(from: payload.catalog.songs, count: count, preferring: preferred)
+        guard !picked.isEmpty else { return }
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) { live = picked }
     }
 }
 
@@ -56,18 +92,14 @@ private struct FirstRunRowChrome<Detail: View, Trailing: View>: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            if let session {
-                ArtworkTile(raw: song.albumArt, session: session, size: 44)
-            } else {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(BrandTokens.surfaceMuted)
-                    .frame(width: 44, height: 44)
-            }
+            FirstRunSongArt(song: song, session: session)
             VStack(alignment: .leading, spacing: 4) {
-                MarqueeText(song.title, font: .headline)
-                    .foregroundStyle(FestivalText.primary)
-                MarqueeText(subtitle, font: .subheadline)
-                    .foregroundStyle(FestivalText.primary)
+                Group {
+                    MarqueeText(song.title, font: .headline)
+                    MarqueeText(subtitle, font: .subheadline)
+                }
+                .foregroundStyle(FestivalText.primary)
+                .firstRunRedacted(song)
                 detail()
             }
             .marqueeSync()

@@ -1,23 +1,27 @@
 import SwiftUI
+import FestivalCore
 import FestivalDesign
 
 // MARK: - shop-overview
 
-/// Ported from `pages/shop/firstRun/demo/ShopOverviewDemo.tsx`: a grid of Item Shop tiles, using
-/// `FirstRunAlbumArtPlaceholder`-style placeholders in place of network album art.
+/// Ported from `pages/shop/firstRun/demo/ShopOverviewDemo.tsx`: a grid of Item Shop album-art
+/// tiles from current Shop songs (catalogue songs with art as fallback, like the web's
+/// `useItemShopDemoSongs`); muted placeholder tiles until the catalogue answers.
 struct FirstRunShopOverviewDemo: View {
     private let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
 
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 8) {
-            ForEach(FirstRunDemoPool.songs) { _ in
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(BrandTokens.accentPurple.opacity(0.35))
-                    .overlay(
-                        Image(systemName: "music.note")
-                            .foregroundStyle(FestivalText.primary)
-                    )
-                    .aspectRatio(1, contentMode: .fit)
+        FirstRunCatalogueSongs(count: 6, source: .itemShop) { songs, session in
+            LazyVGrid(columns: columns, spacing: 8) {
+                ForEach(songs) { song in
+                    Color.clear
+                        .aspectRatio(1, contentMode: .fit)
+                        .overlay {
+                            GeometryReader { proxy in
+                                FirstRunSongArt(song: song, session: session, size: proxy.size.width)
+                            }
+                        }
+                }
             }
         }
         .accessibilityHidden(true)
@@ -27,21 +31,22 @@ struct FirstRunShopOverviewDemo: View {
 // MARK: - Shop row primitive (highlighting / new items / leaving tomorrow)
 
 private struct FirstRunShopRow: View {
-    let song: FirstRunDemoPool.DemoSong
+    let song: Song
+    let session: FestivalSession?
     /// `nil` renders a flat row with no pulse, matching the web's "no highlight" phase.
     let pulseTint: Color?
 
     var body: some View {
         HStack(spacing: 12) {
-            FirstRunAlbumArtPlaceholder()
+            FirstRunSongArt(song: song, session: session)
             VStack(alignment: .leading, spacing: 2) {
                 MarqueeText(song.title).font(.subheadline.weight(.semibold))
-                    .foregroundStyle(FestivalText.primary)
                     .lineLimit(1)
                 MarqueeText(song.artist).font(.caption)
-                    .foregroundStyle(FestivalText.primary)
                     .lineLimit(1)
             }
+            .foregroundStyle(FestivalText.primary)
+            .firstRunRedacted(song)
             Spacer(minLength: 0)
         }
         .padding(10)
@@ -63,9 +68,14 @@ private struct OptionalPulse: ViewModifier {
 /// green highlight and no highlight, to contrast shop vs. non-shop songs.
 struct FirstRunShopHighlightingDemo: View {
     var body: some View {
-        VStack(spacing: 8) {
-            ForEach(Array(FirstRunDemoPool.songs.prefix(4).enumerated()), id: \.element.id) { index, song in
-                FirstRunShopRow(song: song, pulseTint: index.isMultiple(of: 2) ? BrandTokens.statusGreenStroke : nil)
+        FirstRunCatalogueSongs(count: 4, source: .itemShop) { songs, session in
+            VStack(spacing: 8) {
+                ForEach(Array(songs.enumerated()), id: \.element.id) { index, song in
+                    FirstRunShopRow(
+                        song: song, session: session,
+                        pulseTint: index.isMultiple(of: 2) ? BrandTokens.statusGreenStroke : nil
+                    )
+                }
             }
         }
         .accessibilityHidden(true)
@@ -78,9 +88,11 @@ struct FirstRunShopHighlightingDemo: View {
 /// (regular shop), and no highlight.
 struct FirstRunShopNewItemsDemo: View {
     var body: some View {
-        VStack(spacing: 8) {
-            ForEach(Array(FirstRunDemoPool.songs.prefix(6).enumerated()), id: \.element.id) { index, song in
-                FirstRunShopRow(song: song, pulseTint: tint(for: index))
+        FirstRunCatalogueSongs(count: 6, source: .itemShop) { songs, session in
+            VStack(spacing: 8) {
+                ForEach(Array(songs.enumerated()), id: \.element.id) { index, song in
+                    FirstRunShopRow(song: song, session: session, pulseTint: tint(for: index))
+                }
             }
         }
         .accessibilityHidden(true)
@@ -101,9 +113,11 @@ struct FirstRunShopNewItemsDemo: View {
 /// green (regular shop), and no highlight.
 struct FirstRunShopLeavingTomorrowDemo: View {
     var body: some View {
-        VStack(spacing: 8) {
-            ForEach(Array(FirstRunDemoPool.songs.prefix(6).enumerated()), id: \.element.id) { index, song in
-                FirstRunShopRow(song: song, pulseTint: tint(for: index))
+        FirstRunCatalogueSongs(count: 6, source: .itemShop) { songs, session in
+            VStack(spacing: 8) {
+                ForEach(Array(songs.enumerated()), id: \.element.id) { index, song in
+                    FirstRunShopRow(song: song, session: session, pulseTint: tint(for: index))
+                }
             }
         }
         .accessibilityHidden(true)

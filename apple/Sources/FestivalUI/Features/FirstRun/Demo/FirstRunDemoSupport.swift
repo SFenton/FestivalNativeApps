@@ -159,16 +159,32 @@ struct FirstRunInstrumentHeader: View {
     }
 }
 
-/// A stand-in album art tile — demos never load network artwork.
-struct FirstRunAlbumArtPlaceholder: View {
+/// A demo song's album art through the app's shared bounded artwork cache, or a muted tile
+/// for a placeholder song or when no session can load art (hosted tests).
+struct FirstRunSongArt: View {
+    let song: Song
+    let session: FestivalSession?
+    var size: CGFloat = 44
+
     var body: some View {
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
-            .fill(BrandTokens.surfaceMuted)
-            .overlay(
-                Image(systemName: "music.note")
-                    .foregroundStyle(FestivalText.primary)
-            )
-            .frame(width: 44, height: 44)
+        if let session, !song.isFirstRunPlaceholder {
+            ArtworkTile(raw: song.albumArt, session: session, size: size)
+        } else {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(BrandTokens.surfaceMuted)
+                .frame(width: size, height: size)
+        }
+    }
+}
+
+extension View {
+    /// Redact this song text while `song` is a loading/unavailable placeholder, so demos show
+    /// the system placeholder treatment instead of invented titles.
+    ///
+    /// - Parameter song: The song the text describes.
+    /// - Returns: The view, redacted with `.placeholder` for a placeholder song.
+    func firstRunRedacted(_ song: Song) -> some View {
+        redacted(reason: song.isFirstRunPlaceholder ? .placeholder : [])
     }
 }
 

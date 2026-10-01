@@ -137,32 +137,43 @@ struct FirstRunStatsPercentilesDemo: View {
 
 // MARK: - statistics-top-songs
 
-/// Ported from `pages/player/firstRun/demo/TopSongsDemo.tsx`: a player's highest-percentile
-/// songs, using `FirstRunAlbumArtPlaceholder` in place of network album art.
+/// Ported from `pages/player/firstRun/demo/TopSongsDemo.tsx`: real catalogue songs (with their
+/// artwork) assigned the web's static demo percentiles; redacted placeholders until the
+/// catalogue answers.
 struct FirstRunStatsTopSongsDemo: View {
-    private let percentiles = [1.2, 3.5, 7.8, 14.2]
+    /// The web's `DEMO_PERCENTILES`.
+    private static let percentiles = [1.2, 3.5, 7.8, 14.2, 22.6, 35.1, 48.9]
 
     var body: some View {
-        VStack(spacing: 8) {
-            ForEach(Array(FirstRunDemoPool.songs.prefix(4).enumerated()), id: \.element.id) { index, song in
-                HStack(spacing: 12) {
-                    FirstRunAlbumArtPlaceholder()
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(song.title).font(.subheadline.weight(.semibold))
-                            .foregroundStyle(FestivalText.primary)
-                        Text(song.artist).font(.caption)
-                            .foregroundStyle(FestivalText.primary)
+        FirstRunCatalogueSongs(count: 4) { songs, session in
+            VStack(spacing: 8) {
+                ForEach(Array(songs.enumerated()), id: \.element.id) { index, song in
+                    HStack(spacing: 12) {
+                        FirstRunSongArt(song: song, session: session)
+                        VStack(alignment: .leading, spacing: 2) {
+                            MarqueeText(song.title).font(.subheadline.weight(.semibold))
+                                .lineLimit(1)
+                            MarqueeText(Self.subtitle(song)).font(.caption)
+                                .lineLimit(1)
+                        }
+                        .foregroundStyle(FestivalText.primary)
+                        .firstRunRedacted(song)
+                        Spacer(minLength: 0)
+                        Text("Top \(Self.percentiles[index % Self.percentiles.count], specifier: "%.1f")%")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(BrandTokens.gold)
                     }
-                    Spacer(minLength: 0)
-                    Text("Top \(percentiles[index], specifier: "%.1f")%")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(BrandTokens.gold)
+                    .padding(10)
+                    .festivalGlass(.card, cornerRadius: 12)
+                    .firstRunStagger(index)
                 }
-                .padding(10)
-                .festivalGlass(.card, cornerRadius: 12)
-                .firstRunStagger(index)
             }
         }
         .accessibilityHidden(true)
+    }
+
+    /// "Artist · Year", like the web's `PlayerSongRow`.
+    private static func subtitle(_ song: Song) -> String {
+        [song.artist, song.year.map(String.init)].compactMap { $0 }.joined(separator: " · ")
     }
 }

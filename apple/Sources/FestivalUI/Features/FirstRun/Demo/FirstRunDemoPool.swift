@@ -4,28 +4,10 @@ import FestivalCore
 // MARK: - Shared static sample data
 
 /// Static sample data shared by the non-Songs first-run demos, mirroring the shape of the web's
-/// `firstRun/demoData.ts` (hand-picked rankings and rivals so demos never touch the network or a
-/// live session — see `.agents/controls/first-run/ios.md`).
+/// `firstRun/demoData.ts` (hand-picked player names, ranks and scores). Song titles and artwork
+/// never come from here: song demos use real catalogue songs via `FirstRunCatalogueSongs` — see
+/// `.agents/controls/first-run/ios.md`.
 enum FirstRunDemoPool {
-    // MARK: Songs
-
-    /// One demo song row, independent of any live `Song`/`FestivalSession`.
-    struct DemoSong: Identifiable {
-        let id = UUID()
-        let title: String
-        let artist: String
-        let year: Int
-    }
-
-    static let songs: [DemoSong] = [
-        DemoSong(title: "Neon Skyline", artist: "The Voltage", year: 2023),
-        DemoSong(title: "Midnight Runners", artist: "Echo Parade", year: 2021),
-        DemoSong(title: "Static Bloom", artist: "Halcyon Drift", year: 2024),
-        DemoSong(title: "Paper Heart", artist: "Glass Parade", year: 2020),
-        DemoSong(title: "Voltage Kids", artist: "The Voltage", year: 2022),
-        DemoSong(title: "Afterglow", artist: "Halcyon Drift", year: 2019),
-    ]
-
     // MARK: Rankings
 
     /// One leaderboard row, matching the web's `DemoRankingEntry`.
@@ -166,29 +148,19 @@ enum FirstRunDemoPool {
 
     // MARK: Rival song comparisons (Rivals detail)
 
-    /// One head-to-head song row, matching the web's `RivalsDetailDemo`.
+    /// One head-to-head rank pair, matching the web's `RivalsDetailDemo` "Closest Battles"
+    /// rank data. Song titles come from the live catalogue, never this pool.
     struct RivalComparison: Identifiable {
-        let id = UUID()
-        let title: String
-        let artist: String
         let userRank: Int
         let rivalRank: Int
         let userScore: Int
         let rivalScore: Int
+        var id: Int { userRank }
     }
 
     static let closestBattles: [RivalComparison] = [
-        .init(
-            title: "Neon Skyline", artist: "The Voltage", userRank: 14, rivalRank: 15,
-            userScore: 988_000, rivalScore: 987_500
-        ),
-        .init(
-            title: "Midnight Runners", artist: "Echo Parade", userRank: 23, rivalRank: 22,
-            userScore: 965_000, rivalScore: 965_800
-        ),
-        .init(
-            title: "Static Bloom", artist: "Halcyon Drift", userRank: 8, rivalRank: 9,
-            userScore: 995_200, rivalScore: 994_900
-        ),
+        .init(userRank: 14, rivalRank: 15, userScore: 988_000, rivalScore: 987_500),
+        .init(userRank: 23, rivalRank: 22, userScore: 965_000, rivalScore: 965_800),
+        .init(userRank: 8, rivalRank: 9, userScore: 995_200, rivalScore: 994_900),
     ]
 }

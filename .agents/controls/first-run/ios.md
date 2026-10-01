@@ -95,9 +95,24 @@
 
 `Demo/FirstRunNativeSongsDemos.swift`. The presenter injects `\.firstRunSession`; demos show
 three live catalogue songs with art (the cached keyless `/api/songs`, as the web demos switch to
-catalogue songs once loaded) and fall back to `Song.firstRunFallback` (no art) without a
-session. Demos are inert (no hit testing, hidden from VoiceOver; the slide's title/description
-is the accessible content).
+catalogue songs once loaded). Demos are inert (no hit testing, hidden from VoiceOver; the slide's
+title/description is the accessible content).
+
+### Demo songs come from the catalogue (issue #26)
+
+Every song-using demo (Songs, `statistics-top-songs`, `rivals-detail`,
+`suggestions-category-card`, all four Shop demos) goes through
+`FirstRunCatalogueSongs(count:source:content:)`; no demo ships invented titles.
+- `FestivalCore.FirstRunDemoSongs.pick` ports the web's `useDemoSongs`/`useItemShopDemoSongs`:
+  only songs with art; preferred IDs, then "Epic Games" artists, then the rest. Catalogue order
+  replaces the web's shuffle so captures and tests stay deterministic (`FirstRunDemoSongsTests`).
+- `.itemShop` prefers the session's already-loaded Shop songs only when Shop and catalogue
+  observed publications match; demos never fetch the Shop.
+- Loading, failure or no session: `FirstRunDemoSongs.placeholders` render as muted art tiles with
+  `.redacted(.placeholder)` text (HIG Loading: "use placeholder text, graphics, or animations
+  until content arrives"); the swap to live songs animates unless Reduce Motion is on
+  (`FirstRunHostedTests.songDemosRenderPlaceholdersWithoutCatalogue`). Ranks and percentiles stay
+  static `FirstRunDemoPool` numbers (Top Songs uses the web's `DEMO_PERCENTILES`).
 
 | Slide id | Demo | Real UI used |
 |---|---|---|
@@ -109,9 +124,8 @@ is the accessible content).
 | `songs-metadata` | `FirstRunNativeMetadataDemo` | Row chrome + `SongMetadataFieldView` + `SongProfileMetadataPills` |
 | `songs-shop-highlight` / `-new-in-shop` / `-leaving-tomorrow` | `FirstRunNativeShopDemo` | `SongRowView` with its Shop outline/badge |
 
-Other pages' demos below are still approximations built from design primitives — the batch-7
-deep port (real Song Info, Statistics, Suggestions, Leaderboards, Compete, Rivals and Shop
-views) is open.
+Other pages' demos below are still approximations built from design primitives; the batch-7
+deep port (real Song Info, Statistics, Suggestions, Leaderboards, Compete, Rivals, Shop) is open.
 
 ## Other pages (31 slides) — live native demos (Lane D2, 2026-09-28)
 
@@ -126,16 +140,17 @@ slide added without a demo fails the build instead of silently falling back to
 `FirstRunStaticIllustration`.
 
 Shared building blocks live in `Features/FirstRun/Demo/`:
-- `FirstRunDemoPool.swift` — hand-picked static sample data (songs, rankings, rivals, score
-  history, percentiles, rival comparisons), mirroring the shape of the web's `demoData.ts` so
-  every page's demo pulls from one small, non-networked pool instead of each file inventing its
-  own numbers.
+- `FirstRunDemoPool.swift` — hand-picked static sample numbers (rankings, rivals, score
+  history, percentiles, rival rank/score comparisons), mirroring the shape of the web's
+  `demoData.ts`. It holds no songs: song-using demos read the catalogue (see "Demo songs come
+  from the catalogue" above).
 - `FirstRunDemoSupport.swift` — `firstRunPulse(_:)` (a `repeatForever` glow, standing in for the
   web's `shopBreathe*`/`pulseWrap` CSS animations; a no-op under Reduce Motion) and
   `firstRunStagger(_:)` (a brief per-row fade/rise-in echoing the web's cascading `FadeIn`, also a
   no-op under Reduce Motion — appears immediately instead), plus shared row views
   (`FirstRunRankRow`, `FirstRunRivalRow`, `FirstRunViewAllRow`, `FirstRunInstrumentHeader`,
-  `FirstRunAlbumArtPlaceholder`) and `firstRunAccuracyTint(_:isFullCombo:)`, an accuracy-to-color
+  `FirstRunSongArt`, which draws a real song's shared-cache artwork or a muted placeholder tile)
+  and `firstRunAccuracyTint(_:isFullCombo:)`, an accuracy-to-color
   ramp approximating the web's `accuracyColor` gradient.
 
 Both animation helpers are pure SwiftUI (`withAnimation`/`repeatForever`), not `Timer`/Combine —
@@ -165,8 +180,8 @@ still faithful to the slide's title/description, just not animated over time.
 | `statistics-overview` | `FirstRunStatsOverviewDemo` | 2-col global summary stat grid |
 | `statistics-instrument-breakdown` | `FirstRunStatsInstrumentBreakdownDemo` | Instrument header + 2-col stat grid |
 | `statistics-percentiles` | `FirstRunStatsPercentilesDemo` | Percentile/song-count table |
-| `statistics-top-songs` | `FirstRunStatsTopSongsDemo` | Song rows with percentile badges |
-| `suggestions-category-card` | `FirstRunSuggestionsCategoryCardDemo` | One themed card ("Almost Full Combo"); web rotates templates on a timer, this shows the first |
+| `statistics-top-songs` | `FirstRunStatsTopSongsDemo` | 4 catalogue song rows (art, artist · year) with the web's demo percentile badges |
+| `suggestions-category-card` | `FirstRunSuggestionsCategoryCardDemo` | One themed card ("Almost Full Combo") of 2 catalogue songs: the real `SuggestionCategoryCardView` with a session, else a redacted approximation; web rotates templates on a timer, this shows the first |
 | `suggestions-global-filter` | `FirstRunSuggestionsGlobalFilterDemo` | Suggestion-type toggle list, all enabled |
 | `suggestions-instrument-filter` | `FirstRunSuggestionsInstrumentFilterDemo` | Instrument row + that instrument's toggles |
 | `suggestions-infinite-scroll` | `FirstRunSuggestionsInfiniteScrollDemo` | Stacked cards with a bottom fade mask (web auto-scrolls via `requestAnimationFrame`; a perpetual scroll loop is exactly the excluded "heavy" case) |
@@ -178,14 +193,15 @@ still faithful to the slide's title/description, just not animated over time.
 | `compete-rivals` | `FirstRunCompeteRivalsDemo` | Above/Below rival rows |
 | `rivals-overview` | `FirstRunRivalsOverviewDemo` | Above/Below rival rows |
 | `rivals-instruments` | `FirstRunRivalsInstrumentsDemo` | Per-instrument (Lead/Drums/Vocals) rival sections |
-| `rivals-detail` | `FirstRunRivalsDetailDemo` | "Closest Battles" song comparison rows (web cycles categories on a timer) |
-| `shop-overview` | `FirstRunShopOverviewDemo` | Grid of placeholder tiles |
-| `shop-highlighting` | `FirstRunShopHighlightingDemo` | Rows alternate a pulsing green highlight and none |
+| `rivals-detail` | `FirstRunRivalsDetailDemo` | "Closest Battles" rows: catalogue songs with static rank comparisons (web cycles categories on a timer) |
+| `shop-overview` | `FirstRunShopOverviewDemo` | 3-column grid of 6 Item Shop/catalogue song art tiles |
+| `shop-highlighting` | `FirstRunShopHighlightingDemo` | Item Shop/catalogue song rows alternate a pulsing green highlight and none |
 | `shop-new-items` | `FirstRunShopNewItemsDemo` | Rows cycle gold/green/none by index (static per-row assignment, no timer) |
 | `shop-leaving-tomorrow` | `FirstRunShopLeavingTomorrowDemo` | Rows cycle red/green/none by index |
 
-Simplified vs. the web on every demo: no live network album art or session data (matching the
-web's own hardcoded first-run pools), no interactive taps (the carousel demos are inert previews,
+Simplified vs. the web on every demo: song-using demos show catalogue songs and their art, but
+ranks, scores and percentiles are static demo numbers rather than the player's session data
+(matching the web's own first-run pools), no interactive taps (the carousel demos are inert previews,
 same as Songs'), and the several content-*rotation* timers noted above collapse to one
 representative state instead of cycling.
 
