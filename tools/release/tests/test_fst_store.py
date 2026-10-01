@@ -115,7 +115,7 @@ class Base(unittest.TestCase):
         out = io.StringIO()
         with redirect_stdout(out):
             code = fs.main(argv, env=env or self.env, transport=transport, runner=runner,
-                           stdin=io.StringIO(stdin or ""))
+                           stdin=io.StringIO("• Rows load faster." if stdin is None else stdin))
         text = out.getvalue()
         self.assertNotIn("s3cret-value", text)
         self.assertNotIn("tok-123", text)
@@ -240,12 +240,16 @@ class SubmitTests(Base):
         put = next(c for c in store.calls if c[:2] == ("PUT", API + "/submissions/300"))[2]
         self.assertEqual(put["listings"]["en-us"]["baseListing"]["releaseNotes"], "• Windows rows load faster.")
 
-    def test_default_notes_and_no_publish_mode_option(self):
+    def test_nothing_user_facing_is_refused_and_no_publish_mode_option(self):
         store = FakeStore(self.submit_routes())
         code, doc = self.run_cli(["submit", "--build", "0.1.912.0", "--notes-stdin"], store, FakeGh(), stdin="  ")
-        self.assertEqual((code, doc["publish_mode"]), (0, "Manual"))
-        put = next(c for c in store.calls if c[:2] == ("PUT", API + "/submissions/300"))[2]
-        self.assertEqual(put["listings"]["en-us"]["baseListing"]["releaseNotes"], fr.DEFAULT_NOTES)
+        self.assertEqual((code, doc["refused"]), (3, "no_user_facing_changes"))
+        self.assertFalse(any(c[0] == "POST" and c[1].endswith("/submissions") for c in store.calls))
+        # The build's own (empty) notes win over the orchestrator's: nothing user-facing, no generic text.
+        store = FakeStore(self.submit_routes())
+        gh = FakeGh(build_json=json.dumps({"version": "0.1.912.0", "store_notes": ""}))
+        code, doc = self.run_cli(["submit", "--build", "0.1.912.0", "--notes-stdin"], store, gh, stdin="Other")
+        self.assertEqual((code, doc["refused"]), (3, "no_user_facing_changes"))
         with self.assertRaises(SystemExit), redirect_stderr(io.StringIO()):
             fs.build_parser().parse_args(["submit", "--build", "1", "--notes-stdin", "--publish-mode", "immediate"])
 

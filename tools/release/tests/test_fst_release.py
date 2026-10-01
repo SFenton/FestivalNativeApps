@@ -419,10 +419,10 @@ class SubmitTests(TempHome):
         self.assertEqual(len(client.planned), 6)
         self.assertFalse(result["submitted"])
 
-    def test_empty_notes_use_default_and_long_notes_are_capped(self):
-        fake, _c, _r = self.run_submit(self.routes(self.released), notes="  \n")
-        loc = [b for m, p, _q, b, _h in fake.calls if (m, p) == ("POST", "/v1/appStoreVersionLocalizations")][0]
-        self.assertEqual(loc["data"]["attributes"]["whatsNew"], fr.DEFAULT_NOTES)
+    def test_empty_notes_are_refused_and_long_notes_are_capped(self):
+        fake, _c, result = self.run_submit(self.routes(self.released), notes="  \n")
+        self.assertEqual(result["refused"], "no_user_facing_changes")
+        self.assertEqual(fake.writes(), [])
         fake, _c, _r = self.run_submit(self.routes(self.released), notes="x" * 5000)
         loc = [b for m, p, _q, b, _h in fake.calls if (m, p) == ("POST", "/v1/appStoreVersionLocalizations")][0]
         self.assertEqual(len(loc["data"]["attributes"]["whatsNew"]), fr.WHATS_NEW_LIMIT)

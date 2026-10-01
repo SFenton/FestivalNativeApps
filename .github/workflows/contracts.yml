@@ -3,6 +3,8 @@ on:
   push:
     branches: [master]
   pull_request:
+    # `edited`: Release-Note trailers usually live in the PR description.
+    types: [opened, synchronize, reopened, edited]
 permissions:
   contents: read
 jobs:
@@ -10,9 +12,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Release notes present for app changes
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          printf '%s' "$PR_BODY" > "$RUNNER_TEMP/pr-body.md"
+          python3 tools/release/versioning.py check-notes --base "$BASE_SHA" --head "$HEAD_SHA" \
+            --body-file "$RUNNER_TEMP/pr-body.md"
       - run: python3 -m unittest discover -s tools/tests
       - run: python3 tools/verify_product.py
       - run: python3 tools/parity_backlog.py
