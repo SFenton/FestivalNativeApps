@@ -41,9 +41,9 @@ class ChangelogSeenStore(private val blob: BlobStore) {
      * Whether the sheet is owed for a changelog hash.
      *
      * @param hash Current changelog hash.
-     * @return True when never dismissed or dismissed for different content.
+     * @return True when the changelog has content and was never dismissed or was dismissed for different content.
      */
-    suspend fun shouldShow(hash: String = Changelog.currentHash): Boolean = load()?.hash != hash
+    suspend fun shouldShow(hash: String = Changelog.currentHash): Boolean = hash != Changelog.emptyHash && load()?.hash != hash
 
     /**
      * Persist a dismissal.

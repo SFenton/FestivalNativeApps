@@ -17,8 +17,10 @@ android {
         applicationId = "com.festivalscoretracker.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.2.0"
+        // Release builds pass the `android/v<YYMM.NN>` tag's mapping (tools/release/versioning.py describe):
+        // -PfstVersionName=2610.01 -PfstVersionCode=261000100. Local builds keep the development values.
+        versionCode = (findProperty("fstVersionCode") as String?)?.toInt() ?: 1
+        versionName = (findProperty("fstVersionName") as String?) ?: "0.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Keyless public HTTPS by default in every build type (AGENTS.md); fixture
         // runs select a loopback origin explicitly via the FST_ORIGIN debug extra.
