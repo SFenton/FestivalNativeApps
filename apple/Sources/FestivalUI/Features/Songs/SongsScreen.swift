@@ -1368,16 +1368,36 @@ private extension SongShopSectionKind {
 /// Keep anonymous catalogue and Shop sorting as an Apply/Reset/Discard draft.
 
 /// Reports whether a scroll view has moved away from its top (iOS 18+; always false
-/// before, so older systems keep the floating tools).
+/// before, so older systems keep the floating tools). ``ScrollAwayGate`` keeps the
+/// chrome this report moves from feeding back into it (issue #5).
 private struct ScrolledAwayTracker: ViewModifier {
     let changed: (Bool) -> Void
+    @State private var gate = ScrollAwayGate()
+    /// The last value sent to `changed`; nil until the first decision is reported.
+    @State private var reported: Bool?
+
+    /// The geometry values the gate needs.
+    private struct Sample: Equatable {
+        let offsetY: CGFloat
+        let topInset: CGFloat
+        let width: CGFloat
+    }
 
     func body(content: Content) -> some View {
         if #available(iOS 18.0, macOS 15.0, *) {
-            content.onScrollGeometryChange(for: Bool.self) { geometry in
-                geometry.contentOffset.y + geometry.contentInsets.top > 24
-            } action: { _, scrolled in
-                changed(scrolled)
+            content.onScrollGeometryChange(for: Sample.self) { geometry in
+                Sample(
+                    offsetY: geometry.contentOffset.y, topInset: geometry.contentInsets.top,
+                    width: geometry.containerSize.width
+                )
+            } action: { _, sample in
+                gate.update(
+                    offsetY: sample.offsetY, topInset: sample.topInset,
+                    containerWidth: sample.width
+                )
+                guard reported != gate.isScrolled else { return }
+                reported = gate.isScrolled
+                changed(gate.isScrolled)
             }
         } else {
             content
