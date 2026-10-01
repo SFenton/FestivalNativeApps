@@ -2,12 +2,11 @@ import Foundation
 
 // MARK: - Model
 
-/// One titled group of changelog bullets, ported from the web's `ChangelogSection`
-/// (`FortniteFestivalWeb/src/changelog.ts`).
+/// One titled group of changelog bullets: a released app version and its notes.
 public struct ChangelogSection: Sendable, Equatable, Identifiable {
-    /// Heading exactly as the web data spells it (upper case; the web upper-cases in CSS).
+    /// Heading, e.g. "Version 2610.01".
     public let title: String
-    /// Bullet sentences, in web order.
+    /// Bullet sentences, in release-note order.
     public let items: [String]
 
     public var id: String { title }
@@ -15,7 +14,7 @@ public struct ChangelogSection: Sendable, Equatable, Identifiable {
     /// Create a section.
     ///
     /// - Parameters:
-    ///   - title: Heading as written in the web data.
+    ///   - title: Heading.
     ///   - items: Bullet sentences.
     public init(title: String, items: [String]) {
         self.title = title
@@ -26,76 +25,110 @@ public struct ChangelogSection: Sendable, Equatable, Identifiable {
     public var displayTitle: String { Changelog.titleCase(title) }
 }
 
-/// One release's worth of changelog sections, the web's `ChangelogEntry`.
+/// One app version's worth of changelog sections.
 public struct ChangelogEntry: Sendable, Equatable {
-    /// Sections in web order.
+    /// App version (`YYMM.NN`) the notes belong to; nil for ad-hoc entries.
+    public let version: String?
+    /// Whether that version had reached the App Store when this build was made (the built
+    /// version itself is listed unreleased).
+    public let released: Bool
+    /// Sections in display order.
     public let sections: [ChangelogSection]
 
     /// Create an entry.
     ///
-    /// - Parameter sections: Sections in web order.
-    public init(sections: [ChangelogSection]) {
+    /// - Parameters:
+    ///   - version: App version the notes belong to.
+    ///   - released: Whether that version was already released at build time.
+    ///   - sections: Sections in display order.
+    public init(version: String? = nil, released: Bool = true, sections: [ChangelogSection]) {
+        self.version = version
+        self.released = released
         self.sections = sections
     }
 }
 
 // MARK: - Catalog
 
-/// The "What's New" changelog, ported verbatim from the web so its content hash matches the
-/// web's `changelogHash()` (`FortniteFestivalWeb/src/changelogHash.ts`).
+/// The "What's New" changelog: one section per released app version, newest first.
 ///
-/// The web shows the card whenever the stored hash differs from the current one; natives use
-/// the same rule (see `ChangelogSeenStore`). Keep `entries` byte-identical to the web data and
-/// update `webHash` in the same commit; `ChangelogTests` fails if the two drift.
+/// Release builds generate `WhatsNew.json` (bundled from `apple/Apps/<platform>/`) with
+/// `tools/release/versioning.py whats-new` from the platform's `Release-Note` commit trailers
+/// and App Store Connect's released versions, so intermediate TestFlight builds fold into
+/// the next released version. The checked-in file is a development placeholder. The card
+/// shows whenever the content hash differs from the dismissed one (see `ChangelogSeenStore`).
 public enum Changelog {
-    /// Web release the entries were copied from (`package.json` version at capture time).
-    public static let webVersion = "0.1.133"
+    /// Bundle resource name of the generated changelog.
+    public static let resourceName = "WhatsNew"
 
-    /// The web's precomputed `CURRENT_CHANGELOG_HASH` for `entries`.
-    public static let webHash = "-6p8bh3"
+    /// Most entries kept from the document (the generator writes at most 10).
+    static let maxEntries = 20
+    /// Most bullets kept per entry.
+    static let maxItems = 40
+    /// Longest bullet kept, in characters.
+    static let maxItemLength = 600
 
-    /// Changelog entries exactly as the web ships them.
-    public static let entries: [ChangelogEntry] = [
-        ChangelogEntry(sections: [
-            ChangelogSection(title: "ITEM SHOP", items: [
-                "Newly released songs in the Item Shop have a gold pulse on Songs Page and Song Details.",
-                "Songs in the Item Shop that aren't leaving tomorrow now have a green pulse, to match "
-                    + "the gold/green/red styles of the instrument chips on Songs Page.",
-            ]),
-            ChangelogSection(title: "MOBILE", items: [
-                "FAB buttons and other dock buttons now animate in for a more visually pleasing experience.",
-                "Fixed a bug in search modal where dismissing the keyboard after results show did not "
-                    + "expand results view appropriately.",
-            ]),
-            ChangelogSection(title: "SONG DETAILS", items: [
-                "Fixed a bug where leaderboard ranks did not reflect the actual Epic leaderboard value "
-                    + "in some cases.",
-            ]),
-            ChangelogSection(title: "NOTIFICATIONS", items: [
-                "Fixed a bug where notification alerts would reset when you re-open the web browser.",
-                "Added support for switching profiles/bands and returning to a different profile/band "
-                    + "and seeing the appropriate amount of unread notifications, instead of all of them.",
-            ]),
-            ChangelogSection(title: "RIVALS", items: [
-                "Improved performance when viewing a Rival for the first time.",
-                "Improved availability of Rivals during scrape.",
-            ]),
-            ChangelogSection(title: "LEADERBOARDS", items: [
-                "Changed to instrument icons on combo leaderboards instead of \"Lead + ...\" text.",
-                "Updated FAB dock on mobile to match other pages.",
-            ]),
-        ]),
-    ]
+    /// Entries bundled with the app (empty when the resource is missing or invalid).
+    public static let entries: [ChangelogEntry] = load(bundle: .main)
 
-    /// Content hash of the current entries; drives "show once per changelog".
+    /// Content hash of the bundled entries; drives "show once per changelog".
     public static var currentHash: String { hash(entries) }
+
+    /// Hash of an empty changelog; a store never shows the card for it.
+    public static let emptyHash = hash([])
+
+    /// Read `WhatsNew.json` from a bundle.
+    ///
+    /// - Parameter bundle: Bundle holding the resource (`.main` in the app).
+    /// - Returns: Decoded entries, or an empty array when absent or invalid.
+    public static func load(bundle: Bundle) -> [ChangelogEntry] {
+        guard let url = bundle.url(forResource: resourceName, withExtension: "json"),
+              let data = try? Data(contentsOf: url)
+        else { return [] }
+        return (try? decode(data)) ?? []
+    }
+
+    /// Decode a `versioning.py whats-new` document
+    /// (`{schema, platform, version, baseline, entries: [{version, released, items}]}`).
+    ///
+    /// - Parameter data: JSON document.
+    /// - Returns: One entry per version with a single "Version <v>" section, bounded in size;
+    ///   versions without notes are skipped.
+    /// - Throws: `DecodingError` for malformed JSON.
+    public static func decode(_ data: Data) throws -> [ChangelogEntry] {
+        let document = try JSONDecoder().decode(WhatsNewDocument.self, from: data)
+        return document.entries.prefix(maxEntries).compactMap { entry in
+            let version = String(entry.version.prefix(32))
+            let items = entry.items
+                .map { String($0.trimmingCharacters(in: .whitespacesAndNewlines).prefix(maxItemLength)) }
+                .filter { !$0.isEmpty }
+                .prefix(maxItems)
+            guard !version.isEmpty, !items.isEmpty else { return nil }
+            return ChangelogEntry(
+                version: version,
+                released: entry.released ?? true,
+                sections: [ChangelogSection(title: "Version \(version)", items: Array(items))]
+            )
+        }
+    }
+
+    /// Wire shape of the generated document (unknown keys ignored).
+    private struct WhatsNewDocument: Decodable {
+        struct Entry: Decodable {
+            let version: String
+            let released: Bool?
+            let items: [String]
+        }
+
+        let entries: [Entry]
+    }
 
     // MARK: Display
 
     /// Entries as natives display them: the deprecated Manual feature is never advertised, so
     /// any section titled Manual or bullet naming it is dropped, and empty sections removed.
     ///
-    /// - Parameter entries: Web-identical entries.
+    /// - Parameter entries: Bundled entries.
     /// - Returns: Entries safe to render natively.
     public static func displayEntries(_ entries: [ChangelogEntry] = entries) -> [ChangelogEntry] {
         entries.compactMap { entry in
@@ -104,7 +137,8 @@ public enum Changelog {
                 let items = section.items.filter { !mentionsManual($0) }
                 return items.isEmpty ? nil : ChangelogSection(title: section.title, items: items)
             }
-            return sections.isEmpty ? nil : ChangelogEntry(sections: sections)
+            return sections.isEmpty
+                ? nil : ChangelogEntry(version: entry.version, released: entry.released, sections: sections)
         }
     }
 
@@ -139,13 +173,15 @@ public enum Changelog {
             .joined(separator: " ")
     }
 
-    // MARK: Hash (web-compatible)
+    // MARK: Hash
 
-    /// The web's `calculateChangelogHash`: a 32-bit `((h << 5) - h) + code` over the UTF-16
-    /// code units of `JSON.stringify(entries)`, printed in base 36 with a sign.
+    /// Content hash in the web's `calculateChangelogHash` form: a 32-bit
+    /// `((h << 5) - h) + code` over the UTF-16 code units of `JSON.stringify(entries)`'s
+    /// section shape, printed in base 36 with a sign. Section titles carry the version, so
+    /// a newly released version always changes it.
     ///
     /// - Parameter entries: Entries to hash.
-    /// - Returns: Hash string identical to the web's for identical data.
+    /// - Returns: Short hash string.
     public static func hash(_ entries: [ChangelogEntry]) -> String {
         var value: Int32 = 0
         for unit in canonicalJSON(entries).utf16 {
@@ -252,9 +288,10 @@ public final class ChangelogSeenStore: @unchecked Sendable {
     /// Whether the card should show for a changelog hash.
     ///
     /// - Parameter hash: Current changelog hash.
-    /// - Returns: True when never dismissed or dismissed for different content.
+    /// - Returns: True when the changelog has content and was never dismissed or was
+    ///   dismissed for different content.
     public func shouldShow(hash: String = Changelog.currentHash) -> Bool {
-        load()?.hash != hash
+        hash != Changelog.emptyHash && load()?.hash != hash
     }
 
     /// Persist a dismissal.

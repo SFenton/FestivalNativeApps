@@ -2,16 +2,71 @@ import Foundation
 import Testing
 @testable import FestivalCore
 
-// MARK: - Hash parity
+// MARK: - Generated document
 
-@Test func changelogHashMatchesWebPrecomputedHash() {
-    #expect(Changelog.currentHash == Changelog.webHash)
+private let sampleDocument = #"""
+{"schema": 1, "platform": "ios", "version": "2610.04", "baseline": "2610.03", "extra": true,
+ "entries": [
+  {"version": "2610.04", "released": false, "items": ["Rivals refresh correctly.", "  "]},
+  {"version": "2610.03", "released": true, "items": ["The Item Shop badge is back.", "Songs load faster."]},
+  {"version": "2610.02", "released": true, "items": []},
+  {"version": "2610.01", "items": ["The first release of Festival Score Tracker for iPhone."]}
+ ]}
+"""#
+
+@Test func decodesOneVersionSectionPerEntry() throws {
+    let entries = try Changelog.decode(Data(sampleDocument.utf8))
+    #expect(entries.map(\.version) == ["2610.04", "2610.03", "2610.01"])
+    #expect(entries.map(\.released) == [false, true, true])
+    #expect(entries[0].sections == [ChangelogSection(title: "Version 2610.04", items: ["Rivals refresh correctly."])])
+    #expect(entries[1].sections[0].items == ["The Item Shop badge is back.", "Songs load faster."])
+    #expect(entries[1].sections[0].displayTitle == "Version 2610.03")
 }
 
+@Test func decodeBoundsAndRejectsMalformedDocuments() throws {
+    let longItem = String(repeating: "a", count: 2000)
+    let many = (0..<50).map { #"{"version":"2610.\#($0)","items":["\#(longItem)"]}"# }.joined(separator: ",")
+    let entries = try Changelog.decode(Data(#"{"entries":[\#(many)]}"#.utf8))
+    #expect(entries.count == Changelog.maxEntries)
+    #expect(entries[0].sections[0].items[0].count == Changelog.maxItemLength)
+    #expect(throws: (any Error).self) { try Changelog.decode(Data("[]".utf8)) }
+    #expect(throws: (any Error).self) { try Changelog.decode(Data(#"{"entries":[{"items":[]}]}"#.utf8)) }
+}
+
+@Test func loadReadsBundleResourceOrFallsBackToEmpty() throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("changelog-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let bundle = try #require(Bundle(path: directory.path))
+    #expect(Changelog.load(bundle: bundle).isEmpty)
+    try Data("not json".utf8).write(to: directory.appendingPathComponent("WhatsNew.json"))
+    #expect(Changelog.load(bundle: try #require(Bundle(path: directory.path))).isEmpty)
+    try Data(sampleDocument.utf8).write(to: directory.appendingPathComponent("WhatsNew.json"))
+    // Bundle caches lookups per instance path; a fresh directory avoids stale negative caching.
+    let fresh = directory.appendingPathComponent("fresh", isDirectory: true)
+    try FileManager.default.createDirectory(at: fresh, withIntermediateDirectories: true)
+    try Data(sampleDocument.utf8).write(to: fresh.appendingPathComponent("WhatsNew.json"))
+    #expect(Changelog.load(bundle: try #require(Bundle(path: fresh.path))).count == 3)
+}
+
+@Test func checkedInPlaceholdersDecode() throws {
+    let root = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    for app in ["iOS", "macOS"] {
+        let data = try Data(contentsOf: root.appendingPathComponent("Apps/\(app)/WhatsNew.json"))
+        #expect(try Changelog.decode(data).count == 1)
+    }
+}
+
+// MARK: - Hash
+
 @Test func changelogHashChangesWithContent() {
-    let edited = [ChangelogEntry(sections: [ChangelogSection(title: "X", items: ["y"])])]
-    #expect(Changelog.hash(edited) != Changelog.webHash)
-    #expect(Changelog.hash([]) == Changelog.hash([]))
+    let one = [ChangelogEntry(version: "2610.01", sections: [ChangelogSection(title: "Version 2610.01", items: ["y"])])]
+    let two = [ChangelogEntry(version: "2610.02", sections: [ChangelogSection(title: "Version 2610.02", items: ["y"])])]
+        + one
+    #expect(Changelog.hash(one) != Changelog.hash(two))
+    #expect(Changelog.hash([]) == Changelog.emptyHash)
     #expect(Changelog.hash([]) == "28y")  // "[]": 91 * 31 + 93 = 2914, "28y" in base 36
 }
 
@@ -34,7 +89,6 @@ import Testing
     #expect(Changelog.titleCase("ITEM SHOP") == "Item Shop")
     #expect(Changelog.titleCase("RIVALS AND OF THE WORLD") == "Rivals and of the World")
     #expect(Changelog.titleCase("THE  SHOP") == "The Shop")
-    #expect(Changelog.entries[0].sections.map(\.displayTitle).first == "Item Shop")
 }
 
 @Test func displayEntriesDropManualContent() {
@@ -51,8 +105,13 @@ import Testing
     #expect(shown[0].sections.map(\.title) == ["SONGS"])
     #expect(shown[0].sections[0].items == ["Faster rows."])
     #expect(Changelog.mentionsManual("Manually") == false)
-    // The shipped data has no Manual content, so nothing is dropped.
-    #expect(Changelog.displayEntries() == Changelog.entries)
+    let versioned = [ChangelogEntry(version: "2610.02", released: false, sections: [
+        ChangelogSection(title: "Version 2610.02", items: ["Faster rows.", "Manual removed."]),
+    ])]
+    let kept = Changelog.displayEntries(versioned)
+    #expect(kept.map(\.version) == ["2610.02"])
+    #expect(kept.map(\.released) == [false])
+    #expect(kept[0].sections[0].items == ["Faster rows."])
 }
 
 // MARK: - Seen store
@@ -68,13 +127,18 @@ private func isolatedDefaults() -> UserDefaults {
     let defaults = isolatedDefaults()
     let store = ChangelogSeenStore(defaults: defaults)
     #expect(store.load() == nil)
-    #expect(store.shouldShow())
-    store.markSeen(version: "1.0")
-    #expect(store.load() == ChangelogSeenRecord(version: "1.0", hash: Changelog.currentHash))
-    #expect(store.shouldShow() == false)
+    #expect(store.shouldShow(hash: "abc"))
+    store.markSeen(version: "2610.01", hash: "abc")
+    #expect(store.load() == ChangelogSeenRecord(version: "2610.01", hash: "abc"))
+    #expect(store.shouldShow(hash: "abc") == false)
     #expect(store.shouldShow(hash: "other"))
     store.reset()
-    #expect(store.shouldShow())
+    #expect(store.shouldShow(hash: "abc"))
+}
+
+@Test func seenStoreNeverShowsAnEmptyChangelog() {
+    let store = ChangelogSeenStore(defaults: isolatedDefaults())
+    #expect(store.shouldShow(hash: Changelog.emptyHash) == false)
 }
 
 @Test func seenStoreTreatsCorruptOrOversizedDataAsUnseen() {
@@ -92,7 +156,7 @@ private func isolatedDefaults() -> UserDefaults {
         Data(#"{"version":"1","hash":"\#(String(repeating: "a", count: 40))"}"#.utf8),
         forKey: ChangelogSeenStore.storageKey
     )
-    #expect(store.shouldShow())
+    #expect(store.shouldShow(hash: "abc"))
     store.markSeen(version: String(repeating: "9", count: 100))
     #expect(store.load()?.version.count == 64)
 }

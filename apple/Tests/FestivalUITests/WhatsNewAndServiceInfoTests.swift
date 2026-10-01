@@ -55,7 +55,7 @@ private func launcherDefaults() -> UserDefaults {
 @Test func whatsNewLauncherPresentsOnceAndPersistsDismissal() {
     let store = ChangelogSeenStore(defaults: launcherDefaults())
     let center = FirstRunCenter(debugMode: .normal)
-    let launcher = WhatsNewLauncher(store: store, environment: ["FST_DEBUG_WHATS_NEW": "on"])
+    let launcher = WhatsNewLauncher(store: store, environment: ["FST_DEBUG_WHATS_NEW": "on"], changelogHash: "abc")
     #expect(launcher.resolveIfNeeded())
     // A carousel holds the slot: wait.
     #expect(center.claim("songs"))
@@ -69,15 +69,23 @@ private func launcherDefaults() -> UserDefaults {
     #expect(center.activeKey == nil)
     #expect(store.load()?.version == "3.0")
     // Next launch with the real gate: nothing owed.
-    let next = WhatsNewLauncher(store: store, environment: ["FST_DEBUG_WHATS_NEW": "on"])
+    let next = WhatsNewLauncher(store: store, environment: ["FST_DEBUG_WHATS_NEW": "on"], changelogHash: "abc")
     #expect(!next.resolveIfNeeded())
+    // A newly released version changes the hash: owed again. An empty changelog never is.
+    #expect(WhatsNewLauncher(store: store, environment: ["FST_DEBUG_WHATS_NEW": "on"], changelogHash: "def")
+        .resolveIfNeeded())
+    #expect(!WhatsNewLauncher(
+        store: ChangelogSeenStore(defaults: launcherDefaults()),
+        environment: ["FST_DEBUG_WHATS_NEW": "on"],
+        changelogHash: Changelog.emptyHash
+    ).resolveIfNeeded())
 }
 
 @MainActor
 @Test func whatsNewLauncherFreshResetsOnceAndOffNeverPresents() {
     let store = ChangelogSeenStore(defaults: launcherDefaults())
-    store.markSeen(version: "1")
-    let fresh = WhatsNewLauncher(store: store, environment: ["FST_DEBUG_WHATS_NEW": "fresh"])
+    store.markSeen(version: "1", hash: "abc")
+    let fresh = WhatsNewLauncher(store: store, environment: ["FST_DEBUG_WHATS_NEW": "fresh"], changelogHash: "abc")
     #expect(fresh.resolveIfNeeded())
     #expect(fresh.resolved)
     store.markSeen(version: "1")
@@ -245,11 +253,21 @@ private struct Boom: Error {}
 // MARK: - Hosted renders
 
 #if os(macOS)
+/// Two versions, as a release build's generated `WhatsNew.json` would list them.
+private let sampleWhatsNewEntries = [
+    ChangelogEntry(version: "2610.02", released: false, sections: [
+        ChangelogSection(title: "Version 2610.02", items: ["Rivals refresh correctly."]),
+    ]),
+    ChangelogEntry(version: "2610.01", sections: [
+        ChangelogSection(title: "Version 2610.01", items: ["The first release of Festival Score Tracker for iPhone."]),
+    ]),
+]
+
 @MainActor
 @Test func whatsNewSheetRendersTitleCaseSectionsAndDismiss() async throws {
     let size = CGSize(width: 402, height: 874)
     let host = nativeHostedView(
-        WhatsNewSheet(version: "1.0", entries: Changelog.displayEntries()) {}
+        WhatsNewSheet(version: "2610.02", entries: Changelog.displayEntries(sampleWhatsNewEntries)) {}
             .frame(width: size.width, height: size.height)
             .background(BrandTokens.cardBackground)
             .preferredColorScheme(.dark),
@@ -257,7 +275,7 @@ private struct Boom: Error {}
     )
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
-    let expected = ["Item Shop", "Song Details", "Dismiss"]
+    let expected = ["Version 2610.02", "Version 2610.01", "Dismiss"]
     let image = try await nativeHostedSettle(host, untilText: expected)
     _ = try nativeHostedPNG(image, filename: "whats-new.png", environment: "FST_WHATS_NEW_RENDER_OUT")
     assertRendersContent(host, image: image, containing: expected)

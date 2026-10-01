@@ -85,6 +85,7 @@ final class WhatsNewLauncher {
 
     private let store: ChangelogSeenStore
     private let environment: [String: String]
+    private let changelogHash: String
     private(set) var resolved = false
     private(set) var pending = false
 
@@ -93,12 +94,15 @@ final class WhatsNewLauncher {
     /// - Parameters:
     ///   - store: Dismissal persistence.
     ///   - environment: Launch environment for `WhatsNewDebugMode`.
+    ///   - changelogHash: Hash of the changelog to gate on (the bundled `WhatsNew.json` in the app).
     init(
         store: ChangelogSeenStore = ChangelogSeenStore(),
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        changelogHash: String = Changelog.currentHash
     ) {
         self.store = store
         self.environment = environment
+        self.changelogHash = changelogHash
     }
 
     /// Resolve the gate the first time only.
@@ -110,7 +114,7 @@ final class WhatsNewLauncher {
             resolved = true
             let mode = WhatsNewDebugMode.resolve(environment: environment)
             if mode == .fresh { store.reset() }
-            pending = WhatsNewGate.isPending(mode: mode, hasUnseenChangelog: store.shouldShow())
+            pending = WhatsNewGate.isPending(mode: mode, hasUnseenChangelog: store.shouldShow(hash: changelogHash))
         }
         return pending
     }
@@ -131,7 +135,7 @@ final class WhatsNewLauncher {
     ///   - center: Session first-run coordinator.
     ///   - version: App version shown in the sheet.
     func finish(in center: FirstRunCenter, version: String = WhatsNewGate.appVersion()) {
-        store.markSeen(version: version)
+        store.markSeen(version: version, hash: changelogHash)
         center.release(WhatsNewGate.slotKey)
     }
 }

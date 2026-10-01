@@ -26,7 +26,8 @@ final class WhatsNewJourneyTests: XCTestCase {
         first.launch()
         let dismiss = first.buttons["fst.whats-new.dismiss"]
         XCTAssertTrue(dismiss.waitForExistence(timeout: 20), "What's New did not present at launch")
-        XCTAssertTrue(first.staticTexts["Item Shop"].exists)
+        // The checked-in WhatsNew.json placeholder; release builds regenerate it.
+        XCTAssertTrue(first.staticTexts["Version 2610.01"].exists)
         SongsUITestSupport.record(first, name: "whats-new-launch")
         dismiss.tap()
         XCTAssertTrue(dismiss.waitForNonExistence(timeout: 10))
