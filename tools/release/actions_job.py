@@ -12,9 +12,10 @@ the release orchestrator dispatches ``store-release.yml`` and reads the
 ``output`` is the JSON document printed by ``fst_release.py`` (exit codes as
 there). Policy enforced here, independent of the orchestrator:
 
-- iOS ``submit`` (App Store review, which auto-releases on approval) is refused
-  with ``blocked: app_store_review_disabled`` unless
-  ``FST_APPSTORE_REVIEW_ENABLED=true`` (repository variable).
+- iOS ``submit`` (App Store review) is refused with
+  ``blocked: app_store_review_disabled`` unless
+  ``FST_APPSTORE_REVIEW_ENABLED=true`` (repository variable). Approved versions
+  wait for a manual release unless ``FST_APPSTORE_RELEASE_TYPE=AFTER_APPROVAL``.
 - Windows ``submit`` always uses Manual publish mode: certification only, never
   a release.
 

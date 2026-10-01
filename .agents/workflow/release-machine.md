@@ -23,7 +23,7 @@
 
 Builds, signing, TestFlight uploads and store submissions run only in GitHub-hosted Actions jobs; no mesh machine (Linux host, MacBook, Windows host) runs any build/release job, holds signing material for it, or calls a store. iOS archive, signing and upload use the hosted `xcode-27` image with Xcode 27.1 selected (the image default 27.0 lacks the iOS 27.1 APIs the app uses; `macos-26` tops out at Xcode 26.6). Every store status read and submission uses `store-release` on hosted `ubuntu-latest`. The only credential store is the `store-release` environment (deployment branch policy: `master` only). Public release is off:
 
-- iOS App Store review submission auto-releases on approval, so `actions_job.py` refuses it (`blocked:"app_store_review_disabled"`) unless the repository variable `FST_APPSTORE_REVIEW_ENABLED=true`.
+- `actions_job.py` refuses iOS App Store review submission (`blocked:"app_store_review_disabled"`) unless the repository variable `FST_APPSTORE_REVIEW_ENABLED=true`. Approved versions wait for a manual release (`releaseType=MANUAL`) while broad release is disabled. Set the variable `FST_APPSTORE_RELEASE_TYPE=AFTER_APPROVAL` to auto-release on approval.
 - Windows submissions are always Manual publish (certification only).
 
 ## Pipelines
@@ -38,7 +38,7 @@ Builds, signing, TestFlight uploads and store submissions run only in GitHub-hos
 |---|---|
 | `ios status --json` | `{in_review,state,version,latest_build{version,build,sha,processing_state},released_sha,blocked}`; always the full shape (blocked ⇒ `in_review:false`, exit 4; ASC failure ⇒ `blocked:"asc_error"`, exit 5) |
 | `ios next-version [--json]` | Reuses an editable version (`PREPARE_FOR_SUBMISSION`, `DEVELOPER_REJECTED`, `REJECTED`, `METADATA_REJECTED`); no versions ⇒ project `MARKETING_VERSION`; otherwise patch-bump of the highest of project and all ASC versions |
-| `ios submit --build N (--notes-file F\|--notes-stdin) [--dry-run]` | Refuses (exit 3) when any version or review submission is in review; requires a `VALID`, unexpired build; creates/reuses the editable version, sets en-US What's New, attaches the build, `releaseType=AFTER_APPROVAL`, creates/reuses a review submission, adds the item, `submitted=true`. `--dry-run` performs GETs only and prints the planned writes |
+| `ios submit --build N (--notes-file F\|--notes-stdin) [--dry-run]` | Refuses (exit 3) when any version or review submission is in review; requires a `VALID`, unexpired build; creates/reuses the editable version, sets en-US What's New, attaches the build, sets `releaseType` from `FST_APPSTORE_RELEASE_TYPE` (default `MANUAL`), creates/reuses a review submission, adds the item, `submitted=true`. `--dry-run` performs GETs only and prints the planned writes |
 | `ios record-build --build N --version V --sha S` | Writes `~/.local/state/fst-release/builds.json` (`FST_RELEASE_LEDGER` overrides) |
 | `ios creds` | Prints key id/issuer/key path (never key material); exit 4 when missing |
 

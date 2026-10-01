@@ -333,10 +333,23 @@ class SubmitTests(TempHome):
 
     released = [version("V1", "1.0.0", "READY_FOR_SALE", "2026-09-01T00:00:00Z")]
 
-    def run_submit(self, routes, notes="Fixed things", dry_run=False):
+    def run_submit(self, routes, notes="Fixed things", dry_run=False, release_type="AFTER_APPROVAL"):
         fake = FakeAsc(routes)
         client = fr.AscClient(self.creds(), transport=fake, dry_run=dry_run)
-        return fake, client, fr.submit(client, "ios", "com.example", "999", notes)
+        return fake, client, fr.submit(client, "ios", "com.example", "999", notes, release_type)
+
+    def test_manual_release_type_is_written(self):
+        fake, _client, _result = self.run_submit(self.routes(self.released), release_type="MANUAL")
+        bodies = {(m, p): b for m, p, _q, b, _h in fake.calls if m != "GET"}
+        self.assertEqual(bodies[("POST", "/v1/appStoreVersions")]["data"]["attributes"]["releaseType"], "MANUAL")
+        self.assertEqual(bodies[("PATCH", "/v1/appStoreVersions/NEW")]["data"]["attributes"]["releaseType"], "MANUAL")
+
+    def test_unknown_release_type_writes_nothing(self):
+        fake = FakeAsc(self.routes(self.released))
+        client = fr.AscClient(self.creds(), transport=fake)
+        with self.assertRaises(ValueError):
+            fr.submit(client, "ios", "com.example", "999", "x", "IMMEDIATE")
+        self.assertEqual(fake.writes(), [])
 
     def test_full_sequence_creates_version(self):
         fake, _client, result = self.run_submit(self.routes(self.released))

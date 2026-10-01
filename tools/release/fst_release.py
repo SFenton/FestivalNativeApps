@@ -638,14 +638,21 @@ def _write_whats_new(client: AscClient, version_id: str, notes: str, has_release
     return "set"
 
 
+RELEASE_TYPES = ("MANUAL", "AFTER_APPROVAL")
+
+
 def submit(client: AscClient, group: str, bundle_id: str, build_number: str,
-           notes: str) -> Dict[str, Any]:
+           notes: str, release_type: str = "MANUAL") -> Dict[str, Any]:
     """Attach a VALID build to its version and submit it for App Store review.
 
     Sequence: refuse when anything is in review, find the build, create/reuse the
     editable version for the build's marketing version, set What's New, PATCH the
-    build and ``AFTER_APPROVAL`` release type, then create a review submission,
-    add the version as an item and PATCH ``submitted=true``.
+    build and release type, then create a review submission, add the version as
+    an item and PATCH ``submitted=true``.
+
+    Args:
+        release_type: ``MANUAL`` (approved versions wait for a human release) or
+            ``AFTER_APPROVAL`` (auto-release once review passes).
 
     Returns:
         A result document; ``refused`` is set (and nothing written) when in review.
@@ -653,8 +660,11 @@ def submit(client: AscClient, group: str, bundle_id: str, build_number: str,
     Raises:
         Blocked: App record missing.
         AscError: The API rejected a request.
-        ValueError: The build is missing, not VALID, or expired.
+        ValueError: The build is missing, not VALID, or expired, or the
+            release type is unknown.
     """
+    if release_type not in RELEASE_TYPES:
+        raise ValueError("unknown release type %r" % release_type)
     asc_platform = PLATFORMS[group][0]
     app_id = resolve_app(client, bundle_id)
     versions = list_versions(client, app_id, asc_platform)
@@ -683,14 +693,14 @@ def submit(client: AscClient, group: str, bundle_id: str, build_number: str,
         created = client.request("POST", "/v1/appStoreVersions", body={"data": {
             "type": "appStoreVersions",
             "attributes": {"platform": asc_platform, "versionString": marketing,
-                           "releaseType": "AFTER_APPROVAL"},
+                           "releaseType": release_type},
             "relationships": {"app": {"data": {"type": "apps", "id": app_id}}}}})
         version_id = str(created["data"]["id"])
     else:
         version_id = str(editable["id"])
 
     whats_new = _write_whats_new(client, version_id, notes, has_released)
-    attributes: Dict[str, Any] = {"releaseType": "AFTER_APPROVAL"}
+    attributes: Dict[str, Any] = {"releaseType": release_type}
     if editable is not None and (editable.get("attributes") or {}).get("versionString") != marketing:
         attributes["versionString"] = marketing
     client.request("PATCH", "/v1/appStoreVersions/%s" % version_id, body={"data": {
@@ -824,7 +834,8 @@ def main(argv: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None,
                 notes = (stdin or sys.stdin).read()
             else:
                 notes = Path(args.notes_file).read_text()
-            result = submit(client, group, bundle_id, args.build, notes)
+            result = submit(client, group, bundle_id, args.build, notes,
+                            env.get("FST_APPSTORE_RELEASE_TYPE") or "MANUAL")
             if dry_run:
                 result["planned"] = client.planned
             emit(result)
