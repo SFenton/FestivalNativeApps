@@ -5,7 +5,8 @@ run-name: store-release ${{ inputs.platform }} ${{ inputs.command }} ${{ inputs.
 # Credentials live only in the `store-release` environment (master-only). Policy (tools/release/actions_job.py):
 # iOS App Store review submission is refused unless vars.FST_APPSTORE_REVIEW_ENABLED == 'true' and releases
 # manually unless vars.FST_APPSTORE_RELEASE_TYPE == 'AFTER_APPROVAL'; Windows
-# submissions always use Manual publish (certification only, nothing goes live).
+# submissions always use Manual publish (certification only, nothing goes live). iOS submits use the build
+# marker's generated What's New and refuse (and rebuild) when a newer version was released since the build.
 on:
   workflow_dispatch:
     inputs:
@@ -34,7 +35,8 @@ on:
         default: false
 permissions:
   contents: read
-  actions: read
+  # write: a stale-What's-New iOS submit dispatches a rebuild of the same version tag (actions_job.py).
+  actions: write
 concurrency:
   group: store-release-${{ inputs.platform }}-${{ inputs.command }}
   cancel-in-progress: false

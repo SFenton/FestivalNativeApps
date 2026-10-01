@@ -3,6 +3,11 @@ name: macos-release
 # FST_RELEASE_MACOS_ENABLED is 'true'. See .agents/workflow/release-machine.md.
 on:
   workflow_dispatch:
+    inputs:
+      version_tag:
+        description: "macos/vYYMM.NN tag created by version-bump.yml (empty = newest)"
+        required: false
+        default: ""
 permissions:
   contents: read
 concurrency:
@@ -10,18 +15,22 @@ concurrency:
   cancel-in-progress: false
 jobs:
   macos-release:
-    if: vars.FST_RELEASE_MACOS_ENABLED == 'true'
+    if: vars.FST_RELEASE_MACOS_ENABLED == 'true' && github.ref == 'refs/heads/master'
     runs-on: xcode-27
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
           clean: true
+          fetch-depth: 0
+          fetch-tags: true
       # TODO(orchestrator): mirror ios_appstore_build.sh for the FestivalDesktop scheme.
       #   1. Add tools/release/macos_appstore_build.sh (archive `generic/platform=macOS`, a Mac App Store
-      #      ExportOptions plist, FST_GIT_SHA stamping, `fst_release.py macos record-build`).
+      #      ExportOptions plist, FST_GIT_SHA stamping, `fst_release.py macos record-build`). Like
+      #      ios_appstore_build.sh it checks out `inputs.version_tag`, writes apple/Apps/macOS/WhatsNew.json
+      #      from `fst_release.py macos released-versions` and emits macOS-only TestFlight/store notes.
       #   2. Enable CODE_SIGNING_ALLOWED for FestivalDesktop on the command line only.
-      #   3. The orchestrator then uses `fst_release.py macos status|next-version|submit`, which already
+      #   3. The orchestrator then uses `fst_release.py macos status|submit`, which already
       #      targets ASC platform MAC_OS (bundle id com.sfenton.festivalscoretracker.mac).
       - name: Not implemented
         run: |

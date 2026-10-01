@@ -1,0 +1,64 @@
+name: version-bump
+# The only entry point of the app build/release flow. On every master push, tools/release/versioning.py gives
+# each enabled platform whose app files changed since its previous `<platform>/v<YYMM.NN>` tag a new annotated
+# tag on the pushed commit, then dispatches that platform's build workflow with the tag. Build workflows have
+# no push trigger, so merges that touch no app code (docs, tests, tooling) never start a build or release.
+# Tags are the version ledger: no bot commits land on master. Documentation:
+# .agents/workflow/release-machine.md ("Versions, notes and What's New").
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Bump only this platform (all = every enabled platform)
+        type: choice
+        options: [all, ios, windows, android, macos]
+        default: all
+      force:
+        description: Bump even without app changes since the previous tag
+        type: boolean
+        default: false
+permissions:
+  contents: write   # push version tags
+  actions: write    # dispatch the platform build workflows
+concurrency:
+  # Serialized and never cancelled: each push gets its own bump decision in push order.
+  group: version-bump
+  cancel-in-progress: false
+jobs:
+  version-bump:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Bump and dispatch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FST_RELEASE_ANDROID_ENABLED: ${{ vars.FST_RELEASE_ANDROID_ENABLED }}
+          FST_RELEASE_MACOS_ENABLED: ${{ vars.FST_RELEASE_MACOS_ENABLED }}
+          PLATFORM: ${{ inputs.platform }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          args=(bump --head "$GITHUB_SHA" --push --dispatch)
+          if [ -n "${PLATFORM:-}" ] && [ "$PLATFORM" != "all" ]; then args+=(--platform "$PLATFORM"); fi
+          if [ "${FORCE:-false}" = "true" ]; then args+=(--force); fi
+          python3 tools/release/versioning.py "${args[@]}" | tee "$RUNNER_TEMP/bump.json"
+          python3 - "$RUNNER_TEMP/bump.json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json, sys
+          doc = json.load(open(sys.argv[1]))
+          print("### version-bump")
+          for plan in doc.get("bumped", []):
+              print("- **%s** → `%s` (%s)%s" % (plan["platform"], plan["tag"], plan["reason"],
+                                                ", build dispatched" if plan.get("dispatched") else ""))
+          for plan in doc.get("skipped", []):
+              print("- %s: skipped (%s)" % (plan["platform"], plan["reason"]))
+          PY

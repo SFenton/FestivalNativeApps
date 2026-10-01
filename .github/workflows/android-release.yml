@@ -3,6 +3,11 @@ name: android-release
 # FST_RELEASE_ANDROID_ENABLED is 'true'. See .agents/workflow/release-machine.md.
 on:
   workflow_dispatch:
+    inputs:
+      version_tag:
+        description: "android/vYYMM.NN tag created by version-bump.yml (empty = newest)"
+        required: false
+        default: ""
 permissions:
   contents: read
 concurrency:
@@ -10,18 +15,40 @@ concurrency:
   cancel-in-progress: false
 jobs:
   android-release:
-    if: vars.FST_RELEASE_ANDROID_ENABLED == 'true'
+    if: vars.FST_RELEASE_ANDROID_ENABLED == 'true' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Version and What's New
+        env:
+          INPUT_TAG: ${{ inputs.version_tag }}
+        run: |
+          set -euo pipefail
+          tag="${INPUT_TAG:-$(python3 tools/release/versioning.py latest-tag --platform android)}"
+          [[ "$tag" =~ ^android/v[0-9]{4}\.[0-9]{2,}$ ]] || { echo "bad version tag: $tag" >&2; exit 1; }
+          git checkout --quiet "refs/tags/$tag"
+          info="$(python3 tools/release/versioning.py describe --tag "$tag")"
+          mkdir -p "$RUNNER_TEMP/notes"
+          python3 tools/release/versioning.py whats-new --tag "$tag" --released-from-tags \
+            --out android/app/src/main/resources/WhatsNew.json --store-notes-out "$RUNNER_TEMP/notes/store-notes.txt"
+          {
+            echo "FST_VERSION_TAG=$tag"
+            echo "FST_VERSION_NAME=$(jq -r .version <<<"$info")"
+            echo "FST_VERSION_CODE=$(jq -r .android_version_code <<<"$info")"
+          } >> "$GITHUB_ENV"
       # TODO(orchestrator): Play Console publishing.
       #   1. Add the Gradle Play Publisher plugin (com.github.triplet.play) to android/app.
       #   2. Create a Play service account with release permission; store its JSON as the secret
       #      PLAY_SERVICE_ACCOUNT_JSON and the upload keystore as ANDROID_KEYSTORE_BASE64 + passwords.
-      #   3. Build a signed AAB with a monotonically increasing versionCode (run number) and the
-      #      git SHA, then `bash android/gradlew -p android publishReleaseBundle --track internal`
-      #      and promote via the orchestrator once nothing is in review.
+      #   3. Build a signed AAB with the tag's version (`-PfstVersionName=$FST_VERSION_NAME
+      #      -PfstVersionCode=$FST_VERSION_CODE`, see android/app/build.gradle.kts), then
+      #      `bash android/gradlew -p android publishReleaseBundle --track internal` with
+      #      $RUNNER_TEMP/notes/store-notes.txt as the release notes, and promote via the orchestrator
+      #      once nothing is in review.
       - name: Not implemented
         run: |
           echo "android-release is a scaffold; implement the TODO steps above first." >&2
