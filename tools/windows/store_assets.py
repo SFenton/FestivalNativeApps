@@ -14,7 +14,7 @@ Usage::
     python3 tools/windows/store_assets.py --listing ~/Desktop/festival-windows-store   # Partner Center art
 
 ``--listing`` writes the Store listing images (not committed): 1:1 box art 1080/2160, 2:3 poster
-720x1080/1440x2160 and the 300x300 app tile icon. They are drawn from the 1024 px iOS app icon (same artwork):
+720x1080/1440x2160 and the 300/150/71 px Store display images. They are drawn from the 1024 px iOS app icon (same artwork):
 its diagonal gradient is rebuilt at the target size and the FST badge composited unscaled where possible, so
 the poster extends the background instead of padding a square.
 """
@@ -86,7 +86,13 @@ LISTING = {
     "poster-720x1080.png": (720, 1080),
     "poster-1440x2160.png": (1440, 2160),
     "app-tile-icon-300x300.png": (300, 300),
+    "store-display-150x150.png": (150, 150),
+    "store-display-71x71.png": (71, 71),
 }
+
+
+#: Badge width as a share of the tile for Store display images of 150 px and below.
+SMALL_BADGE_RATIO = 0.82
 
 
 def _gradient_lut(icon) -> list[tuple[int, int, int]]:
@@ -123,7 +129,8 @@ def listing_art(out_dir: Path) -> list[Path]:
     written = []
     for name, (w, h) in LISTING.items():
         canvas = _background((w, h), lut)
-        target = round(min(w, h) * badge_ratio)
+        # Small tiles enlarge the badge so "FST" stays legible.
+        target = round(min(w, h) * (max(badge_ratio, SMALL_BADGE_RATIO) if max(w, h) <= 150 else badge_ratio))
         scale = target / badge.width
         size = (target, round(badge.height * scale))
         piece = badge.resize(size, Image.Resampling.LANCZOS)
