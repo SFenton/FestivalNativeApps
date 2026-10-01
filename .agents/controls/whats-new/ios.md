@@ -11,6 +11,7 @@
 | Launch gate | `Features/WhatsNew/WhatsNewModifier.swift` | `.whatsNew(session:)` over `WhatsNewLauncher.shared` (tests inject their own); resolves once per process; waits `settleDelay` (700 ms) so the launch page's `.firstRun` claims first, then claims `FirstRunCenter` slot `whats-new`; re-checks whenever `activeKey` returns to nil; `onDismiss` stores `{version, hash}` and releases the slot |
 | Root hook | `App/FestivalRootView.swift` | One additive `.whatsNew(session: session)` line after the global-search sheet |
 | Replay | `Features/Settings/SettingsScreen.swift` | Version card row `fst.settings.whats-new` ("Show") |
+| Install channel | `FestivalCore/AppDistribution.swift` | `AppDistribution.current()` (StoreKit `AppTransaction.environment`, 3 s timeout, App Store fallback; Debug skips StoreKit). TestFlight/development installs see the built version's tester sections ("New Since …", "In This Build vs. Release …") instead of `Version …`; App Store installs never do. The hash ignores tester sections |
 
 ## Debug (`FST_DEBUG_WHATS_NEW`)
 
@@ -20,6 +21,8 @@
 | `on` | Real gate |
 | `fresh` | Forget stored dismissal once at launch, then real gate |
 | `force` | Present every launch |
+
+`FST_DEBUG_DISTRIBUTION=appstore|testflight|development` (Debug only, default `development`) picks the channel for screenshots and tests.
 
 ## Decisions
 

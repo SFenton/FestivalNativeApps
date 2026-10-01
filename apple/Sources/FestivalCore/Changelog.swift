@@ -34,6 +34,9 @@ public struct ChangelogEntry: Sendable, Equatable {
     public let released: Bool
     /// Sections in display order.
     public let sections: [ChangelogSection]
+    /// TestFlight sections for the unreleased built version ("New since …", "In this build vs.
+    /// release …"); empty otherwise. Shown instead of `sections` to testers only.
+    public let testerSections: [ChangelogSection]
 
     /// Create an entry.
     ///
@@ -41,10 +44,15 @@ public struct ChangelogEntry: Sendable, Equatable {
     ///   - version: App version the notes belong to.
     ///   - released: Whether that version was already released at build time.
     ///   - sections: Sections in display order.
-    public init(version: String? = nil, released: Bool = true, sections: [ChangelogSection]) {
+    ///   - testerSections: Tester-only replacement sections.
+    public init(
+        version: String? = nil, released: Bool = true, sections: [ChangelogSection],
+        testerSections: [ChangelogSection] = []
+    ) {
         self.version = version
         self.released = released
         self.sections = sections
+        self.testerSections = testerSections
     }
 }
 
@@ -89,35 +97,78 @@ public enum Changelog {
     }
 
     /// Decode a `versioning.py whats-new` document
-    /// (`{schema, platform, version, baseline, entries: [{version, released, items}]}`).
+    /// (`{schema, platform, version, baseline, entries: [{version, released, items, testflight?}]}`).
     ///
     /// - Parameter data: JSON document.
     /// - Returns: One entry per version with a single "Version <v>" section, bounded in size;
-    ///   versions without notes are skipped.
+    ///   versions without notes are skipped. The unreleased built version's optional
+    ///   `testflight: {since, new, release, vs_release}` becomes its `testerSections`.
     /// - Throws: `DecodingError` for malformed JSON.
     public static func decode(_ data: Data) throws -> [ChangelogEntry] {
         let document = try JSONDecoder().decode(WhatsNewDocument.self, from: data)
         return document.entries.prefix(maxEntries).compactMap { entry in
             let version = String(entry.version.prefix(32))
-            let items = entry.items
-                .map { String($0.trimmingCharacters(in: .whitespacesAndNewlines).prefix(maxItemLength)) }
-                .filter { !$0.isEmpty }
-                .prefix(maxItems)
+            let items = clean(entry.items)
             guard !version.isEmpty, !items.isEmpty else { return nil }
             return ChangelogEntry(
                 version: version,
                 released: entry.released ?? true,
-                sections: [ChangelogSection(title: "Version \(version)", items: Array(items))]
+                sections: [ChangelogSection(title: "Version \(version)", items: items)],
+                testerSections: entry.testflight.map(testerSections) ?? []
             )
         }
     }
 
+    /// Tester sections in `versioning.py tester_headings` wording.
+    ///
+    /// - Parameter notes: Decoded `testflight` block.
+    /// - Returns: "New since …" (when it has items) then "In this build vs. release …"; empty when the
+    ///   comparison with the release has no items.
+    static func testerSections(_ notes: WhatsNewDocument.Tester) -> [ChangelogSection] {
+        let vsRelease = clean(notes.vsRelease ?? [])
+        guard !vsRelease.isEmpty else { return [] }
+        var sections: [ChangelogSection] = []
+        let new = clean(notes.new ?? [])
+        if !new.isEmpty {
+            let since = notes.since.map { String($0.prefix(32)) }.flatMap { $0.isEmpty ? nil : $0 }
+            sections.append(ChangelogSection(
+                title: since.map { "New since \($0)" } ?? "New since the last build", items: new))
+        }
+        let release = notes.release.map { String($0.prefix(32)) }.flatMap { $0.isEmpty ? nil : $0 }
+        sections.append(ChangelogSection(
+            title: release.map { "In this build vs. release \($0)" } ?? "In this build vs. release (no release yet)",
+            items: vsRelease))
+        return sections
+    }
+
+    /// Trim, drop empty and bound bullet text.
+    private static func clean(_ items: [String]) -> [String] {
+        Array(items
+            .map { String($0.trimmingCharacters(in: .whitespacesAndNewlines).prefix(maxItemLength)) }
+            .filter { !$0.isEmpty }
+            .prefix(maxItems))
+    }
+
     /// Wire shape of the generated document (unknown keys ignored).
-    private struct WhatsNewDocument: Decodable {
+    struct WhatsNewDocument: Decodable {
         struct Entry: Decodable {
             let version: String
             let released: Bool?
             let items: [String]
+            let testflight: Tester?
+        }
+
+        /// The `testflight` block: notes new since `since` and since the store release `release`.
+        struct Tester: Decodable {
+            let since: String?
+            let new: [String]?
+            let release: String?
+            let vsRelease: [String]?
+
+            enum CodingKeys: String, CodingKey {
+                case since, new, release
+                case vsRelease = "vs_release"
+            }
         }
 
         let entries: [Entry]
@@ -127,18 +178,27 @@ public enum Changelog {
 
     /// Entries as natives display them: the deprecated Manual feature is never advertised, so
     /// any section titled Manual or bullet naming it is dropped, and empty sections removed.
+    /// TestFlight and development installs see an entry's tester sections in place of its
+    /// release section.
     ///
-    /// - Parameter entries: Bundled entries.
+    /// - Parameters:
+    ///   - entries: Bundled entries.
+    ///   - distribution: Install channel (`AppDistribution.current()`); App Store by default.
     /// - Returns: Entries safe to render natively.
-    public static func displayEntries(_ entries: [ChangelogEntry] = entries) -> [ChangelogEntry] {
+    public static func displayEntries(
+        _ entries: [ChangelogEntry] = entries, distribution: AppDistribution = .appStore
+    ) -> [ChangelogEntry] {
         entries.compactMap { entry in
-            let sections = entry.sections.compactMap { section -> ChangelogSection? in
+            let source = distribution.showsTesterNotes && !entry.testerSections.isEmpty
+                ? entry.testerSections : entry.sections
+            let sections = source.compactMap { section -> ChangelogSection? in
                 guard !mentionsManual(section.title) else { return nil }
                 let items = section.items.filter { !mentionsManual($0) }
                 return items.isEmpty ? nil : ChangelogSection(title: section.title, items: items)
             }
             return sections.isEmpty
-                ? nil : ChangelogEntry(version: entry.version, released: entry.released, sections: sections)
+                ? nil : ChangelogEntry(version: entry.version, released: entry.released, sections: sections,
+                                       testerSections: entry.testerSections)
         }
     }
 
@@ -160,15 +220,18 @@ public enum Changelog {
     /// Convert a heading to Title Case.
     ///
     /// - Parameter text: Heading in any case.
-    /// - Returns: Title Case heading with minor words lower-cased after the first word.
+    /// - Returns: Title Case heading with minor words lower-cased after the first word; leading
+    ///   punctuation is skipped ("(no" → "(No") and ignored when matching minor words ("vs.").
     public static func titleCase(_ text: String) -> String {
         text.lowercased()
             .split(separator: " ", omittingEmptySubsequences: true)
             .enumerated()
             .map { index, word in
                 let lower = String(word)
-                if index > 0 && minorWords.contains(lower) { return lower }
-                return lower.prefix(1).uppercased() + lower.dropFirst()
+                let bare = lower.trimmingCharacters(in: .punctuationCharacters)
+                if index > 0 && minorWords.contains(bare) { return lower }
+                guard let first = lower.firstIndex(where: \.isLetter) else { return lower }
+                return lower[..<first] + lower[first...].prefix(1).uppercased() + lower[first...].dropFirst()
             }
             .joined(separator: " ")
     }

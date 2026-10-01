@@ -25,7 +25,9 @@ The in-app What's New lists one section per released version (newest first, at m
 plus the section of the version being built when it is not released yet. A version's items are the user
 notes between the previously released version's tag and its own tag, so intermediate unreleased versions
 and TestFlight builds fold into the next release. A platform's first release says ``initial_note``.
-TestFlight "What to Test" instead lists every app commit since the previous version tag.
+The unreleased built version's entry also carries ``testflight: {since, new, release, vs_release}`` for
+beta builds: notes new since the previous version, and every note since the latest release. TestFlight
+"What to Test" uses the same two sections ("New since …", "In this build vs. release …").
 
 Commands (JSON on stdout, standard library only, Python 3.9+)::
 
@@ -34,7 +36,8 @@ Commands (JSON on stdout, standard library only, Python 3.9+)::
     versioning.py latest-tag --platform ios
     versioning.py whats-new --tag ios/v2610.03.01 --released 2610.01.01,2610.02.01 --out WhatsNew.json
                             [--store-notes-out notes.txt]
-    versioning.py testflight-notes --tag ios/v2610.03.01 --build 57 [--rebuild-reason r] --out notes.txt
+    versioning.py testflight-notes --tag ios/v2610.03.01 --build 57 [--rebuild-reason r]
+                                   [--released 2610.01.01] --out notes.txt
 
 Documentation: .agents/workflow/release-machine.md ("Versions, notes and What's New").
 """
@@ -463,7 +466,10 @@ def whats_new(git: Git, platform: str, version: str, released: Iterable[str]) ->
             items = user_notes(git, platform, tags[older[-1]], tags[item]) or [DEFAULT_NOTE]
         else:
             items = [initial]
-        entries.append({"version": item, "released": item in shipped, "items": items})
+        entry: Dict[str, object] = {"version": item, "released": item in shipped, "items": items}
+        if item == version and item not in shipped:
+            entry["testflight"] = tester_notes(git, platform, version, shipped)
+        entries.append(entry)
     entries.reverse()
     older_than = [v for v in shipped if parse_version(v) < key]
     return {"schema": SCHEMA, "platform": platform, "version": version,
@@ -479,36 +485,82 @@ def store_notes(document: Dict[str, object]) -> str:
     return bullets(first.get("items") or [DEFAULT_NOTE], STORE_NOTES_LIMIT)
 
 
-def testflight_notes(git: Git, platform: str, version: str, build: str,
-                     rebuild_reason: Optional[str] = None) -> str:
-    """TestFlight "What to Test" for one build (platform-specific, at most 4000 characters).
+def tester_notes(git: Git, platform: str, version: str, released: Iterable[str],
+                 rebuild_reason: Optional[str] = None) -> Dict[str, object]:
+    """User-facing notes for testers of ``version``: what is new since the previous build and what differs
+    from the store's latest release.
 
-    A fresh version lists the app commits and user notes since the previous version tag; a rebuild of an
-    already-built version says it carries no app changes.
+    Args:
+        git: Repository holding the version tags.
+        platform: Platform id.
+        version: Version being built (its tag must exist).
+        released: Versions the store has released (unknown/untagged and newer ones are ignored).
+        rebuild_reason: Set when this build re-uses ``version`` with no app changes.
+
+    Returns:
+        ``{since, new, release, vs_release}``. ``since`` is the previous version (``None`` for the first
+        build or a rebuild); ``release`` is the newest released version older than ``version`` (``None``
+        before the first release). Both lists hold user notes only, never commit subjects.
     """
     display = str(PLATFORMS[platform]["display"])
-    head = "Festival Score Tracker %s %s (build %s)" % (display, version, build)
-    if rebuild_reason:
-        return "%s\nRebuild of %s with no %s app changes; only the build number changed (%s)." % (
-            head, version, display, rebuild_reason)
-    tags = git.version_tags(platform)
-    older = [(v, t) for v, t in tags if parse_version(v) < parse_version(version)]
-    current = dict(tags).get(version)
+    tags = dict(git.version_tags(platform))
+    current = tags.get(version)
     if current is None:
         raise ValueError("no tag %s" % tag_for(platform, version))
-    if not older:
-        return "%s\nFirst build numbered %s; later builds list the %s app changes since the previous version." % (
-            head, version, display)
-    prev_version, prev_tag = older[0]
-    found = [c for c in changes(git, platform, prev_tag, current) if c.app]
-    if not found:
-        return "%s\nNo %s app changes since %s; only the version and build number changed." % (
-            head, display, prev_version)
-    lines = [c.subject for c in found]
-    notes = user_notes(git, platform, prev_tag, current)
-    text = "%s\nChanges since %s:\n%s" % (head, prev_version, bullets(lines, TESTFLIGHT_LIMIT))
-    if notes:
-        text += "\n\nRelease notes:\n" + bullets(notes, TESTFLIGHT_LIMIT)
+    key = parse_version(version)
+    older = sorted((v for v in tags if parse_version(v) < key), key=parse_version)
+    shipped = sorted({v for v in released if is_version(v) and v in tags and parse_version(v) < key},
+                     key=parse_version)
+
+    def notes_between(base: Optional[str], empty: str) -> List[str]:
+        found = changes(git, platform, base, current)
+        return user_notes(git, platform, base, current) or ([DEFAULT_NOTE] if any(c.app for c in found) else [empty])
+
+    if rebuild_reason:
+        since, new = None, ["Rebuild with no %s app changes; only the build number changed (%s)." % (
+            display, rebuild_reason)]
+    elif older:
+        since = older[-1]
+        new = notes_between(tags[since], "No %s app changes; only the version and build number changed." % display)
+    else:
+        since, new = None, []
+    release = shipped[-1] if shipped else None
+    vs_release = notes_between(tags[release] if release else None,
+                               "No %s app changes since %s." % (display, release or "the first build"))
+    return {"since": since, "new": new, "release": release, "vs_release": vs_release}
+
+
+def tester_headings(notes: Dict[str, object]) -> Tuple[Optional[str], str]:
+    """Headings for :func:`tester_notes`: ``("New since …", "In this build vs. release …")``.
+
+    The first is ``None`` when there is no previous build to compare with.
+    """
+    if notes.get("new"):
+        first: Optional[str] = ("New since %s" % notes["since"]) if notes.get("since") else "New since the last build"
+    else:
+        first = None
+    release = notes.get("release")
+    second = ("In this build vs. release %s" % release) if release else "In this build vs. release (no release yet)"
+    return first, second
+
+
+def testflight_notes(git: Git, platform: str, version: str, build: str,
+                     rebuild_reason: Optional[str] = None, released: Iterable[str] = ()) -> str:
+    """TestFlight "What to Test" for one build (platform-specific, at most 4000 characters).
+
+    Two sections of user-facing notes (``Release-Note`` trailers, never PR titles): what is new since the
+    previous version, and everything in this build that differs from the store's latest release (all notes
+    before the first release). See :func:`tester_notes`.
+    """
+    display = str(PLATFORMS[platform]["display"])
+    notes = tester_notes(git, platform, version, released, rebuild_reason)
+    first, second = tester_headings(notes)
+    text = "Festival Score Tracker %s %s (build %s)" % (display, version, build)
+    if first:
+        text += "\n\n%s:\n%s" % (first, bullets(notes["new"], TESTFLIGHT_LIMIT // 2))  # type: ignore[arg-type]
+    budget = TESTFLIGHT_LIMIT - len(text) - len(second) - 4
+    if budget > 20:
+        text += "\n\n%s:\n%s" % (second, bullets(notes["vs_release"], budget))  # type: ignore[arg-type]
     return text[:TESTFLIGHT_LIMIT]
 
 
@@ -645,6 +697,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--tag", required=True)
     p.add_argument("--build", required=True)
     p.add_argument("--rebuild-reason")
+    p.add_argument("--released", default="", help="comma-separated released versions")
+    p.add_argument("--released-from-tags", action="store_true")
     p.add_argument("--out", required=True)
     return parser
 
@@ -684,7 +738,10 @@ def main(argv: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None,
                 Path(args.store_notes_out).write_text(store_notes(doc) + "\n")
         else:
             platform, version = parse_tag(args.tag)
-            text = testflight_notes(git, platform, version, args.build, args.rebuild_reason)
+            released = [v.strip() for v in args.released.split(",") if v.strip()]
+            if args.released_from_tags:
+                released += git.released_from_tags(platform)
+            text = testflight_notes(git, platform, version, args.build, args.rebuild_reason, released)
             Path(args.out).write_text(text + "\n")
             doc = {"platform": platform, "version": version, "build": args.build, "chars": len(text)}
     except (ValueError, RuntimeError, OSError) as err:

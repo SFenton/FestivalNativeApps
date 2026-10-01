@@ -208,7 +208,9 @@ class GitFlowTests(unittest.TestCase):
         first = v.whats_new(self.repo.git, "ios", "2610.01.02", [])
         self.assertIsNone(first["baseline"])
         self.assertEqual(first["entries"], [{"version": "2610.01.02", "released": False,
-                                             "items": [v.PLATFORMS["ios"]["initial_note"]]}])
+                                             "items": [v.PLATFORMS["ios"]["initial_note"]],
+                                             "testflight": {"since": "2610.01.01", "new": ["Songs load faster."],
+                                                            "release": None, "vs_release": ["Songs load faster."]}}])
         shipped = v.whats_new(self.repo.git, "ios", "2610.01.03", ["2610.01.01", "2610.01.03"])
         self.assertEqual([e["version"] for e in shipped["entries"]], ["2610.01.03", "2610.01.01"])
         self.assertEqual(shipped["baseline"], "2610.01.01")
@@ -229,18 +231,72 @@ class GitFlowTests(unittest.TestCase):
     def test_testflight_notes(self):
         self._history()
         git = self.repo.git
-        text = v.testflight_notes(git, "ios", "2610.01.03", "41")
-        self.assertTrue(text.startswith("Festival Score Tracker iOS 2610.01.03 (build 41)\nChanges since 2610.01.02:"))
-        self.assertIn("• Shop badge fix", text)
-        self.assertNotIn("Windows only", text)
-        self.assertIn("Release notes:\n• The Item Shop badge is back.", text)
-        first = v.testflight_notes(git, "ios", "2610.01.01", "40")
-        self.assertIn("First build numbered 2610.01.01", first)
-        rebuild = v.testflight_notes(git, "ios", "2610.01.04", "44", rebuild_reason="stale_whats_new")
-        self.assertIn("Rebuild of 2610.01.04 with no iOS app changes", rebuild)
+        text = v.testflight_notes(git, "ios", "2610.01.04", "41", released=["2610.01.01", "2610.01.03"])
+        self.assertEqual(text, "Festival Score Tracker iOS 2610.01.04 (build 41)\n\n"
+                               "New since 2610.01.03:\n• Rivals refresh correctly.\n\n"
+                               "In this build vs. release 2610.01.03:\n• Rivals refresh correctly.")
+        # Unreleased 2610.01.02 and 2610.01.03 fold into the comparison with the last release.
+        older = v.testflight_notes(git, "ios", "2610.01.04", "41", released=["2610.01.01"])
+        self.assertIn("In this build vs. release 2610.01.01:\n• Songs load faster.\n• The Item Shop badge is back.\n"
+                      "• Rivals refresh correctly.", older)
+        # Commit subjects, PR titles and other platforms' notes never appear.
+        for absent in ("Shop badge fix", "Merge pull request", "Windows thing", "should not appear", "generic"):
+            self.assertNotIn(absent, older)
+        unreleased = v.testflight_notes(git, "ios", "2610.01.03", "40")
+        self.assertIn("New since 2610.01.02:\n• The Item Shop badge is back.", unreleased)
+        self.assertIn("In this build vs. release (no release yet):\n• Songs load faster.\n• The Item Shop badge is back.",
+                      unreleased)
+        first = v.testflight_notes(git, "ios", "2610.01.01", "39")
+        self.assertNotIn("New since", first)
+        self.assertIn("In this build vs. release (no release yet):", first)
+        rebuild = v.testflight_notes(git, "ios", "2610.01.04", "44", rebuild_reason="stale_whats_new",
+                                     released=["2610.01.03"])
+        self.assertIn("New since the last build:\n• Rebuild with no iOS app changes; only the build number changed "
+                      "(stale_whats_new).", rebuild)
+        self.assertIn("In this build vs. release 2610.01.03:\n• Rivals refresh correctly.", rebuild)
         self.repo.commit("Docs", "docs/a.md")
         self.repo.tag("ios/v2610.01.05")
-        self.assertIn("No iOS app changes since 2610.01.04", v.testflight_notes(git, "ios", "2610.01.05", "45"))
+        quiet = v.testflight_notes(git, "ios", "2610.01.05", "45", released=["2610.01.03"])
+        self.assertIn("New since 2610.01.04:\n• No iOS app changes; only the version and build number changed.", quiet)
+
+    def test_testflight_notes_untrailered_changes_and_limit(self):
+        r = self.repo
+        r.tag("ios/v2610.01.01")
+        r.commit("Refactor", "apple/Sources/FestivalCore/A.swift")
+        r.tag("ios/v2610.01.02")
+        text = v.testflight_notes(r.git, "ios", "2610.01.02", "2", released=["2610.01.01"])
+        self.assertIn("New since 2610.01.01:\n• %s" % v.DEFAULT_NOTE, text)
+        self.assertNotIn("Refactor", text)
+        for n in range(60):
+            r.commit("c\n\nRelease-Note: Note number %d with a reasonably long sentence about it." % n,
+                     "apple/Sources/FestivalCore/A.swift")
+        r.tag("ios/v2610.01.03")
+        long = v.testflight_notes(r.git, "ios", "2610.01.03", "3")
+        self.assertLessEqual(len(long), v.TESTFLIGHT_LIMIT)
+        self.assertIn("In this build vs. release (no release yet):", long)
+
+    def test_whats_new_tester_block_only_on_unreleased_build(self):
+        self._history()
+        doc = v.whats_new(self.repo.git, "ios", "2610.01.04", ["2610.01.01"])
+        self.assertEqual(doc["entries"][0]["testflight"], {
+            "since": "2610.01.03", "new": ["Rivals refresh correctly."], "release": "2610.01.01",
+            "vs_release": ["Songs load faster.", "The Item Shop badge is back.", "Rivals refresh correctly."]})
+        self.assertTrue(all("testflight" not in e for e in doc["entries"][1:]))
+        shipped = v.whats_new(self.repo.git, "ios", "2610.01.03", ["2610.01.01", "2610.01.03"])
+        self.assertTrue(all("testflight" not in e for e in shipped["entries"]))
+
+    def test_cli_testflight_notes_reads_released(self):
+        self._history()
+        root = self.repo.root
+        self.repo.tag("ios/released/2610.01.03")
+        out = root / "tf.txt"
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = v.main(["--repo", str(root), "testflight-notes", "--tag", "ios/v2610.01.04", "--build", "7",
+                           "--released", "2610.01.01", "--released-from-tags", "--out", str(out)])
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(buf.getvalue())["build"], "7")
+        self.assertIn("In this build vs. release 2610.01.03:", out.read_text())
 
     def test_released_from_tags(self):
         self.repo.tag("windows/v2610.01.01")

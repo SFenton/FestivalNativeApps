@@ -89,6 +89,67 @@ private let sampleDocument = #"""
     #expect(Changelog.titleCase("ITEM SHOP") == "Item Shop")
     #expect(Changelog.titleCase("RIVALS AND OF THE WORLD") == "Rivals and of the World")
     #expect(Changelog.titleCase("THE  SHOP") == "The Shop")
+    #expect(Changelog.titleCase("In this build vs. release (no release yet)")
+        == "In This Build vs. Release (No Release Yet)")
+    #expect(Changelog.titleCase("New since 2610.01.03") == "New Since 2610.01.03")
+}
+
+// MARK: - Tester sections
+
+private let testerDocument = #"""
+{"entries": [
+  {"version": "2610.01.04", "released": false, "items": ["The first release of Festival Score Tracker for iPhone."],
+   "testflight": {"since": "2610.01.03", "new": ["Quick Links follow page order.", " "], "release": null,
+                  "vs_release": ["Close buttons are native.", "Quick Links follow page order."]}},
+  {"version": "2610.01.03", "released": true, "items": ["Older."],
+   "testflight": {"since": "2610.01.02", "new": [], "release": "2610.01.01", "vs_release": ["Kept."]}}
+]}
+"""#
+
+@Test func decodesTesterSectionsForTheBuiltVersion() throws {
+    let entries = try Changelog.decode(Data(testerDocument.utf8))
+    #expect(entries[0].testerSections == [
+        ChangelogSection(title: "New since 2610.01.03", items: ["Quick Links follow page order."]),
+        ChangelogSection(title: "In this build vs. release (no release yet)",
+                         items: ["Close buttons are native.", "Quick Links follow page order."]),
+    ])
+    // No "New since" section without new items; a named release appears in the heading.
+    #expect(entries[1].testerSections.map(\.title) == ["In this build vs. release 2610.01.01"])
+    // Older documents without the block decode with no tester sections.
+    #expect(try Changelog.decode(Data(sampleDocument.utf8)).allSatisfy { $0.testerSections.isEmpty })
+}
+
+@Test func testersSeeTesterSectionsAndAppStoreSeesTheRelease() throws {
+    let entries = try Changelog.decode(Data(testerDocument.utf8))
+    let store = Changelog.displayEntries(entries, distribution: .appStore)
+    #expect(store[0].sections.map(\.title) == ["Version 2610.01.04"])
+    for channel in [AppDistribution.testFlight, .development] {
+        let tester = Changelog.displayEntries(entries, distribution: channel)
+        #expect(tester[0].sections.map(\.displayTitle)
+            == ["New Since 2610.01.03", "In This Build vs. Release (No Release Yet)"])
+    }
+    // Entries without tester sections keep their release section for testers too.
+    let plain = [ChangelogEntry(version: "1", sections: [ChangelogSection(title: "Version 1", items: ["x"])])]
+    #expect(Changelog.displayEntries(plain, distribution: .testFlight)[0].sections.map(\.title) == ["Version 1"])
+    // The show-once hash follows the release sections only.
+    #expect(Changelog.hash(entries) == Changelog.hash(entries.map {
+        ChangelogEntry(version: $0.version, released: $0.released, sections: $0.sections)
+    }))
+}
+
+@Test func distributionOverridesAndStoreKitMapping() async {
+    #expect(AppDistribution.parse("TestFlight") == .testFlight)
+    #expect(AppDistribution.parse("appstore") == .appStore)
+    #expect(AppDistribution.parse("bogus") == nil)
+    #expect(AppDistribution.channel(for: .sandbox) == .testFlight)
+    #expect(AppDistribution.channel(for: .xcode) == .development)
+    #expect(AppDistribution.channel(for: .production) == .appStore)
+    #expect(AppDistribution.appStore.showsTesterNotes == false)
+    #expect(AppDistribution.testFlight.showsTesterNotes)
+    #if DEBUG
+    #expect(await AppDistribution.detect(environment: [:]) == .development)
+    #expect(await AppDistribution.detect(environment: ["FST_DEBUG_DISTRIBUTION": "appstore"]) == .appStore)
+    #endif
 }
 
 @Test func displayEntriesDropManualContent() {
