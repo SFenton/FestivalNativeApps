@@ -74,7 +74,15 @@ DEVICES = {
     "iphone27": "32DF9891-BCDB-46FB-9317-35EC1239267E",  # FST iOS 27 Fresh iPhone 17 Pro
     "ipad": "11E2F7B2-DE32-4466-8A97-04B37F559086",  # FST Native iPad Pro 11 (26.5)
     "duo": "BC8A530D-805F-45FD-9D32-71B838C7A05F",  # iPhone Duo (FST), iOS 27.1
+    "promax": "F397FB0A-7466-4D40-95BD-2E4EF91C4224",  # FST App Store iPhone 17 Pro Max (26.5), 6.9" shots
 }
+
+#: App Store marketing status bar (``simctl status_bar override`` flags): 9:41, full signal, charged.
+CLEAN_STATUS_BAR = (
+    "--time", "9:41", "--dataNetwork", "wifi", "--wifiMode", "active", "--wifiBars", "3",
+    "--cellularMode", "active", "--cellularBars", "4", "--operatorName", "",
+    "--batteryState", "charged", "--batteryLevel", "100",
+)
 
 #: Source trees that, if changed, require rebuilding the driver's UI-test bundle.
 DRIVER_HASH_ROOTS = ("Sources", "Apps/iOS", "Apps/iOSUITests", "project.yml")
@@ -959,6 +967,8 @@ def cmd_shot(args: argparse.Namespace) -> int:
         lock.flush()
         boot_exclusive(udid)
         _run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True)
+        if args.clean_status_bar:
+            _run(["xcrun", "simctl", "status_bar", udid, "override", *CLEAN_STATUS_BAR], capture_output=True)
         problem = require_pose(udid, args.pose, args.set_pose)
         if problem:
             print(problem, file=sys.stderr)
@@ -1379,6 +1389,8 @@ def main(argv: list[str] | None = None) -> int:
     shot.add_argument("--interval", type=float, default=2.0, help="seconds between screenshots")
     shot.add_argument("--out", action="append", required=True, help="screenshot path (repeatable)")
     shot.add_argument("--keep", action="store_true", help="leave the app running")
+    shot.add_argument("--clean-status-bar", action="store_true",
+                      help="override the status bar (9:41, full bars, charged) for marketing captures")
     shot.add_argument("--record", help="also record the session to this .mp4 (for remote review)")
     shot.add_argument("--record-tail", type=float, default=3.0,
                       help="seconds to keep recording after the last screenshot (animations)")

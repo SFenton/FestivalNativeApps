@@ -300,3 +300,49 @@ class ServerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ShootTests(unittest.TestCase):
+    """The capture plan drives ios_sim.py against a live loopback overlay."""
+
+    def test_shoot_captures_every_page_against_live_server(self) -> None:
+        """Each page gets one shot argv with the showcase profile and a reachable server."""
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from types import SimpleNamespace
+
+        seen: list[tuple[list[str], int]] = []
+
+        def fake_run(argv: list[str]) -> SimpleNamespace:
+            base = argv[argv.index(next(a for a in argv if a.startswith("FST_API_BASE_URL=")))].split("=", 1)[1]
+            with urllib.request.urlopen(f"{base}/api/songs", timeout=5) as response:
+                seen.append((argv, response.status))
+            return SimpleNamespace(returncode=0)
+
+        with TemporaryDirectory() as tmp:
+            code = showcase.shoot(synthetic_catalogue(), Path(tmp) / "out", "promax", 1.0, run=fake_run)
+        self.assertEqual(code, 0)
+        self.assertEqual([s[1] for s in seen], [200] * len(showcase.SHOTS))
+        stems = [Path(a[a.index("--out") + 1]).stem for a, _ in seen]
+        self.assertEqual(stems, [stem for stem, _, _ in showcase.SHOTS])
+        rivals = seen[-1][0]
+        self.assertEqual(rivals[rivals.index("--route") + 1], "rivals")
+        for argv, _ in seen:
+            self.assertIn("--clean-status-bar", argv)
+            self.assertIn(f"FST_DEBUG_PROFILE={showcase.PLAYER_ID}:{showcase.PLAYER_NAME}", argv)
+
+    def test_shoot_stops_on_first_failure(self) -> None:
+        """A failing capture returns its exit code without running later pages."""
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from types import SimpleNamespace
+
+        calls: list[list[str]] = []
+
+        def failing(argv: list[str]) -> SimpleNamespace:
+            calls.append(argv)
+            return SimpleNamespace(returncode=3)
+
+        with TemporaryDirectory() as tmp:
+            self.assertEqual(showcase.shoot(synthetic_catalogue(), Path(tmp), "promax", 1.0, run=failing), 3)
+        self.assertEqual(len(calls), 1)

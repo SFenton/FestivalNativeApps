@@ -13,6 +13,7 @@ Commands::
     python3 tools/appstore_showcase.py fetch --out ~/.cache/fst-appstore/songs.json
     python3 tools/appstore_showcase.py check --catalogue ~/.cache/fst-appstore/songs.json
     python3 tools/appstore_showcase.py serve --port 18795 --catalogue ~/.cache/fst-appstore/songs.json
+    python3 tools/appstore_showcase.py shoot --out-dir /tmp/appstore-shots   # macOS, after ios_sim.py build
 
 Catalogue payloads must stay outside the repository; artwork stays a CDN-relative filename
 that the app resolves itself, so no art bytes are stored or bundled.
@@ -25,7 +26,9 @@ import json
 import math
 import random
 import re
+import subprocess
 import sys
+import threading
 import urllib.request
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
@@ -1615,6 +1618,69 @@ def build_server(catalogue: dict, port: int = 0, *, as_of: date = AS_OF) -> Show
 # region CLI
 
 
+#: App Store capture plan: (file stem, ``FST_DEBUG_TAB``, ``FST_DEBUG_ROUTE``). Rivals has no
+#: iPhone tab, so it is pushed as a route over Compete.
+SHOTS = (
+    ("01-songs", "songs", None),
+    ("02-suggestions", "suggestions", None),
+    ("03-statistics", "statistics", None),
+    ("04-compete", "compete", None),
+    ("05-rivals", "compete", "rivals"),
+)
+
+
+def shot_commands(port: int, out_dir: Path, device: str, wait: float) -> list[list[str]]:
+    """Build one ``ios_sim.py shot`` argv per App Store page.
+
+    Args:
+        port: Loopback port of the running showcase server.
+        out_dir: Directory receiving ``<stem>.png`` files.
+        device: ``ios_sim.py`` device alias or UDID (``promax`` = 6.9-inch).
+        wait: Seconds to let each page load before capturing.
+
+    Returns:
+        Argument vectors, in ``SHOTS`` order.
+    """
+    tool = str(Path(__file__).resolve().parent / "ios_sim.py")
+    commands = []
+    for stem, tab, route in SHOTS:
+        argv = [sys.executable, tool, "shot", "--device", device, "--tab", tab, "--wait", str(wait),
+                "--clean-status-bar", "--env", f"FST_API_BASE_URL=http://127.0.0.1:{port}",
+                "--env", f"FST_DEBUG_PROFILE={PLAYER_ID}:{PLAYER_NAME}", "--out", str(out_dir / f"{stem}.png")]
+        if route:
+            argv[5:5] = ["--route", route]
+        commands.append(argv)
+    return commands
+
+
+def shoot(catalogue: dict, out_dir: Path, device: str, wait: float, run=subprocess.run) -> int:
+    """Serve the overlay on a free loopback port and capture every ``SHOTS`` page.
+
+    Args:
+        catalogue: Public catalogue envelope.
+        out_dir: Output directory (created if missing).
+        device: ``ios_sim.py`` device alias or UDID.
+        wait: Per-page load wait in seconds.
+        run: Subprocess runner (injected by tests).
+
+    Returns:
+        0 when every capture succeeded, else the first failing exit code.
+    """
+    out_dir.mkdir(parents=True, exist_ok=True)
+    server = build_server(catalogue, 0)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        for argv in shot_commands(server.server_port, out_dir, device, wait):
+            code = run(argv).returncode
+            if code:
+                return code
+    finally:
+        server.shutdown()
+        server.server_close()
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the ``serve``, ``fetch`` or ``check`` command.
 
@@ -1631,7 +1697,11 @@ def main(argv: list[str] | None = None) -> int:
     fetch = sub.add_parser("fetch", help="one keyless GET of the public song catalogue")
     fetch.add_argument("--out", default=str(DEFAULT_CATALOGUE))
     check = sub.add_parser("check", help="build the overlay and print a JSON summary")
-    for command in (serve, check):
+    shoot_cmd = sub.add_parser("shoot", help="capture the App Store pages via ios_sim.py (macOS)")
+    shoot_cmd.add_argument("--out-dir", required=True)
+    shoot_cmd.add_argument("--device", default="promax", help="ios_sim.py alias; promax is the 6.9-inch size")
+    shoot_cmd.add_argument("--wait", type=float, default=12.0)
+    for command in (serve, check, shoot_cmd):
         command.add_argument("--catalogue", default=str(DEFAULT_CATALOGUE))
         command.add_argument("--as-of", default=AS_OF.isoformat(), help="fixed date for history/shop fields")
     args = parser.parse_args(argv)
@@ -1643,6 +1713,8 @@ def main(argv: list[str] | None = None) -> int:
         summary = Showcase(load_catalogue(args.catalogue), as_of=as_of).summary()
         print(json.dumps(summary, indent=2))
         return 0 if summary["ok"] else 1
+    if args.command == "shoot":
+        return shoot(load_catalogue(args.catalogue), Path(args.out_dir).expanduser(), args.device, args.wait)
     if not 0 <= args.port <= 65535:
         parser.error("port must be between 0 (OS-assigned) and 65535")
     with build_server(load_catalogue(args.catalogue), args.port, as_of=as_of) as server:
