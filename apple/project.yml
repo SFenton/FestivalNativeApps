@@ -20,6 +20,7 @@ targets:
         CFBundleDisplayName: Festival Score Tracker
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        FSTGitSHA: $(FST_GIT_SHA)
         UILaunchScreen:
           UIColorName: FestivalLaunchBackground
         CADisableMinimumFrameDurationOnPhone: true
@@ -40,6 +41,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.sfenton.festivalscoretracker.native
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
+        FST_GIT_SHA: dev
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_VERSION: "6.0"
         TARGETED_DEVICE_FAMILY: "1,2"
