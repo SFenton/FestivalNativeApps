@@ -96,6 +96,24 @@ public enum QuickLinks {
         sectionCount >= minimumSectionCount
     }
 
+    /// Discovery order for a section that contains other tagged sections.
+    ///
+    /// A container starts above everything inside it, so it comes first and its
+    /// descendants keep their own tree order after it. This keeps nested entries
+    /// (Profile's per-instrument Rank History and Percentiles) in the page's
+    /// top-to-bottom order instead of letting the container hide or follow them.
+    ///
+    /// - Parameters:
+    ///   - section: The containing section.
+    ///   - descendants: Sections reported from inside it, in tree order.
+    /// - Returns: `section` followed by `descendants`.
+    public static func nesting(
+        _ section: QuickLinkSection,
+        descendants: [QuickLinkSection]
+    ) -> [QuickLinkSection] {
+        [section] + descendants
+    }
+
     /// Resolve the ordered list shown in the jump menu.
     ///
     /// An explicit list (required for lazy containers whose off-screen sections

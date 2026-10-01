@@ -220,7 +220,11 @@ struct QuickLinkSectionModifier: ViewModifier {
     func body(content: Content) -> some View {
         if let context {
             content
-                .preference(key: QuickLinkSectionsKey.self, value: [section])
+                // `transformPreference`, not `preference`: the latter replaces what
+                // nested sections report, which dropped them from the menu.
+                .transformPreference(QuickLinkSectionsKey.self) { nested in
+                    nested = QuickLinks.nesting(section, descendants: nested)
+                }
                 .accessibilityRotorEntry(id: section.id, in: context.rotorNamespace)
                 .onGeometryChange(for: QuickLinkFrame.self) { geometry in
                     let frame = geometry.frame(in: .named(quickLinksSpace))

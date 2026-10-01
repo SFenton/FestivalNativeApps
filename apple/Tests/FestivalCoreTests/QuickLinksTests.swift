@@ -37,6 +37,18 @@ private func frames(_ entries: [(String, Double, Double)]) -> [String: QuickLink
     #expect(ordered[0].title == "First")
 }
 
+@Test func containingSectionPrecedesItsNestedSectionsInTreeOrder() {
+    let lead = QuickLinkSection(id: "instrument:Solo_Guitar", title: "Lead")
+    let nested = [
+        QuickLinkSection(id: "rank-history:Solo_Guitar", title: "Rank History", depth: 1),
+        QuickLinkSection(id: "percentiles:Solo_Guitar", title: "Percentiles", depth: 1),
+    ]
+    #expect(QuickLinks.nesting(lead, descendants: nested).map(\.id) == [
+        "instrument:Solo_Guitar", "rank-history:Solo_Guitar", "percentiles:Solo_Guitar",
+    ])
+    #expect(QuickLinks.nesting(lead, descendants: []).map(\.id) == ["instrument:Solo_Guitar"])
+}
+
 @Test func negativeDepthClampsToZero() {
     #expect(QuickLinkSection(id: "a", title: "A", depth: -3).depth == 0)
     #expect(QuickLinkSection(id: "a", title: "A", depth: 2).depth == 2)
