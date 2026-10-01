@@ -73,6 +73,9 @@ func nativeHostedView<Content: View>(
     let host = NSHostingView(rootView: NativeHostedRoot(
         content: content, forceGlassFallback: forceGlassFallback
     ))
+    // The app is dark-only; AppKit-backed controls follow the view's appearance rather than
+    // `preferredColorScheme`, so pin it instead of inheriting the machine's system appearance.
+    host.appearance = NSAppearance(named: .darkAqua)
     host.frame = CGRect(origin: .zero, size: size)
     host.layoutSubtreeIfNeeded()
     host.displayIfNeeded()
@@ -95,6 +98,7 @@ func nativeHostedWindow<Content: View>(
         ),
         styleMask: .borderless, backing: .buffered, defer: false
     )
+    window.appearance = NSAppearance(named: .darkAqua)
     window.contentView = host
     window.orderOut(nil)
     host.layoutSubtreeIfNeeded()
@@ -104,13 +108,26 @@ func nativeHostedWindow<Content: View>(
 /// Capture native widgets instead of ImageRenderer's yellow AppKit placeholders.
 ///
 /// - Parameter host: The same retained host after the state being asserted has settled.
-/// - Returns: Composited pixels at the host's actual backing scale.
+/// - Returns: Composited pixels at the host's backing scale, but never below 2x so the stride-sampled
+///   pixel thresholds hold on 1x headless CI displays as on a Retina Mac.
 /// - Throws: An unavailable native bitmap or missing image.
 @MainActor
 func nativeHostedImage<Content: View>(_ host: NSHostingView<Content>) throws -> CGImage {
     host.layoutSubtreeIfNeeded()
     host.displayIfNeeded()
-    let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+    var bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+    if CGFloat(bitmap.pixelsWide) < host.bounds.width * 2 {
+        let colorSpace = bitmap.colorSpace
+        let scaled = try #require(NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: Int((host.bounds.width * 2).rounded(.up)),
+            pixelsHigh: Int((host.bounds.height * 2).rounded(.up)),
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+        ))
+        bitmap = scaled.retagged(with: colorSpace) ?? scaled
+        bitmap.size = host.bounds.size
+    }
     host.cacheDisplay(in: host.bounds, to: bitmap)
     return try #require(bitmap.cgImage)
 }
