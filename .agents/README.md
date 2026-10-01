@@ -12,6 +12,7 @@
 | Visual check vs the web app | [skills/screenshot-compare.md](skills/screenshot-compare.md) |
 | Decide what tests to write now | [testing/strategy.md](testing/strategy.md) (phases) |
 | Lane ownership, integrate, simulator | [workflow/lanes.md](workflow/lanes.md) |
+| CI, App Store Connect builds/submission, release credentials | [workflow/release-machine.md](workflow/release-machine.md) |
 | Edit these docs | [workflow/docs-conventions.md](workflow/docs-conventions.md); check with `python3 .agents/_tools/check_docs.py` |
 | Web source, snapshots, parity backlog | [workflow/source-of-truth.md](workflow/source-of-truth.md) |
 
