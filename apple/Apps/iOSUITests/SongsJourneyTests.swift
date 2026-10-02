@@ -143,7 +143,7 @@ final class SongsJourneyTests: XCTestCase {
         SongsUITestSupport.reveal(lead, in: app, scrollingUp: false)
         let originalLead = try XCTUnwrap(lead.value as? String)
         SongsUITestSupport.setSwitch(lead, to: "1")
-        let filtering = app.switches["Filter Invalid Scores"]
+        let filtering = app.switches["fst.settings.filter-invalid-scores"]
         SongsUITestSupport.reveal(filtering, in: app, scrollingUp: false)
         let originalFilter = try XCTUnwrap(filtering.value as? String)
         SongsUITestSupport.setSwitch(filtering, to: "0")
@@ -376,15 +376,15 @@ final class SongsJourneyTests: XCTestCase {
             pulse.frame.maxY, tabs.frame.minY,
             "Grouped card \(pulse.frame) extends behind floating tab \(tabs.frame)"
         )
-        try app.performAccessibilityAudit(for: .all)
+        try SongsUITestSupport.audit(app)
     }
 
-    /// Stage selected-player per-chart score checks and prove real Songs row changes.
+    /// Per-chart score checks apply as they are toggled, survive a cold relaunch and
+    /// reset from the sheet (immediate-apply sheet with Done, operator 2026-09-28).
     ///
-    /// - Throws: Missing chart toggles, a leaked draft, unchanged rows or lost cold preference.
+    /// - Throws: Missing chart toggles, unchanged rows or a lost cold preference.
     @MainActor
-    func testSelectedPlayerScoreFilterDraftApplyAndColdRelaunch() throws {
-        throw XCTSkip("Draft/Apply/Discard sheets were replaced by immediate-apply sheets with Done (operator, 2026-09-28); this journey tests the removed discard path and needs a rewrite.")
+    func testSelectedPlayerScoreFilterAppliesLiveAndSurvivesColdRelaunch() throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
         let app = SongsUITestSupport.fixtureApp()
@@ -409,13 +409,15 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertTrue(scoreSections.waitForExistence(timeout: 10))
         XCTAssertEqual(scoreSections.value as? String, "Collapsed")
         scoreSections.tap()
-        let allScores = app.switches["fst.songs.filter.score.global.hasScores"]
-        XCTAssertTrue(allScores.waitForExistence(timeout: 10))
+        // Below the Instrument picker: lazily created until scrolled near.
+        let allScores = SongsUITestSupport.revealFilterOption(
+            app.switches["fst.songs.filter.score.global.hasScores"], in: app
+        )
         XCTAssertEqual(allScores.value as? String, "0")
-        let apply = app.buttons["fst.songs.filter.done"]
-        XCTAssertFalse(apply.isEnabled)
+        let done = app.buttons["fst.songs.filter.done"]
+        XCTAssertTrue(done.isEnabled, "Done only closes the sheet and is always available")
         SongsUITestSupport.record(app, name: "songs-score-filter-default")
-        try app.performAccessibilityAudit(for: .all)
+        try SongsUITestSupport.audit(app)
 
         let drums = app.descendants(matching: .any).matching(
             identifier: "fst.songs.filter.score.instrument.Solo_Drums"
@@ -425,15 +427,10 @@ final class SongsJourneyTests: XCTestCase {
         let readyHasDrums = SongsUITestSupport.revealFilterOption(hasDrums, in: app)
         XCTAssertEqual(readyHasDrums.value as? String, "0")
         SongsUITestSupport.setSwitch(readyHasDrums, to: "1")
-        XCTAssertTrue(apply.isEnabled)
-        SongsUITestSupport.record(app, name: "songs-score-filter-drums-draft")
-        app.buttons["fst.songs.filter.done"].tap()
-        XCTAssertTrue(app.buttons["Discard Changes"].waitForExistence(timeout: 10))
-        app.buttons["Continue Editing"].tap()
-        XCTAssertEqual(hasDrums.value as? String, "1")
-        apply.tap()
+        SongsUITestSupport.record(app, name: "songs-score-filter-drums-live")
+        done.tap()
         XCTAssertTrue(pulse.waitForExistence(timeout: 10))
-        XCTAssertFalse(orbit.exists)
+        XCTAssertFalse(orbit.exists, "The check applied as it was toggled")
         XCTAssertTrue((filter.value as? String)?.contains("1 player score check") == true)
         SongsUITestSupport.record(app, name: "songs-score-filter-has-drums")
 
@@ -450,10 +447,8 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertTrue(pulse.waitForExistence(timeout: 15))
         XCTAssertFalse(orbit.exists)
         filter.tap()
-        let reset = SongsUITestSupport.revealFilterReset(in: app)
-        reset.tap()
-        XCTAssertTrue(apply.isEnabled)
-        apply.tap()
+        SongsUITestSupport.revealFilterReset(in: app).tap()
+        done.tap()
         XCTAssertTrue(orbit.waitForExistence(timeout: 10))
         XCTAssertEqual(filter.value as? String, "No filters")
         SongsUITestSupport.record(app, name: "songs-score-filter-reset")
@@ -497,7 +492,7 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertTrue(apply.isEnabled && apply.isHittable)
         try SongsUITestSupport.assertHeaderContrast(apply, in: app, leadingTextWidth: 160)
         SongsUITestSupport.record(app, name: "songs-score-filter-ax5-draft")
-        try app.performAccessibilityAudit(for: .all)
+        try SongsUITestSupport.audit(app)
         apply.tap()
         XCTAssertTrue(pulse.waitForExistence(timeout: 15))
         XCTAssertFalse(orbit.exists)
@@ -552,7 +547,7 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertTrue((filter.value as? String)?.contains("1 player score check") == true)
 
         SongsUITestSupport.rootControl("Settings", app: app).tap()
-        let invalid = app.switches["Filter Invalid Scores"]
+        let invalid = app.switches["fst.settings.filter-invalid-scores"]
         SongsUITestSupport.reveal(invalid, in: app, scrollingUp: false)
         SongsUITestSupport.setSwitch(invalid, to: "1")
         SongsUITestSupport.rootControl("Songs", app: app).tap()
@@ -564,9 +559,9 @@ final class SongsJourneyTests: XCTestCase {
         filter.tap()
         let scoreSections = app.buttons["fst.songs.filter.score-sections"]
         XCTAssertEqual(scoreSections.value as? String, "Expanded")
-        XCTAssertFalse(app.switches[
-            "fst.songs.filter.score.global.hasScores"
-        ].isEnabled)
+        XCTAssertFalse(SongsUITestSupport.revealFilterOption(
+            app.switches["fst.songs.filter.score.global.hasScores"], in: app
+        ).isEnabled)
         app.buttons["fst.songs.filter.done"].tap()
         SongsUITestSupport.record(app, name: "songs-score-filter-invalid-score-mode-paused")
 
@@ -615,25 +610,20 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertTrue(pulse.waitForExistence(timeout: 10) && orbit.exists)
     }
 
-    /// A selected player's Shop Filter stages choices and persists only Apply.
+    /// A selected player's Shop Filter applies as toggled, persists across a cold
+    /// relaunch and resets from the sheet.
     ///
-    /// - Throws: Anonymous Filter leakage, a discarded draft, unchanged rows or lost preference.
+    /// - Throws: Anonymous Filter leakage, unchanged rows or a lost preference.
     @MainActor
-    func testSelectedShopFilterDraftApplyDiscardAndRelaunch() throws {
-        throw XCTSkip("Draft/Apply/Discard sheets were replaced by immediate-apply sheets with Done (operator, 2026-09-28); this journey tests the removed discard path and needs a rewrite.")
+    func testSelectedShopFilterAppliesLiveAndSurvivesRelaunch() throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
         let app = SongsUITestSupport.fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "shop-single"
         app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launchArguments += ["-fst.settings.hideShop", "NO"]
         app.launch()
-        SongsUITestSupport.rootControl("Settings", app: app).tap()
-        let hidden = app.switches["fst.settings.hide-shop"]
-        SongsUITestSupport.reveal(hidden, in: app, scrollingUp: true)
-        let originallyHidden = try XCTUnwrap(hidden.value as? String)
-        SongsUITestSupport.setSwitch(hidden, to: "0")
-        SongsUITestSupport.rootControl("Songs", app: app).tap()
         let pulse = app.buttons["fst.songs.row.fixture-pulse"]
         let orbit = app.buttons["fst.songs.row.fixture-orbit"]
         XCTAssertTrue(pulse.waitForExistence(timeout: 15))
@@ -647,24 +637,18 @@ final class SongsJourneyTests: XCTestCase {
         SongsUITestSupport.openSongsFilter(in: app)
         let inShop = app.switches["fst.songs.filter.in-shop"]
         let leaving = app.switches["fst.songs.filter.leaving"]
-        let apply = app.buttons["fst.songs.filter.done"]
+        let done = app.buttons["fst.songs.filter.done"]
         XCTAssertEqual(inShop.value as? String, "0")
         XCTAssertEqual(leaving.value as? String, "0")
-        XCTAssertFalse(apply.isEnabled)
         let available = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "enabled == true"), object: inShop
         )
         XCTAssertEqual(XCTWaiter.wait(for: [available], timeout: 15), .completed)
         SongsUITestSupport.record(app, name: "songs-player-shop-filter-default")
-        try app.performAccessibilityAudit(for: .all)
+        try SongsUITestSupport.audit(app)
 
         SongsUITestSupport.setSwitch(inShop, to: "1")
-        XCTAssertTrue(apply.isEnabled)
-        app.buttons["fst.songs.filter.done"].tap()
-        XCTAssertTrue(app.buttons["Discard Changes"].waitForExistence(timeout: 10))
-        app.buttons["Continue Editing"].tap()
-        XCTAssertEqual(inShop.value as? String, "1")
-        apply.tap()
+        done.tap()
         XCTAssertTrue(pulse.waitForExistence(timeout: 10))
         XCTAssertFalse(orbit.exists)
         XCTAssertEqual(filter.value as? String, "In Shop")
@@ -683,22 +667,11 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertTrue(pulse.exists)
         XCTAssertFalse(orbit.exists)
         SongsUITestSupport.openSongsFilter(in: app)
-        let reset = app.buttons["fst.songs.filter.reset"]
-        for _ in 0..<6 {
-            if reset.isHittable { break }
-            app.swipeUp()
-        }
-        XCTAssertTrue(reset.isHittable)
-        reset.tap()
-        XCTAssertTrue(apply.isEnabled)
-        apply.tap()
+        SongsUITestSupport.revealFilterReset(in: app).tap()
+        done.tap()
         XCTAssertTrue(orbit.waitForExistence(timeout: 10))
         XCTAssertEqual(filter.value as? String, "No filters")
         SongsUITestSupport.record(app, name: "songs-player-shop-filter-reset")
-
-        SongsUITestSupport.rootControl("Settings", app: app).tap()
-        SongsUITestSupport.reveal(hidden, in: app, scrollingUp: true)
-        SongsUITestSupport.setSwitch(hidden, to: originallyHidden)
     }
 
     /// Keep saved Shop filters honest across hide, failure, true empty and deselection.
@@ -864,40 +837,31 @@ final class SongsJourneyTests: XCTestCase {
         SongsUITestSupport.setSwitch(hidden, to: originallyHidden)
     }
 
-    /// Verify Shop Filter actions and controls grow and remain reachable at AX5.
+    /// Shop Filter controls and Done grow and stay reachable at AX5, and a toggle there
+    /// applies to the rows.
     ///
-    /// - Throws: A stale draft, clipped footer, unscaled glyphs or failed manufacturer audit.
+    /// - Throws: A clipped footer, unscaled glyphs or a failed manufacturer audit.
     @MainActor
     func testSelectedShopFilterAtLargestText() throws {
-        throw XCTSkip("Draft/Apply/Discard sheets were replaced by immediate-apply sheets with Done (operator, 2026-09-28); this journey tests the removed discard path and needs a rewrite.")
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
         let app = SongsUITestSupport.fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
         app.launchEnvironment["FST_FIXTURE_SCENARIO"] = "shop-single"
         app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        app.launchArguments += ["-fst.settings.hideShop", "NO"]
         app.launch()
-        SongsUITestSupport.rootControl("Settings", app: app).tap()
-        let hidden = app.switches["fst.settings.hide-shop"]
-        SongsUITestSupport.reveal(hidden, in: app, scrollingUp: true)
-        let originallyHidden = try XCTUnwrap(hidden.value as? String)
-        SongsUITestSupport.setSwitch(hidden, to: "0")
-        SongsUITestSupport.rootControl("Songs", app: app).tap()
         SongsUITestSupport.viewFixturePlayer("fixture-player-1", query: "Fixture Player", in: app)
         SongsUITestSupport.selectViewedPlayer(in: app)
         SongsUITestSupport.openSongsFilter(in: app)
-        let inShop = app.switches["fst.songs.filter.in-shop"]
-        let apply = app.buttons["fst.songs.filter.done"]
-        let available = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "enabled == true"), object: inShop
+        let done = app.buttons["fst.songs.filter.done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 10))
+        // Measure a white Form label: the system Done is a bar button, which keeps its
+        // size at large text (HIG), and it is blue.
+        let normalGlyphHeight = try SongsUITestSupport.brightGlyphHeight(
+            in: SongsUITestSupport.revealFilterOption(app.switches["fst.songs.filter.in-shop"], in: app)
         )
-        XCTAssertEqual(XCTWaiter.wait(for: [available], timeout: 15), .completed)
-        SongsUITestSupport.setSwitch(inShop, to: "1")
-        XCTAssertTrue(apply.isEnabled)
-        let normalGlyphHeight = try SongsUITestSupport.brightGlyphHeight(in: apply)
-        app.buttons["fst.songs.filter.done"].tap()
-        XCTAssertTrue(app.buttons["Discard Changes"].waitForExistence(timeout: 10))
-        app.buttons["Discard Changes"].tap()
+        done.tap()
 
         app.terminate()
         app.launchEnvironment.removeValue(forKey: "FST_UI_TEST_CLEAR_PROFILE")
@@ -909,69 +873,58 @@ final class SongsJourneyTests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.buttons["fst.songs.filter"].waitForExistence(timeout: 15))
         SongsUITestSupport.openSongsFilter(in: app)
+        let inShop = app.switches["fst.songs.filter.in-shop"]
+        let available = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "enabled == true"), object: inShop
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [available], timeout: 15), .completed)
+        XCTAssertTrue(done.isHittable)
+        let shown = SongsUITestSupport.revealFilterOption(inShop, in: app)
+        XCTAssertEqual(shown.value as? String, "0")
+        SongsUITestSupport.setSwitch(shown, to: "1")
+        let largeGlyphHeight = try SongsUITestSupport.brightGlyphHeight(in: shown)
+        // Reset stays reachable at the bottom of the Form (the lazy rows above it are
+        // released once it scrolls into view).
         let reset = SongsUITestSupport.revealFilterReset(in: app)
         XCTAssertTrue(reset.isHittable)
-        let footerBottom = app.windows.firstMatch.frame.maxY - 16
-        XCTAssertTrue(apply.isHittable)
-        XCTAssertLessThanOrEqual(apply.frame.maxY, footerBottom)
-        XCTAssertEqual(inShop.value as? String, "0")
-        SongsUITestSupport.setSwitch(inShop, to: "1")
-        XCTAssertTrue(apply.isEnabled)
-        let largeGlyphHeight = try SongsUITestSupport.brightGlyphHeight(in: apply)
         XCTAssertGreaterThan(
             Double(largeGlyphHeight), Double(normalGlyphHeight) * 1.35,
-            "Filter Apply glyphs did not scale with Dynamic Type"
+            "Filter labels did not scale with Dynamic Type"
         )
-        try SongsUITestSupport.assertHeaderContrast(apply, in: app, leadingTextWidth: 160)
         SongsUITestSupport.record(app, name: "songs-player-shop-filter-ax5-sheet")
-        try app.performAccessibilityAudit(for: .all)
-        apply.tap()
+        try SongsUITestSupport.audit(app)
+        done.tap()
         XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"]
             .waitForExistence(timeout: 15))
         XCTAssertFalse(app.buttons["fst.songs.row.fixture-orbit"].exists)
         SongsUITestSupport.record(app, name: "songs-player-shop-filter-ax5-applied")
-
-        SongsUITestSupport.rootControl("Settings", app: app).tap()
-        SongsUITestSupport.reveal(hidden, in: app, scrollingUp: true)
-        SongsUITestSupport.setSwitch(hidden, to: originallyHidden)
+        // Leave the saved filter at its default for later journeys.
+        SongsUITestSupport.openSongsFilter(in: app)
+        SongsUITestSupport.revealFilterReset(in: app).tap()
+        done.tap()
     }
 
-    /// Native Sort stages changes, persists rows and audits reachable modal text.
+    /// Sort choices reorder rows as they are made, persist across a relaunch and reset
+    /// from the sheet; the sheet passes the accessibility audit.
     ///
-    /// - Throws: Wrong row order, silent discard, lost preference or visible contrast.
+    /// - Throws: Wrong row order, a lost preference or an audit finding.
     @MainActor
-    func testAnonymousSongsSortDraftApplyDiscardAndRelaunch() throws {
-        throw XCTSkip("Draft/Apply/Discard sheets were replaced by immediate-apply sheets with Done (operator, 2026-09-28); this journey tests the removed discard path and needs a rewrite.")
+    func testAnonymousSongsSortAppliesLiveAndSurvivesRelaunch() throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
         let app = SongsUITestSupport.fixtureApp()
         app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        // No `-fst.songs.sort…` launch arguments: the argument domain would override
+        // the sheet's own writes for the whole launch.
         app.launch()
         let sort = app.buttons["fst.songs.sort"]
         XCTAssertTrue(sort.waitForExistence(timeout: 10))
         if (sort.value as? String) != "Title, ascending" {
-            let savedSort = try XCTUnwrap(sort.value as? String)
             sort.tap()
-            let initialDirection = app.segmentedControls["fst.songs.sort.direction"]
-            XCTAssertTrue(initialDirection.waitForExistence(timeout: 10))
-            XCTAssertTrue(
-                initialDirection.buttons[
-                    savedSort.hasSuffix("descending") ? "Descending" : "Ascending"
-                ].isSelected,
-                "Saved \(savedSort) did not initialize the modal draft"
-            )
-            SongsUITestSupport.record(app, name: "songs-sort-before-baseline-reset")
             SongsUITestSupport.revealSortReset(in: app).tap()
-            SongsUITestSupport.record(app, name: "songs-sort-after-baseline-reset")
-            let initialApply = app.buttons["fst.songs.sort.done"]
-            for _ in 0..<30 {
-                if initialApply.isEnabled { break }
-                RunLoop.current.run(until: Date().addingTimeInterval(0.1))
-            }
-            XCTAssertTrue(initialApply.isEnabled, "Could not restore the default sort")
-            initialApply.tap()
-            XCTAssertEqual(sort.value as? String, "Title, ascending")
+            app.buttons["fst.songs.sort.done"].tap()
         }
+        XCTAssertEqual(sort.value as? String, "Title, ascending")
         let orbit = app.buttons["fst.songs.row.fixture-orbit"]
         let pulse = app.buttons["fst.songs.row.fixture-pulse"]
         XCTAssertTrue(orbit.waitForExistence(timeout: 15))
@@ -979,50 +932,26 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertLessThan(orbit.frame.minY, pulse.frame.minY)
 
         sort.tap()
+        let done = app.buttons["fst.songs.sort.done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 10))
         SongsUITestSupport.record(app, name: "songs-sort-default-sheet")
-        if UIDevice.current.userInterfaceIdiom == .phone {
-            try app.performAccessibilityAudit(for: .all)
-        } else {
-            try SongsUITestSupport.assertHeaderContrast(app.staticTexts["Sort Songs"], in: app)
-        }
-        let direction = app.segmentedControls["fst.songs.sort.direction"]
-        XCTAssertTrue(direction.waitForExistence(timeout: 10))
-        let descending = direction.buttons["Descending"]
-        XCTAssertTrue(descending.exists)
-        let apply = app.buttons["fst.songs.sort.done"]
-        XCTAssertFalse(apply.isEnabled)
-        let artist = app.buttons["Artist"]
-        XCTAssertTrue(artist.exists)
-        artist.tap()
-        XCTAssertTrue(apply.isEnabled, "Choosing Artist did not change the sort draft")
-        app.buttons["Title"].tap()
-        XCTAssertFalse(apply.isEnabled, "Restoring Title did not clear the sort draft")
+        try SongsUITestSupport.audit(app)
+        let ascending = app.buttons["fst.songs.sort.direction.ascending"]
+        let descending = app.buttons["fst.songs.sort.direction.descending"]
+        XCTAssertTrue(ascending.isSelected && !descending.isSelected)
+        // Artist then back to Title: each applies at once, leaving the sheet open.
+        app.buttons.matching(identifier: "fst.songs.sort.mode")
+            .matching(NSPredicate(format: "label == %@", "Artist")).firstMatch.tap()
+        let artistValue = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "Artist, ascending"), object: sort
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [artistValue], timeout: 10), .completed)
+        app.buttons.matching(identifier: "fst.songs.sort.mode")
+            .matching(NSPredicate(format: "label == %@", "Title")).firstMatch.tap()
         descending.tap()
         XCTAssertTrue(descending.isSelected)
-        SongsUITestSupport.record(app, name: "songs-sort-draft-descending")
-        if UIDevice.current.userInterfaceIdiom == .phone {
-            try app.performAccessibilityAudit(for: .all)
-        } else {
-            try SongsUITestSupport.assertHeaderContrast(app.buttons["fst.songs.sort.done"], in: app)
-        }
-        XCTAssertTrue(apply.isEnabled, "Changing direction did not create a draft")
-        app.buttons["fst.songs.sort.done"].tap()
-        let continueEditing = app.buttons["Continue Editing"]
-        XCTAssertTrue(continueEditing.waitForExistence(timeout: 10))
-        continueEditing.tap()
-        XCTAssertTrue(descending.isSelected)
-        XCTAssertTrue(apply.isEnabled)
-        app.buttons["fst.songs.sort.done"].tap()
-        let discard = app.buttons["Discard Changes"]
-        XCTAssertTrue(discard.waitForExistence(timeout: 10))
-        discard.tap()
-        XCTAssertLessThan(orbit.frame.minY, pulse.frame.minY)
-
-        sort.tap()
-        XCTAssertTrue(direction.buttons["Ascending"].isSelected)
-        descending.tap()
-        XCTAssertTrue(apply.isEnabled)
-        apply.tap()
+        SongsUITestSupport.record(app, name: "songs-sort-descending-live")
+        done.tap()
         for _ in 0..<30 {
             if pulse.frame.minY < orbit.frame.minY { break }
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
@@ -1036,22 +965,9 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertTrue(pulse.waitForExistence(timeout: 15))
         XCTAssertLessThan(pulse.frame.minY, orbit.frame.minY)
         sort.tap()
-        XCTAssertTrue(direction.buttons["Descending"].isSelected)
+        XCTAssertTrue(descending.waitForExistence(timeout: 10) && descending.isSelected)
         SongsUITestSupport.revealSortReset(in: app).tap()
-        app.buttons["fst.songs.sort.done"].tap()
-        XCTAssertTrue(app.buttons["Discard Changes"].waitForExistence(timeout: 10))
-        app.buttons["Discard Changes"].tap()
-        XCTAssertEqual(sort.value as? String, "Title, descending")
-        sort.tap()
-        XCTAssertTrue(direction.buttons["Descending"].isSelected)
-        SongsUITestSupport.revealSortReset(in: app).tap()
-        let resetApply = app.buttons["fst.songs.sort.done"]
-        for _ in 0..<30 {
-            if resetApply.isEnabled { break }
-            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
-        }
-        XCTAssertTrue(resetApply.isEnabled, "Reset did not create a changed sort draft")
-        app.buttons["fst.songs.sort.done"].tap()
+        done.tap()
         for _ in 0..<30 {
             if orbit.frame.minY < pulse.frame.minY { break }
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
@@ -1116,7 +1032,7 @@ final class SongsJourneyTests: XCTestCase {
         let readyShop = SongsUITestSupport.revealShopSort(in: app)
         SongsUITestSupport.record(app, name: "songs-shop-sort-choice")
         if UIDevice.current.userInterfaceIdiom == .phone {
-            try app.performAccessibilityAudit(for: .all)
+            try SongsUITestSupport.audit(app)
         } else {
             try SongsUITestSupport.assertHeaderContrast(readyShop, in: app, leadingTextWidth: 180)
         }
@@ -1305,7 +1221,7 @@ final class SongsJourneyTests: XCTestCase {
             "Cannot audit artwork contrast before original fixture art is visible"
         )
         SongsUITestSupport.record(app, name: "songs-before-accessibility-audit")
-        try app.performAccessibilityAudit(for: .all)
+        try SongsUITestSupport.audit(app)
     }
 
     /// Exercise real native no-results and service-error presentation.
@@ -1327,7 +1243,7 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Songs unavailable"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.buttons["Retry"].exists)
         SongsUITestSupport.record(app, name: "songs-service-error")
-        try app.performAccessibilityAudit(for: .all)
+        try SongsUITestSupport.audit(app)
         SongsUITestSupport.rootControl("Settings", app: app).tap()
         let publication = app.buttons["Check Publication"]
         SongsUITestSupport.reveal(publication, in: app, scrollingUp: true)
@@ -1401,7 +1317,7 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Songs unavailable"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.buttons["Retry"].exists)
         SongsUITestSupport.record(app, name: "songs-first-catalogue-503")
-        try app.performAccessibilityAudit(for: .all)
+        try SongsUITestSupport.audit(app)
 
         SongsUITestSupport.rootControl("Settings", app: app).tap()
         let publication = app.buttons["Check Publication"]
@@ -1419,7 +1335,7 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Songs unavailable"].exists)
         try await SongsUITestSupport.assertWhiteArtVisible(in: app)
         SongsUITestSupport.record(app, name: "songs-recovered-same-publication")
-        try app.performAccessibilityAudit(for: .all)
+        try SongsUITestSupport.audit(app)
     }
 
     /// A confirmed app-settings reset must not erase the current Songs query.
@@ -1441,7 +1357,7 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertTrue(noMatches.waitForExistence(timeout: 10))
         SongsUITestSupport.rootControl("Settings", app: app).tap()
 
-        let filter = app.switches["Filter Invalid Scores"]
+        let filter = app.switches["fst.settings.filter-invalid-scores"]
         XCTAssertTrue(filter.waitForExistence(timeout: 10))
         SongsUITestSupport.setSwitch(filter, to: "1")
         let motion = app.switches["fst.settings.reduce-motion"]

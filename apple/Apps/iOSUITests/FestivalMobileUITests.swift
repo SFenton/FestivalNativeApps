@@ -219,7 +219,7 @@ final class FestivalMobileUITests: XCTestCase {
         try rootProfileAction(in: app).tap()
         XCTAssertTrue(app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch.waitForExistence(timeout: 10))
         app.buttons["fst.profile.close"].tap()
-        XCTAssertTrue(app.switches["Filter Invalid Scores"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.switches["fst.settings.filter-invalid-scores"].waitForExistence(timeout: 10))
 
         rootControl("Leaderboards", app: app).tap()
         try rootProfileAction(in: app).tap()

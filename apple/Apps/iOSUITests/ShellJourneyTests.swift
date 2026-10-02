@@ -51,15 +51,11 @@ final class ShellJourneyTests: XCTestCase {
         XCTAssertTrue(leaderboardsTab.waitForExistence(timeout: 15))
         leaderboardsTab.tap()
         XCTAssertTrue(app.navigationBars["Leaderboards"].waitForExistence(timeout: 15))
-        // Label is now "View all N rankings"; match the card's stable identifier.
-        let viewAll = app.buttons.matching(
-            NSPredicate(format: "identifier ENDSWITH '.view-all'")
-        ).firstMatch
+        // The Lead card's purple "View all rankings (N)" button (Lane PB identifier).
+        let viewAll = app.buttons["fst.leaderboards.card.Solo_Guitar.view-all"]
         XCTAssertTrue(viewAll.waitForExistence(timeout: 15))
         viewAll.tap()
-        let rankingsTitle = app.navigationBars.matching(
-            NSPredicate(format: "identifier CONTAINS 'Rankings'")
-        ).firstMatch
+        let rankingsTitle = app.navigationBars["Lead Rankings"]
         XCTAssertTrue(rankingsTitle.waitForExistence(timeout: 15))
         // Re-tap the same (already active) tab: this must pop back to the root,
         // not merely re-select an already-selected tab and do nothing.

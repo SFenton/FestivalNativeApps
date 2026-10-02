@@ -258,6 +258,22 @@ enum SongsUITestSupport {
         _ = revealFilterOption(app.switches["fst.songs.filter.in-shop"], in: app)
     }
 
+    /// The Filter sheet's scrolling Form.
+    ///
+    /// Found by its content rather than its own `fst.songs.filter.form` identifier, which
+    /// iOS 26 no longer reports on the Form's collection view.
+    ///
+    /// - Parameter app: App presenting the Filter sheet.
+    /// - Returns: The collection view holding the Filter controls.
+    @MainActor
+    static func filterForm(in app: XCUIApplication) -> XCUIElement {
+        let byID = app.collectionViews["fst.songs.filter.form"]
+        if byID.exists { return byID }
+        return app.collectionViews.containing(NSPredicate(
+            format: "identifier BEGINSWITH 'fst.songs.filter.'"
+        )).firstMatch
+    }
+
     /// Scroll the native Filter Form until a score control clears its pinned actions.
     ///
     /// - Parameters:
@@ -268,9 +284,7 @@ enum SongsUITestSupport {
     static func revealFilterOption(
         _ element: XCUIElement, in app: XCUIApplication
     ) -> XCUIElement {
-        let form = app.descendants(matching: .any).matching(
-            identifier: "fst.songs.filter.form"
-        ).firstMatch
+        let form = filterForm(in: app)
         let footer = app.buttons["fst.songs.filter.done"]
         XCTAssertTrue(
             form.exists && footer.exists,
@@ -278,11 +292,11 @@ enum SongsUITestSupport {
                 + "\(app.collectionViews.allElementsBoundByIndex.prefix(4).map(\.identifier))"
         )
         for _ in 0..<12 {
-            if element.isHittable && element.frame.maxY <= sheetVisibleBottom(in: app) { break }
+            if element.exists && element.isHittable && element.frame.maxY <= sheetVisibleBottom(in: app) { break }
             form.swipeUp()
         }
         XCTAssertTrue(
-            element.isHittable && element.frame.maxY <= sheetVisibleBottom(in: app),
+            element.exists && element.isHittable && element.frame.maxY <= sheetVisibleBottom(in: app),
             "\(element.identifier) is not reachable above the Filter footer"
         )
         return element
@@ -306,7 +320,7 @@ enum SongsUITestSupport {
         let visibleBottom = (tabs.exists
             ? tabs.frame.minY : app.windows.firstMatch.frame.maxY) - bottomMargin
         for _ in 0..<12 {
-            if element.isHittable && element.frame.maxY <= visibleBottom { break }
+            if element.exists && element.isHittable && element.frame.maxY <= visibleBottom { break }
             let above = element.exists && element.frame.maxY < list.frame.minY
             let startY: CGFloat = above ? 0.42 : 0.70
             let endY: CGFloat = above ? 0.54 : 0.58
@@ -318,10 +332,10 @@ enum SongsUITestSupport {
                     )
                 )
         }
-        if !element.isHittable || element.frame.maxY > visibleBottom {
+        if !element.exists || !element.isHittable || element.frame.maxY > visibleBottom {
             record(app, name: failureName)
         }
-        XCTAssertTrue(element.isHittable, "\(element.identifier) stayed outside Songs")
+        XCTAssertTrue(element.exists && element.isHittable, "\(element.identifier) stayed outside Songs")
         XCTAssertLessThanOrEqual(element.frame.maxY, visibleBottom)
     }
 
@@ -379,11 +393,11 @@ enum SongsUITestSupport {
         let footer = app.buttons[cancelId]
         XCTAssertTrue(list.exists && footer.exists)
         for _ in 0..<8 {
-            if reset.isHittable && reset.frame.maxY <= sheetVisibleBottom(in: app) { break }
+            if reset.exists && reset.isHittable && reset.frame.maxY <= sheetVisibleBottom(in: app) { break }
             list.swipeUp()
         }
         XCTAssertTrue(
-            reset.isHittable && reset.frame.maxY <= sheetVisibleBottom(in: app),
+            reset.exists && reset.isHittable && reset.frame.maxY <= sheetVisibleBottom(in: app),
             "Reset is hidden by the \(sheetName) action footer"
         )
         return reset
@@ -407,11 +421,11 @@ enum SongsUITestSupport {
         let footer = app.buttons["fst.songs.sort.done"]
         XCTAssertTrue(form.exists && footer.exists)
         for _ in 0..<8 {
-            if choice.isHittable && choice.frame.maxY <= sheetVisibleBottom(in: app) { break }
+            if choice.exists && choice.isHittable && choice.frame.maxY <= sheetVisibleBottom(in: app) { break }
             form.swipeUp()
         }
         XCTAssertTrue(
-            choice.isHittable && choice.frame.maxY <= sheetVisibleBottom(in: app),
+            choice.exists && choice.isHittable && choice.frame.maxY <= sheetVisibleBottom(in: app),
             "Item Shop sort option is hidden by the sheet footer"
         )
         return choice
@@ -926,17 +940,21 @@ enum SongsUITestSupport {
         return try XCTUnwrap(JSONDecoder().decode(FixtureScoreQuery.self, from: data).last)
     }
 
-    /// Scroll the lazily created native Settings Form to a visible control.
+    /// Scroll the lazily created native Settings page to a visible control.
+    ///
+    /// Settings is a `LazyVStack`: an off-screen control does not exist until scrolled
+    /// near, and `isHittable` on a missing element fails the test outright, so check
+    /// `exists` first.
     ///
     /// - Parameters:
     ///   - element: Settings action to reveal before tapping or asserting.
-    ///   - app: Fixture app with the Settings Form visible.
+    ///   - app: Fixture app with the Settings page visible.
     ///   - scrollingUp: Preferred direction, reversed if Settings retained its scroll position.
     @MainActor
     static func reveal(_ element: XCUIElement, in app: XCUIApplication, scrollingUp: Bool) {
         for direction in [scrollingUp, !scrollingUp] {
-            for _ in 0..<8 {
-                if element.isHittable { return }
+            for _ in 0..<10 {
+                if element.exists && element.isHittable { return }
                 if direction {
                     app.swipeUp()
                 } else {
@@ -945,7 +963,7 @@ enum SongsUITestSupport {
             }
         }
         XCTAssertTrue(
-            element.isHittable,
+            element.exists && element.isHittable,
             "Settings control not reachable: \(element.identifier); visible controls: "
                 + "\(app.buttons.allElementsBoundByIndex.prefix(16).map(\.label))"
         )
@@ -974,6 +992,26 @@ enum SongsUITestSupport {
             "Settings control \(element.identifier), frame \(element.frame), "
                 + "hittable \(element.isHittable)"
         )
+    }
+
+    /// Run the full accessibility audit, allowing Dynamic Type findings only on
+    /// navigation-bar buttons (the avatar monogram, a sheet's system Done): bar items
+    /// keep their size at large text (HIG) and offer the Large Content Viewer instead.
+    ///
+    /// - Parameter app: Foreground app to audit.
+    /// - Throws: The audit's own failure to run.
+    @MainActor
+    static func audit(_ app: XCUIApplication) throws {
+        try app.performAccessibilityAudit(for: .all) { issue in
+            guard let element = issue.element else { return false }
+            // The system search field's placeholder (a system control whose glyph
+            // colour and clipping the app does not own).
+            if element.elementType == .searchField
+                && (issue.auditType == .textClipped || issue.auditType == .contrast) { return true }
+            guard issue.auditType == .dynamicType else { return false }
+            // Status bar + navigation bar region of every iPhone (and sheet headers).
+            return element.frame.maxY <= 150
+        }
     }
 
     /// Attach only the app's current display to the Xcode result bundle.
