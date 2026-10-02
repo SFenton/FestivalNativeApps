@@ -1,6 +1,7 @@
 import XCTest
 
-/// iPadOS shell journeys on "FST Native iPad Pro 11": the sections sidebar, three-pane
+/// iPadOS shell journeys for the universal FestivalMobile app on "FST Native iPad Pro 11"
+/// (UI-test bundle `FestivalMobileIPadUITests`): the sections sidebar, three-pane
 /// list/detail, live reflow when the window size changes (rotation) and hardware
 /// keyboard shortcuts. Fixture-backed (`tools/mock_service.py` on 127.0.0.1:8765),
 /// never production. Run with
@@ -19,7 +20,10 @@ final class IPadShellJourneyTests: XCTestCase {
         return FestivalApp.makeApp(env)
     }
 
-    override func setUp() {
+    override func setUpWithError() throws {
+        // The universal app also installs on iPhone; these journeys assert the iPad shell.
+        let isPad = MainActor.assumeIsolated { UIDevice.current.userInterfaceIdiom == .pad }
+        try XCTSkipUnless(isPad, "iPad-only journeys")
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .landscapeLeft
     }

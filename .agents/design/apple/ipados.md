@@ -2,7 +2,7 @@
 
 > **What:** iPad shell, sidebar, list/detail, grids, keyboard and pointer decisions, each with the HIG file it follows (`apple-hig` skill, `~/.claude/skills/apple-hig/references/hig/`). **Read when:** building or changing any iPad layout.
 
-The iPadOS app is its own target, **FestivalTablet** (`com.sfenton.festivalscoretracker.ipad`, all orientations, no `UIRequiresFullScreen`); the App Store iPhone app stays iPhone-only and portrait-locked ([build-and-run](../../platforms/apple/build-and-run.md)). Both share `FestivalUI`, so every iPad decision below is a size-class or `sectionChrome == .sidebar` branch that leaves iPhone unchanged.
+iPadOS ships inside the one universal iOS app, **FestivalMobile** (`com.sfenton.festivalscoretracker.native`, `TARGETED_DEVICE_FAMILY` `1,2`; operator, 2026-10-02). iPhone stays portrait-locked (`UISupportedInterfaceOrientations`); iPad runs all four orientations (`UISupportedInterfaceOrientations~ipad`) with no `UIRequiresFullScreen`, so Split View, Slide Over and resizable windows work ([build-and-run](../../platforms/apple/build-and-run.md)). The shell is picked at run time by size class, never by idiom or orientation (HIG `layout.md`: "choose layout from size classes, not device type"; `multitasking.md`: adapt to every window size), so every iPad decision below is a size-class or `sectionChrome == .sidebar` branch that leaves iPhone unchanged. The single universal 1024 px `AppIcon` also produces the iPad icon entries; `UILaunchScreen` is shared (`launching.md`).
 
 The Home Screen name is **FST**, the same as the iPhone app ([iphone.md](iphone.md#home-screen-name)).
 

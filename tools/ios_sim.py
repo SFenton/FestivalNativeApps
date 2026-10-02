@@ -108,18 +108,18 @@ class AppProduct:
     driver_dir: str
 
 
-#: The iPhone app (App Store, iPhone-only) and the iPadOS app (its own app).
+#: One universal app (iPhone + iPad, operator 2026-10-02) with two UI-test bundles: the
+#: iPhone journeys (scheme FestivalMobile) and the iPad journeys (scheme FestivalMobileIPad).
 PRODUCTS = {
     "phone": AppProduct(
         "FestivalMobile", "FestivalMobile", BUNDLE_ID, "FestivalMobileUITests", "lane-driver"
     ),
     "ipad": AppProduct(
-        "FestivalTablet", "FestivalTablet", "com.sfenton.festivalscoretracker.ipad",
-        "FestivalTabletUITests", "lane-driver-ipad",
+        "FestivalMobileIPad", "FestivalMobile", BUNDLE_ID, "FestivalMobileIPadUITests", "lane-driver-ipad"
     ),
 }
 
-#: Device aliases that run the iPadOS app by default (``--app`` overrides).
+#: Device aliases that run the iPad UI-test bundle by default (``--app`` overrides).
 DEVICE_PRODUCTS = {"ipad": "ipad"}
 
 #: Product the current command targets; set once by ``main()``.
@@ -130,7 +130,7 @@ def product() -> AppProduct:
     """Return the app product the current command targets.
 
     Returns:
-        The selected ``AppProduct`` (the iPhone app unless ``--app``/``--device`` chose iPad).
+        The selected ``AppProduct`` (the iPhone journeys unless ``--app``/``--device`` chose iPad).
     """
     return _product
 
@@ -1444,7 +1444,8 @@ def main(argv: list[str] | None = None) -> int:
     build = sub.add_parser("build", help="build the iOS app for this worktree")
     build.add_argument("--configuration", default="Debug")
     build.add_argument("--app", choices=sorted(PRODUCTS), default=None,
-                       help="app to build: phone (FestivalMobile, default) or ipad (FestivalTablet)")
+                       help="scheme to build: phone (FestivalMobile, default) or ipad (FestivalMobileIPad); "
+                            "both build the same universal FestivalMobile app")
     build.set_defaults(func=cmd_build)
 
     shot = sub.add_parser("shot", help="install, launch, screenshot (serialized)")
@@ -1473,7 +1474,7 @@ def main(argv: list[str] | None = None) -> int:
     shot.add_argument("--display", choices=[*sorted(DUO_PANELS), "auto"],
                       help="iPhone Duo panel to capture; auto = the lit panel (default: simctl's first display)")
     shot.add_argument("--app", choices=sorted(PRODUCTS), default=None,
-                       help="app product (default: ipad for the ipad alias, else phone)")
+                       help="UI-test product (default: ipad for the ipad alias, else phone)")
     shot.set_defaults(func=cmd_shot)
 
     drive = sub.add_parser(
@@ -1503,7 +1504,7 @@ def main(argv: list[str] | None = None) -> int:
         "--rebuild", action="store_true", help="force a fresh build-for-testing"
     )
     drive.add_argument("--app", choices=sorted(PRODUCTS), default=None,
-                       help="app product (default: ipad for the ipad alias, else phone)")
+                       help="UI-test product (default: ipad for the ipad alias, else phone)")
     drive.set_defaults(func=cmd_drive)
 
     uitest = sub.add_parser(
@@ -1524,7 +1525,7 @@ def main(argv: list[str] | None = None) -> int:
         "--rebuild", action="store_true", help="force a fresh build-for-testing"
     )
     uitest.add_argument("--app", choices=sorted(PRODUCTS), default=None,
-                       help="app product (default: ipad for the ipad alias, else phone)")
+                       help="UI-test product (default: ipad for the ipad alias, else phone)")
     uitest.set_defaults(func=cmd_uitest)
 
     pose = sub.add_parser("pose", help="print, set (Device Hub UI scripting) or calibrate the iPhone Duo pose")

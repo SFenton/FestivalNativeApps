@@ -12,7 +12,7 @@
 
 ## Home Screen name
 
-- `CFBundleDisplayName` is **FST** for the iPhone app (`FestivalMobile`, which also runs on iPhone Duo) and the iPad app (`FestivalTablet`) in `apple/project.yml` (issue #79, 2026-10-02). "Festival Score Tracker" truncated to "FestivalScoreTr…" under the icon. "FST" matches the web manifest `short_name` and `apple-mobile-web-app-title`. In-app branding (Settings, drawer), the macOS app name and the App Store name stay "Festival Score Tracker". HIG `writing.md`: "small screens require brevity"; `branding.md` only forbids Apple trademarks in app names.
+- `CFBundleDisplayName` is **FST** for the universal iOS app (`FestivalMobile`: iPhone, iPhone Duo and iPad) in `apple/project.yml` (issue #79, 2026-10-02). "Festival Score Tracker" truncated to "FestivalScoreTr…" under the icon. "FST" matches the web manifest `short_name` and `apple-mobile-web-app-title`. In-app branding (Settings, drawer), the macOS app name and the App Store name stay "Festival Score Tracker". HIG `writing.md`: "small screens require brevity"; `branding.md` only forbids Apple trademarks in app names.
 - App Review 2.3.8 expects the device name and the App Store name to be clearly related; "FST" is the store name's initialism. If review objects, rename the store listing (e.g. "FST: Festival Score Tracker") rather than reverting the label.
 - Test: `HomeScreenNameJourneyTests` (iPhone and iPad UI-test targets) asserts the launched app's own label. Springboard icons carry no bundle identity, and the shared simulators also hold the "FST" PWA web clip and other jobs' installs, so a Springboard lookup can't identify this build's icon.
 

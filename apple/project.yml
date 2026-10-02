@@ -28,49 +28,11 @@ targets:
         CADisableMinimumFrameDurationOnPhone: true
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
-        # The App Store iPhone app is portrait-locked; iPadOS ships as its own app later.
+        # One universal app (operator, 2026-10-02): iPhone stays portrait-locked; iPad runs
+        # every orientation with no UIRequiresFullScreen, so Split View, Slide Over and
+        # resizable windows work. The iPad shell is picked at run time by size class.
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
-        ITSAppUsesNonExemptEncryption: false
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.sfenton.festivalscoretracker.native
-        MARKETING_VERSION: "0.1.0"
-        CURRENT_PROJECT_VERSION: "1"
-        FST_GIT_SHA: dev
-        GENERATE_INFOPLIST_FILE: YES
-        SWIFT_VERSION: "6.0"
-        TARGETED_DEVICE_FAMILY: "1"
-        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        CODE_SIGNING_ALLOWED: NO
-  FestivalTablet:
-    # The iPadOS app: its own App Store app (the iPhone app above stays iPhone-only and
-    # portrait-locked). Shares the iPhone app's entry point, assets and What's New file.
-    type: application
-    platform: iOS
-    deploymentTarget: "17.0"
-    sources:
-      - path: Apps/iOS
-        excludes:
-          - Info.plist
-    dependencies:
-      - package: FestivalApple
-        product: FestivalUI
-    info:
-      path: Apps/iPadOS/Info.plist
-      properties:
-        # Home Screen label: the full name truncates under the icon on iPhone/iPad, so
-        # use the PWA's short name (web manifest short_name "FST"). macOS keeps the full name.
-        CFBundleDisplayName: FST
-        CFBundleShortVersionString: $(MARKETING_VERSION)
-        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
-        FSTGitSHA: $(FST_GIT_SHA)
-        UILaunchScreen:
-          UIColorName: FestivalLaunchBackground
-        NSAppTransportSecurity:
-          NSAllowsLocalNetworking: true
-        # Every orientation and no UIRequiresFullScreen: Split View, Slide Over and
-        # resizable (Stage Manager / windowed) windows must all work.
         UISupportedInterfaceOrientations~ipad:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown
@@ -81,13 +43,13 @@ targets:
         ITSAppUsesNonExemptEncryption: false
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.sfenton.festivalscoretracker.ipad
+        PRODUCT_BUNDLE_IDENTIFIER: com.sfenton.festivalscoretracker.native
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: "1"
         FST_GIT_SHA: dev
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_VERSION: "6.0"
-        TARGETED_DEVICE_FAMILY: "2"
+        TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGNING_ALLOWED: NO
   FestivalDesktop:
@@ -133,7 +95,9 @@ targets:
         SWIFT_VERSION: "6.0"
         TEST_TARGET_NAME: FestivalMobile
         CODE_SIGNING_ALLOWED: NO
-  FestivalTabletUITests:
+  FestivalMobileIPadUITests:
+    # iPad-only journeys against the universal FestivalMobile app (scheme FestivalMobileIPad),
+    # kept out of the iPhone scheme so iPhone test runs are unchanged.
     type: bundle.ui-testing
     platform: iOS
     deploymentTarget: "17.0"
@@ -145,13 +109,13 @@ targets:
       - path: Apps/iOSUITests/HomeScreenNameJourneyTests.swift
       - path: Apps/iOSUITests/WindowResize.swift
     dependencies:
-      - target: FestivalTablet
+      - target: FestivalMobile
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.sfenton.festivalscoretracker.ipaduitests
+        PRODUCT_BUNDLE_IDENTIFIER: com.sfenton.festivalscoretracker.nativeipaduitests
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_VERSION: "6.0"
-        TEST_TARGET_NAME: FestivalTablet
+        TEST_TARGET_NAME: FestivalMobile
         CODE_SIGNING_ALLOWED: NO
   FestivalDesktopUITests:
     type: bundle.ui-testing
@@ -178,14 +142,14 @@ schemes:
       gatherCoverageData: true
       targets:
         - name: FestivalMobileUITests
-  FestivalTablet:
+  FestivalMobileIPad:
     build:
       targets:
-        FestivalTablet: all
+        FestivalMobile: all
     test:
       gatherCoverageData: true
       targets:
-        - name: FestivalTabletUITests
+        - name: FestivalMobileIPadUITests
   FestivalDesktop:
     build:
       targets:

@@ -7,7 +7,7 @@
 - Pin Xcode per command: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` (never change the global developer dir). Observed 2026-09-24: Xcode 27.1 (27A9269).
 - Package: `swift build --build-tests --package-path apple`; tests `swift test --package-path apple --filter <name>` (run only new/changed tests while iterating).
 - App: `python3 tools/ios_sim.py build` (Debug, this worktree); screenshots via `shot` ([lanes](../../workflow/lanes.md)).
-- Two iOS app targets: **FestivalMobile** (App Store iPhone app, iPhone-only, portrait) and **FestivalTablet** (iPadOS app, `com.sfenton.festivalscoretracker.ipad`, every orientation, multitasking; shares `Apps/iOS` sources/assets, Info.plist generated at `Apps/iPadOS/Info.plist`). `ios_sim.py build --app ipad`; `shot`/`drive`/`uitest --device ipad` select FestivalTablet and its `FestivalTabletUITests` bundle (`Apps/iPadOSUITests` + the shared `FestivalApp.swift`/`DriverTests.swift`) automatically (`--app` overrides).
+- One universal iOS app, **FestivalMobile** (`com.sfenton.festivalscoretracker.native`, device family `1,2`; operator, 2026-10-02): iPhone portrait-only, iPad all four orientations and multitasking (no `UIRequiresFullScreen`). `tools/tests/test_universal_app.py` guards these `project.yml` keys. Two UI-test bundles test it: `FestivalMobileUITests` (scheme `FestivalMobile`, iPhone/Duo journeys) and `FestivalMobileIPadUITests` (scheme `FestivalMobileIPad`, `Apps/iPadOSUITests` + the shared `FestivalApp.swift`/`DriverTests.swift`; skips off iPad). `ios_sim.py build` builds the universal app; `shot`/`drive`/`uitest --device ipad` pick the iPad scheme and bundle automatically (`--app` overrides). The separate FestivalTablet target (`…ipad`) was removed.
 
 ## Service origin
 

@@ -91,16 +91,18 @@ class OutputPathsTests(unittest.TestCase):
 
 
 class SelectProductTests(unittest.TestCase):
-    """The iPad alias runs the iPadOS app; everything else the iPhone app."""
+    """The iPad alias runs the iPad journeys; everything else the iPhone journeys. Both
+    install the same universal app."""
 
     def tearDown(self):
         ios_sim.select_product(None, None)
 
-    def test_ipad_alias_selects_tablet_app(self):
+    def test_ipad_alias_selects_ipad_journeys_on_the_universal_app(self):
         product = ios_sim.select_product(None, "ipad")
-        self.assertEqual(product.scheme, "FestivalTablet")
-        self.assertEqual(product.uitest_target, "FestivalTabletUITests")
-        self.assertEqual(ios_sim.product().bundle_id, "com.sfenton.festivalscoretracker.ipad")
+        self.assertEqual(product.scheme, "FestivalMobileIPad")
+        self.assertEqual(product.uitest_target, "FestivalMobileIPadUITests")
+        self.assertEqual(product.app_name, "FestivalMobile")
+        self.assertEqual(ios_sim.product().bundle_id, ios_sim.BUNDLE_ID)
         self.assertTrue(str(ios_sim.driver_derived_data()).endswith("lane-driver-ipad"))
 
     def test_default_and_other_devices_select_phone_app(self):
@@ -110,7 +112,7 @@ class SelectProductTests(unittest.TestCase):
 
     def test_explicit_app_overrides_device(self):
         self.assertEqual(ios_sim.select_product("phone", "ipad").scheme, "FestivalMobile")
-        self.assertEqual(ios_sim.select_product("ipad", "iphone").scheme, "FestivalTablet")
+        self.assertEqual(ios_sim.select_product("ipad", "iphone").scheme, "FestivalMobileIPad")
 
 
 class ResolveDeviceTests(unittest.TestCase):
