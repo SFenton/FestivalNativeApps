@@ -1,6 +1,9 @@
 import SwiftUI
 import FestivalCore
 import FestivalDesign
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Shell environment actions
 
@@ -418,6 +421,7 @@ struct RootProfileButton: View {
     let session: FestivalSession
     let action: () -> Void
     @Environment(\.deviceLayout) private var layout
+    @Environment(\.displayScale) private var displayScale
 
     /// How the profile action is drawn for a player and section chrome.
     enum Presentation: Equatable {
@@ -449,7 +453,7 @@ struct RootProfileButton: View {
             case .choose:
                 Label("Choose Profile", systemImage: "person.crop.circle")
             case let .monogram(name):
-                ProfileAvatar(name: name, size: 30)
+                MonogramLabel(name: name, size: 30, scale: displayScale)
             case let .symbol(title):
                 Label(title, systemImage: "person.crop.circle.fill")
             }
@@ -500,3 +504,86 @@ struct ProfileAvatar: View {
             .accessibilityHidden(true)
     }
 }
+
+// MARK: - Monogram bar item
+
+/// The selected player's monogram as a bar-button label (issue #15).
+///
+/// A custom view inside a toolbar item is hosted as-is: the system did not enlarge its
+/// hit region, so the avatar only answered inside its 36 pt capsule while Search and the
+/// bell beside it took taps 20 pt off-centre. Drawn as an image, the item is a standard
+/// image bar button with the system hit region (HIG Toolbars: "Prefer standard buttons";
+/// HIG Buttons: "the hit region is at least 44x44 pt"). Falls back to the view when the
+/// image cannot be rendered and on platforms without UIKit.
+struct MonogramLabel: View {
+    let name: String
+    let size: CGFloat
+    let scale: CGFloat
+
+    var body: some View {
+        #if canImport(UIKit)
+        if let image = MonogramImageCache.shared.image(name: name, size: size, scale: scale) {
+            // Titled like the vertical-bar symbol item, for the overflow menu.
+            Label {
+                Text("Profile: \(name)")
+            } icon: {
+                Image(uiImage: image).renderingMode(.original)
+            }
+        } else {
+            ProfileAvatar(name: name, size: size)
+        }
+        #else
+        ProfileAvatar(name: name, size: size)
+        #endif
+    }
+}
+
+/// Everything that changes a rendered monogram's pixels.
+///
+/// The image depends only on the initial (``ProfileAvatar/initial(for:)``), so names
+/// sharing an initial share one image and the cache stays tiny.
+struct MonogramImageKey: Hashable {
+    let initial: String
+    let size: CGFloat
+    let scale: CGFloat
+
+    /// Create the key for a player.
+    ///
+    /// - Parameters:
+    ///   - name: Player display name.
+    ///   - size: Avatar diameter in points.
+    ///   - scale: Display scale; values below 1 (an unset environment) render at 1x.
+    init(name: String, size: CGFloat, scale: CGFloat) {
+        initial = ProfileAvatar.initial(for: name)
+        self.size = size
+        self.scale = max(scale, 1)
+    }
+}
+
+#if canImport(UIKit)
+/// Rendered monogram images, so a profile switch or toolbar rebuild never re-renders one.
+@MainActor
+final class MonogramImageCache {
+    /// The process-wide cache used by ``MonogramLabel``.
+    static let shared = MonogramImageCache()
+
+    private var images: [MonogramImageKey: UIImage] = [:]
+
+    /// The monogram image for `name`, rendering it on first use.
+    ///
+    /// - Parameters:
+    ///   - name: Player display name.
+    ///   - size: Avatar diameter in points.
+    ///   - scale: Display scale; the image is rendered at this scale.
+    /// - Returns: An original-colour image `size` points square, or nil if rendering fails.
+    func image(name: String, size: CGFloat, scale: CGFloat) -> UIImage? {
+        let key = MonogramImageKey(name: name, size: size, scale: scale)
+        if let cached = images[key] { return cached }
+        let renderer = ImageRenderer(content: ProfileAvatar(name: name, size: size))
+        renderer.scale = key.scale
+        guard let image = renderer.uiImage?.withRenderingMode(.alwaysOriginal) else { return nil }
+        images[key] = image
+        return image
+    }
+}
+#endif
