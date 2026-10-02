@@ -112,7 +112,7 @@ struct LeaderboardsScreen: View {
     /// use 2-column grids"). Compact windows (iPhone, Duo folded) keep the single
     /// column unchanged.
     private var regularWidthColumns: [GridItem] {
-        [GridItem(.flexible(), spacing: 20), GridItem(.flexible(), spacing: 20)]
+        [GridItem(.flexible(), spacing: 20, alignment: .top), GridItem(.flexible(), spacing: 20, alignment: .top)]
     }
 
     @ViewBuilder
