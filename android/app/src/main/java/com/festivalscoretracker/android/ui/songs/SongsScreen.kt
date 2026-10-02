@@ -172,14 +172,12 @@ fun SongsScreen(
                 IconButton(onClick = { showSort = true }, modifier = Modifier.testTag("fst.songs.sort.open")) {
                     Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort songs", tint = if (state.sortChanged) BrandTokens.gold else BrandTokens.textPrimary)
                 }
-                if (state.hasPlayer) {
-                    IconButton(onClick = { showFilter = true }, modifier = Modifier.testTag("fst.songs.filter.open")) {
-                        Icon(
-                            Icons.Filled.FilterList,
-                            contentDescription = "Filter songs",
-                            tint = if (state.prefs.anyFilterActive) BrandTokens.gold else BrandTokens.textPrimary,
-                        )
-                    }
+                IconButton(onClick = { showFilter = true }, modifier = Modifier.testTag("fst.songs.filter.open")) {
+                    Icon(
+                        Icons.Filled.FilterList,
+                        contentDescription = "Filter songs",
+                        tint = if (state.filterActive) BrandTokens.gold else BrandTokens.textPrimary,
+                    )
                 }
             },
         ) { padding ->
@@ -215,11 +213,13 @@ fun SongsScreen(
     if (showFilter) {
         val prefs = state.prefs
         FilterSheet(
-            initial = SongFilterDraft.from(prefs.filter, prefs.shopFilter, prefs.playerFilter, visibleInstruments),
+            initial = SongFilterDraft.from(prefs.filter, prefs.general, prefs.playerFilter, visibleInstruments),
             hasPlayer = state.hasPlayer,
             hideShop = state.hideShop,
             filterInvalidScores = state.filterInvalidScores,
             availableSeasons = state.availableSeasons,
+            decades = state.availableDecades,
+            durations = state.durationBuckets,
             onApply = onApplyFilter,
             onDismiss = { showFilter = false },
         )

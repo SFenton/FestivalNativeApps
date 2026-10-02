@@ -73,10 +73,10 @@ fun SongsRoute(
             scope.launch { container.songsPreferences.setMetadataOrder(draft.metadataOrder) }
         },
         onApplyFilter = { draft ->
-            val (filter, shop, player) = draft.result
+            val (filter, general, player) = draft.result
             val (mode, ascending) = SongSortDraft.normalized(settings.songSort, settings.songSortAscending, filter.instrument)
             if (mode != settings.songSort) shellViewModel.setSongSort(mode, ascending)
-            scope.launch { container.songsPreferences.setFilters(filter, shop, player) }
+            scope.launch { container.songsPreferences.setFilters(filter, general, player) }
         },
         onClearFilters = { scope.launch { container.songsPreferences.clearFilters() } },
         onSongClick = onSongClick,

@@ -61,6 +61,8 @@ data class Song(
     val maxScores: Map<String, Int>? = null,
     val pathArtifactGenerationId: String? = null,
     val populationTiers: Map<String, PopulationTiers?>? = null,
+    /** Pro Drums double-bass chart support; null when the service does not know (General filter). */
+    val doubleBassSupported: Boolean? = null,
 ) {
     /** Whether Lead/Pro Lead should use the keys icon variant. */
     val usesKeyboardIcon: Boolean get() = sig == "Keyboard"

@@ -81,7 +81,8 @@ class ShellUiTest {
         rule.onNodeWithTag("fst.nav.tab.leaderboards").assertIsDisplayed()
         rule.onNodeWithTag("fst.nav.tab.settings").assertIsDisplayed()
         assertEquals(0, rule.onAllNodesWithTag("fst.nav.tab.statistics").fetchSemanticsNodes().size)
-        assertEquals(0, rule.onAllNodesWithTag("fst.songs.filter.open").fetchSemanticsNodes().size)
+        // General filters need no profile (web), so Filter is always offered.
+        rule.onNodeWithTag("fst.songs.filter.open").assertIsDisplayed()
         rule.onNodeWithContentDescription("Choose profile").assertIsDisplayed()
     }
 
