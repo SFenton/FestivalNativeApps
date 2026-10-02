@@ -86,6 +86,7 @@ import com.festivalscoretracker.android.core.songs.SongFilterDraft
 import com.festivalscoretracker.android.core.songs.SongListHeader
 import com.festivalscoretracker.android.core.songs.SongRowModel
 import com.festivalscoretracker.android.core.songs.SongSection
+import com.festivalscoretracker.android.core.songs.SongSectionIndex
 import com.festivalscoretracker.android.core.songs.SongSortDraft
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.SongsUiState
@@ -524,8 +525,10 @@ private fun SearchField(value: String, onChange: (String) -> Unit, focus: FocusR
 
 /**
  * Contacts-style right-edge index: tap or drag to jump. Labels are sampled when
- * there are more sections than fit, while drag positions still reach every
- * section. One accessibility element whose state names the current section, with
+ * there are more sections than fit, each centred in an equal slot: a touch on a
+ * drawn label opens that label's section, while positions between labels still
+ * reach the skipped sections ([SongSectionIndex.sectionAt]). One accessibility
+ * element whose state names the current section, with
  * next/previous actions equivalent to dragging one section.
  *
  * @param sections Sections in list order.
@@ -555,35 +558,41 @@ fun SectionIndexScrubber(sections: List<SongSection>, current: SongSection?, onJ
             },
     ) {
         // Each label is one 14 sp line plus breathing room; in sp so larger text samples more.
-        val labelStep = with(LocalDensity.current) { SECTION_LABEL_STEP.toDp() }
+        val density = LocalDensity.current
+        val labelStep = with(density) { SECTION_LABEL_STEP.toDp() }
         val maxLabels = (maxHeight / labelStep).toInt().coerceAtLeast(2)
-        val stride = (sections.size + maxLabels - 1) / maxLabels
+        val stride = SongSectionIndex.stride(sections.size, maxLabels)
+        val drawn = sections.filterIndexed { index, _ -> index % stride == 0 }
         val heightPx = constraints.maxHeight.toFloat()
+        // A touch within a drawn label's line opens exactly that label (issue #48).
+        val labelHalf = with(density) { SECTION_LABEL_LINE.toPx() } / 2f / (heightPx / drawn.size.coerceAtLeast(1))
         fun jumpTo(y: Float) {
-            val index = ((y / heightPx) * sections.size).toInt().coerceIn(0, sections.lastIndex)
-            val section = sections[index]
+            val index = SongSectionIndex.sectionAt(y / heightPx, sections.size, stride, labelHalf)
+            val section = sections.getOrNull(index) ?: return
             active = section.label
             onJump(section)
         }
         Column(
-            verticalArrangement = Arrangement.SpaceEvenly,
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .fillMaxSize()
                 .background(if (active != null) BrandTokens.surfaceFrosted else Color.Transparent, RoundedCornerShape(12.dp))
-                .pointerInput(sections) { detectTapGestures(onPress = { jumpTo(it.y); tryAwaitRelease(); active = null }) }
-                .pointerInput(sections) {
+                .pointerInput(sections, stride, heightPx) { detectTapGestures(onPress = { jumpTo(it.y); tryAwaitRelease(); active = null }) }
+                .pointerInput(sections, stride, heightPx) {
                     detectVerticalDragGestures(onDragEnd = { active = null }, onDragCancel = { active = null }) { change, _ -> jumpTo(change.position.y) }
                 },
         ) {
-            sections.filterIndexed { index, _ -> index % stride == 0 }.forEach { section ->
-                Text(
-                    section.label.take(4),
-                    fontSize = if (section.label.length > 2) 8.sp else 11.sp,
-                    lineHeight = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (section.label == active) BrandTokens.gold else BrandTokens.textSecondary,
-                )
+            // Equal slots put label k's centre at (k + ½) / labels of the height, where sectionAt expects it.
+            drawn.forEach { section ->
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Text(
+                        section.label.take(4),
+                        fontSize = if (section.label.length > 2) 8.sp else 11.sp,
+                        lineHeight = SECTION_LABEL_LINE,
+                        fontWeight = FontWeight.Bold,
+                        color = if (section.label == active) BrandTokens.gold else BrandTokens.textSecondary,
+                    )
+                }
             }
         }
     }
@@ -591,5 +600,8 @@ fun SectionIndexScrubber(sections: List<SongSection>, current: SongSection?, onJ
 
 /** Vertical space budgeted per section-index label (a 14 sp line plus spacing). */
 private val SECTION_LABEL_STEP = 20.sp
+
+/** One section-index label's line height. */
+private val SECTION_LABEL_LINE = 14.sp
 
 // endregion
