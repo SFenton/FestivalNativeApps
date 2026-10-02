@@ -28,7 +28,7 @@ Apple's HIG for iOS 26 puts Liquid Glass on the **navigation/control layer that 
 | Menus, confirmation dialogs, context menus, alerts | System overlay | Native APIs only | Already glass | System |
 | Hamburger drawer | Custom nav layer | `FestivalDrawer` (`App/Shell`), `.overlay` glass, `ConcentricRectangle` corners concentric with the display (26 pt minimum; fixed 44 pt before iOS 26), scrim masked under the panel ([app-navigation/ios.md](../../controls/app-navigation/ios.md#drawer-corners)) | Navigation surface floating over content — the canonical glass case | Frosted navy `.overlay` fallback of `festivalGlass` |
 | Floating controls over content (section index scrubber, instrument selector bar, pager, "scroll to top") | `.control`, `interactive: true` | `festivalGlassCapsule(.control, interactive: true)`; wrap neighbours in `FestivalGlassGroup` | Controls that float and react to touch; grouping lets them morph | Thin material capsule |
-| Song rows (Songs list) | `.card` | `festivalGlass(.card, cornerRadius: 16)` per row, non-interactive | Operator request + web frosted rows over the art background. Rows are separated cards on the web, so per-row glass is faithful | `surfaceFrosted` + `.ultraThinMaterial` |
+| Song rows (Songs list, Item Shop list) | `.card` | `festivalGlass(.card, cornerRadius: 16)` per row, non-interactive | Operator request + web frosted rows over the art background. Rows are separated cards on the web, so per-row glass is faithful | `surfaceFrosted` + `.ultraThinMaterial` |
 | Settings, Profile, Statistics, Suggestions, Rivals, Leaderboard *groups* | `.card` | `FestivalGlassSection("Title", subtitle:) { rows }` — **one card per group**, hairline separators between rows | Web `SectionHeader` + `FrostedCard`. One glass shape per group, never per row inside a group | Same component, frosted |
 | Leaderboard/score rows inside a group | Content | Flat rows inside the group's glass card | Avoid glass-on-glass and per-row glass cost in long lists | Same |
 | Chips, pills, badges, difficulty meter, FC/accuracy badges | Content | Flat opaque/tinted fills (existing Fluent tokens) | Inside glass cards; must keep exact colours and contrast | Same |
@@ -51,6 +51,6 @@ White (`textPrimary`), `.headline`, **Title Case**, outside the card, with an op
 
 ## Performance and verification
 
-- Glass is not free: keep per-row glass to the Songs list (bounded rows on screen) and measure scroll hitching with Instruments before adding it to any other long list. If hitches appear, fall back to a single group card.
+- Glass is not free: keep per-row glass to the shared Song row (Songs list, and the Item Shop list since issue #18: same lazy stack and bounded on-screen rows, with a far shorter feed) and measure scroll hitching with Instruments before adding it to any other long list. If hitches appear, fall back to a single group card.
 - Verify each surface with `python3 tools/ios_sim.py shot` over **busy artwork** (Songs) and over the plain background (Settings); a surface that is only legible over the plain background fails.
 - Reduce Transparency: with the in-app toggle on, every card, the drawer and sheets must render opaque.

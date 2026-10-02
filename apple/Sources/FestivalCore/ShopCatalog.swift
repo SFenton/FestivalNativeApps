@@ -14,6 +14,30 @@ public struct ShopSong: Decodable, Sendable, Identifiable {
     public var id: String { songId }
 }
 
+extension Song {
+    /// A display-only song for a Shop offer the loaded catalogue does not list (or
+    /// when the catalogue read failed), so the Shop can still draw the shared Song row.
+    ///
+    /// Carries only the offer's own presentation fields: no charts, duration, scores
+    /// or path data. Never use it as a Song Detail route; only a real catalogue match
+    /// may navigate.
+    ///
+    /// - Parameter offer: Validated public Shop offer.
+    public init(shopOffer offer: ShopSong) {
+        songId = offer.songId
+        title = offer.title
+        artist = offer.artist
+        album = nil
+        year = offer.year
+        durationSeconds = nil
+        albumArt = offer.albumArt
+        difficulty = nil
+        pathArtifactGenerationId = nil
+        sig = nil
+        maxScores = nil
+    }
+}
+
 /// Complete, publication-scoped `/api/shop` response.
 public struct ShopResponse: Decodable, Sendable {
     public let count: Int
