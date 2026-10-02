@@ -63,11 +63,11 @@ struct RivalsScreen: View {
         .navigationTitle("Rivals")
         .festivalBackground(.carousel, session: session)
         .toolbar {
-            // Pushed from the iPhone drawer: page actions only (pushed pages show no
-            // shell chrome). As a tab root (iPad, Duo unfolded) Find Rival must precede
-            // the bell and avatar, so it uses `.topBarTrailing` and the toolbar ends
-            // with `FestivalRootTrailingItems` (`.agents/controls/app-navigation/ios.md`).
-            ToolbarItem(placement: findRivalPlacement) {
+            // Pushed from the iPhone drawer: page actions only (the pushed-page avatar
+            // comes from `.globalSearchToolbarItem()`). As a tab root (iPad, Duo
+            // unfolded) the toolbar ends with `FestivalRootTrailingItems`. Either way
+            // Find Rival precedes the avatar (`.agents/controls/app-navigation/ios.md`).
+            ToolbarItem(placement: .festivalPageAction) {
                 Button {
                     findRivalPresented = true
                 } label: {
@@ -89,15 +89,6 @@ struct RivalsScreen: View {
             FindRivalSheet(session: session)
                 .festivalSheet()
         }
-    }
-
-    /// Before the shared bell/avatar on a tab root; pinned trailing when pushed.
-    private var findRivalPlacement: ToolbarItemPlacement {
-        #if os(iOS)
-        showsRootTrailingItems ? .topBarTrailing : .primaryAction
-        #else
-        .primaryAction
-        #endif
     }
 
     private var instruments: [Instrument] { visible.instruments }

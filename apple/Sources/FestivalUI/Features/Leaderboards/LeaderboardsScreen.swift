@@ -96,16 +96,6 @@ struct LeaderboardsScreen: View {
         QuickLinkSection(id: "band:\(bandType.rawValue)", title: bandType.label, icon: .system("person.3.fill"))
     }
 
-    /// Tab-root page actions must precede the shared bell/avatar capsule; iOS pins
-    /// `.primaryAction` to the trailing edge, so use `.topBarTrailing` there.
-    private static var pageActionPlacement: ToolbarItemPlacement {
-        #if os(iOS)
-        .topBarTrailing
-        #else
-        .primaryAction
-        #endif
-    }
-
     /// Two flexible columns on a regular-width window (Duo unfolded, iPad): the
     /// overview's instrument/band cards read as a dashboard rather than one very
     /// wide column (`.agents/design/apple/duo.md` "Compete, Statistics, … dashboards
@@ -139,7 +129,7 @@ struct LeaderboardsScreen: View {
         // Mac: View › Rank By mirrors the toolbar menu.
         .macRankByCommands(rankByBinding)
         .toolbar {
-            ToolbarItem(placement: Self.pageActionPlacement) {
+            ToolbarItem(placement: .festivalPageAction) {
                 RankByMenu(selection: rankByBinding)
             }
             QuickLinksToolbarItem(quickLinks)

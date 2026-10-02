@@ -215,13 +215,13 @@ struct PlayerProfileContent: View {
                     } else {
                         // Its own header button (operator: not part of a bottom bar).
                         ProfileIdentityToolbarItem(
-                            action: identity, onTabRoot: showsRootTrailingItems, perform: perform
+                            action: identity, perform: perform
                         )
                     }
                 } else if !layout.sectionChrome.isVerticalBar, showsIdentityPlaceholder, plannedIdentity != .deselect {
                     // Same button, disabled, while the read is in flight or paused.
                     ProfileIdentityToolbarItem(
-                        action: plannedIdentity, onTabRoot: showsRootTrailingItems,
+                        action: plannedIdentity,
                         isEnabled: false, perform: perform
                     )
                 }

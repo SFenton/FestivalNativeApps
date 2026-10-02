@@ -342,6 +342,27 @@ struct FestivalRootTrailingItems: ToolbarContent {
     }
 }
 
+// MARK: - Page action placement
+
+extension ToolbarItemPlacement {
+    /// Placement for a page's own trailing actions (Filter, Paths, Item Shop, Quick Links…)
+    /// on tab roots and pushed pages alike.
+    ///
+    /// iOS pins `.primaryAction` to the far trailing edge, after every `.topBarTrailing`
+    /// item, whatever modifier added it. Page actions therefore use `.topBarTrailing`,
+    /// before the shared Search and bell, and the pushed-page profile avatar alone uses
+    /// `.primaryAction` (``GlobalSearchToolbarItem``). Its outer modifier would otherwise
+    /// lay it out *before* the page's own items, folding it into their glass group away
+    /// from the corner (issue #85). Other platforms use `.primaryAction`.
+    static var festivalPageAction: ToolbarItemPlacement {
+        #if os(iOS)
+        .topBarTrailing
+        #else
+        .primaryAction
+        #endif
+    }
+}
+
 /// Set by pages that place `FestivalRootTrailingItems` in their own toolbar.
 struct FestivalRootTrailingProvidedKey: PreferenceKey {
     static let defaultValue = false

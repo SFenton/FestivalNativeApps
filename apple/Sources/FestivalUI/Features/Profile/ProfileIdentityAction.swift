@@ -65,15 +65,13 @@ enum ProfileIdentityAction: Hashable {
 /// 2026-09-28). The iPhone Duo rail uses `VerticalBarActionItem` instead.
 struct ProfileIdentityToolbarItem: ToolbarContent {
     let action: ProfileIdentityAction
-    /// True on a tab root, where page actions must precede Search, the bell and avatar.
-    let onTabRoot: Bool
     /// False while the page's read has not proven the action yet (or selection is
     /// paused): the button keeps its place, disabled, so the toolbar never re-lays out.
     var isEnabled = true
     let perform: (ProfileIdentityAction) -> Void
 
     var body: some ToolbarContent {
-        ToolbarItem(placement: placement) {
+        ToolbarItem(placement: .festivalPageAction) {
             button
         }
     }
@@ -95,13 +93,5 @@ struct ProfileIdentityToolbarItem: ToolbarContent {
         .disabled(!isEnabled)
         base.buttonStyle(.borderedProminent)
             .tint(action.isDestructive ? BrandTokens.statusRed : BrandTokens.accentBlue)
-    }
-
-    private var placement: ToolbarItemPlacement {
-        #if os(iOS)
-        onTabRoot ? .topBarTrailing : .primaryAction
-        #else
-        .primaryAction
-        #endif
     }
 }

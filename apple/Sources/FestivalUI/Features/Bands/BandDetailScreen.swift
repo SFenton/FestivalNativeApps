@@ -72,7 +72,7 @@ struct BandDetailScreen: View {
         .macRankByCommands($rankBy)
         .toolbar {
             if isResolvable, case .loaded = detailState {
-                ToolbarItem(placement: .primaryAction) {
+                ToolbarItem(placement: .festivalPageAction) {
                     BandRankByMenu(selection: $rankBy)
                 }
             }

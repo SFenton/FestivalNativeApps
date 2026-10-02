@@ -145,7 +145,7 @@ struct FullRankingsScreen: View {
         // Mac: View › Rank By mirrors the toolbar menu.
         .macRankByCommands($rankBy)
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: .festivalPageAction) {
                 HStack(spacing: 4) {
                     if layout.sectionChrome.isVerticalBar {
                         instrumentMenu(showsTitle: false)

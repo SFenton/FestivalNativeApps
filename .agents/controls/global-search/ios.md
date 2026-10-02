@@ -6,7 +6,7 @@
 
 | Layout | Entry point (every page, root or pushed) | Surface |
 |---|---|---|
-| iPhone (all iOS versions) | Header **Search** button (`magnifyingglass`, `fst.global-search.open`): before the bell + avatar on tab roots (`FestivalRootTrailingItems`), `.primaryAction` on pushed pages | `GlobalSearchSheet` |
+| iPhone (all iOS versions) | Header **Search** button (`magnifyingglass`, `fst.global-search.open`): before the bell + avatar on tab roots (`FestivalRootTrailingItems`), `.festivalPageAction` (with the page actions, before the standalone avatar) on pushed pages | `GlobalSearchSheet` |
 | iPhone Duo (vertical bar) | The same toolbar button, placed in the rail by the system | `GlobalSearchSheet` |
 | Any, hardware keyboard | ⌘K or ⌘F | `GlobalSearchSheet` |
 

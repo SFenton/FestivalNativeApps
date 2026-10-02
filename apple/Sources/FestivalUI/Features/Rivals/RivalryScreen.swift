@@ -57,7 +57,7 @@ struct RivalryScreen: View {
         .navigationTitle(Self.modeTitles[mode] ?? "Rivalry")
         .festivalBackground(.carousel, session: session)
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: .festivalPageAction) {
                 NavigationLink(value: AppRoute.player(accountId: rivalId, displayName: rivalName)) {
                     Label("View Profile", systemImage: "person.crop.circle")
                 }

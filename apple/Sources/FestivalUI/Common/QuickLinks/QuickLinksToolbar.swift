@@ -25,14 +25,8 @@ public struct QuickLinksToolbarItem: ToolbarContent {
         self.placement = placement
     }
 
-    /// Trailing navigation bar on iOS, primary action elsewhere.
-    public static var defaultPlacement: ToolbarItemPlacement {
-        #if os(iOS)
-        .topBarTrailing
-        #else
-        .primaryAction
-        #endif
-    }
+    /// Trailing navigation bar on iOS, primary action elsewhere (`.festivalPageAction`).
+    public static var defaultPlacement: ToolbarItemPlacement { .festivalPageAction }
 
     public var body: some ToolbarContent {
         if !inDock || controller.prefersToolbar {

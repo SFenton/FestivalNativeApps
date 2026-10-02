@@ -54,7 +54,7 @@ struct RivalDetailScreen: View {
         .navigationTitle(displayName ?? "Rival")
         .festivalBackground(.carousel, session: session)
         .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+            ToolbarItem(placement: .festivalPageAction) {
                 NavigationLink(value: AppRoute.player(accountId: rivalId, displayName: displayName)) {
                     Label("View Profile", systemImage: "person.crop.circle")
                 }
