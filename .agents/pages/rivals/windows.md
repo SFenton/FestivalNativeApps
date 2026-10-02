@@ -28,6 +28,7 @@ Rivals reads are unpinned operational GETs through `RequestGate` (see [service-s
 - **Rivalry**: category title, "vs. name · description", native sort `ComboBox` (Default, Closest Gap, Your/Their Biggest Leads, Title; the web has none), virtualized full rows (You | rank & score gaps | Them). Rows open Song Detail on that chart.
 - `RivalSongRowView` collapses to the one-line layout below 380 epx and hides art/icons below 280 epx. Headers stack below 640 epx page width.
 - `/compete` and `/rivals` deep links show the Rivals section root (no Compete section on Windows; the Leaderboards section covers the rest).
+- **Loading (#65, 2026-10-02):** each hub card shows a centred 32 epx `ProgressRing` (white `FSTLoadingBrush`, Narrator name "Loading <Title>", e.g. "Loading Lead Rivals") in a 120 epx card until that section's rows, empty removal or inline `ServiceStatus` error replace it; headers render immediately. Previously a thin `ProgressBar` sat above three grey placeholder bars named generically "Loading rivals"; the in-card convention elsewhere is `ProgressRing` (Fluent progress controls: ring for indeterminate in-place waits). Test: `Hub_SectionsShowProgressUntilRowsOrInlineStatus`.
 - Brushes: `Controls/RivalsResources.xaml` (merged in `App.xaml`), lighter red text for contrast, High Contrast maps to system colours.
 
 ## Tests and tools
@@ -42,7 +43,7 @@ Rivals reads are unpinned operational GETs through `RequestGate` (see [service-s
 
 ## IDs
 
-`fst.rivals.title`, `.findRival`, `.tab`, `.tab.song`, `.tab.leaderboard`, `.rankBy`, `.jump`, `.jump.[leaderboard.]<sectionId>`, `.section.<common|combo|Solo_*>` / `.section.leaderboard.<Solo_*>` (card title; distinct per tab because ItemsRepeater keeps recycled off-screen cards and the driver takes the first match), `.see-all`, `.row.<accountId>`, `.empty`, `.chooseProfile`, `.selectPlayer`, `.page-empty`; `fst.all-rivals.title`, `.list`, `.row.<accountId>`; `fst.rival-detail.title`, `.scope`, `.summary`, `.view-profile`, `.category.<key>`, `.see-all`; `fst.rivalry.title`, `.sort`, `.view-profile`, `.list`, `.song.<songId>.<instrument>`; inline status `fst.service-status.inline`. IDs sit on TextBlocks or controls: panels/borders have no UIA peer.
+`fst.rivals.title`, `.findRival`, `.tab`, `.tab.song`, `.tab.leaderboard`, `.rankBy`, `.jump`, `.jump.[leaderboard.]<sectionId>`, `.section.<common|combo|Solo_*>` / `.section.leaderboard.<Solo_*>` (card title; distinct per tab because ItemsRepeater keeps recycled off-screen cards and the driver takes the first match), `.section[.leaderboard].<sectionId>.loading` (the card's `ProgressRing`), `.see-all`, `.row.<accountId>`, `.empty`, `.chooseProfile`, `.selectPlayer`, `.page-empty`; `fst.all-rivals.title`, `.list`, `.row.<accountId>`; `fst.rival-detail.title`, `.scope`, `.summary`, `.view-profile`, `.category.<key>`, `.see-all`; `fst.rivalry.title`, `.sort`, `.view-profile`, `.list`, `.song.<songId>.<instrument>`; inline status `fst.service-status.inline`. IDs sit on TextBlocks or controls: panels/borders have no UIA peer.
 
 ## Open
 

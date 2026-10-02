@@ -266,13 +266,15 @@ fun RivalPreviewRows(
 }
 
 /**
- * A card-sized loading placeholder.
+ * A card-sized loading placeholder: the Material 3 indeterminate circular progress
+ * indicator centred in a glass card.
  *
  * @param label Accessible description.
+ * @param modifier Card modifier (for example a test tag).
  */
 @Composable
-fun RivalCardLoading(label: String) {
-    GlassCard(Modifier.fillMaxWidth().heightIn(min = 120.dp)) {
+fun RivalCardLoading(label: String, modifier: Modifier = Modifier) {
+    GlassCard(modifier.fillMaxWidth().heightIn(min = 120.dp)) {
         Box(Modifier.fillMaxWidth().heightIn(min = 120.dp), contentAlignment = Alignment.Center) {
             FestivalLoading(label, size = 28.dp)
         }

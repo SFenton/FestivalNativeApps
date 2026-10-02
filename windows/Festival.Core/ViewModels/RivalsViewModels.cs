@@ -123,6 +123,12 @@ public sealed partial class RivalSectionViewModel : ObservableObject
     /// <summary>UIA automation ID (leaderboard sections are distinct so recycled Song-tab cards never match).</summary>
     public string AutomationId => "fst.rivals.section." + (ViewAllRoute.Scope is RivalScope.Leaderboard ? "leaderboard." : "") + Id;
 
+    /// <summary>UIA automation ID of the in-card progress ring.</summary>
+    public string LoadingAutomationId => AutomationId + ".loading";
+
+    /// <summary>Accessible name of the in-card progress ring, e.g. "Loading Lead Rivals".</summary>
+    public string LoadingName => "Loading " + Title;
+
     /// <summary>Failed-read presentation.</summary>
     public ServiceStatusViewModel Status { get; }
 
