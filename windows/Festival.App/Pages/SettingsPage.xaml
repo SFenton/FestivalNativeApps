@@ -230,8 +230,8 @@
                                               AutomationProperties.HelpText="Experimental ranks are not yet available."
                                               AutomationProperties.AutomationId="fst.settings.experimental-ranks" />
                             </Grid>
-                            <!-- Feedback (issue #78): each row opens its form dialog (.agents/controls/feedback-form/windows.md). -->
-                            <StackPanel Spacing="4">
+                            <!-- Feedback (issue #78): shown only when /api/features reports feedback; each row opens its form dialog (.agents/controls/feedback-form/windows.md). -->
+                            <StackPanel Spacing="4" Visibility="{x:Bind ViewModel.FeedbackAvailable, Mode=OneWay}">
                                 <StackPanel.Resources>
                                     <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#14FFFFFF" />
                                     <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#0AFFFFFF" />

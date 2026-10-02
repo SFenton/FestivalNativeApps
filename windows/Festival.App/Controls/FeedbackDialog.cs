@@ -39,7 +39,7 @@ public sealed class FeedbackDialog
     private readonly StackPanel progress;
     private readonly StackPanel sent;
     private readonly TextBlock sentText;
-    private readonly HyperlinkButton issueLink;
+    private readonly TextBlock sending;
     private readonly Button keepEditing;
     private readonly XamlRoot root;
     private readonly ScrollViewer scroller;
@@ -55,6 +55,7 @@ public sealed class FeedbackDialog
         form = new FeedbackFormViewModel(
             kind,
             (submission, token) => Task.Run(() => api.SubmitFeedbackAsync(submission, OpenAttachment, token), token),
+            (jobId, token) => Task.Run(() => api.GetFeedbackStatusAsync(jobId, token), token),
             AppVersionInfo.Display(typeof(App).Assembly),
             $"{RuntimeInformation.OSDescription} ({RuntimeInformation.OSArchitecture})");
         var id = $"{Root}.{kind.AutomationSuffix()}";
@@ -136,7 +137,7 @@ public sealed class FeedbackDialog
 
         var bar = new ProgressBar { IsIndeterminate = true };
         AutomationProperties.SetAccessibilityView(bar, AccessibilityView.Raw);
-        var sending = new TextBlock { Text = form.SendingText };
+        sending = new TextBlock { Text = form.SendingText, TextWrapping = TextWrapping.Wrap };
         AutomationProperties.SetLiveSetting(sending, AutomationLiveSetting.Polite);
         progress = new StackPanel { Spacing = 8, Children = { bar, sending } };
         AutomationProperties.SetAutomationId(progress, $"{Root}.progress");
@@ -144,8 +145,6 @@ public sealed class FeedbackDialog
         sentText = new TextBlock { TextWrapping = TextWrapping.Wrap, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
         AutomationProperties.SetLiveSetting(sentText, AutomationLiveSetting.Assertive);
         AutomationProperties.SetAutomationId(sentText, $"{Root}.sent");
-        issueLink = new HyperlinkButton { Content = "View on GitHub", Padding = new Thickness(0, 4, 0, 4) };
-        AutomationProperties.SetAutomationId(issueLink, $"{Root}.issue-link");
         sent = new StackPanel
         {
             Spacing = 8,
@@ -165,11 +164,11 @@ public sealed class FeedbackDialog
                         sentText,
                     },
                 },
-                issueLink,
             },
         };
 
-        var body = new StackPanel { Spacing = 16, Padding = new Thickness(0, 0, 16, 0), Children = { discardBar, errorBar, editor, progress, sent } };
+        // Progress sits above the fields so it is on screen wherever the form was scrolled when Submit was pressed.
+        var body = new StackPanel { Spacing = 16, Padding = new Thickness(0, 0, 16, 0), Children = { discardBar, errorBar, progress, editor, sent } };
         // ContentDialog's own ContentScrollViewer never scrolls vertically, so a long form needs its own scroller.
         scroller = new ScrollViewer { Content = body, Margin = new Thickness(0, 0, -16, 0) };
         AutomationProperties.SetAutomationId(scroller, $"{Root}.scroller");
@@ -282,6 +281,8 @@ public sealed class FeedbackDialog
         Render();
         if (e.PropertyName == nameof(FeedbackFormViewModel.Error) && form.HasError)
             dialog.DispatcherQueue.TryEnqueue(() => errorBar.StartBringIntoView());
+        else if (e.PropertyName == nameof(FeedbackFormViewModel.IsSubmitting) && form.IsSubmitting)
+            dialog.DispatcherQueue.TryEnqueue(() => scroller.ChangeView(null, 0, null));
     }
 
     /// <summary>Applies the model to the controls.</summary>
@@ -300,8 +301,7 @@ public sealed class FeedbackDialog
         progress.Visibility = form.IsSubmitting ? Visibility.Visible : Visibility.Collapsed;
         sent.Visibility = form.IsSent ? Visibility.Visible : Visibility.Collapsed;
         sentText.Text = form.SuccessMessage;
-        issueLink.NavigateUri = form.IssueUri;
-        issueLink.Visibility = form.HasIssueUri ? Visibility.Visible : Visibility.Collapsed;
+        sending.Text = form.SendingText;
         dialog.PrimaryButtonText = form.PrimaryText;
         dialog.CloseButtonText = form.CloseText;
         dialog.IsPrimaryButtonEnabled = editable;

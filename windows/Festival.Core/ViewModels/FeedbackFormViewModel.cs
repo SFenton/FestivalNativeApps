@@ -11,7 +11,9 @@ public enum FeedbackPhase
     Editing,
     /// <summary>Upload in progress; fields locked.</summary>
     Submitting,
-    /// <summary>Accepted by the service; only Done remains.</summary>
+    /// <summary>Accepted (202); waiting for the service to file the issue. Closing loses nothing.</summary>
+    Filing,
+    /// <summary>Filed (or accepted with the outcome unknown); only Done remains.</summary>
     Sent,
 }
 #endregion
@@ -19,35 +21,55 @@ public enum FeedbackPhase
 #region Feedback form
 /// <summary>
 /// Settings → Report an Issue / Request a Feature (issue #78). One instance per open dialog; closing with unsent input
-/// asks first, discarding cancels an upload, and a failure keeps every field with a readable error.
+/// asks first, discarding cancels an upload, and a failure keeps every field with a readable error. After the 202 the
+/// form polls the job until it is filed or fails; a poll that cannot finish (timeout, expired or unreadable status)
+/// still reports the accepted submission as received rather than inviting a duplicate.
 /// </summary>
 public sealed class FeedbackFormViewModel : ObservableObject
 {
-    private readonly Func<FeedbackSubmission, CancellationToken, Task<FeedbackReceipt>> send;
+    /// <summary>Delay between status reads.</summary>
+    public static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(2);
+
+    /// <summary>How long to wait for the service to file the issue before reporting it as received.</summary>
+    public static readonly TimeSpan PollTimeout = TimeSpan.FromMinutes(5);
+
+    private readonly Func<FeedbackSubmission, CancellationToken, Task<FeedbackJob>> send;
+    private readonly Func<string, CancellationToken, Task<FeedbackJob>> status;
+    private readonly Func<TimeSpan, CancellationToken, Task> delay;
+    private readonly Func<DateTimeOffset> now;
     private readonly string appVersion;
-    private readonly string osVersion;
+    private readonly string clientInfo;
     private FeedbackDraft draft;
     private FeedbackPhase phase;
     private string? error;
     private string? notice;
     private bool confirmingDiscard;
-    private FeedbackReceipt? receipt;
+    private FeedbackJob? job;
     private CancellationTokenSource? upload;
 
     /// <summary>Opens a fresh form.</summary>
     /// <param name="kind">Bug or Feature.</param>
     /// <param name="send">Sends one submission (<see cref="Data.FestivalApiClient.SubmitFeedbackAsync"/> with file access).</param>
+    /// <param name="status">Reads a job (<see cref="Data.FestivalApiClient.GetFeedbackStatusAsync"/>).</param>
     /// <param name="appVersion">App version reported with the form.</param>
-    /// <param name="osVersion">OS description reported with the form.</param>
+    /// <param name="clientInfo">OS and device description reported with the form.</param>
+    /// <param name="delay">Waits between polls (tests replace it); defaults to <see cref="Task.Delay(TimeSpan, CancellationToken)"/>.</param>
+    /// <param name="now">Clock for the poll deadline; defaults to the system clock.</param>
     public FeedbackFormViewModel(
         FeedbackKind kind,
-        Func<FeedbackSubmission, CancellationToken, Task<FeedbackReceipt>> send,
+        Func<FeedbackSubmission, CancellationToken, Task<FeedbackJob>> send,
+        Func<string, CancellationToken, Task<FeedbackJob>> status,
         string appVersion,
-        string osVersion)
+        string clientInfo,
+        Func<TimeSpan, CancellationToken, Task>? delay = null,
+        Func<DateTimeOffset>? now = null)
     {
         this.send = send;
+        this.status = status;
+        this.delay = delay ?? Task.Delay;
+        this.now = now ?? (() => DateTimeOffset.UtcNow);
         this.appVersion = appVersion;
-        this.osVersion = osVersion;
+        this.clientInfo = clientInfo;
         draft = new FeedbackDraft(kind);
     }
 
@@ -67,8 +89,8 @@ public sealed class FeedbackFormViewModel : ObservableObject
     /// <summary>Helper under the description.</summary>
     public string DescriptionHelp => FeedbackCopy.DescriptionHelp(Kind);
 
-    /// <summary>Progress caption while sending.</summary>
-    public string SendingText => $"Sending your {Kind.Noun()}…";
+    /// <summary>Progress caption: uploading, then filing on GitHub.</summary>
+    public string SendingText => phase == FeedbackPhase.Filing ? $"Filing your {Kind.Noun()} on GitHub…" : $"Sending your {Kind.Noun()}…";
     #endregion
 
     #region Fields
@@ -121,6 +143,7 @@ public sealed class FeedbackFormViewModel : ObservableObject
             OnPropertyChanged(nameof(IsEditing));
             OnPropertyChanged(nameof(IsSubmitting));
             OnPropertyChanged(nameof(IsSent));
+            OnPropertyChanged(nameof(SendingText));
             OnPropertyChanged(nameof(PrimaryText));
             OnPropertyChanged(nameof(CloseText));
         }
@@ -129,8 +152,8 @@ public sealed class FeedbackFormViewModel : ObservableObject
     /// <summary>Whether fields are editable.</summary>
     public bool IsEditing => phase == FeedbackPhase.Editing;
 
-    /// <summary>Whether the upload is running.</summary>
-    public bool IsSubmitting => phase == FeedbackPhase.Submitting;
+    /// <summary>Whether progress shows (uploading or waiting for the issue).</summary>
+    public bool IsSubmitting => phase is FeedbackPhase.Submitting or FeedbackPhase.Filing;
 
     /// <summary>Whether the service accepted the form.</summary>
     public bool IsSent => phase == FeedbackPhase.Sent;
@@ -174,27 +197,18 @@ public sealed class FeedbackFormViewModel : ObservableObject
         private set => SetProperty(ref confirmingDiscard, value);
     }
 
-    /// <summary>Service receipt once sent.</summary>
-    public FeedbackReceipt? Receipt
+    /// <summary>Accepted job as last seen.</summary>
+    public FeedbackJob? Job
     {
-        get => receipt;
+        get => job;
         private set
         {
-            if (!SetProperty(ref receipt, value)) return;
-            OnPropertyChanged(nameof(SuccessMessage));
-            OnPropertyChanged(nameof(IssueUri));
-            OnPropertyChanged(nameof(HasIssueUri));
+            if (SetProperty(ref job, value)) OnPropertyChanged(nameof(SuccessMessage));
         }
     }
 
-    /// <summary>Success text.</summary>
-    public string SuccessMessage => receipt?.Message(Kind) ?? "";
-
-    /// <summary>Created issue link (GitHub HTTPS only).</summary>
-    public Uri? IssueUri => receipt?.IssueUrl is { } url && Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri : null;
-
-    /// <summary>Whether View on GitHub shows.</summary>
-    public bool HasIssueUri => IssueUri is not null;
+    /// <summary>Success text (issue number when filed; "received" when the outcome is unknown).</summary>
+    public string SuccessMessage => phase == FeedbackPhase.Sent && job is not null ? job.Message(Kind) : "";
     #endregion
 
     #region Actions
@@ -229,6 +243,12 @@ public sealed class FeedbackFormViewModel : ObservableObject
     /// <returns><see langword="true"/> when nothing would be lost (or the form was sent).</returns>
     public bool RequestClose()
     {
+        if (phase == FeedbackPhase.Filing)
+        {
+            // Already accepted: stop waiting; the service files it regardless.
+            upload?.Cancel();
+            return true;
+        }
         if (IsSent || (IsEditing && !draft.IsDirty)) return true;
         ConfirmingDiscard = true;
         return false;
@@ -254,7 +274,7 @@ public sealed class FeedbackFormViewModel : ObservableObject
             Error = problem.Message();
             return;
         }
-        var submission = draft.Submission(FeedbackSubmission.PlatformWindows, appVersion, osVersion);
+        var submission = draft.Submission(FeedbackSubmission.PlatformWindows, appVersion, clientInfo);
         using var cts = new CancellationTokenSource();
         upload = cts;
         Error = null;
@@ -262,11 +282,21 @@ public sealed class FeedbackFormViewModel : ObservableObject
         Phase = FeedbackPhase.Submitting;
         try
         {
-            var result = await send(submission, cts.Token);
+            var accepted = await send(submission, cts.Token);
             if (cts.IsCancellationRequested) return;
-            Receipt = result;
+            Job = accepted;
             ConfirmingDiscard = false;
+            Phase = FeedbackPhase.Filing;
+            var final = await FollowAsync(accepted, cts.Token);
+            if (cts.IsCancellationRequested) return;
+            Job = final;
+            if (final.State == FeedbackJobState.Failed)
+            {
+                Fail(FeedbackException.FilingFailed(Kind).Message);
+                return;
+            }
             Phase = FeedbackPhase.Sent;
+            OnPropertyChanged(nameof(SuccessMessage));
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
@@ -290,6 +320,36 @@ public sealed class FeedbackFormViewModel : ObservableObject
             Phase = FeedbackPhase.Editing;
             Error = message;
         }
+    }
+
+    /// <summary>
+    /// Polls an accepted job until it is filed or fails. Without an ID, after <see cref="PollTimeout"/>, or when a
+    /// status read fails (expired, unknown, offline), returns the last known state so the form reports it as received.
+    /// </summary>
+    /// <param name="accepted">The 202 job.</param>
+    /// <param name="token">Cancelled when the user closes the form.</param>
+    /// <returns>Terminal job, or the last known one.</returns>
+    /// <exception cref="OperationCanceledException">The user closed the form.</exception>
+    private async Task<FeedbackJob> FollowAsync(FeedbackJob accepted, CancellationToken token)
+    {
+        if (accepted.IsTerminal || accepted.Id is not { } id) return accepted;
+        var latest = accepted;
+        var deadline = now() + PollTimeout;
+        while (now() < deadline)
+        {
+            await delay(PollInterval, token);
+            try
+            {
+                latest = await status(id, token);
+            }
+            catch (Exception error) when (error is not OperationCanceledException || !token.IsCancellationRequested)
+            {
+                return latest;
+            }
+            Job = latest;
+            if (latest.IsTerminal) return latest;
+        }
+        return latest;
     }
 
     /// <summary>Applies a field edit while editing and clears a stale error.</summary>

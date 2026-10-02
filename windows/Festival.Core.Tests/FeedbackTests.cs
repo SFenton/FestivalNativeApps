@@ -71,17 +71,20 @@ public class FeedbackTests
 
         var full = new FeedbackDraft(FeedbackKind.Bug).Adding(Enumerable.Range(0, 12).Select(i => Media($"m{i}")));
         Assert.Equal(FeedbackLimits.MaxAttachments, full.Attachments.Count);
-        Assert.Equal("You can attach up to 10 files.", full.Notice);
+        Assert.Equal(4, FeedbackLimits.MaxAttachments);
+        Assert.Equal("You can attach up to 4 files.", full.Notice);
 
         var big = new FeedbackDraft(FeedbackKind.Bug).Adding([
             Media("huge", "video/mp4", FeedbackLimits.MaxAttachmentBytes + 1),
-            Media("v1", "video/mp4", 200L * 1024 * 1024),
-            Media("v2", "video/mp4", 200L * 1024 * 1024),
-            Media("v3", "video/mp4", 200L * 1024 * 1024),
+            Media("v1", "video/mp4", 40L * 1024 * 1024),
+            Media("v2", "video/mp4", 40L * 1024 * 1024),
+            Media("v3", "video/mp4", 40L * 1024 * 1024),
             Media("unknown", "image/png", null),
         ]);
         Assert.Equal(["v1", "v2", "unknown"], big.Attachments.Select(a => a.Id));
-        Assert.Equal("Files must be under 250 MB each and 500 MB in total.", big.Notice);
+        Assert.Equal("Attachments must add up to less than 90 MB.", big.Notice);
+        Assert.True(FeedbackLimits.MaxTotalBytes < FeedbackLimits.MaxRequestBytes);
+        Assert.Equal("Add up to 4 screenshots or screen recordings, 90 MB in total. Select one to open it.", FeedbackCopy.AttachHelp);
         Assert.Null(new FeedbackDraft(FeedbackKind.Bug).Adding([Media("ok")]).Notice);
     }
 
@@ -114,9 +117,18 @@ public class FeedbackTests
         {
             Title = "[Bug] X", Description = " d ", ReproSteps = " r ", ExpectedBehavior = "",
         }).Submission("windows", "2610.02.01", "Windows 11");
-        Assert.Equal(["kind", "platform", "title", "description", "reproSteps", "appVersion", "osVersion"],
+        Assert.Equal(["kind", "platform", "title", "description", "repro", "appVersion", "clientInfo"],
             bug.FormFields.Select(f => f.Key));
         Assert.Equal("d", bug.Description);
+        Assert.Equal("Windows 11", bug.ClientInfo);
+
+        var clipped = (new FeedbackDraft(FeedbackKind.Bug) with { Title = "T", Description = "d", ExpectedBehavior = "e" })
+            .Submission("windows", new string('v', 70), " " + new string('c', 300));
+        var fields = clipped.FormFields.ToDictionary(f => f.Key, f => f.Value);
+        Assert.Equal("e", fields["expected"]);
+        Assert.Equal(64, fields["appVersion"].Length);
+        Assert.Equal(256, fields["clientInfo"].Length);
+        Assert.False(fields.ContainsKey("repro"));
 
         var feature = (new FeedbackDraft(FeedbackKind.Feature) with { Title = "Idea", Description = "d", ReproSteps = "dropped" })
             .Submission("windows", "", "");
@@ -138,36 +150,75 @@ public class FeedbackTests
     [Fact]
     public void SafeFileName_CapsLength() => Assert.Equal(120, FeedbackSubmission.SafeFileName(new string('x', 300)).Length);
 
+    private const string JobId = "0123456789abcdef0123456789abcdef";
+
     [Fact]
-    public void Receipt_MessagesAndSafeUrls()
+    public void Job_MessagesStatesAndIds()
     {
-        Assert.Equal("Report sent as issue #42. Thank you!", new FeedbackReceipt(42, null).Message(FeedbackKind.Bug));
-        Assert.Equal("Request sent. Thank you!", new FeedbackReceipt(null, null).Message(FeedbackKind.Feature));
-        Assert.Equal("https://github.com/o/r/issues/1", FeedbackReceipt.SafeUrl("https://github.com/o/r/issues/1"));
-        Assert.Null(FeedbackReceipt.SafeUrl("http://github.com/o/r/issues/1"));
-        Assert.Null(FeedbackReceipt.SafeUrl("https://evil.example/https://github.com/"));
-        Assert.Null(FeedbackReceipt.SafeUrl("https://github.com/a b"));
-        Assert.Null(FeedbackReceipt.SafeUrl(null));
+        Assert.Equal("Thanks! Your report was filed as issue #42.",
+            new FeedbackJob(JobId, FeedbackJobState.Submitted, 42).Message(FeedbackKind.Bug));
+        Assert.Equal("Thanks! Your request was filed on GitHub. 1 attachment couldn't be attached.",
+            new FeedbackJob(JobId, FeedbackJobState.Submitted, null, 1).Message(FeedbackKind.Feature));
+        Assert.Equal("Thanks! Your report was received and will be filed on GitHub shortly. 2 attachments couldn't be attached.",
+            new FeedbackJob(null, FeedbackJobState.Processing, null, 2).Message(FeedbackKind.Bug));
+        Assert.True(new FeedbackJob(JobId, FeedbackJobState.Failed).IsTerminal);
+        Assert.False(new FeedbackJob(JobId, FeedbackJobState.Queued).IsTerminal);
+        Assert.True(FeedbackJob.IsValidId(JobId));
+        Assert.False(FeedbackJob.IsValidId(JobId.ToUpperInvariant()));
+        Assert.False(FeedbackJob.IsValidId(JobId[..31]));
+        Assert.False(FeedbackJob.IsValidId("../" + JobId[3..]));
+        Assert.False(FeedbackJob.IsValidId(null));
+        Assert.Equal(FeedbackJobState.Submitted, FeedbackJob.ParseState(" Submitted "));
+        Assert.Equal(FeedbackJobState.Queued, FeedbackJob.ParseState("queued"));
+        Assert.Equal(FeedbackJobState.Processing, FeedbackJob.ParseState("processing"));
+        Assert.Equal(FeedbackJobState.Failed, FeedbackJob.ParseState("failed"));
+        Assert.Null(FeedbackJob.ParseState("other"));
+        Assert.Null(FeedbackJob.ParseState(null));
     }
 
     [Theory]
-    [InlineData(400, "Check the fields")]
-    [InlineData(422, "Check the fields")]
-    [InlineData(404, "isn't available yet")]
-    [InlineData(405, "isn't available yet")]
-    [InlineData(501, "isn't available yet")]
-    [InlineData(413, "too large")]
-    [InlineData(415, "supported image or video")]
-    [InlineData(429, "Too many submissions")]
-    [InlineData(500, "temporarily unavailable")]
-    [InlineData(503, "temporarily unavailable")]
-    [InlineData(418, "(HTTP 418)")]
-    public void Exception_MapsStatuses(int status, string fragment)
+    [InlineData(400, null, "Check the fields")]
+    [InlineData(422, null, "Check the fields")]
+    [InlineData(404, null, "isn't available right now")]
+    [InlineData(405, null, "isn't available right now")]
+    [InlineData(501, null, "isn't available right now")]
+    [InlineData(413, null, "under 90 MB in total")]
+    [InlineData(415, null, "image and video attachments")]
+    [InlineData(429, null, "Try again later")]
+    [InlineData(500, null, "temporarily unavailable")]
+    [InlineData(503, null, "busy right now")]
+    [InlineData(418, null, "(HTTP 418)")]
+    [InlineData(413, "payload_too_large", "under 90 MB in total")]
+    [InlineData(400, "too_many_attachments", "Attach up to 4 files.")]
+    [InlineData(400, "unsupported_media", "image and video attachments")]
+    [InlineData(404, "feedback_disabled", "isn't available right now")]
+    [InlineData(503, "feedback_busy", "busy right now")]
+    [InlineData(400, "title_required", "Add a title")]
+    [InlineData(400, "description_required", "Add a description")]
+    [InlineData(400, "field_too_long", "too long")]
+    [InlineData(400, "invalid_kind", "Check the fields")]
+    public void Exception_MapsStatusesAndCodes(int status, string? code, string fragment)
     {
-        var error = FeedbackException.ForStatus(status);
+        var error = FeedbackException.ForStatus(status, code);
         Assert.Contains(fragment, error.Message);
         Assert.Equal(status, error.Status);
     }
+
+    [Fact]
+    public void Exception_RateLimitNamesTheWait()
+    {
+        Assert.EndsWith("Try again in 45 seconds.", FeedbackException.ForStatus(429, null, 45).Message);
+        Assert.EndsWith("Try again in 10 minutes.", FeedbackException.ForStatus(429, null, 600).Message);
+        Assert.Equal("Your request couldn't be filed on GitHub. Try again in a few minutes.",
+            FeedbackException.FilingFailed(FeedbackKind.Feature).Message);
+    }
+
+    [Theory]
+    [InlineData(1, "1 second")]
+    [InlineData(59, "59 seconds")]
+    [InlineData(60, "1 minute")]
+    [InlineData(61, "2 minutes")]
+    public void Format_Wait(int seconds, string expected) => Assert.Equal(expected, FeedbackFormat.Wait(seconds));
 
     [Fact]
     public void Exception_FactoriesAreReadable()
@@ -260,7 +311,7 @@ public class FeedbackTests
     private sealed record Captured(HttpMethod Method, Uri Uri, string ContentType, string Body, Dictionary<string, string> Headers);
 
     private static (FestivalApiClient Client, FakeHandler Handler, List<Captured> Seen) Client(
-        HttpStatusCode status, string? body = null, Exception? failure = null)
+        HttpStatusCode status, string? body = null, Exception? failure = null, string? retryAfter = null)
     {
         var seen = new List<Captured>();
         var handler = new FakeHandler
@@ -268,10 +319,12 @@ public class FeedbackTests
             Responder = async (request, _) =>
             {
                 if (failure is not null) throw failure;
-                var text = await request.Content!.ReadAsStringAsync();
-                seen.Add(new Captured(request.Method, request.RequestUri!, request.Content.Headers.ContentType!.ToString(), text,
+                var text = request.Content is null ? "" : await request.Content.ReadAsStringAsync();
+                seen.Add(new Captured(request.Method, request.RequestUri!, request.Content?.Headers.ContentType?.ToString() ?? "", text,
                     request.Headers.ToDictionary(h => h.Key, h => string.Join(",", h.Value), StringComparer.OrdinalIgnoreCase)));
-                return new HttpResponseMessage(status) { Content = new StringContent(body ?? "") };
+                var response = new HttpResponseMessage(status) { Content = new StringContent(body ?? "") };
+                if (retryAfter is not null) response.Headers.TryAddWithoutValidation("Retry-After", retryAfter);
+                return response;
             },
         };
         return (new FestivalApiClient(new RequestGate(new HttpClient(handler)), new Uri(Wire.BaseUrl)), handler, seen);
@@ -288,13 +341,13 @@ public class FeedbackTests
     [Fact]
     public async Task Submit_PostsMultipartFormWithMediaParts()
     {
-        var (client, _, seen) = Client(HttpStatusCode.Created, """{"issueNumber":42,"issueUrl":"https://github.com/o/r/issues/42"}""");
-        var receipt = await client.SubmitFeedbackAsync(
+        var (client, _, seen) = Client(HttpStatusCode.Accepted, $$"""{"id":"{{JobId}}","status":"queued"}""");
+        var job = await client.SubmitFeedbackAsync(
             Submission(new("a", @"C:\pics\shot ""1"".png", "image/png", 9), new("b", "clip.mp4", "video/mp4", 9),
                 new("c", "odd.bin", "bogus type", 9)),
             Open);
 
-        Assert.Equal(new FeedbackReceipt(42, "https://github.com/o/r/issues/42"), receipt);
+        Assert.Equal(new FeedbackJob(JobId, FeedbackJobState.Queued), job);
         var sent = Assert.Single(seen);
         Assert.Equal(HttpMethod.Post, sent.Method);
         Assert.Equal("https://festivalscoretracker.com/api/feedback", sent.Uri.ToString());
@@ -304,7 +357,7 @@ public class FeedbackTests
         foreach (var (name, value) in new[]
                  {
                      ("kind", "bug"), ("platform", "windows"), ("title", "[Bug] Crash"), ("description", "Desc"),
-                     ("reproSteps", "Step"), ("expectedBehavior", "Works"), ("appVersion", "2610.02.01"), ("osVersion", "Windows 11"),
+                     ("repro", "Step"), ("expected", "Works"), ("appVersion", "2610.02.01"), ("clientInfo", "Windows 11"),
                  })
         {
             Assert.Matches($"name={name}\\r\\n(?:[^\\r\\n]+\\r\\n)*\\r\\n{System.Text.RegularExpressions.Regex.Escape(value)}\\r\\n", sent.Body);
@@ -315,34 +368,102 @@ public class FeedbackTests
         Assert.Contains("Content-Type: application/octet-stream", sent.Body);
         Assert.Contains("bytes-of-a", sent.Body);
         Assert.Contains("bytes-of-c", sent.Body);
-        Assert.True(sent.Body.IndexOf("name=osVersion", StringComparison.Ordinal) < sent.Body.IndexOf("name=media", StringComparison.Ordinal));
+        Assert.True(sent.Body.IndexOf("name=clientInfo", StringComparison.Ordinal) < sent.Body.IndexOf("name=media", StringComparison.Ordinal));
     }
 
-    [Theory]
-    [InlineData("", null, null)]
-    [InlineData("not json", null, null)]
-    [InlineData("[1]", null, null)]
-    [InlineData("""{"issueNumber":0,"issueUrl":"http://github.com/x"}""", null, null)]
-    [InlineData("""{"issueNumber":"7","issueUrl":5}""", null, null)]
-    [InlineData("""{"issueNumber":7.5}""", null, null)]
-    [InlineData("""{"issueNumber":7}""", 7, null)]
-    public void ParseReceipt_IsTolerant(string body, int? number, string? url) =>
-        Assert.Equal(new FeedbackReceipt(number, url), FestivalApiClient.ParseFeedbackReceipt(Encoding.UTF8.GetBytes(body)));
+    [Fact]
+    public void ParseJob_IsTolerant()
+    {
+        static FeedbackJob? Parse(string body, string? known = null) => FestivalApiClient.ParseFeedbackJob(Encoding.UTF8.GetBytes(body), known);
+        Assert.Null(Parse(""));
+        Assert.Null(Parse("not json"));
+        Assert.Null(Parse("[1]"));
+        Assert.Equal(new FeedbackJob(null, FeedbackJobState.Processing), Parse("{}"));
+        Assert.Equal(new FeedbackJob(JobId, FeedbackJobState.Processing), Parse("""{"id":"NOT-HEX","status":"weird"}""", JobId));
+        Assert.Equal(new FeedbackJob(JobId, FeedbackJobState.Submitted, 7, 2), Parse($$"""
+            {"id":"{{JobId}}","status":"submitted","issueNumber":7,"attachments":[
+              {"name":"a.mov","kind":"video","outcome":"skipped","note":"too big"},
+              {"name":"b.png","kind":"image","outcome":"attached"},
+              {"name":"c.png","kind":"image","outcome":"SKIPPED"},
+              {"outcome":5}, 3]}
+            """));
+        Assert.Equal(new FeedbackJob(null, FeedbackJobState.Failed), Parse("""{"status":"failed","issueNumber":0,"attachments":{}}"""));
+        Assert.Equal(new FeedbackJob(null, FeedbackJobState.Processing), Parse("""{"status":5,"issueNumber":7.5}"""));
+    }
 
     [Fact]
     public async Task Submit_AcceptsBare202()
     {
         var (client, _, _) = Client(HttpStatusCode.Accepted);
-        Assert.Equal(new FeedbackReceipt(null, null), await client.SubmitFeedbackAsync(Submission(), Open));
+        Assert.Equal(new FeedbackJob(null, FeedbackJobState.Queued), await client.SubmitFeedbackAsync(Submission(), Open));
     }
 
     [Fact]
-    public async Task Submit_MapsStatusToReadableError()
+    public async Task Submit_MapsStatusAndCodeToReadableError()
     {
-        var (client, _, _) = Client(HttpStatusCode.RequestEntityTooLarge, "server text never shown");
+        var (client, _, _) = Client(HttpStatusCode.RequestEntityTooLarge,
+            """{"error":"server text never shown","code":"payload_too_large","maxBytes":94371840}""");
         var error = await Assert.ThrowsAsync<FeedbackException>(() => client.SubmitFeedbackAsync(Submission(), Open));
         Assert.Equal(413, error.Status);
+        Assert.Contains("90 MB", error.Message);
         Assert.DoesNotContain("server text", error.Message);
+
+        var (busy, _, _) = Client(HttpStatusCode.TooManyRequests, "not json", retryAfter: "120");
+        Assert.EndsWith("Try again in 2 minutes.",
+            (await Assert.ThrowsAsync<FeedbackException>(() => busy.SubmitFeedbackAsync(Submission(), Open))).Message);
+
+        var (odd, _, _) = Client(HttpStatusCode.TooManyRequests, """{"code":5}""", retryAfter: "soon");
+        Assert.EndsWith("Try again later.",
+            (await Assert.ThrowsAsync<FeedbackException>(() => odd.SubmitFeedbackAsync(Submission(), Open))).Message);
+
+        var (array, _, _) = Client(HttpStatusCode.BadRequest, "[]");
+        Assert.Contains("Check the fields",
+            (await Assert.ThrowsAsync<FeedbackException>(() => array.SubmitFeedbackAsync(Submission(), Open))).Message);
+    }
+
+    [Fact]
+    public async Task Status_ReadsTheJobWithAKeylessGet()
+    {
+        var (client, _, seen) = Client(HttpStatusCode.OK, $$"""{"id":"{{JobId}}","status":"submitted","issueNumber":12,"attachments":[]}""");
+        Assert.Equal(new FeedbackJob(JobId, FeedbackJobState.Submitted, 12), await client.GetFeedbackStatusAsync(JobId));
+        var sent = Assert.Single(seen);
+        Assert.Equal(HttpMethod.Get, sent.Method);
+        Assert.Equal($"https://festivalscoretracker.com/api/feedback/{JobId}", sent.Uri.ToString());
+        Assert.DoesNotContain(sent.Headers.Keys, k => k.Equals("X-API-Key", StringComparison.OrdinalIgnoreCase) ||
+                                                      k.StartsWith("x-fst-selected-", StringComparison.OrdinalIgnoreCase));
+
+        await Assert.ThrowsAsync<ArgumentException>(() => client.GetFeedbackStatusAsync("../features"));
+        Assert.Single(seen);
+
+        var (gone, _, _) = Client(HttpStatusCode.NotFound, """{"error":"x","code":"not_found"}""");
+        Assert.Equal(404, (await Assert.ThrowsAsync<FestivalApiException>(() => gone.GetFeedbackStatusAsync(JobId))).StatusCode);
+
+        var (garbled, _, _) = Client(HttpStatusCode.OK, "nope");
+        Assert.Equal(FestivalApiErrorKind.InvalidResponse,
+            (await Assert.ThrowsAsync<FestivalApiException>(() => garbled.GetFeedbackStatusAsync(JobId))).Kind);
+    }
+
+    [Theory]
+    [InlineData("""{"appManual":false,"feedback":true}""", true)]
+    [InlineData("""{"appManual":false,"feedback":false}""", false)]
+    [InlineData("""{"appManual":false}""", false)]
+    [InlineData("""{"feedback":"true"}""", false)]
+    [InlineData("""[true]""", false)]
+    [InlineData("""not json""", false)]
+    public async Task Features_ShowFeedbackOnlyForTrue(string body, bool expected)
+    {
+        var (client, _, seen) = Client(HttpStatusCode.OK, body);
+        Assert.Equal(expected, await client.GetFeedbackEnabledAsync());
+        var sent = Assert.Single(seen);
+        Assert.Equal(HttpMethod.Get, sent.Method);
+        Assert.Equal("https://festivalscoretracker.com/api/features", sent.Uri.ToString());
+    }
+
+    [Fact]
+    public async Task Features_FailureThrows()
+    {
+        var (client, _, _) = Client(HttpStatusCode.ServiceUnavailable);
+        await Assert.ThrowsAsync<FestivalApiException>(() => client.GetFeedbackEnabledAsync());
     }
 
     [Fact]
@@ -401,8 +522,27 @@ public class FeedbackTests
 
     #region View model
     private static FeedbackFormViewModel Form(
-        FeedbackKind kind, Func<FeedbackSubmission, CancellationToken, Task<FeedbackReceipt>> send) =>
-        new(kind, send, "2610.02.01", "Windows 11");
+        FeedbackKind kind,
+        Func<FeedbackSubmission, CancellationToken, Task<FeedbackJob>> send,
+        Func<string, CancellationToken, Task<FeedbackJob>>? status = null,
+        Func<DateTimeOffset>? now = null) =>
+        new(kind, send, status ?? ((id, _) => Task.FromResult(new FeedbackJob(id, FeedbackJobState.Submitted, 42))),
+            "2610.02.01", "Windows 11",
+            (_, token) =>
+            {
+                token.ThrowIfCancellationRequested();
+                return Task.CompletedTask;
+            },
+            now);
+
+    private static Task<FeedbackJob> Accepted() => Task.FromResult(new FeedbackJob(JobId, FeedbackJobState.Queued));
+
+    private static FeedbackFormViewModel Filled(FeedbackFormViewModel form)
+    {
+        form.Title = form.Kind == FeedbackKind.Bug ? "[Bug] Crash" : "Idea";
+        form.Description = "Boom";
+        return form;
+    }
 
     [Fact]
     public void Form_StartsCleanWithCopy()
@@ -424,7 +564,7 @@ public class FeedbackTests
     public async Task Form_ValidatesOnSubmitWithoutSending()
     {
         var calls = 0;
-        var form = Form(FeedbackKind.Feature, (_, _) => { calls++; return Task.FromResult(new FeedbackReceipt(1, null)); });
+        var form = Form(FeedbackKind.Feature, (_, _) => { calls++; return Accepted(); });
         await form.SubmitAsync();
         Assert.Equal("Add a title after the prefix.", form.Error);
         Assert.True(form.HasError);
@@ -438,7 +578,7 @@ public class FeedbackTests
     [Fact]
     public async Task Form_DirtyCloseAsksThenKeepEditingOrDiscard()
     {
-        var form = Form(FeedbackKind.Bug, (_, _) => Task.FromResult(new FeedbackReceipt(null, null)));
+        var form = Form(FeedbackKind.Bug, (_, _) => Accepted());
         form.ReproSteps = "1. Open";
         form.ExpectedBehavior = "Works";
         Assert.False(form.RequestClose());
@@ -454,26 +594,40 @@ public class FeedbackTests
     }
 
     [Fact]
-    public async Task Form_SubmitsAndShowsReceipt()
+    public async Task Form_SubmitsPollsAndShowsIssueNumber()
     {
         FeedbackSubmission? sent = null;
+        var polls = new Queue<FeedbackJob>([
+            new(JobId, FeedbackJobState.Queued), new(JobId, FeedbackJobState.Processing), new(JobId, FeedbackJobState.Submitted, 42),
+        ]);
+        var captions = new List<string>();
         var form = Form(FeedbackKind.Bug, (s, _) =>
         {
             sent = s;
-            return Task.FromResult(new FeedbackReceipt(42, "https://github.com/o/r/issues/42"));
+            return Accepted();
+        }, (id, _) =>
+        {
+            Assert.Equal(JobId, id);
+            return Task.FromResult(polls.Dequeue());
         });
+        form.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(FeedbackFormViewModel.SendingText)) captions.Add(form.SendingText);
+        };
         form.Title = "[Bug] Crash";
         form.Description = "Boom";
         form.AddAttachments([Media("a")]);
         await form.SubmitAsync();
+        Assert.Empty(polls);
+        Assert.Equal(["Sending your report…", "Filing your report on GitHub…", "Sending your report…"], captions);
         Assert.True(form.IsSent);
-        Assert.Equal("Report sent as issue #42. Thank you!", form.SuccessMessage);
-        Assert.Equal(new Uri("https://github.com/o/r/issues/42"), form.IssueUri);
-        Assert.True(form.HasIssueUri);
+        Assert.False(form.IsSubmitting);
+        Assert.Equal(new FeedbackJob(JobId, FeedbackJobState.Submitted, 42), form.Job);
+        Assert.Equal("Thanks! Your report was filed as issue #42.", form.SuccessMessage);
         Assert.Equal(("", "Done"), (form.PrimaryText, form.CloseText));
         Assert.Equal("windows", sent!.Platform);
         Assert.Equal("2610.02.01", sent.AppVersion);
-        Assert.Equal("Windows 11", sent.OsVersion);
+        Assert.Equal("Windows 11", sent.ClientInfo);
         Assert.Single(sent.Attachments);
         Assert.True(form.RequestClose());
 
@@ -488,12 +642,12 @@ public class FeedbackTests
     [Fact]
     public async Task Form_FailureKeepsInputAndShowsError()
     {
-        var form = Form(FeedbackKind.Feature, (_, _) => throw FeedbackException.ForStatus(503));
+        var form = Form(FeedbackKind.Feature, (_, _) => throw FeedbackException.ForStatus(503, "feedback_busy"));
         form.Title = "Idea";
         form.Description = "More";
         await form.SubmitAsync();
         Assert.True(form.IsEditing);
-        Assert.Equal("The service is temporarily unavailable. Try again.", form.Error);
+        Assert.Equal("Feedback is busy right now. Try again in a minute.", form.Error);
         Assert.Equal("Idea", form.Title);
 
         var crash = Form(FeedbackKind.Feature, (_, _) => throw new InvalidOperationException("raw"));
@@ -513,7 +667,7 @@ public class FeedbackTests
             seen = token;
             started.SetResult();
             await Task.Delay(Timeout.Infinite, token);
-            return new FeedbackReceipt(1, null);
+            return new FeedbackJob(JobId, FeedbackJobState.Queued);
         });
         form.Title = "[Bug] X";
         form.Description = "Y";
@@ -556,7 +710,7 @@ public class FeedbackTests
         var lateForm = Form(FeedbackKind.Bug, async (_, _) =>
         {
             await late.Task;
-            return new FeedbackReceipt(9, null);
+            return new FeedbackJob(JobId, FeedbackJobState.Queued);
         });
         lateForm.Title = "[Bug] X";
         lateForm.Description = "Y";
@@ -570,7 +724,7 @@ public class FeedbackTests
     [Fact]
     public void Form_AttachmentsAddRemoveAndNotice()
     {
-        var form = Form(FeedbackKind.Feature, (_, _) => Task.FromResult(new FeedbackReceipt(null, null)));
+        var form = Form(FeedbackKind.Feature, (_, _) => Accepted());
         var changed = new List<string?>();
         form.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
         form.AddAttachments([]);
@@ -597,7 +751,7 @@ public class FeedbackTests
     [Fact]
     public void Form_NullFieldValuesBecomeEmpty()
     {
-        var form = Form(FeedbackKind.Bug, (_, _) => Task.FromResult(new FeedbackReceipt(null, null)));
+        var form = Form(FeedbackKind.Bug, (_, _) => Accepted());
         form.Title = null!;
         form.Description = null!;
         form.ReproSteps = null!;
@@ -605,9 +759,86 @@ public class FeedbackTests
         Assert.Equal("", form.Title);
         Assert.Equal(FeedbackKind.Bug, form.Kind);
         Assert.False(form.IsSubmitting);
-        Assert.Null(form.Receipt);
+        Assert.Null(form.Job);
         Assert.Equal("", form.SuccessMessage);
-        Assert.Null(form.IssueUri);
+    }
+
+    [Fact]
+    public async Task Form_FailedFilingKeepsInputForRetry()
+    {
+        var form = Filled(Form(FeedbackKind.Bug, (_, _) => Accepted(),
+            (id, _) => Task.FromResult(new FeedbackJob(id, FeedbackJobState.Failed))));
+        await form.SubmitAsync();
+        Assert.True(form.IsEditing);
+        Assert.Equal("Your report couldn't be filed on GitHub. Try again in a few minutes.", form.Error);
+        Assert.Equal("[Bug] Crash", form.Title);
+        Assert.Equal("", form.SuccessMessage);
+    }
+
+    [Fact]
+    public async Task Form_UnknownOutcomeReportsReceived()
+    {
+        var expired = Filled(Form(FeedbackKind.Bug, (_, _) => Accepted(),
+            (_, _) => throw new FestivalApiException(FestivalApiErrorKind.HttpStatus, 404)));
+        await expired.SubmitAsync();
+        Assert.True(expired.IsSent);
+        Assert.Equal("Thanks! Your report was received and will be filed on GitHub shortly.", expired.SuccessMessage);
+
+        var statusCalls = 0;
+        var noId = Filled(Form(FeedbackKind.Feature, (_, _) => Task.FromResult(new FeedbackJob(null, FeedbackJobState.Queued)),
+            (_, _) => { statusCalls++; return Accepted(); }));
+        await noId.SubmitAsync();
+        Assert.True(noId.IsSent);
+        Assert.Equal(0, statusCalls);
+        Assert.Equal("Thanks! Your request was received and will be filed on GitHub shortly.", noId.SuccessMessage);
+
+        var immediate = Filled(Form(FeedbackKind.Feature, (_, _) => Task.FromResult(new FeedbackJob(JobId, FeedbackJobState.Submitted, 5)),
+            (_, _) => { statusCalls++; return Accepted(); }));
+        await immediate.SubmitAsync();
+        Assert.Equal(0, statusCalls);
+        Assert.Equal("Thanks! Your request was filed as issue #5.", immediate.SuccessMessage);
+    }
+
+    [Fact]
+    public async Task Form_PollingStopsAtTheDeadline()
+    {
+        var clock = DateTimeOffset.UnixEpoch;
+        var calls = 0;
+        var form = Filled(Form(FeedbackKind.Bug, (_, _) => Accepted(), (id, _) =>
+        {
+            calls++;
+            clock += TimeSpan.FromMinutes(1);
+            return Task.FromResult(new FeedbackJob(id, FeedbackJobState.Processing, null, 1));
+        }, () => clock));
+        await form.SubmitAsync();
+        Assert.Equal((int)FeedbackFormViewModel.PollTimeout.TotalMinutes, calls);
+        Assert.True(form.IsSent);
+        Assert.Equal("Thanks! Your report was received and will be filed on GitHub shortly. 1 attachment couldn't be attached.",
+            form.SuccessMessage);
+    }
+
+    [Fact]
+    public async Task Form_ClosingWhileFilingStopsPollingWithoutAsking()
+    {
+        var polling = new TaskCompletionSource();
+        CancellationToken seen = default;
+        var form = Filled(Form(FeedbackKind.Bug, (_, _) => Accepted(), async (id, token) =>
+        {
+            seen = token;
+            polling.TrySetResult();
+            await Task.Delay(Timeout.Infinite, token);
+            return new FeedbackJob(id, FeedbackJobState.Submitted);
+        }));
+        var submitting = form.SubmitAsync();
+        await polling.Task;
+        Assert.Equal(FeedbackPhase.Filing, form.Phase);
+        Assert.True(form.IsSubmitting);
+        Assert.True(form.RequestClose());
+        Assert.False(form.ConfirmingDiscard);
+        await submitting;
+        Assert.True(seen.IsCancellationRequested);
+        Assert.Null(form.Error);
+        Assert.False(form.IsSent);
     }
     #endregion
 }

@@ -55,23 +55,35 @@ public static class FeedbackKinds
 #endregion
 
 #region Limits and copy
-/// <summary>Client-side bounds; the service transcodes oversized media itself, these only stop absurd uploads.</summary>
+/// <summary>
+/// Client-side mirrors of the service's <c>POST /api/feedback</c> bounds (FSTService <c>docs/components/in-app-feedback.md</c>).
+/// The service fits each accepted file under GitHub's limits itself; these only stop uploads it would reject.
+/// </summary>
 public static class FeedbackLimits
 {
-    /// <summary>Most attachments one submission carries.</summary>
-    public const int MaxAttachments = 10;
+    /// <summary>Most attachments one submission carries (service <c>MaxAttachments</c>).</summary>
+    public const int MaxAttachments = 4;
 
-    /// <summary>Largest single attachment (250 MB).</summary>
-    public const long MaxAttachmentBytes = 250L * 1024 * 1024;
+    /// <summary>Largest whole request the service accepts (90 MiB; larger answers 413 <c>payload_too_large</c>).</summary>
+    public const long MaxRequestBytes = 94_371_840;
 
-    /// <summary>Largest combined upload (500 MB).</summary>
-    public const long MaxTotalBytes = 500L * 1024 * 1024;
+    /// <summary>Combined attachment budget: the request cap less 512 KiB for text fields and multipart framing.</summary>
+    public const long MaxTotalBytes = MaxRequestBytes - 512 * 1024;
+
+    /// <summary>Largest single attachment (the whole budget; there is no separate per-file cap).</summary>
+    public const long MaxAttachmentBytes = MaxTotalBytes;
 
     /// <summary>Longest title, prefix included.</summary>
     public const int MaxTitleLength = 200;
 
     /// <summary>Longest description, steps or expected-behavior text.</summary>
     public const int MaxTextLength = 10_000;
+
+    /// <summary>Longest <c>appVersion</c> field.</summary>
+    public const int MaxAppVersionLength = 64;
+
+    /// <summary>Longest <c>clientInfo</c> field (OS and device).</summary>
+    public const int MaxClientInfoLength = 256;
 }
 
 /// <summary>Field labels and the always-visible helper lines under them (they never disappear while typing).</summary>
@@ -98,8 +110,10 @@ public static class FeedbackCopy
     /// <summary>Attach button label.</summary>
     public const string Attach = "Attach Media";
 
-    /// <summary>Helper above the attach button.</summary>
-    public const string AttachHelp = "Screenshots or screen recordings help a lot. Select an attachment to open it.";
+    /// <summary>Helper above the attach button (count and size limits, and that selecting a tile opens it).</summary>
+    public static string AttachHelp =>
+        $"Add up to {FeedbackLimits.MaxAttachments} screenshots or screen recordings, " +
+        $"{FeedbackFormat.Bytes(FeedbackLimits.MaxRequestBytes)} in total. Select one to open it.";
 
     /// <summary>Helper under the title.</summary>
     /// <param name="kind">Form.</param>
@@ -275,17 +289,16 @@ public sealed record FeedbackDraft(FeedbackKind Kind)
         if (skippedType > 0) notices.Add("Only images and videos can be attached.");
         if (skippedCount > 0) notices.Add($"You can attach up to {FeedbackLimits.MaxAttachments} files.");
         if (skippedSize > 0)
-            notices.Add($"Files must be under {FeedbackFormat.Bytes(FeedbackLimits.MaxAttachmentBytes)} each and " +
-                        $"{FeedbackFormat.Bytes(FeedbackLimits.MaxTotalBytes)} in total.");
+            notices.Add($"Attachments must add up to less than {FeedbackFormat.Bytes(FeedbackLimits.MaxRequestBytes)}.");
         return new AttachmentAddResult(result, notices.Count == 0 ? null : string.Join(" ", notices));
     }
 
     /// <summary>Builds the wire submission.</summary>
     /// <param name="platform">Platform label (<c>windows</c>).</param>
     /// <param name="appVersion">App version.</param>
-    /// <param name="osVersion">OS description.</param>
+    /// <param name="clientInfo">OS and device description.</param>
     /// <returns>Submission with trimmed text; bug-only fields are empty for features.</returns>
-    public FeedbackSubmission Submission(string platform, string appVersion, string osVersion) => new(
+    public FeedbackSubmission Submission(string platform, string appVersion, string clientInfo) => new(
         Kind,
         platform,
         NormalizedTitle,
@@ -293,7 +306,7 @@ public sealed record FeedbackDraft(FeedbackKind Kind)
         Kind.HasBugFields() ? ReproSteps.Trim() : "",
         Kind.HasBugFields() ? ExpectedBehavior.Trim() : "",
         appVersion,
-        osVersion,
+        clientInfo,
         Attachments);
 }
 #endregion
@@ -301,13 +314,13 @@ public sealed record FeedbackDraft(FeedbackKind Kind)
 #region Submission
 /// <summary>What <c>POST /api/feedback</c> carries (<c>.agents/controls/feedback-form/spec.md</c>).</summary>
 /// <param name="Kind">Form.</param>
-/// <param name="Platform">Platform label the service turns into the issue's platform label.</param>
+/// <param name="Platform">Platform label the service turns into the issue's <c>surface:</c> label.</param>
 /// <param name="Title">Prefixed title.</param>
 /// <param name="Description">Description.</param>
 /// <param name="ReproSteps">Steps (empty for features: omitted on the wire).</param>
 /// <param name="ExpectedBehavior">Expected behavior (empty for features: omitted on the wire).</param>
 /// <param name="AppVersion">App version.</param>
-/// <param name="OsVersion">OS description.</param>
+/// <param name="ClientInfo">OS and device description.</param>
 /// <param name="Attachments">Media, each sent as a <c>media</c> file part.</param>
 public sealed record FeedbackSubmission(
     FeedbackKind Kind,
@@ -317,7 +330,7 @@ public sealed record FeedbackSubmission(
     string ReproSteps,
     string ExpectedBehavior,
     string AppVersion,
-    string OsVersion,
+    string ClientInfo,
     IReadOnlyList<FeedbackAttachment> Attachments)
 {
     /// <summary>Multipart name of every file part.</summary>
@@ -326,7 +339,11 @@ public sealed record FeedbackSubmission(
     /// <summary>Platform label Windows submits.</summary>
     public const string PlatformWindows = "windows";
 
-    /// <summary>Text form fields in wire order; empty optional fields are omitted.</summary>
+    /// <summary>
+    /// Text form fields in wire order (<c>kind</c>, <c>platform</c>, <c>title</c>, <c>description</c>, <c>repro</c>,
+    /// <c>expected</c>, <c>appVersion</c>, <c>clientInfo</c>); empty optional fields are omitted and the two
+    /// diagnostics are clipped to the service's limits.
+    /// </summary>
     public IReadOnlyList<KeyValuePair<string, string>> FormFields
     {
         get
@@ -338,12 +355,22 @@ public sealed record FeedbackSubmission(
                 new("title", Title),
                 new("description", Description),
             };
-            if (ReproSteps.Length > 0) fields.Add(new("reproSteps", ReproSteps));
-            if (ExpectedBehavior.Length > 0) fields.Add(new("expectedBehavior", ExpectedBehavior));
-            if (AppVersion.Length > 0) fields.Add(new("appVersion", AppVersion));
-            if (OsVersion.Length > 0) fields.Add(new("osVersion", OsVersion));
+            if (ReproSteps.Length > 0) fields.Add(new("repro", ReproSteps));
+            if (ExpectedBehavior.Length > 0) fields.Add(new("expected", ExpectedBehavior));
+            if (Clip(AppVersion, FeedbackLimits.MaxAppVersionLength) is { Length: > 0 } version) fields.Add(new("appVersion", version));
+            if (Clip(ClientInfo, FeedbackLimits.MaxClientInfoLength) is { Length: > 0 } info) fields.Add(new("clientInfo", info));
             return fields;
         }
+    }
+
+    /// <summary>Trims and cuts a diagnostic to a length limit.</summary>
+    /// <param name="value">Value.</param>
+    /// <param name="max">Limit.</param>
+    /// <returns>Clipped text.</returns>
+    private static string Clip(string value, int max)
+    {
+        var trimmed = value.Trim();
+        return trimmed.Length > max ? trimmed[..max].TrimEnd() : trimmed;
     }
 
     /// <summary>
@@ -360,32 +387,77 @@ public sealed record FeedbackSubmission(
         return clean.Length == 0 ? "attachment" : clean;
     }
 }
+#endregion
 
-/// <summary>The service's answer to a successful submission; both fields optional so a bare 2xx is still success.</summary>
-/// <param name="IssueNumber">Created issue number.</param>
-/// <param name="IssueUrl">Created issue URL (only <c>https://github.com/…</c>).</param>
-public sealed record FeedbackReceipt(int? IssueNumber, string? IssueUrl)
+#region Job status
+/// <summary>Service processing state of an accepted submission (<c>GET /api/feedback/{id}</c>).</summary>
+public enum FeedbackJobState
 {
-    /// <summary>Success text shown in the form.</summary>
+    /// <summary>Accepted (the 202 answer), waiting for a worker.</summary>
+    Queued,
+    /// <summary>Media being prepared or the issue being filed.</summary>
+    Processing,
+    /// <summary>Filed on GitHub.</summary>
+    Submitted,
+    /// <summary>Filing failed; nothing was created.</summary>
+    Failed,
+}
+
+/// <summary>
+/// An accepted submission as last seen. The 202 answer is <c>{id, status:"queued"}</c>; polling adds the issue number and
+/// per-attachment outcomes. The service never returns an issue URL (the tracker may be private), so the app shows the
+/// number only and opens no link.
+/// </summary>
+/// <param name="Id">32 lowercase hex characters, or <see langword="null"/> when the 2xx body carried none (no polling).</param>
+/// <param name="State">Processing state.</param>
+/// <param name="IssueNumber">Created issue number once submitted, when reported.</param>
+/// <param name="SkippedAttachments">Attachments the service could not fit and left out.</param>
+public sealed record FeedbackJob(string? Id, FeedbackJobState State, int? IssueNumber = null, int SkippedAttachments = 0)
+{
+    /// <summary>Whether polling can stop.</summary>
+    public bool IsTerminal => State is FeedbackJobState.Submitted or FeedbackJobState.Failed;
+
+    /// <summary>Whether a value is a well-formed job ID (the only shape the status route answers).</summary>
+    /// <param name="id">Candidate.</param>
+    /// <returns><see langword="true"/> for exactly 32 lowercase hex characters.</returns>
+    public static bool IsValidId(string? id) => id is { Length: 32 } && id.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
+
+    /// <summary>Wire <c>status</c> value, case-insensitively.</summary>
+    /// <param name="wire">Value.</param>
+    /// <returns>State, or <see langword="null"/> for anything unknown.</returns>
+    public static FeedbackJobState? ParseState(string? wire) => wire?.Trim().ToLowerInvariant() switch
+    {
+        "queued" => FeedbackJobState.Queued,
+        "processing" => FeedbackJobState.Processing,
+        "submitted" => FeedbackJobState.Submitted,
+        "failed" => FeedbackJobState.Failed,
+        _ => null,
+    };
+
+    /// <summary>
+    /// Success text. A submitted job names its issue; an accepted job whose outcome is unknown (still processing when
+    /// polling stopped, status expired or unreadable) says it will be filed shortly rather than inviting a duplicate.
+    /// </summary>
     /// <param name="kind">Form.</param>
     /// <returns>Readable confirmation.</returns>
     public string Message(FeedbackKind kind)
     {
         var noun = kind.Noun();
-        noun = char.ToUpperInvariant(noun[0]) + noun[1..];
-        return IssueNumber is { } number ? $"{noun} sent as issue #{number}. Thank you!" : $"{noun} sent. Thank you!";
+        var text = State != FeedbackJobState.Submitted
+            ? $"Thanks! Your {noun} was received and will be filed on GitHub shortly."
+            : IssueNumber is { } number
+                ? $"Thanks! Your {noun} was filed as issue #{number}."
+                : $"Thanks! Your {noun} was filed on GitHub.";
+        return SkippedAttachments switch
+        {
+            <= 0 => text,
+            1 => text + " 1 attachment couldn't be attached.",
+            var count => text + $" {count} attachments couldn't be attached.",
+        };
     }
-
-    /// <summary>Keeps only a GitHub HTTPS URL (never open an arbitrary server-provided link).</summary>
-    /// <param name="raw">Wire value.</param>
-    /// <returns>The URL, or <see langword="null"/>.</returns>
-    public static string? SafeUrl(string? raw) =>
-        raw is not null && raw.StartsWith("https://github.com/", StringComparison.Ordinal) && !raw.Any(char.IsWhiteSpace)
-            ? raw
-            : null;
 }
 
-/// <summary>A failed submission with text safe to show (never server text).</summary>
+/// <summary>A failed submission with fixed, readable text (server <c>error</c> strings are never shown).</summary>
 public sealed class FeedbackException : Exception
 {
     /// <summary>Creates a failure.</summary>
@@ -397,19 +469,41 @@ public sealed class FeedbackException : Exception
     /// <summary>HTTP status, when one arrived.</summary>
     public int? Status { get; }
 
-    /// <summary>Maps a non-2xx status to readable text.</summary>
+    /// <summary>Maps a non-2xx answer (status, the body's <c>code</c> and <c>Retry-After</c>) to readable text.</summary>
     /// <param name="status">Status.</param>
+    /// <param name="code">Service error code from the <c>{error, code}</c> body, when present.</param>
+    /// <param name="retryAfterSeconds">Parsed <c>Retry-After</c> seconds, when present.</param>
     /// <returns>Exception to surface.</returns>
-    public static FeedbackException ForStatus(int status) => new(status switch
+    public static FeedbackException ForStatus(int status, string? code = null, int? retryAfterSeconds = null) => new(code switch
     {
-        400 or 422 => "The service couldn't accept this form. Check the fields and try again.",
-        404 or 405 or 501 => "Sending feedback isn't available yet. Try again after the next update.",
-        413 => "The attachments are too large to send. Remove some and try again.",
-        415 => "One of the attachments isn't a supported image or video.",
-        429 => "Too many submissions right now. Try again in a few minutes.",
-        >= 500 and <= 599 => "The service is temporarily unavailable. Try again.",
-        _ => $"Your feedback couldn't be sent (HTTP {status}). Try again.",
+        "payload_too_large" => $"The attachments are too large. Keep them under {FeedbackFormat.Bytes(FeedbackLimits.MaxRequestBytes)} in total.",
+        "too_many_attachments" => $"Attach up to {FeedbackLimits.MaxAttachments} files.",
+        "unsupported_media" => "Only image and video attachments are supported.",
+        "feedback_disabled" => "Sending feedback isn't available right now.",
+        "feedback_busy" => "Feedback is busy right now. Try again in a minute.",
+        "title_required" => "Add a title after the prefix.",
+        "description_required" => "Add a description.",
+        "field_too_long" => "One of the fields is too long. Shorten it and try again.",
+        _ => status switch
+        {
+            429 => retryAfterSeconds is > 0 and var seconds
+                ? $"Too many submissions from this network. Try again in {FeedbackFormat.Wait(seconds)}."
+                : "Too many submissions from this network. Try again later.",
+            400 or 422 => "The service couldn't accept this form. Check the fields and try again.",
+            404 or 405 or 501 => "Sending feedback isn't available right now.",
+            413 => $"The attachments are too large. Keep them under {FeedbackFormat.Bytes(FeedbackLimits.MaxRequestBytes)} in total.",
+            415 => "Only image and video attachments are supported.",
+            503 => "Feedback is busy right now. Try again in a minute.",
+            >= 500 and <= 599 => "The service is temporarily unavailable. Try again.",
+            _ => $"Your feedback couldn't be sent (HTTP {status}). Try again.",
+        },
     }, status);
+
+    /// <summary>The service accepted the form but could not file the issue.</summary>
+    /// <param name="kind">Form.</param>
+    /// <returns>Exception to surface (the form stays filled for a retry).</returns>
+    public static FeedbackException FilingFailed(FeedbackKind kind) =>
+        new($"Your {kind.Noun()} couldn't be filed on GitHub. Try again in a few minutes.");
 
     /// <summary>Connectivity failure.</summary>
     /// <param name="inner">Cause.</param>
@@ -448,6 +542,16 @@ public static class FeedbackFormat
             < 1024L * 1024 * 1024 => (bytes / mb).ToString("0.#", CultureInfo.InvariantCulture) + " MB",
             _ => (bytes / gb).ToString("0.#", CultureInfo.InvariantCulture) + " GB",
         };
+    }
+
+    /// <summary>A short wait for retry messages.</summary>
+    /// <param name="seconds">Seconds (positive).</param>
+    /// <returns>E.g. <c>45 seconds</c>, <c>1 minute</c>, <c>10 minutes</c> (rounded up).</returns>
+    public static string Wait(int seconds)
+    {
+        if (seconds < 60) return seconds == 1 ? "1 second" : $"{seconds} seconds";
+        var minutes = (seconds + 59) / 60;
+        return minutes == 1 ? "1 minute" : $"{minutes} minutes";
     }
 }
 #endregion

@@ -324,6 +324,34 @@ public class SettingsServiceInfoTests
     }
 
     [Fact]
+    public async Task Settings_FeedbackRowsFollowTheFeaturesFlag()
+    {
+        var featureCalls = 0;
+        var (service, time, _) = Fake(r => r.RequestUri!.AbsolutePath switch
+        {
+            "/api/features" => Interlocked.Increment(ref featureCalls) == 1
+                ? Wire.Response(HttpStatusCode.ServiceUnavailable)
+                : Wire.Ok("""{"appManual":false,"feedback":true}"""),
+            "/api/version" => Wire.Ok("""{"version":"9.9.9"}"""),
+            "/api/service-info" => Wire.Ok(UpdatingBody),
+            _ => null,
+        });
+        var vm = new SettingsViewModel(service.Session(time), "1.0.0");
+        Assert.False(vm.FeedbackAvailable);
+        vm.Activate();
+        await Async.Until(() => featureCalls == 1);
+        await Async.Settle();
+        Assert.False(vm.FeedbackAvailable);
+        vm.Deactivate();
+        vm.Activate();
+        await Async.Until(() => vm.FeedbackAvailable);
+        vm.Activate();
+        await Async.Settle();
+        Assert.Equal(2, featureCalls);
+        vm.Deactivate();
+    }
+
+    [Fact]
     public async Task Settings_ActivateReadsVersionOnceAndPolls()
     {
         var versionCalls = 0;
