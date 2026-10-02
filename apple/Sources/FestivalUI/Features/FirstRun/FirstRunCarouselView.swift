@@ -30,6 +30,7 @@ struct FirstRunCarouselView: View {
     @State private var index = 0
     @AccessibilityFocusState private var focusedSlide: Int?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationStack {
@@ -37,6 +38,8 @@ struct FirstRunCarouselView: View {
                 TabView(selection: $index) {
                     ForEach(Array(slides.enumerated()), id: \.element.id) { position, slide in
                         FirstRunSlideView(page: page, slide: slide)
+                            // Every page is mounted; only the visible one rotates its demo.
+                            .environment(\.firstRunDemoActive, position == index && scenePhase == .active)
                             .accessibilityFocused($focusedSlide, equals: position)
                             .tag(position)
                     }

@@ -194,4 +194,14 @@ struct FirstRunDemoScorePatternTests {
         #expect(FirstRunDemoScorePattern.states(title: "", count: 2) == [.noScore, .noScore])
         #expect(FirstRunDemoScorePattern.states(title: "Abc", count: 0).isEmpty)
     }
+
+    @Test("Icons demo chips follow the pattern per instrument")
+    func badges() {
+        let badges = SongInstrumentBadge.demoPattern(
+            title: "Through the Fire and Flames", instruments: [.lead, .bass, .drums, .vocals]
+        )
+        #expect(badges.map(\.instrument) == [.lead, .bass, .drums, .vocals])
+        #expect(badges.map(\.status) == [.fullCombo, .scored, .fullCombo, .scored])
+        #expect(SongInstrumentBadge.demoPattern(title: "", instruments: [.lead]).map(\.status) == [.noScore])
+    }
 }
