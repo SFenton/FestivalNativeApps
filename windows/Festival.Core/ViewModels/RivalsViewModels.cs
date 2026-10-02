@@ -9,18 +9,18 @@ namespace Festival.Core.ViewModels;
 #region Rival row
 /// <summary>
 /// One rival row (web <c>RivalRow</c>). As on the web, the "ahead" pill shows the rival's <c>behindCount</c> and the
-/// "behind" pill its <c>aheadCount</c>: the wire counts are from the rival's perspective.
+/// "behind" pill its <c>aheadCount</c>: the wire counts are from the rival's perspective. Unlike the web, the row has no
+/// shared-song count (owner decision, issues #40/#67): it is always ahead + behind, so it only repeated the pills.
 /// </summary>
 /// <param name="AccountId">Rival account.</param>
 /// <param name="Name">Display name (or "Unknown Player").</param>
 /// <param name="Direction">Above (rival leads overall) or below.</param>
-/// <param name="SharedSongCount">Shared songs.</param>
 /// <param name="SongsAhead">Songs the player leads.</param>
 /// <param name="SongsBehind">Songs the rival leads.</param>
 /// <param name="LeaderboardRank">Rival's global rank for leaderboard rivals.</param>
 /// <param name="Route">Rival Detail route carrying the row's scope.</param>
 public sealed record RivalRowItem(
-    string AccountId, string Name, RivalDirection Direction, int SharedSongCount, int SongsAhead, int SongsBehind,
+    string AccountId, string Name, RivalDirection Direction, int SongsAhead, int SongsBehind,
     int? LeaderboardRank, AppRoute.RivalDetail Route)
 {
     /// <summary>Row for a shared-song rival.</summary>
@@ -29,7 +29,7 @@ public sealed record RivalRowItem(
     /// <param name="scope">Scope the list was read under.</param>
     /// <returns>Row.</returns>
     public static RivalRowItem From(RivalSummary rival, RivalDirection direction, RivalScope? scope) =>
-        new(rival.AccountId, rival.DisplayName ?? UnknownName, direction, rival.SharedSongCount, rival.BehindCount, rival.AheadCount, null,
+        new(rival.AccountId, rival.DisplayName ?? UnknownName, direction, rival.BehindCount, rival.AheadCount, null,
             new AppRoute.RivalDetail(rival.AccountId, rival.DisplayName, scope));
 
     /// <summary>Row for a leaderboard rival.</summary>
@@ -38,7 +38,7 @@ public sealed record RivalRowItem(
     /// <param name="scope">Leaderboard scope.</param>
     /// <returns>Row.</returns>
     public static RivalRowItem From(LeaderboardRivalSummary rival, RivalDirection direction, RivalScope scope) =>
-        new(rival.AccountId, rival.DisplayName ?? UnknownName, direction, rival.SharedSongCount, rival.BehindCount, rival.AheadCount,
+        new(rival.AccountId, rival.DisplayName ?? UnknownName, direction, rival.BehindCount, rival.AheadCount,
             rival.LeaderboardRank, new AppRoute.RivalDetail(rival.AccountId, rival.DisplayName, scope));
 
     /// <summary>Fallback name (web <c>Unknown Player</c>).</summary>
@@ -46,9 +46,6 @@ public sealed record RivalRowItem(
 
     /// <summary>Whether the player leads this rival overall (green tint).</summary>
     public bool IsWinning => Direction == RivalDirection.Below;
-
-    /// <summary><c>{n} shared songs</c>.</summary>
-    public string SharedText => string.Create(CultureInfo.CurrentCulture, $"{SharedSongCount:N0} shared songs");
 
     /// <summary><c>{n} songs ahead</c>.</summary>
     public string AheadText => string.Create(CultureInfo.CurrentCulture, $"{SongsAhead:N0} songs ahead");
@@ -64,7 +61,7 @@ public sealed record RivalRowItem(
 
     /// <summary>Screen-reader name.</summary>
     public string AccessibleName =>
-        $"{Name}{(HasRank ? ", rank " + RankText[1..] : "")}, {(IsWinning ? "behind you" : "ahead of you")}, {SharedText}, {AheadText}, {BehindText}";
+        $"{Name}{(HasRank ? ", rank " + RankText[1..] : "")}, {(IsWinning ? "behind you" : "ahead of you")}, {AheadText}, {BehindText}";
 
     /// <summary>UIA automation ID.</summary>
     public string AutomationId => "fst.rivals.row." + AccountId;

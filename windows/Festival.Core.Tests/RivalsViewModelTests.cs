@@ -290,6 +290,22 @@ public class RivalsViewModelTests
     }
 
     [Fact]
+    public void RivalRow_ReadsAheadAndBehindWithoutSharedCount()
+    {
+        // Issue #67 (port of #40): the shared count is always ahead + behind, so rows and Narrator omit it.
+        var song = RivalRowItem.From(new RivalSummary("a1", "Alpha", 1, 1234, 7, 3, 0), RivalDirection.Below, null);
+        Assert.Equal("Alpha, behind you, 3 songs ahead, 7 songs behind", song.AccessibleName);
+        var board = RivalRowItem.From(new LeaderboardRivalSummary("b2", "Beta", 40, 25, 15, 0, 12, 14), RivalDirection.Above,
+            new RivalScope.Leaderboard(Instrument.Lead, RankingMetric.TotalScore));
+        Assert.Equal("Beta, rank 12, ahead of you, 15 songs ahead, 25 songs behind", board.AccessibleName);
+        foreach (var row in new[] { song, board })
+        {
+            Assert.DoesNotContain("shared", row.AccessibleName, StringComparison.OrdinalIgnoreCase);
+        }
+        Assert.DoesNotContain(typeof(RivalRowItem).GetProperties(), p => p.Name.Contains("Shared", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void RivalSongItem_EnrichesFromCatalogue()
     {
         var comparison = new RivalSongComparison("s1", null, null, "Solo_PeripheralCymbals", "Solo_PeripheralCymbals", "Solo_PeripheralDrums",
