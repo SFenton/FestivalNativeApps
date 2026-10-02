@@ -40,14 +40,57 @@ extension View {
     }
 }
 
+// MARK: - Song commands
+
+/// Song Detail's toolbar tools for the menu bar (HIG Toolbars › macOS: "Every toolbar
+/// item must also be a menu-bar command"): Paths and the official Item Shop link.
+/// A separate key from ``MacPageCommands`` because the Songs list beside the song
+/// publishes Sort/Filter at the same time.
+struct MacSongCommands: Equatable {
+    /// The song shown (for menu titles and equality).
+    var songId: String
+    /// Opens the Paths sheet, or nil when the song has no path charts.
+    var paths: (@MainActor () -> Void)?
+    /// The official Item Shop page while the song is in the Shop.
+    var shopURL: URL?
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.songId == rhs.songId && (lhs.paths == nil) == (rhs.paths == nil) && lhs.shopURL == rhs.shopURL
+    }
+}
+
+private struct MacSongCommandsKey: FocusedValueKey {
+    typealias Value = MacSongCommands
+}
+
+extension FocusedValues {
+    /// Song Detail's tools in the key window.
+    var macSongCommands: MacSongCommands? {
+        get { self[MacSongCommandsKey.self] }
+        set { self[MacSongCommandsKey.self] = newValue }
+    }
+}
+
+extension View {
+    /// Publish Song Detail's Paths/Item Shop tools to the Song menu (macOS only).
+    ///
+    /// - Parameter commands: The song's tools.
+    /// - Returns: The view.
+    func macSongCommands(_ commands: MacSongCommands) -> some View {
+        focusedSceneValue(\.macSongCommands, commands)
+    }
+}
+
 // MARK: - Menu bar
 
-/// The Mac app's menu bar commands: View (sidebar, toolbar, Refresh, Sort/Filter), a
-/// Go menu (destinations ⌘1…⌘9, Back ⌘[, Search ⌘K), a Profile menu and Help.
+/// The Mac app's menu bar commands: File › Close, Edit › Search Festival, View
+/// (sidebar, toolbar, Refresh, Full Screen, Sort/Filter), a Go menu (destinations
+/// ⌘1…⌘9, Back ⌘[, Search ⌘K), a Song menu (Paths, Item Shop), Profile and Help.
 /// Unavailable items are disabled, never hidden (HIG The menu bar).
 public struct MacCommands: Commands {
     let model: MacAppModel
     @FocusedValue(\.macPageCommands) private var pageCommands
+    @FocusedValue(\.macSongCommands) private var songCommands
 
     /// Create the commands.
     ///
@@ -112,6 +155,14 @@ public struct MacCommands: Commands {
             Button("Search…") { navigation.searchPresented = true }
                 .keyboardShortcut("k", modifiers: .command)
                 .disabled(sheetOpen)
+        }
+        CommandMenu("Song") {
+            Button("Paths…") { songCommands?.paths?() }
+                .disabled(songCommands?.paths == nil || sheetOpen)
+            Button("Open in Item Shop") {
+                if let url = songCommands?.shopURL { NSWorkspace.shared.open(url) }
+            }
+            .disabled(songCommands?.shopURL == nil)
         }
         CommandMenu("Profile") {
             Button(model.session.selectedPlayer == nil ? "Select Profile…" : "Switch Profile…") {

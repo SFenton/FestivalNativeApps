@@ -48,16 +48,28 @@ struct FestivalRowPrimitiveButtonStyle: PrimitiveButtonStyle {
 private struct MacRowButtonBody: View {
     let configuration: ButtonStyleConfiguration
     let cornerRadius: CGFloat
+
+    var body: some View {
+        configuration.label
+            .modifier(MacRowInteractionEffect(cornerRadius: cornerRadius, isPressed: configuration.isPressed))
+    }
+}
+
+/// Hover tint and keyboard focus ring for a row's card; apply it to a button's label
+/// (the nearest focusable ancestor is then the button, so `isFocused` is its focus).
+struct MacRowInteractionEffect: ViewModifier {
+    let cornerRadius: CGFloat
+    var isPressed = false
     @Environment(\.isFocused) private var isFocused
     @Environment(\.isEnabled) private var isEnabled
     @State private var isHovered = false
 
-    var body: some View {
+    func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        configuration.label
+        content
             .overlay {
                 shape
-                    .fill(Color.white.opacity(MacRowInteraction.tint(hovered: isHovered, pressed: configuration.isPressed)))
+                    .fill(Color.white.opacity(MacRowInteraction.tint(hovered: isHovered, pressed: isPressed)))
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
             }
@@ -69,7 +81,6 @@ private struct MacRowButtonBody: View {
                         .accessibilityHidden(true)
                 }
             }
-            .contentShape(shape)
             .onHover { isHovered = isEnabled && $0 }
     }
 }

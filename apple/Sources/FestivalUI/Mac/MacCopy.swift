@@ -1,6 +1,8 @@
+import Foundation
+import FestivalCore
 #if os(macOS)
 import AppKit
-import FestivalCore
+#endif
 
 // MARK: - Copy policy
 
@@ -46,6 +48,7 @@ enum MacCopyPolicy {
         return path.last
     }
 
+    #if os(macOS)
     /// Put text on a pasteboard.
     ///
     /// - Parameters:
@@ -55,8 +58,10 @@ enum MacCopyPolicy {
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
     }
+    #endif
 }
 
+#if os(macOS)
 // MARK: - Window responder
 
 /// A responder after the main window in its responder chain that answers the standard
