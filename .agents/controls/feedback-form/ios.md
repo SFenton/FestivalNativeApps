@@ -1,0 +1,37 @@
+# Feedback form — iPhone notes
+
+> **What:** the SwiftUI Report an Issue / Request a Feature sheet on iPhone as built: files, HIG decisions and open gaps. **Read when:** changing the feedback form or its Settings rows on iPhone (shared Swift also drives iPad, Duo and Mac). Spec: [spec.md](spec.md).
+
+## Architecture
+
+| Piece | File | Notes |
+|---|---|---|
+| Draft, limits, validation, errors, attachment policy | `FestivalCore/Feedback.swift` | `FeedbackDraft.setTitle` keeps the prefix; `FeedbackPlatform.resolve(isMac:isPad:hasHinge:)`; `FeedbackSubmission.formFields` (flat multipart fields, single-line `appVersion`/`clientInfo` cut to the service limits); `FeedbackAcceptance.decode` keeps only a 32-hex job ID; `FeedbackJobStatus`; `FeedbackError.forResponse` maps the body `code`, then the status, plus `Retry-After` |
+| Location removal | `FestivalCore/FeedbackLocationScrubber.swift` | Photos: lossless `CGImageDestinationCopyImageSource` with `kCGImageMetadataShouldExcludeGPS` (JPEG, TIFF), else re-add decoded frames without the GPS dictionary at quality 1.0 (PNG, HEIC, GIF). Movies: passthrough `AVAssetExportSession` with `AVMetadataItemFilter.forSharing()`. Files without location are left byte-for-byte; a file whose location can't be removed is refused |
+| Wire | `FestivalCore/FestivalAPI+Feedback.swift` | Multipart body streamed to a temp file in 1 MB chunks; `URLSessionHTTPTransport.upload` reports progress; `validateFeedbackRequest` allows only a keyless POST to exactly `/api/feedback` (the read-only `send` gate is unchanged). `feedbackEnabled()` (`/api/features`) and `feedbackStatus(id:)` (`/api/feedback/{id}`, ID validated before the URL is built) go through the shared GET gate |
+| Form state | `Features/Settings/Feedback/FeedbackFormModel.swift` | `@Observable` draft, attachments, phase (`editing`/`submitting`/`filing`/`finished(filed\|received)`/`failed`); after a 202 it polls every 2 s for up to 5 min, allowing 3 failed reads in a row; media copied into `tmp/fst-feedback-media/<uuid>/`, purged when the sheet goes away |
+| Sheet | `Features/Settings/Feedback/FeedbackFormSheet.swift` | `Form` (`.grouped`) with header + visible explanation per box, Cancel/Submit toolbar, discard dialog, `.photosPicker`, `.fileImporter`, alerts |
+| Thumbnails | `Features/Settings/Feedback/FeedbackAttachmentStrip.swift` | `QLThumbnailGenerator`, play badge for video, 44 pt remove button, `.quickLookPreview` |
+| Entry | `Features/Settings/SettingsScreen.swift` | Two App Settings rows styled like What's New's "Show" row, shown only after `/api/features` reports `feedback: true` (asked on each visible Settings session until it does); `.sheet(item:onDismiss:)` keyed by `FeedbackKind`, `festivalSheet(.large)` |
+
+## Decisions (HIG via `apple-hig`)
+
+- **Cancel leading, Submit trailing** instead of the shared `FestivalModal` Close: closing can lose input, so this sheet is a scoped task. HIG Sheets: "Single-view sheets: Cancel on the top toolbar's leading edge; Done, when present, trailing." Recorded as the one exception in [liquid-glass.md](../../design/apple/liquid-glass.md).
+- **Discard confirmation** on Cancel and on a swipe-down attempt. HIG Modality: "If either a dismiss gesture or button could lose user-generated content, get confirmation before closing"; HIG Sheets: "If changes are unsaved when swiping begins, confirm with an action sheet." `.interactiveDismissDisabled` blocks the swipe; `SheetDismissAttemptObserver` wraps the presentation controller's delegate (forwarding every other call to SwiftUI's) to show the dialog. The dialog is attached to Cancel so iOS 26's popover-style dialog points at it.
+- **Visible explanations**, not placeholders. HIG Text fields: placeholder text "disappears on typing, so a separate label can also help".
+- **Submit disabled until valid**, with the reason shown. HIG Entering data: "make sure people understand they must provide required data to proceed".
+- **No photo permission**: `PhotosPicker` runs out of process. HIG Privacy: "Request access only to data you actually need." No `NSPhotoLibraryUsageDescription` was added.
+- **Quick Look** for tapped media; no in-app player. HIG File management: Quick Look — "Use its viewer for attachments or files your app cannot open". iOS has no public API to open a local file in Photos; this is the compliant equivalent of "open in the appropriate app" (triage `supported_deviation`).
+- `preferredItemEncoding: .current` keeps the original photo/video bytes; the service, not the phone, transcodes. Originals can carry GPS (the picker footer says "Location Is Included"), and the issue is public, so every attachment loses its location on import. HIG Privacy: "Protect people's data"; the picker's own Options toggle is easy to miss.
+- **Closing while filing doesn't ask**: once the service answered 202 nothing typed can be lost, so Cancel becomes **Close** and the swipe is allowed (HIG Modality asks for confirmation only when content could be lost). The success alert has no GitHub link: the service returns only the issue number.
+- **Attach Media menu fills its row** (`.frame(maxWidth: .infinity, alignment: .leading)` + `.contentShape(Rectangle())`). Without it, a tap on the row centre or the label text didn't open the `Menu`; only the icon did (found in a simulator drive).
+
+## Test IDs
+
+Shared with Android/Windows where they map: `fst.settings.feedback.bug|feature` (rows), `.field.title|description|repro|expected`, `.close` (Cancel/Close), `.submit`, `.attach`, `.attach.media` (Photo Library), `.attach.files`, `.attach.progress`, `.attachments`, `.attachment.N` and `.attachment.N.remove`, `.attachments.notice`, `.validation`, `.progress`, `.stop`, `.done`, `.discard.confirm|cancel`.
+
+## Tests
+
+`FestivalCoreTests/FeedbackLocationScrubberTests.swift` (GPS-tagged JPEG/HEIC/PNG and a located QuickTime movie made with `AVAssetWriter` lose only location; clean files untouched; unreadable files reported). `FestivalUITests/FeedbackFormModelTests.swift` (prefix/dirty state, copy/remove/discard of private copies, refusals, location removed from the copy only, submit → poll → filed with skipped count, filing phase survives Stop/close, failed job, received for no ID/404/repeated read failures/timeout, one transient read failure, busy error, network, Stop Sending, staging purge). `FestivalCoreTests/FeedbackTests.swift` (prefix rules, validation, platform resolution, limits, MIME classification, filename sanitizing, flat multipart bytes, metadata limits, job-ID filtering, job status decoding, `code`/status/`Retry-After` mapping, request gate, upload/buffered submit, status GET path validation, features flag, URLSession upload path). `tools/tests/test_mock_service.py` covers the fixture endpoint. Simulator journeys run through `ios_sim.py drive` against `tools/mock_service.py` (2026-10-02, iPhone 17 Pro, iOS 26): rows → Bug form → Cancel popover → swipe-down attempt shows the dialog → Submit → "Report Sent" → Done closes; Feature form; `fixture-unavailable` title → "Couldn't Send"; after the contract rework, Submit → "filed as issue #1" and `fixture-failed` → "Couldn't Send" with the form kept; Attach Media → Photo Library → two photos → thumbnails → tap opens Quick Look. Drive tip: the discard dialog is a popover anchored at Cancel with no Keep Editing element; dismiss it with `tapXY` on the form beside it, not near the keyboard.
+
+Open: a dedicated `iOSUITests` feedback journey (open → discard → submit against the mock) is not yet in the suite.

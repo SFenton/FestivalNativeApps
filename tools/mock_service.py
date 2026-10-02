@@ -509,6 +509,10 @@ def _leaderboard_rival_detail_body(
 
 #: Synthetic ``GET /api/service-info`` (contract 2 subset, idle worker, not frozen) for the
 #: Settings Service Info card; shape follows ``FSTService/Api/HealthEndpoints.cs``.
+# Fixture feedback job IDs (32 lowercase hex, as the service issues them).
+FEEDBACK_FILED_JOB = "0" * 31 + "1"
+FEEDBACK_FAILED_JOB = "f" * 32
+
 SERVICE_INFO_IDLE = {
     "contractVersion": 2,
     "lastCompletedUpdate": {
@@ -1004,7 +1008,9 @@ class FixtureHandler(BaseHTTPRequestHandler):
         elif path == "/api/publication":
             self._json(200, self.fixture.publication())
         elif path == "/api/features":
-            self._json(200, {"appManual": False})
+            self._json(200, {"appManual": False, "feedback": True})
+        elif path.startswith("/api/feedback/"):
+            self._feedback_status(path.removeprefix("/api/feedback/"))
         elif path == "/api/service-info":
             self._json(200, SERVICE_INFO_DISCOVERY if self.fixture.service_info_discovery
                        else SERVICE_INFO_IDLE)
@@ -1855,12 +1861,81 @@ class FixtureHandler(BaseHTTPRequestHandler):
             self._json(404, {"status": "not_found"})
 
     def do_POST(self) -> None:
-        """Reject all profile-tracking, refresh and admin mutation attempts.
+        """Accept fixture feedback; reject every other mutation attempt.
 
         Returns:
-            None; a 405 JSON error is written to the local response.
+            None; a JSON response is written to the local response.
         """
+        if urlsplit(self.path).path == "/api/feedback":
+            self._feedback()
+            return
         self._json(405, {"status": "mock_is_read_only"})
+
+    def _feedback(self) -> None:
+        """Fixture for the native feedback form's ``POST /api/feedback`` (issue #78).
+
+        Mirrors the service contract (``docs/components/in-app-feedback.md`` in the service
+        repository): flat multipart text fields plus ``media`` file parts, answered with
+        ``202 {"id", "status": "queued"}``. Refuses privileged or selected-profile headers.
+        A title containing ``fixture-unavailable`` answers ``503 feedback_busy`` and one
+        containing ``fixture-failed`` queues a job that later fails, so automation can reach
+        both error states. Nothing is filed anywhere.
+
+        Returns:
+            None; a JSON response is written to the local response.
+        """
+        length = int(self.headers.get("Content-Length") or 0)
+        body = self.rfile.read(min(length, 100 * 1024 * 1024)) if length > 0 else b""
+        names = {name.lower() for name in self.headers.keys()}
+        if "x-api-key" in names or any(name.startswith("x-fst-selected") for name in names):
+            self._json(400, {"error": "Forbidden header.", "code": "invalid_form"})
+            return
+        if "multipart/form-data" not in (self.headers.get("Content-Type") or ""):
+            self._json(400, {"error": "Submit multipart/form-data.", "code": "invalid_form"})
+            return
+        for field, code in (
+            ("kind", "invalid_kind"), ("platform", "invalid_platform"),
+            ("title", "title_required"), ("description", "description_required"),
+        ):
+            if f'name="{field}"'.encode() not in body:
+                self._json(400, {"error": f"{field} is missing.", "code": code})
+                return
+        if b"fixture-unavailable" in body:
+            payload = json.dumps({
+                "error": "Too many reports are being processed right now.",
+                "code": "feedback_busy",
+            }).encode()
+            self.send_response(503)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.send_header("Retry-After", "60")
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+        job = FEEDBACK_FAILED_JOB if b"fixture-failed" in body else FEEDBACK_FILED_JOB
+        self._json(202, {"id": job, "status": "queued"})
+
+    def _feedback_status(self, job: str) -> None:
+        """Fixture for ``GET /api/feedback/{id}``: the filed job reports issue #1, the
+        failed job reports ``failed`` and any other ID is ``404 not_found``.
+
+        Args:
+            job: Path segment after ``/api/feedback/``.
+
+        Returns:
+            None; a JSON response is written to the local response.
+        """
+        if job == FEEDBACK_FILED_JOB:
+            self._json(200, {
+                "id": job, "status": "submitted", "issueNumber": 1,
+                "attachments": [],
+            })
+        elif job == FEEDBACK_FAILED_JOB:
+            self._json(200, {
+                "id": job, "status": "failed", "error": "fixture failure", "attachments": [],
+            })
+        else:
+            self._json(404, {"error": "Feedback submission not found.", "code": "not_found"})
 
     def log_message(self, format: str, *args: object) -> None:
         """Avoid logging player identifiers or request URLs in automation output.

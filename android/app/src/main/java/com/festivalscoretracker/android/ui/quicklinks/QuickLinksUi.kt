@@ -146,7 +146,7 @@ private class StaggeredScroller(private val state: LazyStaggeredGridState) : Qui
  * layout info, and [activeId] changes only when the active section changes, so
  * scrolling does not recompose the page.
  *
- * @property title Title Case title (web `settings.quickLinks` etc.).
+ * @param title Title Case title (web `settings.quickLinks` etc.); see [QuickLinksController.title].
  * @param landingPx Where a jump lands a section's top below the visible top, in pixels.
  * @param activationPx Activation line below the visible top, in pixels (the landing line, or just below a flush pinned header).
  * @param bandPx Reachable band, in pixels.
@@ -155,7 +155,7 @@ private class StaggeredScroller(private val state: LazyStaggeredGridState) : Qui
 @Stable
 class QuickLinksController internal constructor(
     private val scroller: QuickLinkScroller,
-    val title: String,
+    title: String,
     private val scope: CoroutineScope,
     private val landingPx: Float,
     activationPx: Float,
@@ -163,6 +163,14 @@ class QuickLinksController internal constructor(
     completePx: Float,
 ) {
     private val tracker = QuickLinkTracker(activationOffset = activationPx, band = bandPx, completeThreshold = completePx)
+
+    /**
+     * Title Case title (Songs: "<Sort> Quick Links"). Snapshot state, so a page keeps one controller
+     * when its title changes: the shell's floating toolbar re-runs a page's actions only for state
+     * reads, and a replaced controller could leave it showing a stale one with no sections.
+     */
+    var title: String by mutableStateOf(title)
+        internal set
 
     /** Sections in order. */
     var sections: List<QuickLinkSection> by mutableStateOf(emptyList())
@@ -274,7 +282,7 @@ internal fun rememberQuickLinks(
     val density = LocalDensity.current
     val landingDp = if (pinnedHeaders) 0 else QuickLinks.LANDING_OFFSET_DP
     val activationDp = if (pinnedHeaders) QuickLinks.PINNED_HEADER_ACTIVATION_OFFSET_DP else QuickLinks.LANDING_OFFSET_DP
-    val controller = remember(scroller, title, pinnedHeaders, density) {
+    val controller = remember(scroller, pinnedHeaders, density) {
         with(density) {
             QuickLinksController(
                 scroller, title, scope,
@@ -285,6 +293,7 @@ internal fun rememberQuickLinks(
             )
         }
     }
+    controller.title = title
     controller.sections = QuickLinks.ordered(sections)
     controller.indexOf = indexOf
     // Quick Links teleport to the section like the web (operator batch 7.15), never an animated scroll.

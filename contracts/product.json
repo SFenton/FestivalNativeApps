@@ -189,6 +189,14 @@
       "states": ["hidden-seen", "waiting-for-first-run", "presented", "dismissed", "replay"],
       "testId": "fst.whats-new.*",
       "spec": ".agents/controls/whats-new/spec.md"
+    },
+    {
+      "id": "feedback-form",
+      "status": "pending",
+      "source": "FSTService/Api/FeedbackEndpoints.cs:1",
+      "states": ["unavailable", "editing-empty", "editing-dirty", "invalid", "attachments", "discard-confirm", "sending", "filing", "sent", "error"],
+      "testId": "fst.settings.feedback.*",
+      "spec": ".agents/controls/feedback-form/spec.md"
     }
   ],
   "testIds": {
@@ -205,6 +213,7 @@
     "fst.load-gate.*": "app-navigation",
     "fst.empty-state.*": "app-navigation",
     "fst.coming-soon": "app-navigation",
+    "fst.settings.feedback.*": "feedback-form",
     "fst.settings.*": "settings",
     "fst.leaderboards.*": "leaderboards",
     "fst.rankings.*": "full-rankings",

@@ -3,6 +3,9 @@ package com.festivalscoretracker.android.ui.songs
 import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.ComposeTimeoutException
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -84,11 +87,24 @@ class SongsParityUiTest {
 
     private fun waitForTag(tag: String, unmerged: Boolean = false) {
         // 20 s: the full Robolectric suite runs these journeys under heavy load (seen flaking at 10 s).
-        rule.waitUntil(20_000) {
-            settle(100)
-            rule.onAllNodesWithTag(tag, useUnmergedTree = unmerged).fetchSemanticsNodes().isNotEmpty()
+        try {
+            rule.waitUntil(20_000) {
+                settle(100)
+                rule.onAllNodesWithTag(tag, useUnmergedTree = unmerged).fetchSemanticsNodes().isNotEmpty()
+            }
+        } catch (timeout: ComposeTimeoutException) {
+            throw AssertionError("Timed out waiting for $tag; present: ${presentTags()}", timeout)
         }
     }
+
+    /** The `fst.` test tags on screen, so a CI-only timeout names what was showing instead. */
+    private fun presentTags(): List<String> =
+        rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.TestTag), useUnmergedTree = true)
+            .fetchSemanticsNodes()
+            .map { it.config[SemanticsProperties.TestTag] }
+            .filter { it.startsWith("fst.") }
+            .distinct()
+            .take(60)
 
     private fun waitGone(tag: String) = rule.waitUntil(10_000) { settle(100); rule.onAllNodesWithTag(tag).fetchSemanticsNodes().isEmpty() }
 
@@ -106,9 +122,24 @@ class SongsParityUiTest {
         waitForTag("fst.quick-links.open")
         click("fst.quick-links.open")
         waitForTag("fst.quick-links.sheet")
+        // The sheet's list is lazy: bring the bucket into composition before waiting for it.
+        waitForTag("fst.quick-links.list")
+        rule.onNodeWithTag("fst.quick-links.list").performScrollToNode(hasTestTag("fst.quick-links.item.duration:4to5"))
         waitForTag("fst.quick-links.item.duration:4to5")
         click("fst.quick-links.item.duration:4to5")
         waitGone("fst.quick-links.sheet")
+    }
+
+    @Test
+    fun quickLinksAppearAfterSwitchingToDurationSortOnPhone() {
+        launch(DebugLaunch(stillBackground = true))
+        waitForTag("fst.songs.row.s-alpha")
+        click("fst.songs.sort.open")
+        settle()
+        click("fst.songs.sort.duration")
+        click("fst.songs.sort.done")
+        waitForTag("fst.songs.section.duration.1to2")
+        waitForTag("fst.quick-links.open")
     }
 
     @Test

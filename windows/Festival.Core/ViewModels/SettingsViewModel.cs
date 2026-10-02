@@ -16,6 +16,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 {
     private readonly FestivalSession session;
     private bool serviceVersionRequested;
+    private bool featuresRequested;
 
     /// <summary>Creates the page model.</summary>
     /// <param name="session">Shared session.</param>
@@ -258,13 +259,40 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>Live Service Info card.</summary>
     public SettingsServiceInfoViewModel ServiceInfo { get; }
 
-    /// <summary>Settings became visible: start Service Info polling and read the service version once.</summary>
+    /// <summary>
+    /// Whether Report an Issue / Request a Feature show: only after <c>GET /api/features</c> reports
+    /// <c>feedback: true</c> (hidden while unknown, off or unreadable; issue #78).
+    /// </summary>
+    [ObservableProperty]
+    private bool feedbackAvailable;
+
+    /// <summary>Settings became visible: start Service Info polling and read the service version and features once.</summary>
     public void Activate()
     {
         ServiceInfo.Start();
+        if (!featuresRequested)
+        {
+            featuresRequested = true;
+            _ = LoadFeaturesAsync();
+        }
         if (serviceVersionRequested) return;
         serviceVersionRequested = true;
         _ = LoadServiceVersionAsync();
+    }
+
+    /// <summary>Reads <c>/api/features</c> (a pure, keyless read); a failure hides the rows and allows a later retry.</summary>
+    /// <returns>Task.</returns>
+    internal async Task LoadFeaturesAsync()
+    {
+        try
+        {
+            FeedbackAvailable = await session.Api.GetFeedbackEnabledAsync();
+        }
+        catch (FestivalApiException)
+        {
+            FeedbackAvailable = false;
+            featuresRequested = false;
+        }
     }
 
     /// <summary>Settings hidden: stop polling.</summary>

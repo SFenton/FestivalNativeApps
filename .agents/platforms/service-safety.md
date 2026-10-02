@@ -12,7 +12,7 @@
   - band team ranking `GET /api/rankings/bands/{bandType}/{teamKey}` (bare route, no sub-path): also calls `GetBandConfigurations` → `EnsureBandTeamConfigurations` (`FSTService/Api/RankingsEndpoints.cs:1020,1049`). Its `/history`, `/songs`, `/song-rows` sub-routes and `GET /api/rankings/bands/{bandType}?teamKey=` do **not** write and are allowed;
   - player stats GET can compute and store tiers; band sync-status GET registers bands (`FSTService/Api/PlayerEndpoints.cs:508-546,815-830`, `FSTService/Api/BandSyncEndpoints.cs:10-43`).
   These are source-backed potential effects, not proof they fired in production.
-- Never run profile tracking, name refresh, scrape, maintenance, export or load tests against production. POSTs are fixture-only.
+- Never run profile tracking, name refresh, scrape, maintenance, export or load tests against production. POSTs are fixture-only in automation; the one user-initiated POST is [in-app feedback](#user-initiated-feedback-post).
 - Never open a real Shop purchase link in automation; validate the official host instead. Never bundle third-party album art.
 - Never copy production payloads, titles or account IDs into fixtures or committed docs.
 
@@ -36,7 +36,19 @@
 | `/api/service-info` | allowed (pure read, operational) | `FSTService/Api/HealthEndpoints.cs:62-300`: in-process `ScrapeProgressTracker` + one `SELECT` (`MetaDatabase.GetServiceRuntimeState`, `Persistence/MetaDatabase.cs:2769`; catalog-lag read memoized in process). Not publication-bound, so never a freeze 503; carries the freeze header. `Cache-Control: public, max-age=1`. Body also exposes infrastructure fields (`postgresConnectionTarget`, `serviceInstance`): natives must not decode, store or log them. Settings Service Info polls it every 5 s only while visible |
 | `/api/version` | allowed (pure read) | `HealthEndpoints.cs:18-29`: assembly metadata `{version}`, `max-age=86400`. Settings → Version |
 | `/api/leaderboard/{songId}/bands/all?top=&accountId=[&selectedBandType=&selectedTeamKey=&combo=]`, `/api/leaderboard/{songId}/bands/{bandType}` | allowed (pure read) | `FSTService/Api/LeaderboardEndpoints.cs:14-160` → `BuildSongBandLeaderboardsPayload` (`MetaDatabase` SELECTs only; checked 2026-09-29). `accountId` only highlights the selected player's band in the response and bypasses the shared preview cache; frozen misses 503 like other reads. Song Detail band previews |
+| `/api/features` | allowed (pure read) | `{appManual, feedback}` flags. Settings shows the feedback rows only for `feedback: true` ([feedback-form](../controls/feedback-form/spec.md)) |
+| `/api/feedback/{id}` | allowed (pure read; only for an ID this client just received) | In-memory job status (60 min); `id` is validated as 32 lowercase hex before the call. 404 once expired or when feedback is disabled |
 | band search, band detail (`/api/bands/{bandId}`), bare band team ranking (`/api/rankings/bands/{type}/{teamKey}`), player stats, band sync-status | **blocked** | See hard rules |
+
+## User-initiated feedback POST
+
+`POST /api/feedback` (multipart) is the only write natives send to production, and only when a person presses **Submit** in the [feedback form](../controls/feedback-form/spec.md). It files a real GitHub issue, so:
+
+- never call it from automated tests, evidence runs or probes; use a loopback stub or `FakeTransport`/fake handlers;
+- send no `X-API-Key` and no selected-profile headers, only the documented form fields (diagnostics: app version, OS version and device model, nothing that identifies the person);
+- respect 429 `Retry-After` and 503 `feedback_busy`; never retry automatically;
+- show only fixed client copy, never the server's `error` text;
+- gate the method and path in code: Apple's `FestivalAPI.validateFeedbackRequest` allows only a keyless POST to exactly `/api/feedback`, and the shared read-only `send` gate still refuses every other non-GET.
 
 ## Public-read freeze
 

@@ -72,6 +72,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.BuildConfig
+import com.festivalscoretracker.android.core.feedback.FeedbackKind
+import com.festivalscoretracker.android.presentation.feedback.FeedbackViewModel
 import com.festivalscoretracker.android.core.firstrun.FirstRunPageKey
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.nav.LicensesRoute
@@ -134,6 +136,8 @@ internal fun settingsSections(debug: Boolean): List<QuickLinkSection> = buildLis
  * @param onReplayFirstRun Settings "Show" for one page's first-run guide.
  * @param debug Whether this is a debug build (Diagnostics section).
  * @param onShowWhatsNew Settings → Version "What's New" Show (replays the changelog sheet).
+ * @param feedback Report an Issue / Request a Feature form (App Settings rows; hidden when null or
+ *   until `GET /api/features` reports `feedback: true`).
  */
 @Composable
 fun SettingsScreen(
@@ -143,6 +147,7 @@ fun SettingsScreen(
     onReplayFirstRun: (FirstRunPageKey) -> Unit,
     debug: Boolean = BuildConfig.DEBUG,
     onShowWhatsNew: () -> Unit = {},
+    feedback: FeedbackViewModel? = null,
 ) {
     val shell = LocalShellActions.current
     val listState = rememberLazyListState()
@@ -152,6 +157,9 @@ fun SettingsScreen(
     val windowWidthDp = with(density) { currentWindowSize().width.toDp().value.toInt() }
     var confirmReset by rememberSaveable { mutableStateOf(false) }
     val serviceVersion by viewModel.serviceVersion.collectAsStateWithLifecycle()
+    // The rows show only once the service reports `feedback: true`; each Settings visit retries a failed read.
+    val feedbackAvailable = feedback?.let { it.available.collectAsStateWithLifecycle().value } == true
+    LaunchedEffect(feedback) { feedback?.loadAvailability() }
 
     val scrolled by remember(listState) { derivedStateOf { listState.canScrollBackward } }
     val split = rememberHingeSplit()
@@ -171,7 +179,7 @@ fun SettingsScreen(
                         item(key = section.id) {
                             Column(Modifier.fillMaxWidth().widthIn(max = 840.dp).testTag("fst.settings.section.${section.id}")) {
                                 when (section.id) {
-                                    "app-settings" -> AppSettingsSection(settings, viewModel)
+                                    "app-settings" -> AppSettingsSection(settings, viewModel, feedback?.takeIf { feedbackAvailable }?.let { it::open })
                                     "diagnostics" -> DiagnosticsSection(settings, viewModel)
                                     "item-shop" -> ItemShopSection(settings, viewModel)
                                     "show-instruments" -> InstrumentsSection(settings, viewModel)
@@ -194,6 +202,7 @@ fun SettingsScreen(
             }
         }
     }
+    feedback?.let { FeedbackDialogHost(it) }
     if (confirmReset) {
         FestivalAlertDialog(
             title = "Reset Settings",
@@ -218,7 +227,7 @@ fun SettingsScreen(
 // region Section content
 
 @Composable
-private fun AppSettingsSection(settings: AppSettings, vm: SettingsViewModel) {
+private fun AppSettingsSection(settings: AppSettings, vm: SettingsViewModel, onFeedback: ((FeedbackKind) -> Unit)?) {
     Header("App Settings", "General Festival Score Tracker app settings.")
     GlassCard(Modifier.fillMaxWidth()) {
         ToggleRow(
@@ -284,6 +293,14 @@ private fun AppSettingsSection(settings: AppSettings, vm: SettingsViewModel) {
             settings.experimentalRanks, {}, "fst.settings.experimental-ranks",
             enabled = false, disabledReason = "Not available on Android yet.",
         )
+        if (onFeedback != null) {
+            FeedbackKind.entries.forEach { kind ->
+                Divider()
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    NavigationRow(kind.formTitle, kind.rowDescription, "fst.settings.feedback.${kind.wire}") { onFeedback(kind) }
+                }
+            }
+        }
     }
 }
 

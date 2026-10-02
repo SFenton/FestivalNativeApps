@@ -409,6 +409,19 @@ class FestivalApi(origin: String, transport: HttpTransport) {
         return response
     }
 
+    /**
+     * Send the user-initiated feedback POST through [RequestGate.sendFeedback]. Status is
+     * left unmapped: feedback has its own error vocabulary (`data/feedback`).
+     *
+     * @param body Multipart body.
+     * @return Raw response.
+     * @throws FestivalApiException.ForbiddenRequest if the request is not the allowlisted POST.
+     */
+    internal suspend fun postFeedback(body: HttpBody): HttpResult {
+        val url = base.newBuilder().encodedPath(RequestGate.FEEDBACK_PATH).query(null).build().toString()
+        return gate.sendFeedback(RequestGate.makeFeedbackRequest(url, body))
+    }
+
     // endregion
 
     /**

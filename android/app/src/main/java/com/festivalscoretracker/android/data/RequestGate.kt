@@ -2,6 +2,7 @@ package com.festivalscoretracker.android.data
 
 import com.festivalscoretracker.android.core.model.FestivalApiException
 import com.festivalscoretracker.android.core.service.ServiceFreezeReason
+import java.net.URI
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.ensureActive
 
@@ -25,6 +26,8 @@ enum class ServiceStatus {
  * `FestivalAPI.send`): GET-only, never `X-API-Key` or `x-fst-selected-*`
  * headers, cancellation checked on both sides of the wire, and one shared
  * status vocabulary. Never create another transport path for service reads.
+ * The one write is the user-initiated feedback POST ([sendFeedback]), allowed
+ * only to [FEEDBACK_PATH].
  *
  * @property transport Wrapped transport.
  */
@@ -38,6 +41,22 @@ class RequestGate(private val transport: HttpTransport) {
      */
     suspend fun send(request: HttpRequest): HttpResult {
         validateKeyless(request)
+        coroutineContext.ensureActive()
+        val result = transport.send(request)
+        coroutineContext.ensureActive()
+        return result
+    }
+
+    /**
+     * Validate and send the one user-initiated write: the feedback form's
+     * `POST /api/feedback`. Never call this from automation against production.
+     *
+     * @param request Request built by [makeFeedbackRequest].
+     * @return Raw response.
+     * @throws FestivalApiException.ForbiddenRequest for anything else.
+     */
+    suspend fun sendFeedback(request: HttpRequest): HttpResult {
+        validateFeedback(request)
         coroutineContext.ensureActive()
         val result = transport.send(request)
         coroutineContext.ensureActive()
@@ -71,11 +90,48 @@ class RequestGate(private val transport: HttpTransport) {
          * @throws FestivalApiException.ForbiddenRequest when unsafe.
          */
         fun validateKeyless(request: HttpRequest) {
-            val unsafeHeader = request.headers.keys.any { name ->
-                val lowered = name.lowercase()
-                lowered in FORBIDDEN_HEADER_NAMES || FORBIDDEN_HEADER_PREFIXES.any(lowered::startsWith)
+            if (hasUnsafeHeader(request) || request.method != "GET" || request.body != null) {
+                throw FestivalApiException.ForbiddenRequest()
             }
-            if (unsafeHeader || request.method != "GET") throw FestivalApiException.ForbiddenRequest()
+        }
+
+        /** Path of the only endpoint that accepts a POST (in-app feedback, issue #78). */
+        const val FEEDBACK_PATH = "/api/feedback"
+
+        /** How long a feedback POST waits for the response (the service may transcode media first). */
+        const val FEEDBACK_READ_TIMEOUT_SECONDS = 300L
+
+        /**
+         * Build the feedback POST.
+         *
+         * @param url `{origin}/api/feedback`.
+         * @param body Multipart body.
+         * @return A keyless no-cache POST.
+         */
+        fun makeFeedbackRequest(url: String, body: HttpBody): HttpRequest = HttpRequest(
+            url,
+            "POST",
+            mapOf("Cache-Control" to "no-cache", "Accept" to "application/json"),
+            body,
+            FEEDBACK_READ_TIMEOUT_SECONDS,
+        )
+
+        /**
+         * Allow only a keyless `POST` with a body to exactly [FEEDBACK_PATH] (no query).
+         *
+         * @param request Request about to be sent.
+         * @throws FestivalApiException.ForbiddenRequest when unsafe.
+         */
+        fun validateFeedback(request: HttpRequest) {
+            val uri = runCatching { URI(request.url) }.getOrNull()
+            val allowed = uri != null && uri.rawPath == FEEDBACK_PATH && uri.rawQuery == null && uri.rawFragment == null &&
+                request.method == "POST" && request.body != null && !hasUnsafeHeader(request)
+            if (!allowed) throw FestivalApiException.ForbiddenRequest()
+        }
+
+        private fun hasUnsafeHeader(request: HttpRequest): Boolean = request.headers.keys.any { name ->
+            val lowered = name.lowercase()
+            lowered in FORBIDDEN_HEADER_NAMES || FORBIDDEN_HEADER_PREFIXES.any(lowered::startsWith)
         }
 
         /**
