@@ -11,7 +11,7 @@
 - Shared pager (`LeaderboardsPager`): First · Previous · "page / total" (polite live region, "Page 2 of 34,760") · Next · Last; First/Last collapse below 380 epx; hidden with one page; Left/Right/Home/End in the pager, Ctrl+Left/Right on the page.
 - Rows are the shared `LeaderboardEntryRow` (operator batch 7.7): separate frosted rows, the `X / Y` songs label then the blue rating, like the web `RankingEntry`.
 - Back restores the page, switcher and metric: pushed pages keep their view model per back-stack entry (`LeaderboardsPageState`, keyed by the route object Frame hands back).
-- Indeterminate progress bar over the current rows while another page loads; full-page `ServiceStatusView` on failure.
+- Load-swap gate (issue #71): first load, F5, instrument/metric changes and paging run content out (300 ms) → centered ring → ring out (500 ms) → row stagger. Old rows stay only during content-out; new rows, empty and failure states are applied while hidden; rapid choices are latest-wins. Reduce Motion skips the waits and swaps immediately.
 
 ## Live findings (2026-09-28)
 

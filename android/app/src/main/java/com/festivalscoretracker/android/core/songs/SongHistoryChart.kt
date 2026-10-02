@@ -141,8 +141,69 @@ object SongHistoryChart {
      */
     fun maxBars(plotWidthDp: Float): Int = maxOf(1, ((plotWidthDp + BAR_GAP_DP) / (MIN_BAR_DP + BAR_GAP_DP)).toInt())
 
+    /**
+     * Whether the card keeps room for the pager on **every** chart, so it keeps one size
+     * when the chart changes (issue #61, iOS #31): true when any selectable chart has
+     * more points than one page holds.
+     *
+     * @param counts Rows per chart.
+     * @param available The selector's charts.
+     * @param maxBars Bars per page.
+     * @return True to lay out the pager row (empty when the shown chart doesn't page).
+     */
+    fun reservesPager(counts: Map<Instrument, Int>, available: List<Instrument>, maxBars: Int): Boolean =
+        available.any { (counts[it] ?: 0) > maxBars }
+
     /** History accuracy scale: ten-thousandths of a percent. */
     private const val ACCURACY_SCALE = 10_000.0
+}
+
+// endregion
+
+// region Instrument switch
+
+/**
+ * How Score History swaps its graph when the selected chart changes (issue #61, iOS #31):
+ * the graph and its best scores fade out, swap to the new chart, then fade back in while
+ * the card keeps its size. With reduced motion the swap is instant.
+ */
+object SongHistorySwap {
+    /** Fade-out time of the old chart's graph. */
+    const val FADE_OUT_MILLIS = 150
+
+    /** Fade-in time of the new chart's graph. */
+    const val FADE_IN_MILLIS = 250
+
+    /** What to do when the requested chart changes. */
+    enum class Plan {
+        /** Nothing to show. */
+        None,
+
+        /** The graph already shows the request: finish any swap by fading fully back in. */
+        Settle,
+
+        /** Swap at once, without animation (first value or reduced motion). */
+        Instant,
+
+        /** Fade out, swap, fade in. */
+        Fade,
+    }
+
+    /**
+     * Plan a swap.
+     *
+     * @param displayed Chart the graph shows now, or null before it first draws.
+     * @param target Chart the selector now requests, or null.
+     * @param reduceMotion System or app reduced motion.
+     * @return The swap to perform.
+     */
+    fun plan(displayed: Instrument?, target: Instrument?, reduceMotion: Boolean): Plan = when {
+        target == null -> Plan.None
+        displayed == null -> Plan.Instant
+        displayed == target -> Plan.Settle
+        reduceMotion -> Plan.Instant
+        else -> Plan.Fade
+    }
 }
 
 // endregion

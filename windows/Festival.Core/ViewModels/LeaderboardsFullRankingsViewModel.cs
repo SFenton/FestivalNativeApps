@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Festival.Core.Domain;
 
 namespace Festival.Core.ViewModels;
 
@@ -30,6 +31,15 @@ public sealed partial class FullRankingsViewModel : ObservableObject
         Pager = new RankingsPagerViewModel("fst.full-rankings", GoToPageAsync);
         Status = new ServiceStatusViewModel("full-rankings", "Rankings unavailable", LoadAsync, session.Time);
         spotlight = NewSpotlight();
+        LoadSwap = new LoadSwap(session.Time);
+        LoadSwap.PropertyChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(IsLoading));
+            OnPropertyChanged(nameof(ShowRows));
+            OnPropertyChanged(nameof(ShowEmpty));
+            OnPropertyChanged(nameof(ShowError));
+            OnPropertyChanged(nameof(ShowContent));
+        };
     }
 
     /// <summary>Pager.</summary>
@@ -37,6 +47,12 @@ public sealed partial class FullRankingsViewModel : ObservableObject
 
     /// <summary>Full-page failure.</summary>
     public ServiceStatusViewModel Status { get; }
+
+    /// <summary>Rows/content load-swap gate.</summary>
+    public LoadSwap LoadSwap { get; }
+
+    /// <summary>Whether load-swap motion is allowed; the app layer supplies <c>Motion.Allowed</c>.</summary>
+    public Func<bool> AnimateLoadSwaps { get; set; } = () => false;
 
     /// <summary>Metrics offered by Rank By.</summary>
     public IReadOnlyList<RankingMetric> MetricOptions => RankingMetricInfo.All;
@@ -92,19 +108,19 @@ public sealed partial class FullRankingsViewModel : ObservableObject
     public string MetricButtonName => $"Rank by: {Metric.Label()}";
 
     /// <summary>Whether the first load is in flight.</summary>
-    public bool IsLoading => State is LoadState.Idle or LoadState.Loading;
+    public bool IsLoading => LoadSwap.IsLoading;
 
     /// <summary>Whether rows are shown.</summary>
-    public bool ShowRows => State == LoadState.Loaded;
+    public bool ShowRows => State == LoadState.Loaded && LoadSwap.ContentVisible;
 
     /// <summary>Whether "No ranked players yet." is shown.</summary>
-    public bool ShowEmpty => State == LoadState.Empty;
+    public bool ShowEmpty => State == LoadState.Empty && LoadSwap.ContentVisible;
 
     /// <summary>Whether the full-page failure is shown.</summary>
-    public bool ShowError => State == LoadState.Failed;
+    public bool ShowError => State == LoadState.Failed && LoadSwap.ContentVisible;
 
     /// <summary>Whether the board chrome (pager, spotlight) is shown.</summary>
-    public bool ShowContent => State is LoadState.Loaded or LoadState.Empty;
+    public bool ShowContent => State is (LoadState.Loaded or LoadState.Empty) && LoadSwap.ContentVisible;
 
     /// <summary>Switches instrument (resets to page 1 and the spotlight).</summary>
     /// <param name="value">Instrument.</param>
@@ -147,7 +163,8 @@ public sealed partial class FullRankingsViewModel : ObservableObject
     {
         var request = ++version;
         var (requestedInstrument, requestedMetric, requestedPage) = (Instrument, Metric, Page);
-        if (State != LoadState.Loaded) State = LoadState.Loading;
+        var swap = LoadSwap.BeginReloadAsync(AnimateLoadSwaps(), State is LoadState.Loaded or LoadState.Empty or LoadState.Failed && LoadSwap.ContentVisible);
+        if (State is LoadState.Idle) State = LoadState.Loading;
         IsRefreshing = true;
         try
         {
@@ -159,22 +176,30 @@ public sealed partial class FullRankingsViewModel : ObservableObject
                 await GoToPageAsync(corrected);
                 return;
             }
-            Status.Clear();
-            entries = board.Entries;
-            TotalText = $"{board.TotalAccounts:N0} ranked players";
-            Pager.Update(requestedPage, board.PageCount);
-            ApplyRows();
-            State = entries.Count == 0 ? LoadState.Empty : LoadState.Loaded;
-            IsRefreshing = false;
+            var swapRequest = await swap;
+            await LoadSwap.CommitAsync(swapRequest, () =>
+            {
+                Status.Clear();
+                entries = board.Entries;
+                TotalText = $"{board.TotalAccounts:N0} ranked players";
+                Pager.Update(requestedPage, board.PageCount);
+                ApplyRows();
+                State = entries.Count == 0 ? LoadState.Empty : LoadState.Loaded;
+                IsRefreshing = false;
+            }, AnimateLoadSwaps());
             var selected = session.SelectedPlayer?.AccountId;
             await Spotlight.EnsureLoadedAsync(selected, !entries.Any(e => RankingSpotlight.SameAccount(e.AccountId, selected)));
         }
         catch (FestivalApiException error)
         {
             if (request != version) return;
-            IsRefreshing = false;
-            Status.Report(error);
-            State = LoadState.Failed;
+            var swapRequest = await swap;
+            await LoadSwap.CommitAsync(swapRequest, () =>
+            {
+                IsRefreshing = false;
+                Status.Report(error);
+                State = LoadState.Failed;
+            }, AnimateLoadSwaps());
         }
     }
 
@@ -199,7 +224,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
         var selected = session.SelectedPlayer?.AccountId;
         Rows = entries.Select(e => new RankingRowViewModel(e, Metric, RankingSpotlight.SameAccount(e.AccountId, selected))).ToList();
         Spotlight.Apply(selected, entries, Metric, Page, LeaderboardPaging.PageSize);
-        RankingRowViewModel.ShareRankWidth(Rows, Spotlight.Row);
+        RankingRowViewModel.ShareColumns(Rows, Spotlight.Row);
     }
 
     /// <summary>Creates the spotlight for the current instrument with a jump back into this board.</summary>
@@ -210,7 +235,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
         // The pinned row arrives after the page: widen every rank column to fit it (operator batch 7.9).
         created.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(RankingSpotlightViewModel.Row)) RankingRowViewModel.ShareRankWidth(Rows, created.Row);
+            if (e.PropertyName == nameof(RankingSpotlightViewModel.Row)) RankingRowViewModel.ShareColumns(Rows, created.Row);
         };
         return created;
     }
@@ -234,6 +259,15 @@ public sealed partial class BandRankingsViewModel : ObservableObject
         metric = LeaderboardPreferences.RankBy(session).ToBandMetric();
         Pager = new RankingsPagerViewModel("fst.band-rankings", GoToPageAsync);
         Status = new ServiceStatusViewModel("band-rankings", "Rankings unavailable", LoadAsync, session.Time);
+        LoadSwap = new LoadSwap(session.Time);
+        LoadSwap.PropertyChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(IsLoading));
+            OnPropertyChanged(nameof(ShowRows));
+            OnPropertyChanged(nameof(ShowEmpty));
+            OnPropertyChanged(nameof(ShowError));
+            OnPropertyChanged(nameof(ShowContent));
+        };
     }
 
     /// <summary>Pager.</summary>
@@ -241,6 +275,12 @@ public sealed partial class BandRankingsViewModel : ObservableObject
 
     /// <summary>Full-page failure.</summary>
     public ServiceStatusViewModel Status { get; }
+
+    /// <summary>Rows/content load-swap gate.</summary>
+    public LoadSwap LoadSwap { get; }
+
+    /// <summary>Whether load-swap motion is allowed; the app layer supplies <c>Motion.Allowed</c>.</summary>
+    public Func<bool> AnimateLoadSwaps { get; set; } = () => false;
 
     /// <summary>Band sizes.</summary>
     public IReadOnlyList<BandType> BandTypeOptions => BandTypeInfo.All;
@@ -295,19 +335,19 @@ public sealed partial class BandRankingsViewModel : ObservableObject
     public string EmptyText => $"No ranked {BandType.Label().ToLowerInvariant()} yet.";
 
     /// <summary>Whether the first load is in flight.</summary>
-    public bool IsLoading => State is LoadState.Idle or LoadState.Loading;
+    public bool IsLoading => LoadSwap.IsLoading;
 
     /// <summary>Whether rows are shown.</summary>
-    public bool ShowRows => State == LoadState.Loaded;
+    public bool ShowRows => State == LoadState.Loaded && LoadSwap.ContentVisible;
 
     /// <summary>Whether the empty text is shown.</summary>
-    public bool ShowEmpty => State == LoadState.Empty;
+    public bool ShowEmpty => State == LoadState.Empty && LoadSwap.ContentVisible;
 
     /// <summary>Whether the full-page failure is shown.</summary>
-    public bool ShowError => State == LoadState.Failed;
+    public bool ShowError => State == LoadState.Failed && LoadSwap.ContentVisible;
 
     /// <summary>Whether the pager is shown.</summary>
-    public bool ShowContent => State is LoadState.Loaded or LoadState.Empty;
+    public bool ShowContent => State is (LoadState.Loaded or LoadState.Empty) && LoadSwap.ContentVisible;
 
     /// <summary>Switches band size (resets to page 1).</summary>
     /// <param name="value">Band size.</param>
@@ -349,7 +389,8 @@ public sealed partial class BandRankingsViewModel : ObservableObject
     {
         var request = ++version;
         var (requestedType, requestedMetric, requestedPage) = (BandType, Metric, Page);
-        if (State != LoadState.Loaded) State = LoadState.Loading;
+        var swap = LoadSwap.BeginReloadAsync(AnimateLoadSwaps(), State is LoadState.Loaded or LoadState.Empty or LoadState.Failed && LoadSwap.ContentVisible);
+        if (State is LoadState.Idle) State = LoadState.Loading;
         IsRefreshing = true;
         try
         {
@@ -361,21 +402,29 @@ public sealed partial class BandRankingsViewModel : ObservableObject
                 await GoToPageAsync(corrected);
                 return;
             }
-            Status.Clear();
-            TotalText = $"{board.TotalTeams:N0} ranked bands";
-            Pager.Update(requestedPage, board.PageCount);
-            var rows = board.Entries.Select(e => new BandRankingRowViewModel(e, requestedType, requestedMetric)).ToList();
-            BandRankingRowViewModel.ShareRankWidth(rows);
-            Rows = rows;
-            State = Rows.Count == 0 ? LoadState.Empty : LoadState.Loaded;
-            IsRefreshing = false;
+            var swapRequest = await swap;
+            await LoadSwap.CommitAsync(swapRequest, () =>
+            {
+                Status.Clear();
+                TotalText = $"{board.TotalTeams:N0} ranked bands";
+                Pager.Update(requestedPage, board.PageCount);
+                var rows = board.Entries.Select(e => new BandRankingRowViewModel(e, requestedType, requestedMetric)).ToList();
+                BandRankingRowViewModel.ShareColumns(rows);
+                Rows = rows;
+                State = Rows.Count == 0 ? LoadState.Empty : LoadState.Loaded;
+                IsRefreshing = false;
+            }, AnimateLoadSwaps());
         }
         catch (FestivalApiException error)
         {
             if (request != version) return;
-            IsRefreshing = false;
-            Status.Report(error);
-            State = LoadState.Failed;
+            var swapRequest = await swap;
+            await LoadSwap.CommitAsync(swapRequest, () =>
+            {
+                IsRefreshing = false;
+                Status.Report(error);
+                State = LoadState.Failed;
+            }, AnimateLoadSwaps());
         }
     }
 }

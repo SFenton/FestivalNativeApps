@@ -214,7 +214,6 @@ class LeaderboardsComponentsUiTest {
                     padding = PaddingValues(),
                     listState = rememberLazyListState(),
                     idPrefix = "fst.t",
-                    loadingOverlay = true,
                     controls = { Text("info") },
                     footer = { AnchoredRowCard { Text("mine") } },
                     pager = { RankingsPager(1, 3, "fst.t", {}) },
@@ -231,7 +230,6 @@ class LeaderboardsComponentsUiTest {
         // The pager is anchored to the bottom of the far pane, below the page information.
         assertTrue(pager.bottom > pane.bottom - 80 * density)
         assertTrue(text("info") && text("mine"))
-        assertTrue(rule.onAllNodesWithContentDescription("Loading page").fetchSemanticsNodes().isNotEmpty())
     }
 
     @Test

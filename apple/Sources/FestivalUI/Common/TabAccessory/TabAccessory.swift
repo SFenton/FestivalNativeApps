@@ -363,8 +363,12 @@ struct FloatingPageControls: ViewModifier {
     /// This page's scope: only controls registered from inside it are shown here.
     @State private var scope = UUID()
 
+    /// Diameter of one floating glass button, which is also its square hit region.
+    static let buttonSize: CGFloat = 50
+    /// Gap between neighbouring buttons; it keeps their hit regions apart.
+    static let spacing: CGFloat = 12
     /// Button size plus its bottom margin.
-    static let height: CGFloat = 50 + 8
+    static let height: CGFloat = buttonSize + 8
 
     func body(content: Content) -> some View {
         // In the tab-bar accessory (iOS 26.1+) the system draws the tools and insets the
@@ -386,14 +390,14 @@ struct FloatingPageControls: ViewModifier {
             .overlay(alignment: .bottomTrailing) {
                 ZStack(alignment: .bottomTrailing) {
                     if !items.isEmpty && front {
-                        FestivalGlassGroup(spacing: 12) {
-                            HStack(spacing: 12) {
+                        FestivalGlassGroup(spacing: Self.spacing) {
+                            HStack(spacing: Self.spacing) {
                                 ForEach(items, id: \.id) { item in
                                     item.content
-                                        .labelStyle(.iconOnly)
+                                        .labelStyle(FloatingPageToolLabelStyle(side: Self.buttonSize))
                                         .font(.title3)
-                                        .frame(width: 50, height: 50)
-                                        .contentShape(Circle())
+                                        .frame(width: Self.buttonSize, height: Self.buttonSize)
+                                        .contentShape(Rectangle())
                                         .festivalGlassCapsule(.control, interactive: true)
                                         .accessibilityIdentifier(item.accessibilityID ?? "")
                                         .transition(PageToolsHandOff.dockTransition(style))
@@ -410,6 +414,28 @@ struct FloatingPageControls: ViewModifier {
                 // the overlay so the page itself never animates with it.
                 .animation(PageToolsHandOff.animation(style), value: items.map(\.id))
             }
+    }
+}
+
+// MARK: - Floating tool label
+
+/// Icon-only label that fills a floating page tool's whole square (issue #15).
+///
+/// A `Menu` (Quick Links) only responds to taps on its label, so the frame and hit
+/// shape around the glyph must live *inside* the label: the glass circle drawn around
+/// it is not tappable. Buttons honour the outer frame too; using one style keeps every
+/// floating tool's hit region the same square. HIG Buttons: "As a general rule, the hit
+/// region is at least 44x44 pt"; ``FloatingPageControls/spacing`` keeps neighbours apart.
+struct FloatingPageToolLabelStyle: LabelStyle {
+    /// Side of the square hit region, in points.
+    let side: CGFloat
+
+    func makeBody(configuration: Configuration) -> some View {
+        // The system icon-only style keeps the title as the VoiceOver label.
+        Label(configuration)
+            .labelStyle(.iconOnly)
+            .frame(width: side, height: side)
+            .contentShape(Rectangle())
     }
 }
 

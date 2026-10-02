@@ -26,15 +26,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -52,7 +49,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -62,17 +58,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.licenses.LicenseManifest
 import com.festivalscoretracker.android.core.licenses.LicensedPackage
-import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import com.festivalscoretracker.android.ui.common.FestivalLoadGate
 import com.festivalscoretracker.android.ui.common.FestivalScreen
-import com.festivalscoretracker.android.ui.common.festivalSheetTop
-import com.festivalscoretracker.android.ui.design.popupTestTags
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.festivalscoretracker.android.ui.common.oneLineUnlessLarge
+import com.festivalscoretracker.android.ui.common.FestivalModalSheet
 
 // region Screen
 
@@ -239,23 +233,16 @@ private fun PackageRow(item: LicensedPackage, index: Int, count: Int, selected: 
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** Compact-window license text: the shared modal sheet, titled with the package name and closed by its header Close. */
 @Composable
 private fun LicenseSheet(item: LicensedPackage, text: String, onDismiss: () -> Unit) {
-    ModalBottomSheet(
+    FestivalModalSheet(
+        title = item.name,
+        closeTag = "fst.licenses.close",
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = BrandTokens.cardBackground,
-        modifier = Modifier.festivalSheetTop().popupTestTags().testTag("fst.licenses.detail").semantics { paneTitle = item.name },
+        modifier = Modifier.testTag("fst.licenses.detail"),
     ) {
-        Column(Modifier.fillMaxSize()) {
-            LicenseDetail(item, text, Modifier.weight(1f).padding(horizontal = 24.dp).verticalScroll(rememberScrollState()))
-            // Centred Close in an opaque footer, like What's New's Dismiss (operator batch 6.17).
-            HorizontalDivider(color = BrandTokens.glassBorder)
-            Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
-                Button(onClick = onDismiss, colors = festivalFilledButtonColors(), modifier = Modifier.widthIn(min = 160.dp).testTag("fst.licenses.close")) { Text("Close") }
-            }
-        }
+        LicenseDetail(item, text, Modifier.fillMaxSize().padding(horizontal = 24.dp).verticalScroll(rememberScrollState()), showName = false)
     }
 }
 
@@ -265,12 +252,13 @@ private fun LicenseSheet(item: LicensedPackage, text: String, onDismiss: () -> U
  * @param item Package.
  * @param text Full license text.
  * @param modifier Modifier (callers add scrolling).
+ * @param showName Show the name heading (the sheet's header already shows it).
  */
 @Composable
-private fun LicenseDetail(item: LicensedPackage, text: String, modifier: Modifier) {
+private fun LicenseDetail(item: LicensedPackage, text: String, modifier: Modifier, showName: Boolean = true) {
     val uri = LocalUriHandler.current
     Column(modifier) {
-        Text(item.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = Modifier.semantics { heading() })
+        if (showName) Text(item.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = Modifier.semantics { heading() })
         Text("${item.subtitle} · ${item.licenses.joinToString(", ")}", style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary)
         item.url?.let { url ->
             TextButton(onClick = { runCatching { uri.openUri(url) } }, modifier = Modifier.testTag("fst.licenses.project-link")) { Text("Project Website") }

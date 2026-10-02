@@ -26,7 +26,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -34,10 +33,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.material3.adaptive.currentWindowSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -88,7 +87,9 @@ import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.fadeInStagger
+import com.festivalscoretracker.android.ui.common.LocalFadeInWindow
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.rememberFadeInWindow
 import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
@@ -98,6 +99,7 @@ import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
 import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlinx.coroutines.launch
+import com.festivalscoretracker.android.ui.common.FestivalAlertDialog
 
 // region Screens
 
@@ -174,6 +176,10 @@ fun PlayerProfileContent(viewModel: PlayerProfileViewModel, padding: PaddingValu
     val state by viewModel.state.collectAsStateWithLifecycle()
     // Rows fade in (staggered) on the frame after the profile finishes loading.
     val revealed = rememberRevealed(state.phase == ProfilePhase.Loaded)
+    // Sections that start loading when scrolled to (rank history, bands) show in place
+    // once the page has scrolled; only what is visible at load fades in.
+    val fadeWindow = rememberFadeInWindow(gridState, reset = state.accountId)
+    CompositionLocalProvider(LocalFadeInWindow provides fadeWindow) {
     when (val phase = state.phase) {
         ProfilePhase.NoAccount -> Message(
             "No Profile Selected",
@@ -193,6 +199,7 @@ fun PlayerProfileContent(viewModel: PlayerProfileViewModel, padding: PaddingValu
         )
         is ProfilePhase.Failed -> ServiceStatusView(phase.issue, "Profile unavailable", phase.countdown, viewModel::retry, contentPadding = padding)
         ProfilePhase.Loaded -> LoadedProfile(viewModel, state, padding, gridState, rows, revealed)
+    }
     }
 }
 
@@ -345,14 +352,16 @@ private fun Header(state: PlayerProfileUiState, onSelect: () -> Unit) {
 
 @Composable
 private fun ConfirmDialog(title: String, text: String, confirmLabel: String, tag: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
+    FestivalAlertDialog(
+        title = title,
+        text = text,
+        tag = tag,
+        confirmLabel = confirmLabel,
+        confirmTag = "$tag.ok",
+        onConfirm = onConfirm,
+        dismissLabel = "Cancel",
+        dismissTag = "$tag.cancel",
         onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = { Text(text) },
-        confirmButton = { TextButton(onClick = onConfirm, modifier = Modifier.testTag("$tag.ok")) { Text(confirmLabel) } },
-        dismissButton = { TextButton(onClick = onDismiss, modifier = Modifier.testTag("$tag.cancel")) { Text("Cancel") } },
-        containerColor = BrandTokens.cardBackground,
-        modifier = Modifier.testTag(tag),
     )
 }
 

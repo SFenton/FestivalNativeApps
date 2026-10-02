@@ -76,6 +76,12 @@ struct SongsScreen: View {
         case loading
         case loaded(CatalogPayload)
         case failed(ServiceIssue)
+
+        /// Whether the catalogue is still loading (drives ``FestivalReloadGate``).
+        var isLoading: Bool {
+            if case .loading = self { return true }
+            return false
+        }
     }
 
     /// Restart a single catalogue task on publication or tab/route visibility changes.
@@ -292,12 +298,20 @@ struct SongsScreen: View {
                 .accessibilityIdentifier("fst.songs.navigation-notice")
             }
 
-            Group {
+            // Sort, filter, instrument and search changes fade the list out, show the
+            // spinner (also while a search is typed ahead of its debounce) and stagger the
+            // new list in (web `SongsPage` `settingsKey`, issue #71).
+            FestivalReloadGate(
+                key: reloadKey, isLoading: state.isLoading || searchText != settledSearch,
+                spinnerLabel: "Loading songs",
+                onReveal: {
+                    fadeLoadedAt = .now
+                    scrollChrome.resetHeaders()
+                }
+            ) {
             switch state {
             case .loading:
-                FestivalLoadingView(accessibilityLabel: "Loading songs")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .transition(.opacity)
+                EmptyView()
             case let .failed(issue):
                 ServiceStatusView(issue, title: "Songs unavailable") {
                     Task { await reload() }
@@ -397,6 +411,7 @@ struct SongsScreen: View {
         // like Music's Library). Global search stays a header button.
         .modifier(SongsListSearch(
             text: $searchText, presentation: toolsPresentation,
+            sidebarShell: deviceLayout.sectionChrome == .sidebar,
             barPresented: $searchBarPresented
         ))
         // iPhone: search, Filter, Sort and Quick Links sit above the tab bar, like the
@@ -412,16 +427,13 @@ struct SongsScreen: View {
             openSearch: { searchBarPresented = true },
             clearSearch: { searchText = "" }
         ))
-        .sheet(isPresented: $sortPresented) {
-            SongsSortSheet(
-                mode: sortMode, ascending: sortAscending,
-                showShop: !hideShop, shopAvailable: shopOffersForCurrentSongs != nil,
-                playerModes: playerSortModesOffered
-            ) { mode, order in
-                sortMode = mode
-                sortAscending = order
-            }
-        }
+        #if os(iOS)
+        .sheet(isPresented: $sortPresented) { sortSheet }
+        #else
+        // Mac: Sort is a popover from its toolbar button (HIG Popovers: "a little
+        // information or functionality"); View › Sort… opens it too.
+        .macPageCommands(macCommands)
+        #endif
         .sheet(isPresented: $filterPresented) {
             if let appliedPlayerScoreFilter {
                 SongsFilterSheet(
@@ -442,6 +454,7 @@ struct SongsScreen: View {
                     filterLeavingTomorrow = shop.leavingTomorrow
                     instrument = instrumentChoice
                 }
+                .macSheetFrame()
             } else {
                 Text("Saved song filters are invalid. Reset them from Songs to continue.")
             }
@@ -534,16 +547,45 @@ struct SongsScreen: View {
 
     /// Where the `.searchable` Filter Songs field sits (unused in the tab-bar accessory).
     ///
-    /// - Parameter presentation: Where the page tools sit above an iPhone tab bar.
+    /// - Parameters:
+    ///   - presentation: Where the page tools sit above an iPhone tab bar.
+    ///   - sidebarShell: The iPad sections sidebar shell.
     /// - Returns: With floating tools (iOS 17–26.0 iPhone), the navigation-bar drawer kept
     ///   visible while scrolling, so the field stays with the tools that rise into the bar
-    ///   (issue #13); the system placement elsewhere.
-    static func filterFieldPlacement(presentation: PageToolsPresentation?) -> SearchFieldPlacement {
+    ///   (issue #13). On iPad too: the system placement there collapses the field into a
+    ///   second magnifier beside global Search, two identical buttons with different scopes
+    ///   (HIG Searching: "Show current scope with descriptive placeholder"). The system
+    ///   placement elsewhere.
+    static func filterFieldPlacement(
+        presentation: PageToolsPresentation?, sidebarShell: Bool = false
+    ) -> SearchFieldPlacement {
         #if os(iOS)
-        presentation == .floating ? .navigationBarDrawer(displayMode: .always) : .automatic
+        presentation == .floating || sidebarShell ? .navigationBarDrawer(displayMode: .always) : .automatic
         #else
         .automatic
         #endif
+    }
+
+    #if os(macOS)
+    /// Sort and Filter for View › Sort… / Filter… (Filter disabled when unavailable).
+    private var macCommands: MacPageCommands {
+        var commands = MacPageCommands()
+        commands.sort = { sortPresented = true }
+        if canPresentFilter { commands.filter = { filterPresented = true } }
+        return commands
+    }
+    #endif
+
+    /// Sort options (a sheet on iPhone/iPad, a popover on the Mac).
+    private var sortSheet: some View {
+        SongsSortSheet(
+            mode: sortMode, ascending: sortAscending,
+            showShop: !hideShop, shopAvailable: shopOffersForCurrentSongs != nil,
+            playerModes: playerSortModesOffered
+        ) { mode, order in
+            sortMode = mode
+            sortAscending = order
+        }
     }
 
     /// Open a native Sort sheet while retaining the current instrument selection.
@@ -553,6 +595,17 @@ struct SongsScreen: View {
         } label: {
             Label("Sort", systemImage: "arrow.up.arrow.down")
         }
+        #if os(macOS)
+        .popover(isPresented: $sortPresented, arrowEdge: .bottom) {
+            // The popover is its own chrome: no modal stack, title bar or Close (which
+            // would otherwise join the window toolbar); it closes on an outside click.
+            sortSheet
+                .environment(\.festivalModalPreview, true)
+                .formStyle(.grouped)
+                .frame(width: 340, height: 470)
+        }
+        .help("Sort Songs")
+        #endif
         .accessibilityValue(
             "\(sortMode.label), \(sortAscending ? "ascending" : "descending")"
                 + (sortPausedMessage == nil ? "" : ", paused; showing Title order")
@@ -599,6 +652,9 @@ struct SongsScreen: View {
             Label("Filter", systemImage: "line.3.horizontal.decrease")
         }
         .accessibilityLabel("Filter Songs")
+        #if os(macOS)
+        .help("Filter Songs")
+        #endif
         .accessibilityValue(filterAccessibilityValue)
         .accessibilityIdentifier("fst.songs.filter")
         .tint(appliedShopFilter.isActive || appliedPlayerScoreFilter?.isActive == true
@@ -1022,7 +1078,7 @@ struct SongsScreen: View {
                 .safeAreaInset(edge: .trailing, spacing: 0) {
                     Color.clear.frame(width: showsIndex ? scrubberExtraInset : 0)
                 }
-                .refreshable { await reload() }
+                .festivalRefreshable { await reload() }
                 .quickLinks(
                     quickLinks, title: "\(effectiveMode.label) Quick Links",
                     sections: showsIndex ? [] : (groups ?? []).compactMap(\.quickLink)
@@ -1105,6 +1161,26 @@ struct SongsScreen: View {
         guard let fadeLoadedAt else { return false }
         return Date.now.timeIntervalSince(fadeLoadedAt)
             < FestivalFadeIn.completionDelay(itemCount: FestivalFadeIn.maxStaggeredItems)
+    }
+
+    /// The list settings whose change replays the load sequence (web `settingsKey`):
+    /// sort, direction, filters, instrument and the settled search.
+    private struct ReloadKey: Equatable {
+        let sortMode: SongSortMode
+        let sortAscending: Bool
+        let filterInShop: Bool
+        let filterLeavingTomorrow: Bool
+        let playerScoreFilter: Data
+        let instrument: Instrument?
+        let search: String
+    }
+
+    private var reloadKey: ReloadKey {
+        ReloadKey(
+            sortMode: sortMode, sortAscending: sortAscending, filterInShop: filterInShop,
+            filterLeavingTomorrow: filterLeavingTomorrow, playerScoreFilter: playerScoreFilterData,
+            instrument: instrument, search: settledSearch
+        )
     }
 
     /// Changes whenever the list is re-sorted or re-filtered.
@@ -1278,6 +1354,11 @@ struct SongsScreen: View {
                 .opacity(0)
         }
         .contentShape(Rectangle())
+        #if os(macOS)
+        .contextMenu {
+            MacSongRowMenu(song: song, chart: chart, hasPlayer: session.selectedPlayer != nil)
+        }
+        #endif
         // Rows arriving from a load fade in, staggered over the first screenful; rows
         // rebuilt later by scrolling appear instantly (nil index → no animation).
         .festivalFadeIn(isLoaded: true, index: fadeIndex ?? Int.max)
@@ -1599,6 +1680,7 @@ private struct RowMaskShape: Shape {
 private struct SongsListSearch: ViewModifier {
     @Binding var text: String
     let presentation: PageToolsPresentation?
+    let sidebarShell: Bool
     @Binding var barPresented: Bool
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
@@ -1619,7 +1701,9 @@ private struct SongsListSearch: ViewModifier {
                 .animation(PageToolsHandOff.animation(style), value: barPresented)
         } else {
             content.searchable(
-                text: $text, placement: SongsScreen.filterFieldPlacement(presentation: presentation),
+                text: $text, placement: SongsScreen.filterFieldPlacement(
+                    presentation: presentation, sidebarShell: sidebarShell
+                ),
                 prompt: Text("Filter Songs")
             )
         }

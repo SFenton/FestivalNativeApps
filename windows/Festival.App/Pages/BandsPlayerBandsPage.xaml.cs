@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Festival.App.Controls;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 using Festival.App.Services;
@@ -24,7 +25,9 @@ public sealed partial class BandsPlayerBandsPage : Page
     {
         base.OnNavigatedTo(e);
         ViewModel = new PlayerBandsViewModel(App.Session, (AppRoute.PlayerBands)e.Parameter);
+        ViewModel.AnimateLoadSwaps = () => Motion.Allowed;
         ViewModel.PropertyChanged += OnViewModelChanged;
+        ViewModel.LoadSwap.ContentRevealed += OnContentRevealed;
         ScreenReader.Attach(this, [ViewModel, ViewModel.Pager], () => ViewModel.IsLoading,
             () => ViewModel.ShowRows ? $"{ViewModel.Title}, {ViewModel.Pager.PageAnnouncement}" : ViewModel.ShowEmpty ? ViewModel.EmptyMessage : null,
             "Loading bands");
@@ -49,5 +52,19 @@ public sealed partial class BandsPlayerBandsPage : Page
     {
         if (e.PropertyName == nameof(PlayerBandsViewModel.Entries)) Scroller.ChangeView(null, 0, null, true);
     }
+
+    /// <inheritdoc />
+    protected override void OnNavigatedFrom(NavigationEventArgs e)
+    {
+        ViewModel.PropertyChanged -= OnViewModelChanged;
+        ViewModel.LoadSwap.ContentRevealed -= OnContentRevealed;
+        base.OnNavigatedFrom(e);
+    }
+
+    /// <summary>Replays the web card entrance after the shared load gate reveals a new page.</summary>
+    /// <param name="sender">Swap.</param>
+    /// <param name="e">Unused.</param>
+    private void OnContentRevealed(object? sender, EventArgs e) =>
+        DispatcherQueue.TryEnqueue(() => FadeIn.StaggerRealized(Cards));
 }
 #endregion

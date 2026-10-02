@@ -542,6 +542,52 @@ public sealed class SuggestionCoreTests
     [InlineData(null, PercentileTier.Default)]
     public void PercentileTierParsesLabels(string? display, PercentileTier tier) => Assert.Equal(tier, SuggestionRowPresentation.TierFor(display));
 
+    [Theory]
+    [InlineData("song_rival_spotlight_abc", false)]
+    [InlineData("song_rival_gap_abc", false)]
+    [InlineData("song_rival_protect_abc", false)]
+    [InlineData("song_rival_slipping_abc", false)]
+    [InlineData("song_rival_dominate_abc", false)]
+    [InlineData("SONG_RIVAL_SPOTLIGHT_abc", false)]
+    [InlineData("song_rival_battleground", true)]
+    [InlineData("song_rival_near_fc", true)]
+    [InlineData("song_rival_stale", true)]
+    [InlineData("song_rival_star_gains", true)]
+    [InlineData("song_rival_pct_push", true)]
+    [InlineData("lb_rival_x", true)]
+    [InlineData("near_fc_any", true)]
+    public void ShowsRivalNameOnlyOnMixedRivalCategories(string key, bool shows) =>
+        Assert.Equal(shows, SuggestionRowPresentation.ShowsRivalName(key));
+
+    [Theory]
+    [InlineData(3, "TempoTide", "3 ranks ahead of TempoTide")]
+    [InlineData(-1, "TempoTide", "1 rank behind TempoTide")]
+    [InlineData(0, "TempoTide", "Tied with TempoTide")]
+    [InlineData(2, null, "2 ranks ahead")]
+    [InlineData(-4, "", "4 ranks behind")]
+    [InlineData(0, null, "Tied")]
+    public void RivalDeltaAccessibilityLabelNamesTheRival(int delta, string? name, string expected) =>
+        Assert.Equal(expected, SuggestionRowPresentation.RivalDeltaAccessibilityLabel(delta, name));
+
+    [Fact]
+    public void SpotlightRowsShowOnlyTheDeltaButStillNameTheRivalForNarrator()
+    {
+        var song = MakeSong("a", "Title", "Band", 1999);
+        SuggestionRowPresentation Make(string key, SuggestionSongItem item) =>
+            SuggestionRowPresentation.Create(new SuggestionCategory(key, "t", "d", SuggestionCategoryType.NearFC, null, [item]), item, null, []);
+
+        var behind = Make("song_rival_spotlight_r1", new SuggestionSongItem { Song = song, Instrument = Instrument.Lead, RivalName = "TempoTide", RivalRankDelta = -1 });
+        Assert.Null(behind.RivalName);
+        Assert.Equal("-1", behind.RivalDeltaText);
+        Assert.Equal("Title, Band · 1999, Lead, 1 rank behind TempoTide", behind.AccessibleName);
+        var tied = Make("song_rival_spotlight_r1", new SuggestionSongItem { Song = song, Instrument = Instrument.Lead, RivalName = "TempoTide", RivalRankDelta = 0 });
+        Assert.Null(tied.RivalDeltaText);
+        Assert.Equal("Title, Band · 1999, Lead, rival TempoTide", tied.AccessibleName);
+        var mixed = Make("song_rival_battleground", new SuggestionSongItem { Song = song, Instrument = Instrument.Lead, RivalName = "TempoTide", RivalRankDelta = 1 });
+        Assert.Equal("TempoTide", mixed.RivalName);
+        Assert.Equal("Title, Band · 1999, Lead, rival TempoTide, ahead by 1 rank", mixed.AccessibleName);
+    }
+
     [Fact]
     public void RowPresentationCoversEachLayout()
     {
@@ -552,10 +598,13 @@ public sealed class SuggestionCoreTests
             SuggestionRowPresentation.Create(new SuggestionCategory(key, "t", "d", SuggestionCategoryType.NearFC, catInstrument, [item]), item, scores, chips);
 
         var rival = Make("song_rival_gap_r", new SuggestionSongItem { Song = song, Instrument = Instrument.Bass, RivalName = "AVeryLongRivalName", RivalRankDelta = -4 });
-        Assert.Equal("AVeryLongRi…", rival.RivalName);
+        Assert.Null(rival.RivalName);
         Assert.Equal("-4", rival.RivalDeltaText);
         Assert.Equal(-1, rival.RivalDeltaSign);
-        Assert.Contains("behind by 4 ranks", rival.AccessibleName, StringComparison.Ordinal);
+        Assert.EndsWith("4 ranks behind AVeryLongRivalName", rival.AccessibleName, StringComparison.Ordinal);
+        var mixed = Make("song_rival_battleground", new SuggestionSongItem { Song = song, Instrument = Instrument.Bass, RivalName = "AVeryLongRivalName", RivalRankDelta = -4 });
+        Assert.Equal("AVeryLongRi…", mixed.RivalName);
+        Assert.Contains("behind by 4 ranks", mixed.AccessibleName, StringComparison.Ordinal);
         Assert.Equal("+2", Make("song_rival_x", new SuggestionSongItem { Song = song, RivalRankDelta = 2, RivalName = "R" }).RivalDeltaText);
         Assert.Null(Make("song_rival_x", new SuggestionSongItem { Song = song }).RivalDeltaText);
 

@@ -1,0 +1,58 @@
+name: ios-signing-cert
+run-name: ios-signing-cert ${{ inputs.cert_type }}
+# Creates one long-lived signing certificate from a CSR with the App Store Connect API key, so hosted
+# ios-release-build runners reuse it (imported from IOS_DEV_P12_*) instead of creating and revoking a new
+# certificate every build. The CSR and certificate are public; the private key stays with whoever made
+# the CSR, who then uploads the .p12 with tools/release/store_secrets.py ios-dev-p12.
+# See .agents/workflow/release-machine.md ("Signing").
+on:
+  workflow_dispatch:
+    inputs:
+      csr_b64:
+        description: Base64 of the PEM certificate signing request
+        required: true
+        type: string
+      cert_type:
+        description: Certificate type
+        type: choice
+        options: [DEVELOPMENT]
+        default: DEVELOPMENT
+permissions:
+  contents: read
+jobs:
+  create:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    environment: store-release
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: tools/release
+      - name: Create certificate
+        shell: bash
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          CSR_B64: ${{ inputs.csr_b64 }}
+          CERT_TYPE: ${{ inputs.cert_type }}
+        run: |
+          set -euo pipefail
+          sec="$RUNNER_TEMP/fst-asc"
+          mkdir -p "$sec" "$RUNNER_TEMP/out" && chmod 700 "$sec"
+          printf '%s\n' "$ASC_PRIVATE_KEY" > "$sec/AuthKey.p8" && chmod 600 "$sec/AuthKey.p8"
+          export ASC_KEY_PATH="$sec/AuthKey.p8"
+          printf '%s' "$CSR_B64" | base64 -d > "$RUNNER_TEMP/out/request.csr"
+          python3 tools/release/fst_release.py ios create-certificate --type "$CERT_TYPE" \
+            --csr-file "$RUNNER_TEMP/out/request.csr" --out "$RUNNER_TEMP/out/certificate.cer" \
+            | tee "$RUNNER_TEMP/out/certificate.json"
+          rm -rf "$sec"
+          echo "### ios-signing-cert: \`$(cat "$RUNNER_TEMP/out/certificate.json")\`" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-signing-cert
+          path: |
+            ${{ runner.temp }}/out/certificate.cer
+            ${{ runner.temp }}/out/certificate.json
+          retention-days: 1

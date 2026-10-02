@@ -389,6 +389,21 @@ class SubmitTests(TempHome):
         patch = [b for m, p, _q, b, _h in fake.calls if (m, p) == ("PATCH", "/v1/appStoreVersions/V2")][0]
         self.assertEqual(patch["data"]["attributes"]["versionString"], "1.0.1")
 
+    def test_resubmits_the_open_submission_after_a_rejection(self):
+        queries = []
+        routes = self.routes(self.released, open_subs=[{"id": "OPEN"}])
+        inner = routes[("GET", "/v1/apps/APP1/reviewSubmissions")]
+        routes[("GET", "/v1/apps/APP1/reviewSubmissions")] = lambda q, b: (queries.append(q.get("filter[state]")), inner(q, b))[1]
+        fake, _c, result = self.run_submit(routes)
+        self.assertIn("READY_FOR_REVIEW,UNRESOLVED_ISSUES", queries)
+        self.assertEqual(result["submission_id"], "OPEN")
+
+    def test_whats_new_text_is_made_acceptable_to_asc(self):
+        fake, _c, _r = self.run_submit(self.routes(self.released, locs=[{"id": "L1"}]),
+                                       notes="• Replaced the ✕ with Close ✅ → done 🎸")
+        body = [b for m, p, _q, b, _h in fake.calls if (m, p) == ("PATCH", "/v1/appStoreVersionLocalizations/L1")][0]
+        self.assertEqual(body["data"]["attributes"]["whatsNew"], "• Replaced the × with Close check -> done")
+
     def test_reuses_open_review_submission(self):
         fake, _c, result = self.run_submit(self.routes(self.released, open_subs=[{"id": "OPEN"}]))
         self.assertNotIn(("POST", "/v1/reviewSubmissions"), fake.writes())
@@ -506,6 +521,15 @@ class BetaNotesTests(TempHome):
         self.assertEqual(body["attributes"], {"locale": "en-US", "whatsNew": "What changed"})
         self.assertEqual(body["relationships"]["build"]["data"]["id"], "B9")
 
+    def test_beta_notes_are_made_acceptable_to_asc(self):
+        fake = FakeAsc(self.routes([build_doc("B9", "57", "2610.01.01")], []))
+        fr.beta_notes(fr.AscClient(self.creds(), transport=fake), "ios", "com.example", "57",
+                      "New since 2610.02.30:\n• The small ✕ is now a Close button.")
+        body = [b for m, p, _q, b, _h in fake.calls if m == "POST"][0]
+        self.assertEqual(body["data"]["attributes"]["whatsNew"],
+                         "New since 2610.02.30:\n• The small × is now a Close button.")
+        self.assertEqual(fr.asc_text("café “quotes” — fine"), "café “quotes” — fine")
+
     def test_patches_existing_localization(self):
         locs = [{"id": "BL0", "attributes": {"locale": "fr-FR"}}, {"id": "BL1", "attributes": {"locale": "en-US"}}]
         fake = FakeAsc(self.routes([build_doc("B9", "57", "2610.01.01")], locs))
@@ -603,10 +627,11 @@ class PruneCiCertsTests(TempHome):
     def routes(self):
         return {("GET", "/v1/certificates"): {"data": [
             {"id": "C1", "attributes": {"name": "Apple Development: Created via API", "displayName": "Created via API",
-                                        "certificateType": "DEVELOPMENT"}},
+                                        "certificateType": "DEVELOPMENT", "serialNumber": "0ABC"}},
             {"id": "C2", "attributes": {"name": "Apple Development: Stephen Fenton (AB12CD34EF)",
                                         "certificateType": "DEVELOPMENT"}},
-            {"id": "C3", "attributes": {"name": "Apple Development: Created via API", "certificateType": "DEVELOPMENT"}},
+            {"id": "C3", "attributes": {"name": "Apple Development: Created via API", "certificateType": "DEVELOPMENT",
+                                        "serialNumber": "5D1"}},
             {"id": "C4", "attributes": {"name": "Apple Distribution: Created via API", "certificateType": "DISTRIBUTION"}},
         ]}, ("DELETE", "/v1/certificates/C1"): (204, None), ("DELETE", "/v1/certificates/C3"): (204, None)}
 
@@ -630,3 +655,35 @@ class PruneCiCertsTests(TempHome):
         code, doc, transport = self.run_prune("--dry-run")
         self.assertEqual((code, doc["dry_run"], doc["revoked"]), (0, True, ["C1", "C3"]))
         self.assertEqual(transport.writes(), [])
+
+
+class PersistentCertTests(TempHome):
+    def test_keep_serial_spares_the_persistent_identity(self):
+        routes = PruneCiCertsTests.routes(self)
+        transport = FakeAsc(routes)
+        out = io.StringIO()
+        with redirect_stdout(out):
+            code = fr.main(["ios", "prune-ci-certs", "--keep-serial", "serial=00:5d:1"], env=self.env(),
+                           transport=transport)
+        doc = json.loads(out.getvalue())
+        self.assertEqual((code, doc["revoked"], doc["kept"]), (0, ["C1"], ["5D1"]))
+
+    def test_create_certificate_sends_csr_body_and_writes_der(self):
+        der = b"\x30\x82\x01\x02cert"
+        transport = FakeAsc({("POST", "/v1/certificates"): (201, {"data": {"id": "NEW1", "attributes": {
+            "name": "Apple Development: Created via API", "serialNumber": "00ABCDEF", "expirationDate": "2027-10-01",
+            "certificateType": "DEVELOPMENT", "certificateContent": base64.b64encode(der).decode()}}})})
+        csr = Path(self.tmp) / "ci.csr"
+        csr.write_text("-----BEGIN CERTIFICATE REQUEST-----\nTUlJQw==\nQUJD\n-----END CERTIFICATE REQUEST-----\n",
+                       encoding="utf-8")
+        cer = Path(self.tmp) / "ci.cer"
+        out = io.StringIO()
+        with redirect_stdout(out):
+            code = fr.main(["ios", "create-certificate", "--csr-file", str(csr), "--out", str(cer)], env=self.env(),
+                           transport=transport)
+        doc = json.loads(out.getvalue())
+        self.assertEqual((code, doc["id"], doc["serial"]), (0, "NEW1", "ABCDEF"))
+        self.assertNotIn("der_base64", doc)
+        self.assertEqual(cer.read_bytes(), der)
+        body = transport.calls[0][3]
+        self.assertEqual(body["data"]["attributes"], {"certificateType": "DEVELOPMENT", "csrContent": "TUlJQw==QUJD"})

@@ -33,7 +33,8 @@ import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
-import com.festivalscoretracker.android.ui.common.rememberRevealed
+import com.festivalscoretracker.android.ui.common.loadSwapSpinnerItem
+import com.festivalscoretracker.android.ui.common.rememberLoadSwap
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.design.GlassCard
@@ -62,10 +63,14 @@ fun BandRankingsScreen(viewModel: BandRankingsViewModel, selectedAccountId: Stri
     val current by viewModel.displayed.collectAsStateWithLifecycle()
     val navigate = LocalShellActions.current.navigate
     val listState = rememberLazyListState()
-    val entries = current?.rankings?.entries.orEmpty()
-    val revealed = rememberRevealed(board !is LoadState.Loading && current != null)
+    // Band size, Rank By and page reloads fade the rows out, show the spinner and stagger
+    // the new page in, like the web's PaginatedLeaderboard (issue #71).
+    val swap = rememberLoadSwap(board, board !is LoadState.Loading, key = Triple(bandType, metric, page))
+    val shown = swap.shown
+    val shownPage = (shown as? LoadState.Loaded)?.value
+    val entries = shownPage?.rankings?.entries.orEmpty()
 
-    LaunchedEffect(current) { listState.scrollToItem(0) }
+    LaunchedEffect(swap.showsSpinner, shownPage) { listState.scrollToItem(0) }
 
     FestivalScreen(
         title = "${bandType.label} Leaderboards",
@@ -93,7 +98,6 @@ fun BandRankingsScreen(viewModel: BandRankingsViewModel, selectedAccountId: Stri
             padding = padding,
             listState = listState,
             idPrefix = "fst.band-rankings",
-            loadingOverlay = board is LoadState.Loading && current != null,
             controls = {
                 current?.let {
                     Text(
@@ -103,19 +107,23 @@ fun BandRankingsScreen(viewModel: BandRankingsViewModel, selectedAccountId: Stri
                         modifier = Modifier.testTag("fst.band-rankings.population"),
                     )
                 }
-                if (failed != null) ServiceStatusInline(failed.issue, "Band rankings unavailable", failed.countdown, viewModel::retry)
             },
             footer = {},
             pager = { RankingsPager(page, current?.rankings?.pageCount ?: 1, "fst.band-rankings", viewModel::goTo) },
         ) {
-            item(key = "rows") {
-                GlassCard(Modifier.fillMaxWidth()) {
+            if (swap.showsSpinner) {
+                loadSwapSpinnerItem(swap, "Loading band rankings", "fst.band-rankings.loading")
+            } else if (shown is LoadState.Failed) {
+                item(key = "failed") {
+                    Box(swap.contentModifier) { ServiceStatusInline(shown.issue, "Band rankings unavailable", shown.countdown, viewModel::retry) }
+                }
+            } else item(key = "rows") {
+                GlassCard(Modifier.fillMaxWidth().then(swap.contentModifier)) {
                     Column(Modifier.padding(8.dp)) {
                         when {
-                            current == null -> RankingsSkeletonRows(10)
                             entries.isEmpty() -> Text("No ranked bands yet.", color = BrandTokens.textPrimary, modifier = Modifier.padding(8.dp))
                             else -> CompositionLocalProvider(LocalRankingColumns provides rememberBandColumns(entries, metric)) { entries.forEachIndexed { index, entry ->
-                                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
+                                Box(Modifier.festivalFadeIn(swap.revealed, fadeInStagger(index))) {
                                     if (index > 0) RowSeparator(Modifier.align(Alignment.TopCenter))
                                     BandRankingRow(entry, metric, entry.includes(selectedAccountId), RankingNavigation.bandRoute(entry, bandType), navigate)
                                 }

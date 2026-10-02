@@ -235,6 +235,55 @@ class SuggestionCoreTest {
     }
 
     @Test
+    fun singleRivalCategoriesHideTheRepeatedRivalName() {
+        for (key in listOf(
+            "song_rival_spotlight_abc", "song_rival_gap_abc", "song_rival_protect_abc",
+            "song_rival_slipping_abc", "song_rival_dominate_abc", "SONG_RIVAL_SPOTLIGHT_abc",
+        )) {
+            assertFalse(key, SuggestionRowPresentation.showsRivalName(key))
+        }
+    }
+
+    @Test
+    fun mixedRivalCategoriesKeepTheRivalName() {
+        for (key in listOf(
+            "song_rival_battleground", "song_rival_near_fc", "song_rival_stale",
+            "song_rival_star_gains", "song_rival_pct_push", "lb_rival_x", "near_fc_any",
+        )) {
+            assertTrue(key, SuggestionRowPresentation.showsRivalName(key))
+        }
+    }
+
+    @Test
+    fun rivalDeltaAccessibilityLabelNamesTheRival() {
+        val l = SuggestionRowPresentation
+        assertEquals("3 ranks ahead of TempoTide", l.rivalDeltaAccessibilityLabel(3, "TempoTide"))
+        assertEquals("1 rank behind TempoTide", l.rivalDeltaAccessibilityLabel(-1, "TempoTide"))
+        assertEquals("Tied with TempoTide", l.rivalDeltaAccessibilityLabel(0, "TempoTide"))
+        assertEquals("2 ranks ahead", l.rivalDeltaAccessibilityLabel(2, null))
+        assertEquals("4 ranks behind", l.rivalDeltaAccessibilityLabel(-4, ""))
+        assertEquals("Tied", l.rivalDeltaAccessibilityLabel(0, null))
+    }
+
+    @Test
+    fun spotlightRowsShowOnlyTheDeltaButStillNameTheRivalForTalkBack() {
+        val s = song("a", title = "Alpha", artist = "Band", year = 2001)
+        fun make(key: String, item: SuggestionSongItem) =
+            SuggestionRowPresentation.create(category(key, null, listOf(item)), item, null, emptyList(), Locale.US)
+
+        val behind = make("song_rival_spotlight_r1", SuggestionSongItem(s, Instrument.Lead, rivalName = "TempoTide", rivalRankDelta = -1))
+        assertNull(behind.rivalName)
+        assertEquals("-1", behind.rivalDeltaText)
+        assertEquals("Alpha, Band · 2001, Lead, 1 rank behind TempoTide", behind.accessibleLabel)
+        val tied = make("song_rival_spotlight_r1", SuggestionSongItem(s, Instrument.Lead, rivalName = "TempoTide", rivalRankDelta = 0))
+        assertNull(tied.rivalDeltaText)
+        assertEquals("Alpha, Band · 2001, Lead, rival TempoTide", tied.accessibleLabel)
+        val mixed = make("song_rival_battleground", SuggestionSongItem(s, Instrument.Lead, rivalName = "TempoTide", rivalRankDelta = 1))
+        assertEquals("TempoTide", mixed.rivalName)
+        assertEquals("Alpha, Band · 2001, Lead, rival TempoTide, ahead by 1 rank", mixed.accessibleLabel)
+    }
+
+    @Test
     fun rowPresentationPerLayout() {
         val s = song("a", title = "Alpha", artist = "Band", year = 2001)
         val scores = mapOf("a" to mapOf(Instrument.Lead to SuggestionScore(1, stars = 6, isFullCombo = true, season = 3), Instrument.Bass to SuggestionScore(1, stars = 0, season = 7)))
@@ -243,12 +292,15 @@ class SuggestionCoreTest {
             SuggestionRowPresentation.create(category(key, instrument, listOf(item)), item, scores, chips, Locale.US)
 
         val rival = make("song_rival_gap_r", SuggestionSongItem(s, Instrument.Lead, rivalName = "AVeryLongRivalName", rivalRankDelta = -3))
-        assertEquals("AVeryLongRi…", rival.rivalName)
+        assertNull(rival.rivalName)
         assertEquals("-3", rival.rivalDeltaText)
         assertEquals(-1, rival.rivalDeltaSign)
         assertTrue(rival.rivalFromSong)
         assertFalse(make("lb_rival_x", SuggestionSongItem(s, rivalName = "LB", rivalRankDelta = 1)).rivalFromSong)
-        assertEquals("Alpha, Band · 2001, Lead, rival AVeryLongRivalName, behind by 3 ranks", rival.accessibleLabel)
+        assertEquals("Alpha, Band · 2001, Lead, 3 ranks behind AVeryLongRivalName", rival.accessibleLabel)
+        val mixed = make("song_rival_battleground", SuggestionSongItem(s, Instrument.Lead, rivalName = "AVeryLongRivalName", rivalRankDelta = -3))
+        assertEquals("AVeryLongRi…", mixed.rivalName)
+        assertEquals("Alpha, Band · 2001, Lead, rival AVeryLongRivalName, behind by 3 ranks", mixed.accessibleLabel)
         assertEquals("+4", make("song_rival_x", SuggestionSongItem(s, rivalRankDelta = 4)).rivalDeltaText)
         assertNull(make("song_rival_x", SuggestionSongItem(s)).rivalDeltaText)
 

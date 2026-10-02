@@ -15,7 +15,10 @@ namespace Festival.App.Controls;
 public static class TextScaleLayout
 {
     private static readonly ConditionalWeakTable<UniformGridLayout, object> Scaled = [];
-    private static readonly Lazy<double> Factor = new(() => new UISettings().TextScaleFactor);
+    private static readonly Lazy<double> TextScale = new(() => new UISettings().TextScaleFactor);
+
+    /// <summary>Windows text size factor (1–2.25), read once per launch like the layouts it scales.</summary>
+    public static double Factor => TextScale.Value;
 
     /// <summary>Attached flag.</summary>
     public static readonly DependencyProperty ScaleWithTextProperty = DependencyProperty.RegisterAttached(
@@ -40,7 +43,7 @@ public static class TextScaleLayout
 
     private static void Apply(ItemsRepeater repeater)
     {
-        var factor = Factor.Value;
+        var factor = Factor;
         if (repeater.Layout is not UniformGridLayout grid || factor <= 1 || Scaled.TryGetValue(grid, out _)) return;
         Scaled.Add(grid, true);
         grid.MinItemWidth *= factor;

@@ -198,17 +198,8 @@ public sealed partial class PlayerProfileView : UserControl
     /// <returns><see langword="true"/> when confirmed.</returns>
     private static async Task<bool> ConfirmAsync(XamlRoot root, string title, string message, string action)
     {
-        var dialog = new ContentDialog
-        {
-            XamlRoot = root,
-            Title = title,
-            Content = message,
-            PrimaryButtonText = action,
-            CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Close,
-            Style = (Style)Application.Current.Resources["DefaultContentDialogStyle"],
-        };
-        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        var dialog = FestivalDialog.Create(root, title, message, "fst.profile.confirm", closeText: "Cancel", primaryText: action);
+        return await FestivalDialog.ShowAsync(dialog) == ContentDialogResult.Primary;
     }
     #endregion
 }

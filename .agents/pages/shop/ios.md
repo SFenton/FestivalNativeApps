@@ -13,3 +13,4 @@
 - Structural comparison against web phone captures (390×844) only; not pixel parity.
 - Warm "publication unverified" Shop rows after connection loss predate online-only; do not extend. The strong recent-art cache tier stays ([architecture](../../platforms/apple/architecture.md)).
 - Open: full focus order, landscape, rapid-gesture races on device, Shop filters/WebSocket.
+- **Load/reload fade (issue #71):** Shop runs the shared `FestivalReloadGate` on load and on a List/Grid switch, retry or publication change: old results leave at once, the spinner fades in, holds ≥400 ms, fades out (500 ms) and the results fade/stagger in; Reduce Motion swaps instantly. See [iPhone motion](../../design/apple/iphone.md#motion).
