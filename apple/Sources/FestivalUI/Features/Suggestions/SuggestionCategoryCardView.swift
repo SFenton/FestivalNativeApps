@@ -129,13 +129,16 @@ struct SuggestionSongRowView: View {
         case .hidden:
             EmptyView()
         case .rival:
+            let showsRivalName = SuggestionRowLayout.showsRivalName(categoryKey: categoryKey)
             HStack(spacing: 8) {
-                if let rivalName = item.rivalName { rivalBadge(rivalName) }
+                if showsRivalName, let rivalName = item.rivalName { rivalBadge(rivalName) }
                 if let delta = item.rivalRankDelta, delta != 0 {
                     Text(delta > 0 ? "+\(delta)" : "\(delta)")
                         .font(.footnote.bold().monospacedDigit())
                         .foregroundStyle(delta > 0 ? BrandTokens.statusGreen : BrandTokens.statusRed)
-                        .accessibilityLabel(delta > 0 ? "\(delta) ranks ahead" : "\(-delta) ranks behind")
+                        .accessibilityLabel(SuggestionRowLayout.rivalDeltaAccessibilityLabel(
+                            delta: delta, rivalName: showsRivalName ? nil : item.rivalName
+                        ))
                 }
                 instrumentIcon
             }
