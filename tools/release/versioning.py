@@ -27,7 +27,7 @@ notes between the previously released version's tag and its own tag, so intermed
 and TestFlight builds fold into the next release. A platform's first release says ``initial_note``.
 The unreleased built version's entry also carries ``testflight: {since, new, release, vs_release}`` for
 beta builds: notes new since the previous version, and every note since the latest release. TestFlight
-"What to Test" uses the same two sections ("New since …", "In this build vs. release …").
+"What to Test" is What's New for testers: every note since the latest release, under page-category headings.
 
 Commands (JSON on stdout, standard library only, Python 3.9+)::
 
@@ -69,6 +69,26 @@ CATEGORIES = ("Songs", "Song Details", "Suggestions", "Statistics", "Compete", "
               "Item Shop", "Profile", "Notifications", "Settings", "First Run", "Navigation", "Accessibility",
               "Performance", "General")
 CATEGORY_RE = re.compile(r"^\s*([A-Za-z][A-Za-z &'-]{1,24}):\s+\S")
+#: Fallback for notes without a "Category:" prefix (older history): first rule matching the note's opening words
+#: wins, then the first rule matching anywhere. Order resolves overlaps ("Compete … leaderboard" is Compete).
+CATEGORY_RULES: Tuple[Tuple[str, "re.Pattern[str]"], ...] = tuple((c, re.compile(rx, re.IGNORECASE)) for c, rx in (
+    ("First Run", r"first[- ]run"),
+    ("Navigation", r"quick links|navigation (menu|bar)|top bar|\btabs?\b"),
+    ("Notifications", r"notification"),
+    ("Item Shop", r"item shop|\bshop\b"),
+    ("Settings", r"\bsettings\b"),
+    ("Song Details", r"\bsong pages?\b|\bsong's\b|score history|\bpaths\b"),
+    ("Compete", r"\bcompete\b"),
+    ("Rivals", r"\brivals?\b"),
+    ("Suggestions", r"suggestion"),
+    ("Bands", r"\bbands?\b"),
+    ("Leaderboards", r"leaderboard"),
+    ("Statistics", r"statistic|\bstats\b|percentile"),
+    ("Profile", r"\bprofiles?\b|player page"),
+    ("Songs", r"\bsongs\b|\bsong (list|rows?)\b"),
+    ("Accessibility", r"voiceover|talkback|narrator|accessib|large text|dynamic type|screen reader"),
+    ("Performance", r"\bcrash|\bhangs?\b|faster|performance|memory|battery"),
+))
 TITLE_PREFIX_RE = re.compile(r"^\s*\[[^\]]{1,20}\]\s*")
 TITLE_SUFFIX_RE = re.compile(r"\s*\(#\d+\)\s*$")
 TESTFLIGHT_LIMIT = 4000
@@ -437,12 +457,86 @@ def note_category(note: str) -> Optional[str]:
     return next((c for c in CATEGORIES if c.lower() == name), None)
 
 
+def infer_category(note: str) -> Optional[str]:
+    """Best-guess category for a note without a prefix (:data:`CATEGORY_RULES`), else ``None``."""
+    opening = " ".join(note.split()[:4])
+    for text in (opening, note):
+        hit = next((c for c, rx in CATEGORY_RULES if rx.search(text)), None)
+        if hit:
+            return hit
+    return None
+
+
+def category_of(note: str) -> Optional[str]:
+    """The note's explicit category prefix, else its inferred category, else ``None``."""
+    return note_category(note) or infer_category(note)
+
+
 def by_category(notes: Iterable[str]) -> List[str]:
-    """Notes grouped by category in ``CATEGORIES`` order (stable within a category); uncategorized last."""
+    """Notes grouped by category (:func:`category_of`) in ``CATEGORIES`` order, stable within a category;
+    uncategorized last."""
     order = {c: i for i, c in enumerate(CATEGORIES)}
     indexed = list(enumerate(notes))
-    return [n for _i, n in sorted(indexed, key=lambda item: (order.get(note_category(item[1]) or "", len(order)),
+    return [n for _i, n in sorted(indexed, key=lambda item: (order.get(category_of(item[1]) or "", len(order)),
                                                              item[0]))]
+
+
+def strip_category(note: str) -> str:
+    """``note`` without its known category prefix ("Songs: Rows load faster." → "Rows load faster.")."""
+    if note_category(note) is None:
+        return note
+    return note.split(":", 1)[1].strip()
+
+
+def grouped(notes: Iterable[str]) -> List[Tuple[Optional[str], List[str]]]:
+    """``(category, notes without the prefix)`` groups in ``CATEGORIES`` order; uncategorized last as ``None``."""
+    groups: Dict[Optional[str], List[str]] = {}
+    for note in by_category(notes):
+        groups.setdefault(category_of(note), []).append(strip_category(note))
+    return list(groups.items())
+
+
+def groups_json(notes: Iterable[str]) -> List[Dict[str, object]]:
+    """:func:`grouped` for ``WhatsNew.json``: ``[{"category": "Songs" | None, "items": [...]}]``."""
+    return [{"category": category, "items": items} for category, items in grouped(notes)]
+
+
+def category_bullets(notes: Iterable[str], limit: int) -> str:
+    """``notes`` as bullets under category headings (uncategorized under "Other") within ``limit`` characters.
+
+    Without any categorized note there are no headings. When the budget runs out, the last line says how many
+    notes were left out.
+    """
+    groups = grouped(notes)
+    headed = any(category for category, _items in groups)
+    lines: List[str] = []
+    for category, items in groups:
+        if headed:
+            lines += ([""] if lines else []) + [category or "Other"]
+        lines += ["• " + item for item in items]
+    if len("\n".join(lines)) <= limit:
+        return "\n".join(lines)
+    total = sum(1 for line in lines if line.startswith("• "))
+    kept: List[str] = []
+    shown = 0
+    for line in lines:
+        bullet = line.startswith("• ")
+        more = "• …and %d more." % (total - shown - (1 if bullet else 0))
+        if len("\n".join(kept + [line, more])) > limit:
+            break
+        kept.append(line)
+        shown += bullet
+    while kept and not kept[-1].startswith("• "):
+        kept.pop()  # never end on a heading or blank line
+    shown = sum(1 for line in kept if line.startswith("• "))
+    return "\n".join(kept + ["• …and %d more." % (total - shown)])[:limit]
+
+
+def _dedupe_key(note: str) -> str:
+    """Case-, quote- and whitespace-insensitive identity of a note ("“View All”" equals '"View all"')."""
+    for curly, plain in (("“", '"'), ("”", '"'), ("‘", "'"), ("’", "'")):
+        note = note.replace(curly, plain)
+    return " ".join(note.lower().split())
 
 
 def user_notes(git: Git, platform: str, base: Optional[str], head: str) -> List[str]:
@@ -461,8 +555,9 @@ def user_notes(git: Git, platform: str, base: Optional[str], head: str) -> List[
         if not notes and change.app and change.pull_request and not change.opted_out and change.subject:
             notes = [clean_title(change.subject)]
         for note in notes:
-            if note and note.lower() not in seen:
-                seen.add(note.lower())
+            key = _dedupe_key(note)
+            if note and key not in seen:
+                seen.add(key)
                 out.append(note)
     return by_category(out)
 
@@ -518,9 +613,12 @@ def whats_new(git: Git, platform: str, version: str, released: Iterable[str]) ->
         items = user_notes(git, platform, tags[older[-1]], tags[item]) if older else [initial]
         if not items:
             continue  # nothing user-facing: no What's New section (and no store update, see store_notes)
-        entry: Dict[str, object] = {"version": item, "released": item in shipped, "items": items}
+        entry: Dict[str, object] = {"version": item, "released": item in shipped, "items": items,
+                                    "groups": groups_json(items)}
         if item == version and item not in shipped:
-            entry["testflight"] = tester_notes(git, platform, version, shipped)
+            tester = tester_notes(git, platform, version, shipped)
+            tester["groups"] = groups_json(tester["vs_release"])  # type: ignore[arg-type]
+            entry["testflight"] = tester
         entries.append(entry)
     entries.reverse()
     older_than = [v for v in shipped if parse_version(v) < key]
@@ -604,20 +702,21 @@ def testflight_notes(git: Git, platform: str, version: str, build: str,
                      rebuild_reason: Optional[str] = None, released: Iterable[str] = ()) -> str:
     """TestFlight "What to Test" for one build (platform-specific, at most 4000 characters).
 
-    Two sections of user-facing notes (``Release-Note`` trailers, never PR titles): what is new since the
-    previous version, and everything in this build that differs from the store's latest release (all notes
-    before the first release). See :func:`tester_notes`.
+    What's New for testers: every user-facing note (``Release-Note`` trailers or PR titles, never commit
+    subjects) in this build that the store's latest release doesn't have, grouped under page-category headings
+    in web changelog order (:func:`category_bullets`). Before the first release it lists everything so far. A
+    rebuild adds one line saying only the build number changed. See :func:`tester_notes`.
     """
     display = str(PLATFORMS[platform]["display"])
     notes = tester_notes(git, platform, version, released, rebuild_reason)
-    first, second = tester_headings(notes)
+    release = notes.get("release")
+    heading = ("Changes since release %s:" % release) if release else "Changes so far (no release yet):"
     text = "Festival Score Tracker %s %s (build %s)" % (display, version, build)
-    if first:
-        text += "\n\n%s:\n%s" % (first, bullets(notes["new"], TESTFLIGHT_LIMIT // 2))  # type: ignore[arg-type]
-    budget = TESTFLIGHT_LIMIT - len(text) - len(second) - 4
-    if budget > 20:
-        text += "\n\n%s:\n%s" % (second, bullets(notes["vs_release"], budget))  # type: ignore[arg-type]
-    return text[:TESTFLIGHT_LIMIT]
+    if rebuild_reason:
+        text += "\n" + str(notes["new"][0])  # type: ignore[index]
+    text += "\n\n" + heading + "\n"
+    budget = TESTFLIGHT_LIMIT - len(text)
+    return (text + category_bullets(notes["vs_release"], budget))[:TESTFLIGHT_LIMIT]  # type: ignore[arg-type]
 
 
 def notes_check(git: Git, base: str, head: str, body: str = "") -> Dict[str, object]:
