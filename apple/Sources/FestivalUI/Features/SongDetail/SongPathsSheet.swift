@@ -20,8 +20,6 @@ struct SongPathsSheet: View {
     @State private var zoom: CGFloat = 1
     @State private var pinchOrigin: CGFloat = 1
     @State private var warningPresented = false
-    /// The instrument accordion above the bottom row (web mobile `instOpen`).
-    @State private var instrumentPanelOpen = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let song: Song
@@ -146,85 +144,114 @@ struct SongPathsSheet: View {
         return false
     }
 
-    /// The web's mobile controls: an instrument accordion (the shared
-    /// `InstrumentSelector`, required, Karaoke hidden) above one compact row of an
-    /// instrument icon toggle, the difficulty menu and the view menu.
+    /// One compact bottom row of native pop-up menus: instrument, difficulty and view
+    /// (issue #88: the instrument is a native menu like the other two, not the web's
+    /// mobile accordion; pop-up-buttons › "a flat list of mutually exclusive options").
     private var selectorRow: some View {
-        VStack(spacing: 10) {
-            if instrumentPanelOpen {
-                InstrumentSelector(
-                    instruments: instruments,
-                    selected: Binding(get: { instrument }, set: { choice in
-                        guard let choice else { return }
-                        // Web: tapping the current instrument closes the accordion.
-                        if choice == instrument { instrumentPanelOpen = false } else { instrument = choice }
-                    }),
-                    hidden: [.karaoke], required: true, keyboardIcon: song.usesKeyboardIcon,
-                    labels: ("Previous Path Instrument", "Next Path Instrument"),
-                    identifier: "fst.paths.instrument-selector"
-                )
-                .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
-            }
-            controlsRow
-        }
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: instrumentPanelOpen)
-    }
-
-    private var controlsRow: some View {
         selectorLayout {
-            Button {
-                instrumentPanelOpen.toggle()
-            } label: {
+            selectorMenu("Instrument", selection: $instrument, value: instrument.label) {
+                ForEach(instruments) { choice in
+                    Label {
+                        Text(choice.label)
+                    } icon: {
+                        InstrumentIcon.menuImage(for: choice, keyboard: usesKeyboardIcon(choice))
+                    }
+                    .tag(choice)
+                }
+            } current: {
+                // Every option has an icon (menus › "icons for all or none"). The name
+                // always stays (it must keep scaling with Dynamic Type) and long names
+                // such as "Pro Drums + Cymbals" wrap to a second line.
                 HStack(spacing: 6) {
                     InstrumentIcon(
-                        instrument, keyboard: song.usesKeyboardIcon && (instrument == .lead || instrument == .proLead),
-                        size: 28
+                        instrument, keyboard: usesKeyboardIcon(instrument), size: InstrumentIcon.menuIconSide
                     )
-                    .accessibilityHidden(true)
-                    Image(systemName: "chevron.down")
-                        .font(.footnote.weight(.semibold))
-                        .rotationEffect(.degrees(instrumentPanelOpen ? 0 : 180))
-                        .foregroundStyle(FestivalText.primary)
-                        .accessibilityHidden(true)
+                    Text(instrument.label)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
                 }
-                .frame(minWidth: 72, minHeight: 44)
-                .festivalGlassCapsule(.control, interactive: true)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Instrument, \(instrument.label)")
-            .accessibilityHint(instrumentPanelOpen ? "Hides the instrument choices" : "Shows the instrument choices")
             .accessibilityIdentifier("fst.paths.instrument")
-            selectorMenu {
-                Picker("Difficulty", selection: $difficulty) {
-                    ForEach(PathDifficulty.allCases) { choice in
-                        Text(choice.label).tag(choice)
-                    }
+            selectorMenu("Difficulty", selection: $difficulty, value: difficulty.label) {
+                ForEach(PathDifficulty.allCases) { choice in
+                    Text(choice.label).tag(choice)
                 }
+            } current: {
+                Text(difficulty.label)
             }
             .accessibilityIdentifier("fst.paths.difficulty")
-            selectorMenu {
-                Picker("View", selection: $display) {
-                    ForEach(PathDisplayMode.allCases) { choice in
-                        Text(choice.label).tag(choice)
-                    }
+            selectorMenu("View", selection: $display, value: display.label) {
+                ForEach(PathDisplayMode.allCases) { choice in
+                    Text(choice.label).tag(choice)
                 }
+            } current: {
+                Text(display.label)
             }
             .accessibilityIdentifier("fst.paths.display")
         }
         .frame(maxWidth: .infinity)
     }
 
-    /// Menu-style picker on a compact glass capsule.
+    /// Whether this chart shows the keys artwork (Lead/Pro Lead on a keyboard song).
     ///
-    /// - Parameter picker: The picker to present as a menu.
-    /// - Returns: Capsule-backed menu picker at least 44pt tall.
-    private func selectorMenu<P: View>(@ViewBuilder _ picker: () -> P) -> some View {
-        picker()
+    /// - Parameter choice: Path instrument.
+    /// - Returns: True for Lead or Pro Lead when the song uses the keyboard icon.
+    private func usesKeyboardIcon(_ choice: Instrument) -> Bool {
+        song.usesKeyboardIcon && (choice == .lead || choice == .proLead)
+    }
+
+    /// A native pop-up menu of mutually exclusive options on a compact glass capsule.
+    ///
+    /// iOS/iPadOS: a `Menu` holding an inline `Picker` (the system menu with a checkmark
+    /// on the current option) whose label shows the current value; the 44 pt frame sits
+    /// inside the label because a frame outside a `Menu` doesn't grow its tap area
+    /// (accessibility › iOS, iPadOS 44×44 pt). macOS: the system pop-up button.
+    ///
+    /// - Parameters:
+    ///   - title: Control name VoiceOver reads before the value.
+    ///   - selection: The chosen option.
+    ///   - value: Current option's name, read as the accessibility value.
+    ///   - options: Tagged option rows.
+    ///   - current: The collapsed control's view of the current option (iOS/iPadOS).
+    /// - Returns: The menu control.
+    @ViewBuilder
+    private func selectorMenu<Value: Hashable, Options: View, Current: View>(
+        _ title: String, selection: Binding<Value>, value: String,
+        @ViewBuilder options: () -> Options, @ViewBuilder current: () -> Current
+    ) -> some View {
+        #if os(macOS)
+        Picker(title, selection: selection, content: options)
             .pickerStyle(.menu)
             .tint(FestivalText.primary)
             .font(.body)
             .frame(maxWidth: .infinity, minHeight: 44)
             .festivalGlassCapsule(.control, interactive: true)
+        #else
+        Menu {
+            Picker(title, selection: selection, content: options)
+                .pickerStyle(.inline)
+                .labelsHidden()
+        } label: {
+            HStack(spacing: 6) {
+                current()
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.footnote.weight(.semibold))
+                    .accessibilityHidden(true)
+            }
+            .font(.body)
+            .lineLimit(1)
+            .foregroundStyle(FestivalText.primary)
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .contentShape(Capsule())
+            .festivalGlassCapsule(.control, interactive: true)
+        }
+        // Keep options in source order when the menu opens upward from the bottom row.
+        .menuOrder(.fixed)
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityValue(value)
+        #endif
     }
 
     /// The spinner and the current image, table or error, each fading in and out on its

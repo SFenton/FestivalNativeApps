@@ -326,7 +326,6 @@
     "fst.star-rating.*": "star-rating",
     "fst.instrument-selector.*": "instrument-selector",
     "fst.song-detail.history.instrument.*": "instrument-selector",
-    "fst.paths.instrument-selector.*": "chopt-paths",
     "fst.suggestions.filter.instrument-picker.*": "suggestions",
     "fst.song-detail.history": "song-detail",
     "fst.song-detail.history.*": "song-detail",

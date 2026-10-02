@@ -86,29 +86,17 @@ final class SongDetailJourneyTests: XCTestCase {
         XCTAssertTrue(app.buttons["Retry"].exists)
         choose("Expert", in: difficulty, app: app)
         XCTAssertTrue(summary.waitForExistence(timeout: 15))
-        let instrument = app.descendants(matching: .any).matching(
-            identifier: "fst.paths.instrument"
-        ).firstMatch
+        // The instrument is a native menu picker like Difficulty and View (issue #88).
+        let instrument = pathsMenu("fst.paths.instrument", in: app)
         XCTAssertTrue(instrument.exists)
-        // The instrument toggle opens the shared InstrumentSelector accordion (web
-        // mobile Paths); it may be in compact mode, so pick by cycling if needed.
-        instrument.tap()
-        let bass = app.buttons["fst.paths.instrument-selector.Solo_Bass"]
-        if bass.waitForExistence(timeout: 5) {
-            bass.tap()
-        } else {
-            let next = app.buttons["fst.paths.instrument-selector.next"]
-            XCTAssertTrue(next.waitForExistence(timeout: 5))
-            next.tap()
-        }
+        XCTAssertEqual(instrument.label, "Instrument")
+        XCTAssertTrue(menuShows("Lead", instrument), "Instrument: \(String(describing: instrument.value))")
+        XCTAssertGreaterThanOrEqual(instrument.frame.height, 44)
+        choose("Bass", in: instrument, app: app)
         XCTAssertTrue(app.staticTexts["Path unavailable"].waitForExistence(timeout: 10))
         XCTAssertFalse(summary.exists, "Lead content remained visible for a missing Bass path")
-        let lead = app.buttons["fst.paths.instrument-selector.Solo_Guitar"]
-        if lead.exists {
-            lead.tap()
-        } else {
-            app.buttons["fst.paths.instrument-selector.previous"].tap()
-        }
+        XCTAssertTrue(menuShows("Bass", instrument), "Instrument: \(String(describing: instrument.value))")
+        choose("Lead", in: instrument, app: app)
         XCTAssertTrue(summary.waitForExistence(timeout: 15))
         app.buttons["fst.paths.close"].tap()
         XCTAssertTrue(open.waitForExistence(timeout: 10))

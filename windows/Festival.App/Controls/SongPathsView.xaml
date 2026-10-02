@@ -3,7 +3,8 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Festival.App.Controls"
-    xmlns:data="using:Festival.Core.Data">
+    xmlns:data="using:Festival.Core.Data"
+    xmlns:vm="using:Festival.Core.ViewModels">
 
     <Grid x:Name="Root" RowSpacing="12" SizeChanged="OnRootSizeChanged" AutomationProperties.AutomationId="fst.song-detail.paths-dialog">
         <Grid.RowDefinitions>
@@ -30,36 +31,36 @@
             </controls:FlowPanel>
         </StackPanel>
 
-        <!-- Selectors (compact): the chart fills the sheet; like the web, an instrument button opens the selector above
-             one bottom row shared with the difficulty and display pickers. -->
-        <StackPanel x:Name="CompactSelectors" Grid.Row="2" Spacing="8" Visibility="Collapsed">
-            <controls:InstrumentSelector x:Name="CompactInstrumentPicker" Required="True" IdPrefix="fst.paths.instrument.compact-picker"
-                                         SelectionChanged="OnInstrumentPicked" Visibility="Collapsed"
-                                         AutomationProperties.Name="Instrument" />
-            <Grid ColumnSpacing="8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <ToggleButton x:Name="InstrumentToggle" MinHeight="36" Padding="10,4" Checked="OnInstrumentToggle" Unchecked="OnInstrumentToggle"
-                              AutomationProperties.Name="{x:Bind ViewModel.InstrumentButtonName, Mode=OneWay}"
-                              AutomationProperties.AutomationId="fst.paths.instrument.compact">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <controls:InstrumentIcon x:Name="InstrumentToggleIcon" Width="28" Height="28" AutomationProperties.AccessibilityView="Raw" />
-                        <FontIcon x:Name="InstrumentChevron" Glyph="&#xE70E;" FontSize="12" VerticalAlignment="Center" />
-                    </StackPanel>
-                </ToggleButton>
-                <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{x:Bind ViewModel.DifficultyLabels}"
-                          SelectedIndex="{x:Bind ViewModel.DifficultyIndex, Mode=TwoWay}"
-                          AutomationProperties.Name="Difficulty" AutomationProperties.AutomationId="fst.paths.difficulty.compact" />
-                <ComboBox Grid.Column="2" MinWidth="96" SelectedIndex="{x:Bind ViewModel.DisplayIndex, Mode=TwoWay}"
-                          AutomationProperties.Name="Display" AutomationProperties.AutomationId="fst.paths.display.compact">
-                    <x:String>Image</x:String>
-                    <x:String>Text</x:String>
-                </ComboBox>
-            </Grid>
-        </StackPanel>
+        <!-- Selectors (compact): the chart fills the sheet above one bottom row of native ComboBoxes for the instrument
+             (icon + name), difficulty and display (Fluent; replaces the web's mobile instrument accordion, issue #88). -->
+        <Grid x:Name="CompactSelectors" Grid.Row="2" ColumnSpacing="8" Visibility="Collapsed">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <ComboBox x:Name="CompactInstrumentPicker" MinWidth="120" MaxWidth="200" ItemsSource="{x:Bind ViewModel.InstrumentOptions}"
+                      SelectedIndex="{x:Bind ViewModel.InstrumentIndex, Mode=TwoWay}"
+                      AutomationProperties.Name="Instrument" AutomationProperties.AutomationId="fst.paths.instrument.compact">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:PathInstrumentOption">
+                        <StackPanel Orientation="Horizontal" Spacing="8" AutomationProperties.Name="{x:Bind Label}">
+                            <controls:InstrumentIcon File="{x:Bind IconFile}" Width="24" Height="24" VerticalAlignment="Center"
+                                                     AutomationProperties.AccessibilityView="Raw" />
+                            <TextBlock Text="{x:Bind Label}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+            <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ItemsSource="{x:Bind ViewModel.DifficultyLabels}"
+                      SelectedIndex="{x:Bind ViewModel.DifficultyIndex, Mode=TwoWay}"
+                      AutomationProperties.Name="Difficulty" AutomationProperties.AutomationId="fst.paths.difficulty.compact" />
+            <ComboBox Grid.Column="2" MinWidth="96" VerticalAlignment="Stretch" SelectedIndex="{x:Bind ViewModel.DisplayIndex, Mode=TwoWay}"
+                      AutomationProperties.Name="Display" AutomationProperties.AutomationId="fst.paths.display.compact">
+                <x:String>Image</x:String>
+                <x:String>Text</x:String>
+            </ComboBox>
+        </Grid>
 
         <Grid x:Name="ChartArea" Grid.Row="1" MinHeight="240">
             <!-- Web PathsModal swap: content fades out, the spinner fades in/holds/fades out, the new content fades in
