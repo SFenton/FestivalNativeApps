@@ -47,7 +47,8 @@
 - never call it from automated tests, evidence runs or probes; use a loopback stub or `FakeTransport`/fake handlers;
 - send no `X-API-Key` and no selected-profile headers, only the documented form fields (diagnostics: app version, OS version and device model, nothing that identifies the person);
 - respect 429 `Retry-After` and 503 `feedback_busy`; never retry automatically;
-- show only fixed client copy, never the server's `error` text.
+- show only fixed client copy, never the server's `error` text;
+- gate the method and path in code: Apple's `FestivalAPI.validateFeedbackRequest` allows only a keyless POST to exactly `/api/feedback`, and the shared read-only `send` gate still refuses every other non-GET.
 
 ## Public-read freeze
 

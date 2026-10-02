@@ -1,8 +1,8 @@
 # In-app feedback form (`fst.settings.feedback.*`): spec
 
-> **What:** platform-neutral behavior of Settings → App Settings → **Report an Issue** / **Request a Feature**: fields, attachments, availability gate, submission, filing poll and dismissal (issue #78). **Read when:** changing the feedback rows, form or service calls on any platform. Platform notes: [android.md](android.md), [windows.md](windows.md). Wire safety: [service-safety](../../platforms/service-safety.md#user-initiated-feedback-post).
+> **What:** platform-neutral behavior of Settings → App Settings → **Report an Issue** / **Request a Feature**: fields, attachments, availability gate, submission, filing poll and dismissal (issue #78). **Read when:** changing the feedback rows, form or service calls on any platform. Platform notes: [ios.md](ios.md), [ipados.md](ipados.md), [duo.md](duo.md), [macos.md](macos.md), [android.md](android.md), [windows.md](windows.md). Wire safety: [service-safety](../../platforms/service-safety.md#user-initiated-feedback-post).
 
-Source: the service contract `docs/components/in-app-feedback.md` and `FSTService/Api/FeedbackEndpoints.cs` in the service repo (branch `report/78-service` when written). There is no web form yet, so this spec is the reference until one ships.
+Source: the service contract `docs/components/in-app-feedback.md` and `FSTService/Api/FeedbackEndpoints.cs` in the service repo (branch `report/78-service` when written). The pinned web revision has no form yet (contract anchor: App Settings, `FortniteFestivalWeb/src/pages/settings/SettingsPage.tsx:516`); the in-progress web form is `FortniteFestivalWeb/src/pages/settings/feedback/FeedbackModal.tsx` on `report/78-web`. The service document wins on any difference.
 
 ## Service contract (summary)
 
@@ -18,8 +18,8 @@ The service transcodes oversized media, labels the issue with the platform and f
 ## Client contract (all platforms)
 
 - **Entry:** two App Settings rows, *Report an Issue* and *Request a Feature*, hidden unless the features flag is on. Each opens one modal form; only one form or sheet at a time.
-- **Fields:** Title is pre-filled with `[Bug] ` / `[Feature] ` and must keep the prefix with text after it. Description is required. The bug form adds **Steps to Reproduce** and **Expected Behavior** (optional). Every field has a visible label and a visible helper line, not placeholder-only text: placeholders vanish while typing, which HIG, Material and Fluent all discourage for guidance.
-- **Attach Media:** system pickers only (a photo/video picker and a file picker where the platform has both). Images and videos only; at most 4 files and less than 90 MB in total; rejected picks show one combined notice. Attachments render as thumbnails above the button, each with a labelled remove action; activating a thumbnail opens it in the system viewer. No in-app player.
+- **Fields:** Title is pre-filled with `[Bug] ` / `[Feature] ` and must keep the prefix with text after it (Apple restores a deleted or mangled prefix in front of the remaining text). Lengths are counted in UTF-16 units, as the service counts. Description is required. The bug form adds **Steps to Reproduce** and **Expected Behavior** (optional). Every field has a visible label and a visible helper line, not placeholder-only text: placeholders vanish while typing, which HIG, Material and Fluent all discourage for guidance.
+- **Attach Media:** system pickers only (a photo/video picker and a file picker where the platform has both). Images and videos only; at most 4 files and less than 90 MB in total; rejected picks show one combined notice. Attachments render as thumbnails above the button, each with a labelled remove action; activating a thumbnail opens it in the system viewer. No in-app player. Apps that copy picked media keep private copies and delete them when the form closes; Apple also strips location metadata from its copies because the issue is public.
 - **Dismissal:** closing a form with any input beyond the prefix asks *Discard?* first. Closing while the request is being filed does not ask: the service already accepted it.
 - **Submit:** disabled while invalid; shows *Sending your report/request…* while uploading, then *Filing your report/request on GitHub…* while polling every 2 s for at most 5 minutes.
 - **Outcome copy is fixed client text, never server text:**
@@ -27,7 +27,7 @@ The service transcodes oversized media, labels the issue with the platform and f
   - unknown outcome (no ID, poll error, expired job or timeout): *Thanks! Your report was received and will be filed on GitHub shortly.*, so people don't send duplicates;
   - failed filing: back to the form with input kept and a retry message;
   - HTTP errors: mapped from the service `code` (or the status), with `Retry-After` shown as "Try again in N minutes".
-- **Never** send `X-API-Key` or selected-profile headers. Automation posts only to fixtures.
+- **Never** send `X-API-Key` or selected-profile headers. Automation posts only to fixtures. `tools/mock_service.py` reports `feedback: true`, answers 202 with a job that is `submitted` as issue #1, `503 feedback_busy` when the title contains `fixture-unavailable` and a job that `failed` when it contains `fixture-failed`.
 
 ## States
 
