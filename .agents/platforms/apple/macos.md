@@ -43,3 +43,9 @@ CPU is the process's `ps -o time` delta over 20 s (one core = 100%), with the wi
 - Before this change nothing paused for a hidden window: on macOS `scenePhase` stays `.active` for a visible-or-hidden window of a background app. Every continuous decoration now uses `AnimationActivity.sceneActive` (scene active and `\.festivalWindowVisible`, set from `NSWindow.occlusionState` by `MacWindowConfigurator`).
 - The remaining Songs cost is per-row: each visible Shop row runs its own 30 fps `TimelineView` pulse and long titles run marquees. A shared pulse clock would be the next saving.
 - **Songs scroll stress** (`FST_DEBUG_SONGS_SCROLL_STRESS=1 FST_DEBUG_STALL_LOG=<path>`; the Mac app now starts `MainThreadStallMonitor`): 6 rounds of animated section jumps in ~35 s logged 51 main-thread units ≥ 100 ms, worst **423 ms**, longest awake span 447 ms (Debug). Far jumps place unbuilt `List` rows from estimates; manual trackpad scrolling cannot be driven without Automation Mode.
+
+## Release build (2026-10-02)
+
+- `python3 tools/mac_app.py build --configuration Release` (1 min 50 s clean on this Mac) produces a universal (arm64 + x86_64) `FestivalDesktop.app` of 61 MB, **ad-hoc signed** (`Signature=adhoc`, no team; project `CODE_SIGN_IDENTITY: "-"`). Distribution signing and notarization need separate approval.
+- `launch --configuration Release` showed the window in 1.3–1.7 s over three launches (tool-measured, includes its 0.25 s poll). Release ignores the `FST_DEBUG_*` environment and the Debug notifications, so it opens with the persisted profile and its own first-run state (the Song Info carousel on first launch) and `quit` falls back to SIGTERM.
+- Release with the first-run sheet over Songs: 42% CPU, 347 MB RSS.

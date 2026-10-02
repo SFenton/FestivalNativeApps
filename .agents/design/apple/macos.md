@@ -61,11 +61,11 @@ Basis: menus › "Make sure a submenu remains available even when its items are 
 | Leaderboards / Compete | Two card columns (Compete: Leaderboards beside Rivals) from 720 pt | Done |
 | Full / Band Rankings + pager | Full Rankings: two columns, top-ranked player auto-selected; Band Rankings one column with the floating pager | Done |
 | Statistics / Player Profile / Player Bands | Two instrument columns, top-aligned | Done |
-| Rivals, All Rivals, Rival Detail, Rivalry | Two columns from the Rivals list; Find Rival has its own symbol | Rival Detail captured in its service-freeze state; Rivalry still uncaptured (needs a live rival id) |
+| Rivals, All Rivals, Rival Detail, Rivalry | Two columns from the Rivals list; Find Rival has its own symbol | Rival Detail and Rivalry (live rival GingerNINZIN_JPN from SFentonX's `/rivals/Solo_Guitar`, `closest_battles`) captured only in the `post-process` service-freeze state: the rival-detail read 503s while the service publishes |
 | Suggestions, Item Shop | One centred column ≤ 1400 pt; Shop 4-column art grid ≤ 2170 pt | Done |
 | Notifications, Search, Profile, What's New, first-run | Window sheets with Mac default sizes | Done (Notifications recaptured) |
 | Settings, Licenses | Settings window of six panes; Licenses inside About and from Help | Done |
-| Bands (`/bands`), Player Bands | Bands rows as Mac rows (were bordered push buttons); Player Bands pager pinned below the list (floated mid-list on every platform) | Captured; Band Detail uncaptured (needs a band id) |
+| Bands (`/bands`), Player Bands | Bands rows as Mac rows (were bordered push buttons); Player Bands pager pinned below the list (floated mid-list on every platform) | Captured. Band Detail captured live (reached by arrow keys from a Leaderboards band card, so it carries `bandType`/`teamKey`): Summary beside Statistics at regular column width |
 
 Evidence: hosted `MacShellHostedTests` (sidebar states, footer Deselect, minimum size, list/detail auto-select/narrow/collapse), `MacPagesHostedTests` (column width class, Leaderboards two columns, Full Rankings auto-selects rank 1, remembered divider width) and `MacSettingsPanesTests` (each pane's identifiers, pop-up choice); unit `MacNavigationTests`, `MacCopyTests`, `SongRowLayoutPolicyTests`; live window shots in `~/FestivalShowcase/native-mac/` (never committed).
 
@@ -73,6 +73,7 @@ Evidence: hosted `MacShellHostedTests` (sidebar states, footer Deselect, minimum
 
 - Inside the window's `NavigationSplitView`, a page pushed in a **nested** `NavigationStack` (the split's columns) is presented over both columns (list column) or not at all (detail column). Each split column therefore draws its top route as its root and turns pushes into path writes (`MacListDetailStack.pushes(after:)`); only the one-column arrangement uses real pushes. An `HSplitView` also lost its divider position when a pushed list page split after first layout (detail at zero width), so the columns are an `HStack`; a draggable divider is open.
 - Toolbar items attached outside a `NavigationStack` disappear once a page is pushed: the global group is added to every page of the primary column (`MacGlobalToolbar`).
+- An environment value published **around** a column's `NavigationStack` (`publishesDeviceLayout`) did not reach its pushed destinations: every pushed Mac page read the default zero-width compact `DeviceLayout` (Band Detail and Player Profile stayed one column). `MacStack` reads the column layout (`MacColumnLayoutReader`) and sets it on each destination. Values set higher up (the window root) do reach them.
 - A lazy list's first `onAppear` is not its first row (Full Rankings auto-selected #6), hence topmost-by-geometry.
 - An `.accessibilityIdentifier` on a non-element container replaces every child element's identifier: the split `HStack` hid all row and divider IDs until it became `.accessibilityElement(children: .contain)`. The iPad `ListDetailStack` (`fst.nav.list-detail` on the `NavigationSplitView`) has the same pattern.
 - A view with an `.accessibilityAdjustableAction` on a `Divider` exposes `AXUnknown` with no value; `.accessibilityRepresentation { Slider }` gives a real `AXSlider`.
@@ -82,6 +83,7 @@ Evidence: hosted `MacShellHostedTests` (sidebar states, footer Deselect, minimum
 ## Open gaps
 
 - Arrow keys were verified through `NSWindow.sendEvent` in hosted tests and in the live app (`mac_app.py command key:…`) with the window **inactive** (the tools never activate the app), so live shots show the gray, unfocused selection; the accent focused state, Tab order and the menu items' enabled states in a key window still need an operator check (Full Keyboard Access and Automation Mode are system settings agents must not change).
+- First-run copy comes from the web catalogue ("Tap …", "bottom tabs"); the Mac carousel rewrites it to "Click …" and "the sidebar" (`FirstRunCopy.mac`, writing › "describe gestures correctly"). "the action button" (Paths slide) still names the iPhone control.
 - Song Detail, Player Profile and Suggestions use the full column width (no readable-width cap); Song Detail's instrument cards should follow the web's two-column card grid at regular width.
 - Player Bands rows are opaque edge-to-edge list rows on the Mac (iPhone design), not glass cards.
 - Rivalry and Band Detail are not captured on the Mac (need live ids); the CHOpt path image shows mojibake in artist names (service-rendered PNG, not native text).
