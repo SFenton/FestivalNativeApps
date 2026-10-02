@@ -32,9 +32,11 @@ struct LeaderboardsScreen: View {
     @State private var quickLinks = QuickLinksController()
     /// `reloadKey` whose cards finished loading; a reappearance with the same key keeps them.
     @State private var loadedKey: String?
-    /// The first read of every card settled: until then only a spinner shows, then the
-    /// cards fade in with the web stagger (operator batch 6.41).
-    @State private var firstLoadDone = false
+    /// `reloadKey` whose read of every card settled (loaded or failed). Until it matches,
+    /// only a spinner shows; then the cards fade in with the web stagger (operator batch
+    /// 6.41). A Rank By, instrument or player change fades the cards out and back in
+    /// (issue #71); pull to refresh leaves this alone so the cards stay up.
+    @State private var settledKey: String?
 
     /// Create the screen.
     ///
@@ -110,7 +112,7 @@ struct LeaderboardsScreen: View {
     /// use 2-column grids"). Compact windows (iPhone, Duo folded) keep the single
     /// column unchanged.
     private var regularWidthColumns: [GridItem] {
-        [GridItem(.flexible(), spacing: 20), GridItem(.flexible(), spacing: 20)]
+        [GridItem(.flexible(), spacing: 20, alignment: .top), GridItem(.flexible(), spacing: 20, alignment: .top)]
     }
 
     @ViewBuilder
@@ -126,14 +128,11 @@ struct LeaderboardsScreen: View {
     }
 
     var body: some View {
-        Group {
-            if firstLoadDone {
-                loadedScroll
-            } else {
-                FestivalLoadingView(accessibilityLabel: "Loading Leaderboards")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .accessibilityIdentifier("fst.leaderboards.loading")
-            }
+        FestivalReloadGate(
+            key: reloadKey, isLoading: settledKey != reloadKey,
+            spinnerLabel: "Loading Leaderboards", spinnerIdentifier: "fst.leaderboards.loading"
+        ) {
+            loadedScroll
         }
         .festivalBackground(.carousel, session: session)
         .navigationTitle("Leaderboards")
@@ -150,11 +149,14 @@ struct LeaderboardsScreen: View {
             // then reset all cards and re-rendered the page and its toolbar for ~0.5 s,
             // which the iPhone Duo rail showed as jitter (Lane W1). Pull to refresh still
             // reloads.
-            guard loadedKey != reloadKey else { return }
+            guard loadedKey != reloadKey else {
+                settledKey = reloadKey
+                return
+            }
             let key = reloadKey
             await loadAll()
             guard !Task.isCancelled else { return }
-            firstLoadDone = true
+            settledKey = key
             if allCardsLoaded { loadedKey = key }
         }
     }
@@ -176,7 +178,7 @@ struct LeaderboardsScreen: View {
             .festivalFadeInScope()
         }
         .quickLinks(quickLinks, title: "Leaderboards Quick Links", sections: quickLinkSections)
-        .refreshable { await loadAll() }
+        .festivalRefreshable { await loadAll() }
     }
 
     // MARK: Instrument cards
@@ -230,6 +232,7 @@ struct LeaderboardsScreen: View {
         // `AccountRankingRow`'s `fst.rankings.row.<accountId>` never reaches the
         // accessibility tree. `.contain` keeps each child its own element while
         // still letting the card itself carry an identifier.
+        .leaderboardSectionColumns(instrumentColumns(instrument))
         .festivalFadeIn(isLoaded: true, index: fadeIndex)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.leaderboards.card.\(instrument.rawValue)")
@@ -272,6 +275,42 @@ struct LeaderboardsScreen: View {
         return selected.caseInsensitiveCompare(accountId) == .orderedSame
     }
 
+    /// Where the selected player's own row goes on one instrument card.
+    ///
+    /// - Parameters:
+    ///   - instrument: Card's instrument.
+    ///   - entries: This card's currently loaded top-ten rows.
+    /// - Returns: The spotlight placement, or nil without a selected player.
+    private func spotlightPlacement(
+        instrument: Instrument, entries: [AccountRankingEntry]
+    ) -> RankingSpotlightPlacement? {
+        guard let accountId = session.selectedPlayer?.accountId else { return nil }
+        let source: RankingSpotlightSource = {
+            switch spotlightStates[instrument] {
+            case .none, .loading: return .notLoaded
+            case let .loaded(payload): return payload.ranking.map { .available($0.entry) } ?? .unranked
+            case .failed: return .notLoaded
+            }
+        }()
+        return RankingSpotlight.placement(
+            selectedAccountId: accountId, visibleEntries: entries, source: source
+        )
+    }
+
+    /// One rank and rating width for an instrument card's top ten and its spotlight
+    /// footer row (web `RankingCard`'s card-wide `computeRankWidth`, issue #37).
+    ///
+    /// - Parameter instrument: Card's instrument.
+    /// - Returns: The card's fitted columns, or nil until its rows load.
+    private func instrumentColumns(_ instrument: Instrument) -> LeaderboardRowColumns? {
+        guard case let .loaded(payload) = instrumentStates[instrument] else { return nil }
+        var rows = payload.rankings.entries
+        if case let .footer(entry) = spotlightPlacement(instrument: instrument, entries: rows) {
+            rows.append(entry)
+        }
+        return .rankings(rows, metric: rankBy)
+    }
+
     /// Show the selected player's own row below one instrument's top ten when they
     /// are not already visible among `entries`, mirroring the web client's
     /// `RankingCard` spotlight footer (`RankingCard.tsx:97-102`).
@@ -281,17 +320,8 @@ struct LeaderboardsScreen: View {
     ///   - entries: This card's currently loaded top-ten rows.
     @ViewBuilder
     private func spotlightSection(instrument: Instrument, entries: [AccountRankingEntry]) -> some View {
-        if let accountId = session.selectedPlayer?.accountId {
-            let source: RankingSpotlightSource = {
-                switch spotlightStates[instrument] {
-                case .none, .loading: return .notLoaded
-                case let .loaded(payload): return payload.ranking.map { .available($0.entry) } ?? .unranked
-                case .failed: return .notLoaded
-                }
-            }()
-            switch RankingSpotlight.placement(
-                selectedAccountId: accountId, visibleEntries: entries, source: source
-            ) {
+        if let placement = spotlightPlacement(instrument: instrument, entries: entries) {
+            switch placement {
             case .none, .inline:
                 EmptyView()
             case .pending:
@@ -343,6 +373,7 @@ struct LeaderboardsScreen: View {
                             BandRankingRow(entry: entry, metric: metric, bandType: bandType, glassSurface: true)
                         }
                     }
+                    .leaderboardSectionColumns(.bandRankings(payload.rankings.entries, metric: metric))
                     .festivalFadeInOnAppear()
                     viewAllLink(
                         AppRoute.bandRankings(bandType: bandType.rawValue),

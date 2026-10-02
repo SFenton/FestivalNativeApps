@@ -151,7 +151,7 @@ public enum FestivalSheetActionColor {
 
 /// The native Close button every Festival modal carries top-right (operator batch 7):
 /// the system close glyph (`Button(role: .close)`) on iOS/macOS 26+, a "Close" text
-/// button before.
+/// button before. Modals get it through ``FestivalModal`` rather than adding it themselves.
 public struct FestivalSheetCloseItem: ToolbarContent {
     private let identifier: String
     private let action: () -> Void

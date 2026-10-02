@@ -33,6 +33,26 @@ public class QuickLinksTests
     }
 
     [Fact]
+    public void JumpOffsetKeepsMarginAndClampsToScrollRange()
+    {
+        Assert.Equal(1292, QuickLinks.JumpOffset(300, 1000, 5000, 8));
+        Assert.Equal(0, QuickLinks.JumpOffset(0, 4, 5000, 8));
+        Assert.Equal(2000, QuickLinks.JumpOffset(1500, 900, 2000, 8));
+        Assert.Equal(0, QuickLinks.JumpOffset(0, 500, -1, 8));
+        // Re-measuring after the list realizes its cards re-aims to the anchor's real position.
+        Assert.Equal(1872, QuickLinks.JumpOffset(1292, 588, 5000, 8));
+    }
+
+    [Fact]
+    public void LandedWithinTolerance()
+    {
+        Assert.True(QuickLinks.IsLanded(100, 100.4));
+        Assert.False(QuickLinks.IsLanded(100, 100.5));
+        Assert.False(QuickLinks.IsLanded(1292, 1872));
+        Assert.True(QuickLinks.MaxJumpCorrections > 0);
+    }
+
+    [Fact]
     public void SectionDefaults()
     {
         Assert.Equal(0, new QuickLinkSection("a", "A", Depth: -3).Depth);

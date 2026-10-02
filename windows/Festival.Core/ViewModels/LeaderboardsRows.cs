@@ -37,20 +37,21 @@ public sealed partial class RankingRowViewModel : ObservableObject, ILeaderboard
     public int Rank => Entry.Rank(Metric);
 
     /// <summary>
-    /// Rank characters every row of this board reserves (web <c>computeRankWidth</c> over the rows and the pinned
-    /// selected-player row), so ranks, names and values line up down the card (operator batch 7.9). 0 = own width.
+    /// Content of this board's rows and its pinned selected-player row (web <c>computeRankWidth</c> and the rating
+    /// minimum), so ranks, names, songs labels and ratings line up down the card (operator batch 7.9, issue #37).
+    /// Observable because the pinned row can arrive after the board.
     /// </summary>
     [ObservableProperty]
-    private int rankChars;
+    private LeaderboardSection? section;
 
-    /// <summary>Gives a board's rows and its pinned row one rank width: the longest rank text among them.</summary>
+    /// <summary>Gives a board's rows and its pinned row one set of columns, measured over all of them.</summary>
     /// <param name="rows">Board rows.</param>
     /// <param name="pinned">Pinned selected-player row, if shown.</param>
-    public static void ShareRankWidth(IReadOnlyList<RankingRowViewModel> rows, RankingRowViewModel? pinned)
+    public static void ShareColumns(IReadOnlyList<RankingRowViewModel> rows, RankingRowViewModel? pinned)
     {
-        var chars = rows.Select(r => r.RankText.Length).Append(pinned?.RankText.Length ?? 0).Max();
-        foreach (var row in rows) row.RankChars = chars;
-        if (pinned is not null) pinned.RankChars = chars;
+        var shared = LeaderboardColumns.Measure(pinned is null ? rows : [.. rows, pinned]);
+        foreach (var row in rows) row.Section = shared;
+        if (pinned is not null) pinned.Section = shared;
     }
 
     /// <summary><c>#1,234</c>.</summary>
@@ -109,15 +110,15 @@ public sealed class BandRankingRowViewModel : ILeaderboardRankingRow
     /// <summary>Band rows are never the selected player's own row.</summary>
     public bool IsSelected => false;
 
-    /// <summary>Rank characters the board's rows share (web <c>computeRankWidth</c>); 0 = own width.</summary>
-    public int RankChars { get; set; }
+    /// <inheritdoc />
+    public LeaderboardSection? Section { get; set; }
 
-    /// <summary>Gives a board's rows one rank width: the longest rank text among them.</summary>
+    /// <summary>Gives a board's rows one set of columns, measured over all of them (issue #37).</summary>
     /// <param name="rows">Board rows.</param>
-    public static void ShareRankWidth(IReadOnlyList<BandRankingRowViewModel> rows)
+    public static void ShareColumns(IReadOnlyList<BandRankingRowViewModel> rows)
     {
-        var chars = LeaderboardColumns.Widest(rows.Select(r => r.RankText));
-        foreach (var row in rows) row.RankChars = chars;
+        var shared = LeaderboardColumns.Measure(rows);
+        foreach (var row in rows) row.Section = shared;
     }
 
     /// <summary>Displayed metric.</summary>

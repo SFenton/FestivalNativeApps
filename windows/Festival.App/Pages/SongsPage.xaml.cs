@@ -53,7 +53,8 @@ public sealed partial class SongsPage : Page, IPageBack
     private DispatcherQueueTimer? detailTimer;
     private string? appliedSort;
     private int[] groupStarts = [];
-    private List<SongGroup> stickyGroups = [];
+    private string[] stickyLabels = [];
+    private int stickyRowCount;
     private bool wideLayout;
 
     /// <summary>Creates the page.</summary>
@@ -68,7 +69,7 @@ public sealed partial class SongsPage : Page, IPageBack
         SizeChanged += OnSizeChanged;
         SongList.SelectionChanged += OnSongSelectionChanged;
         Zoom.PreviewKeyDown += OnZoomKeyDown;
-        Zoom.ViewChangeCompleted += (_, _) => UpdateStickyHeader();
+        Zoom.ViewChangeCompleted += OnZoomViewChangeCompleted;
     }
 
     /// <summary>Page model.</summary>
@@ -129,26 +130,71 @@ public sealed partial class SongsPage : Page, IPageBack
         var groups = ViewModel.Sections.Select((s, i) => new SongGroup(s.Label, s.Rows, i == 0)).ToList();
         groupStarts = new int[groups.Count];
         for (int i = 0, start = 0; i < groups.Count; start += groups[i].Count, i++) groupStarts[i] = start;
-        stickyGroups = groups;
+        stickyLabels = groups.Select(g => g.Label).ToArray();
+        stickyRowCount = groups.Sum(g => g.Count);
         GroupedSongs.Source = groups;
         UpdateStickyHeader();
     }
 
     /// <summary>
     /// Shows the label of the section holding the first visible row in the bar above the list. Runs on scroll view
-    /// changes only (no per-frame work while idle).
+    /// changes only (no per-frame work while idle). The first visible row comes from the realized rows' geometry:
+    /// <see cref="ItemsStackPanel.FirstVisibleIndex"/> can still describe the layout before a jump-index pick (issue #48:
+    /// R → B kept "A" pinned).
     /// </summary>
     private void UpdateStickyHeader()
     {
         if (scroller is null && (scroller = FindScrollViewer(SongList)) is not null)
             scroller.ViewChanged += (_, _) => UpdateStickyHeader();
-        var first = SongList.ItemsPanelRoot is ItemsStackPanel panel && panel.FirstVisibleIndex >= 0 ? panel.FirstVisibleIndex : 0;
-        var index = Array.BinarySearch(groupStarts, first);
-        if (index < 0) index = ~index - 1;
-        var label = index >= 0 && index < stickyGroups.Count ? stickyGroups[index].Label : "";
+        var panel = SongList.ItemsPanelRoot as ItemsStackPanel;
+        var fallback = panel is { FirstVisibleIndex: >= 0 } ? panel.FirstVisibleIndex : 0;
+        var label = SongSectionHeader.Label(groupStarts, stickyLabels, fallback, stickyRowCount, RealizedRows(panel),
+            scroller?.ViewportHeight ?? SongList.ActualHeight);
+        ShowStickyHeader(label);
+    }
+
+    /// <summary>Sets the pinned header's text and visibility.</summary>
+    /// <param name="label">Section label ("" hides the bar).</param>
+    private void ShowStickyHeader(string label)
+    {
         StickyHeader.Text = label;
         var shown = label.Length > 0 && Zoom.IsZoomedInViewActive && ViewModel.ShowList && Zoom.Opacity > 0;
         StickyHeader.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>Realized row containers with their edges relative to the list viewport's top.</summary>
+    /// <param name="panel">Items panel.</param>
+    /// <returns>Rows (recycled containers excluded).</returns>
+    private IEnumerable<SongSectionHeader.RealizedRow> RealizedRows(ItemsStackPanel? panel)
+    {
+        if (panel is null || scroller is null) yield break;
+        foreach (var child in panel.Children)
+        {
+            if (child is not ListViewItem item || item.Visibility != Visibility.Visible) continue;
+            var index = SongList.IndexFromContainer(item);
+            if (index < 0) continue;
+            var top = item.TransformToVisual(scroller).TransformPoint(default).Y;
+            yield return new(index, top, top + item.ActualHeight);
+        }
+    }
+
+    /// <summary>
+    /// A jump-index pick names its section in the pinned header at once, then re-reads the rows once layout settles
+    /// (a section that cannot reach the top, such as Z, leaves the previous section there).
+    /// </summary>
+    /// <param name="sender">Semantic zoom.</param>
+    /// <param name="e">View change.</param>
+    private void OnZoomViewChangeCompleted(object sender, SemanticZoomViewChangedEventArgs e)
+    {
+        if (Zoom.IsZoomedInViewActive && e.DestinationItem?.Item is SongGroup group) ShowStickyHeader(group.Label);
+        else UpdateStickyHeader();
+        void Settle(object? _, object __)
+        {
+            SongList.LayoutUpdated -= Settle;
+            UpdateStickyHeader();
+        }
+        SongList.LayoutUpdated += Settle;
+        DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, UpdateStickyHeader);
     }
 
     /// <summary>First-paint gate: decode the first rows' art (bounded), then fade the list in.</summary>

@@ -44,6 +44,12 @@ struct ShopScreen: View {
         case loading
         case loaded(ShopSnapshot)
         case failed(ServiceIssue)
+
+        /// Whether the shop is still loading (drives ``FestivalReloadGate``).
+        var isLoading: Bool {
+            if case .loading = self { return true }
+            return false
+        }
     }
 
     /// Identity of one staggered reveal: a load, or a layout switch.
@@ -77,31 +83,30 @@ struct ShopScreen: View {
     }
 
     var body: some View {
-        Group {
+        // A List ↔ Grid switch, a retry or a new publication fades the shop out, shows
+        // the spinner and fades the new layout in (web `useViewTransition`, issue #71).
+        FestivalReloadGate(key: viewMode, isLoading: state.isLoading, spinnerLabel: "Loading Item Shop") {
             switch state {
             case .loading:
-                FestivalLoadingView(accessibilityLabel: "Loading Item Shop")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                EmptyView()
             case let .failed(issue):
                 ServiceStatusView(issue, title: "Item Shop unavailable") {
                     retryRevision += 1
                 }
             case let .loaded(snapshot):
                 shopContent(snapshot)
-                    // New identity per layout: the switch fades the old layout out and
-                    // the new one's rows stagger in, instead of reusing faded-in rows.
-                    .id(viewMode)
-                    .transition(.opacity)
+                    // The settle timer starts at the gate's reveal, not at the load.
+                    .task {
+                        await FadeStagger.settle(afterRevealing: snapshot.payload.sortedSongs.count) {
+                            staggerSettled = true
+                        }
+                    }
             }
         }
         // A new load or a List ↔ Grid switch re-runs the staggered reveal for the new
         // layout (web `toggleView`: `setStaggerGen`, batch 6.10).
-        .task(id: StaggerKey(load: loadedKey, mode: viewMode)) {
-            guard case let .loaded(snapshot) = state else { return }
+        .onChange(of: StaggerKey(load: loadedKey, mode: viewMode)) { _, _ in
             staggerSettled = false
-            await FadeStagger.settle(afterRevealing: snapshot.payload.sortedSongs.count) {
-                staggerSettled = true
-            }
         }
         .detailFadeTestSafe()
         .festivalBackground(.carousel, session: session, visible: isVisible)
@@ -110,10 +115,8 @@ struct ShopScreen: View {
             if sizeClass != .compact && !dynamicTypeSize.isAccessibilitySize {
                 ToolbarItem(placement: .primaryAction) {
                     Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            staggerSettled = false
-                            preferredMode = viewMode == .grid ? .list : .grid
-                        }
+                        staggerSettled = false
+                        preferredMode = viewMode == .grid ? .list : .grid
                     } label: {
                         Label(
                             viewMode == .grid ? "List View" : "Grid View",

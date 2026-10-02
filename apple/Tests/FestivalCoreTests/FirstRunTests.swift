@@ -363,3 +363,26 @@ struct FirstRunCatalogTests {
         #expect(Set(FirstRunPageKey.allCases.map(\.rawValue)) == expected)
     }
 }
+
+// MARK: - Guide titles
+
+@Suite("FirstRunPageKey.guideTitle")
+struct FirstRunGuideTitleTests {
+    @Test("Each guide is titled with its page's nav title; Player History reads Score History")
+    func titles() {
+        #expect(FirstRunPageKey.allCases.map(\.guideTitle) == [
+            "Songs", "Song Info", "Score History", "Statistics", "Suggestions",
+            "Leaderboards", "Compete", "Rivals", "Item Shop",
+        ])
+    }
+
+    @Test("Guide titles are unique, non-empty and under 15 characters (HIG Toolbars)")
+    func titlesAreShortAndUnique() {
+        let titles = FirstRunPageKey.allCases.map(\.guideTitle)
+        #expect(Set(titles).count == titles.count)
+        for title in titles {
+            #expect(!title.isEmpty)
+            #expect(title.count < 15, "\(title) is too long for a navigation title")
+        }
+    }
+}

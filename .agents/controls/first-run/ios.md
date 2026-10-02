@@ -41,15 +41,29 @@
     sheet's `onDismiss` — so a swipe-to-dismiss is handled identically to tapping Skip/Done.
   - `FirstRunCarouselView.swift` — the paged carousel (operator batches 6–7): `TabView(.page)`
     with the system dots hidden and white `FirstRunPageDots` (current solid, others 35 %; one
-    adjustable "Page, n of m" element); a native toolbar **Close** (`NavigationStack` +
-    `.confirmationAction` text button, the blue glass Close of the Profile search sheet;
-    issue #4 replaced the small ✕ glyph); a full-width glass-prominent
-    **Next/Done** first, then glass **Back** (only after page one) and **Skip** (until the last
-    page) beneath it — a one-page guide shows only Done, and there is never a disabled Back
-    (`FirstRunControls` in `FestivalCore/FirstRunViewing.swift`). Presented at an 86 % detent
+    adjustable "Page, n of m" element); the system toolbar **Close** from the shared
+    `FestivalModal` (`Button(role: .close)` glyph on iOS 26, issue #23; it replaced issue #4's
+    text "Close", which itself replaced a hand-drawn ✕) beside an inline navigation title naming
+    the page the guide explains (`FirstRunPageKey.guideTitle`, issue #24: the Settings row label,
+    e.g. "Songs", "Score History"; all under 15 characters per HIG Toolbars), on launch and on a
+    Settings replay alike. Controls follow Apple's onboarding layout (issue #25): a system
+    toolbar **Back** chevron at the top leading edge (`fst.first-run.back`, label "Back", HIG
+    Toolbars: "Leading: back/previous-document … controls, then the view title"; only after
+    page one, never disabled); one large accent-tinted `.glassProminent` **Next/Done**
+    (`.borderedProminent` before iOS 26; `.controlSize(.large)`, ≈48 pt on screen); then a
+    quiet full-width text **Skip** beneath it (white `FestivalText.primary`, ≥48 pt row) until
+    the last page. The Skip row stays reserved on the last page so Done doesn't move; a one-page
+    guide shows only Done (`FirstRunControls` in `FestivalCore/FirstRunViewing.swift`:
+    `showsBack`, `showsSkip`, `reservesSkipRow`, `minimumHeight`). iOS 26 draws the 86 % sheet
+    about 0.96× scaled, so 48 pt layouts read ≈46 pt in XCUITest frames; the toolbar Back/Close
+    report 34.6 pt frames but take system-expanded hit regions (near-miss taps at ±20 pt land).
+    Embedded real sheets in demos (Sort/Filter) set `festivalModalPreview`, so `FestivalModal`
+    renders only their content: a nested `NavigationStack` would otherwise merge its title
+    ("Sort By") and a second, working Close into the guide's bar. Presented at an 86 % detent
     (`FirstRunSheetStyle`) so tapping the dimmed page above it, or swiping down, dismisses.
-    `@AccessibilityFocusState` moves focus to each new slide; animations skip under Reduce
-    Motion.
+    VoiceOver focus is left to the system on open, so the navigation title is announced first
+    (HIG VoiceOver: a screen's title is announced first); `@AccessibilityFocusState` then moves
+    focus to each new slide on a page change. Animations skip under Reduce Motion.
   - **Seen pages only**: the carousel records every page shown in a `FirstRunViewing` binding;
     the presenter's `onDismiss` marks only those seen (however it closed), so unviewed pages
     show next time (web new-info rule). Settings replays do the same after resetting the page.
@@ -247,8 +261,13 @@ inert previews, same as Songs').
 - `ready` is always `true`: `FestivalSession` resolves the selected-player identity synchronously
   from storage at init, so there's no async gap where gates could evaluate against stale data on
   this platform. Revisit if a future async gate dependency is added.
-- XCUITest: `FirstRunJourneyTests.swift` (Next/Back/Skip order, native navigation-bar
-  "Close" (`testCloseIsNativeToolbarButton`), swipe-down and tap-outside dismissal, viewed-pages-only across a relaunch; needs `mock_service.py --port 8765`).
+- XCUITest: `FirstRunJourneyTests.swift` (Next first with Skip beneath and Back in the bar
+  before the title (`testNextFirstThenBackAppears`), Done on the last page, ≥44 pt Next/Skip
+  frames and near-miss taps on Back/Next/Skip/Close read as buttons
+  (`testControlsAcceptNearMissesAndReadAsButtons`), one Close and the guide title on every
+  slide (`testEmbeddedSheetDemosKeepOneCloseAndTheGuideTitle`), native navigation-bar
+  Close labelled "Close" (`testCloseIsNativeToolbarButton`), the page's navigation title on launch
+  and on a Settings replay (`testGuideShowsPageTitleInNavigationBar`), swipe-down and tap-outside dismissal, viewed-pages-only across a relaunch; needs `mock_service.py --port 8765`).
   Tap-outside must land below the status bar (a status-bar tap is scroll-to-top).
 - `contracts/product.json` has no `first-run` control entry yet (orchestrator-owned file, not
   edited by this lane) — `check_docs.py` reports the same pending "topic not in contracts"

@@ -6,9 +6,10 @@ namespace Festival.App.Controls;
 
 #region Carousel dialog
 /// <summary>
-/// First-run carousel presented in a Fluent <see cref="ContentDialog"/> (a modal onboarding sequence; TeachingTip is
-/// for single anchored tips). Primary = Next/Done before Secondary = Back; a one-slide guide shows only a full-width Done
-/// (operator batch 6.7: no Skip, no disabled Back). Done, Esc and a click outside the dialog all close it and mark only
+/// First-run carousel presented in the shared <see cref="FestivalDialog"/> (a modal onboarding sequence; TeachingTip is
+/// for single anchored tips). Primary = Next/Done before Secondary = Back, then the standard Close (issue #23); a
+/// one-slide guide shows only a full-width Done (operator batch 6.7: no Skip, no disabled Back). Done, Close, Esc and a
+/// click outside the dialog all close it and mark only
 /// the slides actually viewed as seen. The FlipView's hover arrows are hidden (the buttons and pips page it).
 /// </summary>
 public sealed partial class FirstRunCarousel : UserControl
@@ -93,20 +94,16 @@ public sealed partial class FirstRunCarousel : UserControl
     /// <returns>Dialog to show.</returns>
     public static ContentDialog CreateDialog(FirstRunCarouselViewModel carousel, XamlRoot root)
     {
-        var content = new FirstRunCarousel(carousel);
-        var dialog = new ContentDialog
-        {
-            XamlRoot = root,
-            Title = carousel.Title,
-            Content = content,
-            PrimaryButtonText = carousel.NextLabel,
-            SecondaryButtonText = carousel.IsSingle ? "" : "Back",
-            DefaultButton = ContentDialogButton.Primary,
-            IsSecondaryButtonEnabled = !carousel.IsFirst,
-            RequestedTheme = ElementTheme.Dark,
-        };
-        Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(dialog, "fst.first-run.dialog");
-        if (carousel.IsSingle) DialogChrome.FullWidthSingleButton(dialog);
+        var dialog = FestivalDialog.Create(
+            root,
+            carousel.Title,
+            new FirstRunCarousel(carousel),
+            "fst.first-run.dialog",
+            closeText: carousel.CloseLabel,
+            primaryText: carousel.NextLabel,
+            secondaryText: carousel.IsSingle ? "" : "Back",
+            defaultButton: ContentDialogButton.Primary);
+        dialog.IsSecondaryButtonEnabled = !carousel.IsFirst;
         PropertyChangedEventHandler sync = (_, e) =>
         {
             if (e.PropertyName != nameof(FirstRunCarouselViewModel.Index)) return;

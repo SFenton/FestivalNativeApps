@@ -38,6 +38,7 @@
             <TextBlock Text="Suggestions" Style="{StaticResource FSTPageTitleStyle}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
                        VerticalAlignment="Center" AutomationProperties.HeadingLevel="Level1" />
             <DropDownButton x:Name="FilterButton" Grid.Column="1" AutomationProperties.Name="Filter Suggestions"
+                            MinHeight="{StaticResource FSTMinTargetSize}"
                             AutomationProperties.AutomationId="fst.suggestions.filter-button"
                             Visibility="{x:Bind ViewModel.ShowNoPlayer, Mode=OneWay, Converter={StaticResource FSTInverseVisibility}}">
                 <StackPanel Orientation="Horizontal" Spacing="8">

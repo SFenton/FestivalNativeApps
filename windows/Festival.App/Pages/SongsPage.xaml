@@ -66,14 +66,15 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <AutoSuggestBox x:Name="SearchBox" PlaceholderText="Search songs or artists" QueryIcon="Find"
+            <!-- Centred: the action buttons beside it are 40 epx tall (FSTMinTargetSize), the box keeps Fluent's 32. -->
+            <AutoSuggestBox x:Name="SearchBox" PlaceholderText="Search songs or artists" QueryIcon="Find" VerticalAlignment="Center"
                             Text="{x:Bind ViewModel.SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                             QuerySubmitted="OnSearchSubmitted"
                             AutomationProperties.Name="Search songs"
                             AutomationProperties.AutomationId="fst.songs.search" />
 
             <StackPanel x:Name="ActionButtons" Grid.Column="1" Orientation="Horizontal" Spacing="8">
-            <DropDownButton x:Name="SortButton" AutomationProperties.Name="Sort Songs"
+            <DropDownButton x:Name="SortButton" AutomationProperties.Name="Sort Songs" MinHeight="{StaticResource FSTMinTargetSize}"
                             AutomationProperties.AutomationId="fst.songs.sort">
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <FontIcon Glyph="&#xE8CB;" FontSize="14" />
@@ -146,7 +147,7 @@
                 </DropDownButton.Flyout>
             </DropDownButton>
 
-            <DropDownButton x:Name="FilterButton" AutomationProperties.Name="Filter Songs"
+            <DropDownButton x:Name="FilterButton" AutomationProperties.Name="Filter Songs" MinHeight="{StaticResource FSTMinTargetSize}"
                             Visibility="{x:Bind ViewModel.ShowFilterButton, Mode=OneWay}"
                             AutomationProperties.AutomationId="fst.songs.filter">
                 <StackPanel Orientation="Horizontal" Spacing="8">
@@ -305,6 +306,7 @@
             </DropDownButton>
 
             <Button x:Name="JumpButton" Click="OnJumpClick" Visibility="{x:Bind ViewModel.HasJumpIndex, Mode=OneWay}"
+                    MinWidth="{StaticResource FSTMinTargetSize}" MinHeight="{StaticResource FSTMinTargetSize}"
                     AutomationProperties.Name="Jump to Section" ToolTipService.ToolTip="Jump to section (Ctrl+Minus)"
                     AutomationProperties.AutomationId="fst.songs.section-index-button">
                 <StackPanel Orientation="Horizontal" Spacing="8">

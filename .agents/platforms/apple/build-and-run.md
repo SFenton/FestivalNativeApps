@@ -7,6 +7,7 @@
 - Pin Xcode per command: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` (never change the global developer dir). Observed 2026-09-24: Xcode 27.1 (27A9269).
 - Package: `swift build --build-tests --package-path apple`; tests `swift test --package-path apple --filter <name>` (run only new/changed tests while iterating).
 - App: `python3 tools/ios_sim.py build` (Debug, this worktree); screenshots via `shot` ([lanes](../../workflow/lanes.md)).
+- Two iOS app targets: **FestivalMobile** (App Store iPhone app, iPhone-only, portrait) and **FestivalTablet** (iPadOS app, `com.sfenton.festivalscoretracker.ipad`, every orientation, multitasking; shares `Apps/iOS` sources/assets, Info.plist generated at `Apps/iPadOS/Info.plist`). `ios_sim.py build --app ipad`; `shot`/`drive`/`uitest --device ipad` select FestivalTablet and its `FestivalTabletUITests` bundle (`Apps/iPadOSUITests` + the shared `FestivalApp.swift`/`DriverTests.swift`) automatically (`--app` overrides).
 
 ## Service origin
 
@@ -16,7 +17,7 @@
 | Debug + `FST_API_BASE_URL=http://127.0.0.1:8765` | Loopback [mock service](../../testing/fixtures.md) (`python3 tools/mock_service.py --port 8765`); Release ignores the override; fixture scenarios cannot target public HTTPS |
 | Live contract probe | `bash tools/apple_live_service_smoke.sh --read-public-live` — see [service safety](../service-safety.md) |
 
-Debug-only launch overrides (fixture tests only, never simulator resets): `FST_UI_TEST_CLEAR_PROFILE=1` (selected identity), `FST_UI_TEST_RESET_SONG_CARDS=1` (icon/chart/metadata prefs), `FST_UI_TEST_RESET_PATH_WARNING=1` (Karaoke warning), `FST_FIXTURE_SCENARIO=…`, `FST_DEBUG_TAB` / `FST_DEBUG_ROUTE` (deep link).
+Debug-only launch overrides (fixture tests only, never simulator resets): `FST_UI_TEST_CLEAR_PROFILE=1` (selected identity and notification seen-state), `FST_UI_TEST_RESET_SONG_CARDS=1` (icon/chart/metadata prefs), `FST_UI_TEST_RESET_PATH_WARNING=1` (Karaoke warning), `FST_FIXTURE_SCENARIO=…`, `FST_DEBUG_TAB` / `FST_DEBUG_ROUTE` (deep link).
 
 ## Launch screen prerequisite
 

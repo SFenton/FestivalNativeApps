@@ -29,6 +29,7 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
 {
     private readonly FestivalSession session;
     private List<ScoreHistoryEntry> entries = [];
+    private Dictionary<Instrument, int> counts = [];
     private Song? song;
     private IReadOnlyList<Instrument> pool = [];
 
@@ -109,6 +110,12 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
 
     /// <summary>Whether paging arrows show.</summary>
     public bool ShowPaging => Pager.NeedsPagination;
+
+    /// <summary>
+    /// Whether the pager row keeps its space: while paging, or whenever another selectable chart pages, so the card keeps
+    /// its size when the chart changes (issue #61). The row is empty (and absent for Narrator) when this chart doesn't page.
+    /// </summary>
+    public bool ShowPagerSlot => ShowPaging || ScoreHistorySwap.ReservesPager(counts, Instruments, Pager.MaxBars);
 
     /// <summary>Whether « and » show.</summary>
     public bool ShowPageJumps => Pager.ShowPageJumps;
@@ -282,7 +289,7 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
     private void Show(SongScoreHistoryPhase next, List<ScoreHistoryEntry> loaded)
     {
         entries = loaded;
-        var counts = SongScoreHistory.Counts(entries);
+        counts = SongScoreHistory.Counts(entries);
         Instruments = [.. pool.Where(i => counts.GetValueOrDefault(i) > 0)];
         var choice = SongScoreHistory.DefaultInstrument(pool, counts, Selected ?? Requested);
         if (next == SongScoreHistoryPhase.Loaded && choice is null) next = SongScoreHistoryPhase.Hidden;
@@ -323,6 +330,7 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
             string.Create(CultureInfo.CurrentCulture,
                 $"{Selected?.Label()} score history, {Bars.Count} of {Points.Count} scores from {Bars[0].Point.LongDate} to {Bars[^1].Point.LongDate}.");
         OnPropertyChanged(nameof(ShowPaging));
+        OnPropertyChanged(nameof(ShowPagerSlot));
         OnPropertyChanged(nameof(ShowPageJumps));
         OnPropertyChanged(nameof(CanGoBack));
         OnPropertyChanged(nameof(CanGoForward));
@@ -335,7 +343,10 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
         var best = PlayerScoreHistorySort.HighScoreIndex(sorted);
         var ordered = sorted.Select(e => Points.First(p => ReferenceEquals(p.Entry, e))).ToList();
         var shown = ShowAll ? ordered : [.. ordered.Take(SongScoreHistory.ListSize)];
-        Rows = [.. shown.Select((p, i) => new ScoreHistoryListRow(p, i == best))];
+        var rows = shown.Select((p, i) => new ScoreHistoryListRow(p, i == best)).ToList();
+        // One set of columns for the list, so scores and accuracy badges line up (issue #37).
+        var section = LeaderboardColumns.Measure(rows);
+        Rows = [.. rows.Select(r => r with { Section = section })];
         OnPropertyChanged(nameof(CanViewAll));
     }
 }
@@ -361,10 +372,7 @@ public sealed record ScoreHistoryListRow(ScoreHistoryPoint Point, bool IsBest) :
     public bool IsSelected => IsBest;
 
     /// <inheritdoc />
-    public int RankChars => 0;
-
-    /// <inheritdoc />
-    public int ScoreChars => 0;
+    public LeaderboardSection? Section { get; init; }
 
     /// <summary>History rows show no stars.</summary>
     public int StarCount => 0;
