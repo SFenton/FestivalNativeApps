@@ -131,6 +131,18 @@ class SongsParityUiTest {
     }
 
     @Test
+    fun quickLinksAppearAfterSwitchingToDurationSortOnPhone() {
+        launch(DebugLaunch(stillBackground = true))
+        waitForTag("fst.songs.row.s-alpha")
+        click("fst.songs.sort.open")
+        settle()
+        click("fst.songs.sort.duration")
+        click("fst.songs.sort.done")
+        waitForTag("fst.songs.section.duration.1to2")
+        waitForTag("fst.quick-links.open")
+    }
+
+    @Test
     @Config(qualifiers = "w1280dp-h800dp-xhdpi")
     fun expandedTwoPaneUsesQuickLinksMenu() {
         launch(DebugLaunch(stillBackground = true), prefs(stringPreferencesKey(SettingsRegistry.SONG_SORT) to "Shop"))
