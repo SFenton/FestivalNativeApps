@@ -74,13 +74,35 @@ object BackgroundPolicy {
      * @param appReduceMotion In-app override.
      * @param dataSaver OS data saver restricts background data.
      * @param visible App is resumed.
+     * @param covered A Festival dialog or sheet covers the page: hold the current frame.
      * @return Render mode.
      */
-    fun mode(systemReduceMotion: Boolean, appReduceMotion: Boolean, dataSaver: Boolean, visible: Boolean): BackgroundMode = when {
+    fun mode(
+        systemReduceMotion: Boolean,
+        appReduceMotion: Boolean,
+        dataSaver: Boolean,
+        visible: Boolean,
+        covered: Boolean = false,
+    ): BackgroundMode = when {
         dataSaver -> BackgroundMode.None
-        systemReduceMotion || appReduceMotion || !visible -> BackgroundMode.Still
+        systemReduceMotion || appReduceMotion || !visible || covered -> BackgroundMode.Still
         else -> BackgroundMode.Animated
     }
+
+    /**
+     * Zoom/pan and crossfade frame interval: 30 fps, like the iOS and Windows backdrops,
+     * instead of every vsync (issue #83).
+     */
+    const val FRAME_INTERVAL_NANOS = 1_000_000_000L / 30
+
+    /**
+     * Duration left of the zoom/pan when it resumes from [progress] (after a pause), so a
+     * resumed drift keeps its speed.
+     *
+     * @param progress Current progress, 0…1.
+     * @return Remaining milliseconds (at least 1).
+     */
+    fun remainingZoomMs(progress: Float): Int = ((1f - progress.coerceIn(0f, 1f)) * ZOOM_MS).toInt().coerceAtLeast(1)
 
     /**
      * Pick up to [MAX_COVERS] distinct shuffled cover URLs.

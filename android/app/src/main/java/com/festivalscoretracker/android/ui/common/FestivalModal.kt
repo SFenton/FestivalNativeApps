@@ -23,6 +23,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,10 +37,29 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.festivalscoretracker.android.presentation.ModalCoverage
 import com.festivalscoretracker.android.ui.design.popupTestTags
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import kotlinx.coroutines.launch
+
+// region Backdrop coverage
+
+/**
+ * Registers the calling modal with [ModalCoverage] while it is in the composition, so the
+ * shared backdrop holds its frame instead of animating unseen behind it (issue #83).
+ *
+ * @param coverage Open-modal counter.
+ */
+@Composable
+internal fun CoversBackdrop(coverage: ModalCoverage = ModalCoverage.shared) {
+    DisposableEffect(coverage) {
+        coverage.open()
+        onDispose { coverage.close() }
+    }
+}
+
+// endregion
 
 // region Close button
 
@@ -139,6 +159,7 @@ fun FestivalModalSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = skipPartiallyExpanded)
     val scope = rememberCoroutineScope()
     val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
+    CoversBackdrop()
     val close: () -> Unit = {
         if (reduceMotion) {
             onDismissRequest()
@@ -193,6 +214,7 @@ fun FestivalModalDialog(
     titleStyle: TextStyle = MaterialTheme.typography.titleLarge,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    CoversBackdrop()
     Dialog(onDismissRequest = onDismissRequest, properties = DialogProperties(usePlatformDefaultWidth = !compact)) {
         Surface(
             shape = RoundedCornerShape(28.dp),
@@ -251,6 +273,7 @@ fun FestivalAlertDialog(
     textTag: String? = null,
     destructive: Boolean = false,
 ) {
+    CoversBackdrop()
     AlertDialog(
         onDismissRequest = onDismissRequest,
         title = { Text(title) },

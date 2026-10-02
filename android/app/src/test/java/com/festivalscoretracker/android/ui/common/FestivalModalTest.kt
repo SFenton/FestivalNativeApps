@@ -16,7 +16,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import android.os.Looper
 import java.time.Duration
 import org.robolectric.Shadows.shadowOf
+import com.festivalscoretracker.android.presentation.ModalCoverage
 import com.festivalscoretracker.android.ui.theme.FestivalTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -149,5 +153,36 @@ class FestivalModalTest {
         }
         rule.onNodeWithTag("b.cancel").performSemanticsAction(SemanticsActions.OnClick)
         assertEquals(1, dismissed)
+    }
+
+    /** Issue #83: every open modal covers the backdrop so it holds its frame instead of animating unseen. */
+    @Test
+    fun openModalsCoverTheBackdropUntilTheyLeave() {
+        val coverage = ModalCoverage.shared
+        val before = coverage.openCount.value
+        var sheet by mutableStateOf(true)
+        var dialog by mutableStateOf(true)
+        var alert by mutableStateOf(true)
+        rule.setContent {
+            FestivalTheme {
+                if (sheet) FestivalModalSheet(title = "Sort", closeTag = "s.close", onDismissRequest = {}) { Text("Sheet") }
+                if (dialog) FestivalModalDialog(title = "Tour", closeTag = "d.close", onDismissRequest = {}) { Text("Dialog") }
+                if (alert) {
+                    FestivalAlertDialog(
+                        title = "Reset", text = "Sure?", tag = "r", confirmLabel = "OK", confirmTag = "r.ok", onConfirm = {},
+                        dismissLabel = "Cancel", dismissTag = "r.cancel", onDismissRequest = {},
+                    )
+                }
+            }
+        }
+        settle()
+        assertEquals(before + 3, coverage.openCount.value)
+        sheet = false
+        settle()
+        assertEquals(before + 2, coverage.openCount.value)
+        dialog = false
+        alert = false
+        settle()
+        assertEquals(before, coverage.openCount.value)
     }
 }
