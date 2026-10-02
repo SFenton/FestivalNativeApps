@@ -45,6 +45,16 @@ public class FirstRunTests
     }
     #endregion
 
+    #region Slide
+    [Fact]
+    public void Slide_ToStringIsTheTitleForTheAccessibleName()
+    {
+        // FlipViewItem's UIA name comes from ToString(): Narrator must hear the title, not the record's fields.
+        Assert.Equal("Song List", Slide(id: "songs-song-list", title: "Song List").ToString());
+        Assert.All(Enum.GetValues<FirstRunPageKey>().SelectMany(FirstRunCatalog.Slides), s => Assert.Equal(s.Title, s.ToString()));
+    }
+    #endregion
+
     #region IsUnseen
     [Fact]
     public void IsUnseen_MissingRecord() => Assert.True(FirstRunSlideEvaluator.IsUnseen(Slide(), new Dictionary<string, FirstRunSeenRecord>()));
