@@ -20,7 +20,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -40,7 +39,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.ui.design.readingGroup
-import com.festivalscoretracker.android.ui.common.festivalSheetTop
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.rivals.RivalQuickLinks
@@ -62,12 +60,12 @@ import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.rememberRevealed
-import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
 import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.common.isLargeText
 import androidx.compose.material3.PrimaryScrollableTabRow
+import com.festivalscoretracker.android.ui.common.FestivalModalSheet
 
 // region Hub
 
@@ -246,9 +244,14 @@ fun FindRivalSheet(
     onSelect: (SelectedPlayer) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = BrandTokens.cardBackground, modifier = Modifier.festivalSheetTop().testTag("fst.rivals.find.sheet")) {
+    FestivalModalSheet(
+        title = RivalText.FIND_RIVAL,
+        closeTag = "fst.rivals.find.close",
+        onDismissRequest = onDismiss,
+        skipPartiallyExpanded = false,
+        modifier = Modifier.testTag("fst.rivals.find.sheet"),
+    ) {
         Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 24.dp)) {
-            SectionHeader(RivalText.FIND_RIVAL)
             val query by searchViewModel.query.collectAsStateWithLifecycle()
             val state by searchViewModel.state.collectAsStateWithLifecycle()
             TextField(

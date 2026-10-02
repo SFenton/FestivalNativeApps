@@ -7,10 +7,9 @@ import SwiftUI
 #endif
 
 /// Selected-player score/FC, instrument and public Item Shop filters. Changes apply as
-/// they are made (operator, 2026-09-28: no Cancel/Apply); Done closes the standard
-/// `festivalSheet` modal.
+/// they are made (operator, 2026-09-28: no Cancel/Apply); the shared ``FestivalModal``'s
+/// system Close dismisses it.
 struct SongsFilterSheet: View {
-  @Environment(\.dismiss) private var dismiss
   @State private var draftInShop: Bool
   @State private var draftLeavingTomorrow: Bool
   @State private var draftPlayerFilter: SongPlayerScoreFilter
@@ -118,7 +117,7 @@ struct SongsFilterSheet: View {
   }
 
   var body: some View {
-    NavigationStack {
+    FestivalModal("Filter Songs", closeIdentifier: "fst.songs.filter.done") {
       VStack(spacing: 0) {
         Form {
           if selectedPlayer {
@@ -261,14 +260,6 @@ struct SongsFilterSheet: View {
         .accessibilityIdentifier("fst.songs.filter.form")
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .navigationTitle("Filter Songs")
-      #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-      #endif
-      .toolbar {
-        // Native Close top-right on every modal (operator batch 7).
-        FestivalSheetCloseItem(identifier: "fst.songs.filter.done") { dismiss() }
-      }
       .onChange(of: choiceKey) { _, _ in commit() }
     }
     // Many collapsible sections (instrument, score/FC, Shop): fixed large detent

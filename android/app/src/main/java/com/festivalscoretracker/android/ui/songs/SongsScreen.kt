@@ -38,13 +38,11 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.adaptive.currentWindowSize
@@ -110,6 +108,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import com.festivalscoretracker.android.ui.common.FestivalAlertDialog
 
 // region Songs screen
 
@@ -238,13 +237,17 @@ fun SongsScreen(
  */
 @Composable
 fun InvalidScoreAlert(warning: InvalidScoreWarning, onDismiss: () -> Unit, onOpenSettings: () -> Unit) {
-    AlertDialog(
+    FestivalAlertDialog(
+        title = warning.title,
+        text = warning.message,
+        tag = "fst.songs.invalid-score.alert",
+        textTag = "fst.songs.invalid-score.message",
+        confirmLabel = "Settings",
+        confirmTag = "fst.songs.invalid-score.settings",
+        onConfirm = onOpenSettings,
+        dismissLabel = "OK",
+        dismissTag = "fst.songs.invalid-score.ok",
         onDismissRequest = onDismiss,
-        title = { Text(warning.title) },
-        text = { Text(warning.message, modifier = Modifier.testTag("fst.songs.invalid-score.message")) },
-        confirmButton = { TextButton(onClick = onOpenSettings, modifier = Modifier.testTag("fst.songs.invalid-score.settings")) { Text("Settings") } },
-        dismissButton = { TextButton(onClick = onDismiss, modifier = Modifier.testTag("fst.songs.invalid-score.ok")) { Text("OK") } },
-        modifier = Modifier.testTag("fst.songs.invalid-score.alert"),
     )
 }
 

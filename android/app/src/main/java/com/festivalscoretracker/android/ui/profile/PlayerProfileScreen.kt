@@ -26,7 +26,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -34,7 +33,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.material3.adaptive.currentWindowSize
 import androidx.compose.runtime.Composable
@@ -98,6 +96,7 @@ import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
 import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlinx.coroutines.launch
+import com.festivalscoretracker.android.ui.common.FestivalAlertDialog
 
 // region Screens
 
@@ -345,14 +344,16 @@ private fun Header(state: PlayerProfileUiState, onSelect: () -> Unit) {
 
 @Composable
 private fun ConfirmDialog(title: String, text: String, confirmLabel: String, tag: String, onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
+    FestivalAlertDialog(
+        title = title,
+        text = text,
+        tag = tag,
+        confirmLabel = confirmLabel,
+        confirmTag = "$tag.ok",
+        onConfirm = onConfirm,
+        dismissLabel = "Cancel",
+        dismissTag = "$tag.cancel",
         onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = { Text(text) },
-        confirmButton = { TextButton(onClick = onConfirm, modifier = Modifier.testTag("$tag.ok")) { Text(confirmLabel) } },
-        dismissButton = { TextButton(onClick = onDismiss, modifier = Modifier.testTag("$tag.cancel")) { Text("Cancel") } },
-        containerColor = BrandTokens.cardBackground,
-        modifier = Modifier.testTag(tag),
     )
 }
 

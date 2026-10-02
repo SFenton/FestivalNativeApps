@@ -4,9 +4,8 @@ import FestivalCore
 import FestivalDesign
 
 /// Songs sort choices. Changes apply as they are made (operator, 2026-09-28: no
-/// Cancel/Apply); Done closes the standard `festivalSheet` modal.
+/// Cancel/Apply); the shared ``FestivalModal``'s system Close dismisses it.
 struct SongsSortSheet: View {
-    @Environment(\.dismiss) private var dismiss
     @State private var draftMode: SongSortMode
     @State private var draftAscending: Bool
     let mode: SongSortMode
@@ -62,7 +61,7 @@ struct SongsSortSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
+        FestivalModal("Sort By", closeIdentifier: "fst.songs.sort.done") {
             Form {
                 Section {
                     Picker("Sort By", selection: modeBinding(player: false)) {
@@ -124,14 +123,6 @@ struct SongsSortSheet: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .navigationTitle("Sort By")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
-                // Native Close top-right on every modal (operator batch 7).
-                FestivalSheetCloseItem(identifier: "fst.songs.sort.done") { dismiss() }
-            }
             .onChange(of: draftMode) { _, _ in commit() }
             .onChange(of: draftAscending) { _, _ in commit() }
         }

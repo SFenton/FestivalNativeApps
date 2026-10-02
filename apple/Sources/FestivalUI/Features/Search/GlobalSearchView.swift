@@ -340,20 +340,12 @@ struct GlobalSearchSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
+        FestivalModal("Search", closeIdentifier: "fst.global-search.close") {
             GlobalSearchResults(model: model, session: session) { route in
                 dismiss()
                 open(route)
             }
-            .navigationTitle("Search")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
             .task(id: model.runKey) { await model.search(session: session) }
-            .toolbar {
-                // Dismiss-only modal: trailing (modal standard, operator 2026-09-28).
-                FestivalSheetCloseItem(identifier: "fst.global-search.close") { dismiss() }
-            }
         }
     }
 }

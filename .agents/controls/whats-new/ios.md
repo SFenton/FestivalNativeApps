@@ -27,7 +27,7 @@
 ## Decisions
 
 - Gate on the content hash (web parity), not on the native app version; the title shows the native version because the card lives in the native app.
-- Launch and Settings replay both use `whatsNewPresentation(isPresented:)`: a full-height `fullScreenCover` on iPhone (operator, 2026-09-28: the large sheet's curved bottom corners exposed the page and content scrolled visibly under Dismiss), a sheet on macOS. A cover has no system swipe-down, so `PullDownToDismiss` (iOS 18+) closes it when the list is pulled ≥ 80 pt past its top and released (operator batch 6, 6.14). Dismiss is full width with centred text (web parity; 6.14's centring was a Windows repro).
+- Launch and Settings replay both use `whatsNewPresentation(isPresented:)`: a full-height `fullScreenCover` on iPhone (operator, 2026-09-28: the large sheet's curved bottom corners exposed the page and content scrolled visibly under Dismiss), a sheet on macOS. A cover has no system swipe-down, so `PullDownToDismiss` (iOS 18+) closes it when the list is pulled ≥ 80 pt past its top and released (operator batch 6, 6.14). Dismiss is full width with centred text (web parity; 6.14's centring was a Windows repro). Close is the shared `FestivalModal`'s system Close, top-right (issue #23 moved it from a leading hand-drawn ✕).
 - Natives no longer mirror the web changelog (operator, 2026-10-01): content is the iOS-only notes per released version. `WhatsNewLauncher` takes `changelogHash` (default `Changelog.currentHash`) because SwiftPM tests have no app bundle and would otherwise see an empty changelog.
 
 ## Tests

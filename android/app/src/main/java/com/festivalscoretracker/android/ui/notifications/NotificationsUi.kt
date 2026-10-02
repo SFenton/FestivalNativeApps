@@ -29,9 +29,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -46,7 +44,6 @@ import androidx.compose.ui.semantics.SemanticsPropertyReceiver
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
@@ -75,11 +72,10 @@ import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
-import com.festivalscoretracker.android.ui.common.festivalSheetTop
 import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
-import com.festivalscoretracker.android.ui.design.popupTestTags
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import com.festivalscoretracker.android.ui.common.FestivalModalSheet
 
 // region Routing
 
@@ -163,19 +159,12 @@ fun NotificationsSheet(viewModel: NotificationsViewModel, onDismiss: () -> Unit,
     androidx.compose.runtime.LaunchedEffect(Unit) { viewModel.refresh() }
     // Rows fade in once the refresh lands (web fadeInUp stagger).
     val revealed = rememberRevealed(state is NotificationsState.Loaded)
-    ModalBottomSheet(
+    FestivalModalSheet(
+        title = "Notifications",
+        closeTag = "fst.notifications.close",
         onDismissRequest = close,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = BrandTokens.cardBackground,
-        modifier = Modifier.festivalSheetTop().popupTestTags().testTag("fst.notifications.sheet").semantics { paneTitle = "Notifications" },
+        modifier = Modifier.testTag("fst.notifications.sheet"),
     ) {
-        Text(
-            "Notifications",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            color = BrandTokens.textPrimary,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp).semantics { heading() },
-        )
         when (val current = state) {
             NotificationsState.NoPlayer -> Message(
                 "Select a player profile to see notifications about new high scores and rank changes.", "fst.notifications.no-player",

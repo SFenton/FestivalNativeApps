@@ -18,25 +18,16 @@ struct NotificationsSheet: View {
     /// The first reveal's stagger has finished; rows rebuilt later (List recycling while
     /// scrolling back up) appear without fading again (operator batch 7).
     @State private var fadeSettled = false
-    @Environment(\.dismiss) private var dismiss
     private var center: NotificationsCenter { session.notificationsCenter }
 
     var body: some View {
-        NavigationStack(path: $path) {
+        FestivalModal("Notifications", closeIdentifier: "fst.notifications.close", path: $path) {
             content
                 .navigationDestination(for: AppRoute.self) { route in
                     AppRouteDestination(
                         route: route, session: session,
                         visibleInstruments: Set(Instrument.allCases), path: $path, isVisible: true
                     )
-                }
-                .navigationTitle("Notifications")
-                #if os(iOS)
-                .navigationBarTitleDisplayMode(.inline)
-                #endif
-                .toolbar {
-                    // Native Close top-right on every modal (operator batch 7).
-                    FestivalSheetCloseItem(identifier: "fst.notifications.close") { dismiss() }
                 }
         }
         .task { await center.refresh(session: session) }

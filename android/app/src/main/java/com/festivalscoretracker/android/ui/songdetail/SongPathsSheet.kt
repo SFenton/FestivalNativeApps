@@ -19,7 +19,6 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Image
-import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -30,7 +29,6 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import com.festivalscoretracker.android.ui.design.InstrumentSelector
-import com.festivalscoretracker.android.ui.common.festivalSheetTop
 import kotlin.math.roundToInt
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -64,12 +62,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -88,7 +83,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -115,6 +109,8 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlin.math.max
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.festivalscoretracker.android.ui.common.FestivalAlertDialog
+import com.festivalscoretracker.android.ui.common.FestivalModalSheet
 
 // region Sheet
 
@@ -149,25 +145,15 @@ fun SongPathsSheet(
     var warning by rememberSaveable { mutableStateOf(showKaraokeWarning) }
     var panel by rememberSaveable { mutableStateOf<PathPanel?>(null) }
     val revealed = rememberRevealed(state.load is PathLoad.Image || state.load is PathLoad.Text)
-    ModalBottomSheet(
+    FestivalModalSheet(
+        title = "Paths",
+        closeTag = "fst.paths.close",
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = BrandTokens.cardBackground,
-        modifier = Modifier.festivalSheetTop().testTag("fst.song-detail.paths").semantics { contentDescription = "Paths for $songTitle" },
+        modifier = Modifier.testTag("fst.song-detail.paths").semantics { contentDescription = "Paths for $songTitle" },
     ) {
         BoxWithConstraints(Modifier.fillMaxHeight()) {
             val wide = maxWidth >= PATH_TABLE_WIDE
-            Column(Modifier.fillMaxHeight().semantics { testTagsAsResourceId = true }.padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "Paths",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = BrandTokens.textPrimary,
-                        modifier = Modifier.weight(1f).semantics { heading() },
-                    )
-                    IconButton(onClick = onDismiss, modifier = Modifier.testTag("fst.paths.close")) { Icon(Icons.Filled.Close, contentDescription = "Close Paths") }
-                }
+            Column(Modifier.fillMaxHeight().padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
                 if (state.display == PathDisplayMode.Text && wide && state.load is PathLoad.Text) PathTableHeader(columns)
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     when (val load = state.load) {
@@ -189,15 +175,18 @@ fun SongPathsSheet(
         }
     }
     if (warning) {
-        AlertDialog(
+        FestivalAlertDialog(
+            title = "Some Instruments Unavailable",
+            text = "Karaoke is not available for path visualization yet.",
+            tag = "fst.paths.karaoke-warning",
+            textTag = "fst.paths.karaoke-warning.message",
+            confirmLabel = "OK",
+            confirmTag = "fst.paths.warning.ok",
+            onConfirm = { warning = false },
+            dismissLabel = "Don't Show Again",
+            dismissTag = "fst.paths.warning.never",
             onDismissRequest = { warning = false },
-            title = { Text("Some Instruments Unavailable") },
-            text = { Text("Karaoke is not available for path visualization yet.", modifier = Modifier.testTag("fst.paths.karaoke-warning.message")) },
-            confirmButton = { TextButton(onClick = { warning = false }, modifier = Modifier.testTag("fst.paths.warning.ok")) { Text("OK") } },
-            dismissButton = {
-                TextButton(onClick = { warning = false; onDontShowAgain() }, modifier = Modifier.testTag("fst.paths.warning.never")) { Text("Don't Show Again") }
-            },
-            modifier = Modifier.testTag("fst.paths.karaoke-warning"),
+            onDismissButton = { warning = false; onDontShowAgain() },
         )
     }
 }

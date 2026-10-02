@@ -16,4 +16,4 @@ Source: `FortniteFestivalWeb/src/components/notifications/MobileNotificationsMod
 - Rows fade only during the first reveal (`FadeStagger` settle): List recycling while scrolling back up no longer re-fades them.
 - "New" / "Older" headers are white (`FestivalText.primary`, no uppercase).
 - Web trailing column: 20pt wide, chevron centred vertically (white 72%), 9pt yellow `#FACC15` unread dot with a 2pt ring, centred 24pt above the chevron.
-- Close is the shared native `FestivalSheetCloseItem` (`fst.notifications.close`).
+- Built on the shared `FestivalModal` (with its `[AppRoute]` path): system Close top-right (`fst.notifications.close`).

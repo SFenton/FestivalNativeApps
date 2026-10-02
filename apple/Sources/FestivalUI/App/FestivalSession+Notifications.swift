@@ -174,4 +174,14 @@ enum NotificationSeenStore {
         store[accountId] = Array(current.suffix(maxStoredIds))
         defaults.set(store, forKey: storageKey)
     }
+
+    /// Forget every account's seen GUIDs, so each feed row counts as unread again.
+    ///
+    /// Debug UI-test launches with `FST_UI_TEST_CLEAR_PROFILE=1` call this so a journey that
+    /// dismissed the sheet in an earlier run cannot hide the unread badge from the next one.
+    ///
+    /// - Parameter defaults: Backing store; a test-isolated suite in unit tests.
+    static func reset(defaults: UserDefaults = .standard) {
+        defaults.removeObject(forKey: storageKey)
+    }
 }

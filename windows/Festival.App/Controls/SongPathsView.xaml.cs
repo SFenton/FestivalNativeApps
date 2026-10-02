@@ -78,37 +78,27 @@ public sealed partial class SongPathsView : UserControl
     {
         if (paths.ShowWarning)
         {
-            var notice = new ContentDialog
-            {
-                XamlRoot = xamlRoot,
-                Title = "Some Instruments Unavailable",
-                Content = "Karaoke is not available for path visualization yet.",
-                PrimaryButtonText = "OK",
-                SecondaryButtonText = "Don't Show Again",
-                DefaultButton = ContentDialogButton.Primary,
-                RequestedTheme = ElementTheme.Dark,
-            };
-            AutomationProperties.SetAutomationId(notice, "fst.paths.warning");
-            paths.DismissWarning(await MainWindow.ShowDialogAsync(notice) == ContentDialogResult.Secondary);
+            var notice = FestivalDialog.Create(
+                xamlRoot,
+                "Some Instruments Unavailable",
+                "Karaoke is not available for path visualization yet.",
+                "fst.paths.warning",
+                closeText: "",
+                primaryText: "OK",
+                secondaryText: "Don't Show Again",
+                defaultButton: ContentDialogButton.Primary);
+            paths.DismissWarning(await FestivalDialog.ShowAsync(notice) == ContentDialogResult.Secondary);
         }
         // Near full-window at compact sizes (the chart fills the sheet); never wider than the window. The content gets
         // the width explicitly: a dialog sizes to its content, and the layout picks its selectors from that width.
         var dialogWidth = Math.Max(320, Math.Min(1200, xamlRoot.Size.Width - 24));
-        var dialog = new ContentDialog
-        {
-            XamlRoot = xamlRoot,
-            Title = title,
-            CloseButtonText = "Close",
-            DefaultButton = ContentDialogButton.Close,
-            FullSizeDesired = true,
-            Content = new SongPathsView(paths) { Width = dialogWidth - 48 },
-        };
+        var dialog = FestivalDialog.Create(xamlRoot, title, new SongPathsView(paths) { Width = dialogWidth - 48 }, "fst.paths");
+        dialog.FullSizeDesired = true;
         dialog.Resources["ContentDialogMaxWidth"] = dialogWidth;
         dialog.Resources["ContentDialogMinWidth"] = Math.Min(548, dialogWidth);
         dialog.Resources["ContentDialogMaxHeight"] = Math.Max(400, xamlRoot.Size.Height - 48);
-        AutomationProperties.SetAutomationId(dialog, "fst.paths");
         _ = paths.LoadAsync();
-        await MainWindow.ShowDialogAsync(dialog);
+        await FestivalDialog.ShowAsync(dialog);
         paths.Close();
     }
     #endregion

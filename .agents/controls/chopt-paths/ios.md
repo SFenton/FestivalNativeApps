@@ -7,6 +7,7 @@
 - Toolbar Paths appears if any non-Karaoke path chart is enabled; the sheet resets chart/Expert and uses the saved Settings default.
 - PNG decoded off the UI actor, single frame, ≤4,096 px edge / 24 MP; response-proven PNGs in a 32 MB / 16-entry LRU; each response rejected above 8 MB before caching. Text activation rows derived once on the client actor, not per SwiftUI body pass.
 - `.task(id:)` cancellation plus an exact request-key guard prevents stale paints (Expert→Hard, missing Medium 404, Bass error → Lead recovery covered).
+- Chrome (issue #23): the shared `FestivalModal` title bar — inline title "Paths", image zoom out / percentage / zoom in as a leading toolbar group (image mode only; `fst.paths.zoom-out`/`-in`), and the system Close top-right (`fst.paths.close`). The hand-drawn header row with its own ✕ circle is gone. Swipe-to-dismiss stays disabled (pinch/pan), so Close is the only dismissal.
 - Karaoke warning: native alert with OK / permanent dismissal that survives cold launch; Settings Reset restores it. `FST_UI_TEST_RESET_PATH_WARNING=1` resets only that preference on Debug fixture launches.
 
 ## Native decisions
