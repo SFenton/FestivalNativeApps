@@ -41,9 +41,9 @@
     sheet's `onDismiss` — so a swipe-to-dismiss is handled identically to tapping Skip/Done.
   - `FirstRunCarouselView.swift` — the paged carousel (operator batches 6–7): `TabView(.page)`
     with the system dots hidden and white `FirstRunPageDots` (current solid, others 35 %; one
-    adjustable "Page, n of m" element); a native toolbar **Close** (`NavigationStack` +
-    `.confirmationAction` text button, the blue glass Close of the Profile search sheet;
-    issue #4 replaced the small ✕ glyph); a full-width glass-prominent
+    adjustable "Page, n of m" element); the system toolbar **Close** from the shared
+    `FestivalModal` (`Button(role: .close)` glyph on iOS 26, issue #23; it replaced issue #4's
+    text "Close", which itself replaced a hand-drawn ✕); a full-width glass-prominent
     **Next/Done** first, then glass **Back** (only after page one) and **Skip** (until the last
     page) beneath it — a one-page guide shows only Done, and there is never a disabled Back
     (`FirstRunControls` in `FestivalCore/FirstRunViewing.swift`). Presented at an 86 % detent
@@ -248,7 +248,7 @@ inert previews, same as Songs').
   from storage at init, so there's no async gap where gates could evaluate against stale data on
   this platform. Revisit if a future async gate dependency is added.
 - XCUITest: `FirstRunJourneyTests.swift` (Next/Back/Skip order, native navigation-bar
-  "Close" (`testCloseIsNativeToolbarButton`), swipe-down and tap-outside dismissal, viewed-pages-only across a relaunch; needs `mock_service.py --port 8765`).
+  Close labelled "Close" (`testCloseIsNativeToolbarButton`), swipe-down and tap-outside dismissal, viewed-pages-only across a relaunch; needs `mock_service.py --port 8765`).
   Tap-outside must land below the status bar (a status-bar tap is scroll-to-top).
 - `contracts/product.json` has no `first-run` control entry yet (orchestrator-owned file, not
   edited by this lane) — `check_docs.py` reports the same pending "topic not in contracts"

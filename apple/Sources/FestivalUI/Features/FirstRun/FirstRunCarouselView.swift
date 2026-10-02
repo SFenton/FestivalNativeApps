@@ -10,8 +10,8 @@ import FestivalDesign
 /// Operator batch 6 (item 6.7) / batch 7: the primary **Next/Done** comes first (a
 /// full-width glass-prominent button, the HIG onboarding pattern) with glass **Back** (once
 /// there is a page to go back to) and **Skip** (while pages remain) beneath it; a one-page
-/// guide shows only Done; no arrows; white page dots; a native toolbar **Close** top-right
-/// (the same `.confirmationAction` button as the Profile search sheet, issue #4). Close,
+/// guide shows only Done; no arrows; white page dots; the system toolbar **Close** top-right
+/// from the shared ``FestivalModal`` (issue #23; it replaced issue #4's text "Close"). Close,
 /// swiping down and tapping outside the sheet all dismiss, and only the pages actually
 /// shown are recorded in `viewing` (see ``FirstRunViewing``).
 ///
@@ -33,7 +33,8 @@ struct FirstRunCarouselView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        NavigationStack {
+        // The shared modal: the system Close top-right (issue #23), not a text button.
+        FestivalModal(nil, closeIdentifier: "fst.first-run.close", onClose: onFinish) {
             VStack(spacing: 0) {
                 TabView(selection: $index) {
                     ForEach(Array(slides.enumerated()), id: \.element.id) { position, slide in
@@ -52,17 +53,8 @@ struct FirstRunCarouselView: View {
                 controls
             }
             #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
             #endif
-            .toolbar {
-                // Same native control as the Profile search sheet (issue #4): a trailing
-                // `.confirmationAction` "Close", the blue glass button on iOS 26.
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Close", action: onFinish)
-                        .accessibilityIdentifier("fst.first-run.close")
-                }
-            }
         }
         .modifier(FirstRunSheetStyle())
         .onChange(of: index) { _, newValue in

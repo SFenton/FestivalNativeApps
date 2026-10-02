@@ -4,7 +4,6 @@ import FestivalDesign
 
 /// Native public CHOpt image/text viewer with generation-safe request switching.
 struct SongPathsSheet: View {
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @AppStorage("fst.settings.pathUnavailableWarningDismissed")
     private var warningDismissed = false
@@ -76,17 +75,20 @@ struct SongPathsSheet: View {
     }
 
     var body: some View {
-        // Web-like layout: one compact title row, the path image/table filling the
-        // sheet, and a compact selector row at the bottom (operator audit 2026-09-28).
-        VStack(spacing: 10) {
-            topBar
-            pathContent
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            selectorRow
+        // Web-like layout: one compact title bar (the shared modal's, with the image
+        // zoom controls and the system Close), the path image/table filling the sheet,
+        // and a compact selector row at the bottom (operator audit 2026-09-28).
+        FestivalModal("Paths", closeIdentifier: "fst.paths.close") {
+            VStack(spacing: 10) {
+                pathContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                selectorRow
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 12)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .toolbar { zoomControls }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Full-bleed page sizing at every width: the zoomable image/table benefits from
         // the extra room on Duo unfolded/iPad rather than a centered form card.
         .festivalSheet(.large, sizing: .page)
@@ -107,45 +109,40 @@ struct SongPathsSheet: View {
 
     // MARK: - Compact chrome
 
-    /// One row: title, image zoom controls (image mode only) and an icon Close.
-    private var topBar: some View {
-        HStack(spacing: 8) {
-            Text("Paths")
-                .font(.headline)
-                .foregroundStyle(FestivalText.primary)
-                .accessibilityAddTraits(.isHeader)
-            Spacer(minLength: 8)
-            if case .image = state {
-                zoomButton(
-                    "Zoom out", symbol: "minus.magnifyingglass", enabled: zoom > 1
-                ) {
+    /// Image zoom controls on the leading side of the title bar (image mode only); the
+    /// shared modal supplies the title and the system Close.
+    @ToolbarContentBuilder private var zoomControls: some ToolbarContent {
+        if showsZoom {
+            ToolbarItemGroup(placement: .navigation) {
+                Button {
                     setZoom(zoom / 1.5)
+                } label: {
+                    Label("Zoom Out", systemImage: "minus.magnifyingglass")
                 }
+                .disabled(zoom <= 1)
                 .accessibilityIdentifier("fst.paths.zoom-out")
                 Text("\(Int(zoom * 100))%")
                     .font(.subheadline)
                     .monospacedDigit()
+                    .lineLimit(1)
+                    .fixedSize()
                     .foregroundStyle(FestivalText.primary)
-                zoomButton(
-                    "Zoom in", symbol: "plus.magnifyingglass", enabled: zoom < 3
-                ) {
+                    .accessibilityLabel("Zoom \(Int(zoom * 100)) percent")
+                Button {
                     setZoom(zoom * 1.5)
+                } label: {
+                    Label("Zoom In", systemImage: "plus.magnifyingglass")
                 }
+                .disabled(zoom >= 3)
                 .accessibilityIdentifier("fst.paths.zoom-in")
             }
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(FestivalText.primary)
-                    .frame(width: 44, height: 44)
-                    .background(BrandTokens.cardBackground, in: Circle())
-            }
-            .buttonStyle(HighContrastPagerStyle())
-            .accessibilityLabel("Close")
-            .accessibilityIdentifier("fst.paths.close")
         }
+    }
+
+    /// The image (not the text table) is showing, so zoom applies.
+    private var showsZoom: Bool {
+        if case .image = state { return true }
+        return false
     }
 
     /// The web's mobile controls: an instrument accordion (the shared
@@ -270,32 +267,6 @@ struct SongPathsSheet: View {
                 .accessibilityIdentifier("fst.paths.text.\(instrument.rawValue).\(difficulty.rawValue)")
             }
         }
-    }
-
-    /// Retain visible contrast for either enabled or disabled zoom actions.
-    ///
-    /// - Parameters:
-    ///   - title: Spoken and visible zoom action.
-    ///   - symbol: Decorative magnification icon.
-    ///   - enabled: Whether another zoom step is within the supported range.
-    ///   - action: New zoom scale to apply when activated.
-    /// - Returns: Native button with a stable opaque plate and disabled trait.
-    private func zoomButton(
-        _ title: String, symbol: String, enabled: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(
-                    enabled ? FestivalText.primary : FestivalText.disabled
-                )
-                .frame(width: 44, height: 44)
-                .background(BrandTokens.cardBackground, in: Circle())
-        }
-        .buttonStyle(HighContrastPagerStyle())
-        .accessibilityLabel(title)
-        .disabled(!enabled)
     }
 
     /// Keep a large path scrollable at fit width while allowing pinch/button zoom.
