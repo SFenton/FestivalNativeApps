@@ -133,17 +133,24 @@ final class SongDetailJourneyTests: XCTestCase {
         XCTAssertTrue(open.waitForExistence(timeout: 10))
     }
 
-    /// Assert the fitted path image has equal left and right margins in the sheet (issue #87).
+    /// Assert the fitted path image has equal left and right margins in its scroll area (issue #87).
+    ///
+    /// The viewport, not the window, is the reference: on iPhone it spans the sheet
+    /// inside its 16 pt margins, while on iPhone Duo the sheet can leave a trailing
+    /// column for the toolbar and status bar.
     ///
     /// - Parameters:
     ///   - image: The `fst.paths.image` element, at a zoom no wider than the sheet.
-    ///   - app: The running app, whose window the full-width Paths sheet spans.
+    ///   - app: The running app showing the Paths sheet.
     ///   - context: When the check ran, for the failure message.
     private func assertPathImageCentered(_ image: XCUIElement, in app: XCUIApplication, _ context: String) {
-        let window = app.windows.firstMatch.frame
+        let viewport = app.descendants(matching: .any)
+            .matching(identifier: "fst.paths.image-viewport").firstMatch
+        XCTAssertTrue(viewport.waitForExistence(timeout: 10), "No path image viewport \(context)")
+        XCTAssertEqual(viewport.elementType, .scrollView, "Viewport ID must name the scroll view")
         XCTAssertEqual(
-            image.frame.midX, window.midX, accuracy: 1,
-            "Path image off centre \(context): \(image.frame) in \(window)"
+            image.frame.midX, viewport.frame.midX, accuracy: 1,
+            "Path image off centre \(context): \(image.frame) in \(viewport.frame)"
         )
     }
 

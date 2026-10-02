@@ -327,6 +327,7 @@ struct SongPathsSheet: View {
                 )
             }
             .scrollIndicators(.hidden)
+            .accessibilityIdentifier("fst.paths.image-viewport")
         }
     }
 
