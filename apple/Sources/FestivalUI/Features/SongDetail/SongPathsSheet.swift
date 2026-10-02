@@ -316,11 +316,18 @@ struct SongPathsSheet: View {
 
     /// Keep a large path scrollable at fit width while allowing pinch/button zoom.
     ///
+    /// The image fits the full viewport width and sits in a viewport-sized frame,
+    /// centered horizontally and pinned to the top, so equal margins never depend on
+    /// how a two-axis `ScrollView` places narrower content (issue #87). Indicators are
+    /// hidden like the app's other scrollers; the cut-off bottom edge keeps the tall
+    /// path visibly scrollable, and macOS still shows scroll bars when the user's
+    /// system setting asks for them.
+    ///
     /// - Parameter image: Validated, bounded image decoded away from the UI actor.
     /// - Returns: Scrollable native image viewport.
     private func imageScroll(_ image: CGImage) -> some View {
         GeometryReader { geometry in
-            let fit = min(1, max(1, geometry.size.width - 16) / CGFloat(image.width))
+            let fit = min(1, max(1, geometry.size.width) / CGFloat(image.width))
             ScrollView([.vertical, .horizontal]) {
                 Image(image, scale: 1, label: Text(
                     "\(instrument.label) \(difficulty.label) CHOpt path"
@@ -341,7 +348,13 @@ struct SongPathsSheet: View {
                             setZoom(pinchOrigin * value.magnification)
                         }
                 )
+                .frame(
+                    minWidth: geometry.size.width, minHeight: geometry.size.height,
+                    alignment: .top
+                )
             }
+            .scrollIndicators(.hidden)
+            .accessibilityIdentifier("fst.paths.image-viewport")
         }
     }
 

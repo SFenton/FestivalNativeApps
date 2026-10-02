@@ -132,6 +132,29 @@ private func pathContentPixels(_ image: CGImage) -> (
     return (green, red, orange)
 }
 
+/// Horizontal extent of the generated orange path image in a rendered sheet.
+///
+/// - Parameter image: Fully rendered AppKit Paths sheet after a bounded local read.
+/// - Returns: Leftmost and rightmost orange pixel columns, or nil when none painted.
+@MainActor
+private func orangeColumns(_ image: CGImage) -> (min: Int, max: Int)? {
+    let bitmap = NSBitmapImageRep(cgImage: image)
+    var bounds: (min: Int, max: Int)?
+    for y in stride(from: 0, to: image.height, by: 8) {
+        var row: (min: Int, max: Int, count: Int)?
+        for x in 0..<image.width {
+            guard let color = bitmap.colorAt(x: x, y: y),
+                  color.redComponent > 0.7, color.greenComponent > 0.25,
+                  color.greenComponent < 0.6, color.blueComponent < 0.25 else { continue }
+            row = (row?.min ?? x, x, (row?.count ?? 0) + 1)
+        }
+        // Only rows crossing the image itself, not small orange glyphs elsewhere.
+        guard let row, row.count > 100 else { continue }
+        bounds = (Swift.min(bounds?.min ?? row.min, row.min), Swift.max(bounds?.max ?? row.max, row.max))
+    }
+    return bounds
+}
+
 /// Native CHOpt selectors must paint real AppKit controls, not snapshot placeholders.
 @MainActor
 @Test func pathSheetPaintsNativeSelectorsAcrossWidthsAndTextSizes() throws {
@@ -233,6 +256,12 @@ private func pathContentPixels(_ image: CGImage) -> (
     #expect(imagePixels.bright > 20)
     #expect(await transport.recordedPaths()
         .contains("/api/paths/fixture-pulse/Solo_Guitar/expert"))
+    // A path narrower than the sheet sits centred, with equal side margins (issue #87).
+    let columns = try #require(orangeColumns(image))
+    let scale = CGFloat(image.width) / 390
+    let leftMargin = CGFloat(columns.min)
+    let rightMargin = CGFloat(image.width - 1 - columns.max)
+    #expect(abs(leftMargin - rightMargin) <= 2 * scale, "Margins \(leftMargin) vs \(rightMargin)")
     _ = try nativeHostedPNG(
         image, filename: "paths-loaded-image.png",
         environment: "FST_PATH_RENDER_OUT"

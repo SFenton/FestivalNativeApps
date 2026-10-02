@@ -145,6 +145,16 @@ public class SongPathsViewModelTests
         vm.Close();
     }
 
+    [Theory]
+    [InlineData(800, 2048, 2, 800)] // wider than the sheet: fills the whole viewport (no scroll-bar reservation)
+    [InlineData(800, 1000, 2, 500)] // narrower: own pixel width, centred by the view
+    [InlineData(800, 600, 1, 600)]
+    [InlineData(800, 600, 0, 600)] // unknown scale counts as 1
+    [InlineData(0, 600, 1, 1)] // not laid out yet
+    [InlineData(double.PositiveInfinity, 600, 1, 1)]
+    public void FitImageWidth_UsesFullViewportWithoutUpscaling(double viewport, int pixels, double scale, double expected) =>
+        Assert.Equal(expected, SongPathsViewModel.FitImageWidth(viewport, pixels, scale));
+
     [Fact]
     public void InstrumentOptions_MirrorInstrumentsWithIconsAndSpokenNames()
     {
