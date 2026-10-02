@@ -15,10 +15,121 @@ public sealed record ChangelogSection(string Title, IReadOnlyList<string> Items)
 }
 
 /// <summary>One version's sections (web <c>ChangelogEntry</c>).</summary>
-/// <param name="Sections">Sections in display order.</param>
+/// <param name="Sections">Sections in display order (one "Version X" section; drives the show-once hash).</param>
 /// <param name="Version">Windows app version (<c>YYMM.DD.NN</c>), or <see langword="null"/> for unversioned data.</param>
 /// <param name="Released">Whether the version reached the Store (the newest entry is the build itself).</param>
-public sealed record ChangelogEntry(IReadOnlyList<ChangelogSection> Sections, string? Version = null, bool Released = true);
+public sealed record ChangelogEntry(IReadOnlyList<ChangelogSection> Sections, string? Version = null, bool Released = true)
+{
+    /// <summary>The same notes grouped by page category (<c>groups</c>); empty for documents without it.</summary>
+    public IReadOnlyList<ChangelogGroup> Groups { get; init; } = [];
+
+    /// <summary>Tester notes of the unreleased built version (<c>testflight</c>), or <see langword="null"/>.</summary>
+    public TesterNotes? Tester { get; init; }
+}
+
+/// <summary>
+/// One page-category group of notes as <c>versioning.py groups_json</c> writes it: prefix stripped, groups already in the
+/// web changelog's page order.
+/// </summary>
+/// <param name="Category">Page category ("Songs", "Item Shop", …), or <see langword="null"/> for uncategorized notes.</param>
+/// <param name="Items">Bullets, word for word.</param>
+public sealed record ChangelogGroup(string? Category, IReadOnlyList<string> Items)
+{
+    /// <summary>Heading of uncategorized notes (TestFlight "What to Test" wording).</summary>
+    public const string Other = "Other";
+
+    /// <summary>Heading above the bullets: the category, or "Other".</summary>
+    public string DisplayTitle => Category ?? Other;
+
+    /// <inheritdoc/>
+    public bool Equals(ChangelogGroup? other) =>
+        other is not null && Category == other.Category && Items.SequenceEqual(other.Items);
+
+    /// <inheritdoc/>
+    public override int GetHashCode() => HashCode.Combine(Category, Items.Count);
+}
+
+/// <summary>
+/// The built version's tester notes (<c>testflight</c>): every note since the Store's latest release, grouped like
+/// TestFlight "What to Test".
+/// </summary>
+/// <param name="Release">Newest released version compared with, or <see langword="null"/> before the first release.</param>
+/// <param name="Groups">Category groups in display order.</param>
+public sealed record TesterNotes(string? Release, IReadOnlyList<ChangelogGroup> Groups)
+{
+    /// <summary>Block heading, matching TestFlight's "Changes since release X" / "Changes so far".</summary>
+    public string Title => Release is null ? "Changes So Far" : $"Changes Since Release {Release}";
+}
+
+/// <summary>One headed block of the What's New list: a version (or the tester list) and its groups.</summary>
+/// <param name="Title">Block heading ("Version 2610.02.01", "Changes Since Release 2610.01.03").</param>
+/// <param name="Groups">Non-empty groups in display order.</param>
+public sealed record WhatsNewBlock(string Title, IReadOnlyList<ChangelogGroup> Groups)
+{
+    /// <summary>Whether groups get category headings: only when a note has a category (TestFlight's rule).</summary>
+    public bool Headed => Groups.Any(group => group.Category is not null);
+}
+
+/// <summary>How this copy was installed, which picks the What's New notes (Apple <c>AppDistribution</c>, Android <c>InstallChannel</c>).</summary>
+public enum InstallChannel
+{
+    /// <summary>Signed by the Microsoft Store: the release notes.</summary>
+    Store,
+    /// <summary>Anything else (unpackaged dev builds, sideloaded or developer-signed MSIX): the tester notes.</summary>
+    Tester,
+}
+
+/// <summary>Install channel rules.</summary>
+public static class InstallChannels
+{
+    /// <summary>
+    /// Resolves the channel. Debug/automation launches honour <c>--distribution store|tester</c> or
+    /// <c>FST_DEBUG_DISTRIBUTION</c>; otherwise only a Store signature (<c>Package.Current.SignatureKind</c>) means Store.
+    /// </summary>
+    /// <param name="args">Command-line arguments.</param>
+    /// <param name="environment">Environment lookup.</param>
+    /// <param name="hooksEnabled">Debug or automation launch.</param>
+    /// <param name="signatureKind">
+    /// Reads the package's <c>PackageSignatureKind</c> name; only called without an override. Throwing (no package
+    /// identity) or <see langword="null"/> means not from the Store.
+    /// </param>
+    /// <returns>Channel.</returns>
+    public static InstallChannel Resolve(IReadOnlyList<string> args, Func<string, string?> environment, bool hooksEnabled, Func<string?> signatureKind)
+    {
+        if (hooksEnabled)
+        {
+            string? value = null;
+            for (var i = 0; i < args.Count; i++)
+            {
+                if (args[i].StartsWith("--distribution=", StringComparison.OrdinalIgnoreCase)) value = args[i]["--distribution=".Length..];
+                else if (string.Equals(args[i], "--distribution", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Count) value = args[++i];
+            }
+            switch ((value ?? environment("FST_DEBUG_DISTRIBUTION"))?.Trim().ToLowerInvariant())
+            {
+                case "store": return InstallChannel.Store;
+                case "tester" or "testflight": return InstallChannel.Tester;
+            }
+        }
+        string? kind;
+        try
+        {
+            kind = signatureKind();
+        }
+#pragma warning disable CA1031 // Any failure to read the package identity means "not from the Store".
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            kind = null;
+        }
+        return FromSignatureKind(kind);
+    }
+
+    /// <summary>Channel from a <c>PackageSignatureKind</c> name.</summary>
+    /// <param name="signatureKind">"Store", "Developer", "Enterprise", "System", "None", or <see langword="null"/> when unpackaged.</param>
+    /// <returns><see cref="InstallChannel.Store"/> only for a Store signature.</returns>
+    public static InstallChannel FromSignatureKind(string? signatureKind) =>
+        string.Equals(signatureKind?.Trim(), "Store", StringComparison.OrdinalIgnoreCase) ? InstallChannel.Store : InstallChannel.Tester;
+}
 #endregion
 
 #region Catalogue
@@ -41,6 +152,18 @@ public static class Changelog
 
     /// <summary>Longest bullet kept, in characters.</summary>
     public const int MaxItemLength = 600;
+
+    /// <summary>Most category groups kept per list (17 categories plus "Other", with headroom).</summary>
+    public const int MaxGroups = 24;
+
+    /// <summary>Longest category name kept.</summary>
+    public const int MaxCategoryLength = 32;
+
+    /// <summary>
+    /// Most bullets kept in the tester list: every note since the latest release, which can exceed one version's
+    /// <see cref="MaxItems"/>.
+    /// </summary>
+    public const int MaxTesterItems = 120;
 
     /// <summary>Longest version string kept.</summary>
     private const int MaxVersionLength = 32;
@@ -77,9 +200,11 @@ public static class Changelog
     }
 
     /// <summary>
-    /// Decodes <c>{"entries":[{"version":"2610.01.02","released":true,"items":["…"]}]}</c>, bounded to
-    /// <see cref="MaxEntries"/> entries, <see cref="MaxItems"/> bullets and <see cref="MaxItemLength"/> characters;
-    /// versions without bullets are skipped.
+    /// Decodes <c>{"entries":[{"version":"2610.01.02","released":true,"items":["…"],"groups":[…],"testflight":{…}}]}</c>,
+    /// bounded to <see cref="MaxEntries"/> entries, <see cref="MaxItems"/> bullets and <see cref="MaxItemLength"/> characters;
+    /// versions without bullets are skipped. <c>groups</c> and <c>testflight.groups</c> are used as written
+    /// (<c>versioning.py</c> owns the categories); without them the flat <c>items</c>/<c>vs_release</c> become one
+    /// uncategorized group.
     /// </summary>
     /// <param name="text">JSON document.</param>
     /// <returns>Entries, one "Version X" section each.</returns>
@@ -104,18 +229,97 @@ public static class Changelog
             var version = versionElement.GetString()!;
             if (version.Length > MaxVersionLength) version = version[..MaxVersionLength];
             var released = !entry.TryGetProperty("released", out var releasedElement) || releasedElement.ValueKind != JsonValueKind.False;
-            List<string> items = entry.TryGetProperty("items", out var itemsElement) && itemsElement.ValueKind == JsonValueKind.Array
-                ? [.. itemsElement.EnumerateArray()
-                    .Where(item => item.ValueKind == JsonValueKind.String)
-                    .Select(item => item.GetString()!.Trim())
-                    .Select(item => item.Length > MaxItemLength ? item[..MaxItemLength] : item)
-                    .Where(item => item.Length > 0)
-                    .Take(MaxItems)]
-                : [];
+            List<string> items = [.. Strings(entry, "items").Take(MaxItems)];
             if (version.Length == 0 || items.Count == 0) continue;
-            entries.Add(new ChangelogEntry([new ChangelogSection($"Version {version}", items)], version, released));
+            var groups = DecodeGroups(entry, MaxItems);
+            entries.Add(new ChangelogEntry([new ChangelogSection($"Version {version}", items)], version, released)
+            {
+                Groups = groups.Count > 0 ? groups : [new ChangelogGroup(null, items)],
+                Tester = entry.TryGetProperty("testflight", out var tester) && tester.ValueKind == JsonValueKind.Object ? DecodeTester(tester) : null,
+            });
         }
         return entries;
+    }
+
+    /// <summary>Bounded, trimmed, non-empty strings of an array property (non-strings skipped).</summary>
+    /// <param name="parent">Object holding the property.</param>
+    /// <param name="name">Property name.</param>
+    /// <returns>Strings of at most <see cref="MaxItemLength"/> characters.</returns>
+    private static IEnumerable<string> Strings(JsonElement parent, string name) =>
+        parent.TryGetProperty(name, out var array) && array.ValueKind == JsonValueKind.Array
+            ? array.EnumerateArray()
+                .Where(item => item.ValueKind == JsonValueKind.String)
+                .Select(item => item.GetString()!.Trim())
+                .Select(item => item.Length > MaxItemLength ? item[..MaxItemLength] : item)
+                .Where(item => item.Length > 0)
+            : [];
+
+    /// <summary>Decodes a <c>groups</c> array (<c>[{category, items}]</c>) in order; malformed groups are skipped.</summary>
+    /// <param name="parent">Object holding <c>groups</c>.</param>
+    /// <param name="limit">Most bullets kept across all groups.</param>
+    /// <returns>Non-empty groups, bounded by <see cref="MaxGroups"/> and <paramref name="limit"/>.</returns>
+    public static IReadOnlyList<ChangelogGroup> DecodeGroups(JsonElement parent, int limit)
+    {
+        var groups = new List<ChangelogGroup>();
+        if (!parent.TryGetProperty("groups", out var array) || array.ValueKind != JsonValueKind.Array) return groups;
+        var budget = limit;
+        foreach (var group in array.EnumerateArray())
+        {
+            if (budget <= 0 || groups.Count >= MaxGroups) break;
+            if (group.ValueKind != JsonValueKind.Object) continue;
+            string? category = group.TryGetProperty("category", out var name) && name.ValueKind == JsonValueKind.String ? name.GetString()!.Trim() : null;
+            if (category is { Length: > MaxCategoryLength }) category = category[..MaxCategoryLength];
+            if (category is { Length: 0 }) category = null;
+            List<string> items = [.. Strings(group, "items").Take(budget)];
+            budget -= items.Count;
+            if (items.Count > 0) groups.Add(new ChangelogGroup(category, items));
+        }
+        return groups;
+    }
+
+    /// <summary>Decodes the <c>testflight</c> block (<c>{since, new, release, vs_release, groups}</c>).</summary>
+    /// <param name="block">The block.</param>
+    /// <returns>Tester notes, or <see langword="null"/> when it lists nothing.</returns>
+    private static TesterNotes? DecodeTester(JsonElement block)
+    {
+        string? release = block.TryGetProperty("release", out var value) && value.ValueKind == JsonValueKind.String ? value.GetString()!.Trim() : null;
+        if (release is { Length: > MaxVersionLength }) release = release[..MaxVersionLength];
+        if (release is { Length: 0 }) release = null;
+        var groups = DecodeGroups(block, MaxTesterItems);
+        if (groups.Count == 0)
+        {
+            List<string> flat = [.. Strings(block, "vs_release").Take(MaxTesterItems)];
+            if (flat.Count > 0) groups = [new ChangelogGroup(null, flat)];
+        }
+        return groups.Count > 0 ? new TesterNotes(release, groups) : null;
+    }
+
+    /// <summary>
+    /// The What's New list for an install channel: one block per entry, newest first. Tester installs see the built
+    /// version's tester list (every note since the latest release, like TestFlight "What to Test") in place of its
+    /// release block; Store installs never do. Manual mentions are dropped (see <see cref="DisplayEntries"/>).
+    /// </summary>
+    /// <param name="channel">How this copy was installed.</param>
+    /// <param name="entries">Entries (defaults to <see cref="Entries"/>).</param>
+    /// <returns>Non-empty blocks.</returns>
+    public static IReadOnlyList<WhatsNewBlock> DisplayBlocks(InstallChannel channel, IReadOnlyList<ChangelogEntry>? entries = null)
+    {
+        var blocks = new List<WhatsNewBlock>();
+        foreach (var entry in entries ?? Entries)
+        {
+            var tester = channel == InstallChannel.Tester ? entry.Tester : null;
+            if (tester is null && (entry.Sections.Count == 0 || entry.Sections.All(section => MentionsManual(section.Title)))) continue;
+            var title = tester?.Title ?? entry.Sections[0].DisplayTitle;
+            var source = tester?.Groups ?? (entry.Groups.Count > 0 ? entry.Groups : [.. entry.Sections.Select(section => new ChangelogGroup(null, section.Items))]);
+            List<ChangelogGroup> groups =
+            [
+                .. source
+                    .Select(group => group with { Items = [.. group.Items.Where(item => !MentionsManual(item))] })
+                    .Where(group => group.Items.Count > 0),
+            ];
+            if (groups.Count > 0) blocks.Add(new WhatsNewBlock(title, groups));
+        }
+        return blocks;
     }
 
     /// <summary>Minor words kept lower case after the first word of a heading.</summary>

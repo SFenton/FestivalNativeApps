@@ -40,7 +40,12 @@ struct BandsScreen: View {
                                 Image(systemName: "chevron.right")
                                     .foregroundStyle(FestivalText.deemphasized)
                             }
+                            .contentShape(Rectangle())
                         }
+                        #if os(macOS)
+                        // A row, not the Mac's default bordered push button.
+                        .buttonStyle(FestivalRowPrimitiveButtonStyle(cornerRadius: 8))
+                        #endif
                         .accessibilityIdentifier("fst.bands.your-bands")
                     }
                     .festivalFadeIn(isLoaded: true, index: 0)
@@ -58,7 +63,11 @@ struct BandsScreen: View {
                                 Image(systemName: "chevron.right")
                                     .foregroundStyle(FestivalText.deemphasized)
                             }
+                            .contentShape(Rectangle())
                         }
+                        #if os(macOS)
+                        .buttonStyle(FestivalRowPrimitiveButtonStyle(cornerRadius: 8))
+                        #endif
                         .accessibilityIdentifier("fst.bands.rankings.\(bandType.rawValue)")
                     }
                 }

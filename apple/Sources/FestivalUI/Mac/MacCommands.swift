@@ -11,10 +11,13 @@ struct MacPageCommands: Equatable {
     var sort: (@MainActor () -> Void)?
     /// Opens the page's Filter options, or nil when unavailable.
     var filter: (@MainActor () -> Void)?
+    /// Opens Find Rival (Rivals), or nil elsewhere.
+    var findRival: (@MainActor () -> Void)?
 
     /// Always equal: the closures only flip the page's own presentation state.
     static func == (lhs: Self, rhs: Self) -> Bool {
         (lhs.sort == nil) == (rhs.sort == nil) && (lhs.filter == nil) == (rhs.filter == nil)
+            && (lhs.findRival == nil) == (rhs.findRival == nil)
     }
 }
 
@@ -173,6 +176,8 @@ public struct MacCommands: Commands {
             Button("Deselect Profile") { model.session.deselectPlayer() }
                 .disabled(model.session.selectedPlayer == nil)
             Divider()
+            Button("Find Rival…") { pageCommands?.findRival?() }
+                .disabled(pageCommands?.findRival == nil || sheetOpen)
             Button("Notifications") { navigation.notificationsPresented = true }
                 .disabled(model.session.selectedPlayer == nil || sheetOpen)
         }

@@ -109,13 +109,78 @@ class SongsCoreTest {
     }
 
     @Test
-    fun shopFilterNeedsMembershipAndLeaving() {
+    fun shopAvailabilityCountsLeavingOffersAsAvailable() {
         val offers = mapOf("a" to SongsFixtures.offer("a"), "b" to SongsFixtures.offer("b", leaving = true))
-        assertEquals(songs, SongShopFilter().filter(songs, offers))
-        assertEquals(listOf(a, b), SongShopFilter(inShop = true).filter(songs, offers))
-        assertEquals(listOf(b), SongShopFilter(leavingTomorrow = true).filter(songs, offers))
-        assertEquals(listOf(b), SongShopFilter(inShop = true, leavingTomorrow = true).filter(songs, offers))
-        assertTrue(SongShopFilter(inShop = true).filter(songs, emptyMap()).isEmpty())
+        assertEquals(songs, SongGeneralFilter().filterShop(songs, offers))
+        assertEquals(listOf(a, b), SongGeneralFilter(shopUnavailable = false).filterShop(songs, offers))
+        assertEquals(listOf(c, d), SongGeneralFilter(shopAvailable = false).filterShop(songs, offers))
+        assertTrue(SongGeneralFilter(shopAvailable = false, shopUnavailable = false).filterShop(songs, offers).isEmpty())
+        assertTrue(SongGeneralFilter(shopUnavailable = false).filterShop(songs, emptyMap()).isEmpty())
+    }
+
+    @Test
+    fun catalogueBucketsMatchWebLabelsAndKeys() {
+        assertEquals(1980, SongCatalogBuckets.decade(1989))
+        assertEquals(2020, SongCatalogBuckets.decade(2020))
+        assertNull(SongCatalogBuckets.decade(0))
+        assertNull(SongCatalogBuckets.decade(null))
+        assertEquals(0, SongCatalogBuckets.duration(59))
+        assertEquals(1, SongCatalogBuckets.duration(60))
+        assertEquals(9, SongCatalogBuckets.duration(599))
+        assertEquals(10, SongCatalogBuckets.duration(1_200))
+        assertNull(SongCatalogBuckets.duration(0))
+        assertNull(SongCatalogBuckets.duration(null))
+        assertEquals(listOf(1990, 2000, 2010), SongCatalogBuckets.decades(songs + a.copy(songId = "u", year = null)))
+        assertEquals((0..9).toList(), SongCatalogBuckets.durations(songs))
+        assertEquals((0..10).toList(), SongCatalogBuckets.durations(songs + a.copy(songId = "long", durationSeconds = 660)))
+        assertEquals("1990s", SongCatalogBuckets.decadeLabel(1990))
+        assertEquals("Under 1 Minute", SongCatalogBuckets.durationLabel(0))
+        assertEquals("3-4 Minutes", SongCatalogBuckets.durationLabel(3))
+        assertEquals("10+ Minutes", SongCatalogBuckets.durationLabel(10))
+        assertTrue(SongCatalogBuckets.isDecade(1980))
+        assertFalse(SongCatalogBuckets.isDecade(1985))
+        assertFalse(SongCatalogBuckets.isDecade(0))
+        assertTrue(SongCatalogBuckets.isDuration(10))
+        assertFalse(SongCatalogBuckets.isDuration(11))
+        assertFalse(SongCatalogBuckets.isDuration(-1))
+    }
+
+    @Test
+    fun generalFilterMatchesYearDurationAndDoubleBass() {
+        val supported = a.copy(doubleBassSupported = true)
+        val unsupported = b.copy(doubleBassSupported = false)
+        val unknown = c.copy(doubleBassSupported = null)
+        val all = SongGeneralFilter()
+        assertFalse(all.catalogActive)
+        assertFalse(all.isActive(shopVisible = true))
+        assertTrue(listOf(supported, unsupported, unknown).all(all::matches))
+        val onlySupported = SongGeneralFilter(doubleBassUnsupported = false)
+        assertTrue(onlySupported.catalogActive)
+        assertEquals(listOf(supported), listOf(supported, unsupported, unknown).filter(onlySupported::matches))
+        val onlyUnsupported = SongGeneralFilter(doubleBassSupported = false)
+        assertEquals(listOf(unsupported), listOf(supported, unsupported, unknown).filter(onlyUnsupported::matches))
+        val none = SongGeneralFilter(doubleBassSupported = false, doubleBassUnsupported = false)
+        assertTrue(listOf(supported, unsupported, unknown).none(none::matches))
+        // Year: hidden decade drops its songs; once narrowed, songs without a year drop too.
+        val no2000s = SongGeneralFilter(excludedDecades = setOf(2000))
+        assertEquals(listOf(b, c), songs.filter(no2000s::matches))
+        assertFalse(no2000s.matches(a.copy(year = null)))
+        // Duration: Fixtures default to 200 s (bucket 3).
+        val noThree = SongGeneralFilter(excludedDurations = setOf(3))
+        assertTrue(songs.none(noThree::matches))
+        assertTrue(noThree.matches(a.copy(durationSeconds = 59)))
+        assertFalse(noThree.matches(a.copy(durationSeconds = null)))
+        // Item Shop only counts while the Shop is shown.
+        val shop = SongGeneralFilter(shopUnavailable = false)
+        assertFalse(shop.catalogActive)
+        assertTrue(shop.isActive(shopVisible = true))
+        assertFalse(shop.isActive(shopVisible = false))
+        assertTrue(shop.matches(a))
+        assertFalse(SongGeneralFilter(excludedDecades = setOf(1985)).isValid)
+        assertFalse(SongGeneralFilter(excludedDurations = setOf(12)).isValid)
+        assertTrue(no2000s.isValid)
+        assertEquals(setOf(2000), no2000s.excluded(SongGeneralBucketKind.Year))
+        assertEquals(setOf(4), all.withExcluded(SongGeneralBucketKind.Duration, setOf(4)).excluded(SongGeneralBucketKind.Duration))
     }
 
     @Test
@@ -218,7 +283,7 @@ class SongsCoreTest {
 
     @Test
     fun pipelinePausesShopChoicesWithoutValidatedData() {
-        val input = SongListInputs(songs, sort = SongSortMode.Shop, shopFilter = SongShopFilter(inShop = true))
+        val input = SongListInputs(songs, sort = SongSortMode.Shop, general = SongGeneralFilter(shopUnavailable = false))
         val unloaded = SongListPipeline.run(input, sorter)
         assertEquals(SongSortMode.Title, unloaded.effectiveSort)
         assertEquals(4, unloaded.songs.size)
@@ -241,6 +306,27 @@ class SongsCoreTest {
         assertEquals(listOf("In Shop", "Leaving Tomorrow"), live.headers.map { it.label })
         // A validated empty Shop gives an honest empty list.
         assertTrue(SongListPipeline.run(input.copy(offers = emptyMap()), sorter).songs.isEmpty())
+    }
+
+    @Test
+    fun pipelineAppliesGeneralFiltersWithoutAPlayer() {
+        val base = SongListInputs(songs.map { it.copy(doubleBassSupported = it.songId != "b") })
+        val decade = SongListPipeline.run(base.copy(general = SongGeneralFilter(excludedDecades = setOf(2000))), sorter)
+        assertEquals(listOf("b", "c"), decade.songs.map { it.songId }.sorted())
+        assertTrue(decade.filtersApplied)
+        assertTrue(decade.notices.isEmpty())
+        val bass = SongListPipeline.run(base.copy(general = SongGeneralFilter(doubleBassSupported = false)), sorter)
+        assertEquals(listOf("b"), bass.songs.map { it.songId })
+        // Both Item Shop choices off: nothing, even before Shop data loads (web).
+        val noShop = SongListPipeline.run(base.copy(general = SongGeneralFilter(shopAvailable = false, shopUnavailable = false)), sorter)
+        assertTrue(noShop.songs.isEmpty())
+        assertTrue(noShop.notices.isEmpty())
+        // ...but a hidden Shop pauses the choice instead.
+        val hidden = SongListPipeline.run(base.copy(hideShop = true, general = SongGeneralFilter(shopAvailable = false, shopUnavailable = false)), sorter)
+        assertEquals(4, hidden.songs.size)
+        assertTrue(hidden.shopFilterPaused!!.contains("hidden"))
+        val notInShop = SongListPipeline.run(base.copy(general = SongGeneralFilter(shopAvailable = false), offers = mapOf("a" to SongsFixtures.offer("a"))), sorter)
+        assertEquals(listOf("b", "c", "d"), notInShop.songs.map { it.songId }.sorted())
     }
 
     @Test
@@ -292,7 +378,7 @@ class SongsCoreTest {
     fun filterDraftTracksChangesAndSanitizesHiddenCharts() {
         val visible = setOf(Instrument.Lead, Instrument.Bass)
         val saved = SongPlayerScoreFilter(hasScores = setOf(Instrument.Drums, Instrument.Lead))
-        val draft = SongFilterDraft.from(SongFilter(), SongShopFilter(), saved, visible)
+        val draft = SongFilterDraft.from(SongFilter(), SongGeneralFilter(), saved, visible)
         assertFalse(draft.changed)
         assertTrue(draft.hasHiddenChecks)
         assertEquals(SongPlayerScoreFilter(hasScores = setOf(Instrument.Lead)), draft.result.third)
@@ -310,11 +396,21 @@ class SongsCoreTest {
         assertTrue(ok.canApply)
         assertTrue(ok.allOn(SongScoreFilterKind.MissingFCs))
         assertFalse(ok.allOn(SongScoreFilterKind.HasFCs))
+        val general = draft.withGeneralBucket(SongGeneralBucketKind.Year, 1990, shown = false)
+        assertEquals(setOf(1990), general.general.excludedDecades)
+        assertTrue(general.changed)
+        assertEquals(SongGeneralFilter(excludedDecades = setOf(1990)), general.result.second)
+        assertTrue(general.withGeneralBucket(SongGeneralBucketKind.Year, 1990, shown = true).general.excludedDecades.isEmpty())
+        val clearAll = draft.withAllGeneralBuckets(SongGeneralBucketKind.Duration, listOf(0, 1, 2), shown = false)
+        assertEquals(setOf(0, 1, 2), clearAll.general.excludedDurations)
+        assertTrue(clearAll.withAllGeneralBuckets(SongGeneralBucketKind.Duration, listOf(0, 1, 2), shown = true).general.excludedDurations.isEmpty())
+        assertFalse(draft.copy(general = SongGeneralFilter(excludedDurations = setOf(42))).isValid)
+        assertEquals(SongGeneralFilter(), clearAll.reset().general)
         val cleared = ok.reset()
         assertEquals(SongFilter(), cleared.filter)
         assertFalse(cleared.playerFilter.isActive)
         assertTrue(cleared.changed)
-        assertEquals(SongFilter(Instrument.Lead), SongFilterDraft.from(SongFilter(Instrument.Lead), SongShopFilter(), null, visible).filter)
+        assertEquals(SongFilter(Instrument.Lead), SongFilterDraft.from(SongFilter(Instrument.Lead), SongGeneralFilter(), null, visible).filter)
         assertEquals(SongFilter(), SongFilterDraft(filter = SongFilter(Instrument.Drums), visible = visible).result.first)
     }
 

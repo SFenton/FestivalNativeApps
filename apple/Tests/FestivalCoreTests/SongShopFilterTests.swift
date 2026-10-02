@@ -2,8 +2,9 @@ import Foundation
 import Testing
 @testable import FestivalCore
 
-/// Shop membership and Leaving Tomorrow must be distinct, validated conditions.
-@Test func shopSongFiltersMatchSourceAndRejectAbsentFeed() throws {
+/// Item Shop availability (web `shopAvailability`): independent Available / Not
+/// Available categories, both off hides everything, one off needs a validated feed.
+@Test func shopAvailabilityFiltersMatchSourceAndRejectAbsentFeed() throws {
     let songs = try JSONDecoder().decode(SongsResponse.self, from: Data("""
     {"count":3,"songs":[
       {"songId":"new","title":"New","artist":"Fixture"},
@@ -24,24 +25,26 @@ import Testing
     """.utf8))
     try shop.validate()
     let offers = Dictionary(uniqueKeysWithValues: shop.songs.map { ($0.songId, $0) })
-    let inShop = SongShopFilter(inShop: true)
-    let leaving = SongShopFilter(leavingTomorrow: true)
+    let available = SongShopFilter.availableOnly
+    let unavailable = SongShopFilter(available: false, unavailable: true)
+    let none = SongShopFilter(available: false, unavailable: false)
 
-    #expect(!SongShopFilter().isActive)
+    #expect(!SongShopFilter().isActive && !SongShopFilter().needsShopFeed)
     #expect(try SongShopFilter().filtered(songs.songs, offersById: nil) == songs.songs)
+    #expect(none.isActive && !none.needsShopFeed)
+    #expect(try none.filtered(songs.songs, offersById: nil).isEmpty)
     #expect(throws: FestivalAPIError.invalidShop) {
-        try inShop.filtered(songs.songs, offersById: nil)
+        try available.filtered(songs.songs, offersById: nil)
     }
     #expect(throws: FestivalAPIError.invalidShop) {
-        try leaving.filtered(songs.songs, offersById: nil)
+        try unavailable.filtered(songs.songs, offersById: nil)
     }
-    #expect(try inShop.filtered(songs.songs, offersById: offers).map(\.songId)
+    #expect(try available.filtered(songs.songs, offersById: offers).map(\.songId)
             == ["new", "leaving"])
-    #expect(try leaving.filtered(songs.songs, offersById: offers).map(\.songId)
-            == ["leaving"])
-    #expect(try SongShopFilter(inShop: true, leavingTomorrow: true)
-        .filtered(songs.songs, offersById: offers).map(\.songId) == ["leaving"])
-    #expect(try inShop.filtered(songs.songs, offersById: [:]).isEmpty)
+    #expect(try unavailable.filtered(songs.songs, offersById: offers).map(\.songId)
+            == ["outside"])
+    #expect(try available.filtered(songs.songs, offersById: [:]).isEmpty)
+    #expect(try unavailable.filtered(songs.songs, offersById: [:]) == songs.songs)
     #expect(songs.songs.map(\.songId) == ["new", "leaving", "outside"])
 }
 

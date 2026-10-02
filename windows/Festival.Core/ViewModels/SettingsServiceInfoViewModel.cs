@@ -7,7 +7,9 @@ namespace Festival.Core.ViewModels;
 /// Settings "Service Info" card (web <c>useServiceInfo('settings')</c> + <c>SettingsServiceProgressCard</c>): polls the keyless
 /// operational <c>GET /api/service-info</c> every 5 s only while Settings is shown (30 s while the window is hidden), with
 /// the web's 3 s request timeout, and reduces each read through <see cref="ServiceProgressReducer"/>. A failure after a
-/// success shows the failure rather than silently keeping old progress.
+/// success shows the failure rather than silently keeping old progress. Like the web card, percent and units are spoken
+/// on the phase row rather than printed, band discovery adds its attempt line, and the publication row only shows once
+/// a read succeeded.
 /// </summary>
 public sealed partial class SettingsServiceInfoViewModel : ObservableObject
 {
@@ -66,24 +68,25 @@ public sealed partial class SettingsServiceInfoViewModel : ObservableObject
     [ObservableProperty]
     private double barPercent;
 
-    /// <summary>"42.5%" or the indeterminate caption.</summary>
+    /// <summary>"42.5%" or the indeterminate sentence; spoken on the phase row, not printed (web parity).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(PhaseAccessibleName))]
     private string? progressText;
 
-    /// <summary>Units sentence.</summary>
+    /// <summary>Units sentence; spoken on the phase row, not printed (web parity).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasUnits), nameof(PhaseAccessibleName))]
+    [NotifyPropertyChangedFor(nameof(PhaseAccessibleName))]
     private string? unitsText;
 
-    /// <summary>Last successful publication.</summary>
+    /// <summary>Band discovery attempt line under the bar (web <c>discoveryAttemptText</c>).</summary>
     [ObservableProperty]
-    private string lastPublished = "Loading";
+    [NotifyPropertyChangedFor(nameof(HasAttempt), nameof(PhaseAccessibleName))]
+    private string? attemptText;
 
-    /// <summary>Public-read freeze sentence (native addition), <see langword="null"/> while reads are live.</summary>
+    /// <summary>Last successful publication, or <see langword="null"/> while loading or failed (web shows only the state row).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasFreezeNotice))]
-    private string? freezeNotice;
+    [NotifyPropertyChangedFor(nameof(HasLastPublished))]
+    private string? lastPublished;
 
     /// <summary>Process state label.</summary>
     public string ProcessStateText => ProcessState.Label();
@@ -94,14 +97,15 @@ public sealed partial class SettingsServiceInfoViewModel : ObservableObject
     /// <summary>Whether a phase row shows.</summary>
     public bool HasPhase => PhaseTitle is not null;
 
-    /// <summary>Whether a units line shows.</summary>
-    public bool HasUnits => UnitsText is not null;
+    /// <summary>Whether the attempt line shows.</summary>
+    public bool HasAttempt => AttemptText is not null;
 
-    /// <summary>Whether the freeze row shows.</summary>
-    public bool HasFreezeNotice => FreezeNotice is not null;
+    /// <summary>Whether the publication row shows.</summary>
+    public bool HasLastPublished => LastPublished is not null;
 
-    /// <summary>Narrator name for the phase row: title, progress and units.</summary>
-    public string PhaseAccessibleName => string.Join(". ", new[] { PhaseTitle, HasBar ? ProgressText : null, UnitsText }.Where(s => s is not null));
+    /// <summary>Narrator name for the phase row: title, progress, units and attempts.</summary>
+    public string PhaseAccessibleName =>
+        string.Join(". ", new[] { PhaseTitle, HasBar ? ProgressText : null, UnitsText, AttemptText }.Where(s => s is not null));
 
     /// <summary>Whether polling is running.</summary>
     public bool IsPolling => polling is not null;
@@ -206,24 +210,24 @@ public sealed partial class SettingsServiceInfoViewModel : ObservableObject
         BarPercent = determinate ? bar!.Percent!.Value : 0;
         ProgressText = showBar ? ServiceInfoText.ProgressText(bar) : null;
         UnitsText = showBar ? ServiceInfoText.UnitsText(bar) : null;
+        AttemptText = showBar ? ServiceInfoText.DiscoveryAttemptText(display) : null;
         PhaseTitle = showPhase ? ServiceInfoText.PhaseTitle(phaseLabel, ServiceInfoText.SubphaseLabel(info, display)) : null;
         LastPublished = ServiceInfoText.LastPublished(info, zone());
-        FreezeNotice = ServiceInfoText.FreezeNotice(snapshot);
     }
 
-    /// <summary>Shows the failed state (web "Failed to load").</summary>
+    /// <summary>Shows the failed state (web "Failed to load data"): the state row only.</summary>
     internal void ApplyFailure()
     {
         memory = null;
-        StateDescription = "Failed to load";
+        StateDescription = "Failed to load data";
         ProcessState = ServiceProcessState.Stopped;
         HasBar = false;
         IsIndeterminate = false;
         ProgressText = null;
         UnitsText = null;
+        AttemptText = null;
         PhaseTitle = null;
-        LastPublished = "Unavailable";
-        FreezeNotice = null;
+        LastPublished = null;
     }
     #endregion
 }

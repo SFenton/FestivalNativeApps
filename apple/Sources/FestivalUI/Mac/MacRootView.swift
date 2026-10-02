@@ -97,10 +97,7 @@ public struct MacRootView: View {
                 .festivalSheet(.large)
         }
         .whatsNewPresentation(isPresented: $navigation.whatsNewPresented) {
-            WhatsNewSheet(
-                version: WhatsNewGate.appVersion(),
-                entries: Changelog.displayEntries(distribution: AppDistribution.resolved ?? .appStore)
-            ) {
+            WhatsNewChannelSheet(version: WhatsNewGate.appVersion()) {
                 ChangelogSeenStore().markSeen(version: WhatsNewGate.appVersion())
                 navigation.whatsNewPresented = false
             }
@@ -171,6 +168,17 @@ public struct MacRootView: View {
         case .sort: pageCommands?.sort?()
         case .filter: pageCommands?.filter?()
         case .settings: openSettings()
+        case let .song(target):
+            let selected = MacCopyPolicy.selectedRoute(
+                path: navigation.currentPath, section: navigation.selected.section,
+                split: navigation.splitDestinations.contains(navigation.selected)
+            )
+            guard case let .songDetail(song) = selected else { return }
+            switch target {
+            case "leaderboard": navigation.push(.songLeaderboard(song, .lead, 1))
+            case "history": navigation.push(.playerHistory(song, .lead))
+            default: NotificationCenter.default.post(name: MacDebugHooks.openPathsName, object: nil)
+            }
         case .menus:
             // Titles and shortcuts; enabled states reflect the key window, so they read
             // as disabled while the app is in the background (never activated here).

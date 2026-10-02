@@ -164,6 +164,40 @@ object ShopPresentationPolicy {
     }
 }
 
+/**
+ * Item Shop page filter (issue #19): three switches that each select one disjoint group of
+ * offers. **Available** is the offers that are neither New nor Leaving Tomorrow. An offer
+ * shows when it matches any switch that is on; with every switch off, all offers show.
+ * Uses the wire flags, so it still works while Shop highlighting is off.
+ *
+ * @property new Show New offers.
+ * @property available Show offers that are neither New nor Leaving Tomorrow.
+ * @property leavingTomorrow Show offers leaving tomorrow.
+ */
+data class ShopOfferFilter(val new: Boolean = false, val available: Boolean = false, val leavingTomorrow: Boolean = false) {
+    /** Whether any switch is on (gold Filter icon). */
+    val isActive: Boolean get() = new || available || leavingTomorrow
+
+    /**
+     * Whether an offer passes the filter.
+     *
+     * @param offer Validated offer.
+     * @return True when no switch is on or the offer is in a selected group.
+     */
+    fun matches(offer: ShopSong): Boolean = !isActive ||
+        (new && offer.isNew) ||
+        (leavingTomorrow && offer.leavingTomorrow) ||
+        (available && !offer.isNew && !offer.leavingTomorrow)
+
+    /**
+     * Offers that pass, in their given order.
+     *
+     * @param offers Offers.
+     * @return Matching offers.
+     */
+    fun apply(offers: List<ShopSong>): List<ShopSong> = if (isActive) offers.filter(::matches) else offers
+}
+
 /** One observed publication must own catalogue rows and their related data (Apple `SongRelatedPublicationPolicy`). */
 object SongRelatedPublicationPolicy {
     /**

@@ -19,6 +19,12 @@ public sealed partial class MainWindow
     private bool whatsNewPending;
     private bool whatsNewOpen;
 
+    /// <summary>
+    /// How this copy was installed: only a Store-signed package shows the release notes; unpackaged and sideloaded builds
+    /// show the tester notes. Resolved synchronously, so the Settings replay never shows a pending channel.
+    /// </summary>
+    private InstallChannel whatsNewChannel = InstallChannel.Store;
+
     /// <summary>Whether the visible page's first-run check has run: What's New waits for it so a carousel goes first.</summary>
     private bool firstRunEvaluated;
 
@@ -32,7 +38,10 @@ public sealed partial class MainWindow
     private void InitializeWhatsNew()
     {
         whatsNewStore = new ChangelogSeenStore(new FileBlobStore(ChangelogSeenStore.DefaultPath));
-        var mode = WhatsNewGate.Parse(Environment.GetCommandLineArgs().Skip(1).ToArray(), App.LaunchEnvironment, App.HooksEnabled);
+        var args = Environment.GetCommandLineArgs().Skip(1).ToArray();
+        whatsNewChannel = InstallChannels.Resolve(args, App.LaunchEnvironment, App.HooksEnabled,
+            () => Windows.ApplicationModel.Package.Current.SignatureKind.ToString());
+        var mode = WhatsNewGate.Parse(args, App.LaunchEnvironment, App.HooksEnabled);
         if (mode == WhatsNewMode.Fresh) whatsNewStore.Reset();
         whatsNewPending = WhatsNewGate.IsPending(mode, whatsNewStore.SeenHash(), Changelog.CurrentHash);
         if (!whatsNewPending) return;
@@ -82,7 +91,7 @@ public sealed partial class MainWindow
             var dialog = Controls.FestivalDialog.Create(
                 RootGrid.XamlRoot,
                 WhatsNewGate.Title(AppVersion),
-                WhatsNewContent(Changelog.DisplayEntries()),
+                WhatsNewContent(Changelog.DisplayBlocks(whatsNewChannel)),
                 "fst.whats-new.dialog",
                 closeText: "Dismiss");
             await Controls.FestivalDialog.ShowAsync(dialog);
@@ -98,30 +107,44 @@ public sealed partial class MainWindow
         }
     }
 
-    /// <summary>Title Case headings (level 2) with bullet lists, in a scroller capped to the window.</summary>
-    /// <param name="entries">Displayable entries.</param>
+    /// <summary>
+    /// Version headings (level 2), each with its notes under category headings (level 3, web changelog order, "Other"
+    /// last; none when nothing is categorized), in a scroller capped to the window.
+    /// </summary>
+    /// <param name="blocks">Displayable blocks.</param>
     /// <returns>Dialog content.</returns>
-    private ScrollViewer WhatsNewContent(IReadOnlyList<ChangelogEntry> entries)
+    private ScrollViewer WhatsNewContent(IReadOnlyList<WhatsNewBlock> blocks)
     {
-        var panel = new StackPanel { Spacing = 20, Padding = new Thickness(0, 0, 16, 0) };
-        foreach (var section in entries.SelectMany(e => e.Sections))
+        var panel = new StackPanel { Spacing = 24, Padding = new Thickness(0, 0, 16, 0) };
+        foreach (var entry in blocks)
         {
-            var block = new StackPanel { Spacing = 8 };
-            var heading = new TextBlock { Text = section.DisplayTitle, Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"] };
+            var block = new StackPanel { Spacing = 12 };
+            var heading = new TextBlock { Text = entry.Title, Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"], TextWrapping = TextWrapping.Wrap };
             AutomationProperties.SetHeadingLevel(heading, Microsoft.UI.Xaml.Automation.Peers.AutomationHeadingLevel.Level2);
             block.Children.Add(heading);
-            foreach (var item in section.Items)
+            foreach (var group in entry.Groups)
             {
-                var row = new Grid { ColumnSpacing = 8 };
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                var bullet = new TextBlock { Text = "•" };
-                AutomationProperties.SetAccessibilityView(bullet, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
-                var text = new TextBlock { Text = item, TextWrapping = TextWrapping.Wrap };
-                Grid.SetColumn(text, 1);
-                row.Children.Add(bullet);
-                row.Children.Add(text);
-                block.Children.Add(row);
+                var section = new StackPanel { Spacing = 8 };
+                if (entry.Headed)
+                {
+                    var category = new TextBlock { Text = group.DisplayTitle, Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"], TextWrapping = TextWrapping.Wrap };
+                    AutomationProperties.SetHeadingLevel(category, Microsoft.UI.Xaml.Automation.Peers.AutomationHeadingLevel.Level3);
+                    section.Children.Add(category);
+                }
+                foreach (var item in group.Items)
+                {
+                    var row = new Grid { ColumnSpacing = 8 };
+                    row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                    row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    var bullet = new TextBlock { Text = "•" };
+                    AutomationProperties.SetAccessibilityView(bullet, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
+                    var text = new TextBlock { Text = item, TextWrapping = TextWrapping.Wrap };
+                    Grid.SetColumn(text, 1);
+                    row.Children.Add(bullet);
+                    row.Children.Add(text);
+                    section.Children.Add(row);
+                }
+                block.Children.Add(section);
             }
             panel.Children.Add(block);
         }

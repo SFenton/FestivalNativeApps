@@ -101,7 +101,7 @@ final class SongsChromeJourneyTests: XCTestCase {
     @MainActor
     func testToolsAnchorInTheBarWhileScrolled() throws {
         continueAfterFailure = false
-        try assertToolsWhileScrolled(profile: false, tools: ["fst.songs.sort"])
+        try assertToolsWhileScrolled(profile: false, tools: ["fst.songs.sort", "fst.songs.filter"])
         try assertToolsWhileScrolled(profile: true, tools: ["fst.songs.sort", "fst.songs.filter"])
     }
 

@@ -9,7 +9,7 @@ import com.festivalscoretracker.android.core.paths.PathImageValidation
 import com.festivalscoretracker.android.core.paths.SongPathData
 import com.festivalscoretracker.android.core.songs.SongFilter
 import com.festivalscoretracker.android.core.songs.SongPlayerScoreFilter
-import com.festivalscoretracker.android.core.songs.SongShopFilter
+import com.festivalscoretracker.android.core.songs.SongGeneralFilter
 import com.festivalscoretracker.android.data.FestivalApi
 import com.festivalscoretracker.android.data.RequestGate
 import com.festivalscoretracker.android.data.SettingsRepository
@@ -171,23 +171,68 @@ class SongsDataTest {
     fun preferencesRoundTripAndClear() = runTest {
         val prefs = SongsPreferences(SettingsRepository(InMemoryPreferences()))
         assertEquals(SongsPreferencesState(), prefs.state.first())
-        assertFalse(prefs.state.first().anyFilterActive)
+        assertFalse(prefs.state.first().filterActive(hasPlayer = true, hideShop = false))
         val player = SongPlayerScoreFilter(hasFCs = setOf(Instrument.Lead))
-        prefs.setFilters(SongFilter(Instrument.Bass, setOf(0, 7)), SongShopFilter(inShop = true), player)
+        val general = SongGeneralFilter(
+            excludedDecades = setOf(1970, 2020), excludedDurations = setOf(0, 10), shopUnavailable = false, doubleBassUnsupported = false,
+        )
+        prefs.setFilters(SongFilter(Instrument.Bass, setOf(0, 7)), general, player)
         val saved = prefs.state.first()
         assertEquals(SongFilter(Instrument.Bass, setOf(0, 7)), saved.filter)
-        assertEquals(SongShopFilter(inShop = true), saved.shopFilter)
+        assertEquals(general, saved.general)
         assertEquals(player, saved.playerFilter)
-        assertTrue(saved.anyFilterActive)
+        assertTrue(saved.filterActive(hasPlayer = true, hideShop = false))
         prefs.clearPlayerFilter()
+        // Deselection clears score checks and Selected Instrument Filters but keeps General.
         assertEquals(SongPlayerScoreFilter(), prefs.state.first().playerFilter)
-        assertTrue(prefs.state.first().shopFilter.inShop)
+        assertEquals(SongFilter(), prefs.state.first().filter)
+        assertEquals(general, prefs.state.first().general)
         prefs.clearFilters()
         assertEquals(SongsPreferencesState(), prefs.state.first())
         prefs.setShopViewMode(ShopViewMode.List)
         assertEquals(ShopViewMode.List, prefs.state.first().shopViewMode)
-        prefs.setFilters(SongFilter(), SongShopFilter(), SongPlayerScoreFilter())
+        prefs.setFilters(SongFilter(), SongGeneralFilter(), SongPlayerScoreFilter())
         assertEquals(SongFilter(), prefs.state.first().filter)
+    }
+
+    @Test
+    fun filterIndicatorFollowsWebIsFilterActive() {
+        val none = SongsPreferencesState()
+        assertFalse(none.filterActive(hasPlayer = false, hideShop = false))
+        // General filters count with or without a player; Item Shop only while shown.
+        val year = SongsPreferencesState(general = SongGeneralFilter(excludedDecades = setOf(1990)))
+        assertTrue(year.filterActive(hasPlayer = false, hideShop = false))
+        assertTrue(year.filterActive(hasPlayer = true, hideShop = true))
+        val shop = SongsPreferencesState(general = SongGeneralFilter(shopAvailable = false))
+        assertTrue(shop.filterActive(hasPlayer = false, hideShop = false))
+        assertFalse(shop.filterActive(hasPlayer = false, hideShop = true))
+        // Instrument and score filters only with a player.
+        val instrument = SongsPreferencesState(filter = SongFilter(Instrument.Lead))
+        assertFalse(instrument.filterActive(hasPlayer = false, hideShop = false))
+        assertTrue(instrument.filterActive(hasPlayer = true, hideShop = false))
+        val score = SongsPreferencesState(playerFilter = SongPlayerScoreFilter(hasScores = setOf(Instrument.Lead)))
+        assertFalse(score.filterActive(hasPlayer = false, hideShop = false))
+        assertTrue(score.filterActive(hasPlayer = true, hideShop = false))
+        assertFalse(SongsPreferencesState(playerFilter = null).filterActive(hasPlayer = true, hideShop = false))
+    }
+
+    @Test
+    fun generalFiltersMigrateAndSanitize() {
+        // Retired Shop toggles become "Available in Item Shop" only (web `migrateShopAvailability`).
+        assertEquals(SongGeneralFilter(shopUnavailable = false), SongsPreferences.decodePublic("""{"inShop":true}""").second)
+        assertEquals(SongGeneralFilter(shopUnavailable = false), SongsPreferences.decodePublic("""{"leavingTomorrow":true}""").second)
+        assertEquals(SongGeneralFilter(), SongsPreferences.decodePublic("""{"inShop":false}""").second)
+        // New keys win over the retired ones.
+        assertEquals(SongGeneralFilter(shopAvailable = false), SongsPreferences.decodePublic("""{"inShop":true,"shopAvailable":false,"shopUnavailable":true}""").second)
+        // Malformed decade/duration lists drop only that section.
+        assertEquals(
+            SongGeneralFilter(excludedDurations = setOf(2), doubleBassSupported = false),
+            SongsPreferences.decodePublic("""{"excludedDecades":[1985],"excludedDurations":[2],"doubleBassSupported":false}""").second,
+        )
+        assertEquals(SongGeneralFilter(excludedDecades = setOf(1990)), SongsPreferences.decodePublic("""{"excludedDecades":[1990],"excludedDurations":[3,3]}""").second)
+        assertEquals(SongGeneralFilter(), SongsPreferences.decodePublic("""{"excludedDurations":[11]}""").second)
+        val general = SongGeneralFilter(setOf(1980), setOf(10), shopAvailable = false, doubleBassSupported = false)
+        assertEquals(SongFilter() to general, SongsPreferences.decodePublic(SongsPreferences.encodePublic(SongFilter(), general)))
     }
 
     @Test
@@ -196,20 +241,20 @@ class SongsDataTest {
         val prefs = SongsPreferences(repository)
         repository.writeBlob(com.festivalscoretracker.android.core.settings.SettingsRegistry.SONG_PLAYER_SCORE_FILTERS, "{broken")
         assertNull(prefs.state.first().playerFilter)
-        assertEquals(SongFilter() to SongShopFilter(), SongsPreferences.decodePublic("{bad"))
+        assertEquals(SongFilter() to SongGeneralFilter(), SongsPreferences.decodePublic("{bad"))
         // Retired range keys are ignored; unknown or duplicate intensity keys drop the buckets but keep the instrument.
-        assertEquals(SongFilter() to SongShopFilter(leavingTomorrow = true), SongsPreferences.decodePublic("""{"minDifficulty":6,"maxDifficulty":2,"leavingTomorrow":true}"""))
-        assertEquals(SongFilter(Instrument.Bass) to SongShopFilter(), SongsPreferences.decodePublic("""{"instrument":"Solo_Bass","excludedIntensities":[9]}"""))
-        assertEquals(SongFilter(Instrument.Bass) to SongShopFilter(), SongsPreferences.decodePublic("""{"instrument":"Solo_Bass","excludedIntensities":[2,2]}"""))
-        assertEquals(SongFilter(null, setOf(3)) to SongShopFilter(), SongsPreferences.decodePublic(SongsPreferences.encodePublic(SongFilter(null, setOf(3)), SongShopFilter())))
-        assertNull(SongsPreferences.encodePublic(SongFilter(), SongShopFilter()))
+        assertEquals(SongFilter() to SongGeneralFilter(shopUnavailable = false), SongsPreferences.decodePublic("""{"minDifficulty":6,"maxDifficulty":2,"leavingTomorrow":true}"""))
+        assertEquals(SongFilter(Instrument.Bass) to SongGeneralFilter(), SongsPreferences.decodePublic("""{"instrument":"Solo_Bass","excludedIntensities":[9]}"""))
+        assertEquals(SongFilter(Instrument.Bass) to SongGeneralFilter(), SongsPreferences.decodePublic("""{"instrument":"Solo_Bass","excludedIntensities":[2,2]}"""))
+        assertEquals(SongFilter(null, setOf(3)) to SongGeneralFilter(), SongsPreferences.decodePublic(SongsPreferences.encodePublic(SongFilter(null, setOf(3)), SongGeneralFilter())))
+        assertNull(SongsPreferences.encodePublic(SongFilter(), SongGeneralFilter()))
     }
 
     @Test
     fun deselectionClearsOnlyPlayerPredicates() = runTest {
         val repository = SettingsRepository(InMemoryPreferences())
         val prefs = SongsPreferences(repository)
-        prefs.setFilters(SongFilter(), SongShopFilter(inShop = true), SongPlayerScoreFilter(hasScores = setOf(Instrument.Lead)))
+        prefs.setFilters(SongFilter(Instrument.Bass), SongGeneralFilter(shopUnavailable = false), SongPlayerScoreFilter(hasScores = setOf(Instrument.Lead)))
         val players = MutableStateFlow<SelectedPlayer?>(null)
         val scope = TestScope(StandardTestDispatcher(testScheduler))
         prefs.watchDeselection(scope, players)
@@ -223,7 +268,8 @@ class SongsDataTest {
         players.value = null
         scope.advanceUntilIdle()
         assertFalse(prefs.state.first().playerFilter!!.isActive)
-        assertTrue(prefs.state.first().shopFilter.inShop)
+        assertEquals(SongFilter(), prefs.state.first().filter)
+        assertFalse(prefs.state.first().general.shopUnavailable)
         scope.cancel()
     }
 

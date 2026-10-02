@@ -92,12 +92,16 @@ struct PlayerBandsScreen: View {
                             }
                         }
                         .rankingsListRailClearance(layout)
-                        RankingsPagerView(
-                            page: page,
-                            totalPages: payload.list.pageCount(pageSize: 25),
-                            idPrefix: "fst.player-bands"
-                        ) { destination in
-                            page = destination
+                        // Pinned below the rows (as the Solo leaderboard does): inside the
+                        // reload gate's ZStack a sibling pager floated over mid-list rows.
+                        .safeAreaInset(edge: .bottom, spacing: 0) {
+                            RankingsPagerView(
+                                page: page,
+                                totalPages: payload.list.pageCount(pageSize: 25),
+                                idPrefix: "fst.player-bands"
+                            ) { destination in
+                                page = destination
+                            }
                         }
                     }
                 }

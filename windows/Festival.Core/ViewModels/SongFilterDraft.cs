@@ -13,6 +13,8 @@ namespace Festival.Core.ViewModels;
 public sealed partial class SongFilterDraft : ObservableObject
 {
     private readonly FestivalSession session;
+    private IReadOnlyList<int> excludedDecades = [];
+    private IReadOnlyList<int> excludedDurationBuckets = [];
     private IReadOnlyList<int> excludedIntensities = [];
 
     /// <summary>Creates the draft.</summary>
@@ -22,8 +24,17 @@ public sealed partial class SongFilterDraft : ObservableObject
         this.session = session;
         ShopRows =
         [
-            new("In the Shop", "Songs that are available in the Item Shop today.", "fst.songs.filter.in-shop", () => InShop, v => InShop = v),
-            new("Leaving Tomorrow", "Songs that are leaving the Item Shop tomorrow.", "fst.songs.filter.leaving", () => LeavingTomorrow, v => LeavingTomorrow = v),
+            new("Available in Item Shop", null, "fst.songs.filter.shop-available",
+                () => ShopAvailable, v => ShopAvailable = v),
+            new("Not Available in Item Shop", null, "fst.songs.filter.shop-unavailable",
+                () => ShopUnavailable, v => ShopUnavailable = v),
+        ];
+        DoubleBassRows =
+        [
+            new("Double Bass Support", null, "fst.songs.filter.double-bass.supported",
+                () => DoubleBassSupported, v => DoubleBassSupported = v),
+            new("No Double Bass Support", null, "fst.songs.filter.double-bass.unsupported",
+                () => DoubleBassUnsupported, v => DoubleBassUnsupported = v),
         ];
         GlobalRows = BuildGlobalRows();
     }
@@ -45,15 +56,25 @@ public sealed partial class SongFilterDraft : ObservableObject
     [NotifyPropertyChangedFor(nameof(CanApply), nameof(HasInstrument))]
     private Instrument? selectedInstrument;
 
-    /// <summary>Require current Shop membership.</summary>
+    /// <summary>Show current Shop members.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanApply))]
-    private bool inShop;
+    private bool shopAvailable = true;
 
-    /// <summary>Require an offer leaving tomorrow.</summary>
+    /// <summary>Show songs not in the current Shop rotation.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanApply))]
-    private bool leavingTomorrow;
+    private bool shopUnavailable = true;
+
+    /// <summary>Show songs with Double Bass support.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanApply))]
+    private bool doubleBassSupported = true;
+
+    /// <summary>Show songs without Double Bass support.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanApply))]
+    private bool doubleBassUnsupported = true;
 
     /// <summary>Draft player score checks and Season / Percentile / Stars buckets.</summary>
     [ObservableProperty]
@@ -69,6 +90,34 @@ public sealed partial class SongFilterDraft : ObservableObject
             var normalized = SongBuckets.Normalize(value);
             if (normalized.SequenceEqual(excludedIntensities)) return;
             excludedIntensities = normalized;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CanApply));
+        }
+    }
+
+    /// <summary>Hidden release-decade keys.</summary>
+    public IReadOnlyList<int> ExcludedDecades
+    {
+        get => excludedDecades;
+        set
+        {
+            var normalized = SongBuckets.Normalize(value);
+            if (normalized.SequenceEqual(excludedDecades)) return;
+            excludedDecades = normalized;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CanApply));
+        }
+    }
+
+    /// <summary>Hidden duration bucket keys.</summary>
+    public IReadOnlyList<int> ExcludedDurationBuckets
+    {
+        get => excludedDurationBuckets;
+        set
+        {
+            var normalized = SongBuckets.Normalize(value);
+            if (normalized.SequenceEqual(excludedDurationBuckets)) return;
+            excludedDurationBuckets = normalized;
             OnPropertyChanged();
             OnPropertyChanged(nameof(CanApply));
         }
@@ -91,14 +140,23 @@ public sealed partial class SongFilterDraft : ObservableObject
     /// <summary>Item Shop switches.</summary>
     public List<FilterToggleRow> ShopRows { get; }
 
+    /// <summary>Year and Duration sections.</summary>
+    public List<GeneralFilterSection> GeneralSections { get; private set; } = [];
+
+    /// <summary>Double Bass switches.</summary>
+    public List<FilterToggleRow> DoubleBassRows { get; }
+
     /// <summary>Selected-instrument bucket sections (Season / Percentile / Stars need a player).</summary>
     public List<FilterBucketSection> BucketSections { get; private set; } = [];
 
-    /// <summary>Whether Shop switches can change (a hidden Shop keeps them visible but disabled, still clearable by Reset).</summary>
-    public bool ShopEnabled => !session.Settings.HideShop;
+    /// <summary>Whether the Item Shop availability section shows.</summary>
+    public bool ShowShopFilter => !session.Settings.HideShop;
 
     /// <summary>Whether the player score sections show.</summary>
     public bool ShowScoreFilters => session.HasPlayer;
+
+    /// <summary>Whether the selected-instrument sections show.</summary>
+    public bool ShowInstrumentFilters => session.HasPlayer;
 
     /// <summary>Whether hidden-chart checks are saved but inactive (disclosed).</summary>
     public bool HasHiddenScoreChecks => ScoreFilter.ScopedTo(session.Settings.VisibleInstruments) != ScoreFilter;
@@ -110,7 +168,8 @@ public sealed partial class SongFilterDraft : ObservableObject
         get
         {
             var applied = session.Settings;
-            return ToFilter() != applied.SongFilter || new SongShopFilter(InShop, LeavingTomorrow) != applied.ShopFilter ||
+            return ToGeneralFilter() != applied.GeneralFilter || ToFilter() != applied.SongFilter ||
+                   new SongShopFilter(ShopAvailable, ShopUnavailable) != applied.ShopFilter ||
                    !Equals(ScoreFilter, applied.PlayerScoreFilter);
         }
     }
@@ -120,28 +179,50 @@ public sealed partial class SongFilterDraft : ObservableObject
     {
         IsLive = false;
         var applied = session.Settings;
+        var general = applied.GeneralFilter.IsValid ? applied.GeneralFilter : SongGeneralFilter.None;
         var filter = applied.SongFilter.IsValid ? applied.SongFilter : SongFilter.None;
         SelectedInstrument = filter.Instrument is { } chart && applied.VisibleInstruments.Contains(chart) ? chart : null;
+        ExcludedDecades = general.ExcludedDecades;
+        ExcludedDurationBuckets = general.ExcludedDurationBuckets;
+        DoubleBassSupported = general.DoubleBassSupported;
+        DoubleBassUnsupported = general.DoubleBassUnsupported;
         ExcludedIntensities = filter.ExcludedIntensities;
-        InShop = applied.ShopFilter.InShop;
-        LeavingTomorrow = applied.ShopFilter.LeavingTomorrow;
+        ShopAvailable = applied.ShopFilter.Available;
+        ShopUnavailable = applied.ShopFilter.Unavailable;
         ScoreFilter = applied.PlayerScoreFilter.IsValid ? applied.PlayerScoreFilter : SongPlayerScoreFilter.None;
         GlobalRows = BuildGlobalRows();
         ScoreRows = [.. applied.VisibleInstruments.Select(i => new ScoreFilterChartRow(this, i, applied.FilterInvalidScores))];
+        GeneralSections =
+        [
+            new(this, GeneralFilterSectionKind.Year, SongGeneralBuckets.Decades(session.Catalog?.Songs ?? [])),
+            new(this, GeneralFilterSectionKind.Duration, SongGeneralBuckets.DurationBuckets(session.Catalog?.Songs ?? [])),
+        ];
         BucketSections = [.. SongBuckets.All
             .Where(kind => session.HasPlayer || !kind.IsPlayerScoped())
             .Select(kind => new FilterBucketSection(this, kind, kind.Keys(AvailableSeasons())))];
-        foreach (var row in ShopRows) row.IsEnabled = ShopEnabled;
+        foreach (var row in ShopRows) row.IsEnabled = ShowShopFilter;
         OnPropertyChanged(nameof(Instruments));
         OnPropertyChanged(nameof(GlobalRows));
         OnPropertyChanged(nameof(ScoreRows));
+        OnPropertyChanged(nameof(GeneralSections));
         OnPropertyChanged(nameof(BucketSections));
-        OnPropertyChanged(nameof(ShopEnabled));
+        OnPropertyChanged(nameof(ShowShopFilter));
         OnPropertyChanged(nameof(ShowScoreFilters));
+        OnPropertyChanged(nameof(ShowInstrumentFilters));
         RefreshRows();
         IsLive = true;
         OnPropertyChanged(nameof(CanApply));
     }
+
+    /// <summary>Builds the typed General filter from the draft.</summary>
+    /// <returns>Filter.</returns>
+    public SongGeneralFilter ToGeneralFilter() => new()
+    {
+        ExcludedDecades = ExcludedDecades,
+        ExcludedDurationBuckets = ExcludedDurationBuckets,
+        DoubleBassSupported = DoubleBassSupported,
+        DoubleBassUnsupported = DoubleBassUnsupported,
+    };
 
     /// <summary>Builds the typed public filter from the draft.</summary>
     /// <returns>Filter.</returns>
@@ -152,8 +233,9 @@ public sealed partial class SongFilterDraft : ObservableObject
     /// <returns>Updated settings.</returns>
     public AppSettings Apply(AppSettings settings) => settings with
     {
+        GeneralFilter = ToGeneralFilter(),
         SongFilter = ToFilter(),
-        ShopFilter = new SongShopFilter(InShop, LeavingTomorrow),
+        ShopFilter = new SongShopFilter(ShopAvailable, ShopUnavailable),
         PlayerScoreFilter = ScoreFilter.ScopedTo(settings.VisibleInstruments),
     };
 
@@ -193,14 +275,33 @@ public sealed partial class SongFilterDraft : ObservableObject
         else ScoreFilter = ScoreFilter.WithExcluded(kind, keys);
     }
 
+    /// <summary>Hidden keys of a General section.</summary>
+    /// <param name="kind">Section kind.</param>
+    /// <returns>Hidden keys.</returns>
+    public IReadOnlyList<int> GeneralExcluded(GeneralFilterSectionKind kind) =>
+        kind == GeneralFilterSectionKind.Year ? ExcludedDecades : ExcludedDurationBuckets;
+
+    /// <summary>Replaces a General section's hidden keys.</summary>
+    /// <param name="kind">Section kind.</param>
+    /// <param name="keys">Hidden keys.</param>
+    public void SetGeneralExcluded(GeneralFilterSectionKind kind, IEnumerable<int> keys)
+    {
+        if (kind == GeneralFilterSectionKind.Year) ExcludedDecades = [.. keys];
+        else ExcludedDurationBuckets = [.. keys];
+    }
+
     /// <summary>Clears every filter (applied at once while live).</summary>
     [RelayCommand]
     private void Reset()
     {
         SelectedInstrument = null;
+        ExcludedDecades = [];
+        ExcludedDurationBuckets = [];
+        ShopAvailable = true;
+        ShopUnavailable = true;
+        DoubleBassSupported = true;
+        DoubleBassUnsupported = true;
         ExcludedIntensities = [];
-        InShop = false;
-        LeavingTomorrow = false;
         ScoreFilter = SongPlayerScoreFilter.None;
         RefreshRows();
     }
@@ -210,7 +311,9 @@ public sealed partial class SongFilterDraft : ObservableObject
     protected override void OnPropertyChanged(System.ComponentModel.PropertyChangedEventArgs e)
     {
         base.OnPropertyChanged(e);
-        if (e.PropertyName is nameof(ScoreFilter) or nameof(ExcludedIntensities) or nameof(InShop) or nameof(LeavingTomorrow)) RefreshRows();
+        if (e.PropertyName is nameof(ScoreFilter) or nameof(ExcludedIntensities) or nameof(ExcludedDecades) or
+            nameof(ExcludedDurationBuckets) or nameof(ShopAvailable) or nameof(ShopUnavailable) or
+            nameof(DoubleBassSupported) or nameof(DoubleBassUnsupported)) RefreshRows();
     }
 
     /// <summary>Re-reads every switch from the draft.</summary>
@@ -218,6 +321,9 @@ public sealed partial class SongFilterDraft : ObservableObject
     {
         foreach (var row in GlobalRows) row.Refresh();
         foreach (var row in ShopRows) row.Refresh();
+        foreach (var row in DoubleBassRows) row.Refresh();
+        foreach (var section in GeneralSections)
+            foreach (var row in section.Rows) row.Refresh();
         foreach (var chart in ScoreRows)
             foreach (var row in chart.Toggles) row.Refresh();
         foreach (var section in BucketSections)
@@ -372,6 +478,76 @@ public sealed class ScoreFilterChartRow
         SongScoreFilterKind.OverThreshold => $"Songs with {name} scores above the configured CHOpt max score threshold in app settings.",
         _ => $"Songs with FCs on {name}.",
     };
+}
+
+/// <summary>General filter sections whose options come from the catalogue.</summary>
+public enum GeneralFilterSectionKind
+{
+    /// <summary>Release decade.</summary>
+    Year,
+    /// <summary>Duration minute bucket.</summary>
+    Duration,
+}
+
+/// <summary>A Year or Duration section with Select All / Clear All and catalogue-derived switches.</summary>
+public sealed partial class GeneralFilterSection
+{
+    private readonly SongFilterDraft draft;
+
+    /// <summary>Creates the section.</summary>
+    /// <param name="draft">Owning draft.</param>
+    /// <param name="kind">Section kind.</param>
+    /// <param name="keys">Offered keys.</param>
+    public GeneralFilterSection(SongFilterDraft draft, GeneralFilterSectionKind kind, IReadOnlyList<int> keys)
+    {
+        this.draft = draft;
+        Kind = kind;
+        Keys = keys;
+        Rows = [.. keys.Select(key => new FilterToggleRow(LabelFor(key), null, $"{AutomationId}.{key}",
+            () => !draft.GeneralExcluded(kind).Contains(key),
+            on => draft.SetGeneralExcluded(kind, on ? draft.GeneralExcluded(kind).Where(k => k != key) : [.. draft.GeneralExcluded(kind), key])))];
+    }
+
+    /// <summary>Section kind.</summary>
+    public GeneralFilterSectionKind Kind { get; }
+
+    /// <summary>Offered keys.</summary>
+    public IReadOnlyList<int> Keys { get; }
+
+    /// <summary>Section title.</summary>
+    public string Title => Kind == GeneralFilterSectionKind.Year ? "Year" : "Duration";
+
+    /// <summary>Section hint.</summary>
+    public string Hint => Kind == GeneralFilterSectionKind.Year ? "Filter songs by their release decade." : "Filter songs by their duration.";
+
+    /// <summary>Section AutomationId.</summary>
+    public string AutomationId => Kind == GeneralFilterSectionKind.Year ? "fst.songs.filter.year" : "fst.songs.filter.duration";
+
+    /// <summary>Select All AutomationId.</summary>
+    public string SelectAllId => AutomationId + ".select-all";
+
+    /// <summary>Clear All AutomationId.</summary>
+    public string ClearAllId => AutomationId + ".clear-all";
+
+    /// <summary>Accessible name for Select All.</summary>
+    public string SelectAllName => $"Select All {Title}";
+
+    /// <summary>Accessible name for Clear All.</summary>
+    public string ClearAllName => $"Clear All {Title}";
+
+    /// <summary>Bucket switches.</summary>
+    public List<FilterToggleRow> Rows { get; }
+
+    /// <summary>Shows every bucket.</summary>
+    [RelayCommand]
+    private void SelectAll() => draft.SetGeneralExcluded(Kind, []);
+
+    /// <summary>Hides every offered bucket.</summary>
+    [RelayCommand]
+    private void ClearAll() => draft.SetGeneralExcluded(Kind, draft.GeneralExcluded(Kind).Concat(Keys));
+
+    private string LabelFor(int key) =>
+        Kind == GeneralFilterSectionKind.Year ? SongGeneralBuckets.DecadeLabel(key) : SongGeneralBuckets.DurationLabel(key);
 }
 
 /// <summary>A Season / Percentile / Stars / Song Intensity section with its bucket switches.</summary>

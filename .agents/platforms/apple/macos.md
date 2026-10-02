@@ -15,12 +15,13 @@
 | `build [--configuration Debug]` | xcodegen + `xcodebuild -scheme FestivalDesktop` into `apple/DerivedData/mac` under `~/.fst-build.lock` |
 | `launch [--tab T] [--route R] [--profile sfentonx\|id:name] [--anonymous] [--size WxH] [--env K=V]` | Quits the previous instance (`~/.fst-mac-app.pid`, one per host), starts the app with `-ApplePersistenceIgnoreState YES` and Debug deep links (`FST_DEBUG_TAB`, `FST_DEBUG_ROUTE`, in-memory `FST_DEBUG_PROFILE`, `FST_DEBUG_WINDOW_SIZE`), waits for its window |
 | `resize --size WxH` | Sets the running window's content size |
-| `command <c>` | Debug shell driver: `select:<n\|destination>`, `route:<FST_DEBUG_ROUTE syntax>`, `back`, `refresh`, `search`, `profile`, `notifications`, `whatsnew`, `sort`, `filter`, `settings`, `dismiss` |
-| `shot --out PATH [--out …] [--wait S] [--window TITLE]` | `screencapture -x -o -l <CGWindowID>` of the app's largest layer-0 window only (or the one whose title contains `TITLE`, e.g. `Settings`) |
+| `command <c>` | Debug shell driver: `select:<n\|destination>`, `route:<FST_DEBUG_ROUTE syntax>`, `back`, `refresh`, `search`, `profile`, `notifications`, `whatsnew`, `sort`, `filter`, `settings[:<pane>]` (General…About), `song:<leaderboard\|history\|paths>` (the selected song), `menus` (writes the menu bar to `/tmp/fst-mac-menus.txt`; enabled states read disabled while the app is in the background, which the tool never changes), `dismiss` |
+| `shot --out PATH [--out …] [--wait S] [--window TITLE]` | `screencapture -x -o -l <CGWindowID>` of the app's largest layer-0 window only (or the one whose title contains `TITLE`: the Settings window is titled for its pane, e.g. `General`, `Paths`; `Songs` also matches the main window) |
 | `quit` | Debug quit notification → `NSApp.terminate` (SIGTERM fallback) |
 
 - **Never capture the full screen** (the operator's private desktop): `shot` refuses without the app's window ID, which `tools/mac_window.swift` finds through `CGWindowListCopyWindowInfo` filtered to the app's PID. Captures need the terminal's Screen Recording permission (granted on this Mac as of 2026-10-02).
 - `resize`, `command` and `quit` are Debug-only distributed notifications handled by `MacDebugHooks` (`apple/Sources/FestivalUI/Mac/MacDebugHooks.swift`): no Apple Events, so no Automation or Accessibility prompt. Release builds ignore them.
 - A Debug `--size` launch skips the frame autosave so a saved frame cannot override it.
 - Operator-facing shots use the live service with `--profile sfentonx` and go to `~/FestivalShowcase/native-mac/` ([strategy](../../testing/strategy.md)); never commit them.
+- Menu-bar focused values (Sort/Filter, the Song menu) are nil while the app is not frontmost, so `sort`/`filter` do nothing from a background launch; `song:paths` posts its own Debug notification instead.
 - Pure parts are tested in `tools/tests/test_mac_app.py`.

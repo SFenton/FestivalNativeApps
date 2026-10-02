@@ -21,6 +21,14 @@ public sealed partial class ShopViewModel : ObservableObject
         Status = new ServiceStatusViewModel("shop", "Item Shop unavailable", () => LoadAsync(force: true), session.Time);
         session.PropertyChanged += OnSessionChanged;
         session.PublicationAdvanced += (_, _) => _ = LoadAsync(force: true);
+        FilterRows =
+        [
+            new("New", "Songs that are new in the Item Shop today.", "fst.shop.filter.new", () => Filter.New, v => SetFilter(Filter with { New = v })),
+            new("Available", "Songs in the Item Shop today that aren't new or leaving tomorrow.", "fst.shop.filter.available",
+                () => Filter.Available, v => SetFilter(Filter with { Available = v })),
+            new("Leaving Tomorrow", "Songs that are leaving the Item Shop tomorrow.", "fst.shop.filter.leaving",
+                () => Filter.LeavingTomorrow, v => SetFilter(Filter with { LeavingTomorrow = v })),
+        ];
     }
 
     /// <summary>Failed-read presentation.</summary>
@@ -28,12 +36,24 @@ public sealed partial class ShopViewModel : ObservableObject
 
     /// <summary>Load lifecycle.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsLoading), nameof(ShowOffers), nameof(ShowEmpty), nameof(ShowError), nameof(ShowGrid), nameof(ShowList))]
+    [NotifyPropertyChangedFor(nameof(IsLoading), nameof(ShowOffers), nameof(ShowEmpty), nameof(ShowError), nameof(ShowGrid), nameof(ShowList), nameof(ShowNoMatches))]
     private LoadState state = LoadState.Idle;
 
-    /// <summary>Offers in title order.</summary>
+    /// <summary>Offers in title order that pass <see cref="Filter"/>.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowNoMatches))]
     private List<ShopOfferItem> offers = [];
+
+    /// <summary>
+    /// Page filter (New / Available / Leaving Tomorrow). Kept with the cached page for the session, so the reopened
+    /// flyout shows it; not persisted.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsFilterActive))]
+    private ShopOfferFilter filter = new();
+
+    /// <summary>Offers in the feed before filtering.</summary>
+    private int totalOffers;
 
     /// <summary>Why catalogue-backed Song Detail links are unavailable, or <see langword="null"/>.</summary>
     [ObservableProperty]
@@ -75,8 +95,19 @@ public sealed partial class ShopViewModel : ObservableObject
     /// <summary>Whether the catalogue-link notice shows.</summary>
     public bool HasSongDetailsIssue => SongDetailsIssue is not null;
 
-    /// <summary>"133 songs".</summary>
-    public string CountText => Offers.Count == 1 ? "1 song" : $"{Offers.Count:N0} songs";
+    /// <summary>Filter switches (the Songs filter flyout's toggle rows); every change applies at once.</summary>
+    public List<FilterToggleRow> FilterRows { get; }
+
+    /// <summary>Whether a filter switch is on (gold Filter button).</summary>
+    public bool IsFilterActive => Filter.IsActive;
+
+    /// <summary>The feed has offers but the filter hides them all ("No Matching Songs", never the empty-Shop card).</summary>
+    public bool ShowNoMatches => ShowOffers && Offers.Count == 0;
+
+    /// <summary>"133 songs", or "1 of 133 songs" while filtered.</summary>
+    public string CountText => IsFilterActive
+        ? $"{Offers.Count:N0} of {totalOffers:N0} {(totalOffers == 1 ? "song" : "songs")}"
+        : Offers.Count == 1 ? "1 song" : $"{Offers.Count:N0} songs";
 
     /// <summary>Loads the feed, then (best-effort) the catalogue for in-app links.</summary>
     /// <param name="force">Re-read.</param>
@@ -132,17 +163,35 @@ public sealed partial class ShopViewModel : ObservableObject
         OnPropertyChanged(nameof(ToggleLabel));
     }
 
+    /// <summary>Shows every offer again (Reset in the flyout, Reset Filters on the no-match notice).</summary>
+    [RelayCommand]
+    private void ResetFilter() => SetFilter(new());
+
+    /// <summary>Applies a filter at once and re-reads the switches.</summary>
+    /// <param name="next">New filter.</param>
+    private void SetFilter(ShopOfferFilter next)
+    {
+        if (next == Filter) return;
+        Filter = next;
+        foreach (var row in FilterRows) row.Refresh();
+        if (session.Shop is { } feed && State is LoadState.Loaded) Project(feed);
+        else OnPropertyChanged(nameof(CountText));
+    }
+
     /// <summary>Builds row items from a feed.</summary>
     /// <param name="feed">Validated feed.</param>
     private void Project(ShopResponse feed)
     {
         var settings = session.Settings;
-        Offers = [.. feed.SortedSongs().Select(offer => new ShopOfferItem(
+        var sorted = feed.SortedSongs();
+        totalOffers = sorted.Count;
+        Offers = [.. sorted.Where(Filter.Matches).Select(offer => new ShopOfferItem(
             offer,
             ShopPresentationPolicy.Highlight(offer, settings.HideShop, settings.DisableShopHighlighting),
             session.FindSong(offer.SongId) is not null))];
         OnPropertyChanged(nameof(CountText));
-        State = Offers.Count == 0 ? LoadState.Empty : LoadState.Loaded;
+        // Only a genuinely empty feed is the empty Shop; a filter that hides every offer stays Loaded (ShowNoMatches).
+        State = totalOffers == 0 ? LoadState.Empty : LoadState.Loaded;
     }
 
     /// <summary>Re-projects on highlight/visibility changes.</summary>

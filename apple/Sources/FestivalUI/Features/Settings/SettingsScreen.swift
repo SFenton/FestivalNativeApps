@@ -120,10 +120,7 @@ struct SettingsScreen: View {
             )
         }
         .whatsNewPresentation(isPresented: $showingWhatsNew) {
-            WhatsNewSheet(
-                version: WhatsNewGate.appVersion(),
-                entries: Changelog.displayEntries(distribution: AppDistribution.resolved ?? .appStore)
-            ) {
+            WhatsNewChannelSheet(version: WhatsNewGate.appVersion()) {
                 ChangelogSeenStore().markSeen(version: WhatsNewGate.appVersion())
                 showingWhatsNew = false
             }

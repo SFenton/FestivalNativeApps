@@ -268,7 +268,7 @@ class GlobalSearchUiTest {
     @Test
     fun songsSearchSortAndFilterLiveInTheBottomToolbarAndSearchMinimizesWhileScrolled() {
         // Issue #52: nothing scrolls or slides away on a phone. Issue #84: search sits in the bottom
-        // floating toolbar with Sort (and Quick Links/Filter when present), not under the top app bar,
+        // floating toolbar with Sort, Filter (and Quick Links when present), not under the top app bar,
         // and minimizes to an icon while the list scrolls down.
         val songs = (1..40).joinToString(",") { i ->
             """{"songId":"s-$i","title":"${'A' + (i - 1) / 2} Song ${"%02d".format(i)}","artist":"${'A' + (i - 1) / 2} Band $i","year":2020,"durationSeconds":120,"difficulty":{"guitar":1}}"""
@@ -311,6 +311,8 @@ class GlobalSearchUiTest {
         assertTrue(target.width >= dp48 - 1f && target.height >= dp48 - 1f)
         rule.onNode(hasTestTag("fst.songs.search.open") and inToolbar).assertIsDisplayed()
         rule.onNode(hasTestTag("fst.songs.sort.open") and inToolbar).assertIsDisplayed()
+        rule.onNode(hasTestTag("fst.songs.filter.open") and inToolbar).assertIsDisplayed()
+        assertEquals(0, rule.onAllNodes(hasTestTag("fst.songs.filter.open") and inTopBar).fetchSemanticsNodes().size)
 
         // Scrolling back up expands it again.
         rule.onNodeWithTag("fst.songs.list").performTouchInput { swipeDown() }
@@ -323,6 +325,7 @@ class GlobalSearchUiTest {
         rule.onNode(hasTestTag("fst.songs.search") and inToolbar).assertIsDisplayed()
         rule.onNodeWithTag("fst.songs.search").assertIsFocused()
         assertTrue(rule.onAllNodesWithTag("fst.songs.sort.open").fetchSemanticsNodes().isEmpty())
+        assertTrue(rule.onAllNodesWithTag("fst.songs.filter.open").fetchSemanticsNodes().isEmpty())
         rule.onNodeWithTag("fst.songs.search").performTextInput("Song 40")
         h.waitForTag("fst.songs.row.s-40")
         // Back closes the field and keeps the query (spoken as the button's state).

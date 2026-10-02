@@ -184,7 +184,10 @@ class SettingsUiTest {
         waitForTag("fst.settings.service-info")
         rule.waitUntil(10_000) { settle(100); rule.onAllNodesWithTag("fst.settings.service-info.phase").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithText("Scraping Leaderboard Scores · Fetching Leaderboards", useUnmergedTree = true).assertExists()
-        rule.onNodeWithText("42.5%", useUnmergedTree = true).assertExists()
+        // Percent and units are spoken on the phase, not printed (web parity).
+        val phase = rule.onNodeWithTag("fst.settings.service-info.phase").fetchSemanticsNode()
+        assertTrue(phase.config[SemanticsProperties.StateDescription].startsWith("42.5%"))
+        rule.onNodeWithText("42.5%", useUnmergedTree = true).assertDoesNotExist()
         rule.onNodeWithText("Updating").assertExists()
         rule.onNodeWithTag("fst.settings.service-info.last-published").assertExists()
         // Keyless, and the version row filled from /api/version.

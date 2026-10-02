@@ -8,7 +8,9 @@ import com.festivalscoretracker.android.core.settings.AppSettings
 import com.festivalscoretracker.android.core.settings.MetadataField
 import com.festivalscoretracker.android.core.shop.ShopPayload
 import com.festivalscoretracker.android.core.shop.SongRelatedPublicationPolicy
+import com.festivalscoretracker.android.core.songs.SongCatalogBuckets
 import com.festivalscoretracker.android.core.songs.SongCatalogSort
+import com.festivalscoretracker.android.core.songs.SongFilter
 import com.festivalscoretracker.android.core.songs.SongListHeader
 import com.festivalscoretracker.android.core.songs.SongListInputs
 import com.festivalscoretracker.android.core.songs.SongListPipeline
@@ -52,7 +54,7 @@ import kotlinx.coroutines.flow.stateIn
  * @property sort Saved sort mode.
  * @property ascending Saved direction.
  * @property effectiveSort Applied sort (a paused Shop sort shows Title order).
- * @property hasPlayer A player is selected (Filter action and score sections).
+ * @property hasPlayer A player is selected (score and Selected Instrument filter sections).
  * @property hideShop Item Shop hidden (Shop sort/filter choices removed or disabled).
  * @property invalidSavedFilter A corrupt saved player filter blocks the list until Reset.
  * @property filtersApplied Whether filters narrowed the list (empty-state wording).
@@ -61,6 +63,8 @@ import kotlinx.coroutines.flow.stateIn
  * @property sortChart Settings-visible single-chart filter (single-chart sort modes).
  * @property visibleMetadata Settings-visible metadata fields (sort modes and priority rows).
  * @property availableSeasons Seasons in the selected player's scores (Filter Season buckets).
+ * @property availableDecades Catalogue release decades (General Year toggles).
+ * @property durationBuckets Catalogue duration buckets (General Duration toggles).
  */
 data class SongsUiState(
     val catalog: LoadState<CatalogPayload> = LoadState.Loading,
@@ -81,7 +85,12 @@ data class SongsUiState(
     val sortChart: com.festivalscoretracker.android.core.model.Instrument? = null,
     val visibleMetadata: Set<MetadataField> = MetadataField.entries.toSet(),
     val availableSeasons: List<Int> = emptyList(),
+    val availableDecades: List<Int> = emptyList(),
+    val durationBuckets: List<Int> = emptyList(),
 ) {
+    /** Whether a saved filter applies (gold Filter icon; web `isFilterActive`). */
+    val filterActive: Boolean get() = prefs.filterActive(hasPlayer, hideShop)
+
     /** Non-default sort (gold Sort icon). */
     val sortChanged: Boolean get() = sort != SongSortMode.Title || !ascending
 
@@ -179,15 +188,20 @@ class SongsViewModel(
         player: SelectedProfileState,
         current: Int?,
     ): SongsUiState {
+        // Selected Instrument Filters are player-only (web hides them without a profile).
+        val filter = if (app.selectedPlayer == null) SongFilter() else saved.filter
         val base = SongsUiState(
             catalog = catalog, prefs = saved, sort = app.songSort, ascending = app.songSortAscending,
             effectiveSort = app.songSort, hasPlayer = app.selectedPlayer != null, hideShop = app.hideShop,
-            filterInvalidScores = app.filterInvalidScores, sortChart = saved.filter.scopedTo(app.visibleInstruments).instrument,
+            filterInvalidScores = app.filterInvalidScores, sortChart = filter.scopedTo(app.visibleInstruments).instrument,
             visibleMetadata = app.visibleMetadata,
             availableSeasons = if (app.selectedPlayer == null) emptyList() else seasons(player),
         )
         val payload = catalog.valueOrNull ?: return base
-        val playerFilter = saved.playerFilter ?: return base.copy(invalidSavedFilter = true, totalSongs = payload.catalog.songs.size)
+        val (decades, durations) = buckets(payload)
+        val playerFilter = saved.playerFilter ?: return base.copy(
+            invalidSavedFilter = true, totalSongs = payload.catalog.songs.size, availableDecades = decades, durationBuckets = durations,
+        )
         val observed = current ?: payload.publicationId
         val match = if (app.hideShop) ShopMatch(null, false) else ShopMatch.of(shopState, payload.publicationId, observed)
         val invalid = if (app.filterInvalidScores) {
@@ -200,8 +214,8 @@ class SongsViewModel(
             SongListInputs(
                 songs = payload.catalog.songs,
                 search = text,
-                filter = saved.filter,
-                shopFilter = saved.shopFilter,
+                filter = filter,
+                general = saved.general,
                 playerFilter = playerFilter,
                 sort = app.songSort,
                 ascending = app.songSortAscending,
@@ -217,7 +231,7 @@ class SongsViewModel(
             sorter,
         )
         val projector = SongRowProjector(
-            app, saved.filter, payload.catalog.currentSeason, match.offers, source, result.effectiveSort, saved.metadataOrder,
+            app, filter, payload.catalog.currentSeason, match.offers, source, result.effectiveSort, saved.metadataOrder,
         )
         return base.copy(
             rows = result.songs.map(projector::project),
@@ -227,7 +241,17 @@ class SongsViewModel(
             effectiveSort = result.effectiveSort,
             filtersApplied = result.filtersApplied,
             totalSongs = payload.catalog.songs.size,
+            availableDecades = decades,
+            durationBuckets = durations,
         )
+    }
+
+    @Volatile private var bucketIndex: Pair<CatalogPayload, Pair<List<Int>, List<Int>>>? = null
+
+    private fun buckets(payload: CatalogPayload): Pair<List<Int>, List<Int>> {
+        bucketIndex?.takeIf { it.first === payload }?.let { return it.second }
+        val songs = payload.catalog.songs
+        return (SongCatalogBuckets.decades(songs) to SongCatalogBuckets.durations(songs)).also { bucketIndex = payload to it }
     }
 
     @Volatile private var seasonIndex: Pair<Any?, List<Int>>? = null

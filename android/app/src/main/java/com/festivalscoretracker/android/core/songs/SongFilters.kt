@@ -47,29 +47,187 @@ data class SongFilter(val instrument: Instrument? = null, val excludedIntensitie
 
 // endregion
 
-// region Shop filter
+// region General filter
 
 /**
- * Applied public Item Shop filter; Leaving Tomorrow implies membership.
- * Independent of any selected player's scores.
- *
- * @property inShop Require current Shop membership.
- * @property leavingTomorrow Require an offer leaving tomorrow.
+ * Catalogue metadata buckets for the General filters (web `getSongDecade` /
+ * `getSongDurationBucket` / `getDurationFilterBuckets`).
  */
-data class SongShopFilter(val inShop: Boolean = false, val leavingTomorrow: Boolean = false) {
-    /** Whether either toggle is on. */
-    val isActive: Boolean get() = inShop || leavingTomorrow
+object SongCatalogBuckets {
+    /** Open-ended last duration bucket ("10+ Minutes"). */
+    const val LONG_DURATION = 10
+
+    /** Largest accepted decade key. */
+    private const val MAX_DECADE = 9_990
 
     /**
-     * Filter rows without changing order.
+     * Release decade represented by its first year.
+     *
+     * @param year Release year.
+     * @return Decade (1980 for 1984), or null for missing or non-positive years.
+     */
+    fun decade(year: Int?): Int? = year?.takeIf { it > 0 }?.let { it / 10 * 10 }
+
+    /**
+     * Whole-minute lower bound, capped at [LONG_DURATION].
+     *
+     * @param seconds Song duration.
+     * @return Bucket 0–10, or null for missing or non-positive durations.
+     */
+    fun duration(seconds: Int?): Int? = seconds?.takeIf { it > 0 }?.let { minOf(LONG_DURATION, it / 60) }
+
+    /**
+     * Year toggle keys: the decades present in the catalogue, ascending.
+     *
+     * @param songs Catalogue.
+     * @return Decades.
+     */
+    fun decades(songs: List<Song>): List<Int> = songs.mapNotNull { decade(it.year) }.distinct().sorted()
+
+    /**
+     * Duration toggle keys: 0–9 always, plus 10 when a catalogue song lasts 10 minutes or more.
+     *
+     * @param songs Catalogue.
+     * @return Buckets.
+     */
+    fun durations(songs: List<Song>): List<Int> =
+        if (songs.any { duration(it.durationSeconds) == LONG_DURATION }) (0..LONG_DURATION).toList() else (0 until LONG_DURATION).toList()
+
+    /**
+     * Web Year label ("1980s").
+     *
+     * @param decade Decade.
+     * @return Label.
+     */
+    fun decadeLabel(decade: Int): String = "${decade}s"
+
+    /**
+     * Web Duration label ("Under 1 Minute", "1-2 Minutes", "10+ Minutes").
+     *
+     * @param minute Bucket.
+     * @return Label.
+     */
+    fun durationLabel(minute: Int): String = when (minute) {
+        0 -> "Under 1 Minute"
+        LONG_DURATION -> "10+ Minutes"
+        else -> "$minute-${minute + 1} Minutes"
+    }
+
+    /**
+     * Whether a saved decade key is well-formed.
+     *
+     * @param key Key.
+     * @return True for a positive multiple of ten.
+     */
+    fun isDecade(key: Int): Boolean = key in 10..MAX_DECADE && key % 10 == 0
+
+    /**
+     * Whether a saved duration key is well-formed.
+     *
+     * @param key Key.
+     * @return True for 0–10.
+     */
+    fun isDuration(key: Int): Boolean = key in 0..LONG_DURATION
+}
+
+/** The bucketed General sections (web `CatalogBucketToggles`). */
+enum class SongGeneralBucketKind {
+    /** Release decade. */
+    Year,
+
+    /** Whole-minute duration. */
+    Duration,
+}
+
+/**
+ * Public General filters that apply with or without a selected player (web `FilterModal`
+ * General section): hidden release decades and duration buckets, Item Shop availability
+ * and Pro Drums double-bass support. Every option starts shown/on.
+ *
+ * @property excludedDecades Hidden decades (web `yearFilter` `false` keys).
+ * @property excludedDurations Hidden duration buckets 0–10 (web `durationFilter` `false` keys).
+ * @property shopAvailable Show songs in the current Item Shop.
+ * @property shopUnavailable Show songs not in the current Item Shop.
+ * @property doubleBassSupported Show songs with a double-bass Pro Drums chart.
+ * @property doubleBassUnsupported Show songs without one.
+ */
+data class SongGeneralFilter(
+    val excludedDecades: Set<Int> = emptySet(),
+    val excludedDurations: Set<Int> = emptySet(),
+    val shopAvailable: Boolean = true,
+    val shopUnavailable: Boolean = true,
+    val doubleBassSupported: Boolean = true,
+    val doubleBassUnsupported: Boolean = true,
+) {
+    /** Whether a catalogue-only part (Year, Duration, Double Bass) narrows the list. */
+    val catalogActive: Boolean
+        get() = excludedDecades.isNotEmpty() || excludedDurations.isNotEmpty() || !doubleBassSupported || !doubleBassUnsupported
+
+    /** Whether Item Shop availability narrows the list (only while the Shop is shown). */
+    val shopActive: Boolean get() = !shopAvailable || !shopUnavailable
+
+    /** Whether every saved bucket key is well-formed. */
+    val isValid: Boolean
+        get() = excludedDecades.all(SongCatalogBuckets::isDecade) && excludedDurations.all(SongCatalogBuckets::isDuration)
+
+    /**
+     * Whether anything narrows the list (web `isFilterActive` General part).
+     *
+     * @param shopVisible Item Shop shown in Settings.
+     * @return True when active.
+     */
+    fun isActive(shopVisible: Boolean): Boolean = catalogActive || (shopVisible && shopActive)
+
+    /**
+     * Whether a song passes Year, Duration and Double Bass. Missing year/duration
+     * metadata fails a narrowed section; an unknown double-bass value fails a single choice.
+     *
+     * @param song Catalogue row.
+     * @return True when kept.
+     */
+    fun matches(song: Song): Boolean {
+        if (!doubleBassSupported || !doubleBassUnsupported) {
+            val support = song.doubleBassSupported
+            if (!((doubleBassSupported && support == true) || (doubleBassUnsupported && support == false))) return false
+        }
+        if (excludedDecades.isNotEmpty() && SongCatalogBuckets.decade(song.year).let { it == null || it in excludedDecades }) return false
+        if (excludedDurations.isNotEmpty() && SongCatalogBuckets.duration(song.durationSeconds).let { it == null || it in excludedDurations }) return false
+        return true
+    }
+
+    /**
+     * Filter rows by Item Shop availability without changing order.
      *
      * @param songs Rows.
      * @param offers Validated same-publication offers (callers pause instead of passing null).
-     * @return Matching rows; a validated empty Shop yields an honest empty list.
+     * @return Matching rows; leaving offers count as available.
      */
-    fun filter(songs: List<Song>, offers: Map<String, ShopSong>): List<Song> {
-        if (!isActive) return songs
-        return songs.filter { song -> offers[song.songId]?.let { !leavingTomorrow || it.leavingTomorrow } == true }
+    fun filterShop(songs: List<Song>, offers: Map<String, ShopSong>): List<Song> {
+        if (!shopActive) return songs
+        return songs.filter { song -> if (song.songId in offers) shopAvailable else shopUnavailable }
+    }
+
+    /**
+     * Hidden keys of one bucketed section.
+     *
+     * @param kind Year or Duration.
+     * @return Hidden keys.
+     */
+    fun excluded(kind: SongGeneralBucketKind): Set<Int> = when (kind) {
+        SongGeneralBucketKind.Year -> excludedDecades
+        SongGeneralBucketKind.Duration -> excludedDurations
+    }
+
+    /**
+     * Replace one bucketed section's hidden keys.
+     *
+     * @param kind Year or Duration.
+     * @param keys Hidden keys.
+     * @return Updated filter.
+     */
+    fun withExcluded(kind: SongGeneralBucketKind, keys: Set<Int>): SongGeneralFilter = when (kind) {
+        SongGeneralBucketKind.Year -> copy(excludedDecades = keys)
+        SongGeneralBucketKind.Duration -> copy(excludedDurations = keys)
     }
 }
 
