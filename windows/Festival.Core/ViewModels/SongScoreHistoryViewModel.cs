@@ -335,7 +335,10 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
         var best = PlayerScoreHistorySort.HighScoreIndex(sorted);
         var ordered = sorted.Select(e => Points.First(p => ReferenceEquals(p.Entry, e))).ToList();
         var shown = ShowAll ? ordered : [.. ordered.Take(SongScoreHistory.ListSize)];
-        Rows = [.. shown.Select((p, i) => new ScoreHistoryListRow(p, i == best))];
+        var rows = shown.Select((p, i) => new ScoreHistoryListRow(p, i == best)).ToList();
+        // One set of columns for the list, so scores and accuracy badges line up (issue #37).
+        var section = LeaderboardColumns.Measure(rows);
+        Rows = [.. rows.Select(r => r with { Section = section })];
         OnPropertyChanged(nameof(CanViewAll));
     }
 }
@@ -361,10 +364,7 @@ public sealed record ScoreHistoryListRow(ScoreHistoryPoint Point, bool IsBest) :
     public bool IsSelected => IsBest;
 
     /// <inheritdoc />
-    public int RankChars => 0;
-
-    /// <inheritdoc />
-    public int ScoreChars => 0;
+    public LeaderboardSection? Section { get; init; }
 
     /// <summary>History rows show no stars.</summary>
     public int StarCount => 0;

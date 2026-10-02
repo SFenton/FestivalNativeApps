@@ -425,11 +425,10 @@ public sealed partial class LeaderboardPreviewViewModel : ObservableObject
                 Route = new AppRoute.SongLeaderboard(Song.SongId, Instrument, (detail.Rank.Value - 1) / 25 + 1),
             });
         }
-        // One rank and score width for the card, including row eleven (web computeRankWidth / scoreWidth).
-        var rankChars = LeaderboardColumns.Widest(rows.Select(r => r.RankText));
-        var scoreChars = LeaderboardColumns.Widest(rows.Select(r => r.Score));
+        // One set of columns for the card, including row eleven (web computeRankWidth / scoreWidth; issue #37).
+        var section = LeaderboardColumns.Measure(rows);
         var instrumentId = Instrument.ServiceId();
-        Rows = [.. rows.Select(r => r with { InstrumentId = instrumentId, RankChars = rankChars, ScoreChars = scoreChars })];
+        Rows = [.. rows.Select(r => r with { InstrumentId = instrumentId, Section = section })];
         HasPlayerRow = rows.Any(r => r.IsSelectedPlayer);
     }
 
@@ -530,10 +529,7 @@ public sealed record LeaderboardRow(LeaderboardEntry Entry) : ILeaderboardScoreR
     public string InstrumentId { get; init; } = "";
 
     /// <inheritdoc />
-    public int RankChars { get; init; }
-
-    /// <inheritdoc />
-    public int ScoreChars { get; init; }
+    public LeaderboardSection? Section { get; init; }
 
     /// <summary>Season text (<c>S15</c>), or empty (web <c>SeasonPill</c>; shown on wide cards).</summary>
     public string Season => Entry.Season is { } s ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"S{s}") : "";

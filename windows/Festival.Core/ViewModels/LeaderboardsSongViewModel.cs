@@ -205,12 +205,10 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
         var rows = entries.Select(e => new SongLeaderboardRowViewModel(e, RankingSpotlight.SameAccount(e.AccountId, selected?.AccountId))).ToList();
         var spotlight = SelectedEntry() is { } own ? new SongLeaderboardRowViewModel(own, true) : null;
         // Web computeRankWidth / score "ch" width over the page and the pinned row: every row, including the pinned
-        // selected-player row, uses the same rank and score column widths so the columns line up (operator batch 7.9).
-        var all = spotlight is null ? rows : [.. rows, spotlight];
-        var rankChars = all.Count == 0 ? 0 : all.Max(r => r.RankText.Length);
-        var scoreChars = all.Count == 0 ? 0 : all.Max(r => r.Score.Length);
-        Rows = [.. rows.Select(r => r with { RankChars = rankChars, ScoreChars = scoreChars })];
-        Spotlight = spotlight is null ? null : spotlight with { RankChars = rankChars, ScoreChars = scoreChars };
+        // selected-player row, gets the same columns at the same widths so they line up (operator batch 7.9, issue #37).
+        var section = LeaderboardColumns.Measure(spotlight is null ? rows : [.. rows, spotlight]);
+        Rows = [.. rows.Select(r => r with { Section = section })];
+        Spotlight = spotlight is null ? null : spotlight with { Section = section };
         OnPropertyChanged(nameof(CanJump));
         JumpCommand.NotifyCanExecuteChanged();
     }
@@ -282,11 +280,8 @@ public sealed record SongLeaderboardRowViewModel(LeaderboardEntry Entry, bool Is
     /// <summary>Accuracy in ten-thousandths of a percent, for the badge tint.</summary>
     public double AccuracyValue => Entry.Accuracy ?? 0;
 
-    /// <summary>Longest rank text on the page (including the pinned row), sizing the shared rank column.</summary>
-    public int RankChars { get; init; }
-
-    /// <summary>Longest score text on the page (including the pinned row), sizing the shared score column.</summary>
-    public int ScoreChars { get; init; }
+    /// <inheritdoc />
+    public LeaderboardSection? Section { get; init; }
 
     /// <summary>Service stars (0 when missing), drawn as star images by the row.</summary>
     public int StarCount => Entry.Stars ?? 0;
