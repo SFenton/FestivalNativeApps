@@ -113,7 +113,8 @@ private func hasGPS(_ url: URL) -> Bool {
 }
 
 @MainActor
-private func validBug(timeout: Duration = .seconds(5)) -> FeedbackFormModel {
+/// Generous default wait: `swift test --parallel` can starve the main actor for seconds.
+private func validBug(timeout: Duration = .seconds(60)) -> FeedbackFormModel {
     let model = FeedbackFormModel(kind: .bug, pollInterval: .milliseconds(5), pollTimeout: timeout)
     model.title = "[Bug] Crash"
     model.descriptionText = "Boom"
@@ -121,8 +122,11 @@ private func validBug(timeout: Duration = .seconds(5)) -> FeedbackFormModel {
 }
 
 @MainActor
+/// Polls `condition` every 10 ms until it holds or 60 s pass (a deadline, not an iteration
+/// count, so a busy parallel run cannot end the wait early).
 private func waitUntil(_ condition: () -> Bool) async {
-    for _ in 0..<200 where !condition() {
+    let deadline = ContinuousClock.now.advanced(by: .seconds(60))
+    while !condition(), ContinuousClock.now < deadline {
         try? await Task.sleep(for: .milliseconds(10))
     }
 }
@@ -272,7 +276,7 @@ struct FeedbackFormModelTests {
         ]
     )
     func received(scenario: String) async {
-        let model = validBug(timeout: scenario == "wait ran out" ? .milliseconds(30) : .seconds(5))
+        let model = validBug(timeout: scenario == "wait ran out" ? .milliseconds(30) : .seconds(60))
         let transport: ScriptedTransport
         switch scenario {
         case "no ID":
