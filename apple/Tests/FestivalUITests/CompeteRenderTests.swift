@@ -93,6 +93,39 @@ private func anonymousCompeteSession() async throws -> FestivalSession {
     )
 }
 
+// MARK: - Loading
+
+/// Captured before the per-instrument `.task` loads settle: every section's initial
+/// `@State` is `.loading`, so the Leaderboards previews (not only the off-screen
+/// Rivals sections) must show a system spinner rather than redacted placeholder
+/// bars (#35). The loaded/error tests below exclude "Loading", proving the spinners
+/// leave once content or an error appears.
+@MainActor
+@Test func competeScreenRendersSpinnersWhileSectionsLoad() async throws {
+    let (session, storage, suite) = try await competeFixtureSession(
+        accountId: "fixture-riv", visible: ["fst.settings.showLead", "fst.settings.showBass"]
+    )
+    defer { storage.removePersistentDomain(forName: suite) }
+    let host = nativeHostedView(
+        NavigationStack { CompeteScreen(session: session) }
+            .defaultAppStorage(storage)
+            .preferredColorScheme(.dark),
+        size: CGSize(width: 402, height: 1400)
+    )
+    let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 1400))
+    defer { window.orderOut(nil) }
+    // Capture synchronously, before any `.task` load can resolve (no settle: the
+    // loopback fixture answers within one poll).
+    host.layoutSubtreeIfNeeded()
+    let image = try nativeHostedImage(host)
+    _ = try nativeHostedPNG(image, filename: "compete-loading.png", environment: "FST_COMPETE_RENDER_OUT")
+    assertRendersContent(
+        host, image: image,
+        containing: ["Leaderboards Overview", "Loading Lead leaderboard", "Loading Bass leaderboard"],
+        notContaining: ["Fixture Player 1"]
+    )
+}
+
 // MARK: - Loaded: Leaderboards + Rivals sections together
 
 @MainActor

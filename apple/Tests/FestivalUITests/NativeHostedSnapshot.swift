@@ -249,6 +249,34 @@ func nativeHostedPNG(
 
 // MARK: - Settling
 
+/// Whether the test process runs in a virtual machine (`kern.hv_vmm_present`),
+/// read once per process.
+let nativeHostedIsVirtualMachine: Bool = {
+    var value: Int32 = 0
+    var size = MemoryLayout<Int32>.size
+    return sysctlbyname("kern.hv_vmm_present", &value, &size, nil, 0) == 0 && value == 1
+}()
+
+/// Factor applied to readiness budgets inside a virtual machine.
+let nativeHostedVirtualMachineTimeoutScale = 4
+
+/// Readiness budget for one hosted wait.
+///
+/// The `apple-ci` VM (~3 cores) runs the whole parallel hosted bundle on one main
+/// actor, so a wait that takes 4–7 s alone can take over a minute there (a
+/// different test times out on each saturated run). A budget is only an upper
+/// bound, so scaling it costs nothing when the content arrives.
+///
+/// - Parameters:
+///   - timeout: The test's budget on a physical Mac.
+///   - inVirtualMachine: Whether the process runs in a VM.
+/// - Returns: `timeout`, scaled by `nativeHostedVirtualMachineTimeoutScale` in a VM.
+func nativeHostedReadinessBudget(
+    _ timeout: Duration, inVirtualMachine: Bool = nativeHostedIsVirtualMachine
+) -> Duration {
+    inVirtualMachine ? timeout * nativeHostedVirtualMachineTimeoutScale : timeout
+}
+
 /// Wait for asynchronously loaded content, then capture it once it stops changing.
 ///
 /// Replaces fixed `Task.sleep` waits: `.task` fixture loads finish at
@@ -264,7 +292,8 @@ func nativeHostedPNG(
 ///
 /// - Parameters:
 ///   - host: Sized host, usually attached to `nativeHostedWindow`.
-///   - timeout: Upper bound for `ready` to become true.
+///   - timeout: Upper bound for `ready` to become true on a physical Mac
+///     (scaled in a VM, see `nativeHostedReadinessBudget`).
 ///   - animationGrace: How long a ready-but-still-changing capture may keep changing.
 ///   - sourceLocation: Where a readiness timeout is reported.
 ///   - ready: Fixture-specific readiness, e.g. a session state or visible text.
@@ -281,6 +310,7 @@ func nativeHostedSettle<Content: View>(
 ) async throws -> CGImage {
     let clock = ContinuousClock()
     let start = clock.now
+    let budget = nativeHostedReadinessBudget(timeout)
     var interval = Duration.milliseconds(20)
     var readySince: ContinuousClock.Instant?
     var previous: Int?
@@ -292,9 +322,9 @@ func nativeHostedSettle<Content: View>(
         guard ready() else {
             readySince = nil
             previous = nil
-            if clock.now - start > timeout {
+            if clock.now - start > budget {
                 Issue.record(
-                    "Hosted view never became ready within \(timeout)",
+                    "Hosted view never became ready within \(budget)",
                     sourceLocation: sourceLocation
                 )
                 return try nativeHostedImage(host)
