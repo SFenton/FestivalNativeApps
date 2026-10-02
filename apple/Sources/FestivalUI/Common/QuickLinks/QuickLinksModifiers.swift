@@ -43,7 +43,7 @@ public extension View {
     ///     (`LazyVStack`, `List`) because off-screen sections are not built yet;
     ///     pass `nil` to discover sections from `.quickLinkSection` views instead.
     ///   - activationOffset: Distance below the visible top at which a section
-    ///     becomes active.
+    ///     becomes active and where a jump lands it.
     /// - Returns: The scroll view with quick-links behavior.
     func quickLinks(
         _ controller: QuickLinksController,
@@ -105,8 +105,11 @@ struct QuickLinksContainerModifier: ViewModifier {
                     MainActor.assumeIsolated { controller.discover(discovered) }
                 }
                 .onGeometryChange(for: Double.self) { geometry in
-                    // Visible height below the bars the content scrolls under.
-                    geometry.size.height - geometry.safeAreaInsets.top - geometry.safeAreaInsets.bottom
+                    // Visible height below the bars the content scrolls under. The
+                    // proxy's size already excludes the safe-area insets it reports
+                    // (measured: 617 = 874 − 116 − 141 on iPhone 17 Pro); subtracting
+                    // them again under-measured it and mis-aimed jumps (#12).
+                    geometry.size.height
                 } action: { height in
                     controller.reportViewport(height: height)
                 }
@@ -142,22 +145,24 @@ struct QuickLinksContainerModifier: ViewModifier {
 
     /// Scroll to the latest jump target, then report arrival.
     ///
+    /// The target lands `activationOffset` points below the visible top, like the
+    /// web, rather than flush with it: on iOS 26 the navigation bar's scroll-edge
+    /// effect blurs and dims the first ~30 pt of content, which hid the section
+    /// title (#12). `ScrollViewProxy` has no offset, so the anchor is computed from
+    /// the target's measured height (`QuickLinksController.landingAnchor(for:)`);
+    /// an unmeasured target uses `.top` until it is built.
+    ///
     /// Two distinct sources of lag can make `jumpDidSettle()` read stale
-    /// geometry if called straight from the animation's completion handler:
-    /// `withAnimation(...completionCriteria: .logicallyComplete)` can fire once
-    /// SwiftUI's transaction commits, which is not guaranteed to be after the
-    /// scroll has visually finished moving — under device/simulator load, the
-    /// real motion can keep going well past the declared duration while the
-    /// completion handler fires on schedule. Separately, a target inside a
+    /// geometry if called straight after the scroll: under device/simulator load
+    /// the real motion can lag the request, and a target inside a
     /// `LazyVStack`/`List` that has never been built yet is first scrolled to
-    /// using an *estimated* position; once the real view is realized, its true
-    /// frame can differ, and the scroll settles short of it. Both show up the
-    /// same way: `QuickLinkTracker.settle` reads a frame that hasn't reached its
-    /// final position yet and falls back to `QuickLinks.naturalActive` one
-    /// section short of the real target. `correctAndSettle` re-targets the
-    /// scroll once, then *polls* the target's reported frame until it stops
-    /// moving (rather than guessing a fixed delay) before calling
-    /// `jumpDidSettle()`, so it is correct at any device speed.
+    /// using an *estimated* position, so the scroll settles short of it once the
+    /// real view is realized. Both show up the same way: `QuickLinkTracker.settle`
+    /// reads a frame that hasn't reached its final position yet and falls back to
+    /// `QuickLinks.naturalActive` one section short of the real target.
+    /// `correctAndSettle` re-targets the scroll, then *polls* the target's
+    /// reported frame until it stops moving (rather than guessing a fixed delay)
+    /// before calling `jumpDidSettle()`, so it is correct at any device speed.
     ///
     /// - Parameter proxy: Reader proxy for the wrapped scroll view.
     private func scroll(_ proxy: ScrollViewProxy) {
@@ -167,44 +172,48 @@ struct QuickLinksContainerModifier: ViewModifier {
         var instant = Transaction()
         instant.disablesAnimations = true
         withTransaction(instant) {
-            proxy.scrollTo(target, anchor: .top)
+            proxy.scrollTo(target, anchor: controller.landingAnchor(for: target))
         }
-        Task { @MainActor in await correctAndSettle(proxy, target: target, initialFloor: .zero) }
+        Task { @MainActor in await correctAndSettle(proxy, target: target) }
     }
 
-    /// Re-target the scroll once past `initialFloor`, then poll until the
-    /// target's real, now-realized frame stops changing before handing off to
-    /// `jumpDidSettle()`.
+    /// Re-target the scroll, poll until the target's real, now-realized frame
+    /// stops changing, and re-land it (at most twice) if it settled off its
+    /// landing line, before handing off to `jumpDidSettle()`.
+    ///
+    /// A target near either end of the content cannot reach the line; the bounded
+    /// retries then leave it where the scroll view clamps it.
     ///
     /// - Parameters:
     ///   - proxy: Reader proxy for the wrapped scroll view.
     ///   - target: The jump's target section id.
-    ///   - initialFloor: Time to wait out before the corrective re-scroll — the
-    ///     declared animation duration (its completion can otherwise fire before
-    ///     the real motion finishes), or zero when the caller already scrolled
-    ///     synchronously (Reduce Motion).
-    private func correctAndSettle(
-        _ proxy: ScrollViewProxy, target: String, initialFloor: Duration
-    ) async {
-        if initialFloor > .zero {
-            try? await Task.sleep(for: initialFloor)
-        }
-        proxy.scrollTo(target, anchor: .top)
+    private func correctAndSettle(_ proxy: ScrollViewProxy, target: String) async {
+        proxy.scrollTo(target, anchor: controller.landingAnchor(for: target))
         var lastFrame = controller.currentFrame(for: target)
         var stableStreak = 0
+        var relandings = 0
         // Bounded so a target that can never stabilize (e.g. removed mid-poll)
         // can't stall the UI indefinitely.
         let deadline = ContinuousClock.now + .seconds(3)
         while ContinuousClock.now < deadline {
             try? await Task.sleep(for: .milliseconds(50))
             let frame = controller.currentFrame(for: target)
-            if frame == lastFrame {
-                stableStreak += 1
-                if stableStreak >= 2 { break }
-            } else {
+            guard frame == lastFrame else {
                 stableStreak = 0
                 lastFrame = frame
+                continue
             }
+            stableStreak += 1
+            guard stableStreak >= 2 else { continue }
+            // A lazily built target was measured only after the first anchor was
+            // chosen; land it again now that its height is known.
+            if relandings < 2, frame != nil, !controller.isLanded(target) {
+                relandings += 1
+                stableStreak = 0
+                proxy.scrollTo(target, anchor: controller.landingAnchor(for: target))
+                continue
+            }
+            break
         }
         controller.jumpDidSettle()
     }
