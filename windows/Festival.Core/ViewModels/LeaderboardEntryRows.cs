@@ -38,6 +38,25 @@ public interface ILeaderboardEntryRow
     string Announcement { get; }
 }
 
+/// <summary>
+/// Geometry every leaderboard row shares (web <c>Layout.entryRowHeight</c>, issue #90): loaded rows, pinned rows, the
+/// spotlight's loading row and the overview cards' loading skeleton, so rows match across pages and don't jump when data
+/// arrives. <see cref="MinHeight"/> is a minimum: text scaling still grows rows.
+/// </summary>
+public static class LeaderboardRowMetrics
+{
+    /// <summary>Minimum row height in epx (web <c>entryRowHeight</c>).</summary>
+    public const double MinHeight = 48;
+
+    /// <summary>Gap between stacked rows in epx (each row is its own frosted surface, no card around them).</summary>
+    public const double Spacing = 4;
+
+    /// <summary>Height of <paramref name="rows"/> stacked rows at the minimum height.</summary>
+    /// <param name="rows">Row count; zero or less is an empty block.</param>
+    /// <returns>Block height in epx.</returns>
+    public static double BlockHeight(int rows) => rows <= 0 ? 0 : rows * MinHeight + (rows - 1) * Spacing;
+}
+
 /// <summary>A score row (web <c>LeaderboardEntry</c>): season, score, accuracy badge and stars.</summary>
 public interface ILeaderboardScoreRow : ILeaderboardEntryRow
 {

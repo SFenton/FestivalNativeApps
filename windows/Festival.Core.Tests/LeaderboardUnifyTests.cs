@@ -8,6 +8,17 @@ namespace Festival.Core.Tests;
 public class LeaderboardUnifyTests
 {
     [Fact]
+    public void RowMetrics_AreTheWebEntryRowAndStackLikeLoadedRows()
+    {
+        Assert.Equal(48, LeaderboardRowMetrics.MinHeight);
+        Assert.Equal(0, LeaderboardRowMetrics.BlockHeight(0));
+        Assert.Equal(0, LeaderboardRowMetrics.BlockHeight(-1));
+        Assert.Equal(48, LeaderboardRowMetrics.BlockHeight(1));
+        // Five skeleton rows fill the block five loaded rows will (issue #90): 5 × 48 + 4 gaps.
+        Assert.Equal(5 * 48 + 4 * LeaderboardRowMetrics.Spacing, LeaderboardRowMetrics.BlockHeight(5));
+    }
+
+    [Fact]
     public void Widest_IsTheLongestRankOrZero()
     {
         Assert.Equal(0, LeaderboardColumns.Widest([]));

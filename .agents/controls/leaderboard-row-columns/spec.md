@@ -24,6 +24,7 @@ Source: `FortniteFestivalWeb/src/pages/songinfo/components/topScoresLayout.ts` (
 - The rating column uses the section's widest label instead of reserving `1,000,000,000`, so phone names keep room.
 - **Songs played/total (#38):** rankings sections share one songs width (the widest label), like rank and rating. The web always shows songs; on a portrait phone that crowds usernames, so Compete's previews decide once per section whether the songs column fits beside the section's longest name (in its drawn weight, incl. the bold selected row) without truncation, and otherwise hide it on every row. VoiceOver still reads the songs as the row's value. Other rankings sections (overview cards, Full/Band Rankings) always show songs, like the web.
 - Widths follow the platform's text scale; at accessibility text sizes rows may stack instead of keeping columns.
+- **Row height (#90):** every single-line leaderboard row (score and rankings rows, their loading skeletons, the selected player's row and the pinned/spotlight footer, incl. its loading row) has the web's `Layout.entryRowHeight` (48, `packages/theme/src/spacing.ts`) as a **minimum** height, so rows match across pages and grow with text size instead of clipping. Band score cards (Song Detail band previews and the full band song leaderboard) are one shared card, like the web's `PlayerBandCard` on both pages.
 - Difficulty and the stars column are decided but not yet drawn on any native score row (open gap).
 
 ## Test matrix

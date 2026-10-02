@@ -121,7 +121,7 @@ struct SoloLeaderboardScreen: View {
                                         .accessibilityHidden(true)
                                 }
                                 .padding(.horizontal, 14)
-                                .frame(minHeight: 48)
+                                .frame(minHeight: LeaderboardRowMetrics.minHeight)
                                 .modifier(RankingRowSurface(isSelected: isSelectedRow))
                                 .contentShape(Rectangle())
                             }
@@ -325,7 +325,7 @@ struct SoloLeaderboardScreen: View {
                 .accessibilityHidden(true)
         }
         .padding(.horizontal, 14)
-        .frame(minHeight: 48)
+        .frame(minHeight: LeaderboardRowMetrics.minHeight)
         .modifier(RankingRowSurface(isSelected: true))
     }
 

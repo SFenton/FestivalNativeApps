@@ -358,7 +358,7 @@ struct LeaderboardsScreen: View {
                     .modifier(CardMessageSurface())
                 } else {
                     RankingSpotlightLoadingRow()
-                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .frame(maxWidth: .infinity, minHeight: LeaderboardRowMetrics.minHeight)
                         .accessibilityIdentifier("fst.leaderboards.card.\(instrument.rawValue).spotlight.loading")
                 }
             case .unranked:

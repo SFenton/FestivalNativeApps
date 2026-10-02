@@ -161,7 +161,8 @@ struct SongBandPreviewSection: View {
 
 /// One band score card (web `PlayerBandCard` + `SongBandScoreFooter`): each member's
 /// name and instruments, then rank, team score, stars and accuracy. The whole card is
-/// one drill-down button to Band Detail with a disclosure chevron.
+/// one drill-down button to Band Detail with a disclosure chevron. Shared by the Song
+/// Detail band previews and the full band song leaderboard, like the web (issue #90).
 struct SongBandPreviewRow: View {
     let entry: SongBandLeaderboardEntry
     /// The selected player's band: the web's purple highlight.
@@ -187,7 +188,7 @@ struct SongBandPreviewRow: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
-            .frame(minHeight: 48)
+            .frame(minHeight: LeaderboardRowMetrics.minHeight)
             .modifier(RankingRowSurface(isSelected: highlighted))
             .contentShape(Rectangle())
         }
