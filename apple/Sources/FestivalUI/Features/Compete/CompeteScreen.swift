@@ -76,24 +76,13 @@ struct CompeteScreen: View {
 
     // MARK: Leaderboards
 
+    /// Like the web's `CompetePage`, there is no Leaderboards overview link here (#36):
+    /// each instrument's preview links to its own full leaderboard, and the overview
+    /// stays in the drawer.
     private var leaderboardsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             FestivalSectionHeader("Leaderboards")
                 .padding(.horizontal, 16)
-            NavigationLink(value: AppRoute.leaderboards) {
-                HStack {
-                    Label("Leaderboards Overview", systemImage: "list.number")
-                        .foregroundStyle(BrandTokens.textPrimary)
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(FestivalText.deemphasized)
-                }
-                .contentShape(Rectangle())
-                .padding(16)
-                .festivalGlass(.card)
-            }
-            .padding(.horizontal, 16)
             if visible.instruments.isEmpty {
                 FestivalFootnote("Enable at least one instrument in Settings to see leaderboards.")
                     .padding(.horizontal, 16)

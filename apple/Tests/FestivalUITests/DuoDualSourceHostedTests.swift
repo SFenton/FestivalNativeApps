@@ -217,8 +217,8 @@ private struct SelectionProbe<Label: View>: View {
     let (hosted, window) = host(CompeteScreen(session: session), layout: halfFoldPortrait, size: innerPortraitSize, storage: storage)
     defer { window.orderOut(nil) }
     let image = try await nativeHostedSettle(
-        hosted, untilText: ["Leaderboards", "Rivals", "Leaderboards Overview", "View Full Leaderboard"],
-        excluding: ["Loading"]
+        hosted, untilText: ["Leaderboards", "Rivals", "View Full Leaderboard"],
+        excluding: ["Loading", "Leaderboards Overview"]
     )
     _ = try nativeHostedPNG(image, filename: "dual-compete.png", environment: "FST_DUO_RENDER_OUT")
 }

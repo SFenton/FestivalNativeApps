@@ -51,7 +51,7 @@ Operator, 2026-09-28 (original request): *"Are we taking advantage of the partia
 
 | Page | Top (primary) | Bottom (secondary) | Anonymous / empty | Status |
 |---|---|---|---|---|
-| Compete | Leaderboards carousel: Top 5 per visible instrument + Overview card (title inline) | Rivals carousel, one card per instrument | Choose Profile (page) | Shelved `CompeteDualSource.swift` |
+| Compete | Leaderboards carousel: Top 5 per visible instrument, no Overview card or See All (#36; title inline) | Rivals carousel, one card per instrument | Choose Profile (page) | Shelved `CompeteDualSource.swift` |
 | Rivals hub, All Rivals | The list; rows **select** (no push) | Selected rival's rivalry: one card per category (Closest Battles, …), See All → Rival Detail | "Select a Rival" | Shelved `RivalsDualSource.swift` |
 | Player profile, Statistics | Header, overview, per-instrument stats (inline graphs omitted) | Graphs carousel: Rank History, then Percentiles, per played instrument | "No Graphs Yet" | Shelved `PlayerProfileDualSource.swift` |
 | Suggestions | Categories | Item Shop picks (suggestions restricted to shop songs) | Page shows Choose Profile | Shelved `SuggestionsDualSource.swift` |

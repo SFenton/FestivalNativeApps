@@ -7,8 +7,9 @@ import FestivalDesign
 /// Compete on the iPhone Duo inner display in portrait: two swipeable sources stacked
 /// around the fold (`.agents/design/apple/duo.md`, "Dual-source half-fold layouts").
 ///
-/// - Top: one Top-5 leaderboard card per Settings-visible instrument, then a card
-///   linking to the full Leaderboards overview.
+/// - Top: one Top-5 leaderboard card per Settings-visible instrument. Like the web's
+///   `CompetePage`, no link to the Leaderboards overview (no card, no header See All;
+///   #36): each card's View Full Leaderboard opens that instrument's board.
 /// - Bottom: one rivals card per Settings-visible instrument.
 ///
 /// Both reuse the phone hub's own sections (`CompeteInstrumentLeaderboardSection`,
@@ -16,18 +17,6 @@ import FestivalDesign
 struct CompeteLeaderboardsCarousel: View {
     let session: FestivalSession
     let instruments: [Instrument]
-
-    /// One carousel card.
-    private enum Card: Identifiable {
-        case instrument(Instrument)
-        case overview
-        var id: String {
-            switch self {
-            case let .instrument(instrument): instrument.rawValue
-            case .overview: "overview"
-            }
-        }
-    }
 
     var body: some View {
         pane
@@ -40,8 +29,7 @@ struct CompeteLeaderboardsCarousel: View {
 
     private var pane: some View {
         DualSourcePane(
-            "Leaderboards", systemImage: "trophy.fill", seeAll: .leaderboards,
-            identifier: "compete.leaderboards"
+            "Leaderboards", systemImage: "trophy.fill", identifier: "compete.leaderboards"
         ) {
             if instruments.isEmpty {
                 DualSourceMessage(
@@ -49,45 +37,14 @@ struct CompeteLeaderboardsCarousel: View {
                     message: "Enable at least one instrument in Settings to see leaderboards."
                 )
             } else {
-                HorizontalCarousel(
-                    "Leaderboards", items: instruments.map(Card.instrument) + [.overview],
-                    minimumCardWidth: 300
-                ) { card in
-                    switch card {
-                    case let .instrument(instrument):
-                        // The section pads itself 16 pt on each side for the stacked
-                        // page; the carousel already insets its cards.
-                        CompeteInstrumentLeaderboardSection(session: session, instrument: instrument)
-                            .padding(.horizontal, -16)
-                    case .overview:
-                        overviewCard
-                    }
+                HorizontalCarousel("Leaderboards", items: instruments, minimumCardWidth: 300) { instrument in
+                    // The section pads itself 16 pt on each side for the stacked
+                    // page; the carousel already insets its cards.
+                    CompeteInstrumentLeaderboardSection(session: session, instrument: instrument)
+                        .padding(.horizontal, -16)
                 }
             }
         }
-    }
-
-    private var overviewCard: some View {
-        NavigationLink(value: AppRoute.leaderboards) {
-            VStack(spacing: 10) {
-                Image(systemName: "list.number")
-                    .font(.largeTitle)
-                    .accessibilityHidden(true)
-                Text("Leaderboards Overview")
-                    .font(.headline)
-                Text("Every instrument's top players and band rankings.")
-                    .font(.subheadline)
-                    .foregroundStyle(BrandTokens.textSecondary)
-                    .multilineTextAlignment(.center)
-            }
-            .foregroundStyle(BrandTokens.textPrimary)
-            .padding(24)
-            .frame(maxWidth: .infinity, minHeight: 180)
-            .contentShape(Rectangle())
-            .festivalGlass(.card, cornerRadius: 22)
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("fst.dual.compete.overview")
     }
 }
 
