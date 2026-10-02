@@ -200,20 +200,6 @@
 
                 <StackPanel x:Name="LeaderboardsSection">
                 <TextBlock Text="Leaderboards" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
-                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,8">
-                    <TextBlock Text="Band Leaderboards:" VerticalAlignment="Center" Style="{StaticResource FSTSecondaryTextStyle}"
-                               AutomationProperties.AutomationId="fst.song-detail.band-leaderboards" />
-                    <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.BandLinks, Mode=OneWay}">
-                        <ItemsRepeater.Layout>
-                            <StackLayout Orientation="Horizontal" Spacing="4" />
-                        </ItemsRepeater.Layout>
-                        <ItemsRepeater.ItemTemplate>
-                            <DataTemplate x:DataType="vm:BandLeaderboardLink">
-                                <HyperlinkButton Content="{x:Bind Label}" Tag="{x:Bind Route}" Click="OnBandLink" />
-                            </DataTemplate>
-                        </ItemsRepeater.ItemTemplate>
-                    </ItemsRepeater>
-                </StackPanel>
                 </StackPanel>
                 <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" x:Name="Boards" ItemsSource="{x:Bind ViewModel.Leaderboards, Mode=OneWay}"
                                ElementPrepared="OnBoardPrepared">
@@ -263,6 +249,62 @@
                                             </ItemsRepeater.ItemTemplate>
                                         </ItemsRepeater>
                                         <Button Content="View Full Leaderboard" Tag="{x:Bind}" Click="OnViewFull" Style="{StaticResource FSTViewAllButtonStyle}"
+                                                Margin="0,4,0,0" Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName}"
+                                                AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </controls:AccessibleGroup>
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
+
+                <!-- Band previews (web SongBandLeaderboardPreview, iOS SongBandPreviewSection, issue #34/#64): one section per band
+                     size after the instrument cards, all from one keyless /bands/all read that never holds the page spinner.
+                     Rows open Band Detail; the selected player's band is purple in place or appended after the top ten. -->
+                <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" x:Name="BandBoards" Margin="0,16,0,0"
+                               ItemsSource="{x:Bind ViewModel.BandPreviews, Mode=OneWay}">
+                    <ItemsRepeater.Layout>
+                        <UniformGridLayout MinItemWidth="320" MinRowSpacing="16" MinColumnSpacing="16" ItemsStretch="Fill"
+                                           MaximumRowsOrColumns="2" />
+                    </ItemsRepeater.Layout>
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="vm:SongBandPreviewViewModel">
+                            <controls:AccessibleGroup AutomationProperties.Name="{x:Bind HeaderName, Mode=OneWay}"
+                                                      controls:QuickLinkAnchor.Id="{x:Bind QuickLinkId}">
+                                <StackPanel Spacing="8">
+                                    <controls:CardHeader Title="{x:Bind Title}" HeadingLevel="Level3" MinHeight="44"
+                                                         Subtitle="{x:Bind Subtitle, Mode=OneWay}"
+                                                         TitleAutomationId="{x:Bind HeaderAutomationId}" />
+                                    <StackPanel Spacing="4">
+                                        <Border Style="{StaticResource FSTCardStyle}" MinHeight="96" Visibility="{x:Bind ShowPlaceholder, Mode=OneWay}">
+                                            <StackPanel Spacing="8">
+                                                <ProgressRing IsActive="{x:Bind IsLoading, Mode=OneWay}" HorizontalAlignment="Left" Width="24" Height="24"
+                                                              Visibility="{x:Bind IsLoading, Mode=OneWay}" AutomationProperties.Name="Loading band scores" />
+                                                <TextBlock Text="{x:Bind EmptyText}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}" TextWrapping="Wrap"
+                                                           Style="{StaticResource BodyTextBlockStyle}" Foreground="{ThemeResource FSTSecondaryTextBrush}"
+                                                           AutomationProperties.AutomationId="{x:Bind EmptyAutomationId}" />
+                                                <StackPanel Visibility="{x:Bind ShowError, Mode=OneWay}" Spacing="8"
+                                                            AutomationProperties.AutomationId="fst.service-status.inline">
+                                                    <TextBlock Text="{x:Bind Status.Title, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                                    <TextBlock Text="{x:Bind Status.Message, Mode=OneWay}" TextWrapping="Wrap" />
+                                                    <Button Content="{x:Bind Status.RetryLabel, Mode=OneWay}" Command="{x:Bind Status.RetryCommand}"
+                                                            AutomationProperties.AutomationId="{x:Bind RetryAutomationId}" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                        <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}"
+                                                       Visibility="{x:Bind ShowRows, Mode=OneWay}"
+                                                       controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="96">
+                                            <ItemsRepeater.Layout>
+                                                <StackLayout Spacing="4" />
+                                            </ItemsRepeater.Layout>
+                                            <ItemsRepeater.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:SongBandPreviewRow">
+                                                    <controls:SongBandPreviewRowView Row="{x:Bind}" />
+                                                </DataTemplate>
+                                            </ItemsRepeater.ItemTemplate>
+                                        </ItemsRepeater>
+                                        <Button Content="View Full Leaderboard" Tag="{x:Bind}" Click="OnBandViewFull" Style="{StaticResource FSTViewAllButtonStyle}"
                                                 Margin="0,4,0,0" Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName}"
                                                 AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
                                     </StackPanel>
