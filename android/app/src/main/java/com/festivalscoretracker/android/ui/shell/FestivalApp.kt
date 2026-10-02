@@ -55,6 +55,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -87,6 +88,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.festivalscoretracker.android.AppContainer
+import com.festivalscoretracker.android.core.firstrun.FirstRunDemoSong
+import com.festivalscoretracker.android.core.firstrun.FirstRunDemoSongs
 import com.festivalscoretracker.android.core.nav.AdaptiveLayoutPolicy
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.nav.DebugLaunch
@@ -139,6 +142,7 @@ import com.festivalscoretracker.android.ui.common.ShellActions
 import com.festivalscoretracker.android.ui.common.rememberScreenReaderOn
 import com.festivalscoretracker.android.ui.compete.competeDestinations
 import com.festivalscoretracker.android.ui.firstrun.FirstRunHost
+import com.festivalscoretracker.android.ui.firstrun.LocalFirstRunDemoSongs
 import com.festivalscoretracker.android.ui.firstrun.firstRunPage
 import com.festivalscoretracker.android.ui.leaderboards.leaderboardsGraph
 import com.festivalscoretracker.android.ui.notifications.NotificationsBell
@@ -578,13 +582,26 @@ private fun FestivalShell(
     }
     val firstRunActive by container.firstRun.active.collectAsStateWithLifecycle()
     val whatsNewShown by container.whatsNew.shown.collectAsStateWithLifecycle()
-    FirstRunHost(
-        center = container.firstRun,
-        page = firstRunPage(stack.lastOrNull()),
-        settings = settings,
-        compact = !AdaptiveLayoutPolicy.isRegularWidth(widthDp),
-        blocked = showProfile || showNotifications || whatsNewShown != null,
-    )
+    // Rotating first-run demos show Epic Games catalogue songs (web useDemoSongs), read only while a carousel is up.
+    val demoSongs by produceState(emptyList<FirstRunDemoSong>(), firstRunActive != null) {
+        if (firstRunActive == null || value.isNotEmpty()) return@produceState
+        value = try {
+            FirstRunDemoSongs.pool(container.api.catalog().catalog.songs, container.api::artworkUrl)
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+    CompositionLocalProvider(LocalFirstRunDemoSongs provides demoSongs) {
+        FirstRunHost(
+            center = container.firstRun,
+            page = firstRunPage(stack.lastOrNull()),
+            settings = settings,
+            compact = !AdaptiveLayoutPolicy.isRegularWidth(widthDp),
+            blocked = showProfile || showNotifications || whatsNewShown != null,
+        )
+    }
     // After the launch page's carousel (web order); Settings replays it.
     WhatsNewHost(
         controller = container.whatsNew,

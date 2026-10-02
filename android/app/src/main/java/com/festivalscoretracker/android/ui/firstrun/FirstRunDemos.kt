@@ -1,6 +1,5 @@
 package com.festivalscoretracker.android.ui.firstrun
 
-import com.festivalscoretracker.android.ui.design.StarRating
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -47,6 +46,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.festivalscoretracker.android.core.firstrun.FirstRunRotatingDemos
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.theme.BrandTokens
@@ -71,32 +71,33 @@ internal val FIRST_RUN_DEMO_IDS: Set<String> = setOf(
 )
 
 /**
- * A static, non-networked mini-demo for one slide (web `pages/<page>/firstRun/demo/`),
- * built from shared design primitives and synthetic sample data. Pulses run only
- * for the settled current page and never under reduce motion.
+ * A non-networked mini-demo for one slide (web `pages/<page>/firstRun/demo/`), built
+ * from shared design primitives. The twelve web demos that swap data on a timer rotate
+ * through [FirstRunRotatingDemo] (issue #58); the rest are still, with pulses only for
+ * the settled current page and never under reduce motion.
  *
  * @param id Slide ID.
  * @param active Whether the slide is the settled current page.
  */
 @Composable
 fun FirstRunDemo(id: String, active: Boolean) {
+    if (id in FirstRunRotatingDemos.IDS) {
+        FirstRunRotatingDemo(id, active)
+        return
+    }
     val pulse = active && !LocalFestivalAccessibility.current.reduceMotion
     when (id) {
-        "songs-song-list" -> SongRows(3)
         "songs-sort" -> SortList(listOf("Title", "Artist", "Year", "Duration"), "Title")
         "songs-navigation" -> NavigationReplica()
         "songs-filter", "suggestions-global-filter" -> FilterDemo(showInstruments = id == "songs-filter")
         "suggestions-instrument-filter" -> FilterDemo(showInstruments = true)
-        "songs-icons" -> StatusIcons()
-        "songs-metadata" -> MetadataDemo()
         "songs-shop-highlight", "shop-highlighting" -> SongRows(3, highlight = BrandTokens.statusGreen, pulse = pulse)
         "songs-new-in-shop", "shop-new-items" -> SongRows(3, highlight = BrandTokens.gold, pulse = pulse)
         "songs-leaving-tomorrow", "shop-leaving-tomorrow" -> SongRows(3, highlight = BrandTokens.statusRed, pulse = pulse)
-        "songinfo-chart", "songinfo-bar-select" -> BarChart(selectLast = id == "songinfo-bar-select")
+        "songinfo-chart" -> BarChart(selectLast = false)
         "songinfo-view-all", "playerhistory-score-list" -> ScoreRows(pulse)
         "songinfo-top-scores", "leaderboards-overview", "compete-leaderboards" -> RankRows(highlightYou = false)
         "leaderboards-your-rank" -> RankRows(highlightYou = true)
-        "leaderboards-experimental-metrics" -> SortList(listOf("Total Score", "Adjusted Percentile", "Weighted Percentile", "FC Rate", "Max Score %"), "Adjusted Percentile")
         "songinfo-paths" -> IconTile(Icons.Outlined.Route, "View Paths")
         "songinfo-shop-button" -> Pill("Item Shop", BrandTokens.statusGreen, pulse)
         "songinfo-new-in-shop" -> Pill("Item Shop", BrandTokens.gold, pulse)
@@ -105,9 +106,7 @@ fun FirstRunDemo(id: String, active: Boolean) {
         "statistics-select-profile" -> Pill("Select Player Profile", BrandTokens.accentPurple, pulse, Icons.Outlined.PersonAdd)
         "statistics-drill-down", "statistics-overview", "statistics-instrument-breakdown" -> StatGrid(chevrons = id == "statistics-drill-down")
         "statistics-percentiles" -> PercentileTable()
-        "statistics-top-songs", "rivals-detail" -> SongRows(3, badges = true)
-        "suggestions-category-card", "suggestions-infinite-scroll", "compete-hub" -> CategoryCard()
-        "compete-rivals", "rivals-overview", "rivals-instruments" -> RivalRows()
+        "suggestions-infinite-scroll" -> CategoryCard()
         "shop-overview" -> ShopGrid()
         else -> IconTile(Icons.Outlined.AutoAwesome, null)
     }
@@ -125,7 +124,7 @@ private val demoPlayers = listOf("Player One", "Player Two", "You", "Player Four
 // region Building blocks
 
 @Composable
-private fun DemoCard(modifier: Modifier = Modifier, border: Color = BrandTokens.glassBorder, content: @Composable () -> Unit) {
+internal fun DemoCard(modifier: Modifier = Modifier, border: Color = BrandTokens.glassBorder, content: @Composable () -> Unit) {
     Box(
         modifier
             .fillMaxWidth()
@@ -224,33 +223,6 @@ private fun FilterDemo(showInstruments: Boolean) {
 }
 
 @Composable
-private fun StatusIcons() {
-    Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-        listOf(BrandTokens.gold to "FC", BrandTokens.statusGreen to "Played", BrandTokens.statusRed to "Unplayed").forEachIndexed { index, (color, label) ->
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(Modifier.size(52.dp).background(color.copy(alpha = 0.3f), CircleShape).border(2.dp, color, CircleShape), contentAlignment = Alignment.Center) {
-                    InstrumentIcon(Instrument.entries[index], size = 30.dp, decorative = true)
-                }
-                Text(label, color = BrandTokens.textSecondary, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 4.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun MetadataDemo() {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SongRows(1)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            listOf("987,654", "99.2%", "Top 3%").forEach {
-                Text(it, color = BrandTokens.textPrimary, style = MaterialTheme.typography.labelMedium, modifier = Modifier.background(BrandTokens.surfaceMuted, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 4.dp))
-            }
-            StarRating(6, Modifier.align(Alignment.CenterVertically), size = 16.dp)
-        }
-    }
-}
-
-@Composable
 private fun BarChart(selectLast: Boolean) {
     val values = listOf(0.62f, 0.71f, 0.8f, 0.77f, 0.93f, 1f)
     DemoCard {
@@ -299,21 +271,6 @@ private fun RankRows(highlightYou: Boolean) {
                 Text("#${index + 1}", color = BrandTokens.textSecondary, modifier = Modifier.padding(end = 12.dp))
                 Text(if (!highlightYou && name == "You") "Player Three" else name, color = BrandTokens.textPrimary, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${(1_000_000 - index * 12_345).let { "%,d".format(it) }}", color = BrandTokens.textSecondary)
-            }
-        }
-    }
-}
-
-@Composable
-private fun RivalRows() {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        listOf("Above" to "Player Two", "Above" to "Player Four", "Below" to "Player Five").forEach { (direction, name) ->
-            DemoCard {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(direction, color = if (direction == "Above") BrandTokens.statusGreen else BrandTokens.statusRed, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(end = 12.dp))
-                    Text(name, color = BrandTokens.textPrimary, modifier = Modifier.weight(1f))
-                    Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = BrandTokens.textSecondary)
-                }
             }
         }
     }
