@@ -134,6 +134,26 @@ class SongHistoryCardUiTest {
         )
     }
 
+    private fun description(tag: String) =
+        rule.onNodeWithTag(tag).fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.ContentDescription].joinToString()
+
+    @Test
+    fun narrowListRowsHideTheSeasonButTheTappedBarDetailShowsIt() {
+        // Issue #62: a 411 dp phone is narrower than the web's 520 breakpoint.
+        show(rows("Solo_Guitar", 3))
+        (0 until 3).forEach { assertFalse(description("fst.song-detail.history.top.$it").contains("Season")) }
+        rule.onNodeWithTag("fst.song-detail.history.chart").performTouchInput { click(centerRight.copy(x = width - 60.dp.toPx())) }
+        rule.waitForIdle()
+        assertTrue(description("fst.song-detail.history.detail").contains("Season 9"))
+    }
+
+    @Test
+    @Config(qualifiers = "w700dp-h900dp-xxhdpi")
+    fun wideListRowsShowTheSeason() {
+        show(rows("Solo_Guitar", 3))
+        (0 until 3).forEach { assertTrue(description("fst.song-detail.history.top.$it").contains("Season 9")) }
+    }
+
     @Test
     fun hiddenWithoutVisibleHistory() {
         rule.setContent {
