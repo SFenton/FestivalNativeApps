@@ -42,6 +42,8 @@ import UIKit
 /// - `systemTree:<path>` — like `tree`, for SpringBoard (window controls, multitasking).
 /// - `systemTap:<identifier-prefix-or-label>` — tap a SpringBoard element (e.g.
 ///   `window-controls`, then a window-controls menu item by label).
+/// - `systemHold:<identifier-prefix-or-label>` — long-press a SpringBoard element (e.g.
+///   `Zoom-button` for the window tiling menu).
 /// - `fill` — iPad windowed multitasking: make the window fill the screen again
 ///   (always end a script that resized with it: iPadOS remembers window sizes).
 enum DriverStep {
@@ -63,6 +65,7 @@ enum DriverStep {
     case fill
     case systemTree(String)
     case systemTap(String)
+    case systemHold(String)
 
     /// A cardinal swipe direction.
     enum Direction: String {
@@ -136,6 +139,9 @@ enum DriverStep {
             return .tree(arg)
         case "fill":
             return .fill
+        case "systemHold":
+            guard !arg.isEmpty else { throw ParseError.malformed(raw) }
+            return .systemHold(arg)
         case "systemTap":
             guard !arg.isEmpty else { throw ParseError.malformed(raw) }
             return .systemTap(arg)
@@ -365,13 +371,13 @@ final class DriverTests: XCTestCase {
             try writeScreenshot(to: path)
         case let .tree(path):
             try app.debugDescription.write(toFile: path, atomically: true, encoding: .utf8)
-        case let .systemTap(identifier):
+        case let .systemTap(identifier), let .systemHold(identifier):
             let target = XCUIApplication(bundleIdentifier: "com.apple.springboard")
                 .descendants(matching: .any).matching(
                     NSPredicate(format: "identifier BEGINSWITH %@ OR label == %@", identifier, identifier)
                 ).firstMatch
             guard target.waitForExistence(timeout: 5) else { throw DriverError.elementNotFound(identifier) }
-            target.tap()
+            if case .systemHold = step { target.press(forDuration: 1.2) } else { target.tap() }
         case let .systemTree(path):
             try XCUIApplication(bundleIdentifier: "com.apple.springboard").debugDescription
                 .write(toFile: path, atomically: true, encoding: .utf8)

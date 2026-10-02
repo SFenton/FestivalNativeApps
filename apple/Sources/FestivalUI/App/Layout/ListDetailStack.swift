@@ -214,6 +214,9 @@ struct ListDetailStack<Root: View>: View {
     @State private var autoSelectCollector = ListDetailAutoSelectCollector()
     /// Row the rebuilt list should scroll back to after a stack ↔ split switch.
     @State private var scrollAnchor: AppRoute?
+    /// The detail root the split chose by itself (auto-select or restore), until a
+    /// person picks a row. Dropped when the iPad split collapses to one stack.
+    @State private var automaticSelection: AppRoute?
 
     /// How long a split list may show no row before it collapses to full width.
     private static var emptyListTimeout: Duration { .milliseconds(2500) }
@@ -251,8 +254,9 @@ struct ListDetailStack<Root: View>: View {
             if let selection { lastSelection = selection }
             autoSelectCollector.reset()
         }
-        .onChange(of: isSplit, initial: true) { _, split in
+        .onChange(of: isSplit, initial: true) { wasSplit, split in
             if isVisible { splitReporter?(section, isSplit: split) }
+            if wasSplit, !split { dropAutomaticSelection() }
         }
         .onChange(of: isSplit) { _, _ in
             scrollAnchor = ListDetailScrollRestore.anchor(
@@ -354,6 +358,17 @@ struct ListDetailStack<Root: View>: View {
         ListDetailPolicy.awaitsSelection(section: section, path: path, layout: layout)
     }
 
+    /// iPad: when the split collapses to one stack (portrait, a narrower window), a
+    /// detail nobody chose would stay pushed over the list; pop it so the list shows,
+    /// like Mail. A row the person picked stays (and Duo folding keeps either).
+    private func dropAutomaticSelection() {
+        guard layout.sectionChrome == .sidebar, let automatic = automaticSelection,
+              let split = ListDetailPolicy.split(section: section, path: path),
+              split.detail == [automatic]
+        else { return }
+        path = split.list
+    }
+
     /// Keep the detail column populated: restore the last selection this list page
     /// accepts, else wait for the first row to report itself (`listDetailAutoSelect`);
     /// a list that shows no row within ``emptyListTimeout`` collapses to full width.
@@ -362,6 +377,7 @@ struct ListDetailStack<Root: View>: View {
     private func populate(_ split: ListDetailPolicy.Split) async {
         guard split.selection == nil else { return }
         if let lastSelection, split.page.accepts(lastSelection) {
+            automaticSelection = lastSelection
             selectAction(lastSelection)
             return
         }
@@ -374,6 +390,7 @@ struct ListDetailStack<Root: View>: View {
     private var autoSelectAction: ListDetailAutoSelectAction {
         autoSelectCollector.select = { route in
             guard awaiting else { return }
+            automaticSelection = route
             selectAction(route)
         }
         return ListDetailAutoSelectAction(section: section, collector: autoSelectCollector)
@@ -450,6 +467,7 @@ struct ListDetailStack<Root: View>: View {
     /// Writes a detail route after the current list (the list/detail row contract).
     private var selectAction: ListDetailSelectAction {
         ListDetailSelectAction(section: section) { route in
+            if route != automaticSelection { automaticSelection = nil }
             let current = ListDetailPolicy.split(section: section, path: path)?.list ?? []
             path = ListDetailPolicy.path(settingList: current + [route], in: path, section: section)
         }

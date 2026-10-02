@@ -27,6 +27,7 @@ Width changes keep state: per-section paths live in the root; `FestivalTabPolicy
 - **When**: `ListDetailPolicy.usesSplit` splits the sidebar shell from a **1000 pt window** (11-inch landscape; portrait shows the sidebar beside a full-width list), by window width alone so the layout never flips while someone opens an overlaid sidebar. Rotation and window resizing reflow live (HIG windows.md "Make sure windows adapt fluidly to different sizes"; multitasking.md "adapt to every window size"). A shared column visibility keeps a hidden sidebar hidden across destinations; in portrait the system may tuck the sidebar away in three columns.
 - **Column layouts**: pages see a per-column `DeviceLayout` (`DeviceLayout.column(width:)`): the list column is compact, the detail and one-stack columns are regular only from 600 pt (window minus the sidebar's reported trailing edge, minus the 320 pt list column), so Leaderboards and Profile do not squeeze two card columns into ~500 pt. Widths come from the root (window probe + `FestivalSidebar` extent): geometry modifiers around a `NavigationStack` hoisted into a split column stopped updating.
 - **Never empty**: the detail restores the last selection, else auto-selects the **top-most** row on screen (rows offer route + `minY`, `ListDetailAutoSelectCollector` picks the smallest after 120 ms; lazy lists call `onAppear` out of order). Selected rows keep the accent highlight (split-views.md "Persistently highlight").
+- **Collapsing**: when the split becomes one stack (portrait, a narrower window) a detail nobody chose (auto-selected or restored) is popped so the list shows, like Mail; a row the person picked stays pushed. Only within one `ListDetailStack`: passing through the compact tab shell (⅓ window) rebuilds it and keeps the detail pushed.
 - Shop stays a grid that pushes Song Detail (a grid beside a detail column would leave two cramped columns).
 
 ## Grids and sheets
@@ -38,6 +39,19 @@ Width changes keep state: per-section paths live in the root; `FestivalTabPolicy
 | Song Detail instrument cards | `.adaptive(minimum: 360)`: two columns when the page is ≥ ~730 pt (full-width detail); one in a list/detail detail column | collections.md "make dynamic layout changes sensible and easy to track" |
 | Sheets | `festivalSheet` applies `presentationSizing(.form)` (or `.page`) at regular width, centered; compact windows get the phone sheets | sheets.md "Prefer page or form sheet styles in an iPadOS app" |
 | Popovers | Not used for page content; menus (Quick Links, metric pickers) are system menus | popovers.md "Avoid popovers in compact views" |
+
+## Page status (iPad Pro 11", live SFentonX captures in `~/FestivalShowcase/native-ipad/`)
+
+| Page | Landscape (1194 pt) | Portrait (834 pt) | ½ window (regular) | ⅓ / Slide Over (compact) |
+|---|---|---|---|---|
+| Songs → Song Detail | Sidebar \| list \| detail (top row auto-selected) | Sidebar + list; detail pushes | Sidebar + list | iPhone tabs, drawer, floating Sort/Filter |
+| Leaderboards → Full Rankings → Player | Two card columns; Full Rankings splits list \| player | One card column (column < 600 pt) | One column | iPhone (Compete slot) |
+| Rivals → Rival Detail | Sidebar \| rivals \| rival | Sidebar + list | Sidebar + list | iPhone (Compete) |
+| Statistics / Player | Two instrument columns, adaptive stat grid | One column | One column | iPhone |
+| Item Shop | Adaptive art grid, List/Grid toggle | Grid | Grid | iPhone list |
+| Suggestions, Settings | One readable column | Same | Same | iPhone |
+
+Song Detail cards are two columns only when the page is ≥ ~730 pt (a wide window with the sidebar hidden); in the three-column detail and beside the portrait sidebar they stay one.
 
 ## Keyboard and pointer
 
@@ -51,6 +65,8 @@ Width changes keep state: per-section paths live in the root; `FestivalTabPolicy
 Shortcuts are invisible `KeyCommandButton`s titled for the ⌘-hold overlay. Pointer: list/detail rows use the highlight effect on their rounded card shape (no scale: rows sit edge to edge), sidebar footer buttons the highlight effect, system bar buttons their defaults (pointing-devices.md "highlight for small elements ... hover for large ones"; "reserve scaling for elements that can grow without crowding neighbors (not table rows)").
 
 ## Open
+
+- Exact ½ / ⅓ window tiling in tests: drag-resizing reaches the compact minimum and an ~830 pt regular window, not a precise half (`resize:` in [simulator-driver](../../workflow/simulator-driver.md)).
 
 - Multiple windows (`UIApplicationSupportsMultipleScenes` is false) and "Open in New Window" (windows.md "Consider offering a context-menu ... command to view content in a new window").
 - iPadOS menu-bar `commands` (Go/View menus) instead of hidden shortcut buttons; Full Keyboard Access audit.

@@ -21,8 +21,14 @@ enum WindowResize {
             ? max(frame.width, frame.height) : min(frame.width, frame.height)
     }
 
-    /// Drag the window's bottom-trailing resize corner so the window spans `fraction`
-    /// of the screen width (keeping its leading edge; iPadOS clamps to its minimum).
+    /// Drag the window's bottom-trailing resize corner towards `fraction` of the screen
+    /// width (keeping its leading edge).
+    ///
+    /// iPadOS re-centres a full-screen window as it leaves full screen and clamps to a
+    /// ~375 pt minimum, so from full screen any fraction below ~0.6 lands on the
+    /// compact minimum (a ⅓ / Slide Over-like window); growing a small window again
+    /// gives an intermediate regular width (measured 829 pt for `0.5`). Exact tiling
+    /// (½, ⅓) is the window-controls menu, which is not scripted yet.
     ///
     /// - Parameters:
     ///   - app: The running app under test.

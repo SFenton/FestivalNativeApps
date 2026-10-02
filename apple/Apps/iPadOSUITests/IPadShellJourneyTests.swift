@@ -103,8 +103,9 @@ final class IPadShellJourneyTests: XCTestCase {
         XCTAssertTrue(split.descendants(matching: .any)["fst.songs.list"].exists)
     }
 
-    /// Rotating changes the window size: portrait (sidebar beside a too-narrow section)
-    /// keeps one stack, landscape splits, and the selection survives both ways.
+    /// Rotating changes the window size: portrait keeps one stack showing the list
+    /// (the auto-selected detail nobody chose is not left pushed), landscape splits
+    /// again and restores the same selection.
     @MainActor
     func testRotationReflowsListDetail() throws {
         let app = fixtureApp(profile: false)
@@ -113,11 +114,50 @@ final class IPadShellJourneyTests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         let split = element(app, "fst.nav.list-detail")
         XCTAssertTrue(waitForDisappearance(of: split, timeout: 10), "portrait keeps one stack")
-        // The auto-selected song stays pushed on the one stack.
-        XCTAssertTrue(element(app, "fst.song-detail.intensity").waitForExistence(timeout: 10))
+        XCTAssertTrue(element(app, "fst.songs.list").waitForExistence(timeout: 10), "the list shows")
+        XCTAssertFalse(element(app, "fst.song-detail.intensity").exists, "no unchosen detail pushed")
         XCUIDevice.shared.orientation = .landscapeLeft
         XCTAssertTrue(split.waitForExistence(timeout: 10), "landscape splits again")
-        XCTAssertTrue(element(app, "fst.song-detail.intensity").exists)
+        XCTAssertTrue(element(app, "fst.song-detail.intensity").waitForExistence(timeout: 10))
+    }
+
+    /// Leaderboards › View All opens Full Rankings as a list beside a populated player
+    /// detail (three columns in landscape).
+    @MainActor
+    func testFullRankingsSplitsWithPlayerDetail() throws {
+        let app = fixtureApp(profile: false)
+        launchFilled(app)
+        XCTAssertTrue(element(app, "fst.nav.leaderboards").waitForExistence(timeout: 20))
+        element(app, "fst.nav.leaderboards").tap()
+        let viewAll = app.buttons.matching(NSPredicate(format: "identifier ENDSWITH '.view-all'")).firstMatch
+        XCTAssertTrue(viewAll.waitForExistence(timeout: 15))
+        viewAll.tap()
+        XCTAssertTrue(element(app, "fst.nav.list-detail").waitForExistence(timeout: 15), "rankings split")
+        XCTAssertFalse(app.staticTexts["Select a Player"].exists)
+        // The player column shows the auto-selected top player's page.
+        let playerTitle = app.navigationBars.matching(
+            NSPredicate(format: "identifier CONTAINS 'Fixture Player'")
+        ).firstMatch
+        XCTAssertTrue(playerTitle.waitForExistence(timeout: 15), "a player page fills the detail")
+    }
+
+    /// A row the person picked stays open as the pushed page when portrait collapses
+    /// the split.
+    @MainActor
+    func testChosenDetailSurvivesRotation() throws {
+        let app = fixtureApp(profile: false)
+        launchFilled(app)
+        XCTAssertTrue(element(app, "fst.song-detail.intensity").waitForExistence(timeout: 20))
+        // The fixture catalogue's second song (the first is auto-selected).
+        let second = app.buttons["fst.songs.row.fixture-pulse"]
+        XCTAssertTrue(second.waitForExistence(timeout: 10))
+        second.tap()
+        XCTAssertTrue(second.waitForSelection(timeout: 5), "the tapped row is selected")
+        let title = "Fixture Pulse"
+        XCUIDevice.shared.orientation = .portrait
+        XCTAssertTrue(waitForDisappearance(of: element(app, "fst.nav.list-detail"), timeout: 10))
+        XCTAssertTrue(element(app, "fst.song-detail.intensity").waitForExistence(timeout: 10),
+                      "the chosen song (\(title)) stays pushed")
     }
 
     /// Narrowing the window (a Split View ⅓ or narrow window) falls back to the phone
@@ -167,5 +207,14 @@ final class IPadShellJourneyTests: XCTestCase {
     private func waitForDisappearance(of element: XCUIElement, timeout: TimeInterval) -> Bool {
         let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: element)
         return XCTWaiter().wait(for: [gone], timeout: timeout) == .completed
+    }
+}
+
+extension XCUIElement {
+    /// Wait until the element reports the selected state.
+    @MainActor
+    func waitForSelection(timeout: TimeInterval) -> Bool {
+        let selected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "isSelected == true"), object: self)
+        return XCTWaiter().wait(for: [selected], timeout: timeout) == .completed
     }
 }
