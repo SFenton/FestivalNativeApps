@@ -29,3 +29,6 @@ __pycache__/
 *.pyc
 .visual-output/
 tools/visual/test-results/
+
+# LLVM coverage output written by swift test --enable-code-coverage
+*.profraw
