@@ -41,6 +41,8 @@ struct SongDetailScreen: View {
     /// Whether the hero title has scrolled under the navigation bar (gap #6). Only
     /// the Bool changes while scrolling, so the page body is not re-evaluated every frame.
     @State private var heroTitleHidden = false
+    /// The page's width (the web viewport), for Score History's season column (issue #32).
+    @State private var pageWidth: CGFloat = 0
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -297,7 +299,8 @@ struct SongDetailScreen: View {
                     SongScoreHistorySection(
                         entries: historyEntries, pool: previewInstruments,
                         keyboardIcon: song.usesKeyboardIcon,
-                        instrument: $historyInstrument, expanded: $historyExpanded
+                        instrument: $historyInstrument, expanded: $historyExpanded,
+                        viewportWidth: pageWidth, currentSeason: session.catalogCurrentSeason
                     )
                     .festivalFadeIn(isLoaded: true, index: 2)
                     .id(SongScoreHistorySection.anchor)
@@ -338,6 +341,9 @@ struct SongDetailScreen: View {
             // Only what is on screen at load fades; lazily built cards scrolled into
             // view afterwards appear without a fade (issue #30).
             .festivalFadeInScope()
+        }
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.width.rounded() }) { width in
+            pageWidth = width
         }
         .onAppear {
             // Deep link (`/history`): land on the Score History section.

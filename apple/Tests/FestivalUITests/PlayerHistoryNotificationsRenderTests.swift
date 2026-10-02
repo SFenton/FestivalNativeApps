@@ -176,6 +176,75 @@ private let fixtureSong = Song(
     assertRendersContent(host, image: image, containing: ["Score History", "score 850,000"])
 }
 
+/// Issue #32: Score History list rows show the season only when the page is at least
+/// 520 pt wide (web `QUERY_SHOW_SEASON`); a portrait-phone page hides it.
+@MainActor
+@Test(arguments: [(393.0, false), (600.0, true)])
+func songScoreHistoryRowsShowTheSeasonOnlyOnWidePages(width: Double, shows: Bool) async throws {
+    let transport = HostedHistoryTransport()
+    let session = hostedHistorySession(transport: transport)
+    let entries = try await session.songHistory(accountId: "fixture-1", songId: "fixture-song").response.history
+    let size = CGSize(width: width, height: 900)
+    let host = nativeHostedView(
+        ScrollView {
+            SongScoreHistorySection(
+                entries: entries, pool: [.lead], keyboardIcon: false,
+                instrument: .constant(nil), expanded: .constant(false),
+                viewportWidth: size.width, currentSeason: 40
+            )
+            .padding(16)
+        }
+        .frame(width: size.width, height: size.height)
+        .background(BrandTokens.appBackground)
+        .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let image = try await nativeHostedSettle(host, untilText: ["score 850,000", "score 700,000"])
+    _ = try nativeHostedPNG(
+        image, filename: "song-score-history-season-\(Int(width)).png", environment: "FST_HISTORY_RENDER_OUT"
+    )
+    let seasons = ["current season 40, score 850,000", "season 39, score 700,000"]
+    if shows {
+        assertRendersContent(host, image: image, containing: seasons)
+    } else {
+        assertRendersContent(host, image: image, containing: ["score 850,000"], notContaining: ["season 39", "season 40"])
+    }
+}
+
+/// Issue #32: a top-score row draws the season pill only when its card turns the
+/// column on, and an entry without a season keeps the slot without speaking it.
+@MainActor
+@Test func songLeaderboardEntryRowSeasonColumnFollowsTheCard() async throws {
+    func entry(_ id: String, season: Int?) -> LeaderboardEntry {
+        LeaderboardEntry(
+            accountId: id, displayName: "Fixture \(id)", score: 99_800, rank: 2, localRank: nil,
+            accuracy: 980_000, isFullCombo: false, stars: 5, season: season, difficulty: 3
+        )
+    }
+    let size = CGSize(width: 600, height: 200)
+    let host = nativeHostedView(
+        VStack(spacing: 8) {
+            SongLeaderboardEntryRow(entry: entry("a", season: 9), seasonColumn: true, currentSeason: 9)
+            SongLeaderboardEntryRow(entry: entry("b", season: 8), seasonColumn: true, currentSeason: 9)
+            SongLeaderboardEntryRow(entry: entry("c", season: nil), seasonColumn: true)
+            SongLeaderboardEntryRow(entry: entry("d", season: 7))
+        }
+        .padding(16)
+        .frame(width: size.width, height: size.height)
+        .background(BrandTokens.appBackground)
+        .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let image = try await nativeHostedSettle(host, untilText: ["Current season 9", "Season 8", "Fixture d"])
+    assertRendersContent(
+        host, image: image, containing: ["Current season 9", "Season 8"], notContaining: ["Season 7"]
+    )
+}
+
 // MARK: - Notifications
 
 @MainActor
