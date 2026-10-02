@@ -180,17 +180,26 @@ struct TabAccessoryHost: ViewModifier {
 /// the pages and let the tab's `fst.nav.*` identifier replace the buttons' own.)
 struct FloatingPageControls: ViewModifier {
     @Environment(\.tabAccessoryRegistry) private var registry
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
     /// This page's scope: only controls registered from inside it are shown here.
     @State private var scope = UUID()
 
+    /// Diameter of one floating glass button, which is also its square hit region.
+    static let buttonSize: CGFloat = 50
+    /// Gap between neighbouring buttons; it keeps their hit regions apart.
+    static let spacing: CGFloat = 12
     /// Button size plus its bottom margin.
-    static let height: CGFloat = 50 + 8
+    static let height: CGFloat = buttonSize + 8
 
     func body(content: Content) -> some View {
         let items = registry?.items(in: scope) ?? []
         // Only the front page draws its buttons (see `TabAccessoryRegistry.isFront`);
         // the inset stays so an outgoing page's layout does not jump mid-transition.
         let front = registry?.isFront(scope) ?? false
+        let style = PageToolsHandOff.style(
+            systemReduceMotion: systemReduceMotion, appReduceMotion: appReduceMotion
+        )
         content
             .environment(\.floatingControlsScope, scope)
             .environment(\.floatingControlsInset, items.isEmpty ? 0 : Self.height)
@@ -199,25 +208,54 @@ struct FloatingPageControls: ViewModifier {
             .onDisappear { registry?.pageDisappeared(scope) }
             .animation(.easeInOut(duration: 0.15), value: front)
             .overlay(alignment: .bottomTrailing) {
-                if !items.isEmpty && front {
-                    FestivalGlassGroup(spacing: 12) {
-                        HStack(spacing: 12) {
-                            ForEach(items, id: \.id) { item in
-                                item.content
-                                    .labelStyle(.iconOnly)
-                                    .font(.title3)
-                                    .frame(width: 50, height: 50)
-                                    .contentShape(Circle())
-                                    .festivalGlassCapsule(.control, interactive: true)
-                                    .accessibilityIdentifier(item.accessibilityID ?? "")
+                ZStack(alignment: .bottomTrailing) {
+                    if !items.isEmpty && front {
+                        FestivalGlassGroup(spacing: Self.spacing) {
+                            HStack(spacing: Self.spacing) {
+                                ForEach(items, id: \.id) { item in
+                                    item.content
+                                        .labelStyle(FloatingPageToolLabelStyle(side: Self.buttonSize))
+                                        .font(.title3)
+                                        .frame(width: Self.buttonSize, height: Self.buttonSize)
+                                        .contentShape(Rectangle())
+                                        .festivalGlassCapsule(.control, interactive: true)
+                                        .accessibilityIdentifier(item.accessibilityID ?? "")
+                                        .transition(PageToolsHandOff.dockTransition(style))
+                                }
                             }
                         }
+                        .padding(.trailing, 16)
+                        .padding(.bottom, 8)
+                        .transition(PageToolsHandOff.dockTransition(style))
                     }
-                    .padding(.trailing, 16)
-                    .padding(.bottom, 8)
-                    .transition(.opacity)
                 }
+                // Registrations change outside the scroll hand-off's transaction, so the
+                // dock animates its own half with the same timing (issue #13); scoped to
+                // the overlay so the page itself never animates with it.
+                .animation(PageToolsHandOff.animation(style), value: items.map(\.id))
             }
+    }
+}
+
+// MARK: - Floating tool label
+
+/// Icon-only label that fills a floating page tool's whole square (issue #15).
+///
+/// A `Menu` (Quick Links) only responds to taps on its label, so the frame and hit
+/// shape around the glyph must live *inside* the label: the glass circle drawn around
+/// it is not tappable. Buttons honour the outer frame too; using one style keeps every
+/// floating tool's hit region the same square. HIG Buttons: "As a general rule, the hit
+/// region is at least 44x44 pt"; ``FloatingPageControls/spacing`` keeps neighbours apart.
+struct FloatingPageToolLabelStyle: LabelStyle {
+    /// Side of the square hit region, in points.
+    let side: CGFloat
+
+    func makeBody(configuration: Configuration) -> some View {
+        // The system icon-only style keeps the title as the VoiceOver label.
+        Label(configuration)
+            .labelStyle(.iconOnly)
+            .frame(width: side, height: side)
+            .contentShape(Rectangle())
     }
 }
 

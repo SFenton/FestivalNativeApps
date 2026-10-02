@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -55,11 +54,9 @@ import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.bands.SongBandLeaderboardViewModel
 import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.FestivalScreen
-import com.festivalscoretracker.android.ui.common.LoadingView
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
-import com.festivalscoretracker.android.ui.common.fadeInStagger
-import com.festivalscoretracker.android.ui.common.festivalFadeIn
-import com.festivalscoretracker.android.ui.common.rememberRevealed
+import com.festivalscoretracker.android.ui.common.loadSwapSpinnerItem
+import com.festivalscoretracker.android.ui.common.rememberLoadSwap
 import com.festivalscoretracker.android.ui.design.AccuracyPill
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
@@ -94,8 +91,9 @@ fun SongBandLeaderboardScreen(
         val token = background.pushFocus(song?.albumArt)
         onDispose { background.popFocus(token) }
     }
-    // A page or band-size change reloads, so its rows fade in again (web stagger).
-    val revealed = rememberRevealed(board is LoadState.Loaded)
+    // A page or band-size change fades the rows out, shows the spinner and staggers the new
+    // rows in (web PaginatedLeaderboard, issue #71).
+    val swap = rememberLoadSwap(board, board !is LoadState.Loading, key = type to page)
     FestivalScreen(title = "${type.label} Leaderboard", isRoot = false, modifier = Modifier.testTag("fst.song-band-leaderboard.screen")) { padding ->
         BandReadableWidth {
             LazyColumn(
@@ -103,7 +101,7 @@ fun SongBandLeaderboardScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxSize().testTag("fst.song-band-leaderboard.list"),
             ) {
-                item(key = "header") { SongHeader(song, board, type, artworkUrl, onNavigate) }
+                item(key = "header") { SongHeader(song, swap.shown, type, artworkUrl, onNavigate) }
                 item(key = "sizes") {
                     BandSegmentedControl(
                         options = BandType.entries,
@@ -114,34 +112,37 @@ fun SongBandLeaderboardScreen(
                         modifier = Modifier.padding(vertical = 4.dp).testTag("fst.song-band-leaderboard.band-type-menu"),
                     )
                 }
-                when (val state = board) {
-                    LoadState.Loading -> item(key = "loading") { LoadingView("Loading band scores", Modifier.heightIn(min = 240.dp)) }
+                val state = swap.shown
+                if (swap.showsSpinner || state is LoadState.Loading) {
+                    loadSwapSpinnerItem(swap, "Loading band scores", "fst.song-band-leaderboard.loading")
+                } else when (state) {
+                    LoadState.Loading -> Unit
                     is LoadState.Failed -> item(key = "error") {
                         ServiceStatusView(
                             state.issue,
                             "Band scores unavailable",
                             state.countdown,
                             viewModel::retry,
-                            Modifier.height(360.dp).testTag("fst.song-band-leaderboard.error"),
+                            Modifier.height(360.dp).then(swap.contentModifier).testTag("fst.song-band-leaderboard.error"),
                         )
                     }
                     is LoadState.Loaded -> {
                         val response = state.value
                         if (response.entries.isEmpty()) {
                             item(key = "empty") {
-                                BandEmptyState(
+                                Box(swap.contentModifier) { BandEmptyState(
                                     "No Band Scores Found",
                                     "No ${type.label} scores have been recorded for this song yet.",
                                     "fst.song-band-leaderboard.empty",
-                                )
+                                ) }
                             }
                         }
                         itemsIndexed(response.entries, key = { _, entry -> entry.key }) { index, entry ->
-                            Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
+                            Box(with(swap) { Modifier.staggered(index) }) {
                                 BandScoreRow(entry, song) { onNavigate(BandRoute(entry.bandId.ifEmpty { entry.teamKey }, entry.membersLabel, entry.bandType, entry.teamKey)) }
                             }
                         }
-                        item(key = "pager") { BandPager(page, response.pageCount(BandPaging.PAGE_SIZE), "fst.song-band-leaderboard", viewModel::goTo) }
+                        item(key = "pager") { Box(swap.contentModifier) { BandPager(page, response.pageCount(BandPaging.PAGE_SIZE), "fst.song-band-leaderboard", viewModel::goTo) } }
                     }
                 }
             }

@@ -372,3 +372,120 @@ public struct SongBandLeaderboardPayload: Sendable {
     public let observedPublicationId: Int
     public let isStale: Bool
 }
+
+// MARK: - Song Detail band previews
+
+/// One band size's preview inside `GET /api/leaderboard/{songId}/bands/all`, matching
+/// the service's `BuildSongBandLeaderboardsPayload` item
+/// (`FSTService/Api/LeaderboardEndpoints.cs`): the top rows plus, when the request
+/// carried `accountId`, the selected player's best band row for that size.
+public struct SongBandLeaderboardPreview: Decodable, Sendable, Equatable {
+    public let bandType: String
+    public let count: Int
+    public let totalEntries: Int
+    public let localEntries: Int?
+    public let entries: [SongBandLeaderboardEntry]
+    /// The selected player's best band on this song and size (`accountId` query).
+    public let selectedPlayerEntry: SongBandLeaderboardEntry?
+    /// A selected band's own row (`selectedTeamKey` query); natives do not send that
+    /// query yet, but decode it so a future selected-band identity needs no wire change.
+    public let selectedBandEntry: SongBandLeaderboardEntry?
+
+    /// Create a preview, e.g. the empty one shown for a size the service omitted.
+    ///
+    /// - Parameters:
+    ///   - bandType: Wire band-size key.
+    ///   - totalEntries: Ranked bands of this size on the song.
+    ///   - entries: Top rows.
+    ///   - selectedPlayerEntry: Selected player's best band row, if any.
+    ///   - selectedBandEntry: Selected band's row, if any.
+    public init(
+        bandType: String, totalEntries: Int = 0, entries: [SongBandLeaderboardEntry] = [],
+        selectedPlayerEntry: SongBandLeaderboardEntry? = nil,
+        selectedBandEntry: SongBandLeaderboardEntry? = nil
+    ) {
+        self.bandType = bandType
+        self.count = entries.count
+        self.totalEntries = totalEntries
+        self.localEntries = totalEntries
+        self.entries = entries
+        self.selectedPlayerEntry = selectedPlayerEntry
+        self.selectedBandEntry = selectedBandEntry
+    }
+
+    /// The highlighted row: a selected band's row wins over the selected player's
+    /// best band, like the web `SongBandLeaderboardPreview`.
+    public var selectedEntry: SongBandLeaderboardEntry? {
+        selectedBandEntry ?? selectedPlayerEntry
+    }
+
+    /// Whether a top row is the selected row (same `bandId`, or same size and roster).
+    ///
+    /// - Parameter entry: A top row.
+    /// - Returns: True when it should get the selected-row highlight.
+    public func isSelected(_ entry: SongBandLeaderboardEntry) -> Bool {
+        guard let selected = selectedEntry else { return false }
+        return Self.isSameBand(entry, selected)
+    }
+
+    /// The selected row to append after the top rows, when they do not already show it.
+    public var footerEntry: SongBandLeaderboardEntry? {
+        guard let selected = selectedEntry,
+              !entries.contains(where: { Self.isSameBand($0, selected) }) else { return nil }
+        return selected
+    }
+
+    /// Web `isSameSongBandEntry`: equal non-empty `bandId`, or equal size and roster.
+    ///
+    /// - Parameters:
+    ///   - lhs: First row.
+    ///   - rhs: Second row.
+    /// - Returns: True when both rows are the same band.
+    public static func isSameBand(_ lhs: SongBandLeaderboardEntry, _ rhs: SongBandLeaderboardEntry) -> Bool {
+        (!lhs.bandId.isEmpty && lhs.bandId == rhs.bandId)
+            || (lhs.bandType == rhs.bandType && lhs.teamKey == rhs.teamKey)
+    }
+}
+
+/// Response for `GET /api/leaderboard/{songId}/bands/all`: one preview per band size.
+public struct SongBandLeaderboardsResponse: Decodable, Sendable, Equatable {
+    public let songId: String
+    public let showLeaderboardEntryTotals: Bool?
+    public let bands: [SongBandLeaderboardPreview]
+
+    /// The preview for one band size; a size the service omitted reads as empty, like
+    /// the web's `createSongBandData` default.
+    ///
+    /// - Parameter bandType: Band size.
+    /// - Returns: That size's preview.
+    public func preview(for bandType: BandType) -> SongBandLeaderboardPreview {
+        bands.first { $0.bandType == bandType.rawValue }
+            ?? SongBandLeaderboardPreview(bandType: bandType.rawValue)
+    }
+
+    /// Reject a response for another song, an unknown or repeated band size, an
+    /// impossible count, or a row filed under the wrong size.
+    ///
+    /// - Parameter songId: Requested song.
+    /// - Throws: `FestivalAPIError.invalidBandProfile` on a mismatched or corrupt response.
+    public func validate(songId: String) throws {
+        guard self.songId == songId else { throw FestivalAPIError.invalidBandProfile }
+        var seen = Set<String>()
+        for band in bands {
+            let rows = band.entries + [band.selectedPlayerEntry, band.selectedBandEntry].compactMap { $0 }
+            guard BandType(rawValue: band.bandType) != nil, seen.insert(band.bandType).inserted,
+                  band.count == band.entries.count, band.totalEntries >= 0,
+                  rows.allSatisfy({ $0.bandType == band.bandType }) else {
+                throw FestivalAPIError.invalidBandProfile
+            }
+        }
+    }
+}
+
+/// Song Detail's band previews together with their publication provenance.
+public struct SongBandLeaderboardsPayload: Sendable {
+    public let response: SongBandLeaderboardsResponse
+    public let publicationId: Int?
+    public let observedPublicationId: Int
+    public let isStale: Bool
+}

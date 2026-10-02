@@ -38,16 +38,11 @@ struct SongsScreen: View {
     /// When the catalogue first arrived; rows fade in only shortly after it.
     @State private var fadeLoadedAt: Date?
     @State private var quickLinks = QuickLinksController()
-    /// Scrolled away from the top with a profile selected: Filter/Sort/Quick Links move
-    /// from the floating dock into the navigation bar (operator batch 7), and back at
-    /// the top.
-    @State private var toolsInBar = false
-    /// In-list section titles (iOS 26) that have scrolled up to the section bar.
-    @State private var passedSectionHeaders: Set<String> = []
-    /// The List has scrolled away from its top (the large title has collapsed).
-    @State private var listScrolled = false
-    /// Bottom edge of the section bar (global), for masking rows under it.
-    @State private var sectionBarBottom: CGFloat = 0
+    /// Scroll-driven chrome state (scrolled away, tools in the bar, passed section
+    /// titles, section bar edge). Never read in `body`: only the section bar, row mask
+    /// and page-tools modifier observe it, so scrolling does not re-render the whole
+    /// screen (issue #8).
+    @State private var scrollChrome = SongsScrollChrome()
     @Environment(\.openProfile) private var openProfile
     @Environment(\.deviceLayout) private var deviceLayout
     /// True where Filter/Sort live in the iPhone bottom dock instead of the toolbar.
@@ -77,6 +72,12 @@ struct SongsScreen: View {
         case loading
         case loaded(CatalogPayload)
         case failed(ServiceIssue)
+
+        /// Whether the catalogue is still loading (drives ``FestivalReloadGate``).
+        var isLoading: Bool {
+            if case .loading = self { return true }
+            return false
+        }
     }
 
     /// Restart a single catalogue task on publication or tab/route visibility changes.
@@ -276,6 +277,7 @@ struct SongsScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            let _ = MainThreadStallMonitor.count("songs.body")
             if let navigationNotice {
                 HStack(spacing: 8) {
                     Text(navigationNotice)
@@ -292,12 +294,20 @@ struct SongsScreen: View {
                 .accessibilityIdentifier("fst.songs.navigation-notice")
             }
 
-            Group {
+            // Sort, filter, instrument and search changes fade the list out, show the
+            // spinner (also while a search is typed ahead of its debounce) and stagger the
+            // new list in (web `SongsPage` `settingsKey`, issue #71).
+            FestivalReloadGate(
+                key: reloadKey, isLoading: state.isLoading || searchText != settledSearch,
+                spinnerLabel: "Loading songs",
+                onReveal: {
+                    fadeLoadedAt = .now
+                    scrollChrome.resetHeaders()
+                }
+            ) {
             switch state {
             case .loading:
-                FestivalLoadingView(accessibilityLabel: "Loading songs")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .transition(.opacity)
+                EmptyView()
             case let .failed(issue):
                 ServiceStatusView(issue, title: "Songs unavailable") {
                     Task { await reload() }
@@ -326,6 +336,7 @@ struct SongsScreen: View {
                         visibleInstruments: visibleInstruments,
                         selectedInstrument: instrument
                     )
+                    MainThreadStallMonitor.count("songs.sort")
                     return try SongCatalogSort.sorted(
                         filtered, mode: effectiveMode, ascending: sortAscending,
                         shopSongIds: membership,
@@ -391,49 +402,31 @@ struct SongsScreen: View {
         .festivalBackground(.carousel, session: session, visible: isVisible)
         .navigationTitle("Songs")
         // Inline filter of this list (HIG "search as an inline field", like Music's
-        // Library); global search is in the bottom dock / toolbar.
-        .searchable(text: $searchText, prompt: Text("Filter Songs"))
+        // Library); global search is in the toolbar. On iPhone it stays pinned under
+        // the bar while scrolled, beside the tools that rise into it (issue #13; HIG
+        // Search fields: "consider pinning it to the top toolbar while scrolling").
+        .searchable(
+            text: $searchText, placement: Self.filterFieldPlacement(
+                actionsInDock: actionsInDock, sidebarShell: deviceLayout.sectionChrome == .sidebar
+            ),
+            prompt: Text("Filter Songs")
+        )
         // iPhone: Filter and Sort sit in the bottom dock beside Search, like the web's
         // FAB dock (operator, 2026-09-28); toolbar items elsewhere (Duo rail, iPad, Mac).
-        .festivalTabAccessory(
-            token: filterDockToken, order: DockOrder.filter, accessibilityID: "fst.songs.filter",
-            isEnabled: canPresentFilter && !toolsInBar
-        ) {
-            filterAction.frame(minWidth: 44, minHeight: 44)
-        }
-        .festivalTabAccessory(
-            token: sortDockToken, order: DockOrder.sort, accessibilityID: "fst.songs.sort",
-            isEnabled: !toolsInBar
-        ) {
-            sortAction.frame(minWidth: 44, minHeight: 44)
-        }
-        .toolbar {
-            if !actionsInDock || toolsInBar {
-                ToolbarItemGroup(placement: Self.pageActionPlacement) {
-                    sortAction
-                    if canPresentFilter {
-                        filterAction
-                    }
-                }
-            }
-            QuickLinksToolbarItem(quickLinks)
-            FestivalRootTrailingItems(session: session)
-        }
-        .festivalProvidesRootTrailingItems()
-        .festivalRootChrome(session: session, providesTrailingItems: true)
-        // With Filter/Sort/Quick Links in the bar the inline title had no room and read
-        // "…"; the section bar names the place instead (Back still says "Songs").
-        .modifier(InlineTitleRemoval(removed: toolsInBar))
-        .sheet(isPresented: $sortPresented) {
-            SongsSortSheet(
-                mode: sortMode, ascending: sortAscending,
-                showShop: !hideShop, shopAvailable: shopOffersForCurrentSongs != nil,
-                playerModes: playerSortModesOffered
-            ) { mode, order in
-                sortMode = mode
-                sortAscending = order
-            }
-        }
+        .modifier(SongsPageTools(
+            chrome: scrollChrome, session: session, quickLinks: quickLinks,
+            filterDockToken: filterDockToken, sortDockToken: sortDockToken,
+            canPresentFilter: canPresentFilter, actionsInDock: actionsInDock,
+            placement: Self.pageActionPlacement,
+            sortAction: sortAction, filterAction: filterAction
+        ))
+        #if os(iOS)
+        .sheet(isPresented: $sortPresented) { sortSheet }
+        #else
+        // Mac: Sort is a popover from its toolbar button (HIG Popovers: "a little
+        // information or functionality"); View › Sort… opens it too.
+        .macPageCommands(macCommands)
+        #endif
         .sheet(isPresented: $filterPresented) {
             if let appliedPlayerScoreFilter {
                 SongsFilterSheet(
@@ -454,6 +447,7 @@ struct SongsScreen: View {
                     filterLeavingTomorrow = shop.leavingTomorrow
                     instrument = instrumentChoice
                 }
+                .macSheetFrame()
             } else {
                 Text("Saved song filters are invalid. Reset them from Songs to continue.")
             }
@@ -521,12 +515,6 @@ struct SongsScreen: View {
         // (`normalizeSongSettings`). The Songs instrument is not saved across launches,
         // so a saved player sort is normalized on appear too.
         .onChange(of: instrument) { _, _ in normalizePlayerSort() }
-        .onChange(of: session.selectedPlayer == nil) { _, anonymous in
-            if anonymous && toolsInBar {
-                toolsInBar = false
-                quickLinks.prefersToolbar = false
-            }
-        }
         .onAppear { normalizePlayerSort() }
         .task(id: searchText) {
             do {
@@ -550,6 +538,46 @@ struct SongsScreen: View {
         #endif
     }
 
+    /// Where the Filter Songs field sits.
+    ///
+    /// - Parameters:
+    ///   - actionsInDock: The page tools float above an iPhone tab bar at the top.
+    ///   - sidebarShell: The iPad sections sidebar shell.
+    /// - Returns: On iPhone, the navigation-bar drawer kept visible while scrolling, so the
+    ///   field stays with the tools that rise into the bar (issue #13). On iPad too: the
+    ///   system placement there collapses the field into a second magnifier beside global
+    ///   Search, two identical buttons with different scopes (HIG Searching: "Show current
+    ///   scope with descriptive placeholder"). The system placement elsewhere.
+    static func filterFieldPlacement(actionsInDock: Bool, sidebarShell: Bool = false) -> SearchFieldPlacement {
+        #if os(iOS)
+        actionsInDock || sidebarShell ? .navigationBarDrawer(displayMode: .always) : .automatic
+        #else
+        .automatic
+        #endif
+    }
+
+    #if os(macOS)
+    /// Sort and Filter for View › Sort… / Filter… (Filter disabled when unavailable).
+    private var macCommands: MacPageCommands {
+        var commands = MacPageCommands()
+        commands.sort = { sortPresented = true }
+        if canPresentFilter { commands.filter = { filterPresented = true } }
+        return commands
+    }
+    #endif
+
+    /// Sort options (a sheet on iPhone/iPad, a popover on the Mac).
+    private var sortSheet: some View {
+        SongsSortSheet(
+            mode: sortMode, ascending: sortAscending,
+            showShop: !hideShop, shopAvailable: shopOffersForCurrentSongs != nil,
+            playerModes: playerSortModesOffered
+        ) { mode, order in
+            sortMode = mode
+            sortAscending = order
+        }
+    }
+
     /// Open a native Sort sheet while retaining the current instrument selection.
     private var sortAction: some View {
         Button {
@@ -557,6 +585,17 @@ struct SongsScreen: View {
         } label: {
             Label("Sort", systemImage: "arrow.up.arrow.down")
         }
+        #if os(macOS)
+        .popover(isPresented: $sortPresented, arrowEdge: .bottom) {
+            // The popover is its own chrome: no modal stack, title bar or Close (which
+            // would otherwise join the window toolbar); it closes on an outside click.
+            sortSheet
+                .environment(\.festivalModalPreview, true)
+                .formStyle(.grouped)
+                .frame(width: 340, height: 470)
+        }
+        .help("Sort Songs")
+        #endif
         .accessibilityValue(
             "\(sortMode.label), \(sortAscending ? "ascending" : "descending")"
                 + (sortPausedMessage == nil ? "" : ", paused; showing Title order")
@@ -603,6 +642,9 @@ struct SongsScreen: View {
             Label("Filter", systemImage: "line.3.horizontal.decrease")
         }
         .accessibilityLabel("Filter Songs")
+        #if os(macOS)
+        .help("Filter Songs")
+        #endif
         .accessibilityValue(filterAccessibilityValue)
         .accessibilityIdentifier("fst.songs.filter")
         .tint(appliedShopFilter.isActive || appliedPlayerScoreFilter?.isActive == true
@@ -930,6 +972,7 @@ struct SongsScreen: View {
             durationSections: durationSections, yearSections: yearSections,
             scoreSections: scoreSections
         )
+        let headerKeys = (groups ?? []).map { Self.headerKey($0.id) }
         return ScrollViewReader { scrollProxy in
             ZStack(alignment: .trailing) {
                 List {
@@ -938,8 +981,9 @@ struct SongsScreen: View {
                     }
                     if let groups, Self.usesSectionBar {
                         // iOS 26: the current section title sits in a bar above the List
-                        // (`SongsSectionBar`); rows end at its edge under the system's hard
-                        // scroll-edge effect, with no opaque backing (operator batch 7).
+                        // (`SongsSectionBar`); rows fade out just below its edge, like the
+                        // system's soft scroll-edge effect under the bar (issue #10), with
+                        // no opaque backing (operator batch 7).
                         // The in-list titles are ordinary rows marking where each section
                         // starts; the first section's title is the bar itself.
                         // Flat rows, no `Section`: iOS 26 plain Lists draw an opaque band
@@ -979,32 +1023,42 @@ struct SongsScreen: View {
                     }
                 }
                 .listStyle(.plain)
+                // Before the section bar overlay: applied after it, this identifier
+                // replaced the bar's own (`fst.songs.section-bar`) for UI tests.
+                .accessibilityIdentifier("fst.songs.list")
                 .modifier(SectionBarRowMask(
-                    barBottom: sectionBarBottom,
-                    active: listScrolled && groups != nil && Self.usesSectionBar
+                    chrome: scrollChrome, enabled: groups != nil && Self.usesSectionBar
                 ))
                 .overlay(alignment: .top) {
                     // Once scrolled, the current section's title floats just below the
-                    // navigation bar and the rows are masked at its bottom edge. An
+                    // navigation bar and the rows fade out at its bottom edge. An
                     // overlay, not a safeAreaBar: a top bar hid the iOS 26 large title.
-                    if Self.usesSectionBar, listScrolled, let groups,
-                       let current = currentGroup(in: groups) {
-                        SongsSectionBarLabel(
-                            label: current.label, spokenLabel: current.spokenLabel ?? current.label,
-                            barBottom: $sectionBarBottom
+                    if Self.usesSectionBar, let groups {
+                        SongsSectionBar(
+                            chrome: scrollChrome,
+                            sections: groups.map {
+                                SongsSectionBar.Entry(
+                                    key: Self.headerKey($0.id), label: $0.label,
+                                    spokenLabel: $0.spokenLabel ?? $0.label
+                                )
+                            }
                         )
                     }
                 }
-                .modifier(ScrolledAwayTracker { scrolled in
-                    if listScrolled != scrolled { listScrolled = scrolled }
-                    let moved = scrolled && actionsInDock && session.selectedPlayer != nil
-                    guard moved != toolsInBar else { return }
-                    withAnimation(.snappy(duration: 0.3)) {
-                        toolsInBar = moved
+                .modifier(ScrolledAwayTracker(
+                    topInsetChanged: scrollChrome.setListTopInset
+                ) { scrolled, style in
+                    scrollChrome.setScrolled(scrolled)
+                    let moved = PageToolsHandOff.toolsInBar(
+                        scrolled: scrolled, actionsInDock: actionsInDock
+                    )
+                    guard moved != scrollChrome.toolsInBar else { return }
+                    // The floating dock animates its half with the same timing.
+                    withAnimation(PageToolsHandOff.animation(style)) {
+                        scrollChrome.setToolsInBar(moved)
                         quickLinks.prefersToolbar = moved
                     }
                 })
-                .accessibilityIdentifier("fst.songs.list")
                 .scrollContentBackground(.hidden)
                 // Reserve room for the trailing section-index scrubber so its glass
                 // capsule never overlaps a row's own trailing content (difficulty
@@ -1014,17 +1068,17 @@ struct SongsScreen: View {
                 .safeAreaInset(edge: .trailing, spacing: 0) {
                     Color.clear.frame(width: showsIndex ? scrubberExtraInset : 0)
                 }
-                .refreshable { await reload() }
+                .festivalRefreshable { await reload() }
                 .quickLinks(
                     quickLinks, title: "\(effectiveMode.label) Quick Links",
                     sections: showsIndex ? [] : (groups ?? []).compactMap(\.quickLink)
                 )
+                .modifier(QuickLinksJumpHeaderSync(
+                    quickLinks: quickLinks, chrome: scrollChrome, keys: headerKeys
+                ))
                 if showsIndex {
                     SongSectionIndexScrubber(sections: indexSections) { id in
-                        // Instant, like Contacts and the Quick Links jumps.
-                        var instant = Transaction()
-                        instant.disablesAnimations = true
-                        withTransaction(instant) { scrollProxy.scrollTo(id, anchor: .top) }
+                        jumpToSection(AnyHashable(id), keys: headerKeys, proxy: scrollProxy)
                     }
                     // Centered between a *fixed* top (status bar + collapsed inline bar)
                     // and the bottom safe area (tab bar + floating tools), so it neither
@@ -1042,10 +1096,53 @@ struct SongsScreen: View {
             // Any reordering (sort mode, direction, filters) starts at the top of the new
             // order (operator, 2026-09-28).
             .onChange(of: reorderKey) { _, _ in
-                passedSectionHeaders = []
+                scrollChrome.resetHeaders()
                 let top: AnyHashable? = groups?.first?.id ?? visible.first.map { AnyHashable($0.id) }
                 if let top { scrollProxy.scrollTo(top, anchor: .top) }
             }
+            .task {
+                #if DEBUG
+                // `FST_DEBUG_SONGS_SCROLL_STRESS=1`: replay a scroll stress pass in-app,
+                // without XCUITest's accessibility snapshots (issue #8 measurements).
+                guard SongsScrollStress.isRequested, let groups else { return }
+                let ids = groups.map(\.id)
+                try? await Task.sleep(for: .seconds(3))
+                MainThreadStallMonitor.count(SongsScrollStress.startCounter)
+                for step in SongsScrollStress.plan(groupCount: ids.count) {
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        scrollProxy.scrollTo(ids[step.group], anchor: .top)
+                    }
+                    try? await Task.sleep(for: .seconds(step.pause))
+                    if Task.isCancelled { return }
+                }
+                MainThreadStallMonitor.count(SongsScrollStress.endCounter)
+                #endif
+            }
+        }
+    }
+
+    /// Jump instantly to a section's title from the A–Z rail (like Contacts and the Quick
+    /// Links jumps) and name it in the section bar at once.
+    ///
+    /// A far target's rows have never been laid out, so the first scroll places it from
+    /// estimated row heights; once they exist a second scroll lands it exactly (as Quick
+    /// Links does), unless a newer jump has replaced it while scrubbing.
+    ///
+    /// - Parameters:
+    ///   - id: The section's scroll target.
+    ///   - keys: Section title keys in list order.
+    ///   - proxy: Reader proxy for the Songs List.
+    private func jumpToSection(_ id: AnyHashable, keys: [String], proxy: ScrollViewProxy) {
+        let chrome = scrollChrome
+        chrome.jump(to: Self.headerKey(id), in: keys)
+        let generation = chrome.jumpGeneration
+        var instant = Transaction()
+        instant.disablesAnimations = true
+        withTransaction(instant) { proxy.scrollTo(id, anchor: .top) }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(50))
+            guard chrome.jumpGeneration == generation else { return }
+            withTransaction(instant) { proxy.scrollTo(id, anchor: .top) }
         }
     }
 
@@ -1054,6 +1151,26 @@ struct SongsScreen: View {
         guard let fadeLoadedAt else { return false }
         return Date.now.timeIntervalSince(fadeLoadedAt)
             < FestivalFadeIn.completionDelay(itemCount: FestivalFadeIn.maxStaggeredItems)
+    }
+
+    /// The list settings whose change replays the load sequence (web `settingsKey`):
+    /// sort, direction, filters, instrument and the settled search.
+    private struct ReloadKey: Equatable {
+        let sortMode: SongSortMode
+        let sortAscending: Bool
+        let filterInShop: Bool
+        let filterLeavingTomorrow: Bool
+        let playerScoreFilter: Data
+        let instrument: Instrument?
+        let search: String
+    }
+
+    private var reloadKey: ReloadKey {
+        ReloadKey(
+            sortMode: sortMode, sortAscending: sortAscending, filterInShop: filterInShop,
+            filterLeavingTomorrow: filterLeavingTomorrow, playerScoreFilter: playerScoreFilterData,
+            instrument: instrument, search: settledSearch
+        )
     }
 
     /// Changes whenever the list is re-sorted or re-filtered.
@@ -1128,22 +1245,14 @@ struct SongsScreen: View {
         return false
     }
 
-    /// The group whose title belongs in the bar: the last one whose in-list title has
-    /// scrolled up to the bar's edge, else the first.
-    ///
-    /// - Parameter groups: The List's groups in order.
-    /// - Returns: The current group.
-    private func currentGroup(in groups: [SongListGroup]) -> SongListGroup? {
-        groups.last { passedSectionHeaders.contains(Self.headerKey($0)) } ?? groups.first
-    }
-
-    /// Stable key for a group's in-list title.
-    private static func headerKey(_ group: SongListGroup) -> String { "\(group.id)" }
+    /// Stable key for a group's in-list title, from the group's scroll target.
+    static func headerKey(_ id: AnyHashable) -> String { "\(id)" }
 
     /// A section's in-list title (iOS 26): a plain row, no backing, carrying the jump
     /// target and Quick Links tracking.
     @ViewBuilder private func inlineGroupHeader(_ group: SongListGroup) -> some View {
-        let key = Self.headerKey(group)
+        let key = Self.headerKey(group.id)
+        let topInset = scrollChrome.listTopInset
         let label = Text(group.label)
             .font(.subheadline.bold())
             .foregroundStyle(FestivalText.primary)
@@ -1155,9 +1264,12 @@ struct SongsScreen: View {
             .accessibilityAddTraits(.isHeader)
             .accessibilityIdentifier(group.accessibilityID)
             .onGeometryChange(for: Bool.self) { proxy in
-                proxy.frame(in: .scrollView).minY <= 0.5
+                SongsScrollChrome.headerPassed(
+                    minY: proxy.frame(in: .scrollView).minY,
+                    topInset: topInset.value
+                )
             } action: { passed in
-                if passed { passedSectionHeaders.insert(key) } else { passedSectionHeaders.remove(key) }
+                scrollChrome.setHeader(key, passed: passed)
             }
             .listRowInsets(EdgeInsets())
             .listRowSeparator(.hidden)
@@ -1232,6 +1344,11 @@ struct SongsScreen: View {
                 .opacity(0)
         }
         .contentShape(Rectangle())
+        #if os(macOS)
+        .contextMenu {
+            MacSongRowMenu(song: song, chart: chart, hasPlayer: session.selectedPlayer != nil)
+        }
+        #endif
         // Rows arriving from a load fade in, staggered over the first screenful; rows
         // rebuilt later by scrolling appear instantly (nil index → no animation).
         .festivalFadeIn(isLoaded: true, index: fadeIndex ?? Int.max)
@@ -1368,10 +1485,15 @@ private extension SongShopSectionKind {
 /// Keep anonymous catalogue and Shop sorting as an Apply/Reset/Discard draft.
 
 /// Reports whether a scroll view has moved away from its top (iOS 18+; always false
-/// before, so older systems keep the floating tools). ``ScrollAwayGate`` keeps the
-/// chrome this report moves from feeding back into it (issue #5).
+/// before, so older systems keep the floating tools), with the hand-off style the
+/// current Reduce Motion settings call for. ``ScrollAwayGate`` keeps the chrome this
+/// report moves from feeding back into it (issue #5).
 private struct ScrolledAwayTracker: ViewModifier {
-    let changed: (Bool) -> Void
+    /// Receives the List's top content inset on every scroll geometry change.
+    let topInsetChanged: (CGFloat) -> Void
+    let changed: (Bool, PageToolsHandOff.Style) -> Void
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
     @State private var gate = ScrollAwayGate()
     /// The last value sent to `changed`; nil until the first decision is reported.
     @State private var reported: Bool?
@@ -1391,13 +1513,16 @@ private struct ScrolledAwayTracker: ViewModifier {
                     width: geometry.containerSize.width
                 )
             } action: { _, sample in
+                topInsetChanged(sample.topInset)
                 gate.update(
                     offsetY: sample.offsetY, topInset: sample.topInset,
                     containerWidth: sample.width
                 )
                 guard reported != gate.isScrolled else { return }
                 reported = gate.isScrolled
-                changed(gate.isScrolled)
+                changed(gate.isScrolled, PageToolsHandOff.style(
+                    systemReduceMotion: systemReduceMotion, appReduceMotion: appReduceMotion
+                ))
             }
         } else {
             content
@@ -1405,14 +1530,58 @@ private struct ScrolledAwayTracker: ViewModifier {
     }
 }
 
+/// Names a Quick Links jump's target in the section bar at once (issue #9), like an A–Z
+/// rail jump: the in-list titles cannot report an instant jump themselves.
+///
+/// Observes the jump serial itself, so a jump re-renders only this modifier, never the
+/// List (issue #8).
+private struct QuickLinksJumpHeaderSync: ViewModifier {
+    let quickLinks: QuickLinksController
+    let chrome: SongsScrollChrome
+    /// Section title keys in list order.
+    let keys: [String]
+
+    func body(content: Content) -> some View {
+        content.onChange(of: quickLinks.jumpSerial) {
+            guard let target = quickLinks.jumpTarget else { return }
+            chrome.jump(to: target, in: keys)
+        }
+    }
+}
+
 /// iOS 26: the current Songs section title, floating just below the navigation bar once
-/// the List has scrolled. With ``SectionBarRowMask`` rows end exactly at its bottom edge,
-/// with no backing behind the title (operator batch 7).
+/// the List has scrolled. With ``SectionBarRowMask`` rows fade out just below its bottom
+/// edge (issue #10), with no backing behind the title (operator batch 7).
+///
+/// Observes ``SongsScrollChrome`` itself, so a passed title or a scroll-away change
+/// re-renders only this bar, never the List (issue #8).
+private struct SongsSectionBar: View {
+    /// One section title in list order.
+    struct Entry: Equatable {
+        let key: String
+        let label: String
+        let spokenLabel: String
+    }
+
+    let chrome: SongsScrollChrome
+    let sections: [Entry]
+
+    var body: some View {
+        if chrome.listScrolled,
+           let index = chrome.currentSectionIndex(in: sections.map(\.key)) {
+            SongsSectionBarLabel(
+                label: sections[index].label, spokenLabel: sections[index].spokenLabel
+            ) { chrome.setSectionBarBottom($0) }
+        }
+    }
+}
+
+/// The floating section title itself.
 private struct SongsSectionBarLabel: View {
     let label: String
     let spokenLabel: String
     /// Reports the label's bottom edge (global).
-    @Binding var barBottom: CGFloat
+    let bottomChanged: (CGFloat) -> Void
 
     var body: some View {
         Text(label)
@@ -1422,7 +1591,7 @@ private struct SongsSectionBarLabel: View {
             .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
             .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: {
-                barBottom = $0
+                bottomChanged($0)
             }
             .accessibilityLabel(spokenLabel)
             .accessibilityAddTraits(.isHeader)
@@ -1430,53 +1599,130 @@ private struct SongsSectionBarLabel: View {
     }
 }
 
-/// Masks the List above the section bar's bottom edge while scrolled, so rows end at the
-/// bar. Inactive at the top, where no row is under the bar and the large title shows.
+/// Masks the List above the section bar's bottom edge while scrolled, so rows fade out
+/// under the bar (issue #10, ``SectionBarEdgeFade``). Inactive at the top, where no row
+/// is under the bar and the large title shows.
 ///
 /// The mask is a shape whose path may extend past its frame: inactive it covers far
 /// beyond every edge (a mask laid out inside the safe area hid the iOS 26 large title,
 /// and `ignoresSafeArea` on the mask stalled the scroll view), active it starts at the
-/// bar's bottom edge, measured against the mask's own global top.
+/// end of the fade below the bar's bottom edge, measured against the mask's own global
+/// top. A gradient band fills the fade between the bar's edge and the shape; it sits
+/// under the opaque shape when inactive, so it changes nothing there. The structure is
+/// the same in every state, so toggling a setting never rebuilds the List.
 private struct SectionBarRowMask: ViewModifier {
-    let barBottom: CGFloat
-    let active: Bool
+    /// Observed here, not by `SongsScreen` (issue #8).
+    let chrome: SongsScrollChrome
+    /// False when the List has no sections or the OS has no section bar.
+    let enabled: Bool
     @State private var maskTop: CGFloat = 0
+    @Environment(\.accessibilityReduceTransparency) private var systemReduceTransparency
+    @Environment(\.colorSchemeContrast) private var systemContrast
+    @AppStorage("fst.accessibility.lessTransparency") private var lessTransparency = false
+    @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
 
     func body(content: Content) -> some View {
+        let active = enabled && chrome.listScrolled
+        let fade = SectionBarEdgeFade.height(
+            reduceTransparency: systemReduceTransparency || lessTransparency,
+            increaseContrast: moreContrast || systemContrast == .increased
+        )
+        let cut = max(0, chrome.sectionBarBottom - maskTop)
         content
             .environment(\.defaultMinListRowHeight, 0)
             .mask {
-                RowMaskShape(cut: active ? barBottom - maskTop : nil)
-                    .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: {
-                        maskTop = $0
-                    }
+                ZStack(alignment: .top) {
+                    LinearGradient(
+                        stops: SectionBarEdgeFade.gradientStops, startPoint: .top, endPoint: .bottom
+                    )
+                    .frame(height: fade)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, -RowMaskShape.far)
+                    .offset(y: cut)
+                    RowMaskShape(cut: active ? cut + fade : nil)
+                }
+                .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: {
+                    maskTop = $0
+                }
             }
     }
 }
 
 /// Everything below `cut` (local points), or everything when `cut` is nil.
 private struct RowMaskShape: Shape {
+    /// How far the path reaches past the frame, in points.
+    static let far: CGFloat = 10_000
+
     let cut: CGFloat?
 
     func path(in rect: CGRect) -> Path {
-        let far: CGFloat = 10_000
+        let far = Self.far
         let top = cut.map { rect.minY + max(0, $0) } ?? (rect.minY - far)
         return Path(CGRect(x: rect.minX - far, y: top, width: rect.width + 2 * far, height: rect.maxY + far - top))
     }
 }
 
-/// Removes the inline navigation title while the Songs tools occupy the bar (iOS 18+).
-private struct InlineTitleRemoval: ViewModifier {
-    let removed: Bool
+/// Songs' Filter/Sort/Quick Links placement: the iPhone bottom dock, or the navigation
+/// bar (elsewhere, and on iPhone once scrolled), plus the root trailing items and, on
+/// iPhone, an empty inline title.
+///
+/// Observes ``SongsScrollChrome/toolsInBar`` itself, so moving the tools re-renders only
+/// this toolbar and dock, never the List (issue #8).
+private struct SongsPageTools<SortAction: View, FilterAction: View>: ViewModifier {
+    let chrome: SongsScrollChrome
+    let session: FestivalSession
+    let quickLinks: QuickLinksController
+    let filterDockToken: [String]
+    let sortDockToken: [String]
+    let canPresentFilter: Bool
+    let actionsInDock: Bool
+    let placement: ToolbarItemPlacement
+    let sortAction: SortAction
+    let filterAction: FilterAction
 
     func body(content: Content) -> some View {
-        // One branch per OS (never per state): switching branches would rebuild the
-        // List and lose its scroll position.
-        if #available(iOS 18.0, macOS 15.0, *) {
-            content.toolbar(removing: removed ? .title : nil)
-        } else {
-            content
-        }
+        let toolsInBar = chrome.toolsInBar
+        content
+            .festivalTabAccessory(
+                token: filterDockToken, order: DockOrder.filter,
+                accessibilityID: "fst.songs.filter",
+                isEnabled: canPresentFilter && !toolsInBar
+            ) {
+                filterAction.frame(minWidth: 44, minHeight: 44)
+            }
+            .festivalTabAccessory(
+                token: sortDockToken, order: DockOrder.sort, accessibilityID: "fst.songs.sort",
+                isEnabled: !toolsInBar
+            ) {
+                sortAction.frame(minWidth: 44, minHeight: 44)
+            }
+            .toolbar {
+                if !actionsInDock || toolsInBar {
+                    ToolbarItemGroup(placement: placement) {
+                        sortAction
+                        if canPresentFilter {
+                            filterAction
+                        }
+                    }
+                }
+                QuickLinksToolbarItem(quickLinks)
+                FestivalRootTrailingItems(session: session)
+                #if os(iOS)
+                if actionsInDock {
+                    // With Filter/Sort/Quick Links in the bar the inline title had no room
+                    // and read "…"; the section bar names the place instead (Back still
+                    // says "Songs"). A permanent empty title view, never a toggled
+                    // `toolbar(removing: .title)`: removing the title also removed the
+                    // large title, so the list jumped by its height on every hand-off and
+                    // the title reappeared late back at the top (issue #13).
+                    ToolbarItem(placement: .principal) {
+                        Color.clear.frame(width: 1, height: 1).accessibilityHidden(true)
+                    }
+                }
+                #endif
+            }
+            .festivalProvidesRootTrailingItems()
+            .festivalRootChrome(session: session, providesTrailingItems: true)
     }
 }
 

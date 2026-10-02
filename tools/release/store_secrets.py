@@ -10,6 +10,7 @@ tool never prints them::
     store_secrets.py status
     store_secrets.py asc --key-id ABC123DEFG --issuer-id <uuid> --p8 AuthKey_ABC123DEFG.p8
     store_secrets.py ios-p12 --p12 dist.p12 --password-file dist.pw
+    store_secrets.py ios-dev-p12 --p12 dev.p12 --password-file dev.pw   # one persistent CI Apple Development identity
     store_secrets.py msstore --tenant-id <uuid> --client-id <uuid> \\
         --client-secret-file secret.txt --seller-id 123456 --app-id 9ABCDEFGHIJK
 
@@ -38,6 +39,7 @@ ENVIRONMENT = "store-release"
 GROUPS: Dict[str, List[str]] = {
     "asc": ["ASC_KEY_ID", "ASC_ISSUER_ID", "ASC_PRIVATE_KEY"],
     "ios_p12": ["IOS_DIST_P12_BASE64", "IOS_DIST_P12_PASSWORD"],
+    "ios_dev_p12": ["IOS_DEV_P12_BASE64", "IOS_DEV_P12_PASSWORD"],
     "msstore": ["MSSTORE_TENANT_ID", "MSSTORE_CLIENT_ID", "MSSTORE_CLIENT_SECRET",
                 "MSSTORE_SELLER_ID", "MSSTORE_APP_ID"],
 }
@@ -148,14 +150,14 @@ def _openssl_p12(openssl: str, extra: List[str], p12: bytes, password: str) -> O
             for line in result.stdout.decode("utf-8", "replace").splitlines() if line.startswith("subject=")]
 
 
-def validate_p12_subjects(subjects: Optional[List[str]]) -> None:
-    """Require exactly one certificate and that it is an Apple Distribution identity."""
+def validate_p12_subjects(subjects: Optional[List[str]], kind: str = "Apple Distribution") -> None:
+    """Require exactly one certificate and that it is a ``kind`` identity."""
     if subjects is None:
         return
     if len(subjects) != 1:
         raise InputError("the .p12 must hold exactly one certificate (found %d)" % len(subjects))
-    if "Apple Distribution" not in subjects[0]:
-        raise InputError("the .p12 certificate is not an Apple Distribution identity")
+    if kind not in subjects[0]:
+        raise InputError("the .p12 certificate is not an %s identity" % kind)
 
 
 def validate_msstore(tenant_id: str, client_id: str, secret: str, seller_id: str, app_id: str) -> None:
@@ -189,6 +191,9 @@ def main(argv: Optional[Sequence[str]] = None, runner: Runner = run_gh,
     p12 = sub.add_parser("ios-p12")
     p12.add_argument("--p12", required=True)
     p12.add_argument("--password-file", required=True)
+    dev = sub.add_parser("ios-dev-p12")
+    dev.add_argument("--p12", required=True)
+    dev.add_argument("--password-file", required=True)
     ms = sub.add_parser("msstore")
     ms.add_argument("--tenant-id", required=True)
     ms.add_argument("--client-id", required=True)
@@ -205,12 +210,13 @@ def main(argv: Optional[Sequence[str]] = None, runner: Runner = run_gh,
             p8 = read_text(args.p8)
             validate_asc(args.key_id, args.issuer_id, p8)
             values = {"ASC_KEY_ID": args.key_id, "ASC_ISSUER_ID": args.issuer_id, "ASC_PRIVATE_KEY": p8}
-        elif args.command == "ios-p12":
+        elif args.command in ("ios-p12", "ios-dev-p12"):
+            dev = args.command == "ios-dev-p12"
             data = Path(args.p12).read_bytes()
             password = read_text(args.password_file)
-            validate_p12_subjects(subjects_fn(data, password))
-            values = {"IOS_DIST_P12_BASE64": base64.b64encode(data).decode("ascii"),
-                      "IOS_DIST_P12_PASSWORD": password}
+            validate_p12_subjects(subjects_fn(data, password), "Apple Development" if dev else "Apple Distribution")
+            prefix = "IOS_DEV_P12" if dev else "IOS_DIST_P12"
+            values = {prefix + "_BASE64": base64.b64encode(data).decode("ascii"), prefix + "_PASSWORD": password}
         else:
             secret = read_text(args.client_secret_file)
             validate_msstore(args.tenant_id, args.client_id, secret, args.seller_id, args.app_id)

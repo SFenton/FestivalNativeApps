@@ -12,7 +12,7 @@ import FestivalDesign
 /// iPhone (`whatsNewPresentation(isPresented:)`), so no rounded sheet corner exposes the page
 /// behind it, and the background is opaque. Dismiss sits in an opaque bottom bar
 /// (`safeAreaInset(.bottom)` over `cardBackground` with a hairline), so the list scrolls
-/// **above** it and never shows beneath it. Close stays in the standard toolbar position.
+/// **above** it and never shows beneath it. Close is the shared ``FestivalModal``'s system Close, top-right (issue #23).
 /// A full-screen cover has no system swipe-to-dismiss, so pulling the list down past its top
 /// and letting go dismisses it too (operator batch 6, item 6.14; iOS 18+).
 struct WhatsNewSheet: View {
@@ -24,7 +24,9 @@ struct WhatsNewSheet: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        NavigationStack {
+        FestivalModal(
+            Self.title(version: version), closeIdentifier: "fst.whats-new.close", onClose: onDismiss
+        ) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     ForEach(Array(entries.enumerated()), id: \.offset) { _, entry in
@@ -40,21 +42,10 @@ struct WhatsNewSheet: View {
             .modifier(PullDownToDismiss(action: onDismiss))
             .safeAreaInset(edge: .bottom, spacing: 0) { dismissBar }
             .background(BrandTokens.cardBackground)
-            .navigationTitle(Self.title(version: version))
             #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(BrandTokens.cardBackground, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             #endif
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(action: onDismiss) {
-                        Image(systemName: "xmark")
-                    }
-                    .accessibilityLabel("Close")
-                    .accessibilityIdentifier("fst.whats-new.close")
-                }
-            }
         }
         .festivalSheet(.large)
         // Opaque, so neither the page behind nor a rounded sheet corner shows through.

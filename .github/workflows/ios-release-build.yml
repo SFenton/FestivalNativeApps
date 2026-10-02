@@ -80,6 +80,8 @@ jobs:
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
           IOS_DIST_P12_BASE64: ${{ secrets.IOS_DIST_P12_BASE64 }}
           IOS_DIST_P12_PASSWORD: ${{ secrets.IOS_DIST_P12_PASSWORD }}
+          IOS_DEV_P12_BASE64: ${{ secrets.IOS_DEV_P12_BASE64 }}
+          IOS_DEV_P12_PASSWORD: ${{ secrets.IOS_DEV_P12_PASSWORD }}
         run: |
           # Missing secrets are not an error: ios_appstore_build.sh then reports `missing_signing` (exit 4, skipped).
           set -euo pipefail
@@ -90,7 +92,7 @@ jobs:
             chmod 600 "$sec/AuthKey.p8"
             { echo "ASC_KEY_ID=$ASC_KEY_ID"; echo "ASC_ISSUER_ID=$ASC_ISSUER_ID"; echo "ASC_KEY_PATH=$sec/AuthKey.p8"; } >> "$GITHUB_ENV"
           fi
-          if [ -n "$IOS_DIST_P12_BASE64" ]; then
+          if [ -n "$IOS_DIST_P12_BASE64" ] || [ -n "$IOS_DEV_P12_BASE64" ]; then
             kc="$RUNNER_TEMP/fst-signing.keychain-db"
             kcpw="$(openssl rand -hex 24)"
             echo "::add-mask::$kcpw"
@@ -98,12 +100,29 @@ jobs:
             security create-keychain -p "$kcpw" "$kc"
             security set-keychain-settings -lut 21600 "$kc"
             security unlock-keychain -p "$kcpw" "$kc"
-            printf '%s' "$IOS_DIST_P12_BASE64" | base64 --decode > "$sec/dist.p12"
-            security import "$sec/dist.p12" -k "$kc" -f pkcs12 -P "$IOS_DIST_P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+            if [ -n "$IOS_DIST_P12_BASE64" ]; then
+              printf '%s' "$IOS_DIST_P12_BASE64" | base64 --decode > "$sec/dist.p12"
+              security import "$sec/dist.p12" -k "$kc" -f pkcs12 -P "$IOS_DIST_P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+              rm -f "$sec/dist.p12"
+            fi
+            if [ -n "$IOS_DEV_P12_BASE64" ]; then
+              # The one persistent CI Apple Development identity: automatic signing reuses it instead of
+              # creating (and the prune steps revoking) a new certificate on every hosted runner.
+              printf '%s' "$IOS_DEV_P12_BASE64" | base64 --decode > "$sec/dev.p12"
+              security import "$sec/dev.p12" -k "$kc" -f pkcs12 -P "$IOS_DEV_P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+              # Read the serial from the keychain: the runner's OpenSSL 3 cannot open the legacy-encrypted .p12
+              # that macOS `security import` needs (it would require -legacy, which LibreSSL lacks).
+              serial=$(security find-certificate -c "Apple Development" -p "$kc" 2>/dev/null \
+                | openssl x509 -noout -serial 2>/dev/null | cut -d= -f2 || true)
+              rm -f "$sec/dev.p12"
+              # Without the serial the prune steps could revoke this identity (it is also "Created via API").
+              [ -n "$serial" ] || { echo "::error::cannot read the CI development certificate's serial"; exit 1; }
+              echo "FST_KEEP_CERT_SERIAL=$serial" >> "$GITHUB_ENV"
+            fi
             security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$kcpw" "$kc" >/dev/null
-            rm -f "$sec/dist.p12"
             { echo "FST_SIGNING_KEYCHAIN=$kc"; echo "FST_SIGNING_KEYCHAIN_PASSWORD_FILE=$sec/keychain-password"; } >> "$GITHUB_ENV"
-          else
+          fi
+          if [ -z "$IOS_DIST_P12_BASE64" ]; then
             # No distribution certificate secret: let xcodebuild use cloud-managed signing via the (Admin) ASC key.
             echo "FST_ALLOW_CLOUD_SIGNING=1" >> "$GITHUB_ENV"
           fi
@@ -116,7 +135,8 @@ jobs:
           # the account never reaches Apple's certificate limit (fst_release.prune_ci_certs keeps personal ones).
           # Use the workflow commit's client (master), not the checked-out version tag's, which may predate it.
           git show "$GITHUB_SHA:tools/release/fst_release.py" > "$RUNNER_TEMP/fst_release_ci.py"
-          python3 "$RUNNER_TEMP/fst_release_ci.py" ios prune-ci-certs | tee "$RUNNER_TEMP/prune.json"
+          keep=(); [ -n "${FST_KEEP_CERT_SERIAL:-}" ] && keep=(--keep-serial "$FST_KEEP_CERT_SERIAL")
+          python3 "$RUNNER_TEMP/fst_release_ci.py" ios prune-ci-certs ${keep[@]+"${keep[@]}"} | tee "$RUNNER_TEMP/prune.json"
           echo "Revoke CI development certificates (before): \`$(cat "$RUNNER_TEMP/prune.json")\`" >> "$GITHUB_STEP_SUMMARY"
       - name: Archive and upload
         shell: bash
@@ -174,7 +194,8 @@ jobs:
           # the account never reaches Apple's certificate limit (fst_release.prune_ci_certs keeps personal ones).
           # Use the workflow commit's client (master), not the checked-out version tag's, which may predate it.
           git show "$GITHUB_SHA:tools/release/fst_release.py" > "$RUNNER_TEMP/fst_release_ci.py"
-          python3 "$RUNNER_TEMP/fst_release_ci.py" ios prune-ci-certs | tee "$RUNNER_TEMP/prune.json"
+          keep=(); [ -n "${FST_KEEP_CERT_SERIAL:-}" ] && keep=(--keep-serial "$FST_KEEP_CERT_SERIAL")
+          python3 "$RUNNER_TEMP/fst_release_ci.py" ios prune-ci-certs ${keep[@]+"${keep[@]}"} | tee "$RUNNER_TEMP/prune.json"
           echo "Revoke CI development certificates (after): \`$(cat "$RUNNER_TEMP/prune.json")\`" >> "$GITHUB_STEP_SUMMARY"
       - name: Remove signing material
         if: always()

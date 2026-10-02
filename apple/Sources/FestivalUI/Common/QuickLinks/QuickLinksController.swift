@@ -157,6 +157,29 @@ public final class QuickLinksController {
     /// - Returns: The last frame `report(_:frame:)` recorded, or `nil`.
     func currentFrame(for id: String) -> QuickLinkFrame? { frames[id] }
 
+    /// Scroll anchor that lands a section `activationOffset` points below the visible
+    /// top (``QuickLinks/landingAnchorY(inset:viewportHeight:sectionHeight:)``).
+    ///
+    /// - Parameter id: Section id.
+    /// - Returns: The anchor, or `.top` while the section or viewport is unmeasured
+    ///   (a lazy container has not built it yet).
+    func landingAnchor(for id: String) -> UnitPoint {
+        guard let frame = frames[id], let y = QuickLinks.landingAnchorY(
+            inset: activationOffset, viewportHeight: viewportHeight,
+            sectionHeight: frame.maxY - frame.minY
+        ) else { return .top }
+        return UnitPoint(x: 0, y: y)
+    }
+
+    /// Whether a section's top sits on its landing line, within a point.
+    ///
+    /// - Parameter id: Section id.
+    /// - Returns: `false` when the section is unmeasured or elsewhere.
+    func isLanded(_ id: String) -> Bool {
+        guard let frame = frames[id] else { return false }
+        return abs(frame.minY - activationOffset) <= 1
+    }
+
     // MARK: Private
 
     private func resolveSections() {

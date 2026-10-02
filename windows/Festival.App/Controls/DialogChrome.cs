@@ -44,6 +44,14 @@ public static class DialogChrome
             if (Find(dialog, name) is ColumnDefinition column) column.Width = new GridLength(0);
     };
 
+    /// <summary>Gives the template's Close button a stable UI Automation ID once the template exists.</summary>
+    /// <param name="dialog">Dialog, before it is shown.</param>
+    /// <param name="automationId">Automation ID.</param>
+    public static void CloseButtonAutomationId(ContentDialog dialog, string automationId) => dialog.Loaded += (_, _) =>
+    {
+        if (Find(dialog, "CloseButton") is Button close) Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(close, automationId);
+    };
+
     /// <summary>Finds a named template part below the dialog.</summary>
     /// <param name="dialog">Dialog.</param>
     /// <param name="name">Part name.</param>

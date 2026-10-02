@@ -59,6 +59,8 @@ final class FestivalSession {
     private(set) var playerLoadState: SelectedPlayerLoadState = .none
     private(set) var playerError: String?
     private(set) var selectionRevision = 0
+    /// The last catalogue's current season; only highlights song-page season pills.
+    private(set) var catalogCurrentSeason: Int?
 
     /// Create a session without starting network work during view construction.
     ///
@@ -120,6 +122,9 @@ final class FestivalSession {
     func catalog() async throws -> CatalogPayload {
         let payload = try await client().catalog()
         try await observe(publicationId: payload.observedPublicationId)
+        if catalogCurrentSeason != payload.catalog.currentSeason {
+            catalogCurrentSeason = payload.catalog.currentSeason
+        }
         let candidates = payload.catalog.songs.compactMap(\.albumArt).filter { !$0.isEmpty }
         if candidates != sourceArtworkPaths {
             sourceArtworkPaths = candidates

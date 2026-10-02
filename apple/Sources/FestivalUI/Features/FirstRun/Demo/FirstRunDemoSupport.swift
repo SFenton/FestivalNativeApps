@@ -77,9 +77,9 @@ extension View {
 
 // MARK: - Reduce-motion aware stagger
 
-/// A brief per-row fade/rise-in, standing in for the web's cascading `FadeIn` stagger. Skipped
-/// under Reduce Motion so rows simply appear — matching the spec's "no stagger… when Reduce
-/// Motion is on."
+/// A per-row fade/rise-in on the web's cascading `FadeIn` timing (`fadeInUp`: 400 ms ease-out
+/// from 12 pt below, 125 ms apart). Skipped under Reduce Motion so rows simply appear —
+/// matching the spec's "no stagger… when Reduce Motion is on."
 private struct FirstRunStagger: ViewModifier {
     let index: Int
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -88,13 +88,16 @@ private struct FirstRunStagger: ViewModifier {
     func body(content: Content) -> some View {
         content
             .opacity(shown ? 1 : 0)
-            .offset(y: shown ? 0 : 6)
+            .offset(y: shown ? 0 : FirstRunDemoTiming.entranceRise)
             .onAppear {
                 if reduceMotion {
                     shown = true
                     return
                 }
-                withAnimation(.easeOut(duration: 0.28).delay(Double(index) * 0.05)) {
+                withAnimation(
+                    .easeOut(duration: FirstRunDemoTiming.fadeSeconds)
+                        .delay(Double(index) * FirstRunDemoTiming.staggerSeconds)
+                ) {
                     shown = true
                 }
             }

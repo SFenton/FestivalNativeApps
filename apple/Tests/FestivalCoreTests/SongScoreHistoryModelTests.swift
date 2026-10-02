@@ -50,3 +50,41 @@ private func entry(_ instrument: Instrument, score: Int, accuracy: Double?, fc: 
     #expect(SongScoreHistoryModel.isGold(perfect))
     #expect(!SongScoreHistoryModel.isGold(nearly))
 }
+
+// MARK: - Instrument switch (issue #31)
+
+@Test func pagingShowsEveryRowUntilTheChartIsMeasured() {
+    #expect(SongScoreHistoryModel.paging(count: 9, chartWidth: 0).pageSize == 9)
+    #expect(!SongScoreHistoryModel.paging(count: 9, chartWidth: 0).needsPagination)
+    // 400 pt chart: (400 - 96 + 8) / (96 + 8) = 3 bars a page.
+    let measured = SongScoreHistoryModel.paging(count: 9, chartWidth: 400)
+    #expect(measured.pageSize == RankHistoryPaging.pageSize(forPlotWidth: 400 - SongScoreHistoryModel.axisAllowance))
+    #expect(measured.pageSize == 3)
+    #expect(measured.needsPagination)
+}
+
+@Test func pagerSpaceIsReservedWhenAnySelectableInstrumentPages() {
+    let lead = (1 ... 4).map { day in
+        entry(.lead, score: day, accuracy: nil, fc: false, date: "2024-01-0\(day)T00:00:00Z")
+    }
+    let bass = [entry(.bass, score: 1, accuracy: nil, fc: false, date: "2024-01-01T00:00:00Z")]
+    let rows = lead + bass
+    // Lead (4 rows) pages at 3 bars a page, so Bass keeps the pager row too.
+    #expect(SongScoreHistoryModel.reservesPager(rows, instruments: [.lead, .bass], chartWidth: 400))
+    // Only Bass selectable: nothing pages, no reserved row.
+    #expect(!SongScoreHistoryModel.reservesPager(rows, instruments: [.bass], chartWidth: 400))
+    // Wide enough for every row on one page.
+    #expect(!SongScoreHistoryModel.reservesPager(rows, instruments: [.lead, .bass], chartWidth: 2_000))
+    // Not measured yet.
+    #expect(!SongScoreHistoryModel.reservesPager(rows, instruments: [.lead, .bass], chartWidth: 0))
+}
+
+@Test func swapFadesOnlyARealChangeAndIsInstantUnderReduceMotion() {
+    #expect(ScoreHistorySwap.plan(displayed: .lead, target: .bass, reduceMotion: false) == .fade)
+    #expect(ScoreHistorySwap.plan(displayed: .lead, target: .bass, reduceMotion: true) == .instant)
+    // Choosing the shown instrument again (also mid-fade) settles back to fully visible.
+    #expect(ScoreHistorySwap.plan(displayed: .lead, target: .lead, reduceMotion: false) == .settle)
+    #expect(ScoreHistorySwap.plan(displayed: nil, target: .lead, reduceMotion: false) == .instant)
+    #expect(ScoreHistorySwap.plan(displayed: .lead, target: nil, reduceMotion: false) == .none)
+    #expect(ScoreHistorySwap.fadeOutSeconds < ScoreHistorySwap.fadeInSeconds)
+}

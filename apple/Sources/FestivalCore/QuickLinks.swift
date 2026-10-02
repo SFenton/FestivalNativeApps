@@ -78,9 +78,11 @@ public struct QuickLinkFrame: Hashable, Sendable {
 public enum QuickLinks {
     /// Fewer sections than this hide the entry point: a one-item jump list does nothing.
     public static let minimumSectionCount = 2
-    /// A section becomes "natural" active once its top is within this many points
-    /// of the viewport top (web `DEFAULT_SONGS_SCROLL_OFFSET`).
-    public static let defaultActivationOffset: Double = 16
+    /// A jump lands its target's top this many points below the viewport top, and a
+    /// section becomes "natural" active once its top is within it (web default
+    /// `offset`, 32 px, used for both). It clears the iOS 26 navigation bar's
+    /// scroll-edge effect, which blurs and dims roughly the first 30 pt of content.
+    public static let defaultActivationOffset: Double = 32
     /// After a jump, the target stays active while its top is within this band
     /// around the landing position (web `REACHABLE_TARGET_OWNERSHIP_PX`).
     public static let reachableBand: Double = 96
@@ -152,6 +154,30 @@ public enum QuickLinks {
     /// - Returns: `true` when the target's top is within `reachableBand` of the landing band.
     public static func isReachable(_ frame: QuickLinkFrame, activationOffset: Double) -> Bool {
         frame.minY >= -reachableBand && frame.minY <= activationOffset + reachableBand
+    }
+
+    /// Vertical scroll anchor that lands a section's top `inset` points below the
+    /// visible region's top.
+    ///
+    /// `ScrollViewProxy.scrollTo(_:anchor:)` aligns the point at `anchor` within the
+    /// section with the same unit point of the visible region, so the section's top
+    /// lands at `anchor × (viewportHeight − sectionHeight)`. Solving for `inset` gives
+    /// `inset / (viewportHeight − sectionHeight)`; sections taller than the viewport
+    /// get a negative anchor. There is no offset parameter on iOS 17.
+    ///
+    /// - Parameters:
+    ///   - inset: Wanted distance from the visible top to the section's top.
+    ///   - viewportHeight: Height of the visible region.
+    ///   - sectionHeight: Height of the target section.
+    /// - Returns: The unit-point `y`, or `nil` (use `.top`) when there is nothing to
+    ///   offset or the section is within a point of the viewport's height, where
+    ///   the anchor cannot move it.
+    public static func landingAnchorY(
+        inset: Double, viewportHeight: Double, sectionHeight: Double
+    ) -> Double? {
+        let slack = viewportHeight - sectionHeight
+        guard inset > 0, viewportHeight > 0, sectionHeight >= 0, abs(slack) >= 1 else { return nil }
+        return inset / slack
     }
 
     /// The section a reader is "in" from scroll position alone

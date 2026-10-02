@@ -34,6 +34,7 @@
                            AutomationProperties.AutomationId="fst.history.subtitle" />
             </StackPanel>
             <DropDownButton Grid.Row="1" Grid.ColumnSpan="2" HorizontalAlignment="Left" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
+                            MinHeight="{StaticResource FSTMinTargetSize}"
                             AutomationProperties.Name="{x:Bind ViewModel.SortAnnouncement, Mode=OneWay}"
                             AutomationProperties.AutomationId="fst.history.sort.open">
                 <StackPanel Orientation="Horizontal" Spacing="8">

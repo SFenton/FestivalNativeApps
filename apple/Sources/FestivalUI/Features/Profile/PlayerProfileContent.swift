@@ -310,6 +310,7 @@ struct PlayerProfileContent: View {
                     .festivalFadeIn(isLoaded: true, index: visibleInstruments.count + 3)
             }
             .padding(16)
+            .festivalFadeInScope()
         }
         .quickLinks(quickLinks, title: "Quick Links")
         .accessibilityIdentifier("fst.player.available")
@@ -578,7 +579,7 @@ struct PlayerProfileContent: View {
     // MARK: Regular-width grid
 
     private var instrumentGridColumns: [GridItem] {
-        [GridItem(.flexible(), spacing: 20), GridItem(.flexible(), spacing: 20)]
+        [GridItem(.flexible(), spacing: 20, alignment: .top), GridItem(.flexible(), spacing: 20, alignment: .top)]
     }
 
     /// One instrument's block: header, Rank History, stat cards and Percentiles (each

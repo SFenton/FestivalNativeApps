@@ -72,6 +72,27 @@ final class RivalsJourneyTests: XCTestCase {
         XCTAssertTrue(app.buttons["fst.rivalry.view-profile"].waitForExistence(timeout: 15))
     }
 
+    // MARK: - Compete -> View Full Leaderboard (#36)
+
+    /// Like the web's `CompetePage`, Compete has no "Leaderboards Overview" button;
+    /// each instrument's "View Full Leaderboard" pushes that instrument's full board.
+    @MainActor
+    func testCompeteHasNoOverviewButtonAndViewFullLeaderboardPushesFullRankings() throws {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launchEnvironment["FST_DEBUG_TAB"] = "compete"
+        app.launch()
+        XCTAssertTrue(app.navigationBars["Compete"].waitForExistence(timeout: 15))
+        // The section's container identifier overrides this link's own in the
+        // accessibility tree, so match the label; the first board is Lead.
+        let viewFull = app.buttons["View Full Leaderboard"].firstMatch
+        XCTAssertTrue(viewFull.waitForExistence(timeout: 15))
+        XCTAssertFalse(app.buttons["Leaderboards Overview"].exists)
+        XCTAssertFalse(app.staticTexts["Leaderboards Overview"].exists)
+        viewFull.tap()
+        XCTAssertTrue(app.navigationBars["Lead Rankings"].waitForExistence(timeout: 15))
+    }
+
     // MARK: - Quick Links
 
     /// Compete's Quick Links menu lists its two coarse sections ("Leaderboards",

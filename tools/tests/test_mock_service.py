@@ -106,6 +106,25 @@ class MockServiceTests(unittest.TestCase):
                 self.assertGreaterEqual(value, 500_000)
                 self.assertLessEqual(value, 1_000_000)
 
+    def test_song_band_previews_read_every_size_and_append_the_selected_band(self):
+        """`/bands/all` is not swallowed by the per-size route and echoes `accountId`."""
+        with urlopen(self.base + "/api/leaderboard/fixture-pulse/bands/all?top=10") as response:
+            body = json.load(response)
+        self.assertEqual(body["songId"], "fixture-pulse")
+        self.assertEqual([band["bandType"] for band in body["bands"]],
+                         ["Band_Duets", "Band_Trios", "Band_Quad"])
+        self.assertEqual(body["bands"][0]["count"], 2)
+        self.assertIsNone(body["bands"][0]["selectedPlayerEntry"])
+        self.assertEqual(body["bands"][1]["entries"], [])
+        with urlopen(self.base + "/api/leaderboard/fixture-pulse/bands/all?top=10"
+                     "&accountId=fixture-player-1") as response:
+            selected = json.load(response)["bands"][0]["selectedPlayerEntry"]
+        self.assertEqual(selected["rank"], 14)
+        self.assertEqual(selected["members"][0]["accountId"], "fixture-player-1")
+        with self.assertRaises(HTTPError) as error:
+            urlopen(self.base + "/api/leaderboard/fixture-pulse/bands/all?top=51")
+        self.assertEqual(error.exception.code, 400)
+
     def test_large_rankings_mode_pages_deep_and_keeps_default_small(self):
         """`--large-rankings` pads rows for pagers; the default roster stays three accounts."""
         with urlopen(self.base + "/api/rankings/Solo_Guitar?page=1&pageSize=25") as response:
@@ -155,6 +174,19 @@ class MockServiceTests(unittest.TestCase):
             large.shutdown()
             large.server_close()
             thread.join(timeout=2)
+
+    def test_multi_instrument_song_history_feeds_instrument_switching(self):
+        """`fixture-history-multi` has Lead (pages), Bass (one page) and gold Drums rows."""
+        with urlopen(self.base + "/api/player/fixture-history-multi/history?songId=fixture-pulse") as response:
+            body = json.load(response)
+        counts = {}
+        for row in body["history"]:
+            counts[row["instrument"]] = counts.get(row["instrument"], 0) + 1
+            self.assertEqual(row["songId"], "fixture-pulse")
+            self.assertLessEqual(row["accuracy"], 1000000)
+        self.assertEqual(counts, {"Solo_Guitar": 8, "Solo_Bass": 2, "Solo_Drums": 3})
+        self.assertEqual(body["count"], 13)
+        self.assertTrue(any(row["isFullCombo"] and row["accuracy"] == 1000000 for row in body["history"]))
 
     def test_player_rank_history_is_a_bounded_pure_read(self):
         """Demo players get the committed 7-day series; others are unranked, not 404."""

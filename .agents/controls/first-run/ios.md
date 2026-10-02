@@ -41,15 +41,29 @@
     sheet's `onDismiss` — so a swipe-to-dismiss is handled identically to tapping Skip/Done.
   - `FirstRunCarouselView.swift` — the paged carousel (operator batches 6–7): `TabView(.page)`
     with the system dots hidden and white `FirstRunPageDots` (current solid, others 35 %; one
-    adjustable "Page, n of m" element); a native toolbar **Close** (`NavigationStack` +
-    `.confirmationAction` text button, the blue glass Close of the Profile search sheet;
-    issue #4 replaced the small ✕ glyph); a full-width glass-prominent
-    **Next/Done** first, then glass **Back** (only after page one) and **Skip** (until the last
-    page) beneath it — a one-page guide shows only Done, and there is never a disabled Back
-    (`FirstRunControls` in `FestivalCore/FirstRunViewing.swift`). Presented at an 86 % detent
+    adjustable "Page, n of m" element); the system toolbar **Close** from the shared
+    `FestivalModal` (`Button(role: .close)` glyph on iOS 26, issue #23; it replaced issue #4's
+    text "Close", which itself replaced a hand-drawn ✕) beside an inline navigation title naming
+    the page the guide explains (`FirstRunPageKey.guideTitle`, issue #24: the Settings row label,
+    e.g. "Songs", "Score History"; all under 15 characters per HIG Toolbars), on launch and on a
+    Settings replay alike. Controls follow Apple's onboarding layout (issue #25): a system
+    toolbar **Back** chevron at the top leading edge (`fst.first-run.back`, label "Back", HIG
+    Toolbars: "Leading: back/previous-document … controls, then the view title"; only after
+    page one, never disabled); one large accent-tinted `.glassProminent` **Next/Done**
+    (`.borderedProminent` before iOS 26; `.controlSize(.large)`, ≈48 pt on screen); then a
+    quiet full-width text **Skip** beneath it (white `FestivalText.primary`, ≥48 pt row) until
+    the last page. The Skip row stays reserved on the last page so Done doesn't move; a one-page
+    guide shows only Done (`FirstRunControls` in `FestivalCore/FirstRunViewing.swift`:
+    `showsBack`, `showsSkip`, `reservesSkipRow`, `minimumHeight`). iOS 26 draws the 86 % sheet
+    about 0.96× scaled, so 48 pt layouts read ≈46 pt in XCUITest frames; the toolbar Back/Close
+    report 34.6 pt frames but take system-expanded hit regions (near-miss taps at ±20 pt land).
+    Embedded real sheets in demos (Sort/Filter) set `festivalModalPreview`, so `FestivalModal`
+    renders only their content: a nested `NavigationStack` would otherwise merge its title
+    ("Sort By") and a second, working Close into the guide's bar. Presented at an 86 % detent
     (`FirstRunSheetStyle`) so tapping the dimmed page above it, or swiping down, dismisses.
-    `@AccessibilityFocusState` moves focus to each new slide; animations skip under Reduce
-    Motion.
+    VoiceOver focus is left to the system on open, so the navigation title is announced first
+    (HIG VoiceOver: a screen's title is announced first); `@AccessibilityFocusState` then moves
+    focus to each new slide on a page change. Animations skip under Reduce Motion.
   - **Seen pages only**: the carousel records every page shown in a `FirstRunViewing` binding;
     the presenter's `onDismiss` marks only those seen (however it closed), so unviewed pages
     show next time (web new-info rule). Settings replays do the same after resetting the page.
@@ -120,7 +134,7 @@ Every song-using demo (Songs, `statistics-top-songs`, `rivals-detail`,
 | `songs-sort` | `FirstRunNativeSortDemo` | `SongsSortSheet` (top, clipped) |
 | `songs-navigation` | `FirstRunNativeNavigationDemo` | System `TabView` tab bar (Liquid Glass on 26) |
 | `songs-filter` | `FirstRunNativeFilterDemo` | `SongsFilterSheet` (top, clipped) |
-| `songs-icons` | `FirstRunNativeIconsDemo` | Row chrome + `SongInstrumentStatusChips` (`SongInstrumentBadge.demo`) |
+| `songs-icons` | `FirstRunNativeIconsDemo` | Row chrome + `SongInstrumentStatusChips` (`SongInstrumentBadge.demoPattern`) |
 | `songs-metadata` | `FirstRunNativeMetadataDemo` | Row chrome + `SongMetadataFieldView` + `SongProfileMetadataPills` |
 | `songs-shop-highlight` / `-new-in-shop` / `-leaving-tomorrow` | `FirstRunNativeShopDemo` | `SongRowView` with its Shop outline/badge |
 
@@ -152,20 +166,56 @@ Shared building blocks live in `Features/FirstRun/Demo/`:
   and `firstRunAccuracyTint(_:isFullCombo:)`, an accuracy-to-color
   ramp approximating the web's `accuracyColor` gradient.
 
-Both animation helpers are pure SwiftUI (`withAnimation`/`repeatForever`), not `Timer`/Combine —
-they cost nothing while a slide is off-screen in the carousel's `TabView(.page)`. The web's
-several *content-rotating* timers (`BarSelectDemo` cycling the selected bar, `CategoryCardDemo`
-swapping templates, `CompeteHubDemo`/`RivalsInstrumentsDemo` alternating rows, etc.) were
-deliberately **not** ported 1:1: `TabView(.page)` mounts every slide up front, so a real
-`setInterval`-style timer per demo would keep running for slides that aren't currently visible —
-exactly the "no heavy views and no timers when not visible" rule this lane was asked to keep.
-Each such demo instead shows one static, representative state (documented per-slide below) —
-still faithful to the slide's title/description, just not animated over time.
+`firstRunPulse`/`firstRunStagger` are pure SwiftUI (`withAnimation`/`repeatForever`), not
+`Timer`/Combine. `firstRunStagger` uses the web `FadeIn` timing (0.4 s ease-out, 125 ms per row,
+12 pt rise; `FirstRunDemoTiming`).
+
+### Data-swap rotation (issue #27)
+
+The web demos rotate to new data on a timer (`useSlideRotation`/`useRowSwaps`, CSS `ease` fades).
+Before #27 iOS showed one static state per demo; now each rotating demo swaps like the web:
+- **Core:** `FestivalCore/FirstRunDemoRotation.swift` holds the web timing (`FirstRunDemoTiming`: 5 s
+  interval, 400 ms fade out → swap while hidden → 400 ms fade in), `FirstRunDemoRotation.swapCount`/
+  `swapIndices` (web: 1 row per tick for up to 3 rows, 2 for 4–6, else 3, chosen at random; seeded SplitMix64 here for
+  determinism), `FirstRunRowRotation` (swap rows to unused pool songs, never showing a duplicate),
+  `FirstRunWindowRotation` (fixed-size windows over a pool) and `FirstRunDemoScorePattern` (the
+  web's per-title `hashString` → FC/scored/none chips). Unit tests: `FirstRunDemoRotationTests`.
+- **Driver:** `Demo/FirstRunDemoRotationViews.swift`. `FirstRunCarouselView` sets
+  `\.firstRunDemoActive` only for the visible page while the scene is `.active`, so the
+  `TabView(.page)` slides mounted off-screen run no timer (the reason rotation was skipped before).
+  `.firstRunDemoTicker` is a `task(id:)` sleep loop; it also stops in Low Data Mode for demos that
+  load artwork and under `FST_DEBUG_STILL_BACKGROUND`. `FirstRunDemoSwap.run` performs fade out →
+  update without animation → fade in; `.firstRunSwapRow` hides the fading slots (opacity 0 plus the
+  web's per-demo rise). Rows use positional identity so the same view fades instead of being
+  replaced. Swapped-in artwork is prefetched into the shared bounded cache during the fade-out.
+- **Reduce Motion** (HIG Accessibility: "reduce automatic and repetitive animation… replacing axis
+  transitions with fades"): rotation continues, but each swap is one ~0.4 s cross-fade with no
+  hidden phase and no rise.
+- Hosted tests: `FirstRunDemoRotationUITests` (swap order, Reduce Motion path, cancellation
+  completes, web pools/templates, and an active bar-select demo advances while an inactive one
+  stays still).
+
+| Slide | Rotation (web source) |
+|---|---|
+| `songs-song-list` | 1 row per 5 s from a 24-song pool (`SongListDemo`) |
+| `songs-icons` | 2 rows, chips follow the per-title hash pattern (`SongIconsDemo`) |
+| `songs-metadata` | 1 row; pills from the web `META_DATA` record picked by title hash (`MetadataDemo`) |
+| `statistics-top-songs` | 4 rows, 2 per tick (`TopSongsDemo`) |
+| `songinfo-bar-select` | Selection starts at bar 0 and moves every 2.5 s; detail card fades 300 ms (`BarSelectDemo`) |
+| `suggestions-category-card` | The web's 4 templates in order, whole card fades with an 8 pt rise (`CategoryCardDemo`) |
+| `leaderboards-experimental-metrics` | Selected metric advances every 5 s, no fade (`ExperimentalMetricsDemo`) |
+| `compete-hub` | Alternates leaderboard and rivals layouts, 6 pt rise (`CompeteHubDemo`) |
+| `compete-rivals` / `rivals-overview` | Above, then Below group swaps to the next window of the web's 6-rival pools, 4 pt rise |
+| `rivals-instruments` | 6 rival slots, 2 per tick, each walking its own above/below pool |
+| `rivals-detail` | Whole card fades; the category advances through the web's 6 and rows re-stagger |
+
+The infinite-scroll demo's `requestAnimationFrame` auto-scroll is still not ported (a perpetual
+scroll loop); Shop demos have no rotation on the web either.
 
 | Slide id | Live demo | Notes |
 |---|---|---|
 | `songinfo-chart` | `FirstRunSongInfoChartDemo` | Swift Charts `BarMark` (accuracy, gold when FC) with score annotated per bar |
-| `songinfo-bar-select` | `FirstRunSongInfoBarSelectDemo` | Same chart with the last bar's selection stroke + a static detail row (web cycles the selection on a timer) |
+| `songinfo-bar-select` | `FirstRunSongInfoBarSelectDemo` | Same chart; the selection stroke and detail card cycle bars like the web (see rotation table) |
 | `songinfo-view-all` | `FirstRunSongInfoViewAllDemo` | Own score rows (last one faded) + pulsing "View all scores" |
 | `songinfo-top-scores` | `FirstRunSongInfoTopScoresDemo` | Instrument header + top leaderboard rows + pulsing "View full leaderboard" |
 | `songinfo-paths` | `FirstRunSongInfoPathsDemo` | Instrument row + difficulty row + static path-preview placeholder (no network image fetch) |
@@ -180,19 +230,19 @@ still faithful to the slide's title/description, just not animated over time.
 | `statistics-instrument-breakdown` | `FirstRunStatsInstrumentBreakdownDemo` | Instrument header + 2-col stat grid |
 | `statistics-percentiles` | `FirstRunStatsPercentilesDemo` | Percentile/song-count table |
 | `statistics-top-songs` | `FirstRunStatsTopSongsDemo` | 4 catalogue song rows (art, artist · year) with the web's demo percentile badges |
-| `suggestions-category-card` | `FirstRunSuggestionsCategoryCardDemo` | One themed card ("Almost Full Combo") of 2 catalogue songs: the real `SuggestionCategoryCardView` with a session, else a redacted approximation; web rotates templates on a timer, this shows the first |
+| `suggestions-category-card` | `FirstRunSuggestionsCategoryCardDemo` | Rotating themed card of 2 catalogue songs: the real `SuggestionCategoryCardView` with a session, else a redacted approximation |
 | `suggestions-global-filter` | `FirstRunSuggestionsGlobalFilterDemo` | Suggestion-type toggle list, all enabled |
 | `suggestions-instrument-filter` | `FirstRunSuggestionsInstrumentFilterDemo` | Instrument row + that instrument's toggles |
 | `suggestions-infinite-scroll` | `FirstRunSuggestionsInfiniteScrollDemo` | Stacked cards with a bottom fade mask (web auto-scrolls via `requestAnimationFrame`; a perpetual scroll loop is exactly the excluded "heavy" case) |
 | `leaderboards-overview` | `FirstRunLeaderboardsOverviewDemo` | Instrument header + top rankings |
 | `leaderboards-experimental-metrics` | `FirstRunLeaderboardsExperimentalMetricsDemo` | Metric radio list with hints |
 | `leaderboards-your-rank` | `FirstRunLeaderboardsYourRankDemo` | Rank neighborhood, player row highlighted, pulsing "View all rankings" |
-| `compete-hub` | `FirstRunCompeteHubDemo` | Compact rankings + one rival above/below shown together (web alternates the two layouts on a timer) |
+| `compete-hub` | `FirstRunCompeteHubDemo` | Alternates compact rankings and rivals above/below, like the web |
 | `compete-leaderboards` | `FirstRunCompeteLeaderboardsDemo` | Reuses `FirstRunLeaderboardsOverviewDemo` |
-| `compete-rivals` | `FirstRunCompeteRivalsDemo` | Above/Below rival rows |
-| `rivals-overview` | `FirstRunRivalsOverviewDemo` | Above/Below rival rows |
-| `rivals-instruments` | `FirstRunRivalsInstrumentsDemo` | Per-instrument (Lead/Drums/Vocals) rival sections |
-| `rivals-detail` | `FirstRunRivalsDetailDemo` | "Closest Battles" rows: catalogue songs with static rank comparisons (web cycles categories on a timer) |
+| `compete-rivals` | `FirstRunCompeteRivalsDemo` | Above/Below rival rows (2 each), rotating |
+| `rivals-overview` | `FirstRunRivalsOverviewDemo` | Above/Below rival rows (3 each), staggered and rotating |
+| `rivals-instruments` | `FirstRunRivalsInstrumentsDemo` | Per-instrument (Lead/Drums/Vocals) rival sections, rotating 2 slots per tick |
+| `rivals-detail` | `FirstRunRivalsDetailDemo` | Category card ("Closest Battles" first) of 3 catalogue songs with demo rank comparisons; cycles the web's 6 categories |
 | `shop-overview` | `FirstRunShopOverviewDemo` | 3-column grid of 6 Item Shop/catalogue song art tiles |
 | `shop-highlighting` | `FirstRunShopHighlightingDemo` | Item Shop/catalogue song rows alternate a pulsing green highlight and none |
 | `shop-new-items` | `FirstRunShopNewItemsDemo` | Rows cycle gold/green/none by index (static per-row assignment, no timer) |
@@ -200,9 +250,8 @@ still faithful to the slide's title/description, just not animated over time.
 
 Simplified vs. the web on every demo: song-using demos show catalogue songs and their art, but
 ranks, scores and percentiles are static demo numbers rather than the player's session data
-(matching the web's own first-run pools), no interactive taps (the carousel demos are inert previews,
-same as Songs'), and the several content-*rotation* timers noted above collapse to one
-representative state instead of cycling.
+(matching the web's own first-run pools), and there are no interactive taps (the carousel demos are
+inert previews, same as Songs').
 
 ## Known gaps / follow-ups
 
@@ -211,8 +260,13 @@ representative state instead of cycling.
 - `ready` is always `true`: `FestivalSession` resolves the selected-player identity synchronously
   from storage at init, so there's no async gap where gates could evaluate against stale data on
   this platform. Revisit if a future async gate dependency is added.
-- XCUITest: `FirstRunJourneyTests.swift` (Next/Back/Skip order, native navigation-bar
-  "Close" (`testCloseIsNativeToolbarButton`), swipe-down and tap-outside dismissal, viewed-pages-only across a relaunch; needs `mock_service.py --port 8765`).
+- XCUITest: `FirstRunJourneyTests.swift` (Next first with Skip beneath and Back in the bar
+  before the title (`testNextFirstThenBackAppears`), Done on the last page, ≥44 pt Next/Skip
+  frames and near-miss taps on Back/Next/Skip/Close read as buttons
+  (`testControlsAcceptNearMissesAndReadAsButtons`), one Close and the guide title on every
+  slide (`testEmbeddedSheetDemosKeepOneCloseAndTheGuideTitle`), native navigation-bar
+  Close labelled "Close" (`testCloseIsNativeToolbarButton`), the page's navigation title on launch
+  and on a Settings replay (`testGuideShowsPageTitleInNavigationBar`), swipe-down and tap-outside dismissal, viewed-pages-only across a relaunch; needs `mock_service.py --port 8765`).
   Tap-outside must land below the status bar (a status-bar tap is scroll-to-top).
 - `contracts/product.json` has no `first-run` control entry yet (orchestrator-owned file, not
   edited by this lane) — `check_docs.py` reports the same pending "topic not in contracts"

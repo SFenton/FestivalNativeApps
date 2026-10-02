@@ -24,13 +24,11 @@ private struct TintedGlassProbe: View {
     }
 }
 
-/// Whether the test process runs in a virtual machine (`kern.hv_vmm_present`).
-///
-/// - Returns: `true` on VMs such as GitHub-hosted macOS runners.
-private func nativeHostedRunsInVirtualMachine() -> Bool {
-    var value: Int32 = 0
-    var size = MemoryLayout<Int32>.size
-    return sysctlbyname("kern.hv_vmm_present", &value, &size, nil, 0) == 0 && value == 1
+/// Readiness budgets keep the Mac value and scale only on a VM such as `apple-ci`.
+@Test func hostedReadinessBudgetScalesOnlyInVirtualMachines() {
+    #expect(nativeHostedReadinessBudget(.seconds(20), inVirtualMachine: false) == .seconds(20))
+    #expect(nativeHostedReadinessBudget(.seconds(20), inVirtualMachine: true) == .seconds(80))
+    #expect(nativeHostedReadinessBudget(.seconds(60), inVirtualMachine: true) == .seconds(240))
 }
 
 /// Pins the root cause of blank full-page captures and proves the harness fix.
@@ -50,7 +48,7 @@ private func nativeHostedRunsInVirtualMachine() -> Bool {
     let forcedImage = try await nativeHostedSettle(forced, untilText: ["Harness Probe Title"])
     // Hosted CI runners are VMs whose paravirtual GPU composites tinted glass into the capture, so the
     // limitation only reproduces (and the canary only means something) on physical Macs.
-    if #available(macOS 26.0, *), !nativeHostedRunsInVirtualMachine() {
+    if #available(macOS 26.0, *), !nativeHostedIsVirtualMachine {
         #expect(
             nativeHostedContent(realImage).nonBackgroundFraction == 0,
             "Tinted Liquid Glass now captures; revisit NativeHostedRoot's forced fallback"

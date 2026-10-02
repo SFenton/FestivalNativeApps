@@ -7,6 +7,7 @@ import com.festivalscoretracker.android.core.shop.ShopSong
 import java.text.Collator
 import java.text.Normalizer
 import java.util.Locale
+import kotlin.math.floor
 
 // region Sort modes
 
@@ -313,6 +314,57 @@ object SongSectionIndex {
         val folded = Normalizer.normalize(first.toString(), Normalizer.Form.NFD)
             .firstOrNull()?.uppercaseChar() ?: return "#"
         return if (folded in 'A'..'Z') folded.toString() else "#"
+    }
+
+    /**
+     * How many sections each drawn rail label stands for: 1 when every label fits, otherwise
+     * every `stride`-th section gets a label.
+     *
+     * @param sectionCount Sections in the list.
+     * @param maxLabels Labels that fit the rail's height.
+     * @return Label stride, at least 1.
+     */
+    fun stride(sectionCount: Int, maxLabels: Int): Int {
+        val fit = maxLabels.coerceAtLeast(1)
+        return ((sectionCount + fit - 1) / fit).coerceAtLeast(1)
+    }
+
+    /**
+     * Section under a touch on a rail that draws every [stride]-th section's label centred in
+     * equal slots (issue #48). A touch on a drawn label opens exactly that label's section; the
+     * space between two labels spreads over the skipped sections, so dragging still reaches
+     * every section, and the half slot below the last label reaches the remaining tail.
+     *
+     * @param fraction Touch position from the rail's top, 0–1.
+     * @param sectionCount Sections in the list.
+     * @param stride Sections per drawn label ([stride]).
+     * @param labelHalf Half a label's height as a fraction of its slot (the label's hit area).
+     * @return Section index in `0 until sectionCount` (0 when there are none).
+     */
+    fun sectionAt(fraction: Float, sectionCount: Int, stride: Int, labelHalf: Float = 0.25f): Int {
+        if (sectionCount <= 0) return 0
+        val step = stride.coerceAtLeast(1)
+        val labels = (sectionCount + step - 1) / step
+        // Label k's centre is at u = k.
+        val u = fraction.coerceIn(0f, 1f) * labels - 0.5f
+        if (u <= 0f) return 0
+        val k = floor(u).toInt().coerceAtMost(labels - 1)
+        val t = u - k
+        val from = k * step
+        val tail = k == labels - 1
+        val to = if (tail) sectionCount - 1 else (k + 1) * step
+        val span = if (tail) 0.5f else 1f
+        val half = labelHalf.coerceIn(0f, span / 2)
+        val end = if (tail) span else span - half
+        val first = from + 1
+        val last = if (tail) to else to - 1
+        val index = when {
+            t <= half -> from
+            t >= end -> to
+            last < first -> if (t < span / 2) from else to
+            else -> (first + ((t - half) / (end - half) * (last - first + 1)).toInt()).coerceIn(first, last)
+        }
+        return index.coerceIn(0, sectionCount - 1)
     }
 }
 

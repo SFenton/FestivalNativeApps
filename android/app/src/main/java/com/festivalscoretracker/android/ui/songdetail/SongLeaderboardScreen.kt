@@ -40,14 +40,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -55,6 +53,7 @@ import com.festivalscoretracker.android.core.model.LeaderboardEntry
 import com.festivalscoretracker.android.core.model.LeaderboardPaging
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.nav.StatisticsRoute
+import com.festivalscoretracker.android.core.rankings.LeaderboardColumnPlan
 import com.festivalscoretracker.android.core.rankings.RankingNavigation
 import com.festivalscoretracker.android.core.rankings.RankingSpotlight
 import com.festivalscoretracker.android.core.rankings.SongScoreSpotlight
@@ -65,15 +64,17 @@ import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
-import com.festivalscoretracker.android.ui.common.rememberRevealed
+import com.festivalscoretracker.android.ui.common.loadSwapSpinnerItem
+import com.festivalscoretracker.android.ui.common.rememberLoadSwap
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.leaderboards.AnchoredRowCard
+import com.festivalscoretracker.android.ui.leaderboards.LeaderboardSectionMember
+import com.festivalscoretracker.android.ui.leaderboards.rememberScoreColumns
 import com.festivalscoretracker.android.ui.leaderboards.RankingsBoardScaffold
 import com.festivalscoretracker.android.ui.leaderboards.SyncRouteArguments
 import com.festivalscoretracker.android.ui.leaderboards.RankingsPager
-import com.festivalscoretracker.android.ui.leaderboards.RankingsSkeletonRows
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlinx.coroutines.flow.StateFlow
 
@@ -138,11 +139,12 @@ fun SongLeaderboardScreen(
     val navigate = LocalShellActions.current.navigate
     val listState = rememberLazyListState()
     val title = (song as? LoadState.Loaded)?.value?.title ?: "Leaderboard"
-    val payload = (board as? LoadState.Loaded)?.value
+    // Page reloads fade the rows out, show the spinner and stagger the new page in, like the
+    // web's PaginatedLeaderboard (issue #71).
+    val swap = rememberLoadSwap(board, board !is LoadState.Loading, key = page)
+    val payload = (swap.shown as? LoadState.Loaded)?.value
     val loaded = payload?.leaderboard
     val profile = selectedProfile?.collectAsStateWithLifecycle()?.value
-    val showStars = LocalConfiguration.current.screenWidthDp >= STARS_MIN_WIDTH_DP
-    val revealed = rememberRevealed(loaded != null)
     val footer = payload?.let {
         SongScoreSpotlight.footer(
             player = profile?.player?.takeIf { player -> RankingSpotlight.isSelected(selectedAccountId, player.accountId) },
@@ -154,6 +156,9 @@ fun SongLeaderboardScreen(
             visible = it.leaderboard.entries,
         )
     }
+
+    // The rows and the pinned footer share one column plan, fitted to the narrower of the two (issue #37, 7.9).
+    val columns = rememberScoreColumns(loaded?.entries.orEmpty() + listOfNotNull(footer))
 
     LaunchedEffect(page) { listState.scrollToItem(0) }
 
@@ -175,7 +180,6 @@ fun SongLeaderboardScreen(
             padding = padding,
             listState = listState,
             idPrefix = "fst.song-leaderboard",
-            loadingOverlay = false,
             controls = {
                 val loadedSong = (song as? LoadState.Loaded)?.value
                 loadedSong?.let { SongHeader(it, artworkUrl(it.albumArt), artSize = 64.dp) }
@@ -184,27 +188,27 @@ fun SongLeaderboardScreen(
                     loadedSong?.let { navigate(SongLeaderboardRoute(it.songId, chart.wireId)) }
                 }
             },
-            footer = { footer?.let { AnchoredRowCard { SelectedScoreFooter(it, navigate, showStars) } } },
+            footer = { footer?.let { AnchoredRowCard { LeaderboardSectionMember(columns, "footer") { SelectedScoreFooter(it, navigate, columns.plan) } } } },
             pager = { RankingsPager(page, loaded?.pageCount() ?: page, "fst.song-leaderboard", viewModel::goTo) },
         ) {
-            item(key = "rows") {
-                GlassCard(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(vertical = 6.dp)) {
+            if (swap.showsSpinner || loaded == null) {
+                loadSwapSpinnerItem(swap, "Loading leaderboard", "fst.song-leaderboard.loading")
+            } else item(key = "rows") {
+                GlassCard(Modifier.fillMaxWidth().then(swap.contentModifier)) {
+                    // Same 8 dp horizontal inset as AnchoredRowCard, so the pinned row's columns line up (issue #37).
+                    LeaderboardSectionMember(columns, "rows", Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
                         when {
-                            loaded == null -> RankingsSkeletonRows(10)
                             loaded.entries.isEmpty() -> Text("No scores yet", color = BrandTokens.textPrimary, modifier = Modifier.padding(16.dp))
                             else -> {
-                                val rankWidth = rememberRankWidth(loaded.entries.map { it.rank })
                                 loaded.entries.forEachIndexed { index, entry ->
-                                    Column(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
+                                    Column(Modifier.festivalFadeIn(swap.revealed, fadeInStagger(index))) {
                                         if (index > 0) RowSeparator()
                                         SongLeaderboardRow(
                                             entry = entry,
                                             isSelected = RankingSpotlight.isSelected(selectedAccountId, entry.accountId),
                                             route = RankingNavigation.playerRoute(entry.accountId, entry.displayName, selectedAccountId),
                                             onOpen = navigate,
-                                            showStars = showStars,
-                                            rankWidth = rankWidth,
+                                            columns = columns.plan,
                                         )
                                     }
                                 }
@@ -223,12 +227,12 @@ fun SongLeaderboardScreen(
  *
  * @param entry Footer row built from the score index.
  * @param navigate Push a route.
- * @param showStars Show star images.
+ * @param columns The board's shared column plan.
  */
 @Composable
-private fun SelectedScoreFooter(entry: LeaderboardEntry, navigate: (AppRoute) -> Unit, showStars: Boolean) {
+private fun SelectedScoreFooter(entry: LeaderboardEntry, navigate: (AppRoute) -> Unit, columns: LeaderboardColumnPlan) {
     Box(Modifier.fillMaxWidth().testTag("fst.song-leaderboard.spotlight-footer")) {
-        SongLeaderboardRow(entry, isSelected = true, route = StatisticsRoute, onOpen = navigate, showStars = showStars)
+        SongLeaderboardRow(entry, isSelected = true, route = StatisticsRoute, onOpen = navigate, columns = columns)
     }
 }
 
@@ -239,8 +243,7 @@ private fun SelectedScoreFooter(entry: LeaderboardEntry, navigate: (AppRoute) ->
  * @param isSelected Selected player's row (accent treatment).
  * @param route Destination or null.
  * @param onOpen Navigation callback.
- * @param showStars Show star images (wide windows, web `QUERY_SHOW_STARS`).
- * @param rankWidth Rank column width shared by the card.
+ * @param columns The board's shared column plan (season and stars by row width, issue #37).
  */
 @Composable
 private fun SongLeaderboardRow(
@@ -248,8 +251,7 @@ private fun SongLeaderboardRow(
     isSelected: Boolean,
     route: AppRoute?,
     onOpen: (AppRoute) -> Unit,
-    showStars: Boolean = false,
-    rankWidth: Dp = rememberRankWidth(listOf(entry.rank)),
+    columns: LeaderboardColumnPlan,
 ) {
     var modifier = Modifier.fillMaxWidth().selectedRowHighlight(isSelected)
     modifier = if (route != null) {
@@ -258,12 +260,10 @@ private fun SongLeaderboardRow(
         modifier.semantics(mergeDescendants = true) { stateDescription = "Profile unavailable" }
     }
     Box(modifier.testTag("fst.song-leaderboard.row.${entry.accountId.ifEmpty { "rank-${entry.rank}" }}")) {
-        ScoreRow(entry, showStars, isSelected = isSelected, rankWidth = rankWidth, navigable = route != null)
+        ScoreRow(entry, isSelected = isSelected, navigable = route != null, columns = columns)
     }
 }
 
-/** Width from which rows show stars (web `QUERY_SHOW_STARS`, the 768 px mobile breakpoint, in dp). */
-private const val STARS_MIN_WIDTH_DP = 600
 
 /**
  * The header's instrument (web instrument switcher): icon and name; with more

@@ -1,0 +1,274 @@
+{
+  "songId": "fixture-pulse",
+  "showLeaderboardEntryTotals": true,
+  "bands": [
+    {
+      "bandType": "Band_Duets",
+      "count": 2,
+      "totalEntries": 26,
+      "localEntries": 26,
+      "entries": [
+        {
+          "bandId": "fixture-band-1",
+          "bandType": "Band_Duets",
+          "teamKey": "fixture-rank-1:fixture-rank-2",
+          "comboId": null,
+          "members": [
+            {
+              "accountId": "fixture-rank-1",
+              "displayName": "Fixture Rank One",
+              "instruments": [
+                "Solo_Guitar"
+              ],
+              "score": 500000,
+              "accuracy": 992000,
+              "isFullCombo": true,
+              "stars": 5,
+              "difficulty": 3,
+              "season": 9
+            },
+            {
+              "accountId": "fixture-rank-2",
+              "displayName": null,
+              "instruments": [
+                "Solo_Drums"
+              ],
+              "score": 499999,
+              "accuracy": 988000,
+              "isFullCombo": true,
+              "stars": 5,
+              "difficulty": 3,
+              "season": 9
+            }
+          ],
+          "score": 999999,
+          "rank": 1,
+          "accuracy": 990000,
+          "isFullCombo": true,
+          "stars": 5,
+          "season": 9,
+          "difficulty": 3,
+          "percentile": 0.0385,
+          "endTime": "2026-09-27T00:00:00Z"
+        },
+        {
+          "bandId": "fixture-band-2",
+          "bandType": "Band_Duets",
+          "teamKey": "fixture-rank-3:fixture-rank-4",
+          "comboId": null,
+          "members": [
+            {
+              "accountId": "fixture-rank-3",
+              "displayName": "Fixture Rank Three",
+              "instruments": [
+                "Solo_Bass"
+              ],
+              "score": 400000,
+              "accuracy": 900000,
+              "isFullCombo": false,
+              "stars": 4,
+              "difficulty": 2,
+              "season": 9
+            },
+            {
+              "accountId": "fixture-rank-4",
+              "displayName": "",
+              "instruments": [
+                "Solo_Vocals"
+              ],
+              "score": 399000,
+              "accuracy": 890000,
+              "isFullCombo": false,
+              "stars": 4,
+              "difficulty": 2,
+              "season": 9
+            }
+          ],
+          "score": 799000,
+          "rank": 2,
+          "accuracy": 895000,
+          "isFullCombo": false,
+          "stars": 4,
+          "season": 9,
+          "difficulty": 2,
+          "percentile": 0.0769,
+          "endTime": "2026-09-26T00:00:00Z"
+        }
+      ],
+      "selectedPlayerEntry": {
+        "bandId": "fixture-band-14",
+        "bandType": "Band_Duets",
+        "teamKey": "fixture-player-1:fixture-rank-5",
+        "comboId": null,
+        "members": [
+          {
+            "accountId": "fixture-player-1",
+            "displayName": "Fixture Player 1",
+            "instruments": [
+              "Solo_Bass"
+            ],
+            "score": 400000,
+            "accuracy": 900000,
+            "isFullCombo": false,
+            "stars": 4,
+            "difficulty": 2,
+            "season": 9
+          },
+          {
+            "accountId": "fixture-rank-5",
+            "displayName": "Fixture Rank Five",
+            "instruments": [
+              "Solo_Vocals"
+            ],
+            "score": 399000,
+            "accuracy": 890000,
+            "isFullCombo": false,
+            "stars": 4,
+            "difficulty": 2,
+            "season": 9
+          }
+        ],
+        "score": 600000,
+        "rank": 14,
+        "accuracy": 895000,
+        "isFullCombo": false,
+        "stars": 4,
+        "season": 9,
+        "difficulty": 2,
+        "percentile": 0.5385,
+        "endTime": "2026-09-26T00:00:00Z"
+      },
+      "selectedBandEntry": null
+    },
+    {
+      "bandType": "Band_Trios",
+      "count": 1,
+      "totalEntries": 1,
+      "localEntries": 1,
+      "entries": [
+        {
+          "bandId": "fixture-trio-1",
+          "bandType": "Band_Trios",
+          "teamKey": "fixture-player-1:fixture-rank-1:fixture-rank-2",
+          "comboId": null,
+          "members": [
+            {
+              "accountId": "fixture-player-1",
+              "displayName": "Fixture Player 1",
+              "instruments": [
+                "Solo_Vocals"
+              ],
+              "score": 450000,
+              "accuracy": 980000,
+              "isFullCombo": true,
+              "stars": 5,
+              "difficulty": 3,
+              "season": 9
+            },
+            {
+              "accountId": "fixture-rank-1",
+              "displayName": "Fixture Rank One",
+              "instruments": [
+                "Solo_Guitar"
+              ],
+              "score": 500000,
+              "accuracy": 992000,
+              "isFullCombo": true,
+              "stars": 5,
+              "difficulty": 3,
+              "season": 9
+            },
+            {
+              "accountId": "fixture-rank-2",
+              "displayName": null,
+              "instruments": [
+                "Solo_Drums"
+              ],
+              "score": 499999,
+              "accuracy": 988000,
+              "isFullCombo": true,
+              "stars": 5,
+              "difficulty": 3,
+              "season": 9
+            }
+          ],
+          "score": 1400000,
+          "rank": 1,
+          "accuracy": 990000,
+          "isFullCombo": true,
+          "stars": 5,
+          "season": 9,
+          "difficulty": 3,
+          "percentile": 1.0,
+          "endTime": "2026-09-27T00:00:00Z"
+        }
+      ],
+      "selectedPlayerEntry": {
+        "bandId": "fixture-trio-1",
+        "bandType": "Band_Trios",
+        "teamKey": "fixture-player-1:fixture-rank-1:fixture-rank-2",
+        "comboId": null,
+        "members": [
+          {
+            "accountId": "fixture-player-1",
+            "displayName": "Fixture Player 1",
+            "instruments": [
+              "Solo_Vocals"
+            ],
+            "score": 450000,
+            "accuracy": 980000,
+            "isFullCombo": true,
+            "stars": 5,
+            "difficulty": 3,
+            "season": 9
+          },
+          {
+            "accountId": "fixture-rank-1",
+            "displayName": "Fixture Rank One",
+            "instruments": [
+              "Solo_Guitar"
+            ],
+            "score": 500000,
+            "accuracy": 992000,
+            "isFullCombo": true,
+            "stars": 5,
+            "difficulty": 3,
+            "season": 9
+          },
+          {
+            "accountId": "fixture-rank-2",
+            "displayName": null,
+            "instruments": [
+              "Solo_Drums"
+            ],
+            "score": 499999,
+            "accuracy": 988000,
+            "isFullCombo": true,
+            "stars": 5,
+            "difficulty": 3,
+            "season": 9
+          }
+        ],
+        "score": 1400000,
+        "rank": 1,
+        "accuracy": 990000,
+        "isFullCombo": true,
+        "stars": 5,
+        "season": 9,
+        "difficulty": 3,
+        "percentile": 1.0,
+        "endTime": "2026-09-27T00:00:00Z"
+      },
+      "selectedBandEntry": null
+    },
+    {
+      "bandType": "Band_Quad",
+      "count": 0,
+      "totalEntries": 0,
+      "localEntries": 0,
+      "entries": [],
+      "selectedPlayerEntry": null,
+      "selectedBandEntry": null
+    }
+  ]
+}

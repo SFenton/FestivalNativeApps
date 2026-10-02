@@ -17,6 +17,9 @@ struct SuggestionsScreen: View {
     let visibleInstruments: Set<Instrument>
     @State private var viewModel: SuggestionsViewModel
     @State private var filterPresented = false
+    /// `batchGeneration` whose stagger has finished: its rows no longer fade, so a row
+    /// rebuilt after scrolling away and back appears without a fade (issue #30).
+    @State private var settledBatchGeneration: Int?
     /// Revisions already handled by the tasks below; a reappearance re-fires
     /// `.task(id:)` even when the id value is unchanged (the same `NavigationStack`
     /// root quirk Leaderboards hit, Lane W1), and `session.selectionRevision`'s task
@@ -72,7 +75,15 @@ struct SuggestionsScreen: View {
                 // iPhone Duo inner display, portrait: suggestions on top, the ones in
                 // today's Item Shop below (`SuggestionsDualSource.swift`).
                 DualSourceLayout {
-                    content
+                    // A player change fades the old suggestions out, shows the spinner and
+                    // fades the new ones in (web `usePageTransition` keyed on the
+                    // account, issue #71). Filter changes and new pages do not reload.
+                    FestivalReloadGate(
+                        key: session.selectedPlayer?.accountId, isLoading: isFirstPageLoading,
+                        spinnerLabel: "Loading Suggestions", spinnerIdentifier: "fst.suggestions.loading"
+                    ) {
+                        content
+                    }
                 } secondary: {
                     SuggestionsCarouselPane(session: session, source: .itemShop, seeAll: .shop)
                 }
@@ -144,14 +155,18 @@ struct SuggestionsScreen: View {
         .accessibilityIdentifier("fst.suggestions.syncing")
     }
 
+    /// Whether the first page is still loading (the gate shows its spinner).
+    private var isFirstPageLoading: Bool {
+        switch viewModel.loadState {
+        case .idle, .loading: viewModel.categories.isEmpty
+        case .failed, .loaded: false
+        }
+    }
+
     @ViewBuilder private var content: some View {
         switch viewModel.loadState {
         case .idle, .loading:
-            if viewModel.categories.isEmpty {
-                FestivalLoadingView(accessibilityLabel: "Loading Suggestions")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .accessibilityIdentifier("fst.suggestions.loading")
-            } else {
+            if !viewModel.categories.isEmpty {
                 list
             }
         case let .failed(issue):
@@ -181,16 +196,23 @@ struct SuggestionsScreen: View {
     }
 
     private var list: some View {
-        ScrollView {
+        let categories = visibleCategories
+        // Only the newest generated page fades in, staggered in its own order; earlier
+        // pages and rows rebuilt by scrolling appear without a fade (issue #30).
+        let fadeIndexes = FadeStagger.batchIndexes(
+            order: categories.map(\.id), batch: viewModel.latestBatchIds,
+            settled: settledBatchGeneration == viewModel.batchGeneration
+        )
+        return ScrollView {
             LazyVStack(spacing: 20) {
-                ForEach(Array(visibleCategories.enumerated()), id: \.element.id) { index, category in
+                ForEach(categories) { category in
                     SuggestionCategoryCardView(
                         category: category, session: session,
                         currentSeason: viewModel.currentSeason, visibleInstruments: visibleInstruments
                     )
                         .padding(.horizontal, 16)
                         // Web `getCardDelay`: the first screenful staggers 125 ms apart.
-                        .festivalFadeIn(isLoaded: true, index: index)
+                        .festivalFadeIn(isLoaded: true, index: fadeIndexes[category.id] ?? -1)
                         .onAppear { maybeLoadMore(after: category) }
                 }
                 footer
@@ -198,7 +220,13 @@ struct SuggestionsScreen: View {
             .padding(.vertical, 16)
         }
         .scrollContentBackground(.hidden)
-        .refreshable { viewModel.startNewMix(); await viewModel.ensureLoaded(session: session) }
+        .task(id: viewModel.batchGeneration) {
+            let generation = viewModel.batchGeneration
+            await FadeStagger.settle(afterRevealing: viewModel.latestBatchIds.count) {
+                settledBatchGeneration = generation
+            }
+        }
+        .festivalRefreshable { viewModel.startNewMix(); await viewModel.ensureLoaded(session: session) }
         .accessibilityIdentifier("fst.suggestions.list")
     }
 

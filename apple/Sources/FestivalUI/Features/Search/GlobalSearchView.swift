@@ -15,6 +15,9 @@ struct GlobalSearchResults: View {
     let session: FestivalSession
     /// Navigate to a result (Song Detail, player profile or Statistics).
     let open: (AppRoute) -> Void
+    /// Result set whose staggered fade has finished: rows the List rebuilds after that
+    /// (scrolled away and back) appear without a fade (issue #30).
+    @State private var fadeSettledResults: [String]?
 
     var body: some View {
         VStack(spacing: 10) {
@@ -78,6 +81,23 @@ struct GlobalSearchResults: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .scrollDismissesKeyboard(.immediately)
+        .task(id: resultFadeKey) {
+            let key = resultFadeKey
+            await FadeStagger.settle(afterRevealing: key.count) { fadeSettledResults = key }
+        }
+    }
+
+    /// Identity of the shown result set: each new set fades in once.
+    private var resultFadeKey: [String] {
+        model.songs.map(\.id) + model.players.map(\.accountId)
+    }
+
+    /// Stagger index for a result row, or -1 (instant) once its result set has settled.
+    ///
+    /// - Parameter index: Row position across both sections, or nil when unknown.
+    /// - Returns: Index to hand `festivalFadeIn(isLoaded:index:)`.
+    private func resultFadeIndex(_ index: Int?) -> Int {
+        FadeStagger.index(index ?? Int.max, settled: fadeSettledResults == resultFadeKey)
     }
 
     /// One result card's List row chrome.
@@ -145,7 +165,7 @@ struct GlobalSearchResults: View {
                     .accessibilityIdentifier("fst.global-search.result.song")
                     // Each new result set fades in, staggered like the web list.
                     .festivalFadeIn(
-                        isLoaded: true, index: model.songs.firstIndex(of: song) ?? Int.max
+                        isLoaded: true, index: resultFadeIndex(model.songs.firstIndex(of: song))
                     )
                 }
             }
@@ -212,8 +232,9 @@ struct GlobalSearchResults: View {
                     .accessibilityIdentifier("fst.global-search.result.player")
                     .festivalFadeIn(
                         isLoaded: true,
-                        index: model.players.firstIndex(of: player).map { $0 + model.songs.count }
-                            ?? Int.max
+                        index: resultFadeIndex(
+                            model.players.firstIndex(of: player).map { $0 + model.songs.count }
+                        )
                     )
                 }
             }
@@ -319,20 +340,12 @@ struct GlobalSearchSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
+        FestivalModal("Search", closeIdentifier: "fst.global-search.close") {
             GlobalSearchResults(model: model, session: session) { route in
                 dismiss()
                 open(route)
             }
-            .navigationTitle("Search")
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
             .task(id: model.runKey) { await model.search(session: session) }
-            .toolbar {
-                // Dismiss-only modal: trailing (modal standard, operator 2026-09-28).
-                FestivalSheetCloseItem(identifier: "fst.global-search.close") { dismiss() }
-            }
         }
     }
 }
@@ -430,19 +443,21 @@ struct GlobalSearchToolbarItem: ViewModifier {
     /// toolbar with `FestivalRootTrailingItems`, whose Search and avatar would otherwise
     /// appear twice.
     @State private var pageProvidesSearch = false
+    /// The macOS shell shows Search and the avatar once for the whole window.
+    @Environment(\.shellOwnsGlobalToolbar) private var shellOwnsGlobalToolbar
 
     func body(content: Content) -> some View {
         content
             .onPreferenceChange(FestivalRootTrailingProvidedKey.self) { pageProvidesSearch = $0 }
             .toolbar {
-                if let openGlobalSearch, !pageProvidesSearch {
+                if let openGlobalSearch, !pageProvidesSearch, !shellOwnsGlobalToolbar {
                     ToolbarItem(placement: .primaryAction) {
                         GlobalSearchButton { openGlobalSearch() }
                     }
                 }
                 // The profile avatar stays top-right on every pushed page too (operator
                 // batch 7), after Search; root screens carry it in their own trailing items.
-                if let session, !pageProvidesSearch {
+                if let session, !pageProvidesSearch, !shellOwnsGlobalToolbar {
                     ToolbarItem(placement: .primaryAction) {
                         RootProfileButton(session: session) { openProfile() }
                     }

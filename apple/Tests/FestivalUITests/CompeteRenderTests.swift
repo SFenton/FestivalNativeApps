@@ -93,6 +93,39 @@ private func anonymousCompeteSession() async throws -> FestivalSession {
     )
 }
 
+// MARK: - Loading
+
+/// Captured before the per-instrument `.task` loads settle: every section's initial
+/// `@State` is `.loading`, so the Leaderboards previews (not only the off-screen
+/// Rivals sections) must show a system spinner rather than redacted placeholder
+/// bars (#35). The loaded/error tests below exclude "Loading", proving the spinners
+/// leave once content or an error appears.
+@MainActor
+@Test func competeScreenRendersSpinnersWhileSectionsLoad() async throws {
+    let (session, storage, suite) = try await competeFixtureSession(
+        accountId: "fixture-riv", visible: ["fst.settings.showLead", "fst.settings.showBass"]
+    )
+    defer { storage.removePersistentDomain(forName: suite) }
+    let host = nativeHostedView(
+        NavigationStack { CompeteScreen(session: session) }
+            .defaultAppStorage(storage)
+            .preferredColorScheme(.dark),
+        size: CGSize(width: 402, height: 1400)
+    )
+    let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 1400))
+    defer { window.orderOut(nil) }
+    // Capture synchronously, before any `.task` load can resolve (no settle: the
+    // loopback fixture answers within one poll).
+    host.layoutSubtreeIfNeeded()
+    let image = try nativeHostedImage(host)
+    _ = try nativeHostedPNG(image, filename: "compete-loading.png", environment: "FST_COMPETE_RENDER_OUT")
+    assertRendersContent(
+        host, image: image,
+        containing: ["Leaderboards", "Loading Lead leaderboard", "Loading Bass leaderboard"],
+        notContaining: ["Fixture Player 1", "Leaderboards Overview"]
+    )
+}
+
 // MARK: - Loaded: Leaderboards + Rivals sections together
 
 @MainActor
@@ -110,13 +143,15 @@ private func anonymousCompeteSession() async throws -> FestivalSession {
     let window = nativeHostedWindow(host, size: CGSize(width: 402, height: 1800))
     defer { window.orderOut(nil) }
     let image = try await nativeHostedSettle(
-        host, untilText: ["Leaderboards Overview", "Fixture Player 1", "Fixture Rival Golf"], excluding: ["Loading"]
+        host, untilText: ["View Full Leaderboard", "Fixture Player 1", "Fixture Rival Golf"],
+        excluding: ["Loading", "Leaderboards Overview"]
     )
     _ = try nativeHostedPNG(
         image, filename: "compete-leaderboards-and-rivals.png", environment: "FST_COMPETE_RENDER_OUT"
     )
     assertRendersContent(
-        host, image: image, containing: ["Leaderboards Overview", "Fixture Player 1", "Fixture Rival Golf"]
+        host, image: image, containing: ["View Full Leaderboard", "Fixture Player 1", "Fixture Rival Golf"],
+        notContaining: ["Leaderboards Overview"]
     )
 }
 

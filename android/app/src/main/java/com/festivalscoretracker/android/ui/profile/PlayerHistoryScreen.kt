@@ -26,7 +26,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -55,7 +54,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.design.AccuracyPill
-import com.festivalscoretracker.android.ui.common.festivalSheetTop
 import com.festivalscoretracker.android.core.format.ScoreFormatting
 import com.festivalscoretracker.android.core.profile.PlayerScoreSortMode
 import com.festivalscoretracker.android.presentation.profile.HistoryPhase
@@ -71,6 +69,7 @@ import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.StarRating
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import com.festivalscoretracker.android.ui.common.FestivalModalSheet
 
 // region Screen
 
@@ -148,13 +147,19 @@ fun PlayerHistoryScreen(viewModel: PlayerHistoryViewModel) {
         }
     }
     if (sorting) {
-        ModalBottomSheet(onDismissRequest = { sorting = false }, containerColor = BrandTokens.cardBackground, modifier = Modifier.festivalSheetTop().testTag("fst.history.sort")) {
+        FestivalModalSheet(
+            title = "Sort Scores",
+            closeTag = "fst.history.sort.close",
+            onDismissRequest = { sorting = false },
+            skipPartiallyExpanded = false,
+            modifier = Modifier.testTag("fst.history.sort"),
+            headerActions = { TextButton(onClick = viewModel::resetSort, modifier = Modifier.testTag("fst.history.sort.reset")) { Text("Reset") } },
+        ) {
             SortSheet(
                 mode = state.sortMode,
                 ascending = state.ascending,
                 onMode = viewModel::sortBy,
                 onAscending = viewModel::setAscending,
-                onReset = viewModel::resetSort,
             )
         }
     }
@@ -220,7 +225,8 @@ private fun HistoryMessage(title: String, body: String, padding: PaddingValues, 
 
 /**
  * Sort Scores sheet (web `PlayerScoreSortModal`): changes apply immediately, the
- * Material pattern for a lightweight sort sheet; Reset restores Score, descending.
+ * Material pattern for a lightweight sort sheet. The shared sheet header carries the
+ * title, Reset (restores Score, descending) and Close.
  */
 @Composable
 private fun SortSheet(
@@ -228,13 +234,8 @@ private fun SortSheet(
     ascending: Boolean,
     onMode: (PlayerScoreSortMode) -> Unit,
     onAscending: (Boolean) -> Unit,
-    onReset: () -> Unit,
 ) {
     Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 24.dp).widthIn(max = 560.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Sort Scores", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = Modifier.weight(1f).semantics { heading() })
-            TextButton(onClick = onReset, modifier = Modifier.testTag("fst.history.sort.reset")) { Text("Reset") }
-        }
         Column(Modifier.selectableGroup().padding(top = 8.dp)) {
             PlayerScoreSortMode.entries.forEach { option ->
                 Row(

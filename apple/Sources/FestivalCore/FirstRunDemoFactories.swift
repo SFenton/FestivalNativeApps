@@ -14,4 +14,23 @@ extension SongInstrumentBadge {
     public static func demo(_ instrument: Instrument, _ status: SongInstrumentStatus) -> SongInstrumentBadge {
         SongInstrumentBadge(instrument: instrument, status: status)
     }
+
+    /// The web `SongIconsDemo` chip pattern for a song: each instrument's state comes from
+    /// ``FirstRunDemoScorePattern/states(title:count:)``, so a rotated-in song shows a
+    /// different mix.
+    ///
+    /// - Parameters:
+    ///   - title: Song title seeding the pattern.
+    ///   - instruments: Charts to show, in order.
+    /// - Returns: One badge per instrument.
+    public static func demoPattern(title: String, instruments: [Instrument]) -> [SongInstrumentBadge] {
+        zip(instruments, FirstRunDemoScorePattern.states(title: title, count: instruments.count)).map { instrument, state in
+            let status: SongInstrumentStatus = switch state {
+            case .fullCombo: .fullCombo
+            case .scored: .scored
+            case .noScore: .noScore
+            }
+            return SongInstrumentBadge(instrument: instrument, status: status)
+        }
+    }
 }

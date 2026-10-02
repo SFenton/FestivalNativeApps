@@ -51,21 +51,25 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
  */
 @Stable
 class FloatingToolbarHost {
-    private class Entry(val content: State<@Composable RowScope.() -> Unit>)
+    private class Entry(val content: State<@Composable RowScope.() -> Unit>, val pinned: Boolean)
 
     private val entries = mutableStateListOf<Entry>()
 
     /** Content to show, or null when no screen registered actions. */
     val current: (@Composable RowScope.() -> Unit)? get() = entries.lastOrNull()?.content?.value
 
+    /** Whether the current owner keeps the toolbar on screen while its content scrolls. */
+    val pinned: Boolean get() = entries.lastOrNull()?.pinned == true
+
     /**
      * Register toolbar content.
      *
      * @param content Latest content (read on every recomposition).
+     * @param pinned Keep the toolbar visible while content scrolls (no hide on scroll).
      * @return Unregister callback.
      */
-    fun register(content: State<@Composable RowScope.() -> Unit>): () -> Unit {
-        val entry = Entry(content)
+    fun register(content: State<@Composable RowScope.() -> Unit>, pinned: Boolean = false): () -> Unit {
+        val entry = Entry(content, pinned)
         entries += entry
         return { entries.remove(entry) }
     }
@@ -75,14 +79,16 @@ class FloatingToolbarHost {
  * Put [content] in the shell's floating toolbar while this composable is composed (no-op when
  * the window uses top-app-bar actions, i.e. `LocalShellActions.current.floatingToolbar == null`).
  *
+ * @param pinned Keep the toolbar on screen while the page scrolls (M3 "always visible" floating
+ *   toolbar) instead of the default hide on scroll.
  * @param content Toolbar items, typically `IconButton`s; global search is not added automatically here.
  */
 @Composable
-fun FloatingToolbarContent(content: @Composable RowScope.() -> Unit) {
+fun FloatingToolbarContent(pinned: Boolean = false, content: @Composable RowScope.() -> Unit) {
     val host = LocalShellActions.current.floatingToolbar ?: return
     val latest = rememberUpdatedState(content)
-    DisposableEffect(host) {
-        val unregister = host.register(latest)
+    DisposableEffect(host, pinned) {
+        val unregister = host.register(latest, pinned)
         onDispose { unregister() }
     }
 }

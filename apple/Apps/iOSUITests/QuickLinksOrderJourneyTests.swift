@@ -73,7 +73,7 @@ final class QuickLinksOrderJourneyTests: XCTestCase {
     }
 
     /// Song Detail (opened from a real Songs row): Intensity, Score History, then
-    /// each charted, visible instrument's leaderboard card.
+    /// each charted, visible instrument's leaderboard card, then Duos, Trios and Quads.
     @MainActor
     func testSongDetailMenuListsSectionsInPageOrder() throws {
         continueAfterFailure = false
@@ -89,7 +89,8 @@ final class QuickLinksOrderJourneyTests: XCTestCase {
         assertMenuOrder(
             app,
             ["intensity", "score-history"]
-                + ["Solo_Guitar", "Solo_Bass", "Solo_Drums", "Solo_Vocals"].map { "instrument-\($0)" },
+                + ["Solo_Guitar", "Solo_Bass", "Solo_Drums", "Solo_Vocals"].map { "instrument-\($0)" }
+                + ["Band_Duets", "Band_Trios", "Band_Quad"].map { "band-\($0)" },
             name: "quick-links-order-song-detail"
         )
     }

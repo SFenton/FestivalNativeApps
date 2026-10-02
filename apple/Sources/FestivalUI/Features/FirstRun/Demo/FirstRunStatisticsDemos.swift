@@ -139,15 +139,15 @@ struct FirstRunStatsPercentilesDemo: View {
 
 /// Ported from `pages/player/firstRun/demo/TopSongsDemo.tsx`: real catalogue songs (with their
 /// artwork) assigned the web's static demo percentiles; redacted placeholders until the
-/// catalogue answers.
+/// catalogue answers. Two rows swap songs every 5 s, as the web's `useDemoSongs` does.
 struct FirstRunStatsTopSongsDemo: View {
     /// The web's `DEMO_PERCENTILES`.
     private static let percentiles = [1.2, 3.5, 7.8, 14.2, 22.6, 35.1, 48.9]
 
     var body: some View {
-        FirstRunCatalogueSongs(count: 4) { songs, session in
+        FirstRunCatalogueSongs(count: 4, rotates: true) { songs, session in
             VStack(spacing: 8) {
-                ForEach(Array(songs.enumerated()), id: \.element.id) { index, song in
+                ForEach(Array(songs.enumerated()), id: \.offset) { index, song in
                     HStack(spacing: 12) {
                         FirstRunSongArt(song: song, session: session)
                         VStack(alignment: .leading, spacing: 2) {
@@ -166,6 +166,7 @@ struct FirstRunStatsTopSongsDemo: View {
                     .padding(10)
                     .festivalGlass(.card, cornerRadius: 12)
                     .firstRunStagger(index)
+                    .firstRunSwapRow(index, key: song.id)
                 }
             }
         }
