@@ -108,6 +108,148 @@ struct SongsScrollChromeTests {
     }
 }
 
+/// Issue #9: an instant A–Z rail or Quick Links jump names its target in the section bar,
+/// whatever the in-list titles reported before it.
+@MainActor
+struct SongsSectionJumpTests {
+    /// Rail order: `#`, then A–Z, keyed like `SongsScreen.headerKey` (position ids).
+    private let keys = (0..<27).map { SongsScreen.headerKey(AnyHashable($0)) }
+
+    @Test func railKeysMatchTheInListTitleKeys() {
+        #expect(SongsScreen.headerKey(AnyHashable(16)) == "16")
+        #expect(SongsScreen.headerKey(AnyHashable("year:1990")) == "year:1990")
+    }
+
+    @Test func farJumpFromTheTopNamesTheTarget() {
+        let chrome = SongsScrollChrome()
+        // Before the jump only "#" had reached the bar; "A" and "B" were on screen.
+        chrome.setHeader(keys[0], passed: true)
+        #expect(chrome.jump(to: keys[16], in: keys))
+        #expect(chrome.currentSectionIndex(in: keys) == 16)
+        // The titles that were on screen report passing as the list moves away.
+        chrome.setHeader(keys[1], passed: true)
+        chrome.setHeader(keys[2], passed: true)
+        #expect(chrome.currentSectionIndex(in: keys) == 16)
+    }
+
+    @Test func jumpBackClearsTitlesPassedBeyondTheTarget() {
+        let chrome = SongsScrollChrome()
+        chrome.jump(to: keys[16], in: keys)
+        // "Q" scrolled past the bar on a later jump and was then dismantled: it never
+        // reports again, which left the bar reading "Q" over the A rows.
+        chrome.setHeader(keys[17], passed: true)
+        chrome.jump(to: keys[22], in: keys)
+        chrome.jump(to: keys[1], in: keys)
+        #expect(chrome.currentSectionIndex(in: keys) == 1)
+        #expect(chrome.passedHeaders == Set(keys[...1]))
+    }
+
+    @Test func jumpToTheFirstSectionKeepsOnlyIt() {
+        let chrome = SongsScrollChrome()
+        chrome.jump(to: keys[26], in: keys)
+        #expect(chrome.jump(to: keys[0], in: keys))
+        #expect(chrome.passedHeaders == [keys[0]])
+        #expect(chrome.currentSectionIndex(in: keys) == 0)
+    }
+
+    @Test func repeatJumpNotifiesNoOneButAdvancesTheGeneration() {
+        let chrome = SongsScrollChrome()
+        chrome.jump(to: keys[5], in: keys)
+        let generation = chrome.jumpGeneration
+        let fired = JumpFlag()
+        withObservationTracking { _ = chrome.passedHeaders } onChange: { fired.value = true }
+        #expect(!chrome.jump(to: keys[5], in: keys))
+        #expect(!fired.value)
+        // A corrective scroll scheduled by the earlier jump must stand down.
+        #expect(chrome.jumpGeneration == generation + 1)
+    }
+
+    @Test func unknownTargetLeavesTheBarAlone() {
+        let chrome = SongsScrollChrome()
+        chrome.jump(to: keys[3], in: keys)
+        #expect(!chrome.jump(to: "stale-sort-key", in: keys))
+        #expect(chrome.currentSectionIndex(in: keys) == 3)
+    }
+
+    /// Measured on iPhone 17 Pro (iOS 26.5): a jump lands the title at `.scrollView`
+    /// minY 116, the List's top inset. The old `minY <= 0.5` called that not passed.
+    @Test func titleLandedAtTheTopInsetHasReachedTheBar() {
+        #expect(SongsScrollChrome.headerPassed(minY: 116, topInset: 116))
+        #expect(SongsScrollChrome.headerPassed(minY: 116.33, topInset: 116))
+        #expect(SongsScrollChrome.headerPassed(minY: -400, topInset: 116))
+        // The next title, one section row below, has not.
+        #expect(!SongsScrollChrome.headerPassed(minY: 144, topInset: 116))
+        // A bottomed-out last section ("Z" mid-screen) leaves the previous one named.
+        #expect(!SongsScrollChrome.headerPassed(minY: 420, topInset: 116))
+        // The expanded large title moves the bar's line down with the inset.
+        #expect(SongsScrollChrome.headerPassed(minY: 228, topInset: 232))
+    }
+
+    @Test func topInsetIgnoresNonFiniteValuesAndNotifiesNoOne() {
+        let chrome = SongsScrollChrome()
+        let fired = JumpFlag()
+        withObservationTracking { _ = chrome.listTopInset.value } onChange: { fired.value = true }
+        chrome.setListTopInset(116)
+        #expect(chrome.listTopInset.value == 116)
+        chrome.setListTopInset(.nan)
+        #expect(chrome.listTopInset.value == 116)
+        #expect(!fired.value)
+    }
+}
+
+/// Set synchronously by `onChange` during a write on the main actor.
+private final class JumpFlag: @unchecked Sendable {
+    var value = false
+}
+
+/// Issue #9: a rail touch selects the label under the finger, not its neighbour.
+@MainActor
+struct SongSectionIndexHitTests {
+    /// The live rail: 27 labels in a 362pt capsule with 6pt padding (iPhone 17 Pro).
+    private let height: CGFloat = 362
+    private let inset = SongSectionIndexScrubber.labelInset
+
+    /// Centre of label `index` in the scrubber's own space.
+    private func centre(_ index: Int, count: Int = 27) -> CGFloat {
+        inset + (CGFloat(index) + 0.5) * (height - 2 * inset) / CGFloat(count)
+    }
+
+    @Test func everyLabelCentreSelectsThatLabel() {
+        for index in 0..<27 {
+            #expect(SongSectionIndexScrubber.sectionIndex(
+                at: centre(index), height: height, inset: inset, count: 27
+            ) == index)
+        }
+    }
+
+    @Test func labelEdgesNearEitherEndStayOnTheirLabel() {
+        let pitch = (height - 2 * inset) / 27
+        // Lower part of "W" (index 23) used to select "V"; upper part of "#" chose "A".
+        let w = SongSectionIndexScrubber.sectionIndex(
+            at: inset + 23 * pitch + pitch * 0.1, height: height, inset: inset, count: 27
+        )
+        #expect(w == 23)
+        let hash = SongSectionIndexScrubber.sectionIndex(
+            at: inset + pitch * 0.9, height: height, inset: inset, count: 27
+        )
+        #expect(hash == 0)
+    }
+
+    @Test func paddingAndOutOfRangeTouchesClampToTheEnds() {
+        let map = { (y: CGFloat) in
+            SongSectionIndexScrubber.sectionIndex(at: y, height: self.height, inset: self.inset, count: 27)
+        }
+        #expect(map(0) == 0)
+        #expect(map(-500) == 0)
+        #expect(map(height) == 26)
+        #expect(map(.greatestFiniteMagnitude) == 26)
+        #expect(map(.nan) == nil)
+        #expect(SongSectionIndexScrubber.sectionIndex(at: 10, height: height, inset: inset, count: 0) == nil)
+        // Before the first measurement the height is 0: still a valid label.
+        #expect(SongSectionIndexScrubber.sectionIndex(at: 3, height: 0, inset: inset, count: 27) == 0)
+    }
+}
+
 /// The Debug in-app stress pass (issue #8 measurements).
 struct SongsScrollStressTests {
     @Test func planNeedsFourSections() {

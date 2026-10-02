@@ -13,11 +13,18 @@ import UIKit
 /// Shown only while the active sort has more than one `SongSection` (Title,
 /// Artist or Year); the caller animates it in and out as the sort changes.
 struct SongSectionIndexScrubber: View {
+    /// Padding above the first label and below the last, inside the capsule.
+    static let labelInset: CGFloat = 6
+
     let sections: [SongSection]
     let onSelect: (Int) -> Void
     @Environment(\.deviceLayout) private var deviceLayout
     @State private var activeIndex: Int = 0
     @State private var isActive = false
+    /// The section under the current touch; nil between touches, so every new touch
+    /// jumps, even to the section the previous touch chose (issue #9: tapping the last
+    /// chosen letter again after scrolling by hand did nothing).
+    @State private var touchIndex: Int?
     /// The strip's own rendered height, read back only to map a touch's Y position
     /// to a section — never fed back into the strip's own frame. Using the List's
     /// proposed height there (previously `GeometryReader { geometry in … .frame(height:
@@ -50,7 +57,7 @@ struct SongSectionIndexScrubber: View {
                     )
             }
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, Self.labelInset)
         // Intrinsic size — as tall as its own letters, never the full list height.
         // The caller centers it in a region with a fixed top, so a collapsing large
         // title does not move it.
@@ -71,7 +78,10 @@ struct SongSectionIndexScrubber: View {
                 .onChanged { value in
                     update(for: value.location.y, height: measuredHeight)
                 }
-                .onEnded { _ in isActive = false }
+                .onEnded { _ in
+                    isActive = false
+                    touchIndex = nil
+                }
         )
         .padding(.vertical, 8)
         .padding(.trailing, trailingMargin)
@@ -95,16 +105,38 @@ struct SongSectionIndexScrubber: View {
     ///   - height: Current measured height of the scrubber's own content (not the
     ///     enclosing list), so the mapping stays accurate at its intrinsic size.
     private func update(for y: CGFloat, height: CGFloat) {
-        guard !sections.isEmpty else { return }
-        let ratio = min(max(y / max(height, 1), 0), 0.999)
-        let index = min(sections.count - 1, max(0, Int(ratio * CGFloat(sections.count))))
+        guard let index = Self.sectionIndex(
+            at: y, height: height, inset: Self.labelInset, count: sections.count
+        ) else { return }
         isActive = true
-        guard index != activeIndex else { return }
-        activeIndex = index
-        #if os(iOS)
-        feedback.selectionChanged()
-        #endif
+        guard index != touchIndex else { return }
+        touchIndex = index
+        if index != activeIndex {
+            activeIndex = index
+            #if os(iOS)
+            feedback.selectionChanged()
+            #endif
+        }
         onSelect(sections[index].id)
+    }
+
+    /// The section label under a touch.
+    ///
+    /// Maps over the labels only, not the capsule's padding above and below them:
+    /// mapping over the whole height (issue #9) chose a neighbouring section for up to
+    /// ~40% of a label near either end (a tap on "W" jumped to "V").
+    ///
+    /// - Parameters:
+    ///   - y: Touch position in the scrubber's own space, padding included.
+    ///   - height: The scrubber's measured height, padding included.
+    ///   - inset: Padding above the first label and below the last.
+    ///   - count: Number of sections (labels, evenly stacked).
+    /// - Returns: The section index, clamped to the labels, or nil without sections.
+    static func sectionIndex(at y: CGFloat, height: CGFloat, inset: CGFloat, count: Int) -> Int? {
+        guard count > 0, y.isFinite, height.isFinite, inset.isFinite else { return nil }
+        let span = max(height - 2 * inset, 1)
+        let position = (y - inset) / span * CGFloat(count)
+        return Int(min(CGFloat(count - 1), max(0, position)).rounded(.down))
     }
 
     /// Move the VoiceOver adjustable cursor by one section and jump to it.

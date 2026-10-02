@@ -1,5 +1,6 @@
 import CoreGraphics
 import Observation
+import os
 
 // MARK: - Scroll-driven Songs chrome
 
@@ -19,6 +20,9 @@ import Observation
 final class SongsScrollChrome {
     /// Section-bar edge movement smaller than this is layout jitter.
     static let barBottomTolerance: CGFloat = 0.5
+    /// A title this close below the List's top inset already counts as at the bar
+    /// (sub-pixel rounding of a landed jump).
+    nonisolated static let headerTolerance: CGFloat = 1
 
     /// The List has scrolled away from its top (the large title has collapsed).
     private(set) var listScrolled = false
@@ -66,6 +70,60 @@ final class SongsScrollChrome {
         return true
     }
 
+    /// The List's top content inset: where the section bar sits and where a jump lands a
+    /// section title. Read by the titles' geometry checks only, so never observed.
+    let listTopInset = TopInset()
+
+    /// Record the List's top content inset (it changes as the large title collapses).
+    ///
+    /// - Parameter inset: `ScrollGeometry.contentInsets.top`.
+    func setListTopInset(_ inset: CGFloat) {
+        guard inset.isFinite else { return }
+        listTopInset.value = inset
+    }
+
+    /// Whether a section title has scrolled up to the section bar (issue #9).
+    ///
+    /// The bar sits at the List's top content inset, below the navigation bar, and a jump
+    /// lands a title exactly there. Titles are measured in the scroll view's space, whose
+    /// origin is the top of the screen under the bars, so comparing with 0 named a
+    /// section only after its title had slid a further inset (116pt) behind the bars:
+    /// the bar trailed by one section after every rail jump and while scrolling.
+    ///
+    /// - Parameters:
+    ///   - minY: The title's top in `.scrollView` space.
+    ///   - topInset: The List's top content inset.
+    /// - Returns: True once the title's top has reached the bar.
+    nonisolated static func headerPassed(minY: CGFloat, topInset: CGFloat) -> Bool {
+        minY <= topInset + headerTolerance
+    }
+
+    /// Bumped by every ``jump(to:in:)`` so a delayed corrective scroll can tell whether a
+    /// newer jump has replaced it. Never observed: nothing renders it.
+    @ObservationIgnored private(set) var jumpGeneration = 0
+
+    /// Record an instant jump that puts one section's title at the top (A–Z rail, Quick
+    /// Links): every title up to and including the target has passed the bar, none after.
+    ///
+    /// The in-list titles cannot tell this themselves (issue #9): they report only when
+    /// their own position changes, so titles dismantled during the jump keep their last
+    /// answer. Without this the bar showed a letter from before the jump (# → P read
+    /// "B"), or a later one after jumping back.
+    ///
+    /// - Parameters:
+    ///   - key: The target section title's key.
+    ///   - keys: Section title keys in list order.
+    /// - Returns: True when the passed set changed.
+    @discardableResult
+    func jump(to key: String, in keys: [String]) -> Bool {
+        jumpGeneration &+= 1
+        guard let index = keys.firstIndex(of: key) else { return false }
+        let passed = Set(keys[...index])
+        guard passed != passedHeaders else { return false }
+        passedHeaders = passed
+        return true
+    }
+
     /// Forget every passed title (a re-sort or re-filter starts again at the top).
     ///
     /// - Returns: True when the set changed.
@@ -96,5 +154,19 @@ final class SongsScrollChrome {
     func currentSectionIndex(in keys: [String]) -> Int? {
         guard !keys.isEmpty else { return nil }
         return keys.lastIndex { passedHeaders.contains($0) } ?? 0
+    }
+}
+
+// MARK: - Top inset
+
+/// The List's top content inset, readable from the section titles' geometry checks,
+/// which SwiftUI may run off the main actor.
+final class TopInset: Sendable {
+    private let storage = OSAllocatedUnfairLock<CGFloat>(initialState: 0)
+
+    /// The last recorded inset, in points.
+    var value: CGFloat {
+        get { storage.withLock { $0 } }
+        set { storage.withLock { $0 = newValue } }
     }
 }
